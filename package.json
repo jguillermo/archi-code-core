@@ -2,31 +2,18 @@
   "name": "root",
   "private": true,
   "workspaces": [
-    "packages/*",
-    "bounded-context/*"
+    "packages/*"
   ],
   "scripts": {
-    "build": "lerna run build --stream && npm --prefix project/api run build && npm --prefix project/web run build",
+    "build": "lerna run build --stream",
     "test": "lerna run test --stream",
-    "test:e2e": "npm --prefix project/api run test:e2e",
     "coverage": "lerna run coverage --stream",
-    "lint": "lerna run lint --stream && npm --prefix project/api run lint",
-    "lint:fix": "lerna run lint:fix --stream && npm --prefix project/api run lint:fix",
-    "format": "lerna run format --stream && npm --prefix project/api run format",
-    "format:fix": "lerna run format:fix --stream && npm --prefix project/api run format:fix",
-    "code": "lerna run lint --stream && lerna run format --stream",
-    "web": "npm --prefix project/web run start",
-    "web:build": "lerna run build --stream && npm --prefix project/web install && rm -rf project/web/.angular && npm --prefix project/web run build",
-    "api": "npm --prefix project/api run start:dev",
-    "api:build": "lerna run build --stream && npm --prefix project/api run build && rm project/api/dist/mongo-server.*",
-    "api:install": "lerna run build --stream && npm --prefix project/api install",
+    "lint": "lerna run lint --stream",
+    "lint:fix": "lerna run lint:fix --stream",
+    "format": "lerna run format --stream",
+    "format:fix": "lerna run format:fix --stream",
     "prepare": "husky install",
-    "presdk": "npm run api:build && node project/api/dist/open-api.js && rm project/api/dist/open-api.* && rm -rf project/api-sdk",
-    "sdk": "openapi-generator-cli generate",
-    "sdk2": "rm -rf project/api-sdk && openapi-generator-cli generate && npm run sdk:build",
-    "postsdk": "npm run sdk:build",
-    "sdk:build": "npm --prefix project/api-sdk run build",
-    "clean": "rm -rf node_modules && npx lerna clean -y && rm -rf project/api/node_modules && rm -rf project/web/node_modules"
+    "clean": "rm -rf node_modules && npx lerna clean -y"
   },
   "devDependencies": {
     "@jest/globals": "^29.7.0",
@@ -46,10 +33,8 @@
     "typescript": "5.4.5"
   },
   "dependencies": {
-    "@openapitools/openapi-generator-cli": "^2.16.3",
     "bcrypt": "^5.1.1",
     "jsonwebtoken": "^9.0.2",
-    "libsodium-wrappers-sumo": "^0.7.15",
-    "rxjs": "7.8.1"
+    "libsodium-wrappers-sumo": "^0.7.15"
   }
 }
