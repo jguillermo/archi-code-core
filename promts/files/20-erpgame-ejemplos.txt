@@ -1,0 +1,1693 @@
+
+Aqui te mando la lista de clases que tengo desarrollados en mi proyecto, espero que te sirva de guia para que puedas implementar tu proyecto de la mejor manera posible:
+bounded-context/financial-management/src/application/account-management/close-financial-account/close-financial-account.dto.ts
+bounded-context/financial-management/src/application/account-management/close-financial-account/close-financial-account.ts
+bounded-context/financial-management/src/application/account-management/create-financial-account/create-financial-account.dto.ts
+bounded-context/financial-management/src/application/account-management/create-financial-account/create-financial-account.ts
+bounded-context/financial-management/src/domain/account/account.repository.ts
+bounded-context/financial-management/src/domain/account/account.ts
+bounded-context/financial-management/src/domain/account/account.types.ts
+bounded-context/financial-management/src/domain/account/events/account-created.event.ts
+bounded-context/financial-management/src/domain/account/services/manage-balance.ts
+bounded-context/financial-management/src/domain/account/types/account-balance.ts
+bounded-context/financial-management/src/domain/account/types/account-currency.ts
+bounded-context/financial-management/src/domain/account/types/account-financial-entity.ts
+bounded-context/financial-management/src/domain/account/types/account-id.ts
+bounded-context/financial-management/src/domain/account/types/account-list-tag.ts
+bounded-context/financial-management/src/domain/account/types/account-name.ts
+bounded-context/financial-management/src/domain/account/types/account-number.ts
+bounded-context/financial-management/src/domain/account/types/account-status.ts
+bounded-context/financial-management/src/domain/account/types/account-type.ts
+bounded-context/financial-management/src/domain/asset/asset.repository.ts
+bounded-context/financial-management/src/domain/asset/asset.ts
+bounded-context/financial-management/src/domain/asset/asset.types.ts
+bounded-context/financial-management/src/domain/asset/events/asset-depreciated.event.ts
+bounded-context/financial-management/src/domain/asset/types/asset-acquisition-date.ts
+bounded-context/financial-management/src/domain/asset/types/asset-acquisition-value.ts
+bounded-context/financial-management/src/domain/asset/types/asset-associated-costs.ts
+bounded-context/financial-management/src/domain/asset/types/asset-depreciation-method.ts
+bounded-context/financial-management/src/domain/asset/types/asset-id.ts
+bounded-context/financial-management/src/domain/asset/types/asset-last-depreciation-date.ts
+bounded-context/financial-management/src/domain/asset/types/asset-name.ts
+bounded-context/financial-management/src/domain/asset/types/asset-residual-value.ts
+bounded-context/financial-management/src/domain/asset/types/asset-useful-life.ts
+bounded-context/financial-management/src/domain/liability/events/liability-recorded.event.ts
+bounded-context/financial-management/src/domain/liability/liability.ts
+bounded-context/financial-management/src/domain/liability/liability.types.ts
+bounded-context/financial-management/src/domain/liability/services/liability-management.service.ts
+bounded-context/financial-management/src/domain/liability/types/liability-amount.ts
+bounded-context/financial-management/src/domain/liability/types/liability-creation-date.ts
+bounded-context/financial-management/src/domain/liability/types/liability-creditor-entity.ts
+bounded-context/financial-management/src/domain/liability/types/liability-description.ts
+bounded-context/financial-management/src/domain/liability/types/liability-due-date.ts
+bounded-context/financial-management/src/domain/liability/types/liability-id.ts
+bounded-context/financial-management/src/domain/transaction/event/transaction-completed.event.ts
+bounded-context/financial-management/src/domain/transaction/transaction-types.ts
+bounded-context/financial-management/src/domain/transaction/transaction.repository.ts
+bounded-context/financial-management/src/domain/transaction/transaction.ts
+bounded-context/financial-management/src/domain/transaction/types/transaction-account-id.ts
+bounded-context/financial-management/src/domain/transaction/types/transaction-amount.ts
+bounded-context/financial-management/src/domain/transaction/types/transaction-category.ts
+bounded-context/financial-management/src/domain/transaction/types/transaction-date.ts
+bounded-context/financial-management/src/domain/transaction/types/transaction-description.ts
+bounded-context/financial-management/src/domain/transaction/types/transaction-id.ts
+bounded-context/financial-management/src/domain/transaction/types/transaction-list-tag.ts
+bounded-context/financial-management/src/index.ts
+bounded-context/financial-management/test/application/account-management/close-financial-account/close-financial-account.spec.ts
+bounded-context/financial-management/test/application/account-management/create-financial-account/create-financial-account.dto.spec.ts
+bounded-context/financial-management/test/application/account-management/create-financial-account/create-financial-account.object-mother.ts
+bounded-context/financial-management/test/application/account-management/create-financial-account/create-financial-account.spec.ts
+bounded-context/financial-management/test/domain/account/account.repository.spec.ts
+bounded-context/financial-management/test/domain/account/in-memory-account-repository.ts
+bounded-context/financial-management/test/index.spec.ts
+bounded-context/financial-management/test/object-mother/account-object-mother.ts
+
+
+
+===== bounded-context/financial-management/src/application/account-management/close-financial-account/close-financial-account.dto.ts =====
+
+import { DomainValidator, DomainValidatorDto } from '@code-core/domain';
+import { Validate } from 'class-validator';
+import { AccountId } from '../../../domain/account/types/account-id';
+
+export class CloseFinancialAccountDto extends DomainValidatorDto {
+  @Validate(DomainValidator, [AccountId])
+  accountId?: string;
+}
+
+
+
+===== bounded-context/financial-management/src/application/account-management/close-financial-account/close-financial-account.ts =====
+
+import { AccountRepository } from '../../../domain/account/account.repository';
+import { CloseFinancialAccountDto } from './close-financial-account.dto';
+import { AccountId } from '../../../domain/account/types/account-id';
+import { AggregateNotFoundException } from '@code-core/domain';
+
+export class CloseFinancialAccount {
+  constructor(private readonly accountRepository: AccountRepository) {}
+
+  async execute(dto: CloseFinancialAccountDto): Promise<void> {
+    const accountId = new AccountId(dto.accountId ?? '');
+
+    // Buscar la cuenta por su ID
+    const account = await this.accountRepository.findById(accountId.value);
+    if (!account) {
+      throw new AggregateNotFoundException('Account', accountId.value);
+    }
+
+    // // Nivel 2: Validar que no haya transacciones pendientes
+    // if (level >= 2) {
+    //   const transactions = await this.transactionRepository.findAllByAccount(accountId);
+    //   if (transactions.length > 0) {
+    //     throw new DomainException('Pending transactions must be resolved before closing the account');
+    //   }
+    // }
+    //
+    // // Nivel 3: Registrar evento de cierre
+    // if (level >= 3) {
+    //   account.recordClosure(userId || 'system');
+    // }
+
+    account.close();
+    await this.accountRepository.persist(account);
+  }
+}
+
+
+
+===== bounded-context/financial-management/src/application/account-management/create-financial-account/create-financial-account.dto.ts =====
+
+import { Validate } from 'class-validator';
+import { AccountName } from '../../../domain/account/types/account-name';
+import { AccountType } from '../../../domain/account/types/account-type';
+import { AccountCurrency } from '../../../domain/account/types/account-currency';
+import { AccountBalance } from '../../../domain/account/types/account-balance';
+import { AccountFinancialEntity } from '../../../domain/account/types/account-financial-entity';
+import { AccountNumber } from '../../../domain/account/types/account-number';
+import { AccountListTag } from '../../../domain/account/types/account-list-tag';
+import { AccountId } from '../../../domain/account/types/account-id';
+import { DomainValidator, DomainValidatorDto } from '@code-core/domain';
+
+export class CreateFinancialAccountDto extends DomainValidatorDto {
+  @Validate(DomainValidator, [AccountId])
+  id?: string;
+
+  @Validate(DomainValidator, [AccountName])
+  name?: string;
+
+  @Validate(DomainValidator, [AccountType])
+  type?: string;
+
+  @Validate(DomainValidator, [AccountCurrency])
+  currency?: string;
+
+  @Validate(DomainValidator, [AccountBalance])
+  balance?: number;
+
+  @Validate(DomainValidator, [AccountFinancialEntity])
+  financialEntity?: string;
+
+  @Validate(DomainValidator, [AccountNumber])
+  number?: string;
+
+  @Validate(DomainValidator, [AccountListTag])
+  tags?: string[];
+}
+
+
+
+===== bounded-context/financial-management/src/application/account-management/create-financial-account/create-financial-account.ts =====
+
+import { AccountRepository } from '../../../domain/account/account.repository';
+import { AccountTypes } from '../../../domain/account/account.types';
+import { CreateFinancialAccountDto } from './create-financial-account.dto';
+import { Account } from '../../../domain/account/account';
+
+export class CreateFinancialAccount {
+  constructor(private readonly accountRepository: AccountRepository) {}
+
+  async execute(dto: CreateFinancialAccountDto): Promise<void> {
+    const data = new AccountTypes(dto.levelValidation, {
+      id: dto.id,
+      name: dto.name,
+      type: dto.type,
+      currency: dto.currency,
+      balance: dto.balance,
+      financialEntity: dto.financialEntity,
+      number: dto.number,
+      tags: dto.tags,
+    });
+
+    const account = Account.create(data);
+
+    await this.accountRepository.persist(account);
+  }
+}
+
+
+
+===== bounded-context/financial-management/src/domain/account/account.repository.ts =====
+
+import { Account } from './account';
+import { CreatedAt, PrimitiveTypes, UpdatedAt } from '@code-core/domain';
+import { AccountTypes } from './account.types';
+import { AccountId } from './types/account-id';
+import { AccountCurrency } from './types/account-currency';
+import { AccountName } from './types/account-name';
+import { AccountType } from './types/account-type';
+import { AccountBalance } from './types/account-balance';
+import { AccountFinancialEntity } from './types/account-financial-entity';
+import { AccountNumber } from './types/account-number';
+import { AccountListTag } from './types/account-list-tag';
+import { AccountStatus } from './types/account-status';
+
+export abstract class AccountRepository {
+  abstract findById(accountId: string): Promise<Account | null>;
+
+  abstract persist(account: Account): Promise<void>;
+
+  abstract findAll(): Promise<Account[]>;
+
+  abstract findLiabilities(): Promise<Account[]>; // Para reportes financieros
+
+  protected toAggregate(data: PrimitiveTypes<AccountTypes>): Account {
+    return new Account(
+      new AccountId(data.id),
+      new AccountName(data.name),
+      new AccountType(data.type as any),
+      new AccountCurrency(data.currency as any),
+      new AccountBalance(data.balance),
+      new AccountStatus(data.status as any),
+      new AccountFinancialEntity(data.financialEntity),
+      new AccountNumber(data.number),
+      new AccountListTag(data.tags),
+      new CreatedAt(data.creationDate),
+      new UpdatedAt(data.creationDate),
+    );
+  }
+}
+
+
+
+===== bounded-context/financial-management/src/domain/account/account.ts =====
+
+import { AccountId } from './types/account-id';
+import { AggregateRoot, CreatedAt, DomainException, PrimitiveTypes, UpdatedAt } from '@code-core/domain';
+import { AccountName } from './types/account-name';
+import { AccountType } from './types/account-type';
+import { AccountTypes } from './account.types';
+import { AccountCurrency } from './types/account-currency';
+import { AccountBalance } from './types/account-balance';
+import { AccountFinancialEntity } from './types/account-financial-entity';
+import { AccountNumber } from './types/account-number';
+import { AccountListTag } from './types/account-list-tag';
+import { AccountCreatedEvent } from './events/account-created.event';
+import { AccountStatus } from './types/account-status';
+
+/*
+ * Propósito: Gestiona las cuentas financieras, ya sean reales (como cuentas bancarias, efectivo)
+ * o virtuales (como ingresos simbólicos o categorías de gasto).
+ * Uso: Este Aggregate es clave para registrar transacciones, generar reportes financieros, y categorizar el flujo de fondos.
+ * También mantiene las invariantes de negocio relacionadas con los saldos.
+ */
+export class Account extends AggregateRoot {
+  constructor(
+    private readonly _id: AccountId, // Nivel 1: Identificador único de la cuenta
+    private readonly name: AccountName, // Nivel 1: Nombre descriptivo de la cuenta
+    private readonly type: AccountType, // Nivel 1: Tipo de cuenta (Real o Virtual)
+    private readonly currency: AccountCurrency, // Nivel 1: Moneda en la que opera la cuenta
+    private balance: AccountBalance, // Nivel 1: Saldo de la cuenta (Solo para cuentas reales)
+    private readonly status: AccountStatus, // Nivel 1: Saldo de la cuenta (Solo para cuentas reales)
+    private readonly financialEntity: AccountFinancialEntity, // Nivel 2: Entidad financiera asociada (solo para cuentas bancarias o tarjetas de crédito)
+    private readonly number: AccountNumber, // Nivel 2: Número de cuenta (solo para cuentas reales)
+    private readonly tags: AccountListTag, // Nivel 3: Etiquetas para clasificar la cuenta (ej: "Proyecto A", "Centro de Costos")
+    private readonly creationDate: CreatedAt, // nivel 1: Fecha de creación de la cuenta
+    private readonly lastUpdated: UpdatedAt, // nivel 1: Fecha de actualization
+  ) {
+    super();
+    if (this.type.isVirtual()) {
+      this.balance = new AccountBalance(0);
+    }
+  }
+
+  static create(data: AccountTypes): Account {
+    const aggregate = new Account(
+      data.id,
+      data.name,
+      data.type,
+      data.currency,
+      data.balance,
+      AccountStatus.active(),
+      data.financialEntity,
+      data.number,
+      data.tags,
+      CreatedAt.now(),
+      UpdatedAt.now(),
+    );
+    aggregate.record(new AccountCreatedEvent(aggregate.toJson()));
+    return aggregate;
+  }
+
+  get id(): AccountId {
+    return this._id;
+  }
+
+  toJson(): PrimitiveTypes<AccountTypes> {
+    return {
+      id: this._id.value,
+      name: this.name.value,
+      type: this.type.value,
+      currency: this.currency.value,
+      balance: this.balance.value,
+      status: this.status.value,
+      financialEntity: this.financialEntity.value,
+      number: this.number.value,
+      tags: this.tags.value,
+      creationDate: this.creationDate.value,
+      lastUpdated: this.lastUpdated.value,
+    };
+  }
+
+  /*
+   * Método para validar que el saldo sea cero antes de cerrar la cuenta.
+   */
+  validateZeroBalance(): void {
+    if (this.balance.value !== 0) {
+      throw new DomainException('Account balance must be zero to close the account');
+    }
+  }
+
+  /*
+   * Incrementa el saldo de una cuenta real.
+   */
+  addFunds(amount: number): void {
+    if (this.type.isReal()) {
+      this.balance = this.balance.addFunds(amount);
+    } else {
+      throw new DomainException('Cannot add funds to a virtual account');
+    }
+  }
+
+  /*
+   * Disminuye el saldo de una cuenta real.
+   */
+  withdrawFunds(amount: number): void {
+    if (this.type.isReal()) {
+      this.balance = this.balance.withdrawFunds(amount);
+    } else {
+      throw new DomainException('Cannot withdraw funds from a virtual account');
+    }
+  }
+
+  /*
+   * Agrega una etiqueta a la cuenta.
+   */
+  addTag(tag: string): void {
+    this.tags.addItem(tag);
+  }
+
+  removeTag(tag: string): void {
+    this.tags.removeItem(tag);
+  }
+
+  /*
+   * Método para cerrar la cuenta
+   */
+  close(): void {
+    if (this.status.isClosed()) {
+      throw new DomainException('Account is already closed');
+    }
+    this.validateZeroBalance();
+    this.status.toClose();
+    this.lastUpdated.setNow();
+  }
+}
+
+
+
+===== bounded-context/financial-management/src/domain/account/account.types.ts =====
+
+import { AccountId } from './types/account-id';
+import { AccountName } from './types/account-name';
+import { AccountType } from './types/account-type';
+import { AccountCurrency } from './types/account-currency';
+import { AccountBalance } from './types/account-balance';
+import { AccountFinancialEntity } from './types/account-financial-entity';
+import { AccountNumber } from './types/account-number';
+import { AggregateTypes, CreatedAt, DataTypes, UpdatedAt } from '@code-core/domain';
+import { AccountListTag } from './types/account-list-tag';
+import { AccountStatus } from './types/account-status';
+
+export class AccountTypes extends AggregateTypes {
+  public readonly id: AccountId;
+  public readonly name: AccountName;
+  public readonly type: AccountType;
+  public readonly currency: AccountCurrency;
+  public readonly balance: AccountBalance;
+  public readonly financialEntity: AccountFinancialEntity;
+  public readonly number: AccountNumber;
+  public readonly tags: AccountListTag;
+  public readonly creationDate: CreatedAt;
+  public readonly lastUpdated: UpdatedAt;
+  public readonly status: AccountStatus;
+
+  constructor(currentLevel: number, params: DataTypes<AccountTypes>) {
+    super(currentLevel);
+    this.id = this.initializeType(AccountId, params.id);
+    this.name = this.initializeType(AccountName, params.name);
+    this.type = this.initializeType(AccountType, params.type);
+    this.currency = this.initializeType(AccountCurrency, params.currency);
+    this.balance = this.initializeType(AccountBalance, params.balance);
+    this.financialEntity = this.initializeType(AccountFinancialEntity, params.financialEntity);
+    this.number = this.initializeType(AccountNumber, params.number);
+    this.tags = this.initializeType(AccountListTag, params.tags);
+    this.creationDate = CreatedAt.now();
+    this.lastUpdated = UpdatedAt.now();
+    this.status = AccountStatus.active();
+  }
+}
+
+
+
+===== bounded-context/financial-management/src/domain/account/events/account-created.event.ts =====
+
+import { EventBase, PrimitiveTypes } from '@code-core/domain';
+import { AccountTypes } from '../account.types';
+
+export class AccountCreatedEvent extends EventBase {
+  public readonly id: string;
+
+  constructor(data: Required<PrimitiveTypes<AccountTypes>>) {
+    super();
+    this.id = data.id;
+  }
+
+  eventName(): string {
+    return 'financial-management.account.created';
+  }
+}
+
+
+
+===== bounded-context/financial-management/src/domain/account/services/manage-balance.ts =====
+
+export class ManageBalanceService {
+  // transferFunds(fromAccount: Account, toAccount: Account, amount: number): void {
+  //   if (fromAccount.accountType === 'Real' && toAccount.accountType === 'Real') {
+  //     fromAccount.withdrawFunds(amount);
+  //     toAccount.addFunds(amount);
+  //   } else {
+  //     throw new Error('Both accounts must be real for a transfer');
+  //   }
+  // }
+}
+
+
+
+===== bounded-context/financial-management/src/domain/account/types/account-balance.ts =====
+
+import { DomainException, NumberTypeRequired } from '@code-core/domain';
+
+export class AccountBalance extends NumberTypeRequired {
+  addFunds(amount: number): AccountBalance {
+    return new AccountBalance(this.value + amount);
+  }
+
+  withdrawFunds(amount: number): AccountBalance {
+    if (this.value >= amount) {
+      return new AccountBalance(this.value - amount);
+    } else {
+      throw new DomainException('Insufficient funds');
+    }
+  }
+}
+
+
+
+===== bounded-context/financial-management/src/domain/account/types/account-currency.ts =====
+
+import { AbstractEnumType, AddValidate } from '@code-core/domain';
+
+enum CurrencyEnum {
+  USD = 'USD',
+  PEN = 'PEN',
+}
+
+@AddValidate([{ validator: 'IsEnum', value: CurrencyEnum }, { validator: 'IsNotEmpty' }])
+export class AccountCurrency extends AbstractEnumType<CurrencyEnum> {
+  static enum() {
+    return CurrencyEnum;
+  }
+
+  protected getEnum(): Record<string, CurrencyEnum> {
+    return CurrencyEnum;
+  }
+}
+
+
+
+===== bounded-context/financial-management/src/domain/account/types/account-financial-entity.ts =====
+
+import { AddValidate, Level, StringTypeRequired } from '@code-core/domain';
+
+@Level(2)
+@AddValidate([{ validator: 'MinLength', value: 3 }])
+export class AccountFinancialEntity extends StringTypeRequired {
+  static empty() {
+    return new AccountFinancialEntity('');
+  }
+}
+
+
+
+===== bounded-context/financial-management/src/domain/account/types/account-id.ts =====
+
+import { IdType } from '@code-core/domain';
+
+export class AccountId extends IdType {}
+
+
+
+===== bounded-context/financial-management/src/domain/account/types/account-list-tag.ts =====
+
+import { AbstractArrayType, AddValidate, Level, StringTypeRequired } from '@code-core/domain';
+
+@AddValidate([{ validator: 'MaxLength', value: 20 }])
+class AccountTag extends StringTypeRequired {}
+
+@Level(3)
+@AddValidate([{ validator: 'IsOptional' }, { validator: 'ArrayMinSize', value: 1 }])
+export class AccountListTag extends AbstractArrayType<AccountTag, null> {
+  constructor(value: string[] | null = null) {
+    super(value);
+  }
+
+  getItemClass(value: string): AccountTag {
+    return new AccountTag(value);
+  }
+
+  static empty(): AccountListTag {
+    return new AccountListTag([]);
+  }
+}
+
+
+
+===== bounded-context/financial-management/src/domain/account/types/account-name.ts =====
+
+import { AddValidate, StringTypeRequired } from '@code-core/domain';
+
+@AddValidate([
+  { validator: 'MinLength', value: 3 },
+  { validator: 'MaxLength', value: 50 },
+])
+export class AccountName extends StringTypeRequired {}
+
+
+
+===== bounded-context/financial-management/src/domain/account/types/account-number.ts =====
+
+import { Level, StringTypeRequired } from '@code-core/domain';
+
+@Level(2)
+export class AccountNumber extends StringTypeRequired {
+  static empty() {
+    return new AccountNumber('');
+  }
+}
+
+
+
+===== bounded-context/financial-management/src/domain/account/types/account-status.ts =====
+
+import { AbstractEnumType, AddValidate } from '@code-core/domain';
+
+enum EnumAccountStatus {
+  ACTIVE = 'Active',
+  CLOSED = 'Closed',
+}
+
+@AddValidate([{ validator: 'IsEnum', value: EnumAccountStatus }, { validator: 'IsNotEmpty' }])
+export class AccountStatus extends AbstractEnumType<EnumAccountStatus> {
+  protected getEnum(): Record<string, EnumAccountStatus> {
+    return EnumAccountStatus;
+  }
+
+  static enum() {
+    return EnumAccountStatus;
+  }
+
+  static active(): AccountStatus {
+    return new AccountStatus(EnumAccountStatus.ACTIVE);
+  }
+
+  isClosed(): boolean {
+    return this.value === EnumAccountStatus.CLOSED;
+  }
+
+  toClose(): void {
+    this._value = EnumAccountStatus.CLOSED;
+  }
+}
+
+
+
+===== bounded-context/financial-management/src/domain/account/types/account-type.ts =====
+
+import { AbstractEnumType, AddValidate } from '@code-core/domain';
+
+enum EnumAccountType {
+  REAL = 'Real',
+  VIRTUAL = 'Virtual',
+}
+
+@AddValidate([{ validator: 'IsEnum', value: EnumAccountType }, { validator: 'IsNotEmpty' }])
+export class AccountType extends AbstractEnumType<EnumAccountType> {
+  protected getEnum(): Record<string, EnumAccountType> {
+    return EnumAccountType;
+  }
+
+  static enum() {
+    return EnumAccountType;
+  }
+
+  isReal(): boolean {
+    return this.value === EnumAccountType.REAL;
+  }
+
+  isVirtual(): boolean {
+    return this.value === EnumAccountType.VIRTUAL;
+  }
+}
+
+
+
+===== bounded-context/financial-management/src/domain/asset/asset.repository.ts =====
+
+import { Asset } from './asset';
+
+export abstract class AssetRepository {
+  abstract persist(asset: Asset): void;
+
+  abstract findById(assetId: string): Asset | null;
+
+  abstract findAll(): Asset[];
+}
+
+
+
+===== bounded-context/financial-management/src/domain/asset/asset.ts =====
+
+import { AssetId } from './types/asset-id';
+import { AssetName } from './types/asset-name';
+import { AssetAcquisitionValue } from './types/asset-acquisition-value';
+import { AssetAcquisitionDate } from './types/asset-acquisition-date';
+import { AssetUsefulLife } from './types/asset-useful-life';
+import { AssetDepreciationMethod } from './types/asset-depreciation-method';
+import { AssetResidualValue } from './types/asset-residual-value';
+import { AssetAssociatedCosts } from './types/asset-associated-costs';
+import { AssetLastDepreciationDate } from './types/asset-last-depreciation-date';
+import { AssetTypes } from './asset.types';
+
+/*
+ * Gestiona los activos financieros o tangibles de la entidad,
+ * como propiedades, vehículos, o inversiones.
+ * Incluye funcionalidades para calcular depreciaciones y asociar costos adicionales.
+ * Este Aggregate permite gestionar y evaluar el valor de los activos en los reportes financieros,
+ * asegurando que los cálculos sean precisos y consistentes con las reglas del dominio.
+ */
+export class Asset {
+  constructor(
+    private readonly id: AssetId, // Nivel 1: Identificador único del activo
+    private readonly name: AssetName, // Nivel 1: Nombre descriptivo del activo
+    private readonly acquisitionDate: AssetAcquisitionDate, // Nivel 1: Fecha de adquisición del activo
+    private readonly acquisitionValue: AssetAcquisitionValue, // Nivel 1: Valor inicial del activo.
+    private readonly usefulLife: AssetUsefulLife, // Nivel 2: Vida útil estimada en años.
+    private readonly depreciationMethod: AssetDepreciationMethod, // Nivel 2: Método utilizado para calcular la depreciación (ej: "lineal", "saldoDecreciente")
+    private readonly residualValue: AssetResidualValue, // Nivel 2: Valor estimado al final de la vida útil.
+    private associatedCosts: AssetAssociatedCosts, // Nivel 3: Costos relacionados como seguros o mantenimiento.
+    private lastDepreciationDate: AssetLastDepreciationDate, // Nivel 3: Fecha de la última depreciación
+  ) {}
+
+  static create(data: AssetTypes): Asset {
+    return new Asset(
+      data.id,
+      data.name,
+      data.acquisitionDate,
+      data.acquisitionValue,
+      data.usefulLife,
+      data.depreciationMethod,
+      data.residualValue,
+      data.associatedCosts,
+      data.lastDepreciationDate,
+    );
+  }
+
+  /*
+   * Calcula el monto anual de depreciación basado en el método y la vida útil.
+   */
+  calculateAnnualDepreciation(): number {
+    return (this.acquisitionValue.value - this.residualValue.value) / this.usefulLife.value;
+  }
+
+  /*
+   * Actualiza la información del activo con la última fecha de depreciación.
+   */
+  registerDepreciation(): void {
+    this.lastDepreciationDate = new AssetLastDepreciationDate(new Date());
+  }
+
+  /*
+   * Registra un costo relacionado con el activo.
+   */
+  addAssociatedCosts(cost: number): void {
+    this.associatedCosts = new AssetAssociatedCosts(this.associatedCosts.value + cost);
+  }
+}
+
+
+
+===== bounded-context/financial-management/src/domain/asset/asset.types.ts =====
+
+import { AssetId } from './types/asset-id';
+import { AssetName } from './types/asset-name';
+import { AssetAcquisitionValue } from './types/asset-acquisition-value';
+import { AssetAcquisitionDate } from './types/asset-acquisition-date';
+import { AssetUsefulLife } from './types/asset-useful-life';
+import { AssetDepreciationMethod } from './types/asset-depreciation-method';
+import { AssetResidualValue } from './types/asset-residual-value';
+import { AssetAssociatedCosts } from './types/asset-associated-costs';
+import { AssetLastDepreciationDate } from './types/asset-last-depreciation-date';
+import { AggregateTypes, DataTypes } from '@code-core/domain';
+
+export class AssetTypes extends AggregateTypes {
+  public readonly id: AssetId;
+  public readonly name: AssetName;
+  public readonly acquisitionDate: AssetAcquisitionDate;
+  public readonly acquisitionValue: AssetAcquisitionValue;
+  public readonly usefulLife: AssetUsefulLife;
+  public readonly depreciationMethod: AssetDepreciationMethod;
+  public readonly residualValue: AssetResidualValue;
+  public readonly associatedCosts: AssetAssociatedCosts;
+  public readonly lastDepreciationDate: AssetLastDepreciationDate;
+
+  constructor(currentLevel: number, params: DataTypes<AssetTypes>) {
+    super(currentLevel);
+    this.id = this.initializeType(AssetId, params.id);
+    this.name = this.initializeType(AssetName, params.name);
+    this.acquisitionDate = this.initializeType(AssetAcquisitionDate, params.acquisitionDate);
+    this.acquisitionValue = this.initializeType(AssetAcquisitionValue, params.acquisitionValue);
+    this.usefulLife = this.initializeType(AssetUsefulLife, params.usefulLife);
+    this.depreciationMethod = this.initializeType(AssetDepreciationMethod, params.depreciationMethod);
+    this.residualValue = this.initializeType(AssetResidualValue, params.residualValue);
+    this.associatedCosts = this.initializeType(AssetAssociatedCosts, params.associatedCosts);
+    this.lastDepreciationDate = this.initializeType(AssetLastDepreciationDate, params.lastDepreciationDate);
+  }
+}
+
+
+
+===== bounded-context/financial-management/src/domain/asset/events/asset-depreciated.event.ts =====
+
+export class AssetDepreciatedEvent {
+  constructor(
+    public readonly assetId: string,
+    public readonly depreciationAmount: number,
+    public readonly date: Date,
+  ) {}
+}
+
+
+
+===== bounded-context/financial-management/src/domain/asset/types/asset-acquisition-date.ts =====
+
+import { DateTypeRequired } from '@code-core/domain';
+
+export class AssetAcquisitionDate extends DateTypeRequired {}
+
+
+
+===== bounded-context/financial-management/src/domain/asset/types/asset-acquisition-value.ts =====
+
+import { NumberTypeRequired } from '@code-core/domain';
+
+export class AssetAcquisitionValue extends NumberTypeRequired {}
+
+
+
+===== bounded-context/financial-management/src/domain/asset/types/asset-associated-costs.ts =====
+
+import { Level, NumberTypeRequired } from '@code-core/domain';
+
+@Level(3)
+export class AssetAssociatedCosts extends NumberTypeRequired {}
+
+
+
+===== bounded-context/financial-management/src/domain/asset/types/asset-depreciation-method.ts =====
+
+import { AbstractEnumType, AddValidate, Level } from '@code-core/domain';
+
+enum AssetDepreciationMethodEnum {
+  LINEAR = 'linear',
+  DECLINING_BALANCE = 'decliningBalance',
+}
+
+@Level(2)
+@AddValidate([{ validator: 'IsEnum', value: AssetDepreciationMethodEnum }, { validator: 'IsNotEmpty' }])
+export class AssetDepreciationMethod extends AbstractEnumType<AssetDepreciationMethodEnum> {
+  protected getEnum(): Record<string, AssetDepreciationMethodEnum> {
+    return AssetDepreciationMethodEnum;
+  }
+}
+
+
+
+===== bounded-context/financial-management/src/domain/asset/types/asset-id.ts =====
+
+import { IdType } from '@code-core/domain';
+
+export class AssetId extends IdType {}
+
+
+
+===== bounded-context/financial-management/src/domain/asset/types/asset-last-depreciation-date.ts =====
+
+import { DateTypeRequired, Level } from '@code-core/domain';
+
+@Level(3)
+export class AssetLastDepreciationDate extends DateTypeRequired {}
+
+
+
+===== bounded-context/financial-management/src/domain/asset/types/asset-name.ts =====
+
+import { StringTypeRequired } from '@code-core/domain';
+
+export class AssetName extends StringTypeRequired {}
+
+
+
+===== bounded-context/financial-management/src/domain/asset/types/asset-residual-value.ts =====
+
+import { Level, NumberTypeRequired } from '@code-core/domain';
+
+@Level(2)
+export class AssetResidualValue extends NumberTypeRequired {}
+
+
+
+===== bounded-context/financial-management/src/domain/asset/types/asset-useful-life.ts =====
+
+import { Level, NumberTypeRequired } from '@code-core/domain';
+
+@Level(2)
+export class AssetUsefulLife extends NumberTypeRequired {}
+
+
+
+===== bounded-context/financial-management/src/domain/liability/events/liability-recorded.event.ts =====
+
+export class LiabilityRecordedEvent {
+  constructor(
+    public readonly liabilityId: string,
+    public readonly amount: number,
+    public readonly date: Date,
+  ) {}
+}
+
+
+
+===== bounded-context/financial-management/src/domain/liability/liability.ts =====
+
+import { DomainException } from '@code-core/domain';
+import { LiabilityDescription } from './types/liability-description';
+import { LiabilityId } from './types/liability-id';
+import { LiabilityAmount } from './types/liability-amount';
+import { LiabilityCreationDate } from './types/liability-creation-date';
+import { LiabilityDueDate } from './types/liability-due-date';
+import { LiabilityCreditorEntity } from './types/liability-creditor-entity';
+import { LiabilityTypes } from './liability.types';
+
+/*
+ * Propósito: Maneja los pasivos financieros, como préstamos, cuentas por pagar, y obligaciones fiscales.
+ * Este Aggregate asegura que los pasivos sean rastreados y gestionados correctamente.
+ * Uso: Este Aggregate se utiliza para garantizar la trazabilidad y manejo adecuado de las obligaciones financieras,
+ * así como para calcular métricas clave en los reportes.
+ */
+export class Liability {
+  constructor(
+    private readonly id: LiabilityId, // Nivel 1: Identificador único del pasivo
+    private readonly description: LiabilityDescription, // Nivel 1: Descripción del pasivo
+    private readonly amount: LiabilityAmount, // Nivel 1: Monto total del pasivo
+    private readonly creationDate: LiabilityCreationDate, // Nivel 1: Fecha en que se registró el pasivo.
+    private readonly dueDate: LiabilityDueDate, // Nivel 2: Fecha de vencimiento (opcional).
+    private readonly creditorEntity: LiabilityCreditorEntity, // Nivel 2: Información sobre el acreedor (opcional).
+  ) {}
+
+  static create(data: LiabilityTypes): Liability {
+    return new Liability(data.id, data.description, data.amount, data.creationDate, data.dueDate, data.creditorEntity);
+  }
+
+  /*
+   * Verifica si el pasivo está vencido.
+   */
+  isOverdue(): boolean {
+    return this.dueDate.value ? new Date() > this.dueDate.value : false;
+  }
+
+  /*
+   * Registra un pago parcial o total del pasivo.
+   */
+  recordPayment(paymentAmount: number): void {
+    if (paymentAmount > this.amount.value) {
+      throw new DomainException('Payment amount exceeds the total liability amount');
+    }
+    this.amount.recordPayment(paymentAmount);
+  }
+
+  /*
+   * Verifica si el pasivo ha sido liquidado en su totalidad.
+   */
+  isFullyPaid(): boolean {
+    return this.amount.value === 0;
+  }
+}
+
+
+
+===== bounded-context/financial-management/src/domain/liability/liability.types.ts =====
+
+import { AggregateTypes, DataTypes } from '@code-core/domain';
+import { LiabilityDescription } from './types/liability-description';
+import { LiabilityId } from './types/liability-id';
+import { LiabilityAmount } from './types/liability-amount';
+import { LiabilityCreationDate } from './types/liability-creation-date';
+import { LiabilityDueDate } from './types/liability-due-date';
+import { LiabilityCreditorEntity } from './types/liability-creditor-entity';
+
+export class LiabilityTypes extends AggregateTypes {
+  public readonly id: LiabilityId;
+  public readonly description: LiabilityDescription;
+  public readonly amount: LiabilityAmount;
+  public readonly creationDate: LiabilityCreationDate;
+  public readonly dueDate: LiabilityDueDate;
+  public readonly creditorEntity: LiabilityCreditorEntity;
+
+  constructor(currentLevel: number, params: DataTypes<LiabilityTypes>) {
+    super(currentLevel);
+    this.id = this.initializeType(LiabilityId, params.id);
+    this.description = this.initializeType(LiabilityDescription, params.description);
+    this.amount = this.initializeType(LiabilityAmount, params.amount);
+    this.creationDate = this.initializeType(LiabilityCreationDate, params.creationDate);
+    this.dueDate = this.initializeType(LiabilityDueDate, params.dueDate);
+    this.creditorEntity = this.initializeType(LiabilityCreditorEntity, params.creditorEntity);
+  }
+}
+
+
+
+===== bounded-context/financial-management/src/domain/liability/services/liability-management.service.ts =====
+
+export class LiabilityManagementService {
+  // recordPayment(liability: Liability, paymentAmount: number): void {
+  //   if (paymentAmount > liability.amount) {
+  //     throw new Error('Payment exceeds the amount due');
+  //   }
+  //   liability.amount -= paymentAmount;
+  //   console.log(`Payment of ${paymentAmount} recorded for liability ${liability.liabilityId}`);
+  // }
+  //
+  // isFullyPaid(liability: Liability): boolean {
+  //   return liability.amount <= 0;
+  // }
+}
+
+
+
+===== bounded-context/financial-management/src/domain/liability/types/liability-amount.ts =====
+
+import { NumberTypeRequired } from '@code-core/domain';
+
+export class LiabilityAmount extends NumberTypeRequired {
+  recordPayment(paymentAmount: number): void {
+    this._value -= paymentAmount;
+  }
+}
+
+
+
+===== bounded-context/financial-management/src/domain/liability/types/liability-creation-date.ts =====
+
+import { DateTypeRequired } from '@code-core/domain';
+
+export class LiabilityCreationDate extends DateTypeRequired {}
+
+
+
+===== bounded-context/financial-management/src/domain/liability/types/liability-creditor-entity.ts =====
+
+import { Level, UuidTypeOptional } from '@code-core/domain';
+
+@Level(2)
+export class LiabilityCreditorEntity extends UuidTypeOptional {}
+
+
+
+===== bounded-context/financial-management/src/domain/liability/types/liability-description.ts =====
+
+import { StringTypeRequired } from '@code-core/domain';
+
+export class LiabilityDescription extends StringTypeRequired {}
+
+
+
+===== bounded-context/financial-management/src/domain/liability/types/liability-due-date.ts =====
+
+import { DateTypeOptional, Level } from '@code-core/domain';
+
+@Level(2)
+export class LiabilityDueDate extends DateTypeOptional {}
+
+
+
+===== bounded-context/financial-management/src/domain/liability/types/liability-id.ts =====
+
+import { IdType } from '@code-core/domain';
+
+export class LiabilityId extends IdType {}
+
+
+
+===== bounded-context/financial-management/src/domain/transaction/event/transaction-completed.event.ts =====
+
+export class TransactionCompletedEvent {
+  constructor(
+    public readonly transactionId: string,
+    public readonly date: Date,
+  ) {}
+}
+
+
+
+===== bounded-context/financial-management/src/domain/transaction/transaction-types.ts =====
+
+import { TransactionId } from './types/transaction-id';
+import { TransactionDate } from './types/transaction-date';
+import { TransactionAccountId } from './types/transaction-account-id';
+import { TransactionAmount } from './types/transaction-amount';
+import { TransactionDescription } from './types/transaction-description';
+import { TransactionCategory } from './types/transaction-category';
+import { TransactionListTag } from './types/transaction-list-tag';
+import { AggregateTypes, DataTypes } from '@code-core/domain';
+
+export class TransactionTypes extends AggregateTypes {
+  public readonly id: TransactionId;
+  public readonly transactionDate: TransactionDate;
+  public readonly fromAccountId: TransactionAccountId;
+  public readonly toAccountId: TransactionAccountId;
+  public readonly amount: TransactionAmount;
+  public readonly description: TransactionDescription;
+  public readonly category: TransactionCategory;
+  public readonly tags: TransactionListTag;
+
+  constructor(currentLevel: number, params: DataTypes<TransactionTypes>) {
+    super(currentLevel);
+    this.id = this.initializeType(TransactionId, params.id);
+    this.transactionDate = this.initializeType(TransactionDate, params.transactionDate);
+    this.fromAccountId = this.initializeType(TransactionAccountId, params.fromAccountId);
+    this.toAccountId = this.initializeType(TransactionAccountId, params.toAccountId);
+    this.amount = this.initializeType(TransactionAmount, params.amount);
+    this.description = this.initializeType(TransactionDescription, params.description);
+    this.category = this.initializeType(TransactionCategory, params.category);
+    this.tags = this.initializeType(TransactionListTag, params.tags);
+  }
+}
+
+
+
+===== bounded-context/financial-management/src/domain/transaction/transaction.repository.ts =====
+
+import { Transaction } from './transaction';
+
+export abstract class TransactionRepository {
+  abstract persist(transaction: Transaction): void;
+
+  abstract findById(transactionId: string): Transaction | null;
+
+  abstract findAllByAccount(accountId: string): Transaction[];
+}
+
+
+
+===== bounded-context/financial-management/src/domain/transaction/transaction.ts =====
+
+import { TransactionId } from './types/transaction-id';
+import { TransactionDate } from './types/transaction-date';
+import { TransactionAccountId } from './types/transaction-account-id';
+import { TransactionAmount } from './types/transaction-amount';
+import { TransactionDescription } from './types/transaction-description';
+import { TransactionCategory } from './types/transaction-category';
+import { TransactionListTag } from './types/transaction-list-tag';
+import { TransactionTypes } from './transaction-types';
+
+/*
+ * Propósito: Registra los movimientos financieros entre cuentas, como ingresos, gastos, transferencias internas y ajustes contables.
+ * Este Aggregate asegura la trazabilidad de todas las operaciones financieras.
+ * Uso: Este Aggregate asegura que las transacciones sean registradas de manera consistente
+ * y puedan ser usadas para auditorías, reportes financieros, y análisis avanzados.
+ */
+export class Transaction {
+  constructor(
+    private readonly id: TransactionId, // Nivel 1: Identificador único de la transacción
+    private readonly transactionDate: TransactionDate, // Nivel 1: Fecha en que ocurrió la transacción.
+    private readonly fromAccountId: TransactionAccountId, // Nivel 1: Identificador de las cuentas de origen (solo ID para evitar acoplamiento)
+    private readonly toAccountId: TransactionAccountId, // Nivel 1:Identificador de las cuentas de destino. (solo ID para evitar acoplamiento)
+    private readonly amount: TransactionAmount, // Nivel 1: Monto transferido. (positivo para ingresos, negativo para egresos)
+    private readonly description: TransactionDescription, // Nivel 1: Descripción de la transacción
+    private readonly category: TransactionCategory, // Nivel 2: Categoría de la transacción (opcional).
+    private readonly tags: TransactionListTag, // Nivel 3: Etiquetas para clasificar transacciones (opcional).
+  ) {}
+
+  static create(data: TransactionTypes): Transaction {
+    return new Transaction(data.id, data.transactionDate, data.fromAccountId, data.toAccountId, data.amount, data.description, data.category, data.tags);
+  }
+}
+
+
+
+===== bounded-context/financial-management/src/domain/transaction/types/transaction-account-id.ts =====
+
+import { IdType } from '@code-core/domain';
+
+export class TransactionAccountId extends IdType {}
+
+
+
+===== bounded-context/financial-management/src/domain/transaction/types/transaction-amount.ts =====
+
+import { NumberTypeRequired } from '@code-core/domain';
+
+export class TransactionAmount extends NumberTypeRequired {}
+
+
+
+===== bounded-context/financial-management/src/domain/transaction/types/transaction-category.ts =====
+
+import { Level, UuidTypeOptional } from '@code-core/domain';
+
+@Level(2)
+export class TransactionCategory extends UuidTypeOptional {}
+
+
+
+===== bounded-context/financial-management/src/domain/transaction/types/transaction-date.ts =====
+
+import { DateTypeRequired } from '@code-core/domain';
+
+export class TransactionDate extends DateTypeRequired {}
+
+
+
+===== bounded-context/financial-management/src/domain/transaction/types/transaction-description.ts =====
+
+import { StringTypeRequired } from '@code-core/domain';
+
+export class TransactionDescription extends StringTypeRequired {}
+
+
+
+===== bounded-context/financial-management/src/domain/transaction/types/transaction-id.ts =====
+
+import { IdType } from '@code-core/domain';
+
+export class TransactionId extends IdType {}
+
+
+
+===== bounded-context/financial-management/src/domain/transaction/types/transaction-list-tag.ts =====
+
+import { AbstractArrayType, AddValidate, Level, StringTypeRequired } from '@code-core/domain';
+
+class TransactionTag extends StringTypeRequired {}
+
+@Level(3)
+@AddValidate([{ validator: 'IsOptional' }, { validator: 'ArrayMinSize', value: 1 }])
+export class TransactionListTag extends AbstractArrayType<TransactionTag, null> {
+  constructor(value: string[] | null = null) {
+    super(value);
+  }
+
+  getItemClass(value: string): TransactionTag {
+    return new TransactionTag(value);
+  }
+}
+
+
+
+===== bounded-context/financial-management/src/index.ts =====
+
+import { AggregateRoot } from '@code-core/domain';
+
+export const NAME = 'financial-management';
+
+class Aggregate extends AggregateRoot {}
+
+console.log(new Aggregate().pullDomainEvents());
+
+
+
+===== bounded-context/financial-management/test/application/account-management/close-financial-account/close-financial-account.spec.ts =====
+
+import { DomainException } from '@code-core/domain';
+import { AccountObjectMother } from '../../../object-mother/account-object-mother';
+import { AccountStatus } from '../../../../src/domain/account/types/account-status';
+import { AccountType } from '../../../../src/domain/account/types/account-type';
+import { CloseFinancialAccount } from '../../../../src/application/account-management/close-financial-account/close-financial-account';
+import { AccountRepository } from '../../../../src/domain/account/account.repository';
+import { InMemoryAccountRepository } from '../../../domain/account/in-memory-account-repository';
+import { CloseFinancialAccountDto } from '../../../../src/application/account-management/close-financial-account/close-financial-account.dto';
+import { AccountId } from '../../../../src/domain/account/types/account-id';
+
+describe('Account - Close', () => {
+  it('should throw an error if balance is not zero', () => {
+    const account = AccountObjectMother({ balance: 100 });
+    expect(() => account.validateZeroBalance()).toThrow(DomainException);
+  });
+
+  it('should not throw an error if balance is zero', () => {
+    const account = AccountObjectMother({ balance: 0 });
+
+    expect(() => account.validateZeroBalance()).not.toThrow();
+  });
+
+  it('should close an account with zero balance', () => {
+    const account = AccountObjectMother({ balance: 0 });
+    account.close();
+    const { status, lastUpdated } = account.toJson();
+    expect(status).toBe(AccountStatus.enum().CLOSED);
+    expect(lastUpdated).toBeInstanceOf(Date);
+  });
+
+  it('should throw an error when trying to close an account with a non-zero balance', () => {
+    const account = AccountObjectMother({ balance: 50 });
+    expect(() => account.close()).toThrow(DomainException);
+    const { status } = account.toJson();
+    expect(status).toBe(AccountStatus.enum().ACTIVE);
+  });
+
+  it('should throw an error when trying to close an already closed account', () => {
+    const account = AccountObjectMother({ status: AccountStatus.enum().CLOSED, balance: 0 });
+
+    expect(() => account.close()).toThrow(DomainException);
+  });
+
+  it('should not modify the account state if an exception is thrown during closing', () => {
+    const account = AccountObjectMother({ balance: 10 });
+
+    try {
+      account.close();
+    } catch (e) {
+      const { status } = account.toJson();
+      expect(status).toBe(AccountStatus.enum().ACTIVE);
+    }
+  });
+
+  it('should update the last updated date when the account is closed', () => {
+    const account = AccountObjectMother({ balance: 0 });
+
+    const beforeClose = new Date();
+    account.close();
+    const { lastUpdated } = account.toJson();
+
+    expect(lastUpdated).toBeInstanceOf(Date);
+    expect(lastUpdated.getTime()).toBeGreaterThanOrEqual(beforeClose.getTime());
+  });
+
+  it('should close a virtual account with zero balance', () => {
+    const account = AccountObjectMother({ type: AccountType.enum().VIRTUAL, balance: 0 });
+
+    account.close();
+    const { status } = account.toJson();
+    expect(status).toBe(AccountStatus.enum().CLOSED);
+  });
+
+  it('should throw an error when trying to close a virtual account with a non-zero balance', () => {
+    const account = AccountObjectMother({ type: AccountType.enum().VIRTUAL, balance: 100 });
+
+    account.close();
+    const { status } = account.toJson();
+    expect(status).toBe(AccountStatus.enum().CLOSED);
+  });
+});
+
+describe('CloseFinancialAccount Use Case', () => {
+  let useCase: CloseFinancialAccount;
+  let accountRepository: AccountRepository;
+
+  const dtoObjectMOther = (accountId?: any): CloseFinancialAccountDto => {
+    const dto = new CloseFinancialAccountDto();
+    dto.accountId = accountId ?? AccountId.random();
+    return dto;
+  };
+
+  beforeEach(() => {
+    accountRepository = new InMemoryAccountRepository();
+    useCase = new CloseFinancialAccount(accountRepository);
+  });
+
+  it('should throw an error if the account is not found', async () => {
+    const dto = dtoObjectMOther('c5a2d381-8e1b-4c53-a63f-30804d03c45e');
+    expect(useCase.execute(dto)).rejects.toThrow(`Account with ID c5a2d381-8e1b-4c53-a63f-30804d03c45e not found.`);
+  });
+
+  it('should throw an error if the account balance is not zero at level 1', async () => {
+    const account = AccountObjectMother({ balance: 100 });
+    await accountRepository.persist(account);
+    const dto = dtoObjectMOther(account.id.value);
+    expect(useCase.execute(dto)).rejects.toThrow('Account balance must be zero to close the account');
+  });
+
+  it('should throw an error when trying to close an already closed account', async () => {
+    const account = AccountObjectMother({ status: AccountStatus.enum().CLOSED, balance: 0 });
+    await accountRepository.persist(account);
+    const dto = dtoObjectMOther(account.id.value);
+    await expect(useCase.execute(dto)).rejects.toThrow('Account is already closed');
+  });
+});
+
+
+
+===== bounded-context/financial-management/test/application/account-management/create-financial-account/create-financial-account.dto.spec.ts =====
+
+import { validate } from 'class-validator';
+import { CreateFinancialAccountObjectMother } from './create-financial-account.object-mother';
+
+describe('CreateFinancialAccountObjectMother Validation', () => {
+  it('should validate a valid DTO created by the Object Mother', async () => {
+    const dto = CreateFinancialAccountObjectMother.create(1); // Level 1 object
+
+    const errors = await validate(dto);
+    expect(errors.length).toBe(0); // No validation errors
+  });
+
+  it('should invalidate a DTO with an invalid id', async () => {
+    const dto = CreateFinancialAccountObjectMother.create(1, { id: 'invalid-id' }); // Invalid ObjectId
+
+    const errors = await validate(dto);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0].property).toBe('id');
+  });
+
+  it('should invalidate a DTO with an invalid name', async () => {
+    const dto = CreateFinancialAccountObjectMother.create(1, { name: '' }); // Invalid name
+
+    const errors = await validate(dto);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0].property).toBe('name');
+  });
+
+  it('should invalidate a DTO with an invalid currency', async () => {
+    const dto = CreateFinancialAccountObjectMother.create(1, { currency: 'US' }); // Invalid currency code
+
+    const errors = await validate(dto);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0].property).toBe('currency');
+  });
+
+  it('should invalidate a DTO with invalid tags', async () => {
+    const dto = CreateFinancialAccountObjectMother.create(3, { tags: ['ValidTag', 'InvalidTagWithMoreThan50Characters'] });
+
+    const errors = await validate(dto);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0].property).toBe('tags');
+  });
+
+  it('should validate a DTO created at level 2 with valid financialEntity and accountNumber', async () => {
+    const dto = CreateFinancialAccountObjectMother.create(2); // Level 2 object
+
+    const errors = await validate(dto);
+    expect(errors.length).toBe(0); // No validation errors
+  });
+
+  it('should invalidate a DTO at level 2 with an empty financialEntity', async () => {
+    const dto = CreateFinancialAccountObjectMother.create(2, { financialEntity: '' }); // Invalid financialEntity
+
+    const errors = await validate(dto);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0].property).toBe('financialEntity');
+  });
+
+  it('should validate a DTO with custom tags at level 3', async () => {
+    const dto = CreateFinancialAccountObjectMother.create(3, { tags: ['CustomTag'] }); // Level 3 with custom tags
+
+    const errors = await validate(dto);
+    expect(errors.length).toBe(0); // No validation errors
+    expect(dto.tags).toEqual(['CustomTag']);
+  });
+
+  it('should exclude properties correctly when creating a DTO', async () => {
+    const dto = CreateFinancialAccountObjectMother.create(1, {}, ['id', 'name']); // Exclude id and name
+
+    expect(dto.id).toBeUndefined();
+    expect(dto.name).toBeUndefined();
+    const errors = await validate(dto);
+    expect(errors.length).toBe(2); // No validation errors for other properties
+  });
+});
+
+
+
+===== bounded-context/financial-management/test/application/account-management/create-financial-account/create-financial-account.object-mother.ts =====
+
+import { IdType } from '@code-core/domain';
+import { CreateFinancialAccountDto } from '../../../../src/application/account-management/create-financial-account/create-financial-account.dto';
+import { faker } from '@faker-js/faker';
+import { DtoObjectMother } from '@code-core/test';
+import { AccountCurrency } from '../../../../src/domain/account/types/account-currency';
+import { AccountType } from '../../../../src/domain/account/types/account-type';
+
+export class CreateFinancialAccountObjectMother extends DtoObjectMother<CreateFinancialAccountDto> {
+  getPropertiesByLevel(): Record<number, (keyof CreateFinancialAccountDto)[]> {
+    return {
+      1: ['id', 'name', 'type', 'currency', 'balance'],
+      2: ['financialEntity', 'number'],
+      3: ['tags'],
+    };
+  }
+
+  getNewDto(): CreateFinancialAccountDto {
+    return new CreateFinancialAccountDto();
+  }
+
+  getDefaultValues(): Partial<CreateFinancialAccountDto> {
+    return {
+      id: IdType.random(),
+      name: faker.company.name(),
+      type: faker.helpers.arrayElement([AccountType.enum().REAL, AccountType.enum().VIRTUAL]),
+      currency: faker.helpers.arrayElement([AccountCurrency.enum().USD, AccountCurrency.enum().PEN]),
+      balance: faker.number.int({ min: 0, max: 10000 }),
+      financialEntity: faker.company.name(),
+      number: faker.string.numeric(10),
+      tags: [faker.lorem.word({ length: { min: 2, max: 19 } })],
+    };
+  }
+}
+
+
+
+===== bounded-context/financial-management/test/application/account-management/create-financial-account/create-financial-account.spec.ts =====
+
+import { CreateFinancialAccount } from '../../../../src/application/account-management/create-financial-account/create-financial-account';
+import { InMemoryAccountRepository } from '../../../domain/account/in-memory-account-repository';
+import { JsonCompare } from '@code-core/test';
+import { CreateFinancialAccountObjectMother as dtoObjectMother } from './create-financial-account.object-mother';
+import { validate } from 'class-validator';
+import { AccountType } from '../../../../src/domain/account/types/account-type';
+import { CreateFinancialAccountDto } from '../../../../src/application/account-management/create-financial-account/create-financial-account.dto';
+
+describe('CreateFinancialAccount Use Case', () => {
+  let useCase: CreateFinancialAccount;
+  let accountRepository: InMemoryAccountRepository;
+
+  beforeEach(() => {
+    accountRepository = new InMemoryAccountRepository();
+    useCase = new CreateFinancialAccount(accountRepository);
+  });
+
+  describe('happy path run in all levels', () => {
+    [1, 2, 3].forEach((level) => {
+      it(`should create a valid dto level ${level}`, async () => {
+        const dto = dtoObjectMother.create(level);
+        const errors = await validate(dto);
+        expect(errors.length).toBe(0);
+        await useCase.execute(dto);
+        const persistedAccount = await accountRepository.findById(dto.id ?? '');
+        expect(JsonCompare.include({ id: dto.id }, persistedAccount?.toJson())).toEqual([]);
+      });
+    });
+  });
+
+  describe('Level 1 - Basic functionality', () => {
+    it('should throw an error if initial balance is missing for a real account, with validation', async () => {
+      expect(async () => {
+        const dto = dtoObjectMother.create(1, { type: AccountType.enum().REAL }, ['balance']);
+        const errors = await validate(dto);
+        expect(errors.length).toBe(1);
+        await useCase.execute(dto);
+      }).rejects.toThrow('AccountBalance: must be a number, should not be empty');
+    });
+
+    it('should throw an error if initial balance is missing for a real account', async () => {
+      expect(async () => {
+        const dto = dtoObjectMother.create(1, { type: AccountType.enum().REAL }, ['balance']);
+        await useCase.execute(dto);
+      }).rejects.toThrow('AccountBalance: must be a number, should not be empty');
+    });
+
+    it('should create a virtual account without balance', async () => {
+      const dto = dtoObjectMother.create(1, { type: AccountType.enum().VIRTUAL });
+      await useCase.execute(dto);
+
+      const persistedAccount = await accountRepository.findById(dto.id ?? '');
+      expect(JsonCompare.include({ id: dto.id, balance: 0 }, persistedAccount?.toJson())).toEqual([]);
+    });
+
+    it('should throw an error if name is too short', () => {
+      const dto = dtoObjectMother.create(1, { name: 'A' });
+      expect(() => useCase.execute(dto)).rejects.toThrow();
+    });
+  });
+
+  describe('Level 2 - Intermediate functionality', () => {
+    it('should create a real account with financial details', async () => {
+      const dto = dtoObjectMother.create(1, {
+        name: 'Real Account with Details',
+        type: 'Real',
+        currency: 'USD',
+        balance: 500,
+        financialEntity: 'Bank X',
+        number: '123456',
+      });
+      await useCase.execute(dto);
+
+      const persistedAccount = await accountRepository.findById(dto.id ?? '');
+      expect(
+        JsonCompare.include(
+          {
+            id: dto.id,
+            name: 'Real Account with Details',
+            type: 'Real',
+            currency: 'USD',
+            balance: 500,
+            financialEntity: 'Bank X',
+            number: '123456',
+          },
+          persistedAccount?.toJson(),
+        ),
+      ).toEqual([]);
+    });
+
+    it('should throw an error if financial details are missing at level 2', async () => {
+      const dto = new CreateFinancialAccountDto();
+      dto.name = 'Real Account with Missing Details';
+      dto.type = 'Real';
+      dto.currency = 'USD';
+      dto.balance = 1000;
+      dto.levelValidation = 2;
+      expect(() => useCase.execute(dto)).rejects.toThrow('AccountId: must be a UUID, should not be empty');
+    });
+  });
+
+  describe('Level 3 - Advanced functionality', () => {
+    it('should create an account with tags', async () => {
+      const dto = dtoObjectMother.create(1, {
+        name: 'Tagged Account',
+        type: 'Virtual',
+        currency: 'USD',
+        tags: ['Project A', 'Marketing'],
+      });
+      await useCase.execute(dto);
+
+      const persistedAccount = await accountRepository.findById(dto.id ?? '');
+      expect(
+        JsonCompare.include(
+          {
+            id: dto.id,
+            name: 'Tagged Account',
+            type: 'Virtual',
+            currency: 'USD',
+            tags: ['Project A', 'Marketing'],
+            balance: 0,
+          },
+          persistedAccount?.toJson(),
+        ),
+      ).toEqual([]);
+    });
+
+    it('should throw an error if tags are not an array', () => {
+      const dto = dtoObjectMother.create(3, {
+        tags: 'InvalidTag' as any,
+      });
+      expect(() => useCase.execute(dto)).rejects.toThrow();
+    });
+
+    describe('Common validation errors', () => {
+      it('should throw an error if currency is not provided', () => {
+        const dto = new CreateFinancialAccountDto();
+        dto.name = 'No Currency Account';
+        dto.type = 'Real';
+        dto.levelValidation = 1;
+
+        expect(() => useCase.execute(dto)).rejects.toThrow();
+      });
+
+      it('should throw an error if type is invalid', () => {
+        const dto = dtoObjectMother.create(1, {
+          type: 'Invalid',
+        });
+        expect(() => useCase.execute(dto)).rejects.toThrow();
+      });
+    });
+  });
+});
+
+
+
+===== bounded-context/financial-management/test/domain/account/account.repository.spec.ts =====
+
+import { JsonCompare } from '@code-core/test';
+import { InMemoryAccountRepository } from './in-memory-account-repository';
+import { AccountObjectMother } from '../../object-mother/account-object-mother';
+
+describe('InMemoryAccountRepository', () => {
+  let repo: InMemoryAccountRepository;
+
+  beforeEach(() => {
+    repo = new InMemoryAccountRepository();
+  });
+
+  test('Should persist a new account correctly', async () => {
+    const account = AccountObjectMother();
+    await repo.persist(account);
+    const foundAccount = await repo.findById(account.id.value);
+    expect(JsonCompare.strict(account.toJson(), foundAccount?.toJson())).toEqual([]);
+  });
+});
+
+
+
+===== bounded-context/financial-management/test/domain/account/in-memory-account-repository.ts =====
+
+import { AccountRepository } from '../../../src/domain/account/account.repository';
+import { InMemoryRepository } from '@code-core/test';
+import { PrimitiveTypes } from '@code-core/domain';
+import { AccountTypes } from '../../../src/domain/account/account.types';
+import { Account } from '../../../src/domain/account/account';
+
+export class InMemoryAccountRepository extends AccountRepository {
+  private db = new InMemoryRepository<PrimitiveTypes<AccountTypes>>();
+
+  async findAll(): Promise<Account[]> {
+    const rs = await this.db.findAll();
+    return rs.map((r) => this.toAggregate(r));
+  }
+
+  async findById(accountId: string): Promise<Account | null> {
+    const rs = await this.db.findById(accountId);
+    return rs ? this.toAggregate(rs) : null;
+  }
+
+  async findLiabilities(): Promise<Account[]> {
+    const rs = await this.db.findAll();
+    return rs.map((a) => this.toAggregate(a));
+  }
+
+  async persist(account: Account): Promise<void> {
+    await this.db.persist(account.toJson());
+  }
+}
+
+
+
+===== bounded-context/financial-management/test/index.spec.ts =====
+
+import { NAME } from '../src';
+
+it('NAME', () => {
+  expect(NAME).toEqual('financial-management');
+});
+
+
+
+===== bounded-context/financial-management/test/object-mother/account-object-mother.ts =====
+
+import { CreatedAt, PrimitiveTypes, UpdatedAt } from '@code-core/domain';
+import { AccountTypes } from '../../src/domain/account/account.types';
+import { Account } from '../../src/domain/account/account';
+import { AccountId } from '../../src/domain/account/types/account-id';
+import { AccountName } from '../../src/domain/account/types/account-name';
+import { AccountType } from '../../src/domain/account/types/account-type';
+import { AccountCurrency } from '../../src/domain/account/types/account-currency';
+import { AccountBalance } from '../../src/domain/account/types/account-balance';
+import { AccountFinancialEntity } from '../../src/domain/account/types/account-financial-entity';
+import { AccountNumber } from '../../src/domain/account/types/account-number';
+import { AccountListTag } from '../../src/domain/account/types/account-list-tag';
+import { AccountStatus } from '../../src/domain/account/types/account-status';
+
+export const AccountObjectMother = (overrides?: Partial<PrimitiveTypes<AccountTypes>>): Account => {
+  return new Account(
+    new AccountId(overrides?.id ?? AccountId.random()),
+    new AccountName(overrides?.name ?? 'Account A'),
+    new AccountType((overrides?.type as any) ?? AccountType.enum().REAL),
+    new AccountCurrency((overrides?.currency as any) ?? AccountCurrency.enum().USD),
+    new AccountBalance(overrides?.balance ?? 1000),
+    new AccountStatus((overrides?.status as any) ?? AccountStatus.enum().ACTIVE),
+    new AccountFinancialEntity(overrides?.financialEntity ?? 'Bank A'),
+    new AccountNumber(overrides?.number ?? '123456'),
+    new AccountListTag(overrides?.tags ?? ['saving', 'personal']),
+    new CreatedAt(overrides?.creationDate ?? new Date()),
+    new UpdatedAt(overrides?.creationDate ?? new Date()),
+  );
+};

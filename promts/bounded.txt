@@ -1,0 +1,37 @@
+
+Directrices Técnicas Avanzadas para la Implementación de una Arquitectura DDD en TypeScript, Encapsulando la Lógica de Negocio en el Dominio, Orquestando los Casos de Uso en la Capa de Aplicación y Fortaleciendo el Lenguaje Ubicuo:
+
+Implemente una arquitectura en TypeScript basada estrictamente en los principios de Domain-Driven Design (DDD). Asegúrese de que toda la lógica de negocio resida exclusivamente en el dominio, empujando sistemáticamente cada decisión, invariante y operación relevante hacia el mismo. En esta capa, defina con precisión Agregados, Objetos de Valor, Repositorios  y Servicios de Dominio, manteniendo sus invariantes internas y asegurando la independencia de cualquier detalle tecnológico. Toda clase del dominio debe:
+
+- No depender de frameworks, librerías externas ni capas superiores (como infraestructura o aplicación).
+- Emplear tipado estático estricto, siguiendo los principios SOLID y aprovechando genéricos cuando agreguen claridad.
+- Utilizar el lenguaje ubicuo al nombrar agregados y métodos, reflejando fielmente el contexto del dominio.
+- Incluir  eventos de dominio, representando hechos significativos que puedan ser reaccionados en otras partes del sistema sin romper el encapsulamiento.
+
+Capa de Aplicación:
+La capa de aplicación debe actuar como un orquestador de casos de uso, limitándose a invocar la lógica encapsulada en el dominio, puede entrar a cualquier agregate,cualquier repositorio o servicio de dominio dentro del bundle context. Cada caso de uso se ubicará en su propia carpeta, cuyo nombre refleje de forma fiel y clara el lenguaje ubicuo del bounded context, evitando terminología genérica, acrónimos de CRUD o nombres imprecisos. Cada caso de uso debe ser un reflejo semántico de una operación del dominio, con un nombre que aporte significado.
+
+Dentro de la carpeta de cada caso de uso, defina dos clases principales:
+
+1. Use Case Class:
+   - Orquesta el flujo de trabajo, invocando cualquier agregate, cualquier repositorio,  servicio de dominio. dentro del bundle context que se esta analizando.
+   - Absténgase de colocar lógica de negocio, validaciones complejas o cálculos dentro del caso de uso. Su responsabilidad es la de un coordinador, no un tomador de decisiones.
+   - Garantice que la lógica clave resida en el dominio y que la capa de aplicación se limite a componer la interacción entre los elementos dominiales.
+   - El nombre de los caos de uso deben reflejar un lenguaje ubicuo en línea con el bundlecontext descrito. Los nombres se centran en acciones significativas y específicas del negocio. El nombre del caso de uso NUNCA debe tener términos genéricos relacionados con CRUD.
+   - El nombre debe estar en ingles y la explicaion en español
+   - tambien incluye el nivel para que pueda ser usado por el usuario final
+
+2. DTO Class (Data Transfer Object):
+   - Contenga propiedades fuertemente tipadas que representen los datos de entrada necesarios para el caso de uso.
+   - Valide las propiedades con `class-validator` y un decorador `@DomainValidator` personalizado antes de acceder a la capa de aplicación, de modo que sólo datos válidos se procesen a nivel de orquestación.
+   - Al ser la interfaz de entrada, el DTO no debe exponer detalles internos del dominio ni sus invariantes, sino ofrecer un contrato estricto que refleje la necesidad del caso de uso.
+   - Mantenga esta clase aislada de cualquier lógica, limitándose a la representación y validación de datos.
+
+Estándares y Convenciones en TypeScript:
+- Emplee PascalCase para las clases y nombres alineados con el lenguaje ubicuo.
+- Defina interfaces y tipos detallados, utilizando genéricos cuando corresponda, a fin de lograr mayor claridad, reutilización y robustez.
+- Aplique una separación de responsabilidades rigurosa:
+  - Dominio: lógica de negocio pura,agregados invariantes, servicios de dominio, eventos de dominio, repositorios .
+  - Aplicación: orquestación, casos de uso, DTOs y validación de entrada.
+
+Aqui te mando la lista de clases que tengo desarrollados en mi proyecto, espero que te sirva de guia para que puedas implementar tu proyecto de la mejor manera posible:

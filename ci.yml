@@ -1,0 +1,31 @@
+name: Lerna Publish
+
+on:
+  push:
+    branches:
+      - master # Asegúrate de cambiar a 'main' si es tu rama principal
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0 # Importante para que Lerna pueda calcular los cambios
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '14' # Ajusta esto según tu versión de Node.js
+          registry-url: 'https://registry.npmjs.org/'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Configure npm
+        run: npm config set //registry.npmjs.org/:_authToken ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish to npm using Lerna
+        run: npx lerna publish from-package --yes
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

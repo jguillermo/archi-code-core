@@ -1,0 +1,74 @@
+instrucciones  para Generar Casos de Uso en Código
+
+Instrucción:
+Convierte la documentación de un caso de uso en código para la capa de aplicación siguiendo una arquitectura modular y basada en principios de Domain-Driven Design (DDD). Genera los componentes necesarios sin incluir lógica de negocio específica. El caso de uso debe interactuar con el dominio (Aggregates, Repositories, Value Objects) según la descripción proporcionada.
+
+Instrucciones de Generación de Código
+
+1. Clase del Caso de Uso
+Ubicación: bounded-context/<bounded-context>/src/application/<use-case-folder>/<use-case-name>.ts
+Descripción:
+Genera una clase que implemente la orquestación del caso de uso:
+- Constructor:
+  - Debe recibir como dependencias los repositorios necesarios u otros servicios relacionados.
+- Método execute:
+  - Recibe una instancia del DTO.
+  - Coordina las interacciones con el dominio, como consultar y persistir aggregates.
+  - Maneja excepciones relacionadas con reglas de negocio o validaciones específicas del dominio.
+- Comentarios:
+  - Indica claramente los pasos realizados en el método execute y las dependencias utilizadas.
+
+2. Clase DTO
+Ubicación: bounded-context/<bounded-context>/src/application/<use-case-folder>/<use-case-name>.dto.ts
+Descripción:
+Genera una clase para representar los datos de entrada del caso de uso:
+- Propiedades:
+  - Define todas las propiedades descritas en la documentación del caso de uso.
+  - Usa decoradores de validación (@IsNotEmpty, @IsOptional, etc.) proporcionados por class-validator.
+  - Aplica decoradores de nivel (@Level) para indicar a qué nivel pertenece cada propiedad.
+
+3. Clase Object Mother para el DTO
+Ubicación: bounded-context/<bounded-context>/src/application/<use-case-folder>/tests/<use-case-name>-dto-object-mother.ts
+Descripción:
+Genera una clase utilitaria para facilitar la creación de instancias válidas del DTO:
+- Valores por defecto:
+  - Proporciona configuraciones predefinidas para todas las propiedades requeridas.
+- Métodos auxiliares:
+  - Permite personalizar las propiedades opcionales o modificar valores según las necesidades de las pruebas.
+
+4. Pruebas Unitarias del Caso de Uso
+Ubicación: bounded-context/<bounded-context>/src/application/<use-case-folder>/tests/<use-case-name>.spec.ts
+Descripción:
+Genera pruebas unitarias para verificar el comportamiento del caso de uso:
+- Dependencias Mockeadas:
+  - Mockea repositorios y servicios necesarios para el caso de uso.
+- Casos de Prueba:
+  - Casos de éxito que validen el flujo correcto del caso de uso.
+  - Casos de error como datos inválidos, dependencias no encontradas o fallas en el dominio.
+- Validaciones:
+  - Verifica que los métodos relevantes de los repositorios sean llamados en el orden correcto.
+
+5. Pruebas Unitarias del DTO
+Ubicación: bounded-context/<bounded-context>/src/application/<use-case-folder>/tests/<use-case-name>-dto-validation.spec.ts
+Descripción:
+Genera pruebas para validar las restricciones del DTO:
+- Pruebas de Validación:
+  - Asegúrate de cubrir casos de datos válidos e inválidos para cada propiedad.
+- Casos Límites:
+  - Incluye pruebas para valores mínimos y máximos, y para propiedades opcionales que no cumplan las validaciones esperadas.
+
+Estructura de Carpetas Esperada
+bounded-context/<bounded-context>
+  /src/
+    application/
+      <use-case-folder>/
+        <use-case-name>.ts                   // Clase del caso de uso
+        <use-case-name>.dto.ts               // Clase DTO
+   /tests/
+      application/
+        <use-case-folder>/
+          <use-case-name>.spec.ts            // Pruebas del caso de uso
+          <use-case-name>-dto-validation.spec.ts // Pruebas de validación del DTO
+          <use-case-name>-dto-object-mother.ts   // Object Mother para el DTO
+
+genera el caso de uso de acuerdo a esta documentacion, sigue las intruciones  instrucciones  para Generar Casos de Uso en Código

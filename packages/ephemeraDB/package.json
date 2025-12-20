@@ -1,0 +1,79 @@
+{
+  "name": "@code-core/ephemeradb",
+  "version": "0.0.1",
+  "keywords": [
+    "DDD",
+    "node",
+    "value object"
+  ],
+  "author": "Jose Guillermo",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jguillermo/code-core"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+
+  "exports": {
+    ".": {
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js"
+    }
+  },
+
+  "files": [
+    "dist/"
+  ],
+
+  "scripts": {
+    "prebuild": "rm -rf dist || true",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "build:esm": "tsc -p tsconfig.esm.json",
+    "build": "npm run build:cjs && npm run build:esm",
+    "test": "jest",
+    "coverage": "jest --coverage",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "format": "prettier --check \"{src,test}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\"",
+    "format:fix": "prettier --write \"{src,test}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\""
+  },
+  "jest": {
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
+    "rootDir": "src",
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.ts$": "ts-jest"
+    },
+    "collectCoverageFrom": [
+      "**/*.(t|j)s"
+    ],
+    "coverageDirectory": "./../coverage",
+    "testEnvironment": "node",
+    "collectCoverage": false,
+    "injectGlobals": false,
+    "coverageThreshold": {
+      "global": {
+        "branches": 20,
+        "functions": 20,
+        "lines": 20,
+        "statements": 20
+      }
+    }
+  },
+  "gitHead": "ec24f58d7c943a184f815076751029df7294f689",
+  "dependencies": {
+    "@code-core/common": "file:../common"
+  }
+}

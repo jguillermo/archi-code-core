@@ -1,0 +1,83 @@
+
+Estructura de carpetas sugerida:
+
+Aquí tienes la estructura de carpetas actualizada con los eventos de dominio, incluyendo comentarios sobre qué va en cada carpeta y por qué se organiza de esta manera:
+
+
+Para organizar el código en TypeScript de manera modular y clara, sigue esta estructura que incluye las capas `domain` y `application`, con una sección adicional para eventos de dominio. Asegúrate de mantener cada componente en su lugar correspondiente según su función en el sistema.
+
+### Estructura de carpetas para cada bundle context
+
+1. Crea la carpeta raíz `src/`, que contendrá todo el código fuente de la aplicación.
+2. Dentro de `src/`, crea dos carpetas principales: `domain/` y `application/`.
+   - domain/: Esta carpeta es la capa de dominio y contiene toda la lógica de negocio, incluyendo Aggregates, repositorios abstractos, servicios de dominio y eventos de dominio.
+   - application/: Esta es la capa de aplicación, donde residen los casos de uso. No contiene lógica de negocio directa, sino que coordina las acciones del sistema.
+3. Dentro de `domain/`, organiza los elementos en las siguientes subcarpetas:
+   - aggregates/: Agrupa todos los Aggregates. Cada Aggregate debe tener su propia carpeta, incluyendo su lógica, repositorio abstracto, servicios de dominio y eventos de dominio.
+
+     Ejemplo de estructura dentro de `aggregates/`:
+     - account/: Carpeta para el Aggregate "Account".
+       - `account.ts`: Clase `Account`, que define propiedades y métodos de negocio.
+       - `account.repository.ts`: Repositorio abstracto para `Account`, define métodos sin lógica de persistencia.
+       - services/: Contiene servicios específicos de negocio de `Account`.
+         - `generate-code.ts`: Servicio de generación de códigos u operaciones específicas de `Account`.
+       - events/: Carpeta para los eventos de dominio relacionados con `Account`.
+         - `account-created.event.ts`: Evento que representa la creación de una cuenta.
+         - `account-updated.event.ts`: Evento que representa una actualización de la cuenta.
+
+     - asset/: Carpeta para el Aggregate "Asset".
+       - `asset.ts`: Clase `Asset` y sus métodos de negocio.
+       - `asset.repository.ts`: Repositorio abstracto para `Asset`.
+       - events/: Carpeta para los eventos de dominio de `Asset`.
+         - `asset-acquired.event.ts`: Evento que representa la adquisición de un activo.
+         - `asset-depreciated.event.ts`: Evento que representa la depreciación de un activo.
+
+     - transaction/: Carpeta para el Aggregate "Transaction".
+       - `transaction.ts`: Define la clase `Transaction`, representando una transacción en el sistema.
+       - events/: Carpeta para los eventos de dominio relacionados con `Transaction`.
+         - `transaction-completed.event.ts`: Evento que representa la finalización de una transacción.
+         - `transaction-failed.event.ts`: Evento que representa un fallo en la transacción.
+
+4. Dentro de `application/`, organiza los casos de uso de la siguiente manera:
+   - Cada caso de uso debe tener su propia carpeta dentro de `application/`.
+   - Dentro de cada carpeta, incluye el archivo con la implementación del caso de uso y su DTO.
+   Ejemplo:
+   - transferMoney/: Carpeta para el caso de uso de transferencia de dinero.
+     - `transfer-money.ts`: Contiene la lógica de orquestación para transferir dinero entre cuentas, coordinando los Aggregates involucrados.
+     - `transfer-money.dto.ts`: DTO con los datos necesarios para ejecutar la transferencia.
+
+Resumen de la estructura generada:
+```
+src/                                       // Carpeta raíz del código fuente de la aplicación
+  domain/                                  // Capa de dominio, donde residen los Aggregates y objetos de valor
+    aggregates/                            // Contiene todos los Aggregates y sus componentes
+      account/                             // Carpeta para el Aggregate "Account"
+        account.ts                         // Definición de la clase Account con sus propiedades y métodos de negocio
+        account.repository.ts              // Repositorio abstracto para Account
+        services/                          // Servicios de dominio específicos para Account
+          generate-code.ts                 // Servicio que genera códigos u operaciones específicas de negocio para Account
+        events/                            // Carpeta para eventos de dominio relacionados con Account
+          account-created.event.ts         // Evento de creación de cuenta
+          account-updated.event.ts         // Evento de actualización de cuenta
+      asset/                               // Carpeta para el Aggregate "Asset"
+        asset.ts                           // Definición de la clase Asset y sus métodos de negocio
+        asset.repository.ts                // Repositorio abstracto para Asset
+        events/                            // Carpeta para eventos de dominio relacionados con Asset
+          asset-acquired.event.ts          // Evento de adquisición de activo
+          asset-depreciated.event.ts       // Evento de depreciación de activo
+      transaction/                         // Carpeta para el Aggregate "Transaction"
+        transaction.ts                     // Definición de la clase Transaction
+        events/                            // Carpeta para eventos de dominio relacionados con Transaction
+          transaction-completed.event.ts   // Evento de finalización de transacción
+          transaction-failed.event.ts      // Evento de fallo de transacción
+  application/                             // Capa de aplicación, donde residen los casos de uso
+    transferMoney/                         // Carpeta para el caso de uso de transferencia de dinero
+      transfer-money.ts                    // Lógica de orquestación para transferir dinero entre cuentas
+      transfer-money.dto.ts                // DTO con los datos necesarios para ejecutar la transferencia
+
+```
+Instrucciones adicionales para la estructura de carpetas:
+- Usa nombres descriptivos en inglés para archivos y carpetas, utilizando `camelCase` para clases y `kebab-case` para archivos.
+- Asegúrate de que cada evento de dominio esté en la carpeta `events/` correspondiente al Aggregate al que se relaciona, y nombra los eventos de acuerdo a la acción que representan.
+- Dentro de cada archivo, incluye comentarios indicando a qué nivel o entidad pertenece cada campo, método, servicio o evento para facilitar la lectura y el mantenimiento del código.
+

@@ -1,0 +1,119 @@
+Reglas detallado que considere los niveles en cada caso de uso. A continuación, incluyo también ejemplos y directrices para el uso de niveles en decoradores, casos de uso, y lógica condicional.
+
+Este modelo está diseñado para construir un ERP en TypeScript, aplicando niveles de acceso y funcionalidades de manera progresiva en cada caso de uso. Los niveles definen qué características, propiedades y métodos están disponibles en cada fase del ERP, permitiendo un desarrollo y despliegue gradual.
+
+1. Estructura de Niveles:
+   - Nivel 1: Incluye las funcionalidades y propiedades esenciales del dominio, proporcionando la base mínima del ERP.
+   - Nivel 2: Agrega funcionalidades intermedias, como validaciones adicionales y propiedades avanzadas, que se activan en el segundo nivel.
+   - Nivel 3: Incluye características avanzadas, como análisis complejos, etiquetas, o cálculos detallados. Este nivel está destinado a usuarios avanzados o requisitos específicos.
+
+2. Uso de Decoradores para Niveles:
+   - Implementa un decorador `@Level(level: number)` que se aplica a propiedades y métodos en cada `Aggregate`, `Service`, y `UseCase`.
+   - Este decorador se utiliza para etiquetar cada elemento en función del nivel en el que estará disponible. Por ejemplo, `@Level(1)` indica que la propiedad o método es accesible desde el Nivel 1.
+   - Para leer y acceder a estas etiquetas, utiliza `Reflect.metadata` en TypeScript, lo que permite al modelo consultar el nivel de cada propiedad o método de manera dinámica.
+
+3. Casos de Uso con Parámetro de Nivel:
+   - En cada caso de uso, se recibe un parámetro `level` además del DTO. El modelo debe considerar el nivel al ejecutar la lógica, activando o desactivando funcionalidades específicas según el valor de `level`.
+   - Ejemplo de Implementación:
+      - En el caso de uso `TransferMoney`, el modelo debe manejar:
+         - Nivel 1: Transferencia básica sin validaciones adicionales.
+         - Nivel 2: Transferencia con verificación de historial de fondos.
+         - Nivel 3: Transferencia con adición de etiquetas y clasificación.
+      - El modelo debe ajustar la lógica de acuerdo al nivel especificado.
+
+4. Aplicación Progresiva de Funcionalidades:
+   - El modelo debe aplicar funcionalidades adicionales o restricciones condicionales en cada nivel de forma progresiva. Esto permite una implementación escalonada:
+      - Nivel 1: Proporciona solo la funcionalidad básica y sin validaciones avanzadas.
+      - Nivel 2: Incluye validaciones adicionales o funcionalidades que mejoran la seguridad y precisión.
+      - Nivel 3: Permite configuraciones avanzadas o análisis detallados.
+
+5. Estructura de Código para Niveles en Casos de Uso y Decoradores:
+   - Formato en TypeScript:
+     - Aplica `@Level` a cada propiedad o método según el nivel en el que debe estar disponible.
+     - Envía el `level` en cada caso de uso y maneja la lógica de negocio en función del nivel recibido.
+   - Ejemplo de Caso de Uso:
+      ```typescript
+      import { Level } from '../../shared/decorators/level.decorator';
+
+      export class TransferMoney {
+        constructor(private accountRepository: AccountRepository) {}
+
+        execute(command: TransferMoneyCommand, level: number): void {
+          const { fromAccountId, toAccountId, amount, description } = command;
+          const fromAccount = this.accountRepository.findById(fromAccountId);
+          const toAccount = this.accountRepository.findById(toAccountId);
+
+          if (!fromAccount || !toAccount) throw new Error('One or both accounts not found');
+
+          // Nivel 1: Transferencia básica
+          if (level === 1) {
+            fromAccount.withdrawFunds(amount);
+            toAccount.addFunds(amount);
+          }
+
+          // Nivel 2: Transferencia con validación de historial de fondos
+          if (level === 2) {
+            if (!this.hasSufficientFundsHistory(fromAccountId, amount)) {
+              throw new Error('Insufficient funds history for this transfer');
+            }
+            fromAccount.withdrawFunds(amount);
+            toAccount.addFunds(amount);
+          }
+
+          // Nivel 3: Transferencia con etiqueta de clasificación
+          if (level === 3) {
+            fromAccount.withdrawFunds(amount);
+            toAccount.addFunds(amount);
+            this.addTransactionTag(fromAccountId, 'HighValueTransfer');
+          }
+
+          this.accountRepository.persist(fromAccount);
+          this.accountRepository.persist(toAccount);
+        }
+
+        @Level(2)
+        private hasSufficientFundsHistory(accountId: string, amount: number): boolean {
+          return true;
+        }
+
+        @Level(3)
+        private addTransactionTag(accountId: string, tag: string): void {
+          console.log(`Tag "${tag}" added to account ${accountId}`);
+        }
+      }
+      ```
+
+6. Control de Acceso a Propiedades según Nivel:
+   - Crear una función `getPropertiesByLevel(instance: any, level: number)` que devuelva las propiedades accesibles en el nivel especificado.
+   - Esta función consulta las propiedades del objeto usando `Reflect.metadata`, de manera que las propiedades y métodos estén disponibles según el nivel.
+
+   ```typescript
+   // shared/utils/level.utils.ts
+   import 'reflect-metadata';
+
+   export function getPropertiesByLevel(instance: any, level: number): string[] {
+     const properties: string[] = [];
+     for (const key of Object.keys(instance)) {
+       const propertyLevel = Reflect.getMetadata('level', instance, key);
+       if (propertyLevel && propertyLevel <= level) {
+         properties.push(key);
+       }
+     }
+     return properties;
+   }
+   ```
+
+7. Directrices para el GPT:
+   - Para cada caso de uso, asegúrate de:
+     - Recibir `level` como parámetro.
+     - Aplicar lógica condicional en función del nivel.
+     - Usar decoradores `@Level` en métodos y propiedades.
+   - Generar código en TypeScript con comentarios que indiquen a qué nivel pertenece cada campo o funcionalidad.
+   - Mantener la lógica de negocio en los `Aggregates`, `Services` y `Value Objects` con implementación de nivel progresiva.
+   - En los casos de uso, aplica condiciones basadas en el nivel y documenta cada paso para mantener una estructura comprensible y escalable.
+
+Resultado Esperado:
+- El modelo generará código modular, organizado y progresivo por niveles, permitiendo una implementación gradual en cada caso de uso.
+- Cada nivel en los casos de uso mostrará un avance en las funcionalidades, validaciones, y lógica según lo definido.
+
+
