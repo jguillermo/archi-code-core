@@ -26,10 +26,11 @@ export class ValidationStorage {
     if (!this._classMap.has(cls)) {
       this._classMap.set(cls, Symbol());
     }
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     return this._classMap.get(cls)!;
   }
 
-  addValidations(cls: Function, propertyKey: string, validationConfigs: ValidatorMapI[]) {
+  addValidations(cls: Function, propertyKey: string, validationConfigs: ValidatorMapI[]): void {
     const clsKey = this.getClassKey(cls);
     if (!this._validationMap.has(clsKey)) {
       this._validationMap.set(clsKey, new Map());

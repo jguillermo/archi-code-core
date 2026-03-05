@@ -7,7 +7,7 @@
 // type JsonArray = Array<JsonValue>;
 
 export class JsonValidator {
-  static canBeJson(value: any, requireKeys: boolean = true): boolean {
+  static canBeJson(value: any, requireKeys = true): boolean {
     let parsedObj: any;
 
     if (value === null || value === 'null') {

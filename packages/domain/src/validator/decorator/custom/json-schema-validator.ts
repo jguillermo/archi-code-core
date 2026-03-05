@@ -5,7 +5,7 @@ import { JsonValidator as JsonValidatorCore } from '../../primitive-validator/js
 import { JSON_FORMAT_VALIDATES } from '../json-fotmat-validate';
 
 export function JsonSchemaValidator(jsonSchema: any, validationOptions?: ValidationOptions) {
-  return function (object: object, propertyName: string) {
+  return function (object: object, propertyName: string): void {
     registerDecorator({
       name: 'schemaValidator',
       target: object.constructor,

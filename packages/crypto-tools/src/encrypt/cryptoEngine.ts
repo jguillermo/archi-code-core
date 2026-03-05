@@ -87,13 +87,13 @@ export class CryptoEngine {
     return mapping;
   }
 
-  private createWheels(seedKey: string) {
+  private createWheels(seedKey: string): { mapping: number[]; turnover: number; position: number }[] {
     const firstNumberInKey = parseInt(seedKey.match(/\d+/)?.[0] || '0', 10);
     const numWheels = firstNumberInKey + 3;
 
     return Array.from({ length: numWheels }, (_, i) => {
       const random = this.createRandom(this.keyToSeed(seedKey + i));
-      const mapping = Array.from({ length: this.CHARACTER_SET_LENGTH }, (_, i) => i).sort(() => random() - 0.5);
+      const mapping = Array.from({ length: this.CHARACTER_SET_LENGTH }, (_item, j) => j).sort(() => random() - 0.5);
       const turnover = Math.floor(random() * this.CHARACTER_SET_LENGTH);
       const position = Math.floor(random() * this.CHARACTER_SET_LENGTH);
 

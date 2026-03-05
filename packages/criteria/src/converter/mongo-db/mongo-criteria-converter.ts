@@ -9,7 +9,7 @@ import { MongoFilter, MongoFilterOperator, MongoQuery, MongoSort } from './mongo
 
 export class MongoCriteriaConverter {
   // Map our FilterOperator to MongoDB operator strings
-  private operatorMap: { [key in FilterOperator]?: MongoFilterOperator } = {
+  private operatorMap: Partial<Record<FilterOperator, MongoFilterOperator>> = {
     [FilterOperator.EQ]: '$eq',
     [FilterOperator.NE]: '$ne',
     [FilterOperator.GT]: '$gt',

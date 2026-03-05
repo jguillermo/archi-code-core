@@ -15,7 +15,7 @@ export class ValueGenerator {
     return value;
   }
 
-  static array(value: Array<any>): any {
+  static array(value: any[]): any {
     return value;
   }
 }
@@ -57,7 +57,7 @@ describe('Abstract Type', () => {
 
     it('should correctly handle type validation for strict value number ', () => {
       class C extends AbstractType<number> {
-        constructor(value: number = 0) {
+        constructor(value = 0) {
           super(value);
         }
 
@@ -97,7 +97,7 @@ describe('Abstract Type', () => {
         if (this.isNull) {
           return '';
         }
-        return <string>this.value;
+        return this.value as string;
       }
 
       protected filter(value: string): string {

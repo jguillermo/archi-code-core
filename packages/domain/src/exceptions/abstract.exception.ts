@@ -1,11 +1,11 @@
 import { ExceptionCode } from './exception-code';
 
 export abstract class AbstractException extends Error {
-  private readonly exceptionCodes: Array<ExceptionCode | string>;
+  private readonly exceptionCodes: (ExceptionCode | string)[];
   public readonly code: ExceptionCode | string;
   public readonly timestamp: Date;
 
-  constructor(message: string, exceptionCodes: Array<ExceptionCode | string>) {
+  constructor(message: string, exceptionCodes: (ExceptionCode | string)[]) {
     super(message);
     this.name = this.constructor.name;
     this.exceptionCodes = exceptionCodes;

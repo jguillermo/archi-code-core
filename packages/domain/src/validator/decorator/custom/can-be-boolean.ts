@@ -2,7 +2,7 @@ import { registerDecorator, ValidationArguments, ValidationOptions } from 'class
 import { BooleanValidator } from '../../primitive-validator/boolean.validator';
 
 export function CanBeBooleanValidator(validationOptions?: ValidationOptions) {
-  return function (object: object, propertyName: string) {
+  return function (object: object, propertyName: string): void {
     registerDecorator({
       name: 'canBeBoolean',
       target: object.constructor,

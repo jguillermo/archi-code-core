@@ -25,35 +25,35 @@ describe('Primitive Types', () => {
     expectTypeOf<PrimitiveType<BooleanTypeOptional>>().toEqualTypeOf<boolean | null>();
 
     expectTypeOf<PrimitiveType<BooleanTypeRequired[]>>().toEqualTypeOf<boolean[]>();
-    expectTypeOf<PrimitiveType<BooleanTypeOptional[]>>().toEqualTypeOf<Array<boolean | null>>();
+    expectTypeOf<PrimitiveType<BooleanTypeOptional[]>>().toEqualTypeOf<(boolean | null)[]>();
   });
   it('dateType', () => {
     expectTypeOf<PrimitiveType<DateTypeRequired>>().toEqualTypeOf<Date>();
     expectTypeOf<PrimitiveType<DateTypeOptional>>().toEqualTypeOf<Date | null>();
 
     expectTypeOf<PrimitiveType<DateTypeRequired[]>>().toEqualTypeOf<Date[]>();
-    expectTypeOf<PrimitiveType<DateTypeOptional[]>>().toEqualTypeOf<Array<Date | null>>();
+    expectTypeOf<PrimitiveType<DateTypeOptional[]>>().toEqualTypeOf<(Date | null)[]>();
   });
   it('numberType', () => {
     expectTypeOf<PrimitiveType<NumberTypeRequired>>().toEqualTypeOf<number>();
     expectTypeOf<PrimitiveType<NumberTypeOptional>>().toEqualTypeOf<number | null>();
 
     expectTypeOf<PrimitiveType<NumberTypeRequired[]>>().toEqualTypeOf<number[]>();
-    expectTypeOf<PrimitiveType<NumberTypeOptional[]>>().toEqualTypeOf<Array<number | null>>();
+    expectTypeOf<PrimitiveType<NumberTypeOptional[]>>().toEqualTypeOf<(number | null)[]>();
   });
   it('stringType', () => {
     expectTypeOf<PrimitiveType<StringTypeRequired>>().toEqualTypeOf<string>();
     expectTypeOf<PrimitiveType<StringTypeOptional>>().toEqualTypeOf<string | null>();
 
     expectTypeOf<PrimitiveType<StringTypeRequired[]>>().toEqualTypeOf<string[]>();
-    expectTypeOf<PrimitiveType<StringTypeOptional[]>>().toEqualTypeOf<Array<string | null>>();
+    expectTypeOf<PrimitiveType<StringTypeOptional[]>>().toEqualTypeOf<(string | null)[]>();
   });
   it('uuidType', () => {
     expectTypeOf<PrimitiveType<UuidTypeRequired>>().toEqualTypeOf<string>();
     expectTypeOf<PrimitiveType<UuidTypeOptional>>().toEqualTypeOf<string | null>();
 
     expectTypeOf<PrimitiveType<UuidTypeRequired[]>>().toEqualTypeOf<string[]>();
-    expectTypeOf<PrimitiveType<UuidTypeOptional[]>>().toEqualTypeOf<Array<string | null>>();
+    expectTypeOf<PrimitiveType<UuidTypeOptional[]>>().toEqualTypeOf<(string | null)[]>();
   });
   it('idType', () => {
     expectTypeOf<PrimitiveType<IdType>>().toEqualTypeOf<string>();
@@ -135,7 +135,7 @@ describe('Primitive Types', () => {
     expectTypeOf<PrimitiveType<JsonTypeOptional>>().toEqualTypeOf<JsonValuesTest | null>();
 
     expectTypeOf<PrimitiveType<JsonTypeRequired[]>>().toEqualTypeOf<JsonValuesTest[]>();
-    expectTypeOf<PrimitiveType<JsonTypeOptional[]>>().toEqualTypeOf<Array<JsonValuesTest | null>>();
+    expectTypeOf<PrimitiveType<JsonTypeOptional[]>>().toEqualTypeOf<(JsonValuesTest | null)[]>();
   });
 
   it('json', () => {

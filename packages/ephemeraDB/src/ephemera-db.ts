@@ -3,7 +3,7 @@ export class EphemeraDb<T extends { id: string }> {
 
   findById(id: string): Promise<T | null> {
     return new Promise((resolve) => {
-      const item = this.items.find((item) => item.id === id) || null;
+      const item = this.items.find((entry) => entry.id === id) || null;
       resolve(item);
     });
   }

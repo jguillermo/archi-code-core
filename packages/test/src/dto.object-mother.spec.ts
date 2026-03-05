@@ -21,7 +21,7 @@ export class TestDtoObjectMother extends DtoObjectMother<TestDto> {
     };
   }
 
-  getPropertiesByLevel(): Record<number, Array<keyof TestDto>> {
+  getPropertiesByLevel(): Record<number, (keyof TestDto)[]> {
     return {
       1: ['id', 'name'],
       2: ['optionalField'],
@@ -50,7 +50,7 @@ export class TestDtoObjectMotherWithLevelValidation extends DtoObjectMother<Test
     };
   }
 
-  getPropertiesByLevel(): Record<number, Array<keyof TestDtoWithLevelValidation>> {
+  getPropertiesByLevel(): Record<number, (keyof TestDtoWithLevelValidation)[]> {
     return {
       1: ['id', 'name'],
       2: ['optionalField'],

@@ -38,7 +38,7 @@ const PrimitivesValues = {
   [PrimitivesKeys.SET]: [new Set(), new Set([1, 2, 3])],
 };
 
-export function canByType(...primitiveTypes: PrimitivesKeys[]) {
+export function canByType(...primitiveTypes: PrimitivesKeys[]): any[] {
   const values: any[] = [];
 
   for (const primitiveType of primitiveTypes) {
@@ -76,7 +76,7 @@ export function canByType(...primitiveTypes: PrimitivesKeys[]) {
   return values;
 }
 
-export function skipByType(...primitiveType: PrimitivesKeys[]) {
+export function skipByType(...primitiveType: PrimitivesKeys[]): any[] {
   const values: any[] = [];
   for (const key in PrimitivesValues) {
     if (!primitiveType.includes(key as PrimitivesKeys)) {
@@ -86,7 +86,7 @@ export function skipByType(...primitiveType: PrimitivesKeys[]) {
   return values;
 }
 
-export function skipByTypeRequired(...primitiveType: PrimitivesKeys[]) {
+export function skipByTypeRequired(...primitiveType: PrimitivesKeys[]): any[] {
   const values: any[] = [];
   primitiveType.push(PrimitivesKeys.NULL, PrimitivesKeys.UNDEFINED);
   for (const key in PrimitivesValues) {
@@ -97,11 +97,11 @@ export function skipByTypeRequired(...primitiveType: PrimitivesKeys[]) {
   return excludeItems(values, ['']);
 }
 
-export function emptyTypes(): PrimitivesKeys[] {
+export function emptyTypes(): any[] {
   return [...canByType(PrimitivesKeys.UNDEFINED, PrimitivesKeys.NULL), ''];
 }
 
-export function nullables(): PrimitivesKeys[] {
+export function nullables(): any[] {
   return [...canByType(PrimitivesKeys.UNDEFINED, PrimitivesKeys.NULL)];
 }
 
@@ -109,7 +109,7 @@ export function allTypes(): PrimitivesKeys[] {
   return Object.values(PrimitivesKeys);
 }
 
-export function allTypesRequired(): PrimitivesKeys[] {
+export function allTypesRequired(): any[] {
   const keys: any[] = [];
 
   const itemsToSkip = [PrimitivesKeys.UNDEFINED, PrimitivesKeys.NULL];
@@ -121,7 +121,7 @@ export function allTypesRequired(): PrimitivesKeys[] {
   return excludeItems(canByType(...keys), ['']);
 }
 
-export function excludeItems(allItems: any[], excludes: any[]) {
+export function excludeItems(allItems: any[], excludes: any[]): any[] {
   const values: any[] = [];
   allItems.forEach((item) => {
     if (!excludes.includes(item)) {

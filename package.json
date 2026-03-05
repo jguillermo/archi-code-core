@@ -21,6 +21,7 @@
     "@types/node": "22.19.13",
     "@typescript-eslint/eslint-plugin": "8.56.1",
     "@typescript-eslint/parser": "8.56.1",
+    "typescript-eslint": "8.56.1",
     "bcrypt": "^6.0.0",
     "eslint": "9.39.3",
     "fast-uri": "^3.1.0",

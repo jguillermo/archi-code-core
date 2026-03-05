@@ -4,5 +4,5 @@ export class DomainValidatorDto {
   @IsOptional()
   @IsInt()
   @IsPositive()
-  public levelValidation: number = 1;
+  public levelValidation = 1;
 }

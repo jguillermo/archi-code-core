@@ -1,7 +1,7 @@
 export abstract class Hasher {
   protected saltToUse: Uint8Array;
 
-  constructor(saltLength: number = 16) {
+  constructor(saltLength = 16) {
     if (saltLength <= 0) {
       throw new Error('Salt length must be a positive number.');
     }

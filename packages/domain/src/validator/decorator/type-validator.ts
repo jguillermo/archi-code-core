@@ -5,7 +5,7 @@ import { validateSync, ValidationError } from 'class-validator';
 import { ValidatorOptions } from 'class-validator/types/validation/ValidatorOptions';
 import { ValidatorsDoc } from './validators-doc';
 
-function registerDecorator(cls: Function, validatorConfigs: ValidatorMapI[], propertyKey: string) {
+function registerDecorator(cls: Function, validatorConfigs: ValidatorMapI[], propertyKey: string): void {
   validatorConfigs.forEach((config) => {
     let validator: any;
     if (typeof config.validator === 'string' && validatorsMap[config.validator]) {
@@ -26,7 +26,7 @@ function registerDecorator(cls: Function, validatorConfigs: ValidatorMapI[], pro
   ValidationStorage.getInstance().addValidations(cls, propertyKey, validatorConfigs);
 }
 
-function applyParentValidations(cls: Function, propertyKey: string) {
+function applyParentValidations(cls: Function, propertyKey: string): void {
   const parentPrototype = Object.getPrototypeOf(cls.prototype);
   if (parentPrototype && parentPrototype !== Object.prototype) {
     const parentValidatorConfigs = ValidationStorage.getInstance().getValidations(parentPrototype.constructor, propertyKey);
@@ -36,7 +36,7 @@ function applyParentValidations(cls: Function, propertyKey: string) {
   }
 }
 
-export function AddValidate(validatorConfigs: ValidatorMapI[], propertyKey: string = '_value') {
+export function AddValidate(validatorConfigs: ValidatorMapI[], propertyKey = '_value'): (cls: Function) => void {
   return function (cls: Function) {
     applyParentValidations(cls, propertyKey);
     registerDecorator(cls, validatorConfigs, propertyKey);

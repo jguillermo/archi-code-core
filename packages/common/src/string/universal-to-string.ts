@@ -1,4 +1,4 @@
-export function universalToString(value: any) {
+export function universalToString(value: any): string {
   if (value === null) {
     return 'null';
   } else if (value === undefined) {

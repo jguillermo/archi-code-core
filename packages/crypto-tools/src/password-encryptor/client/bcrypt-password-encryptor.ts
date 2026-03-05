@@ -8,7 +8,7 @@ export class BcryptPasswordEncryptor extends PasswordEncryptor {
    * Constructor for the UserPasswordEncryptor class.
    * @param saltRounds Number of salt rounds to generate the hashes (default is 10).
    */
-  constructor(saltRounds: number = 10) {
+  constructor(saltRounds = 10) {
     super(saltRounds);
     this.ensureBcryptAvailable();
   }

@@ -25,7 +25,7 @@ export abstract class AbstractType<T, R extends null | undefined = undefined> im
     return validateSync(this).length === 0;
   }
 
-  validatorMessageObj(customReplacement: string = ''): object {
+  validatorMessageObj(customReplacement = ''): object {
     const errors = validateSync(this);
     const data = errors.map((error) => {
       if (error.constraints) {
@@ -40,7 +40,7 @@ export abstract class AbstractType<T, R extends null | undefined = undefined> im
     return data.length > 0 ? data[0] : {};
   }
 
-  validatorMessageStr(separator: string = ',', customReplacement: string = ''): string {
+  validatorMessageStr(separator = ',', customReplacement = ''): string {
     return Object.values(this.validatorMessageObj(customReplacement)).join(`${separator} `);
   }
 

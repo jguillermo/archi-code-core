@@ -9,7 +9,7 @@ interface ITestValidation {
   expectValue: any;
 }
 
-export function testValidation({ validator, valid, invalid }) {
+export function testValidation({ validator, valid, invalid }: { validator: any; valid: any[]; invalid: any[] }): void {
   functionTestSpec(
     validator,
     valid.map((value) => [value, true]),
@@ -20,7 +20,7 @@ export function testValidation({ validator, valid, invalid }) {
   );
 }
 
-export function splitString(input): {
+export function splitString(input: string): {
   name: string | null;
   property: string | null;
 } {
@@ -57,7 +57,7 @@ export function processValidator(name: string, objectItem: any, property: string
   };
 }
 
-export function classTestSpec(cls: any, objectList: { [P: string]: any[] }) {
+export function classTestSpec(cls: any, objectList: Record<string, any[]>): void {
   for (const property in objectList) {
     objectList[property].forEach((value) => {
       const dataInput = processValidator(cls.name, value, property);
@@ -69,7 +69,7 @@ export function classTestSpec(cls: any, objectList: { [P: string]: any[] }) {
   }
 }
 
-export function typeValidationSpec(validateTypeFn: Function, cls: any, objectList: { [P: string]: any[] }) {
+export function typeValidationSpec(validateTypeFn: Function, cls: any, objectList: Record<string, any[]>): void {
   for (const property in objectList) {
     objectList[property].forEach((value) => {
       const dataInput = processValidator(cls.name, value, property);
@@ -89,12 +89,12 @@ export function errorTypeValidValueSpec<T>(
   TypePrimitiveExceptionFn: Function,
   cls: any,
   errorData: any,
-  items: Array<{
+  items: {
     constraints: T[];
     values: any[];
-    valuesTxt?: { [k: string]: { [key: string]: Function } };
-  }>,
-) {
+    valuesTxt?: Record<string, Record<string, Function>>;
+  }[],
+): void {
   items.forEach((item) => {
     item.values.forEach((value) => {
       it(`type error validate (${item.constraints.join(', ')}) : ${classTxt(cls, value)}`, async () => {
@@ -146,7 +146,7 @@ export function errorTypeValidValueSpec<T>(
   });
 }
 
-export function typeValidValueSpec(validateTypeFn: Function, cls: any, items: any[], validateTypeOf?: string) {
+export function typeValidValueSpec(validateTypeFn: Function, cls: any, items: any[], validateTypeOf?: string): void {
   items.forEach((value) => {
     it(`Valid type: ${classTxt(cls, value)}`, async () => {
       const type = new cls(value);
@@ -174,7 +174,7 @@ function classTxt(cls: any, value: any): string {
   return `new ${cls.name}(${txtInput})`;
 }
 
-export function classExceptionSpec(cls: any, exceptionList: { [P: string]: { message: string; values: any[] } }) {
+export function classExceptionSpec(cls: any, exceptionList: Record<string, { message: string; values: any[] }>): void {
   for (const exceptionItem in exceptionList) {
     exceptionList[exceptionItem]['values'].forEach((value) => {
       const valueText = isString(value) ? `'${value}'` : universalToString(value);
@@ -187,7 +187,7 @@ export function classExceptionSpec(cls: any, exceptionList: { [P: string]: { mes
   }
 }
 
-export function functionTestSpec(fn: any, objectList: any[]) {
+export function functionTestSpec(fn: any, objectList: any[]): void {
   objectList.forEach((value) => {
     const dataInput = processValidator(fn.name, value);
     it(dataInput.title, () => {
@@ -197,7 +197,7 @@ export function functionTestSpec(fn: any, objectList: any[]) {
   });
 }
 
-export function toEqualArray(data: any[]) {
+export function toEqualArray(data: any[]): void {
   data.forEach((value) => {
     expect(value[0]).toEqual(value[1]);
   });

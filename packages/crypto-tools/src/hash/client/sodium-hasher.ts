@@ -2,7 +2,7 @@ import { Hasher } from '../hasher';
 import { SodiumInitializer } from '../../sodium-initializer';
 
 export class SodiumHasher extends Hasher {
-  constructor(saltLength: number = 16) {
+  constructor(saltLength = 16) {
     super(saltLength);
   }
 

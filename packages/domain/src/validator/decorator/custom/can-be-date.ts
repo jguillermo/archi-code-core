@@ -2,7 +2,7 @@ import { registerDecorator, ValidationArguments, ValidationOptions } from 'class
 import { DateValidator } from '../../primitive-validator/date.validator';
 
 export function CanBeDate(validationOptions?: ValidationOptions) {
-  return function (object: object, propertyName: string) {
+  return function (object: object, propertyName: string): void {
     registerDecorator({
       name: 'canBeDate',
       target: object.constructor,

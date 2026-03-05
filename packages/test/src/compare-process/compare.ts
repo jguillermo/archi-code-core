@@ -1,5 +1,5 @@
 export abstract class Compare {
-  abstract get regexp();
+  abstract readonly regexp: RegExp;
 
-  abstract compare(value): boolean;
+  abstract compare(value: any): boolean;
 }

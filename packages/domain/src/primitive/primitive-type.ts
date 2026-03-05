@@ -19,16 +19,14 @@ type UuidType<T> = T extends AbstractUuidType<undefined> ? string : T extends Ab
 
 type EnumType<T> = T extends AbstractEnumType<infer U, undefined> ? PrimitiveEnum<U> : T extends AbstractEnumType<infer U, null> ? Nullable<PrimitiveEnum<U>> : never;
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 type JsonType<T> = T extends AbstractJsonType<infer U> ? U : T extends AbstractJsonType<infer U, null> ? Nullable<U> : never;
 
 type IdTypePrimitive<T> = T extends IdType ? string : never;
 
-export type PrimitiveType<T> =
-  T extends Array<infer U>
-    ? PrimitiveType<U>[]
-    : T extends AbstractArrayType<infer A, undefined>
-      ? PrimitiveType<A>[]
-      : T extends AbstractArrayType<infer A, null>
-        ? Nullable<PrimitiveType<A>[]>
-        : BooleanType<T> | DateType<T> | NumberType<T> | StringType<T> | UuidType<T> | EnumType<T> | JsonType<T> | IdTypePrimitive<T> | never;
+export type PrimitiveType<T> = T extends (infer U)[]
+  ? PrimitiveType<U>[]
+  : T extends AbstractArrayType<infer A, undefined>
+    ? PrimitiveType<A>[]
+    : T extends AbstractArrayType<infer A, null>
+      ? Nullable<PrimitiveType<A>[]>
+      : BooleanType<T> | DateType<T> | NumberType<T> | StringType<T> | UuidType<T> | EnumType<T> | JsonType<T> | IdTypePrimitive<T> | never;
