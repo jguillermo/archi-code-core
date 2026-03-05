@@ -6,7 +6,7 @@ import { SodiumHasher } from './client/sodium-hasher';
 /*
 joya
 private static readonly validAlgorithms = ['sha256', 'sha512', 'blake2b'] as const;
- private readonly algorithm: (typeof Hasher.validAlgorithms)[number],
+  private readonly algorithm: (typeof Hasher.validAlgorithms)[number],
 * */
 describe('Hasher', () => {
   describe('Constructor', () => {
