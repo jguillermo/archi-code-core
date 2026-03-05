@@ -6,10 +6,18 @@ export abstract class DtoObjectMother<T extends object> {
    * @param exclude Properties to be excluded from the final DTO (optional).
    * @returns An instance of the DTO with active properties according to the level and exclusions.
    */
-  static create<T extends object>(this: new () => DtoObjectMother<T>, level: number, override: Partial<T> = {}, exclude: (keyof T)[] = []): T {
+  static create<T extends object>(
+    this: new () => DtoObjectMother<T>,
+    level: number,
+    override: Partial<T> = {},
+    exclude: (keyof T)[] = [],
+  ): T {
     const instance = new this();
     const defaultValues = instance.getDefaultValues();
-    const activeProperties = instance.filterPropertiesByLevel(instance.getPropertiesByLevel(), level);
+    const activeProperties = instance.filterPropertiesByLevel(
+      instance.getPropertiesByLevel(),
+      level,
+    );
 
     // Include all overrides in the active properties
     const finalProperties = Array.from(new Set([...activeProperties, ...Object.keys(override)]));
@@ -50,7 +58,10 @@ export abstract class DtoObjectMother<T extends object> {
    * @param level The level to filter properties for.
    * @returns An array of properties active for the given level.
    */
-  protected filterPropertiesByLevel(propertiesByLevel: Record<number, (keyof T)[]>, level: number): (keyof T)[] {
+  protected filterPropertiesByLevel(
+    propertiesByLevel: Record<number, (keyof T)[]>,
+    level: number,
+  ): (keyof T)[] {
     return Object.entries(propertiesByLevel)
       .filter(([lvl]) => Number(lvl) <= level)
       .flatMap(([, properties]) => properties);

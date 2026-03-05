@@ -9,7 +9,10 @@ export abstract class AbstractException extends Error {
     super(message);
     this.name = this.constructor.name;
     this.exceptionCodes = exceptionCodes;
-    this.code = exceptionCodes.length > 0 ? exceptionCodes[exceptionCodes.length - 1] : ExceptionCode.ErrorException;
+    this.code =
+      exceptionCodes.length > 0
+        ? exceptionCodes[exceptionCodes.length - 1]
+        : ExceptionCode.ErrorException;
     this.timestamp = new Date();
     Error.captureStackTrace(this, this.constructor);
   }

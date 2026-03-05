@@ -70,26 +70,40 @@ describe('SearchCriteriaDto', () => {
 
     it('should throw an error if invalid orders are provided', () => {
       // Orders array with an invalid item: empty field
-      expect(() => new SearchOrderDto([{ field: '', direction: 'asc' }])).toThrow('SearchOrderDto: Each order must have a non-empty string as field');
+      expect(() => new SearchOrderDto([{ field: '', direction: 'asc' }])).toThrow(
+        'SearchOrderDto: Each order must have a non-empty string as field',
+      );
 
       // Orders array with an invalid direction
-      expect(() => new SearchOrderDto([{ field: 'name', direction: 'up' as any }])).toThrow('SearchOrderDto: Each order must have direction "asc" or "desc"');
+      expect(() => new SearchOrderDto([{ field: 'name', direction: 'up' as any }])).toThrow(
+        'SearchOrderDto: Each order must have direction "asc" or "desc"',
+      );
     });
 
     it('should throw an error if invalid paginator values are provided', () => {
       // Negative values
-      expect(() => new SearchPaginatorDto(0, 10)).toThrow('SearchPaginatorDto: "page" and "perPage" must be positive integers');
-      expect(() => new SearchPaginatorDto(1, -5)).toThrow('SearchPaginatorDto: "page" and "perPage" must be positive integers');
+      expect(() => new SearchPaginatorDto(0, 10)).toThrow(
+        'SearchPaginatorDto: "page" and "perPage" must be positive integers',
+      );
+      expect(() => new SearchPaginatorDto(1, -5)).toThrow(
+        'SearchPaginatorDto: "page" and "perPage" must be positive integers',
+      );
 
       // Non-numeric values (simulate with type casting)
-      expect(() => new SearchPaginatorDto('a' as any, 10)).toThrow('SearchPaginatorDto: "page" and "perPage" must be integers');
+      expect(() => new SearchPaginatorDto('a' as any, 10)).toThrow(
+        'SearchPaginatorDto: "page" and "perPage" must be integers',
+      );
     });
 
     it('should propagate errors from invalid filter DTOs', () => {
       // Empty field
-      expect(() => new SimpleFilterDto('', FilterOperator.EQ, 'Alice')).toThrow('SimpleFilterDto: "field" must be a non-empty string');
+      expect(() => new SimpleFilterDto('', FilterOperator.EQ, 'Alice')).toThrow(
+        'SimpleFilterDto: "field" must be a non-empty string',
+      );
       // Float value for a numeric operator
-      expect(() => new SimpleFilterDto('age', FilterOperator.GT, '30.5')).toThrow('SimpleFilterDto: Value "30.5" must be an integer');
+      expect(() => new SimpleFilterDto('age', FilterOperator.GT, '30.5')).toThrow(
+        'SimpleFilterDto: Value "30.5" must be an integer',
+      );
     });
   });
 });

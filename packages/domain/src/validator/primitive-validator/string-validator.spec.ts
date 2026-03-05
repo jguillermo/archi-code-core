@@ -6,7 +6,25 @@ describe('StringValidator', () => {
   describe('isString', () => {
     testValidation({
       validator: StringValidator.isString,
-      valid: ['123', '-123', '   123   ', '0.456', '4e2', '0034', '+123', '', '   ', 'abc', '123abc', 'NaN', 'Infinity', 'undefined', 'null', '123.456.789', '123,456'],
+      valid: [
+        '123',
+        '-123',
+        '   123   ',
+        '0.456',
+        '4e2',
+        '0034',
+        '+123',
+        '',
+        '   ',
+        'abc',
+        '123abc',
+        'NaN',
+        'Infinity',
+        'undefined',
+        'null',
+        '123.456.789',
+        '123,456',
+      ],
       invalid: [
         123,
         -123,

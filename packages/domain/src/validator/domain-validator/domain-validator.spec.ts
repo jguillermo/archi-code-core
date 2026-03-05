@@ -20,7 +20,8 @@ describe('validate DomainValidator CourseTitle', () => {
       const errors = await validate(object);
       expect(errors.length).toEqual(1);
       expect(errors[0].constraints).toEqual({
-        domainValidator: 'must be a string, should not be empty, must be longer than or equal to 5 characters',
+        domainValidator:
+          'must be a string, should not be empty, must be longer than or equal to 5 characters',
       });
     });
     it('invalid value 123', async () => {

@@ -7,6 +7,9 @@ export class TypePrimitiveException extends DomainException {
     if (typeof receivedValue === 'string') {
       receivedValue = `"${receivedValue}"`;
     }
-    super(`Validation Error: ${template}${expectedType}, but received ${universalToString(receivedValue)}.`, [ExceptionCode.TypeFailed]);
+    super(
+      `Validation Error: ${template}${expectedType}, but received ${universalToString(receivedValue)}.`,
+      [ExceptionCode.TypeFailed],
+    );
   }
 }

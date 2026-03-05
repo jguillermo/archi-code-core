@@ -186,7 +186,9 @@ describe('Level Decorator', () => {
       class Level2ClassWithoutEmpty {}
 
       new Level2ClassWithoutEmpty();
-    }).toThrowError("Class Level2ClassWithoutEmpty with level 2 must implement a static 'empty()' method as a function.");
+    }).toThrowError(
+      "Class Level2ClassWithoutEmpty with level 2 must implement a static 'empty()' method as a function.",
+    );
   });
 
   it('should throw an error if the static "empty" method does not return an instance of the class', () => {
@@ -199,7 +201,9 @@ describe('Level Decorator', () => {
       }
 
       new Level2ClassWithInvalidEmpty();
-    }).toThrowError("The static 'empty()' method of class Level2ClassWithInvalidEmpty must return a valid instance of the class.");
+    }).toThrowError(
+      "The static 'empty()' method of class Level2ClassWithInvalidEmpty must return a valid instance of the class.",
+    );
   });
 
   it('should allow a class with level > 1 to implement a valid static "empty" method', () => {

@@ -1,5 +1,14 @@
 import { describe, it } from '@jest/globals';
-import { canByType, errorTypeValidValueSpec, nullables, PrimitivesKeys, skipByType, skipByTypeRequired, typeValidationSpec, typeValidValueSpec } from '@code-core/test';
+import {
+  canByType,
+  errorTypeValidValueSpec,
+  nullables,
+  PrimitivesKeys,
+  skipByType,
+  skipByTypeRequired,
+  typeValidationSpec,
+  typeValidValueSpec,
+} from '@code-core/test';
 import { expectTypeOf } from 'expect-type';
 import { universalToString } from '@code-core/common';
 import { DateTypeOptional, DateTypeRequired } from './index';
@@ -17,17 +26,23 @@ describe('AbstractDateType', () => {
         isNotEmpty: 'DateTypeRequired should not be empty',
         typePrimitive: 'Validation Error: Expected a valid Date, but received {{$1}}.',
       };
-      errorTypeValidValueSpec<keyof typeof errorData>(validateType, TypePrimitiveException, DateTypeRequired, errorData, [
-        {
-          constraints: ['typePrimitive'],
-          values: skipByTypeRequired(PrimitivesKeys.DATE),
-          valuesTxt: { typePrimitive: { '{{$1}}': universalToString } },
-        },
-        {
-          constraints: ['canBeDate', 'isNotEmpty'],
-          values: nullables(),
-        },
-      ]);
+      errorTypeValidValueSpec<keyof typeof errorData>(
+        validateType,
+        TypePrimitiveException,
+        DateTypeRequired,
+        errorData,
+        [
+          {
+            constraints: ['typePrimitive'],
+            values: skipByTypeRequired(PrimitivesKeys.DATE),
+            valuesTxt: { typePrimitive: { '{{$1}}': universalToString } },
+          },
+          {
+            constraints: ['canBeDate', 'isNotEmpty'],
+            values: nullables(),
+          },
+        ],
+      );
     });
     describe('Compare values', () => {
       typeValidationSpec(validateType, DateTypeRequired, {
@@ -42,20 +57,30 @@ describe('AbstractDateType', () => {
   });
   describe('DateTypeOptional', () => {
     describe('Valid Values', () => {
-      typeValidValueSpec(validateType, DateTypeOptional, canByType(PrimitivesKeys.DATE, PrimitivesKeys.NULL, PrimitivesKeys.UNDEFINED));
+      typeValidValueSpec(
+        validateType,
+        DateTypeOptional,
+        canByType(PrimitivesKeys.DATE, PrimitivesKeys.NULL, PrimitivesKeys.UNDEFINED),
+      );
     });
     describe('Invalid Values', () => {
       const errorData = {
         canBeDate: 'DateTypeOptional must be a Date or a valid ISO 8601 date string',
         typePrimitive: 'Validation Error: Expected a valid Date, but received {{$1}}.',
       };
-      errorTypeValidValueSpec<keyof typeof errorData>(validateType, TypePrimitiveException, DateTypeOptional, errorData, [
-        {
-          constraints: ['typePrimitive'],
-          values: skipByType(PrimitivesKeys.DATE, PrimitivesKeys.NULL, PrimitivesKeys.UNDEFINED),
-          valuesTxt: { typePrimitive: { '{{$1}}': universalToString } },
-        },
-      ]);
+      errorTypeValidValueSpec<keyof typeof errorData>(
+        validateType,
+        TypePrimitiveException,
+        DateTypeOptional,
+        errorData,
+        [
+          {
+            constraints: ['typePrimitive'],
+            values: skipByType(PrimitivesKeys.DATE, PrimitivesKeys.NULL, PrimitivesKeys.UNDEFINED),
+            valuesTxt: { typePrimitive: { '{{$1}}': universalToString } },
+          },
+        ],
+      );
     });
     describe('Compare values', () => {
       typeValidationSpec(validateType, DateTypeOptional, {

@@ -1,5 +1,11 @@
 import { describe } from '@jest/globals';
-import { canByType, excludeItems, PrimitivesKeys, skipByType, testValidation } from '@code-core/test';
+import {
+  canByType,
+  excludeItems,
+  PrimitivesKeys,
+  skipByType,
+  testValidation,
+} from '@code-core/test';
 import { BooleanValidator } from './boolean.validator';
 
 describe('BooleanValidator', () => {

@@ -10,7 +10,9 @@ export class JWTDataSigner {
     this.ensureJWTAvailable();
 
     if (typeof secretKey !== 'string' || secretKey.length < MIN_SECRET_KEY_LENGTH) {
-      throw new Error(`La clave secreta debe ser una cadena de al menos ${MIN_SECRET_KEY_LENGTH} caracteres.`);
+      throw new Error(
+        `La clave secreta debe ser una cadena de al menos ${MIN_SECRET_KEY_LENGTH} caracteres.`,
+      );
     }
 
     this.secretKey = secretKey;
@@ -24,7 +26,9 @@ export class JWTDataSigner {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
         JWTDataSigner.jwt = require('jsonwebtoken');
       } catch {
-        console.warn('jsonwebtoken is not installed. JWT signing functionality will not be available.');
+        console.warn(
+          'jsonwebtoken is not installed. JWT signing functionality will not be available.',
+        );
         throw new Error('jsonwebtoken module is required but not installed.');
       }
     }
@@ -36,7 +40,9 @@ export class JWTDataSigner {
 
   verify(signedData: string): object {
     try {
-      const data = JWTDataSigner.jwt.verify(signedData, this.secretKey, this.verifyOptions) as object | null;
+      const data = JWTDataSigner.jwt.verify(signedData, this.secretKey, this.verifyOptions) as
+        | object
+        | null;
       return data ?? {};
     } catch (error) {
       throw new Error(`verify Error: ${(error as Error).message}`);

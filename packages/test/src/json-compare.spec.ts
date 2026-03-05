@@ -60,14 +60,21 @@ describe('JsonCompare', () => {
         s({ a: 1, b: 1 }, { a: 1, b: 2 }, ['b: 1 -> 2']);
         s({ a: 1, b: { ba: 2 } }, { a: 1, b: 1 }, ['b: must not be an object; it must be 1']);
         s({ a: 1, b: 1 }, { a: 1, b: { ba: 2 } }, ['b: 1 -> {"ba":2}']);
-        s({ a: 1, b: 1, c: { ca: 1, cb: 1 } }, { a: 1, b: 1, c: { ca: 1, cb: 2 } }, ['c.cb: 1 -> 2']);
-        s({ a: 1, b: 1, c: { ca: 1, cb: 1 } }, { a: 1, b: 1, c: { ca: 1 } }, ['c.cb: extra key found']);
+        s({ a: 1, b: 1, c: { ca: 1, cb: 1 } }, { a: 1, b: 1, c: { ca: 1, cb: 2 } }, [
+          'c.cb: 1 -> 2',
+        ]);
+        s({ a: 1, b: 1, c: { ca: 1, cb: 1 } }, { a: 1, b: 1, c: { ca: 1 } }, [
+          'c.cb: extra key found',
+        ]);
 
         s({ a: '1' }, { a: '1', b: 1 }, ['b: key not found']);
         s({ a: 1 }, { a: 1, b: 1 }, ['b: key not found']);
 
         s({ a: 1 }, { a: 1, b: 1 }, ['b: key not found']); //key not found
-        s({ a: 1, c: { cb: 1 } }, { a: 1, b: 1, c: { ca: 1, cb: 1 } }, ['b: key not found', 'c.ca: key not found']); //'c.ca: key not found', 'b: key not found'
+        s({ a: 1, c: { cb: 1 } }, { a: 1, b: 1, c: { ca: 1, cb: 1 } }, [
+          'b: key not found',
+          'c.ca: key not found',
+        ]); //'c.ca: key not found', 'b: key not found'
       });
     });
     describe('include', () => {
@@ -79,9 +86,15 @@ describe('JsonCompare', () => {
       });
       describe('error', () => {
         _({ a: 1, b: 1 }, { a: 1, b: 2 }, ['b: 1 -> 2']);
-        _({ a: 1, b: 1, c: { ca: 1, cb: 1 } }, { a: 1, b: 1, c: { ca: 1, cb: 2 } }, ['c.cb: 1 -> 2']);
-        _({ a: 1, b: 1, c: { ca: 1, cb: 1 } }, { a: 1, b: 1, c: 1 }, ['c: must not be an object; it must be 1']);
-        _({ a: 1, b: 1, c: { ca: 1, cb: 1 } }, { a: 1, b: 1, c: { ca: 1 } }, ['c.cb: extra key found']);
+        _({ a: 1, b: 1, c: { ca: 1, cb: 1 } }, { a: 1, b: 1, c: { ca: 1, cb: 2 } }, [
+          'c.cb: 1 -> 2',
+        ]);
+        _({ a: 1, b: 1, c: { ca: 1, cb: 1 } }, { a: 1, b: 1, c: 1 }, [
+          'c: must not be an object; it must be 1',
+        ]);
+        _({ a: 1, b: 1, c: { ca: 1, cb: 1 } }, { a: 1, b: 1, c: { ca: 1 } }, [
+          'c.cb: extra key found',
+        ]);
       });
     });
   });
@@ -118,10 +131,26 @@ describe('JsonCompare', () => {
       });
       describe('error', () => {
         _([{ a: 1, b: 1 }], [{ a: 1, b: 2 }], ['[0].b: 1 -> 2']);
-        _([{ a: 1, b: 1, c: { ca: 1, cb: 1 } }], [{ a: 1, b: 1, c: { ca: 1, cb: 2 } }], ['[0].c.cb: 1 -> 2']);
-        _([{ a: 1, b: 1, c: [{ ca: 1, cb: 1 }] }], [{ a: 1, b: 1, c: [{ ca: 1, cb: 2 }] }], ['[0].c[0].cb: 1 -> 2']);
-        _([{ a: 1, b: 1, c: { ca: 1, cb: 1 } }], [{ a: 1, b: 1, c: { ca: 1 } }], ['[0].c.cb: extra key found']);
-        _([{ a: 1, b: 1, c: [{ ca: 1, cb: 1 }] }], [{ a: 1, b: 1, c: [{ ca: 1 }] }], ['[0].c[0].cb: extra key found']);
+        _(
+          [{ a: 1, b: 1, c: { ca: 1, cb: 1 } }],
+          [{ a: 1, b: 1, c: { ca: 1, cb: 2 } }],
+          ['[0].c.cb: 1 -> 2'],
+        );
+        _(
+          [{ a: 1, b: 1, c: [{ ca: 1, cb: 1 }] }],
+          [{ a: 1, b: 1, c: [{ ca: 1, cb: 2 }] }],
+          ['[0].c[0].cb: 1 -> 2'],
+        );
+        _(
+          [{ a: 1, b: 1, c: { ca: 1, cb: 1 } }],
+          [{ a: 1, b: 1, c: { ca: 1 } }],
+          ['[0].c.cb: extra key found'],
+        );
+        _(
+          [{ a: 1, b: 1, c: [{ ca: 1, cb: 1 }] }],
+          [{ a: 1, b: 1, c: [{ ca: 1 }] }],
+          ['[0].c[0].cb: extra key found'],
+        );
       });
     });
   });

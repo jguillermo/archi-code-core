@@ -9,7 +9,15 @@ interface ITestValidation {
   expectValue: any;
 }
 
-export function testValidation({ validator, valid, invalid }: { validator: any; valid: any[]; invalid: any[] }): void {
+export function testValidation({
+  validator,
+  valid,
+  invalid,
+}: {
+  validator: any;
+  valid: any[];
+  invalid: any[];
+}): void {
   functionTestSpec(
     validator,
     valid.map((value) => [value, true]),
@@ -31,11 +39,21 @@ export function splitString(input: string): {
   };
 }
 
-export function titleGenerate(objectName: string, input: any, expectValue: any, hastTwoValues: boolean, result: any = null): string {
-  const txtExpectValue = isString(expectValue) ? `'${expectValue}'` : universalToString(expectValue);
+export function titleGenerate(
+  objectName: string,
+  input: any,
+  expectValue: any,
+  hastTwoValues: boolean,
+  result: any = null,
+): string {
+  const txtExpectValue = isString(expectValue)
+    ? `'${expectValue}'`
+    : universalToString(expectValue);
   const txtInput = !hastTwoValues ? '' : isString(input) ? `'${input}'` : universalToString(input);
   const objectNameProperty = splitString(objectName);
-  const titleObject = objectNameProperty.property ? `(new ${objectNameProperty.name}(${txtInput})).${objectNameProperty.property}()` : `${objectName}(${txtInput})`;
+  const titleObject = objectNameProperty.property
+    ? `(new ${objectNameProperty.name}(${txtInput})).${objectNameProperty.property}()`
+    : `${objectName}(${txtInput})`;
   if (result) {
     return `${titleObject} Expected: ${txtExpectValue}, but return: ${universalToString(result)}`;
   } else {
@@ -43,7 +61,11 @@ export function titleGenerate(objectName: string, input: any, expectValue: any, 
   }
 }
 
-export function processValidator(name: string, objectItem: any, property: string | null = null): ITestValidation {
+export function processValidator(
+  name: string,
+  objectItem: any,
+  property: string | null = null,
+): ITestValidation {
   const hastTwoValues = Array.isArray(objectItem) && objectItem.length === 2;
   const voProperties = property ? `${name}:${property}` : `${name}`;
   const input = hastTwoValues ? objectItem[0] : '';
@@ -69,7 +91,11 @@ export function classTestSpec(cls: any, objectList: Record<string, any[]>): void
   }
 }
 
-export function typeValidationSpec(validateTypeFn: Function, cls: any, objectList: Record<string, any[]>): void {
+export function typeValidationSpec(
+  validateTypeFn: Function,
+  cls: any,
+  objectList: Record<string, any[]>,
+): void {
   for (const property in objectList) {
     objectList[property].forEach((value) => {
       const dataInput = processValidator(cls.name, value, property);
@@ -133,7 +159,10 @@ export function errorTypeValidValueSpec<T>(
               if (typeof value === 'string') {
                 value = `"${value}"`;
               }
-              txtTransform = txtTransform?.replace(txtReplace, item.valuesTxt?.[errorKey]?.[txtReplace](value));
+              txtTransform = txtTransform?.replace(
+                txtReplace,
+                item.valuesTxt?.[errorKey]?.[txtReplace](value),
+              );
             });
 
             expect(errors[0]?.constraints?.[errorKey]).toEqual(txtTransform);
@@ -146,7 +175,12 @@ export function errorTypeValidValueSpec<T>(
   });
 }
 
-export function typeValidValueSpec(validateTypeFn: Function, cls: any, items: any[], validateTypeOf?: string): void {
+export function typeValidValueSpec(
+  validateTypeFn: Function,
+  cls: any,
+  items: any[],
+  validateTypeOf?: string,
+): void {
   items.forEach((value) => {
     it(`Valid type: ${classTxt(cls, value)}`, async () => {
       const type = new cls(value);
@@ -174,7 +208,10 @@ function classTxt(cls: any, value: any): string {
   return `new ${cls.name}(${txtInput})`;
 }
 
-export function classExceptionSpec(cls: any, exceptionList: Record<string, { message: string; values: any[] }>): void {
+export function classExceptionSpec(
+  cls: any,
+  exceptionList: Record<string, { message: string; values: any[] }>,
+): void {
   for (const exceptionItem in exceptionList) {
     exceptionList[exceptionItem]['values'].forEach((value) => {
       const valueText = isString(value) ? `'${value}'` : universalToString(value);

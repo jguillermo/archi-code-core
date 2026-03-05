@@ -1,5 +1,14 @@
 import { describe, expect, it } from '@jest/globals';
-import { canByType, errorTypeValidValueSpec, nullables, PrimitivesKeys, skipByType, skipByTypeRequired, typeValidationSpec, typeValidValueSpec } from '@code-core/test';
+import {
+  canByType,
+  errorTypeValidValueSpec,
+  nullables,
+  PrimitivesKeys,
+  skipByType,
+  skipByTypeRequired,
+  typeValidationSpec,
+  typeValidValueSpec,
+} from '@code-core/test';
 import { AbstractJsonType } from './abstract-json-type';
 import { AddValidate, validateType } from '../validator/decorator/type-validator';
 import { JsonSchemaValidator } from '../validator/decorator/custom/json-schema-validator';
@@ -32,17 +41,23 @@ describe('AbstractJsonType', () => {
         isNotEmpty: 'JsonTypeRequired should not be empty',
         typePrimitive: 'Validation Error: Expected a valid Json, but received {{$1}}.',
       };
-      errorTypeValidValueSpec<keyof typeof errorData>(validateType, TypePrimitiveException, JsonTypeRequired, errorData, [
-        {
-          constraints: ['typePrimitive'],
-          values: [...skipByTypeRequired(PrimitivesKeys.OBJECT), {}],
-          valuesTxt: { typePrimitive: { '{{$1}}': universalToString } },
-        },
-        {
-          constraints: ['canBeJson', 'isNotEmpty'],
-          values: nullables(),
-        },
-      ]);
+      errorTypeValidValueSpec<keyof typeof errorData>(
+        validateType,
+        TypePrimitiveException,
+        JsonTypeRequired,
+        errorData,
+        [
+          {
+            constraints: ['typePrimitive'],
+            values: [...skipByTypeRequired(PrimitivesKeys.OBJECT), {}],
+            valuesTxt: { typePrimitive: { '{{$1}}': universalToString } },
+          },
+          {
+            constraints: ['canBeJson', 'isNotEmpty'],
+            values: nullables(),
+          },
+        ],
+      );
     });
     describe('Compare values', () => {
       typeValidationSpec(validateType, JsonTypeRequired, {
@@ -54,20 +69,33 @@ describe('AbstractJsonType', () => {
   });
   describe('JsonTypeOptional', () => {
     describe('Valid Values', () => {
-      typeValidValueSpec(validateType, JsonTypeOptional, canByType(PrimitivesKeys.OBJECT, PrimitivesKeys.NULL, PrimitivesKeys.UNDEFINED));
+      typeValidValueSpec(
+        validateType,
+        JsonTypeOptional,
+        canByType(PrimitivesKeys.OBJECT, PrimitivesKeys.NULL, PrimitivesKeys.UNDEFINED),
+      );
     });
     describe('Invalid Values', () => {
       const errorData = {
         canBeJson: 'JsonTypeOptional must be a object or a valid JSON string.',
         typePrimitive: 'Validation Error: Expected a valid Json, but received {{$1}}.',
       };
-      errorTypeValidValueSpec<keyof typeof errorData>(validateType, TypePrimitiveException, JsonTypeOptional, errorData, [
-        {
-          constraints: ['typePrimitive'],
-          values: [...skipByType(PrimitivesKeys.OBJECT, PrimitivesKeys.NULL, PrimitivesKeys.UNDEFINED), {}],
-          valuesTxt: { typePrimitive: { '{{$1}}': universalToString } },
-        },
-      ]);
+      errorTypeValidValueSpec<keyof typeof errorData>(
+        validateType,
+        TypePrimitiveException,
+        JsonTypeOptional,
+        errorData,
+        [
+          {
+            constraints: ['typePrimitive'],
+            values: [
+              ...skipByType(PrimitivesKeys.OBJECT, PrimitivesKeys.NULL, PrimitivesKeys.UNDEFINED),
+              {},
+            ],
+            valuesTxt: { typePrimitive: { '{{$1}}': universalToString } },
+          },
+        ],
+      );
     });
     describe('Compare values', () => {
       typeValidationSpec(validateType, JsonTypeOptional, {
@@ -122,12 +150,18 @@ describe('AbstractJsonType', () => {
       const errorData = {
         schemaValidator: 'JsonSchemaValidator:/email must match format "email"',
       };
-      errorTypeValidValueSpec<keyof typeof errorData>(validateType, TypePrimitiveException, JsonTypeValidateRequired, errorData, [
-        {
-          constraints: ['schemaValidator'],
-          values: [{ a: 20, email: 'holi' }],
-        },
-      ]);
+      errorTypeValidValueSpec<keyof typeof errorData>(
+        validateType,
+        TypePrimitiveException,
+        JsonTypeValidateRequired,
+        errorData,
+        [
+          {
+            constraints: ['schemaValidator'],
+            values: [{ a: 20, email: 'holi' }],
+          },
+        ],
+      );
     });
   });
 
@@ -168,7 +202,8 @@ describe('AbstractJsonType', () => {
         }),
       );
       expect(errors[0].constraints).toEqual({
-        schemaValidator: 'JsonSchemaValidator:/username_password/password must NOT have fewer than 6 characters, /name must NOT have fewer than 2 characters',
+        schemaValidator:
+          'JsonSchemaValidator:/username_password/password must NOT have fewer than 6 characters, /name must NOT have fewer than 2 characters',
       });
     });
   });

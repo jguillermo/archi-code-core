@@ -7,7 +7,10 @@ import { TypePrimitiveException } from '../exceptions/domain/type-primitive.exce
 export type JsonTypeValue = Record<string, any>;
 
 @AddValidate([{ validator: CanBeJson }])
-export class AbstractJsonType<T extends JsonTypeValue, R extends null | undefined = undefined> extends AbstractType<T, R> {
+export class AbstractJsonType<
+  T extends JsonTypeValue,
+  R extends null | undefined = undefined,
+> extends AbstractType<T, R> {
   protected filter(value: any): any {
     if (value === null) {
       return null;

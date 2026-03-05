@@ -1,5 +1,14 @@
 import { describe, expect, it } from '@jest/globals';
-import { canByType, errorTypeValidValueSpec, nullables, PrimitivesKeys, skipByType, skipByTypeRequired, typeValidationSpec, typeValidValueSpec } from '@code-core/test';
+import {
+  canByType,
+  errorTypeValidValueSpec,
+  nullables,
+  PrimitivesKeys,
+  skipByType,
+  skipByTypeRequired,
+  typeValidationSpec,
+  typeValidValueSpec,
+} from '@code-core/test';
 import { AddValidate, validateType } from '../validator/decorator/type-validator';
 import { expectTypeOf } from 'expect-type';
 import { universalToString } from '@code-core/common';
@@ -10,7 +19,12 @@ import { getLevel, Level } from '../level/level.decorator';
 describe('AbstractNumberType', () => {
   describe('NumberTypeRequired', () => {
     describe('Valid Values', () => {
-      typeValidValueSpec(validateType, NumberTypeRequired, canByType(PrimitivesKeys.NUMBER), 'number');
+      typeValidValueSpec(
+        validateType,
+        NumberTypeRequired,
+        canByType(PrimitivesKeys.NUMBER),
+        'number',
+      );
     });
     describe('Invalid Values', () => {
       const errorData = {
@@ -18,17 +32,23 @@ describe('AbstractNumberType', () => {
         isNotEmpty: 'NumberTypeRequired should not be empty',
         typePrimitive: 'Validation Error: Expected a valid Number, but received {{$1}}.',
       };
-      errorTypeValidValueSpec<keyof typeof errorData>(validateType, TypePrimitiveException, NumberTypeRequired, errorData, [
-        {
-          constraints: ['typePrimitive'],
-          values: skipByTypeRequired(PrimitivesKeys.NUMBER),
-          valuesTxt: { typePrimitive: { '{{$1}}': universalToString } },
-        },
-        {
-          constraints: ['canBeNumber', 'isNotEmpty'],
-          values: nullables(),
-        },
-      ]);
+      errorTypeValidValueSpec<keyof typeof errorData>(
+        validateType,
+        TypePrimitiveException,
+        NumberTypeRequired,
+        errorData,
+        [
+          {
+            constraints: ['typePrimitive'],
+            values: skipByTypeRequired(PrimitivesKeys.NUMBER),
+            valuesTxt: { typePrimitive: { '{{$1}}': universalToString } },
+          },
+          {
+            constraints: ['canBeNumber', 'isNotEmpty'],
+            values: nullables(),
+          },
+        ],
+      );
     });
     describe('Compare values', () => {
       typeValidationSpec(validateType, NumberTypeRequired, {
@@ -40,20 +60,35 @@ describe('AbstractNumberType', () => {
   });
   describe('NumberTypeOptional', () => {
     describe('Valid Values', () => {
-      typeValidValueSpec(validateType, NumberTypeOptional, canByType(PrimitivesKeys.NUMBER, PrimitivesKeys.NULL, PrimitivesKeys.UNDEFINED), 'number');
+      typeValidValueSpec(
+        validateType,
+        NumberTypeOptional,
+        canByType(PrimitivesKeys.NUMBER, PrimitivesKeys.NULL, PrimitivesKeys.UNDEFINED),
+        'number',
+      );
     });
     describe('Invalid Values', () => {
       const errorData = {
         canBeNumber: 'NumberTypeOptional must be a number',
         typePrimitive: 'Validation Error: Expected a valid Number, but received {{$1}}.',
       };
-      errorTypeValidValueSpec<keyof typeof errorData>(validateType, TypePrimitiveException, NumberTypeOptional, errorData, [
-        {
-          constraints: ['typePrimitive'],
-          values: skipByType(PrimitivesKeys.NUMBER, PrimitivesKeys.NULL, PrimitivesKeys.UNDEFINED),
-          valuesTxt: { typePrimitive: { '{{$1}}': universalToString } },
-        },
-      ]);
+      errorTypeValidValueSpec<keyof typeof errorData>(
+        validateType,
+        TypePrimitiveException,
+        NumberTypeOptional,
+        errorData,
+        [
+          {
+            constraints: ['typePrimitive'],
+            values: skipByType(
+              PrimitivesKeys.NUMBER,
+              PrimitivesKeys.NULL,
+              PrimitivesKeys.UNDEFINED,
+            ),
+            valuesTxt: { typePrimitive: { '{{$1}}': universalToString } },
+          },
+        ],
+      );
     });
     describe('compare values', () => {
       typeValidationSpec(validateType, NumberTypeOptional, {
@@ -78,7 +113,11 @@ describe('AbstractNumberType', () => {
   });
 
   describe('AddValidate', () => {
-    @AddValidate([{ validator: 'IsInt' }, { validator: 'Min', value: 10 }, { validator: 'Max', value: 20 }])
+    @AddValidate([
+      { validator: 'IsInt' },
+      { validator: 'Min', value: 10 },
+      { validator: 'Max', value: 20 },
+    ])
     class ValueObjectNumber extends AbstractNumberType {}
 
     describe('Valid Values', () => {
@@ -92,33 +131,43 @@ describe('AbstractNumberType', () => {
         min: 'ValueObjectNumber must not be less than 10',
         typePrimitive: 'Validation Error: Expected a valid Number, but received {{$1}}.',
       };
-      errorTypeValidValueSpec<keyof typeof errorData>(validateType, TypePrimitiveException, ValueObjectNumber, errorData, [
-        {
-          constraints: ['typePrimitive'],
-          values: skipByType(PrimitivesKeys.NUMBER, PrimitivesKeys.NULL, PrimitivesKeys.UNDEFINED),
-          valuesTxt: { typePrimitive: { '{{$1}}': universalToString } },
-        },
-        {
-          constraints: ['isInt'],
-          values: [10.1],
-        },
-        {
-          constraints: ['max'],
-          values: [21, 22],
-        },
-        {
-          constraints: ['min'],
-          values: [1, 2],
-        },
-        {
-          constraints: ['min', 'isInt'],
-          values: ['1.1', 2.1],
-        },
-        {
-          constraints: ['max', 'isInt'],
-          values: ['21.1', 22.1],
-        },
-      ]);
+      errorTypeValidValueSpec<keyof typeof errorData>(
+        validateType,
+        TypePrimitiveException,
+        ValueObjectNumber,
+        errorData,
+        [
+          {
+            constraints: ['typePrimitive'],
+            values: skipByType(
+              PrimitivesKeys.NUMBER,
+              PrimitivesKeys.NULL,
+              PrimitivesKeys.UNDEFINED,
+            ),
+            valuesTxt: { typePrimitive: { '{{$1}}': universalToString } },
+          },
+          {
+            constraints: ['isInt'],
+            values: [10.1],
+          },
+          {
+            constraints: ['max'],
+            values: [21, 22],
+          },
+          {
+            constraints: ['min'],
+            values: [1, 2],
+          },
+          {
+            constraints: ['min', 'isInt'],
+            values: ['1.1', 2.1],
+          },
+          {
+            constraints: ['max', 'isInt'],
+            values: ['21.1', 22.1],
+          },
+        ],
+      );
     });
 
     describe('Compare values', () => {
@@ -157,20 +206,34 @@ describe('AbstractNumberType', () => {
 
   describe('Type Validation', () => {
     it('enum validation', () => {
-      @AddValidate([{ validator: 'IsNotEmpty' }, { validator: 'Min', value: 100 }, { validator: 'Max', value: 200 }, { validator: 'IsPositive' }])
+      @AddValidate([
+        { validator: 'IsNotEmpty' },
+        { validator: 'Min', value: 100 },
+        { validator: 'Max', value: 200 },
+        { validator: 'IsPositive' },
+      ])
       class TestNumberTypeRequired extends AbstractNumberType {}
 
       const instance = new TestNumberTypeRequired(-4200);
       expect(instance.isValid()).toEqual(false);
-      expect(instance.validatorMessageStr()).toEqual('must not be less than 100, must be a positive number');
-      expect(instance.validatorMessageStr('|')).toEqual('must not be less than 100| must be a positive number');
+      expect(instance.validatorMessageStr()).toEqual(
+        'must not be less than 100, must be a positive number',
+      );
+      expect(instance.validatorMessageStr('|')).toEqual(
+        'must not be less than 100| must be a positive number',
+      );
     });
   });
 
   describe('level validator', () => {
     it('get correct level', () => {
       @Level(2)
-      @AddValidate([{ validator: 'IsNotEmpty' }, { validator: 'Min', value: 100 }, { validator: 'Max', value: 200 }, { validator: 'IsPositive' }])
+      @AddValidate([
+        { validator: 'IsNotEmpty' },
+        { validator: 'Min', value: 100 },
+        { validator: 'Max', value: 200 },
+        { validator: 'IsPositive' },
+      ])
       class TestNumberTypeRequired extends AbstractNumberType {
         static empty(): TestNumberTypeRequired {
           return new TestNumberTypeRequired(0);

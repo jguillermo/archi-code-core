@@ -16,8 +16,12 @@ describe('Hasher', () => {
     });
 
     it('should throw an error if salt length is not positive', () => {
-      expect(() => HasherFactory.create(SodiumHasher.name, 0)).toThrowError('Salt length must be a positive number.');
-      expect(() => HasherFactory.create(SodiumHasher.name, -5)).toThrowError('Salt length must be a positive number.');
+      expect(() => HasherFactory.create(SodiumHasher.name, 0)).toThrowError(
+        'Salt length must be a positive number.',
+      );
+      expect(() => HasherFactory.create(SodiumHasher.name, -5)).toThrowError(
+        'Salt length must be a positive number.',
+      );
     });
 
     it('should allow only valid algorithms', () => {

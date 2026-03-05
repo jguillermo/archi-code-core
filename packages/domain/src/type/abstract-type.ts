@@ -2,7 +2,10 @@ import { universalToString } from '@code-core/common';
 import { TypeValidatorInterface } from '../validator';
 import { validateSync } from 'class-validator';
 
-export abstract class AbstractType<T, R extends null | undefined = undefined> implements TypeValidatorInterface {
+export abstract class AbstractType<
+  T,
+  R extends null | undefined = undefined,
+> implements TypeValidatorInterface {
   protected _value: R extends null ? T | null : T;
 
   constructor(value: R extends null ? T | null : T) {
@@ -31,7 +34,9 @@ export abstract class AbstractType<T, R extends null | undefined = undefined> im
       if (error.constraints) {
         return Object.entries(error.constraints)
           .map(([key, message]) => {
-            return { [key]: message.replace('_value ', customReplacement ? `${customReplacement} ` : '') };
+            return {
+              [key]: message.replace('_value ', customReplacement ? `${customReplacement} ` : ''),
+            };
           })
           .reduce((acc, curr) => ({ ...acc, ...curr }), {});
       }

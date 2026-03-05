@@ -5,7 +5,10 @@ import { DateValidator } from '../validator';
 import { TypePrimitiveException } from '../exceptions/domain/type-primitive.exception';
 
 @AddValidate([{ validator: CanBeDate }])
-export class AbstractDateType<R extends null | undefined = undefined> extends AbstractType<Date, R> {
+export class AbstractDateType<R extends null | undefined = undefined> extends AbstractType<
+  Date,
+  R
+> {
   protected filter(value: any): any {
     if (value === null) {
       return null;

@@ -5,7 +5,10 @@ import { CanBeNumberValidator } from '../validator/decorator/custom/can-be-numbe
 import { TypePrimitiveException } from '../exceptions/domain/type-primitive.exception';
 
 @AddValidate([{ validator: CanBeNumberValidator }])
-export class AbstractNumberType<R extends null | undefined = undefined> extends AbstractType<number, R> {
+export class AbstractNumberType<R extends null | undefined = undefined> extends AbstractType<
+  number,
+  R
+> {
   protected filter(value: any): any {
     if (value === null) {
       return null;

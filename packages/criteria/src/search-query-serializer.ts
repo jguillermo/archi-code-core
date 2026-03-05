@@ -23,8 +23,15 @@ export class SearchQuerySerializer {
   public static serialize(query: SearchCriteriaDto): string {
     const obj: any = {};
     obj.filters = query.filters ? this.serializeFilter(query.filters) : null;
-    obj.orders = query.orders ? query.orders.orders.map((o: SearchOrderItemDto) => ({ field: o.field, direction: o.direction })) : null;
-    obj.paginator = query.paginator ? { page: query.paginator.page, perPage: query.paginator.perPage } : null;
+    obj.orders = query.orders
+      ? query.orders.orders.map((o: SearchOrderItemDto) => ({
+          field: o.field,
+          direction: o.direction,
+        }))
+      : null;
+    obj.paginator = query.paginator
+      ? { page: query.paginator.page, perPage: query.paginator.perPage }
+      : null;
     obj.groupBy = query.groupBy ? query.groupBy.fields : null;
     return JSON.stringify(obj);
   }
@@ -38,7 +45,9 @@ export class SearchQuerySerializer {
     }
     const filters = obj.filters ? this.deserializeFilter(obj.filters) : undefined;
     const orders = obj.orders ? new SearchOrderDto(obj.orders) : undefined;
-    const paginator = obj.paginator ? new SearchPaginatorDto(obj.paginator.page, obj.paginator.perPage) : undefined;
+    const paginator = obj.paginator
+      ? new SearchPaginatorDto(obj.paginator.page, obj.paginator.perPage)
+      : undefined;
     const groupBy = obj.groupBy ? new SearchGroupByDto(obj.groupBy) : undefined;
     return new SearchCriteriaDto(filters, orders, paginator, groupBy);
   }
@@ -65,7 +74,9 @@ export class SearchQuerySerializer {
     if (obj.type === 'simple') {
       return new SimpleFilterDto(obj.field, obj.operator, obj.value);
     } else if (obj.type === 'composite') {
-      const subFilters = Array.isArray(obj.filters) ? obj.filters.map((sub: any) => this.deserializeFilter(sub)) : [];
+      const subFilters = Array.isArray(obj.filters)
+        ? obj.filters.map((sub: any) => this.deserializeFilter(sub))
+        : [];
       return new CompositeFilterDto(obj.logicalOperator, subFilters);
     }
     throw new Error('Unknown filter format');

@@ -30,17 +30,23 @@ describe('AbstractUuidType', () => {
         isNotEmpty: 'IdType should not be empty',
         typePrimitive: 'Validation Error: Expected a valid UUID, but received {{$1}}.',
       };
-      errorTypeValidValueSpec<keyof typeof errorData>(validateType, TypePrimitiveException, IdType, errorData, [
-        {
-          constraints: ['typePrimitive'],
-          values: skipByTypeRequired(PrimitivesKeys.UUID),
-          valuesTxt: { typePrimitive: { '{{$1}}': universalToString } },
-        },
-        {
-          constraints: ['isUuid', 'isNotEmpty'],
-          values: nullables(),
-        },
-      ]);
+      errorTypeValidValueSpec<keyof typeof errorData>(
+        validateType,
+        TypePrimitiveException,
+        IdType,
+        errorData,
+        [
+          {
+            constraints: ['typePrimitive'],
+            values: skipByTypeRequired(PrimitivesKeys.UUID),
+            valuesTxt: { typePrimitive: { '{{$1}}': universalToString } },
+          },
+          {
+            constraints: ['isUuid', 'isNotEmpty'],
+            values: nullables(),
+          },
+        ],
+      );
     });
     describe('Compare values', () => {
       typeValidationSpec(validateType, IdType, {
@@ -66,17 +72,26 @@ describe('AbstractUuidType', () => {
         isNotEmpty: 'UuidTypeRequired should not be empty',
         typePrimitive: 'Validation Error: Expected a valid UUID, but received {{$1}}.',
       };
-      errorTypeValidValueSpec<keyof typeof errorData>(validateType, TypePrimitiveException, UuidTypeRequired, errorData, [
-        {
-          constraints: ['typePrimitive'],
-          values: excludeItems(skipByType(PrimitivesKeys.UUID, PrimitivesKeys.UNDEFINED, PrimitivesKeys.NULL), ['']),
-          valuesTxt: { typePrimitive: { '{{$1}}': universalToString } },
-        },
-        {
-          constraints: ['isUuid', 'isNotEmpty'],
-          values: nullables(),
-        },
-      ]);
+      errorTypeValidValueSpec<keyof typeof errorData>(
+        validateType,
+        TypePrimitiveException,
+        UuidTypeRequired,
+        errorData,
+        [
+          {
+            constraints: ['typePrimitive'],
+            values: excludeItems(
+              skipByType(PrimitivesKeys.UUID, PrimitivesKeys.UNDEFINED, PrimitivesKeys.NULL),
+              [''],
+            ),
+            valuesTxt: { typePrimitive: { '{{$1}}': universalToString } },
+          },
+          {
+            constraints: ['isUuid', 'isNotEmpty'],
+            values: nullables(),
+          },
+        ],
+      );
     });
     describe('Compare values', () => {
       typeValidationSpec(validateType, UuidTypeRequired, {
@@ -92,7 +107,12 @@ describe('AbstractUuidType', () => {
   });
   describe('UuidTypeOptional', () => {
     describe('Valid Values', () => {
-      typeValidValueSpec(validateType, UuidTypeOptional, canByType(PrimitivesKeys.UUID, PrimitivesKeys.NULL, PrimitivesKeys.UNDEFINED), 'string');
+      typeValidValueSpec(
+        validateType,
+        UuidTypeOptional,
+        canByType(PrimitivesKeys.UUID, PrimitivesKeys.NULL, PrimitivesKeys.UNDEFINED),
+        'string',
+      );
       typeValidValueSpec(validateType, UuidTypeOptional, [
         AbstractUuidType.random(),
         AbstractUuidType.fromValue('123'),
@@ -105,13 +125,22 @@ describe('AbstractUuidType', () => {
         isUuid: 'UuidTypeOptional must be a UUID',
         typePrimitive: 'Validation Error: Expected a valid UUID, but received {{$1}}.',
       };
-      errorTypeValidValueSpec<keyof typeof errorData>(validateType, TypePrimitiveException, UuidTypeOptional, errorData, [
-        {
-          constraints: ['typePrimitive'],
-          values: excludeItems(skipByType(PrimitivesKeys.UUID, PrimitivesKeys.NULL, PrimitivesKeys.UNDEFINED), [0, 1]),
-          valuesTxt: { typePrimitive: { '{{$1}}': universalToString } },
-        },
-      ]);
+      errorTypeValidValueSpec<keyof typeof errorData>(
+        validateType,
+        TypePrimitiveException,
+        UuidTypeOptional,
+        errorData,
+        [
+          {
+            constraints: ['typePrimitive'],
+            values: excludeItems(
+              skipByType(PrimitivesKeys.UUID, PrimitivesKeys.NULL, PrimitivesKeys.UNDEFINED),
+              [0, 1],
+            ),
+            valuesTxt: { typePrimitive: { '{{$1}}': universalToString } },
+          },
+        ],
+      );
     });
     describe('compare values', () => {
       typeValidationSpec(validateType, UuidTypeOptional, {

@@ -263,7 +263,9 @@ describe('AbstractArrayType', () => {
       });
       it('add exception ', () => {
         const type = new ArrayTypeRequired([]);
-        expect(() => type.addItem('a' as any)).toThrowError('Validation Error: Expected a valid Number, but received "a".');
+        expect(() => type.addItem('a' as any)).toThrowError(
+          'Validation Error: Expected a valid Number, but received "a".',
+        );
       });
       it('hasItem', () => {
         const type = new ArrayTypeRequired([1, 2]);
@@ -277,7 +279,9 @@ describe('AbstractArrayType', () => {
 
       it('hasItem exception ', () => {
         const type = new ArrayTypeRequired([1]);
-        expect(() => type.addItem('a' as any)).toThrowError('Validation Error: Expected a valid Number, but received "a".');
+        expect(() => type.addItem('a' as any)).toThrowError(
+          'Validation Error: Expected a valid Number, but received "a".',
+        );
       });
 
       it('remove item', () => {
@@ -303,7 +307,9 @@ describe('AbstractArrayType', () => {
 
       it('remove exception ', () => {
         const type = new ArrayTypeRequired([1]);
-        expect(() => type.addItem('a' as any)).toThrowError('Validation Error: Expected a valid Number, but received "a".');
+        expect(() => type.addItem('a' as any)).toThrowError(
+          'Validation Error: Expected a valid Number, but received "a".',
+        );
       });
 
       it('set item', () => {
@@ -334,7 +340,9 @@ describe('AbstractArrayType', () => {
       });
       it('add exception ', () => {
         const type = new ArrayTypeOptional();
-        expect(() => type.addItem('a' as any)).toThrowError('Validation Error: Expected a valid Number, but received "a".');
+        expect(() => type.addItem('a' as any)).toThrowError(
+          'Validation Error: Expected a valid Number, but received "a".',
+        );
       });
       it('hasItem', () => {
         const type = new ArrayTypeOptional([1, 2]);
@@ -353,7 +361,9 @@ describe('AbstractArrayType', () => {
 
       it('hasItem exception ', () => {
         const type = new ArrayTypeOptional();
-        expect(() => type.addItem('a' as any)).toThrowError('Validation Error: Expected a valid Number, but received "a".');
+        expect(() => type.addItem('a' as any)).toThrowError(
+          'Validation Error: Expected a valid Number, but received "a".',
+        );
       });
 
       it('remove item', () => {
@@ -385,7 +395,9 @@ describe('AbstractArrayType', () => {
 
       it('remove exception ', () => {
         const type = new ArrayTypeOptional();
-        expect(() => type.addItem('a' as any)).toThrowError('Validation Error: Expected a valid Number, but received "a".');
+        expect(() => type.addItem('a' as any)).toThrowError(
+          'Validation Error: Expected a valid Number, but received "a".',
+        );
       });
 
       it('set item', () => {

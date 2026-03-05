@@ -40,7 +40,9 @@ export function JsonSchemaValidator(jsonSchema: any, validationOptions?: Validat
         defaultMessage(args: ValidationArguments) {
           const errors = (args.constraints[0] as any).errors;
           if (errors && errors.length > 0) {
-            const errorMessages = errors.map((error) => `${error.instancePath} ${error.message}`).join(', ');
+            const errorMessages = errors
+              .map((error) => `${error.instancePath} ${error.message}`)
+              .join(', ');
             return `JsonSchemaValidator:${errorMessages}`;
           }
           return `${args.property} error json schema must be object`;

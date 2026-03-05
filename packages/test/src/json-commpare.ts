@@ -33,7 +33,9 @@ export class JsonCompare {
 
   private compareArrays(data: JsonArray, reference: JsonArray, path: string): void {
     if (this._strictMode && data.length !== reference.length) {
-      this._differences.push(`${path}: length of ${universalToString(data)} is not equal to length of ${universalToString(reference)}`);
+      this._differences.push(
+        `${path}: length of ${universalToString(data)} is not equal to length of ${universalToString(reference)}`,
+      );
       return;
     }
     for (let i = 0; i < data.length; i++) {
@@ -79,13 +81,17 @@ export class JsonCompare {
   private compareValues(data: JsonValue, reference: JsonValue, path: string): void {
     if (Array.isArray(data)) {
       if (!Array.isArray(reference)) {
-        this._differences.push(`${path}: must not be an array; it must be ${universalToString(reference)}`);
+        this._differences.push(
+          `${path}: must not be an array; it must be ${universalToString(reference)}`,
+        );
       } else {
         this.compareArrays(data, reference, path);
       }
     } else if (this.isObject(data)) {
       if (!this.isObject(reference)) {
-        this._differences.push(`${path}: must not be an object; it must be ${universalToString(reference)}`);
+        this._differences.push(
+          `${path}: must not be an object; it must be ${universalToString(reference)}`,
+        );
       } else {
         this.compareObjects(data as JsonObject, reference as JsonObject, path);
       }
@@ -93,7 +99,9 @@ export class JsonCompare {
       const isEquals = CompareValue.getInstance().compare(data, reference);
       if (!isEquals) {
         path = path === '' ? path : `${path}: `;
-        this._differences.push(`${path}${universalToString(data)} -> ${universalToString(reference)}`);
+        this._differences.push(
+          `${path}${universalToString(data)} -> ${universalToString(reference)}`,
+        );
       }
     }
   }

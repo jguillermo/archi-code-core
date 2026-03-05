@@ -1,6 +1,15 @@
 import { describe, it } from '@jest/globals';
 import { AddValidate, validateType } from '../validator/decorator/type-validator';
-import { allTypesRequired, canByType, errorTypeValidValueSpec, nullables, PrimitivesKeys, skipByType, typeValidationSpec, typeValidValueSpec } from '@code-core/test';
+import {
+  allTypesRequired,
+  canByType,
+  errorTypeValidValueSpec,
+  nullables,
+  PrimitivesKeys,
+  skipByType,
+  typeValidationSpec,
+  typeValidValueSpec,
+} from '@code-core/test';
 import { expectTypeOf } from 'expect-type';
 import { universalToString } from '@code-core/common';
 import { AbstractEnumType } from './abstract-enum-type';
@@ -28,7 +37,12 @@ export class EnumTypeOptional extends AbstractEnumType<StatusString, null> {
 describe('AbstractEnumType', () => {
   describe('EnumTypeRequired', () => {
     describe('Valid Values', () => {
-      typeValidValueSpec(validateType, EnumTypeRequired, [StatusString.UP, StatusString.DOWN, 'up', 'down']);
+      typeValidValueSpec(validateType, EnumTypeRequired, [
+        StatusString.UP,
+        StatusString.DOWN,
+        'up',
+        'down',
+      ]);
     });
     describe('Invalid Values', () => {
       const errorData = {
@@ -36,17 +50,23 @@ describe('AbstractEnumType', () => {
         isNotEmpty: 'EnumTypeRequired should not be empty',
         typePrimitive: 'Validation Error: Expected one of [up, down], but received {{$1}}.',
       };
-      errorTypeValidValueSpec<keyof typeof errorData>(validateType, TypePrimitiveException, EnumTypeRequired, errorData, [
-        {
-          constraints: ['typePrimitive'],
-          values: allTypesRequired(),
-          valuesTxt: { typePrimitive: { '{{$1}}': universalToString } },
-        },
-        {
-          constraints: ['isEnum', 'isNotEmpty'],
-          values: nullables(),
-        },
-      ]);
+      errorTypeValidValueSpec<keyof typeof errorData>(
+        validateType,
+        TypePrimitiveException,
+        EnumTypeRequired,
+        errorData,
+        [
+          {
+            constraints: ['typePrimitive'],
+            values: allTypesRequired(),
+            valuesTxt: { typePrimitive: { '{{$1}}': universalToString } },
+          },
+          {
+            constraints: ['isEnum', 'isNotEmpty'],
+            values: nullables(),
+          },
+        ],
+      );
     });
     describe('Compare values', () => {
       typeValidationSpec(validateType, EnumTypeRequired, {
@@ -66,20 +86,32 @@ describe('AbstractEnumType', () => {
   });
   describe('EnumTypeOptional', () => {
     describe('Valid Values', () => {
-      typeValidValueSpec(validateType, EnumTypeOptional, [StatusString.UP, StatusString.DOWN, 'up', 'down', ...canByType(PrimitivesKeys.NULL, PrimitivesKeys.UNDEFINED)]);
+      typeValidValueSpec(validateType, EnumTypeOptional, [
+        StatusString.UP,
+        StatusString.DOWN,
+        'up',
+        'down',
+        ...canByType(PrimitivesKeys.NULL, PrimitivesKeys.UNDEFINED),
+      ]);
     });
     describe('Invalid Values', () => {
       const errorData = {
         isEnum: 'EnumTypeOptional must be one of the following values: up, down',
         typePrimitive: 'Validation Error: Expected one of [up, down], but received {{$1}}.',
       };
-      errorTypeValidValueSpec<keyof typeof errorData>(validateType, TypePrimitiveException, EnumTypeOptional, errorData, [
-        {
-          constraints: ['typePrimitive'],
-          values: skipByType(PrimitivesKeys.NULL, PrimitivesKeys.UNDEFINED),
-          valuesTxt: { typePrimitive: { '{{$1}}': universalToString } },
-        },
-      ]);
+      errorTypeValidValueSpec<keyof typeof errorData>(
+        validateType,
+        TypePrimitiveException,
+        EnumTypeOptional,
+        errorData,
+        [
+          {
+            constraints: ['typePrimitive'],
+            values: skipByType(PrimitivesKeys.NULL, PrimitivesKeys.UNDEFINED),
+            valuesTxt: { typePrimitive: { '{{$1}}': universalToString } },
+          },
+        ],
+      );
     });
     describe('compare values', () => {
       typeValidationSpec(validateType, EnumTypeOptional, {

@@ -9,7 +9,13 @@ export class SimpleFilterDto {
     value: string | number | (string | number)[],
   ) {
     // Convert numeric values to integers if required.
-    const numericOperators = [FilterOperator.LT, FilterOperator.LTE, FilterOperator.GT, FilterOperator.GTE, FilterOperator.BETWEEN];
+    const numericOperators = [
+      FilterOperator.LT,
+      FilterOperator.LTE,
+      FilterOperator.GT,
+      FilterOperator.GTE,
+      FilterOperator.BETWEEN,
+    ];
     if (numericOperators.includes(operator)) {
       if (Array.isArray(value)) {
         this.value = value.map((v) => {

@@ -54,11 +54,33 @@ export function canByType(...primitiveTypes: PrimitivesKeys[]): any[] {
         break;
       case PrimitivesKeys.BOOLEAN:
         values.push(...PrimitivesValues[PrimitivesKeys.BOOLEAN]);
-        values.push(...['True', 'False', 'TRUE', 'FALSE', 'true', 'false', '  True  ', ' False ', ' TRUE ', '  FALSE ', ' true ', ' false ']);
+        values.push(
+          ...[
+            'True',
+            'False',
+            'TRUE',
+            'FALSE',
+            'true',
+            'false',
+            '  True  ',
+            ' False ',
+            ' TRUE ',
+            '  FALSE ',
+            ' true ',
+            ' false ',
+          ],
+        );
         values.push(...['1', ' 1', '0', ' 0', 0, 1]);
         break;
       case PrimitivesKeys.DATE: {
-        const validDates = ['2018-03-23T16:02:15.000Z', '2018-03-23', '2018-03-23 16:02:15.000Z', '2018-03-23T16:02:15', '2018-03-23 16:02:15', '2018-03-23 00:00:00'];
+        const validDates = [
+          '2018-03-23T16:02:15.000Z',
+          '2018-03-23',
+          '2018-03-23 16:02:15.000Z',
+          '2018-03-23T16:02:15',
+          '2018-03-23 16:02:15',
+          '2018-03-23 00:00:00',
+        ];
         values.push(...validDates);
         values.push(...validDates.map((value) => new Date(value)));
         values.push(...PrimitivesValues[primitiveType]);
@@ -66,7 +88,9 @@ export function canByType(...primitiveTypes: PrimitivesKeys[]): any[] {
       }
       case PrimitivesKeys.OBJECT:
         values.push(...PrimitivesValues[PrimitivesKeys.OBJECT]);
-        values.push(...PrimitivesValues[PrimitivesKeys.OBJECT].map((value) => universalToString(value)));
+        values.push(
+          ...PrimitivesValues[PrimitivesKeys.OBJECT].map((value) => universalToString(value)),
+        );
         break;
       default:
         values.push(...PrimitivesValues[primitiveType]);

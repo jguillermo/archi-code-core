@@ -16,7 +16,9 @@ describe('DomainException', () => {
       expect(exception).toBeInstanceOf(AggregateNotFoundException);
       expect(exception.message).toBe(message);
       expect(exception.code).toEqual(ExceptionCode.AggregateNotFound);
-      expect(exception.description).toEqual('Domain Exception (DOM000), Aggregate Not Found (DOM002)');
+      expect(exception.description).toEqual(
+        'Domain Exception (DOM000), Aggregate Not Found (DOM002)',
+      );
       expect(exception.timestamp).toBeInstanceOf(Date);
     });
   });
@@ -43,7 +45,9 @@ describe('DomainException', () => {
       expect(exception).toBeInstanceOf(ValidationException);
       expect(exception.message).toBe(message);
       expect(exception.code).toEqual(ExceptionCode.ValidationFailed);
-      expect(exception.description).toEqual('Domain Exception (DOM000), Validation Failed (DOM001)');
+      expect(exception.description).toEqual(
+        'Domain Exception (DOM000), Validation Failed (DOM001)',
+      );
       expect(exception.timestamp).toBeInstanceOf(Date);
     });
   });

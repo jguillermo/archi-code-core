@@ -19,43 +19,63 @@ describe('SearchPaginatorDto', () => {
 
   describe('Error Cases', () => {
     it('should throw an error when page is a float', () => {
-      expect(() => new SearchPaginatorDto(3.5, 25)).toThrow('SearchPaginatorDto: "page" and "perPage" must be integers');
+      expect(() => new SearchPaginatorDto(3.5, 25)).toThrow(
+        'SearchPaginatorDto: "page" and "perPage" must be integers',
+      );
     });
 
     it('should throw an error when perPage is a float', () => {
-      expect(() => new SearchPaginatorDto(3, 25.5)).toThrow('SearchPaginatorDto: "page" and "perPage" must be integers');
+      expect(() => new SearchPaginatorDto(3, 25.5)).toThrow(
+        'SearchPaginatorDto: "page" and "perPage" must be integers',
+      );
     });
 
     it('should throw an error when page is negative', () => {
-      expect(() => new SearchPaginatorDto(-1, 25)).toThrow('SearchPaginatorDto: "page" and "perPage" must be positive integers');
+      expect(() => new SearchPaginatorDto(-1, 25)).toThrow(
+        'SearchPaginatorDto: "page" and "perPage" must be positive integers',
+      );
     });
 
     it('should throw an error when perPage is negative', () => {
-      expect(() => new SearchPaginatorDto(3, -10)).toThrow('SearchPaginatorDto: "page" and "perPage" must be positive integers');
+      expect(() => new SearchPaginatorDto(3, -10)).toThrow(
+        'SearchPaginatorDto: "page" and "perPage" must be positive integers',
+      );
     });
 
     it('should throw an error when page is zero', () => {
-      expect(() => new SearchPaginatorDto(0, 10)).toThrow('SearchPaginatorDto: "page" and "perPage" must be positive integers');
+      expect(() => new SearchPaginatorDto(0, 10)).toThrow(
+        'SearchPaginatorDto: "page" and "perPage" must be positive integers',
+      );
     });
 
     it('should throw an error when perPage is zero', () => {
-      expect(() => new SearchPaginatorDto(3, 0)).toThrow('SearchPaginatorDto: "page" and "perPage" must be positive integers');
+      expect(() => new SearchPaginatorDto(3, 0)).toThrow(
+        'SearchPaginatorDto: "page" and "perPage" must be positive integers',
+      );
     });
 
     it('should throw an error when page is not a number (NaN)', () => {
-      expect(() => new SearchPaginatorDto(NaN, 10)).toThrow('SearchPaginatorDto: "page" and "perPage" must be integers');
+      expect(() => new SearchPaginatorDto(NaN, 10)).toThrow(
+        'SearchPaginatorDto: "page" and "perPage" must be integers',
+      );
     });
 
     it('should throw an error when perPage is not a number (NaN)', () => {
-      expect(() => new SearchPaginatorDto(3, NaN)).toThrow('SearchPaginatorDto: "page" and "perPage" must be integers');
+      expect(() => new SearchPaginatorDto(3, NaN)).toThrow(
+        'SearchPaginatorDto: "page" and "perPage" must be integers',
+      );
     });
 
     it('should throw an error when page is Infinity', () => {
-      expect(() => new SearchPaginatorDto(Infinity, 10)).toThrow('SearchPaginatorDto: "page" and "perPage" must be integers');
+      expect(() => new SearchPaginatorDto(Infinity, 10)).toThrow(
+        'SearchPaginatorDto: "page" and "perPage" must be integers',
+      );
     });
 
     it('should throw an error when perPage is Infinity', () => {
-      expect(() => new SearchPaginatorDto(3, Infinity)).toThrow('SearchPaginatorDto: "page" and "perPage" must be integers');
+      expect(() => new SearchPaginatorDto(3, Infinity)).toThrow(
+        'SearchPaginatorDto: "page" and "perPage" must be integers',
+      );
     });
   });
 });
