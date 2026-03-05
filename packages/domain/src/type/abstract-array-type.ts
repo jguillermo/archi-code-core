@@ -33,7 +33,7 @@ export abstract class AbstractArrayType<
 
   validatorMessageStr(separator = ',', customReplacement = ''): string {
     if (this.isNull) {
-      return 'Value mas be to array';
+      return 'Value must be an array';
     }
     let str = super.validatorMessageStr(separator, customReplacement);
 

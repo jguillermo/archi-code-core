@@ -218,7 +218,7 @@ describe('AggregateData Tests', () => {
           address: 'ValidAddress',
           slug: 'ValidSlug',
         });
-      }).toThrow('CompanyTags: Value mas be to array');
+      }).toThrow('CompanyTags: Value must be an array');
     });
     it('should throw an error if slug does not meet validation rules', () => {
       expect(() => {

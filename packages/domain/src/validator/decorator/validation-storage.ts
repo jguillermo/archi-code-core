@@ -12,10 +12,13 @@ export class ValidationStorage {
 
   static getInstance(): ValidationStorage {
     if (!ValidationStorage.instance) {
-      //console.log('===========Creating new instance=================================Creating new instance=================================Creating new instance=================================Creating new instance=================================Creating new instance======================');
       ValidationStorage.instance = new ValidationStorage();
     }
     return ValidationStorage.instance;
+  }
+
+  static reset(): void {
+    ValidationStorage.instance = new ValidationStorage();
   }
 
   public hasClassRegister(cls: any): boolean {

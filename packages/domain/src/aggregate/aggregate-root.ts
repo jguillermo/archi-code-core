@@ -12,6 +12,4 @@ export abstract class AggregateRoot {
     this.domainEvents = [];
     return events;
   }
-
-  // abstract get id<T extends IdType>(): T;
 }

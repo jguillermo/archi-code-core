@@ -53,21 +53,24 @@ describe('SimpleFilterDto', () => {
       );
     });
 
-    it('should throw an error if a numeric operator receives a float value (number)', () => {
-      expect(() => new SimpleFilterDto('age', FilterOperator.GT, 30.5)).toThrow(
-        'SimpleFilterDto: Value "30.5" must be an integer',
-      );
+    it('should accept a float value for a numeric operator (number)', () => {
+      const filter = new SimpleFilterDto('price', FilterOperator.GT, 30.5);
+      expect(filter.value).toBe(30.5);
     });
 
-    it('should throw an error if a numeric operator receives a float value (string)', () => {
-      expect(() => new SimpleFilterDto('age', FilterOperator.GT, '30.5')).toThrow(
-        'SimpleFilterDto: Value "30.5" must be an integer',
-      );
+    it('should accept a float value for a numeric operator (string)', () => {
+      const filter = new SimpleFilterDto('price', FilterOperator.GT, '30.5');
+      expect(filter.value).toBe(30.5);
     });
 
-    it('should throw an error if a numeric operator receives an array containing a float', () => {
-      expect(() => new SimpleFilterDto('ids', FilterOperator.BETWEEN, [1, '2.5'])).toThrow(
-        'SimpleFilterDto: Value "2.5" must be an integer',
+    it('should accept an array containing floats for BETWEEN', () => {
+      const filter = new SimpleFilterDto('price', FilterOperator.BETWEEN, [1.5, 2.5]);
+      expect(filter.value).toEqual([1.5, 2.5]);
+    });
+
+    it('should throw an error if a numeric operator receives a non-numeric value', () => {
+      expect(() => new SimpleFilterDto('age', FilterOperator.GT, 'abc')).toThrow(
+        'SimpleFilterDto: Value "abc" must be a number',
       );
     });
   });

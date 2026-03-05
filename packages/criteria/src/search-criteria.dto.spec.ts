@@ -100,9 +100,9 @@ describe('SearchCriteriaDto', () => {
       expect(() => new SimpleFilterDto('', FilterOperator.EQ, 'Alice')).toThrow(
         'SimpleFilterDto: "field" must be a non-empty string',
       );
-      // Float value for a numeric operator
-      expect(() => new SimpleFilterDto('age', FilterOperator.GT, '30.5')).toThrow(
-        'SimpleFilterDto: Value "30.5" must be an integer',
+      // Non-numeric value for a numeric operator
+      expect(() => new SimpleFilterDto('age', FilterOperator.GT, 'notanumber')).toThrow(
+        'SimpleFilterDto: Value "notanumber" must be a number',
       );
     });
   });

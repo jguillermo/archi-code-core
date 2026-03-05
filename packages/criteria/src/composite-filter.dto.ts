@@ -17,9 +17,7 @@ export class CompositeFilterDto {
       throw new Error('CompositeFilterDto: "filters" must be a non-empty array');
     }
     this.filters.forEach((filter) => {
-      if (typeof (filter as any).validate === 'function') {
-        (filter as any).validate();
-      }
+      (filter as { validate(): void }).validate();
     });
   }
 }
