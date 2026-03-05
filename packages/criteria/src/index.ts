@@ -11,4 +11,3 @@ export * from './search-order-item.dto';
 export * from './search-paginator.dto';
 export * from './simple-filter.dto';
 export * from './search-query-serializer';
-export * from './simple-filter.dto';

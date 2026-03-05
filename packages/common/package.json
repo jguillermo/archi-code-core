@@ -13,7 +13,7 @@
     "url": "https://github.com/jguillermo/code-core"
   },
   "engines": {
-    "node": ">=16"
+    "node": ">=22"
   },
   "publishConfig": {
     "access": "public"
