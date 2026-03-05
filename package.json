@@ -12,6 +12,7 @@
     "lint:fix": "lerna run lint:fix --stream",
     "format": "lerna run format --stream",
     "format:fix": "lerna run format:fix --stream",
+    "fix": "npm run lint:fix && npm run format:fix",
     "editorconfig:check": "editorconfig-checker --exclude node_modules --exclude dist --exclude '.git'",
     "prepare": "husky",
     "clean": "npx lerna clean -y && rm -rf node_modules"
@@ -37,6 +38,12 @@
     "ts-jest": "29.4.6",
     "ts-node": "10.9.2",
     "typescript": "5.9.3",
+
+
+
+
+
     "typescript-eslint": "8.56.1"
+
   }
 }
