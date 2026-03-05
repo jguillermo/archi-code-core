@@ -22,7 +22,7 @@ export function universalToString(value: any) {
   } else if (typeof value === 'object') {
     try {
       return JSON.stringify(value) || value.toString();
-    } catch (error) {
+    } catch {
       return '[Circular or too complex to stringify]';
     }
   } else if (typeof value === 'function') {

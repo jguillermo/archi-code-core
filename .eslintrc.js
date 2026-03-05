@@ -11,14 +11,6 @@ module.exports = {
   rules: {
     'prettier/prettier': 'error', // Asegura que las reglas de Prettier se apliquen y se traten como errores
     '@typescript-eslint/no-explicit-any': 'off', // Permite el uso de `any`
-    '@typescript-eslint/ban-types': [
-      'error',
-      {
-        types: {
-          Function: false, // Permitir el uso de `Function`
-        },
-        extendDefaults: true,
-      },
-    ],
+    '@typescript-eslint/no-unsafe-function-type': 'off', // Permite el uso de `Function`
   },
 };

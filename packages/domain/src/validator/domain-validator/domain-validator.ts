@@ -18,7 +18,7 @@ export class DomainValidator implements ValidatorConstraintInterface {
       }
       const type: TypeValidatorInterface = new args.constraints[0](value);
       return type.isValid();
-    } catch (e) {
+    } catch {
       return false;
     }
   }

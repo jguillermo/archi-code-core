@@ -16,8 +16,9 @@ export class BcryptPasswordEncryptor extends PasswordEncryptor {
   private ensureBcryptAvailable(): void {
     if (!BcryptPasswordEncryptor.bcrypt) {
       try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
         BcryptPasswordEncryptor.bcrypt = require('bcrypt');
-      } catch (error) {
+      } catch {
         console.warn('bcrypt is not installed. Password encryption will not be available.');
         throw new Error('bcrypt module is required but not installed.');
       }

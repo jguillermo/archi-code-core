@@ -33,7 +33,7 @@ export class SearchQuerySerializer {
     let obj: any;
     try {
       obj = JSON.parse(serialized);
-    } catch (error) {
+    } catch {
       throw new Error('Invalid JSON string');
     }
     const filters = obj.filters ? this.deserializeFilter(obj.filters) : undefined;

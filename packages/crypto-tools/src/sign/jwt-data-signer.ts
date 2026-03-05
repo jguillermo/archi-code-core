@@ -21,8 +21,9 @@ export class JWTDataSigner {
   private ensureJWTAvailable(): void {
     if (!JWTDataSigner.jwt) {
       try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
         JWTDataSigner.jwt = require('jsonwebtoken');
-      } catch (error) {
+      } catch {
         console.warn('jsonwebtoken is not installed. JWT signing functionality will not be available.');
         throw new Error('jsonwebtoken module is required but not installed.');
       }

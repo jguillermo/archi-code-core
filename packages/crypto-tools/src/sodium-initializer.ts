@@ -4,6 +4,7 @@ export class SodiumInitializer {
 
   public static async ensureInitialized(): Promise<void> {
     if (!this.initializedPromise) {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       this.sodium = require('libsodium-wrappers-sumo');
       this.initializedPromise = this.sodium.ready
         .then(() => {
