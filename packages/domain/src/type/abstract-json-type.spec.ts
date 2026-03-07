@@ -1,14 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
-import {
-  canByType,
-  errorTypeValidValueSpec,
-  nullables,
-  PrimitivesKeys,
-  skipByType,
-  skipByTypeRequired,
-  typeValidationSpec,
-  typeValidValueSpec,
-} from '@code-core/test';
+import { canByType, nullables, PrimitivesKeys, skipByType, skipByTypeRequired } from '@code-core/test';
 import { AbstractJsonType } from './abstract-json-type';
 import { AddValidate, validateType } from '../validator/decorator/type-validator';
 import { JsonSchemaValidator } from '../validator/decorator/custom/json-schema-validator';
@@ -33,87 +24,141 @@ class JsonTypeRequired extends AbstractJsonType<JsonValuesTest> {}
 describe('AbstractJsonType', () => {
   describe('JsonTypeRequired', () => {
     describe('Valid Values', () => {
-      typeValidValueSpec(validateType, JsonTypeRequired, canByType(PrimitivesKeys.OBJECT));
+      it.each(canByType(PrimitivesKeys.OBJECT).map((v) => [v]))('validates new JsonTypeRequired(%p)', (value) => {
+        expect(validateType(new JsonTypeRequired(value))).toEqual([]);
+      });
     });
+
     describe('Invalid Values', () => {
       const errorData = {
         canBeJson: 'JsonTypeRequired must be a object or a valid JSON string.',
         isNotEmpty: 'JsonTypeRequired should not be empty',
         typePrimitive: 'Validation Error: Expected a valid Json, but received {{$1}}.',
       };
-      errorTypeValidValueSpec<keyof typeof errorData>(
-        validateType,
-        TypePrimitiveException,
-        JsonTypeRequired,
-        errorData,
-        [
-          {
-            constraints: ['typePrimitive'],
-            values: [...skipByTypeRequired(PrimitivesKeys.OBJECT), {}],
-            valuesTxt: { typePrimitive: { '{{$1}}': universalToString } },
-          },
-          {
-            constraints: ['canBeJson', 'isNotEmpty'],
-            values: nullables(),
-          },
-        ],
+
+      it.each([...skipByTypeRequired(PrimitivesKeys.OBJECT), {}].map((v) => [v]))(
+        'typePrimitive error for JsonTypeRequired(%p)',
+        (value) => {
+          let errors: any[] = [];
+          try {
+            const type = new JsonTypeRequired(value);
+            errors = validateType(type);
+          } catch (e) {
+            if (!(e instanceof TypePrimitiveException)) throw e;
+            errors = [{ property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } }];
+          }
+          expect(errors[0]).toBeDefined();
+          expect(errors[0].constraints).toBeDefined();
+          const displayValue = typeof value === 'string' ? `"${value}"` : value;
+          expect(errors[0].constraints?.typePrimitive).toEqual(
+            errorData.typePrimitive.replace('{{$1}}', universalToString(displayValue)),
+          );
+        },
       );
+
+      it.each(nullables().map((v) => [v]))('canBeJson + isNotEmpty error for JsonTypeRequired(%p)', (value) => {
+        let errors: any[] = [];
+        try {
+          const type = new JsonTypeRequired(value);
+          errors = validateType(type);
+        } catch (e) {
+          if (!(e instanceof TypePrimitiveException)) throw e;
+          errors = [{ property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } }];
+        }
+        expect(errors[0]).toBeDefined();
+        expect(errors[0].constraints).toBeDefined();
+        expect(errors[0].constraints).toEqual({
+          canBeJson: errorData.canBeJson,
+          isNotEmpty: errorData.isNotEmpty,
+        });
+      });
     });
+
     describe('Compare values', () => {
-      typeValidationSpec(validateType, JsonTypeRequired, {
-        value: [[{ a: 1 }, { a: 1 }]],
-        isNull: [[{ a: 1 }, false]],
-        toString: [[{ a: 1 }, '{"a":1}']],
+      it('JsonTypeRequired({a:1}).value toEqual {a:1}', () => {
+        const type = new JsonTypeRequired({ a: 1 });
+        expect(type.value).toEqual({ a: 1 });
+        expect(validateType(type)).toEqual([]);
+      });
+
+      it('JsonTypeRequired({a:1}).isNull toEqual false', () => {
+        const type = new JsonTypeRequired({ a: 1 });
+        expect(type.isNull).toEqual(false);
+        expect(validateType(type)).toEqual([]);
+      });
+
+      it('JsonTypeRequired({a:1}).toString toEqual \'{"a":1}\'', () => {
+        const type = new JsonTypeRequired({ a: 1 });
+        expect(type.toString).toEqual('{"a":1}');
+        expect(validateType(type)).toEqual([]);
       });
     });
   });
+
   describe('JsonTypeOptional', () => {
     describe('Valid Values', () => {
-      typeValidValueSpec(
-        validateType,
-        JsonTypeOptional,
-        canByType(PrimitivesKeys.OBJECT, PrimitivesKeys.NULL, PrimitivesKeys.UNDEFINED),
-      );
+      it.each(
+        canByType(PrimitivesKeys.OBJECT, PrimitivesKeys.NULL, PrimitivesKeys.UNDEFINED).map((v) => [v]),
+      )('validates new JsonTypeOptional(%p)', (value) => {
+        expect(validateType(new JsonTypeOptional(value))).toEqual([]);
+      });
     });
+
     describe('Invalid Values', () => {
       const errorData = {
         canBeJson: 'JsonTypeOptional must be a object or a valid JSON string.',
         typePrimitive: 'Validation Error: Expected a valid Json, but received {{$1}}.',
       };
-      errorTypeValidValueSpec<keyof typeof errorData>(
-        validateType,
-        TypePrimitiveException,
-        JsonTypeOptional,
-        errorData,
-        [
-          {
-            constraints: ['typePrimitive'],
-            values: [
-              ...skipByType(PrimitivesKeys.OBJECT, PrimitivesKeys.NULL, PrimitivesKeys.UNDEFINED),
-              {},
-            ],
-            valuesTxt: { typePrimitive: { '{{$1}}': universalToString } },
-          },
-        ],
-      );
+
+      it.each(
+        [...skipByType(PrimitivesKeys.OBJECT, PrimitivesKeys.NULL, PrimitivesKeys.UNDEFINED), {}].map((v) => [v]),
+      )('typePrimitive error for JsonTypeOptional(%p)', (value) => {
+        let errors: any[] = [];
+        try {
+          const type = new JsonTypeOptional(value);
+          errors = validateType(type);
+        } catch (e) {
+          if (!(e instanceof TypePrimitiveException)) throw e;
+          errors = [{ property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } }];
+        }
+        expect(errors[0]).toBeDefined();
+        expect(errors[0].constraints).toBeDefined();
+        const displayValue = typeof value === 'string' ? `"${value}"` : value;
+        expect(errors[0].constraints?.typePrimitive).toEqual(
+          errorData.typePrimitive.replace('{{$1}}', universalToString(displayValue)),
+        );
+      });
     });
+
     describe('Compare values', () => {
-      typeValidationSpec(validateType, JsonTypeOptional, {
-        value: [
-          [{ a: 1 }, { a: 1 }],
-          [null, null],
-          [undefined, null],
-        ],
-        isNull: [
-          [{ a: 1 }, false],
-          [null, true],
-          [undefined, true],
-        ],
-        toString: [
-          [null, ''],
-          [undefined, ''],
-          [{ a: 1 }, '{"a":1}'],
-        ],
+      it.each([
+        [{ a: 1 }, { a: 1 }],
+        [null, null],
+        [undefined, null],
+      ])('JsonTypeOptional(%p).value toEqual %p', (input, expected) => {
+        const type = new JsonTypeOptional(input);
+        expect(type.value).toEqual(expected);
+        expect(validateType(type)).toEqual([]);
+      });
+
+      it.each([
+        [{ a: 1 }, false],
+        [null, true],
+        [undefined, true],
+      ])('JsonTypeOptional(%p).isNull toEqual %p', (input, expected) => {
+        const type = new JsonTypeOptional(input);
+        expect(type.isNull).toEqual(expected);
+        expect(validateType(type)).toEqual([]);
+      });
+
+      it.each([
+        [null, ''],
+        [undefined, ''],
+        [{ a: 1 }, '{"a":1}'],
+      ])('JsonTypeOptional(%p).toString toEqual %p', (input, expected) => {
+        const type = new JsonTypeOptional(input);
+        expect(type.toString).toEqual(expected);
+        expect(validateType(type)).toEqual([]);
       });
     });
   });
@@ -137,31 +182,29 @@ describe('AbstractJsonType', () => {
     class JsonTypeValidateRequired extends AbstractJsonType<JsonTypeValidateRequiredType> {}
 
     describe('Correct', () => {
-      typeValidationSpec(validateType, JsonTypeValidateRequired, {
-        value: [
-          [
-            { a: 11, email: 'a@mail.com' },
-            { a: 11, email: 'a@mail.com' },
-          ],
-        ],
+      it('JsonTypeValidateRequired({a:11,email:"a@mail.com"}).value toEqual input', () => {
+        const type = new JsonTypeValidateRequired({ a: 11, email: 'a@mail.com' });
+        expect(type.value).toEqual({ a: 11, email: 'a@mail.com' });
+        expect(validateType(type)).toEqual([]);
       });
     });
+
     describe('Error', () => {
-      const errorData = {
-        schemaValidator: 'JsonSchemaValidator:/email must match format "email"',
-      };
-      errorTypeValidValueSpec<keyof typeof errorData>(
-        validateType,
-        TypePrimitiveException,
-        JsonTypeValidateRequired,
-        errorData,
-        [
-          {
-            constraints: ['schemaValidator'],
-            values: [{ a: 20, email: 'holi' }],
-          },
-        ],
-      );
+      it('schemaValidator error for JsonTypeValidateRequired({a:20,email:"holi"})', () => {
+        let errors: any[] = [];
+        try {
+          const type = new JsonTypeValidateRequired({ a: 20, email: 'holi' });
+          errors = validateType(type);
+        } catch (e) {
+          if (!(e instanceof TypePrimitiveException)) throw e;
+          errors = [{ property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } }];
+        }
+        expect(errors[0]).toBeDefined();
+        expect(errors[0].constraints).toBeDefined();
+        expect(errors[0].constraints).toEqual({
+          schemaValidator: 'JsonSchemaValidator:/email must match format "email"',
+        });
+      });
     });
   });
 

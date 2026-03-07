@@ -1,11 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 import { AddValidate, validateType } from './type-validator';
-import {
-  errorTypeValidValueSpec,
-  PrimitivesKeys,
-  skipByType,
-  typeValidationSpec,
-} from '@code-core/test';
+import { PrimitivesKeys, skipByType } from '@code-core/test';
 import { TypePrimitiveException } from '../../exceptions/domain/type-primitive.exception';
 
 @AddValidate([
@@ -116,6 +111,13 @@ describe('Validator', () => {
 
     class ChildClass extends ParentClass {}
 
+    const errorData = {
+      isInt: 'ChildClass must be an integer number',
+      isNumber: 'ChildClass must be a number conforming to the specified constraints',
+      max: 'ChildClass must not be greater than 20',
+      min: 'ChildClass must not be less than 10',
+    };
+
     it('should validate ChildClass documentation', () => {
       expect(Reflect.getMetadata('type:doc', ChildClass)).toEqual({
         required: true,
@@ -127,40 +129,52 @@ describe('Validator', () => {
       });
     });
 
-    typeValidationSpec(validateType, ChildClass, {
-      value: [
-        //valid number value
-        [10, 10],
-        [15, 15],
-        [20, 20],
-      ],
+    it.each([
+      [10, 10],
+      [15, 15],
+      [20, 20],
+    ])('ChildClass(%p).value toEqual %p and validates', (input, expected) => {
+      const type = new ChildClass(input);
+      expect(type.value).toEqual(expected);
+      expect(validateType(type)).toEqual([]);
     });
 
-    const errorData = {
-      isInt: 'ChildClass must be an integer number',
-      isNumber: 'ChildClass must be a number conforming to the specified constraints',
-      max: 'ChildClass must not be greater than 20',
-      min: 'ChildClass must not be less than 10',
-    };
-    errorTypeValidValueSpec<keyof typeof errorData>(
-      validateType,
-      TypePrimitiveException,
-      ChildClass,
-      errorData,
-      [
-        {
-          constraints: ['isInt', 'isNumber', 'max', 'min'],
-          values: skipByType(PrimitivesKeys.NUMBER),
-        },
-        {
-          constraints: ['isInt'],
-          values: [11.1],
-        },
-        {
-          constraints: ['max'],
-          values: [50, 50.0],
-        },
-      ],
+    it.each(skipByType(PrimitivesKeys.NUMBER).map((v) => [v]))(
+      'ChildClass(%p) fails with isInt + isNumber + max + min errors',
+      (value) => {
+        let errors: any[] = [];
+        try {
+          const type = new ChildClass(value);
+          errors = validateType(type);
+        } catch (e) {
+          if (!(e instanceof TypePrimitiveException)) throw e;
+          errors = [{ property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } }];
+        }
+        expect(errors[0]).toBeDefined();
+        expect(errors[0].constraints).toBeDefined();
+        expect(errors[0].constraints).toEqual({
+          isInt: errorData.isInt,
+          isNumber: errorData.isNumber,
+          max: errorData.max,
+          min: errorData.min,
+        });
+      },
     );
+
+    it('ChildClass(11.1) fails with isInt error', () => {
+      const type = new ChildClass(11.1);
+      const errors = validateType(type);
+      expect(errors[0]).toBeDefined();
+      expect(errors[0].constraints).toBeDefined();
+      expect(errors[0].constraints).toEqual({ isInt: errorData.isInt });
+    });
+
+    it.each([[50], [50.0]])('ChildClass(%p) fails with max error', (value) => {
+      const type = new ChildClass(value);
+      const errors = validateType(type);
+      expect(errors[0]).toBeDefined();
+      expect(errors[0].constraints).toBeDefined();
+      expect(errors[0].constraints).toEqual({ max: errorData.max });
+    });
   });
 });
