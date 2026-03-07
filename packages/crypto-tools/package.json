@@ -1,6 +1,6 @@
 {
-  "name": "@code-core/crypto-tools",
-  "version": "0.0.7",
+  "name": "@archi-code/crypto-tools",
+  "version": "0.0.1",
   "keywords": [
     "DDD",
     "node",

@@ -1,6 +1,6 @@
 {
-  "name": "@code-core/common",
-  "version": "0.0.7",
+  "name": "@archi-code/common",
+  "version": "0.0.1",
   "keywords": [
     "DDD",
     "node",

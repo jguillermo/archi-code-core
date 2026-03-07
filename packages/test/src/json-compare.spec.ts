@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 import { JsonCompare } from './json-commpare';
-import { universalToString } from '@code-core/common';
+import { universalToString } from '@archi-code/common';
 
 function s(data: any, reference: any, errors: string[] = []) {
   const diff = JsonCompare.strict(data, reference);

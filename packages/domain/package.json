@@ -1,6 +1,6 @@
 {
-  "name": "@code-core/domain",
-  "version": "0.0.7",
+  "name": "@archi-code/domain",
+  "version": "0.0.1",
   "keywords": [
     "DDD",
     "node",
@@ -74,13 +74,13 @@
   },
   "gitHead": "ec24f58d7c943a184f815076751029df7294f689",
   "dependencies": {
-    "@code-core/common": "file:../common",
+    "@archi-code/common": "^0.0.1",
     "ajv": "^8.18.0",
     "class-validator": "^0.15.1",
     "reflect-metadata": "^0.2.2",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
-    "@code-core/test": "file:../test"
+    "@archi-code/test": "^0.0.1"
   }
 }

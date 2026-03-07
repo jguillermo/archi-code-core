@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 import { AddValidate, validateType } from '../validator/decorator/type-validator';
 import { expectTypeOf } from 'expect-type';
-import { universalToString } from '@code-core/common';
+import { universalToString } from '@archi-code/common';
 import { AbstractNumberType, NumberTypeOptional, NumberTypeRequired } from './index';
 import { TypePrimitiveException } from '../exceptions/domain/type-primitive.exception';
 import { getLevel, Level } from '../level/level.decorator';

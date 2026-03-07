@@ -5,7 +5,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build -w @code-core/common && npm run build -w @code-core/test && npm run build -w @code-core/domain && npm run build -w @code-core/criteria && npm run build -w @code-core/ephemeradb && npm run build -w @code-core/crypto-tools",
+    "build": "npm run build -w @archi-code/common && npm run build -w @archi-code/test && npm run build -w @archi-code/domain && npm run build -w @archi-code/criteria && npm run build -w @archi-code/ephemeradb && npm run build -w @archi-code/crypto-tools",
     "test": "npm run test -ws --if-present",
     "coverage": "npm run coverage -ws --if-present",
     "lint": "npm run lint -ws --if-present",

@@ -1,6 +1,6 @@
 {
-  "name": "@code-core/ephemeradb",
-  "version": "0.0.7",
+  "name": "@archi-code/ephemeradb",
+  "version": "0.0.1",
   "keywords": [
     "DDD",
     "node",

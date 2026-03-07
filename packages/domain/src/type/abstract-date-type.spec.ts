@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 import { expectTypeOf } from 'expect-type';
-import { universalToString } from '@code-core/common';
+import { universalToString } from '@archi-code/common';
 import { DateTypeOptional, DateTypeRequired } from './index';
 import { validateType } from '../validator/decorator/type-validator';
 import { TypePrimitiveException } from '../exceptions/domain/type-primitive.exception';

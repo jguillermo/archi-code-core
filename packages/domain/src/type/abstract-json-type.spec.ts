@@ -3,7 +3,7 @@ import { AbstractJsonType } from './abstract-json-type';
 import { AddValidate, validateType } from '../validator/decorator/type-validator';
 import { JsonSchemaValidator } from '../validator/decorator/custom/json-schema-validator';
 import { expectTypeOf } from 'expect-type';
-import { universalToString } from '@code-core/common';
+import { universalToString } from '@archi-code/common';
 import { TypePrimitiveException } from '../exceptions/domain/type-primitive.exception';
 
 interface JsonValuesTest {

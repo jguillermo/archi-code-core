@@ -1,4 +1,4 @@
-import { universalToString } from '@code-core/common';
+import { universalToString } from '@archi-code/common';
 import { TypeValidatorInterface } from '../validator';
 import { validateSync } from 'class-validator';
 
