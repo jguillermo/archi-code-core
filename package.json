@@ -5,17 +5,17 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "lerna run build --stream",
-    "test": "lerna run test --stream",
-    "coverage": "lerna run coverage --stream",
-    "lint": "lerna run lint --stream",
-    "lint:fix": "lerna run lint:fix --stream",
-    "format": "lerna run format --stream",
-    "format:fix": "lerna run format:fix --stream",
+    "build": "npm run build -w @code-core/common && npm run build -w @code-core/test && npm run build -w @code-core/domain && npm run build -w @code-core/criteria && npm run build -w @code-core/ephemeradb && npm run build -w @code-core/crypto-tools",
+    "test": "npm run test -ws --if-present",
+    "coverage": "npm run coverage -ws --if-present",
+    "lint": "npm run lint -ws --if-present",
+    "lint:fix": "npm run lint:fix -ws --if-present",
+    "format": "npm run format -ws --if-present",
+    "format:fix": "npm run format:fix -ws --if-present",
     "fix": "npm run lint:fix && npm run format:fix",
     "editorconfig:check": "editorconfig-checker --exclude node_modules --exclude dist --exclude '.git'",
     "prepare": "husky",
-    "clean": "npx lerna clean -y && rm -rf node_modules"
+    "clean": "rm -rf packages/*/node_modules node_modules"
   },
   "devDependencies": {
     "@jest/globals": "^29.7.0",
@@ -33,7 +33,6 @@
     "husky": "9.1.7",
     "jest": "29.7.0",
     "jsonwebtoken": "^9.0.3",
-    "lerna": "8.1.3",
     "libsodium-wrappers-sumo": "^0.8.2",
     "ts-jest": "29.4.6",
     "ts-node": "10.9.2",
