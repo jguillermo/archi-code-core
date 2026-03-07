@@ -1,5 +1,4 @@
 import { describe, expect, it } from '@jest/globals';
-import { canByType, excludeItems, nullables, PrimitivesKeys, skipByType, skipByTypeRequired } from '@code-core/test';
 import { expectTypeOf } from 'expect-type';
 import { universalToString } from '@code-core/common';
 import { AbstractUuidType, IdType, UuidTypeOptional, UuidTypeRequired } from './index';
@@ -8,17 +7,66 @@ import { TypePrimitiveException } from '../exceptions/domain/type-primitive.exce
 
 const UUID_4_VALUE = 'df9ef000-21fc-4e06-b8f7-103c3a133d10';
 
+// canByType(UUID) = just the UUID value
+const VALID_UUID = [UUID_4_VALUE];
+
+// skipByTypeRequired(UUID) = all raw non-uuid/non-null/non-undefined types, minus ''
+// These trigger TypePrimitive exception for Required variants
+const NON_UUID_TYPES_REQUIRED = [
+  // strings excluding empty
+  'random', '   ', 'áéíóú', 'abc123',
+  // numbers — not uuids
+  1, -1, 1.1, -1.1, 0,
+  // booleans — not uuids
+  true, false,
+  // objects and arrays
+  { a: 123 }, [], [1, 2, 3],
+  // functions
+  () => 123, new Function('return 123'),
+  // exotic types
+  Symbol(), Symbol('123'),
+  new Date(), new Date('2020-01-01'),
+  new RegExp('test'), /test/,
+  new Error('data error'),
+  Promise.resolve('data promise'),
+  new Map(), new Map([[1, 2]]),
+  new Set(), new Set([1, 2, 3]),
+];
+
+// excludeItems(skipByType(UUID, NULL, UNDEFINED), [0, 1])
+// = all raw non-uuid/non-null/non-undefined types (includes ''), minus 0 and 1
+const NON_UUID_TYPES_OPTIONAL = [
+  // strings including empty
+  'random', '', '   ', 'áéíóú', 'abc123',
+  // numbers excluding 0 and 1 (coercible to boolean)
+  -1, 1.1, -1.1,
+  // booleans — not uuids
+  true, false,
+  // objects and arrays
+  { a: 123 }, [], [1, 2, 3],
+  // functions
+  () => 123, new Function('return 123'),
+  // exotic types
+  Symbol(), Symbol('123'),
+  new Date(), new Date('2020-01-01'),
+  new RegExp('test'), /test/,
+  new Error('data error'),
+  Promise.resolve('data promise'),
+  new Map(), new Map([[1, 2]]),
+  new Set(), new Set([1, 2, 3]),
+];
+
 describe('AbstractUuidType', () => {
   describe('IdType', () => {
     describe('Valid Values', () => {
-      it.each(canByType(PrimitivesKeys.UUID).map((v) => [v]))('validates new IdType(%p)', (value) => {
-        expect(validateType(new IdType(value))).toEqual([]);
+      it.each(VALID_UUID.map((v) => [v]))('validates new IdType(%p)', (value) => {
+        expect(validateType(new IdType(value as any))).toEqual([]);
       });
 
-      it.each(canByType(PrimitivesKeys.UUID).map((v) => [v]))(
+      it.each(VALID_UUID.map((v) => [v]))(
         'typeof new IdType(%p).value === "string"',
         (value) => {
-          expect(typeof new IdType(value).value).toEqual('string');
+          expect(typeof new IdType(value as any).value).toEqual('string');
         },
       );
     });
@@ -30,12 +78,12 @@ describe('AbstractUuidType', () => {
         typePrimitive: 'Validation Error: Expected a valid UUID, but received {{$1}}.',
       };
 
-      it.each(skipByTypeRequired(PrimitivesKeys.UUID).map((v) => [v]))(
+      it.each(NON_UUID_TYPES_REQUIRED.map((v) => [v]))(
         'typePrimitive error for IdType(%p)',
         (value) => {
           let errors: any[] = [];
           try {
-            const type = new IdType(value);
+            const type = new IdType(value as any);
             errors = validateType(type);
           } catch (e) {
             if (!(e instanceof TypePrimitiveException)) throw e;
@@ -50,10 +98,10 @@ describe('AbstractUuidType', () => {
         },
       );
 
-      it.each(nullables().map((v) => [v]))('isUuid + isNotEmpty error for IdType(%p)', (value) => {
+      it.each([[null], [undefined]])('isUuid + isNotEmpty error for IdType(%p)', (value) => {
         let errors: any[] = [];
         try {
-          const type = new IdType(value);
+          const type = new IdType(value as any);
           errors = validateType(type);
         } catch (e) {
           if (!(e instanceof TypePrimitiveException)) throw e;
@@ -91,14 +139,14 @@ describe('AbstractUuidType', () => {
 
   describe('UuidTypeRequired', () => {
     describe('Valid Values', () => {
-      it.each(canByType(PrimitivesKeys.UUID).map((v) => [v]))('validates new UuidTypeRequired(%p)', (value) => {
-        expect(validateType(new UuidTypeRequired(value))).toEqual([]);
+      it.each(VALID_UUID.map((v) => [v]))('validates new UuidTypeRequired(%p)', (value) => {
+        expect(validateType(new UuidTypeRequired(value as any))).toEqual([]);
       });
 
-      it.each(canByType(PrimitivesKeys.UUID).map((v) => [v]))(
+      it.each(VALID_UUID.map((v) => [v]))(
         'typeof new UuidTypeRequired(%p).value === "string"',
         (value) => {
-          expect(typeof new UuidTypeRequired(value).value).toEqual('string');
+          expect(typeof new UuidTypeRequired(value as any).value).toEqual('string');
         },
       );
 
@@ -126,32 +174,30 @@ describe('AbstractUuidType', () => {
         typePrimitive: 'Validation Error: Expected a valid UUID, but received {{$1}}.',
       };
 
-      it.each(
-        excludeItems(
-          skipByType(PrimitivesKeys.UUID, PrimitivesKeys.UNDEFINED, PrimitivesKeys.NULL),
-          [''],
-        ).map((v) => [v]),
-      )('typePrimitive error for UuidTypeRequired(%p)', (value) => {
-        let errors: any[] = [];
-        try {
-          const type = new UuidTypeRequired(value);
-          errors = validateType(type);
-        } catch (e) {
-          if (!(e instanceof TypePrimitiveException)) throw e;
-          errors = [{ property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } }];
-        }
-        expect(errors[0]).toBeDefined();
-        expect(errors[0].constraints).toBeDefined();
-        const displayValue = typeof value === 'string' ? `"${value}"` : value;
-        expect(errors[0].constraints?.typePrimitive).toEqual(
-          errorData.typePrimitive.replace('{{$1}}', universalToString(displayValue)),
-        );
-      });
+      it.each(NON_UUID_TYPES_REQUIRED.map((v) => [v]))(
+        'typePrimitive error for UuidTypeRequired(%p)',
+        (value) => {
+          let errors: any[] = [];
+          try {
+            const type = new UuidTypeRequired(value as any);
+            errors = validateType(type);
+          } catch (e) {
+            if (!(e instanceof TypePrimitiveException)) throw e;
+            errors = [{ property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } }];
+          }
+          expect(errors[0]).toBeDefined();
+          expect(errors[0].constraints).toBeDefined();
+          const displayValue = typeof value === 'string' ? `"${value}"` : value;
+          expect(errors[0].constraints?.typePrimitive).toEqual(
+            errorData.typePrimitive.replace('{{$1}}', universalToString(displayValue)),
+          );
+        },
+      );
 
-      it.each(nullables().map((v) => [v]))('isUuid + isNotEmpty error for UuidTypeRequired(%p)', (value) => {
+      it.each([[null], [undefined]])('isUuid + isNotEmpty error for UuidTypeRequired(%p)', (value) => {
         let errors: any[] = [];
         try {
-          const type = new UuidTypeRequired(value);
+          const type = new UuidTypeRequired(value as any);
           errors = validateType(type);
         } catch (e) {
           if (!(e instanceof TypePrimitiveException)) throw e;
@@ -193,26 +239,22 @@ describe('AbstractUuidType', () => {
 
   describe('UuidTypeOptional', () => {
     describe('Valid Values', () => {
-      it.each(
-        canByType(PrimitivesKeys.UUID, PrimitivesKeys.NULL, PrimitivesKeys.UNDEFINED).map((v) => [v]),
-      )('validates new UuidTypeOptional(%p)', (value) => {
-        expect(validateType(new UuidTypeOptional(value))).toEqual([]);
-      });
+      it.each([...VALID_UUID, null, undefined].map((v) => [v]))(
+        'validates new UuidTypeOptional(%p)',
+        (value) => {
+          expect(validateType(new UuidTypeOptional(value as any))).toEqual([]);
+        },
+      );
 
-      it.each(
-        canByType(PrimitivesKeys.UUID, PrimitivesKeys.NULL, PrimitivesKeys.UNDEFINED)
-          .filter((v) => v != null && v !== undefined)
-          .map((v) => [v]),
-      )('typeof new UuidTypeOptional(%p).value === "string"', (value) => {
-        expect(typeof new UuidTypeOptional(value).value).toEqual('string');
-      });
+      it.each(VALID_UUID.map((v) => [v]))(
+        'typeof new UuidTypeOptional(%p).value === "string"',
+        (value) => {
+          expect(typeof new UuidTypeOptional(value as any).value).toEqual('string');
+        },
+      );
 
-      it.each(
-        canByType(PrimitivesKeys.UUID, PrimitivesKeys.NULL, PrimitivesKeys.UNDEFINED)
-          .filter((v) => v == null)
-          .map((v) => [v]),
-      )('new UuidTypeOptional(%p).isNull is true', (value) => {
-        expect(new UuidTypeOptional(value).isNull).toEqual(true);
+      it.each([[null], [undefined]])('new UuidTypeOptional(%p).isNull is true', (value) => {
+        expect(new UuidTypeOptional(value as any).isNull).toEqual(true);
       });
 
       it('validates AbstractUuidType.random()', () => {
@@ -238,27 +280,25 @@ describe('AbstractUuidType', () => {
         typePrimitive: 'Validation Error: Expected a valid UUID, but received {{$1}}.',
       };
 
-      it.each(
-        excludeItems(
-          skipByType(PrimitivesKeys.UUID, PrimitivesKeys.NULL, PrimitivesKeys.UNDEFINED),
-          [0, 1],
-        ).map((v) => [v]),
-      )('typePrimitive error for UuidTypeOptional(%p)', (value) => {
-        let errors: any[] = [];
-        try {
-          const type = new UuidTypeOptional(value);
-          errors = validateType(type);
-        } catch (e) {
-          if (!(e instanceof TypePrimitiveException)) throw e;
-          errors = [{ property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } }];
-        }
-        expect(errors[0]).toBeDefined();
-        expect(errors[0].constraints).toBeDefined();
-        const displayValue = typeof value === 'string' ? `"${value}"` : value;
-        expect(errors[0].constraints?.typePrimitive).toEqual(
-          errorData.typePrimitive.replace('{{$1}}', universalToString(displayValue)),
-        );
-      });
+      it.each(NON_UUID_TYPES_OPTIONAL.map((v) => [v]))(
+        'typePrimitive error for UuidTypeOptional(%p)',
+        (value) => {
+          let errors: any[] = [];
+          try {
+            const type = new UuidTypeOptional(value as any);
+            errors = validateType(type);
+          } catch (e) {
+            if (!(e instanceof TypePrimitiveException)) throw e;
+            errors = [{ property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } }];
+          }
+          expect(errors[0]).toBeDefined();
+          expect(errors[0].constraints).toBeDefined();
+          const displayValue = typeof value === 'string' ? `"${value}"` : value;
+          expect(errors[0].constraints?.typePrimitive).toEqual(
+            errorData.typePrimitive.replace('{{$1}}', universalToString(displayValue)),
+          );
+        },
+      );
     });
 
     describe('compare values', () => {
@@ -269,7 +309,7 @@ describe('AbstractUuidType', () => {
         [null, null],
         [undefined, null],
       ])('UuidTypeOptional(%p).value toEqual %p', (input, expected) => {
-        const type = new UuidTypeOptional(input);
+        const type = new UuidTypeOptional(input as any);
         expect(type.value).toEqual(expected);
         expect(validateType(type)).toEqual([]);
       });
@@ -279,7 +319,7 @@ describe('AbstractUuidType', () => {
         [undefined, true],
         [UUID_4_VALUE, false],
       ])('UuidTypeOptional(%p).isNull toEqual %p', (input, expected) => {
-        const type = new UuidTypeOptional(input);
+        const type = new UuidTypeOptional(input as any);
         expect(type.isNull).toEqual(expected);
         expect(validateType(type)).toEqual([]);
       });
@@ -289,7 +329,7 @@ describe('AbstractUuidType', () => {
         [undefined, ''],
         [UUID_4_VALUE, 'df9ef000-21fc-4e06-b8f7-103c3a133d10'],
       ])('UuidTypeOptional(%p).toString toEqual %p', (input, expected) => {
-        const type = new UuidTypeOptional(input);
+        const type = new UuidTypeOptional(input as any);
         expect(type.toString).toEqual(expected);
         expect(validateType(type)).toEqual([]);
       });

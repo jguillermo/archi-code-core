@@ -2,21 +2,82 @@ import { describe, expect, it } from '@jest/globals';
 import { expectTypeOf } from 'expect-type';
 import { universalToString } from '@code-core/common';
 import { BooleanTypeOptional, BooleanTypeRequired } from './index';
-import { canByType, excludeItems, nullables, PrimitivesKeys, skipByType, skipByTypeRequired } from '@code-core/test';
 import { validateType } from '../validator/decorator/type-validator';
 import { TypePrimitiveException } from '../exceptions/domain/type-primitive.exception';
+
+// canByType(BOOLEAN) = native booleans + string variants + 0/1 variants
+const VALID_BOOLEANS = [
+  // native booleans
+  true, false,
+  // case-insensitive string booleans
+  'True', 'False', 'TRUE', 'FALSE', 'true', 'false',
+  '  True  ', ' False ', ' TRUE ', '  FALSE ', ' true ', ' false ',
+  // numeric string/number representations accepted as boolean
+  '1', ' 1', '0', ' 0', 0, 1,
+];
+
+// canByType(BOOLEAN, NULL, UNDEFINED)
+const VALID_BOOLEANS_OPTIONAL = [...VALID_BOOLEANS, null, undefined];
+
+// excludeItems(skipByTypeRequired(BOOLEAN), [1, 0])
+// = raw non-boolean types minus null/undefined/'' minus 1 minus 0
+// These trigger TypePrimitive exception (not coercible to boolean)
+const NON_BOOLEAN_TYPES_REQUIRED = [
+  // strings ('' excluded, 1/0 numeric excluded)
+  'random', '   ', 'áéíóú', 'abc123',
+  // numbers that are NOT 0 or 1
+  -1, 1.1, -1.1,
+  // objects and arrays
+  { a: 123 }, [], [1, 2, 3],
+  // uuid
+  'df9ef000-21fc-4e06-b8f7-103c3a133d10',
+  // functions
+  () => 123, new Function('return 123'),
+  // exotic types
+  Symbol(), Symbol('123'),
+  new Date(), new Date('2020-01-01'),
+  new RegExp('test'), /test/,
+  new Error('data error'),
+  Promise.resolve('data promise'),
+  new Map(), new Map([[1, 2]]),
+  new Set(), new Set([1, 2, 3]),
+];
+
+// excludeItems(skipByType(BOOLEAN, NULL, UNDEFINED), [0, 1])
+// = raw non-boolean/non-null/non-undefined types minus 0 and 1
+// Includes '' (unlike the Required variant above)
+const NON_BOOLEAN_TYPES_OPTIONAL = [
+  // strings including empty
+  'random', '', '   ', 'áéíóú', 'abc123',
+  // numbers that are NOT 0 or 1
+  -1, 1.1, -1.1,
+  // objects and arrays
+  { a: 123 }, [], [1, 2, 3],
+  // uuid
+  'df9ef000-21fc-4e06-b8f7-103c3a133d10',
+  // functions
+  () => 123, new Function('return 123'),
+  // exotic types
+  Symbol(), Symbol('123'),
+  new Date(), new Date('2020-01-01'),
+  new RegExp('test'), /test/,
+  new Error('data error'),
+  Promise.resolve('data promise'),
+  new Map(), new Map([[1, 2]]),
+  new Set(), new Set([1, 2, 3]),
+];
 
 describe('AbstractBooleanType', () => {
   describe('BooleanTypeRequired', () => {
     describe('Valid Values', () => {
-      it.each(canByType(PrimitivesKeys.BOOLEAN).map((v) => [v]))('validates new BooleanTypeRequired(%p)', (value) => {
-        expect(validateType(new BooleanTypeRequired(value))).toEqual([]);
+      it.each(VALID_BOOLEANS.map((v) => [v]))('validates new BooleanTypeRequired(%p)', (value) => {
+        expect(validateType(new BooleanTypeRequired(value as any))).toEqual([]);
       });
 
-      it.each(canByType(PrimitivesKeys.BOOLEAN).map((v) => [v]))(
+      it.each(VALID_BOOLEANS.map((v) => [v]))(
         'typeof new BooleanTypeRequired(%p).value === "boolean"',
         (value) => {
-          expect(typeof new BooleanTypeRequired(value).value).toEqual('boolean');
+          expect(typeof new BooleanTypeRequired(value as any).value).toEqual('boolean');
         },
       );
     });
@@ -28,12 +89,12 @@ describe('AbstractBooleanType', () => {
         typePrimitive: 'Validation Error: Expected a valid Boolean, but received {{$1}}.',
       };
 
-      it.each(excludeItems(skipByTypeRequired(PrimitivesKeys.BOOLEAN), [1, 0]).map((v) => [v]))(
+      it.each(NON_BOOLEAN_TYPES_REQUIRED.map((v) => [v]))(
         'typePrimitive error for BooleanTypeRequired(%p)',
         (value) => {
           let errors: any[] = [];
           try {
-            const type = new BooleanTypeRequired(value);
+            const type = new BooleanTypeRequired(value as any);
             errors = validateType(type);
           } catch (e) {
             if (!(e instanceof TypePrimitiveException)) throw e;
@@ -48,22 +109,25 @@ describe('AbstractBooleanType', () => {
         },
       );
 
-      it.each(nullables().map((v) => [v]))('canBeBoolean + isNotEmpty error for BooleanTypeRequired(%p)', (value) => {
-        let errors: any[] = [];
-        try {
-          const type = new BooleanTypeRequired(value);
-          errors = validateType(type);
-        } catch (e) {
-          if (!(e instanceof TypePrimitiveException)) throw e;
-          errors = [{ property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } }];
-        }
-        expect(errors[0]).toBeDefined();
-        expect(errors[0].constraints).toBeDefined();
-        expect(errors[0].constraints).toEqual({
-          canBeBoolean: errorData.canBeBoolean,
-          isNotEmpty: errorData.isNotEmpty,
-        });
-      });
+      it.each([[null], [undefined]])(
+        'canBeBoolean + isNotEmpty error for BooleanTypeRequired(%p)',
+        (value) => {
+          let errors: any[] = [];
+          try {
+            const type = new BooleanTypeRequired(value as any);
+            errors = validateType(type);
+          } catch (e) {
+            if (!(e instanceof TypePrimitiveException)) throw e;
+            errors = [{ property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } }];
+          }
+          expect(errors[0]).toBeDefined();
+          expect(errors[0].constraints).toBeDefined();
+          expect(errors[0].constraints).toEqual({
+            canBeBoolean: errorData.canBeBoolean,
+            isNotEmpty: errorData.isNotEmpty,
+          });
+        },
+      );
     });
 
     describe('Compare values', () => {
@@ -97,26 +161,22 @@ describe('AbstractBooleanType', () => {
 
   describe('BooleanTypeOptional', () => {
     describe('Valid Values', () => {
-      const validValues = canByType(PrimitivesKeys.BOOLEAN, PrimitivesKeys.NULL, PrimitivesKeys.UNDEFINED);
+      it.each(VALID_BOOLEANS_OPTIONAL.map((v) => [v]))(
+        'validates new BooleanTypeOptional(%p)',
+        (value) => {
+          expect(validateType(new BooleanTypeOptional(value as any))).toEqual([]);
+        },
+      );
 
-      it.each(validValues.map((v) => [v]))('validates new BooleanTypeOptional(%p)', (value) => {
-        expect(validateType(new BooleanTypeOptional(value))).toEqual([]);
-      });
+      it.each(VALID_BOOLEANS.map((v) => [v]))(
+        'typeof new BooleanTypeOptional(%p).value === "boolean"',
+        (value) => {
+          expect(typeof new BooleanTypeOptional(value as any).value).toEqual('boolean');
+        },
+      );
 
-      it.each(
-        validValues
-          .filter((v) => v != null && v !== undefined)
-          .map((v) => [v]),
-      )('typeof new BooleanTypeOptional(%p).value === "boolean"', (value) => {
-        expect(typeof new BooleanTypeOptional(value).value).toEqual('boolean');
-      });
-
-      it.each(
-        validValues
-          .filter((v) => v == null)
-          .map((v) => [v]),
-      )('new BooleanTypeOptional(%p).isNull is true', (value) => {
-        expect(new BooleanTypeOptional(value).isNull).toEqual(true);
+      it.each([[null], [undefined]])('new BooleanTypeOptional(%p).isNull is true', (value) => {
+        expect(new BooleanTypeOptional(value as any).isNull).toEqual(true);
       });
     });
 
@@ -126,27 +186,25 @@ describe('AbstractBooleanType', () => {
         typePrimitive: 'Validation Error: Expected a valid Boolean, but received {{$1}}.',
       };
 
-      it.each(
-        excludeItems(
-          skipByType(PrimitivesKeys.BOOLEAN, PrimitivesKeys.NULL, PrimitivesKeys.UNDEFINED),
-          [0, 1],
-        ).map((v) => [v]),
-      )('typePrimitive error for BooleanTypeOptional(%p)', (value) => {
-        let errors: any[] = [];
-        try {
-          const type = new BooleanTypeOptional(value);
-          errors = validateType(type);
-        } catch (e) {
-          if (!(e instanceof TypePrimitiveException)) throw e;
-          errors = [{ property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } }];
-        }
-        expect(errors[0]).toBeDefined();
-        expect(errors[0].constraints).toBeDefined();
-        const displayValue = typeof value === 'string' ? `"${value}"` : value;
-        expect(errors[0].constraints?.typePrimitive).toEqual(
-          errorData.typePrimitive.replace('{{$1}}', universalToString(displayValue)),
-        );
-      });
+      it.each(NON_BOOLEAN_TYPES_OPTIONAL.map((v) => [v]))(
+        'typePrimitive error for BooleanTypeOptional(%p)',
+        (value) => {
+          let errors: any[] = [];
+          try {
+            const type = new BooleanTypeOptional(value as any);
+            errors = validateType(type);
+          } catch (e) {
+            if (!(e instanceof TypePrimitiveException)) throw e;
+            errors = [{ property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } }];
+          }
+          expect(errors[0]).toBeDefined();
+          expect(errors[0].constraints).toBeDefined();
+          const displayValue = typeof value === 'string' ? `"${value}"` : value;
+          expect(errors[0].constraints?.typePrimitive).toEqual(
+            errorData.typePrimitive.replace('{{$1}}', universalToString(displayValue)),
+          );
+        },
+      );
     });
 
     describe('compare values', () => {
@@ -171,7 +229,7 @@ describe('AbstractBooleanType', () => {
         [undefined, true],
         [true, false],
       ])('BooleanTypeOptional(%p).isNull toEqual %p', (input, expected) => {
-        const type = new BooleanTypeOptional(input);
+        const type = new BooleanTypeOptional(input as any);
         expect(type.isNull).toEqual(expected);
         expect(validateType(type)).toEqual([]);
       });
@@ -181,7 +239,7 @@ describe('AbstractBooleanType', () => {
         [undefined, ''],
         [true, 'true'],
       ])('BooleanTypeOptional(%p).toString toEqual %p', (input, expected) => {
-        const type = new BooleanTypeOptional(input);
+        const type = new BooleanTypeOptional(input as any);
         expect(type.toString).toEqual(expected);
         expect(validateType(type)).toEqual([]);
       });

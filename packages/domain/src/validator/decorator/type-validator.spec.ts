@@ -1,6 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
 import { AddValidate, validateType } from './type-validator';
-import { PrimitivesKeys, skipByType } from '@code-core/test';
 import { TypePrimitiveException } from '../../exceptions/domain/type-primitive.exception';
 
 @AddValidate([
@@ -18,6 +17,30 @@ class User {
     this._value = value;
   }
 }
+
+// All values that are NOT numbers (raw primitive values, not canByType expansions)
+const NON_NUMBER_VALUES = [
+  // strings
+  'random', '', '   ', 'áéíóú', 'abc123',
+  // booleans
+  true, false,
+  // objects and arrays
+  { a: 123 }, [], [1, 2, 3],
+  // uuid
+  'df9ef000-21fc-4e06-b8f7-103c3a133d10',
+  // functions
+  () => 123, new Function('return 123'),
+  // nullable
+  undefined, null,
+  // exotic types
+  Symbol(), Symbol('123'),
+  new Date(), new Date('2020-01-01'),
+  new RegExp('test'), /test/,
+  new Error('data error'),
+  Promise.resolve('data promise'),
+  new Map(), new Map([[1, 2]]),
+  new Set(), new Set([1, 2, 3]),
+];
 
 describe('Validator', () => {
   it('error validator', async () => {
@@ -58,11 +81,8 @@ describe('Validator', () => {
     @AddValidate([{ validator: 'IsInt' }])
     class ChildClass extends ParentClass {}
 
-    // ValidationStorage.getInstance().log();
-
-    const childInstance = new ChildClass('ChildClassStr'); // Esto debería fallar la validación IsInt
+    const childInstance = new ChildClass('ChildClassStr');
     const childErrors = await validateType(childInstance);
-    // Validation error for '_value' property
     const valueError = childErrors.find((error) => error.property === '_value');
     expect(valueError).toBeDefined();
     expect(valueError?.constraints).toEqual({
@@ -72,16 +92,12 @@ describe('Validator', () => {
 
     expect(Reflect.getMetadata('type:doc', ParentClass)).toEqual({
       required: true,
-      schema: {
-        type: 'number',
-      },
+      schema: { type: 'number' },
     });
 
     expect(Reflect.getMetadata('type:doc', ChildClass)).toEqual({
       required: true,
-      schema: {
-        type: 'integer',
-      },
+      schema: { type: 'integer' },
     });
   });
 
@@ -121,11 +137,7 @@ describe('Validator', () => {
     it('should validate ChildClass documentation', () => {
       expect(Reflect.getMetadata('type:doc', ChildClass)).toEqual({
         required: true,
-        schema: {
-          type: 'number',
-          minimum: 10,
-          maximum: 20,
-        },
+        schema: { type: 'number', minimum: 10, maximum: 20 },
       });
     });
 
@@ -139,7 +151,7 @@ describe('Validator', () => {
       expect(validateType(type)).toEqual([]);
     });
 
-    it.each(skipByType(PrimitivesKeys.NUMBER).map((v) => [v]))(
+    it.each(NON_NUMBER_VALUES.map((v) => [v]))(
       'ChildClass(%p) fails with isInt + isNumber + max + min errors',
       (value) => {
         let errors: any[] = [];
