@@ -71,6 +71,6 @@
   },
   "gitHead": "ec24f58d7c943a184f815076751029df7294f689",
   "dependencies": {
-    "@archi-code/common": "1.0.0-alpha.5"
+    "@archi-code/common": "1.0.0-alpha.6"
   }
 }
