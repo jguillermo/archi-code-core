@@ -5,7 +5,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build -w @archi-code/common && npm run build -w @archi-code/test && npm run build -w @archi-code/domain && npm run build -w @archi-code/criteria && npm run build -w @archi-code/ephemeradb && npm run build -w @archi-code/crypto-tools",
+    "build": "node scripts/generate-packages-tree.js && node scripts/build-all.js",
     "test": "npm run test -ws --if-present",
     "coverage": "npm run coverage -ws --if-present",
     "lint": "npm run lint -ws --if-present",
@@ -15,7 +15,8 @@
     "fix": "npm run lint:fix && npm run format:fix",
     "editorconfig:check": "editorconfig-checker --exclude node_modules --exclude dist --exclude '.git'",
     "prepare": "husky",
-    "clean": "rm -rf packages/*/node_modules node_modules"
+    "clean": "rm -rf packages/*/node_modules node_modules",
+    "generate-tree": "node scripts/generate-packages-tree.js"
   },
   "devDependencies": {
     "@jest/globals": "^29.7.0",
@@ -37,6 +38,12 @@
     "ts-jest": "29.4.6",
     "ts-node": "10.9.2",
     "typescript": "5.9.3",
-    "typescript-eslint": "8.56.1"
+    "typescript-eslint": "8.56.1",
+    "semantic-release": "^24.2.3",
+    "semantic-release-monorepo": "^8.0.2",
+    "@semantic-release/commit-analyzer": "^13.0.1",
+    "@semantic-release/release-notes-generator": "^14.0.3",
+    "@semantic-release/npm": "^12.0.1",
+    "@semantic-release/github": "^11.0.1"
   }
 }
