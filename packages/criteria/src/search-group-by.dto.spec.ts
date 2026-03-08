@@ -21,27 +21,39 @@ describe('SearchGroupByDto', () => {
 
   describe('Invalid Cases', () => {
     it('should throw an error if groupBy is null', () => {
-      expect(() => new SearchGroupByDto(null as any)).toThrow('SearchGroupByDto: groupBy value cannot be null or undefined');
+      expect(() => new SearchGroupByDto(null as any)).toThrow(
+        'SearchGroupByDto: groupBy value cannot be null or undefined',
+      );
     });
 
     it('should throw an error if groupBy is undefined', () => {
-      expect(() => new SearchGroupByDto(undefined as any)).toThrow('SearchGroupByDto: groupBy value cannot be null or undefined');
+      expect(() => new SearchGroupByDto(undefined as any)).toThrow(
+        'SearchGroupByDto: groupBy value cannot be null or undefined',
+      );
     });
 
     it('should throw an error if groupBy is an array with non-string elements', () => {
-      expect(() => new SearchGroupByDto(['department', 123 as any])).toThrow('SearchGroupByDto: All groupBy fields must be strings');
+      expect(() => new SearchGroupByDto(['department', 123 as any])).toThrow(
+        'SearchGroupByDto: All groupBy fields must be strings',
+      );
     });
 
     it('should throw an error if groupBy is an object', () => {
-      expect(() => new SearchGroupByDto({ key: 'department' } as any)).toThrow('SearchGroupByDto: groupBy must be a string or an array of strings');
+      expect(() => new SearchGroupByDto({ key: 'department' } as any)).toThrow(
+        'SearchGroupByDto: groupBy must be a string or an array of strings',
+      );
     });
 
     it('should throw an error if groupBy is a number', () => {
-      expect(() => new SearchGroupByDto(42 as any)).toThrow('SearchGroupByDto: groupBy must be a string or an array of strings');
+      expect(() => new SearchGroupByDto(42 as any)).toThrow(
+        'SearchGroupByDto: groupBy must be a string or an array of strings',
+      );
     });
 
     it('should throw an error if groupBy is a boolean', () => {
-      expect(() => new SearchGroupByDto(true as any)).toThrow('SearchGroupByDto: groupBy must be a string or an array of strings');
+      expect(() => new SearchGroupByDto(true as any)).toThrow(
+        'SearchGroupByDto: groupBy must be a string or an array of strings',
+      );
     });
   });
 });

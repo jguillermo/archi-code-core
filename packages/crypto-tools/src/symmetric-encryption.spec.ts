@@ -37,8 +37,11 @@ describe('SymmetricEncryption', () => {
 
   it('should has in incorrect', () => {
     const instance = new SymmetricEncryption(algorithm, validKey);
-    const encrypted = 'cc0f4587733fbd9c0d9a95757a53ae81|f5d580517206f7d29d83a2a9711251b532c1a7cdba346ba9d71e20e66fbceeea|55637b1e30d6589296eb72287ba561e34e0a6b22c76ea4d6d';
-    expect(() => instance.decrypt(encrypted)).toThrow('Decryption failed: Invalid HMAC. Data may have been tampered with');
+    const encrypted =
+      'cc0f4587733fbd9c0d9a95757a53ae81|f5d580517206f7d29d83a2a9711251b532c1a7cdba346ba9d71e20e66fbceeea|55637b1e30d6589296eb72287ba561e34e0a6b22c76ea4d6d';
+    expect(() => instance.decrypt(encrypted)).toThrow(
+      'Decryption failed: Invalid HMAC. Data may have been tampered with',
+    );
   });
 
   it('should produce unique ciphertexts for the same plaintext due to random IV', () => {
@@ -57,7 +60,9 @@ describe('SymmetricEncryption', () => {
     const instance = new SymmetricEncryption(algorithm, validKey);
     const encrypted = instance.encrypt(textToEncrypt);
     const tamperedEncrypted = encrypted.replace(/.$/, '0'); // Modify the last character
-    expect(() => instance.decrypt(tamperedEncrypted)).toThrow('Invalid HMAC. Data may have been tampered with.');
+    expect(() => instance.decrypt(tamperedEncrypted)).toThrow(
+      'Invalid HMAC. Data may have been tampered with.',
+    );
   });
 
   it('should handle long keys by truncating them to the required length', () => {

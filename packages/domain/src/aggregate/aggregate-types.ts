@@ -9,7 +9,10 @@ export class AggregateTypes {
     this._currentLevelNormalized = normalizeLevel(currentLevel);
   }
 
-  protected initializeType<T extends AbstractType<any>>(typeClass: { new (data: any): T; empty?: () => T }, data): T {
+  protected initializeType<T extends AbstractType<any>>(
+    typeClass: { new (data: any): T; empty?: () => T },
+    data: any,
+  ): T {
     const voLevel = getLevel(typeClass);
     const isEmpty = data === null || data === undefined;
     if (voLevel > this._currentLevelNormalized && isEmpty) {
@@ -20,7 +23,9 @@ export class AggregateTypes {
     }
     const typeInstance: T = new typeClass(data);
     if (!typeInstance.isValid()) {
-      throw new DomainException(`${(typeClass as any).name}: ${typeInstance.validatorMessageStr()}`);
+      throw new DomainException(
+        `${(typeClass as any).name}: ${typeInstance.validatorMessageStr()}`,
+      );
     }
     return typeInstance;
   }

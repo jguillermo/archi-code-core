@@ -1,11 +1,9 @@
 import { Compare } from './compare';
 
 export class IsNotEmptyCompare extends Compare {
-  get regexp() {
-    return /^IS_NOT_EMPTY\(\)$/;
-  }
+  readonly regexp = /^IS_NOT_EMPTY\(\)$/;
 
-  compare(value): boolean {
+  compare(value: any): boolean {
     return value !== '';
   }
 }

@@ -2,7 +2,7 @@ import { registerDecorator, ValidationArguments, ValidationOptions } from 'class
 import { JsonValidator } from '../../primitive-validator/json.validator';
 
 export function CanBeJson(validationOptions?: ValidationOptions) {
-  return function (object: object, propertyName: string) {
+  return function (object: object, propertyName: string): void {
     registerDecorator({
       name: 'canBeJson',
       target: object.constructor,

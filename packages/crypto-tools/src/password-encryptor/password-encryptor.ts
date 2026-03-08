@@ -1,7 +1,7 @@
 export abstract class PasswordEncryptor {
   protected readonly _saltRounds: number;
 
-  constructor(saltRounds: number = 10) {
+  constructor(saltRounds = 10) {
     if (saltRounds < 4 || saltRounds > 31) {
       throw new Error('Salt rounds must be between 4 and 31.');
     }

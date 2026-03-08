@@ -9,7 +9,7 @@ import { MongoFilter, MongoFilterOperator, MongoQuery, MongoSort } from './mongo
 
 export class MongoCriteriaConverter {
   // Map our FilterOperator to MongoDB operator strings
-  private operatorMap: { [key in FilterOperator]?: MongoFilterOperator } = {
+  private operatorMap: Partial<Record<FilterOperator, MongoFilterOperator>> = {
     [FilterOperator.EQ]: '$eq',
     [FilterOperator.NE]: '$ne',
     [FilterOperator.GT]: '$gt',
@@ -72,7 +72,9 @@ export class MongoCriteriaConverter {
     }
     if (filter.operator === FilterOperator.LIKE || filter.operator === FilterOperator.ILIKE) {
       const regexOptions = filter.operator === FilterOperator.ILIKE ? 'i' : '';
-      const regexFilter = regexOptions ? { $regex: value, $options: regexOptions } : { $regex: value };
+      const regexFilter = regexOptions
+        ? { $regex: value, $options: regexOptions }
+        : { $regex: value };
       return { [field]: regexFilter } as unknown as MongoFilter;
     }
     if (op) {

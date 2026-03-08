@@ -25,23 +25,33 @@ describe('SearchOrderDto', () => {
 
   describe('Invalid cases', () => {
     it('should throw an error if orders is not an array', () => {
-      expect(() => new SearchOrderDto(null as any)).toThrow('SearchOrderDto: orders must be an array');
-      expect(() => new SearchOrderDto({ field: 'name', direction: 'asc' } as any)).toThrow('SearchOrderDto: orders must be an array');
+      expect(() => new SearchOrderDto(null as any)).toThrow(
+        'SearchOrderDto: orders must be an array',
+      );
+      expect(() => new SearchOrderDto({ field: 'name', direction: 'asc' } as any)).toThrow(
+        'SearchOrderDto: orders must be an array',
+      );
     });
 
     it('should throw an error if an order item has an empty field', () => {
       const orders: SearchOrderItemDto[] = [{ field: '', direction: 'asc' }];
-      expect(() => new SearchOrderDto(orders)).toThrow('SearchOrderDto: Each order must have a non-empty string as field');
+      expect(() => new SearchOrderDto(orders)).toThrow(
+        'SearchOrderDto: Each order must have a non-empty string as field',
+      );
     });
 
     it('should throw an error if an order item has a non-string field', () => {
       const orders: SearchOrderItemDto[] = [{ field: 123 as any, direction: 'asc' }];
-      expect(() => new SearchOrderDto(orders)).toThrow('SearchOrderDto: Each order must have a non-empty string as field');
+      expect(() => new SearchOrderDto(orders)).toThrow(
+        'SearchOrderDto: Each order must have a non-empty string as field',
+      );
     });
 
     it('should throw an error if an order item has an invalid direction', () => {
       const orders: SearchOrderItemDto[] = [{ field: 'name', direction: 'up' as any }];
-      expect(() => new SearchOrderDto(orders)).toThrow('SearchOrderDto: Each order must have direction "asc" or "desc"');
+      expect(() => new SearchOrderDto(orders)).toThrow(
+        'SearchOrderDto: Each order must have direction "asc" or "desc"',
+      );
     });
 
     it('should throw an error if one order item in multiple orders is invalid', () => {
@@ -49,7 +59,9 @@ describe('SearchOrderDto', () => {
         { field: 'name', direction: 'asc' },
         { field: 'age', direction: 'invalid' as any },
       ];
-      expect(() => new SearchOrderDto(orders)).toThrow('SearchOrderDto: Each order must have direction "asc" or "desc"');
+      expect(() => new SearchOrderDto(orders)).toThrow(
+        'SearchOrderDto: Each order must have direction "asc" or "desc"',
+      );
     });
   });
 });

@@ -11,13 +11,17 @@ export function Level(level: number): ClassDecorator {
 
       // Check if `empty` is a function
       if (typeof staticEmpty !== 'function') {
-        throw new Error(`Class ${target.name} with level ${level} must implement a static 'empty()' method as a function.`);
+        throw new Error(
+          `Class ${target.name} with level ${level} must implement a static 'empty()' method as a function.`,
+        );
       }
 
       // Check if `empty()` returns a valid instance of the class
       const instance = staticEmpty();
       if (!(instance instanceof target)) {
-        throw new Error(`The static 'empty()' method of class ${target.name} must return a valid instance of the class.`);
+        throw new Error(
+          `The static 'empty()' method of class ${target.name} must return a valid instance of the class.`,
+        );
       }
     }
   };

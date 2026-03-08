@@ -28,9 +28,9 @@ describe('Primitive aggregate', () => {
       }
     }
 
-    type expectedPrimitives = {
+    interface expectedPrimitives {
       id: string;
-    };
+    }
 
     expectTypeOf<PrimitiveTypes<Aggregate>>().toEqualTypeOf<expectedPrimitives>();
     expectTypeOf<PrimitiveTypes<AggregateB>>().toEqualTypeOf<expectedPrimitives>();
@@ -60,11 +60,11 @@ describe('Primitive aggregate', () => {
       }
     }
 
-    type expectedPrimitives = {
+    interface expectedPrimitives {
       id: string;
       name: string;
       age: number | null;
-    };
+    }
 
     expectTypeOf<PrimitiveTypes<Aggregate>>().toEqualTypeOf<expectedPrimitives>();
   });
@@ -87,10 +87,10 @@ describe('Primitive aggregate', () => {
       }
     }
 
-    type expectedPrimitives = {
+    interface expectedPrimitives {
       id: string;
       tags: string[];
-    };
+    }
 
     expectTypeOf<PrimitiveTypes<Aggregate>>().toEqualTypeOf<expectedPrimitives>();
   });

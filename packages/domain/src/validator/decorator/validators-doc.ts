@@ -418,7 +418,8 @@ export class ValidatorsDoc {
       if (v.type === ValidationTypes.CONDITIONAL_VALIDATION) {
         validator = 'IsOptional';
       } else {
-        validator = typeof v.name === 'string' ? v.name.charAt(0).toUpperCase() + v.name.slice(1) : v.name;
+        validator =
+          typeof v.name === 'string' ? v.name.charAt(0).toUpperCase() + v.name.slice(1) : v.name;
         value = v.constraints?.length > 0 ? v.constraints[0] : undefined;
       }
 
@@ -468,8 +469,17 @@ export class ValidatorsDoc {
   private mergeSchema(base: any, addition: any): any {
     const merged = { ...base, ...addition };
     if (addition.type) {
-      if (base.type && base.type !== addition.type && !((base.type === 'integer' && addition.type === 'number') || (base.type === 'number' && addition.type === 'integer'))) {
-        console.warn(`Warning: Type changed from "${base.type}" to "${addition.type}" due to conflicting validators.`);
+      if (
+        base.type &&
+        base.type !== addition.type &&
+        !(
+          (base.type === 'integer' && addition.type === 'number') ||
+          (base.type === 'number' && addition.type === 'integer')
+        )
+      ) {
+        console.warn(
+          `Warning: Type changed from "${base.type}" to "${addition.type}" due to conflicting validators.`,
+        );
       }
       merged.type = addition.type; // El último mapeo prevalece.
     }

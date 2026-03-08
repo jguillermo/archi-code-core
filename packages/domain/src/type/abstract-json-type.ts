@@ -4,12 +4,13 @@ import { JsonValidator } from '../validator';
 import { CanBeJson } from '../validator/decorator/custom/can-be-json';
 import { TypePrimitiveException } from '../exceptions/domain/type-primitive.exception';
 
-export type JsonTypeValue = {
-  [p: string]: any;
-};
+export type JsonTypeValue = Record<string, any>;
 
 @AddValidate([{ validator: CanBeJson }])
-export class AbstractJsonType<T extends JsonTypeValue, R extends null | undefined = undefined> extends AbstractType<T, R> {
+export class AbstractJsonType<
+  T extends JsonTypeValue,
+  R extends null | undefined = undefined,
+> extends AbstractType<T, R> {
   protected filter(value: any): any {
     if (value === null) {
       return null;

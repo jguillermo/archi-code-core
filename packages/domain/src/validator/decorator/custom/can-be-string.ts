@@ -2,7 +2,7 @@ import { registerDecorator, ValidationArguments, ValidationOptions } from 'class
 import { StringValidator } from '../../primitive-validator/string.validator';
 
 export function CanBeStringValidator(validationOptions?: ValidationOptions) {
-  return function (object: object, propertyName: string) {
+  return function (object: object, propertyName: string): void {
     registerDecorator({
       name: 'canBeString',
       target: object.constructor,

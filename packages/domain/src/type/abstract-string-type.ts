@@ -6,7 +6,10 @@ import { TypePrimitiveException } from '../exceptions/domain/type-primitive.exce
 import { StringValidator } from '../validator';
 
 @AddValidate([{ validator: CanBeStringValidator }])
-export class AbstractStringType<R extends null | undefined = undefined> extends AbstractType<string, R> {
+export class AbstractStringType<R extends null | undefined = undefined> extends AbstractType<
+  string,
+  R
+> {
   protected filter(value: any): any {
     if (value === null) {
       return null;

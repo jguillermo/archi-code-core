@@ -1,4 +1,4 @@
-export function universalToString(value: any) {
+export function universalToString(value: any): string {
   if (value === null) {
     return 'null';
   } else if (value === undefined) {
@@ -8,7 +8,10 @@ export function universalToString(value: any) {
   } else if (value instanceof Date) {
     return `Date(${value.toISOString()})`;
   } else if (value instanceof Map) {
-    const entries = Array.from(value, ([key, val]) => `${universalToString(key)}: ${universalToString(val)}`);
+    const entries = Array.from(
+      value,
+      ([key, val]) => `${universalToString(key)}: ${universalToString(val)}`,
+    );
     return `Map({${entries.join(', ')}})`;
   } else if (value instanceof Set) {
     const entries = Array.from(value, universalToString);
@@ -22,7 +25,7 @@ export function universalToString(value: any) {
   } else if (typeof value === 'object') {
     try {
       return JSON.stringify(value) || value.toString();
-    } catch (error) {
+    } catch {
       return '[Circular or too complex to stringify]';
     }
   } else if (typeof value === 'function') {

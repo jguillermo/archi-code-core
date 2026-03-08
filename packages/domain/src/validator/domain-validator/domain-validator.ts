@@ -1,4 +1,9 @@
-import { ValidationArguments, ValidationError, ValidatorConstraint, ValidatorConstraintInterface } from 'class-validator';
+import {
+  ValidationArguments,
+  ValidationError,
+  ValidatorConstraint,
+  ValidatorConstraintInterface,
+} from 'class-validator';
 import { validateType } from '../decorator/type-validator';
 import { TypeValidatorInterface } from '../primitive-validator/type-validator-interface';
 import { getLevel, normalizeLevel } from '../../level/level.decorator';
@@ -18,7 +23,7 @@ export class DomainValidator implements ValidatorConstraintInterface {
       }
       const type: TypeValidatorInterface = new args.constraints[0](value);
       return type.isValid();
-    } catch (e) {
+    } catch {
       return false;
     }
   }

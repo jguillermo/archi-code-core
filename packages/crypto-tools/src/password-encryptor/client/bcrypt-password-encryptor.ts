@@ -8,7 +8,7 @@ export class BcryptPasswordEncryptor extends PasswordEncryptor {
    * Constructor for the UserPasswordEncryptor class.
    * @param saltRounds Number of salt rounds to generate the hashes (default is 10).
    */
-  constructor(saltRounds: number = 10) {
+  constructor(saltRounds = 10) {
     super(saltRounds);
     this.ensureBcryptAvailable();
   }
@@ -16,8 +16,9 @@ export class BcryptPasswordEncryptor extends PasswordEncryptor {
   private ensureBcryptAvailable(): void {
     if (!BcryptPasswordEncryptor.bcrypt) {
       try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
         BcryptPasswordEncryptor.bcrypt = require('bcrypt');
-      } catch (error) {
+      } catch {
         console.warn('bcrypt is not installed. Password encryption will not be available.');
         throw new Error('bcrypt module is required but not installed.');
       }

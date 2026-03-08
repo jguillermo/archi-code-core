@@ -8,21 +8,27 @@ export class SimpleFilterDto {
     public readonly operator: FilterOperator,
     value: string | number | (string | number)[],
   ) {
-    // Convert numeric values to integers if required.
-    const numericOperators = [FilterOperator.LT, FilterOperator.LTE, FilterOperator.GT, FilterOperator.GTE, FilterOperator.BETWEEN];
+    // Convert numeric values for comparison operators.
+    const numericOperators = [
+      FilterOperator.LT,
+      FilterOperator.LTE,
+      FilterOperator.GT,
+      FilterOperator.GTE,
+      FilterOperator.BETWEEN,
+    ];
     if (numericOperators.includes(operator)) {
       if (Array.isArray(value)) {
         this.value = value.map((v) => {
           const num = Number(v);
-          if (!Number.isInteger(num)) {
-            throw new Error(`SimpleFilterDto: Value "${v}" must be an integer`);
+          if (isNaN(num)) {
+            throw new Error(`SimpleFilterDto: Value "${v}" must be a number`);
           }
           return num;
         });
       } else {
         const num = Number(value);
-        if (!Number.isInteger(num)) {
-          throw new Error(`SimpleFilterDto: Value "${value}" must be an integer`);
+        if (isNaN(num)) {
+          throw new Error(`SimpleFilterDto: Value "${value}" must be a number`);
         }
         this.value = num;
       }

@@ -1,5 +1,5 @@
 import { CompareValue } from './compare-process/CompareValue';
-import { universalToString } from '@code-core/common';
+import { universalToString } from '@archi-code/common';
 
 type JsonValue = string | number | boolean | null | JsonObject | JsonArray;
 
@@ -7,7 +7,7 @@ interface JsonObject {
   [key: string]: JsonValue;
 }
 
-type JsonArray = Array<JsonValue>;
+type JsonArray = JsonValue[];
 
 export class JsonCompare {
   private _differences: string[] = [];
@@ -31,9 +31,11 @@ export class JsonCompare {
     this.compareValues(data, reference, '');
   }
 
-  private compareArrays(data: JsonArray, reference: JsonArray, path: string) {
+  private compareArrays(data: JsonArray, reference: JsonArray, path: string): void {
     if (this._strictMode && data.length !== reference.length) {
-      this._differences.push(`${path}: length of ${universalToString(data)} is not equal to length of ${universalToString(reference)}`);
+      this._differences.push(
+        `${path}: length of ${universalToString(data)} is not equal to length of ${universalToString(reference)}`,
+      );
       return;
     }
     for (let i = 0; i < data.length; i++) {
@@ -48,7 +50,7 @@ export class JsonCompare {
     return `${path}.${afterPath}`;
   }
 
-  private compareObjects(data: JsonObject, reference: JsonObject, path: string) {
+  private compareObjects(data: JsonObject, reference: JsonObject, path: string): void {
     if (this._strictMode) {
       Object.keys(reference).forEach((key) => {
         const processPath = this.processPath(path, key);
@@ -76,16 +78,20 @@ export class JsonCompare {
     }
   }
 
-  private compareValues(data: JsonValue, reference: JsonValue, path: string) {
+  private compareValues(data: JsonValue, reference: JsonValue, path: string): void {
     if (Array.isArray(data)) {
       if (!Array.isArray(reference)) {
-        this._differences.push(`${path}: must not be an array; it must be ${universalToString(reference)}`);
+        this._differences.push(
+          `${path}: must not be an array; it must be ${universalToString(reference)}`,
+        );
       } else {
         this.compareArrays(data, reference, path);
       }
     } else if (this.isObject(data)) {
       if (!this.isObject(reference)) {
-        this._differences.push(`${path}: must not be an object; it must be ${universalToString(reference)}`);
+        this._differences.push(
+          `${path}: must not be an object; it must be ${universalToString(reference)}`,
+        );
       } else {
         this.compareObjects(data as JsonObject, reference as JsonObject, path);
       }
@@ -93,7 +99,9 @@ export class JsonCompare {
       const isEquals = CompareValue.getInstance().compare(data, reference);
       if (!isEquals) {
         path = path === '' ? path : `${path}: `;
-        this._differences.push(`${path}${universalToString(data)} -> ${universalToString(reference)}`);
+        this._differences.push(
+          `${path}${universalToString(data)} -> ${universalToString(reference)}`,
+        );
       }
     }
   }

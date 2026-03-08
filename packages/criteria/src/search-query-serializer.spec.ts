@@ -125,7 +125,9 @@ describe('SearchQuerySerializer', () => {
 
     it('debería lanzar error si el orden tiene dirección inválida', () => {
       const orders = [{ field: 'name', direction: 'ascending' }]; // dirección inválida
-      expect(() => new SearchOrderDto(orders as any)).toThrowError('SearchOrderDto: Each order must have direction "asc" or "desc"');
+      expect(() => new SearchOrderDto(orders as any)).toThrowError(
+        'SearchOrderDto: Each order must have direction "asc" or "desc"',
+      );
     });
   });
 
@@ -145,9 +147,15 @@ describe('SearchQuerySerializer', () => {
     });
 
     it('debería lanzar error si el paginador tiene valores no enteros o negativos', () => {
-      expect(() => new SearchPaginatorDto(0, 10)).toThrowError('SearchPaginatorDto: "page" and "perPage" must be positive integers');
-      expect(() => new SearchPaginatorDto(2, 0)).toThrowError('SearchPaginatorDto: "page" and "perPage" must be positive integers');
-      expect(() => new SearchPaginatorDto('abc' as any, 10)).toThrowError('SearchPaginatorDto: "page" and "perPage" must be integers');
+      expect(() => new SearchPaginatorDto(0, 10)).toThrowError(
+        'SearchPaginatorDto: "page" and "perPage" must be positive integers',
+      );
+      expect(() => new SearchPaginatorDto(2, 0)).toThrowError(
+        'SearchPaginatorDto: "page" and "perPage" must be positive integers',
+      );
+      expect(() => new SearchPaginatorDto('abc' as any, 10)).toThrowError(
+        'SearchPaginatorDto: "page" and "perPage" must be integers',
+      );
     });
   });
 
@@ -178,7 +186,9 @@ describe('SearchQuerySerializer', () => {
     });
 
     it('debería lanzar error si groupBy no es un string o array de strings', () => {
-      expect(() => new SearchGroupByDto(123 as any)).toThrowError('SearchGroupByDto: groupBy must be a string or an array of strings');
+      expect(() => new SearchGroupByDto(123 as any)).toThrowError(
+        'SearchGroupByDto: groupBy must be a string or an array of strings',
+      );
     });
   });
 
@@ -232,7 +242,9 @@ describe('SearchQuerySerializer', () => {
   // Casos de error en la deserialización
   describe('Casos de error', () => {
     it('debería lanzar error al deserializar un JSON inválido', () => {
-      expect(() => SearchQuerySerializer.deserialize('invalid json')).toThrowError('Invalid JSON string');
+      expect(() => SearchQuerySerializer.deserialize('invalid json')).toThrowError(
+        'Invalid JSON string',
+      );
     });
 
     it('debería lanzar error al deserializar un filtro con tipo desconocido', () => {
@@ -242,7 +254,9 @@ describe('SearchQuerySerializer', () => {
         paginator: null,
         groupBy: null,
       });
-      expect(() => SearchQuerySerializer.deserialize(invalidFilterJson)).toThrowError('Unknown filter format');
+      expect(() => SearchQuerySerializer.deserialize(invalidFilterJson)).toThrowError(
+        'Unknown filter format',
+      );
     });
   });
 });

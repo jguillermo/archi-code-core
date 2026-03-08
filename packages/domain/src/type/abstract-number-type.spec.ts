@@ -1,89 +1,294 @@
 import { describe, expect, it } from '@jest/globals';
-import { canByType, errorTypeValidValueSpec, nullables, PrimitivesKeys, skipByType, skipByTypeRequired, typeValidationSpec, typeValidValueSpec } from '@code-core/test';
 import { AddValidate, validateType } from '../validator/decorator/type-validator';
 import { expectTypeOf } from 'expect-type';
-import { universalToString } from '@code-core/common';
+import { universalToString } from '@archi-code/common';
 import { AbstractNumberType, NumberTypeOptional, NumberTypeRequired } from './index';
 import { TypePrimitiveException } from '../exceptions/domain/type-primitive.exception';
 import { getLevel, Level } from '../level/level.decorator';
 
+// canByType(NUMBER) = numeric values + numeric strings
+const VALID_NUMBERS = [
+  // native numbers
+  1,
+  -1,
+  1.1,
+  -1.1,
+  0,
+  // numeric strings
+  '1',
+  '-1',
+  '1.1',
+  '-1.1',
+  '0',
+];
+
+// canByType(NUMBER, NULL, UNDEFINED)
+const VALID_NUMBERS_OPTIONAL = [...VALID_NUMBERS, null, undefined];
+
+// skipByTypeRequired(NUMBER) = raw non-number types minus null/undefined minus ''
+// These values should trigger TypePrimitive exception for Required variant
+const NON_NUMBER_TYPES_REQUIRED = [
+  // strings (empty string excluded for required)
+  'random',
+  '   ',
+  'áéíóú',
+  'abc123',
+  // booleans — not numbers
+  true,
+  false,
+  // objects and arrays
+  { a: 123 },
+  [],
+  [1, 2, 3],
+  // uuid string
+  'df9ef000-21fc-4e06-b8f7-103c3a133d10',
+  // functions
+  () => 123,
+  new Function('return 123'),
+  // exotic types
+  Symbol(),
+  Symbol('123'),
+  new Date(),
+  new Date('2020-01-01'),
+  new RegExp('test'),
+  /test/,
+  new Error('data error'),
+  Promise.resolve('data promise'),
+  new Map(),
+  new Map([[1, 2]]),
+  new Set(),
+  new Set([1, 2, 3]),
+];
+
+// skipByType(NUMBER, NULL, UNDEFINED) = same but includes ''
+// Used for Optional variant (null/undefined are valid, so tested separately)
+const NON_NUMBER_TYPES_OPTIONAL = [
+  // strings including empty
+  'random',
+  '',
+  '   ',
+  'áéíóú',
+  'abc123',
+  // booleans — not numbers
+  true,
+  false,
+  // objects and arrays
+  { a: 123 },
+  [],
+  [1, 2, 3],
+  // uuid string
+  'df9ef000-21fc-4e06-b8f7-103c3a133d10',
+  // functions
+  () => 123,
+  new Function('return 123'),
+  // exotic types
+  Symbol(),
+  Symbol('123'),
+  new Date(),
+  new Date('2020-01-01'),
+  new RegExp('test'),
+  /test/,
+  new Error('data error'),
+  Promise.resolve('data promise'),
+  new Map(),
+  new Map([[1, 2]]),
+  new Set(),
+  new Set([1, 2, 3]),
+];
+
 describe('AbstractNumberType', () => {
   describe('NumberTypeRequired', () => {
     describe('Valid Values', () => {
-      typeValidValueSpec(validateType, NumberTypeRequired, canByType(PrimitivesKeys.NUMBER), 'number');
+      it.each(VALID_NUMBERS.map((v) => [v]))('validates new NumberTypeRequired(%p)', (value) => {
+        expect(validateType(new NumberTypeRequired(value as any))).toEqual([]);
+      });
+
+      it.each(VALID_NUMBERS.map((v) => [v]))(
+        'typeof new NumberTypeRequired(%p).value === "number"',
+        (value) => {
+          expect(typeof new NumberTypeRequired(value as any).value).toEqual('number');
+        },
+      );
     });
+
     describe('Invalid Values', () => {
       const errorData = {
         canBeNumber: 'NumberTypeRequired must be a number',
         isNotEmpty: 'NumberTypeRequired should not be empty',
         typePrimitive: 'Validation Error: Expected a valid Number, but received {{$1}}.',
       };
-      errorTypeValidValueSpec<keyof typeof errorData>(validateType, TypePrimitiveException, NumberTypeRequired, errorData, [
-        {
-          constraints: ['typePrimitive'],
-          values: skipByTypeRequired(PrimitivesKeys.NUMBER),
-          valuesTxt: { typePrimitive: { '{{$1}}': universalToString } },
+
+      it.each(NON_NUMBER_TYPES_REQUIRED.map((v) => [v]))(
+        'typePrimitive error for NumberTypeRequired(%p)',
+        (value) => {
+          let errors: any[] = [];
+          try {
+            const type = new NumberTypeRequired(value as any);
+            errors = validateType(type);
+          } catch (e) {
+            if (!(e instanceof TypePrimitiveException)) throw e;
+            errors = [
+              { property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } },
+            ];
+          }
+          expect(errors[0]).toBeDefined();
+          expect(errors[0].constraints).toBeDefined();
+          const displayValue = typeof value === 'string' ? `"${value}"` : value;
+          expect(errors[0].constraints?.typePrimitive).toEqual(
+            errorData.typePrimitive.replace('{{$1}}', universalToString(displayValue)),
+          );
         },
-        {
-          constraints: ['canBeNumber', 'isNotEmpty'],
-          values: nullables(),
+      );
+
+      it.each([[null], [undefined]])(
+        'canBeNumber + isNotEmpty error for NumberTypeRequired(%p)',
+        (value) => {
+          let errors: any[] = [];
+          try {
+            const type = new NumberTypeRequired(value as any);
+            errors = validateType(type);
+          } catch (e) {
+            if (!(e instanceof TypePrimitiveException)) throw e;
+            errors = [
+              { property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } },
+            ];
+          }
+          expect(errors[0]).toBeDefined();
+          expect(errors[0].constraints).toBeDefined();
+          expect(errors[0].constraints).toEqual({
+            canBeNumber: errorData.canBeNumber,
+            isNotEmpty: errorData.isNotEmpty,
+          });
         },
-      ]);
+      );
     });
+
     describe('Compare values', () => {
-      typeValidationSpec(validateType, NumberTypeRequired, {
-        value: [[1, 1]],
-        isNull: [[1, false]],
-        toString: [[1, '1']],
+      it('NumberTypeRequired(1).value toEqual 1', () => {
+        const type = new NumberTypeRequired(1);
+        expect(type.value).toEqual(1);
+        expect(validateType(type)).toEqual([]);
+      });
+
+      it('NumberTypeRequired(1).isNull toEqual false', () => {
+        const type = new NumberTypeRequired(1);
+        expect(type.isNull).toEqual(false);
+        expect(validateType(type)).toEqual([]);
+      });
+
+      it('NumberTypeRequired(1).toString toEqual "1"', () => {
+        const type = new NumberTypeRequired(1);
+        expect(type.toString).toEqual('1');
+        expect(validateType(type)).toEqual([]);
       });
     });
   });
+
   describe('NumberTypeOptional', () => {
     describe('Valid Values', () => {
-      typeValidValueSpec(validateType, NumberTypeOptional, canByType(PrimitivesKeys.NUMBER, PrimitivesKeys.NULL, PrimitivesKeys.UNDEFINED), 'number');
+      it.each(VALID_NUMBERS_OPTIONAL.map((v) => [v]))(
+        'validates new NumberTypeOptional(%p)',
+        (value) => {
+          expect(validateType(new NumberTypeOptional(value as any))).toEqual([]);
+        },
+      );
+
+      it.each(VALID_NUMBERS.map((v) => [v]))(
+        'typeof new NumberTypeOptional(%p).value === "number"',
+        (value) => {
+          expect(typeof new NumberTypeOptional(value as any).value).toEqual('number');
+        },
+      );
+
+      it.each([[null], [undefined]])('new NumberTypeOptional(%p).isNull is true', (value) => {
+        expect(new NumberTypeOptional(value as any).isNull).toEqual(true);
+      });
     });
+
     describe('Invalid Values', () => {
       const errorData = {
         canBeNumber: 'NumberTypeOptional must be a number',
         typePrimitive: 'Validation Error: Expected a valid Number, but received {{$1}}.',
       };
-      errorTypeValidValueSpec<keyof typeof errorData>(validateType, TypePrimitiveException, NumberTypeOptional, errorData, [
-        {
-          constraints: ['typePrimitive'],
-          values: skipByType(PrimitivesKeys.NUMBER, PrimitivesKeys.NULL, PrimitivesKeys.UNDEFINED),
-          valuesTxt: { typePrimitive: { '{{$1}}': universalToString } },
+
+      it.each(NON_NUMBER_TYPES_OPTIONAL.map((v) => [v]))(
+        'typePrimitive error for NumberTypeOptional(%p)',
+        (value) => {
+          let errors: any[] = [];
+          try {
+            const type = new NumberTypeOptional(value as any);
+            errors = validateType(type);
+          } catch (e) {
+            if (!(e instanceof TypePrimitiveException)) throw e;
+            errors = [
+              { property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } },
+            ];
+          }
+          expect(errors[0]).toBeDefined();
+          expect(errors[0].constraints).toBeDefined();
+          const displayValue = typeof value === 'string' ? `"${value}"` : value;
+          expect(errors[0].constraints?.typePrimitive).toEqual(
+            errorData.typePrimitive.replace('{{$1}}', universalToString(displayValue)),
+          );
         },
-      ]);
+      );
     });
+
     describe('compare values', () => {
-      typeValidationSpec(validateType, NumberTypeOptional, {
-        value: [
-          [1, 1],
-          [null, null],
-          [undefined, null],
-          ['1', 1],
-        ],
-        isNull: [
-          [null, true],
-          [undefined, true],
-          [0, false],
-        ],
-        toString: [
-          [null, ''],
-          [undefined, ''],
-          [1, '1'],
-        ],
+      it.each([
+        [1, 1],
+        [null, null],
+        [undefined, null],
+        ['1', 1],
+      ])('NumberTypeOptional(%p).value toEqual %p', (input, expected) => {
+        const type = new NumberTypeOptional(input as any);
+        expect(type.value).toEqual(expected);
+        expect(validateType(type)).toEqual([]);
+      });
+
+      it.each([
+        [null, true],
+        [undefined, true],
+        [0, false],
+      ])('NumberTypeOptional(%p).isNull toEqual %p', (input, expected) => {
+        const type = new NumberTypeOptional(input as any);
+        expect(type.isNull).toEqual(expected);
+        expect(validateType(type)).toEqual([]);
+      });
+
+      it.each([
+        [null, ''],
+        [undefined, ''],
+        [1, '1'],
+      ])('NumberTypeOptional(%p).toString toEqual %p', (input, expected) => {
+        const type = new NumberTypeOptional(input as any);
+        expect(type.toString).toEqual(expected);
+        expect(validateType(type)).toEqual([]);
       });
     });
   });
 
   describe('AddValidate', () => {
-    @AddValidate([{ validator: 'IsInt' }, { validator: 'Min', value: 10 }, { validator: 'Max', value: 20 }])
+    @AddValidate([
+      { validator: 'IsInt' },
+      { validator: 'Min', value: 10 },
+      { validator: 'Max', value: 20 },
+    ])
     class ValueObjectNumber extends AbstractNumberType {}
 
     describe('Valid Values', () => {
-      typeValidValueSpec(validateType, ValueObjectNumber, [10, 15, 20], 'number');
+      it.each([[10], [15], [20]])('validates new ValueObjectNumber(%p)', (value) => {
+        expect(validateType(new ValueObjectNumber(value as any))).toEqual([]);
+      });
+
+      it.each([[10], [15], [20]])(
+        'typeof new ValueObjectNumber(%p).value === "number"',
+        (value) => {
+          expect(typeof new ValueObjectNumber(value as any).value).toEqual('number');
+        },
+      );
     });
+
     describe('Invalid Values', () => {
       const errorData = {
         canBeNumber: 'ValueObjectNumber must be a number',
@@ -92,42 +297,79 @@ describe('AbstractNumberType', () => {
         min: 'ValueObjectNumber must not be less than 10',
         typePrimitive: 'Validation Error: Expected a valid Number, but received {{$1}}.',
       };
-      errorTypeValidValueSpec<keyof typeof errorData>(validateType, TypePrimitiveException, ValueObjectNumber, errorData, [
-        {
-          constraints: ['typePrimitive'],
-          values: skipByType(PrimitivesKeys.NUMBER, PrimitivesKeys.NULL, PrimitivesKeys.UNDEFINED),
-          valuesTxt: { typePrimitive: { '{{$1}}': universalToString } },
+
+      it.each(NON_NUMBER_TYPES_OPTIONAL.map((v) => [v]))(
+        'typePrimitive error for ValueObjectNumber(%p)',
+        (value) => {
+          let errors: any[] = [];
+          try {
+            const type = new ValueObjectNumber(value as any);
+            errors = validateType(type);
+          } catch (e) {
+            if (!(e instanceof TypePrimitiveException)) throw e;
+            errors = [
+              { property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } },
+            ];
+          }
+          expect(errors[0]).toBeDefined();
+          expect(errors[0].constraints).toBeDefined();
+          const displayValue = typeof value === 'string' ? `"${value}"` : value;
+          expect(errors[0].constraints?.typePrimitive).toEqual(
+            errorData.typePrimitive.replace('{{$1}}', universalToString(displayValue)),
+          );
         },
-        {
-          constraints: ['isInt'],
-          values: [10.1],
-        },
-        {
-          constraints: ['max'],
-          values: [21, 22],
-        },
-        {
-          constraints: ['min'],
-          values: [1, 2],
-        },
-        {
-          constraints: ['min', 'isInt'],
-          values: ['1.1', 2.1],
-        },
-        {
-          constraints: ['max', 'isInt'],
-          values: ['21.1', 22.1],
-        },
-      ]);
+      );
+
+      it('isInt error for ValueObjectNumber(10.1)', () => {
+        const type = new ValueObjectNumber(10.1);
+        const errors = validateType(type);
+        expect(errors[0]).toBeDefined();
+        expect(errors[0].constraints).toBeDefined();
+        expect(errors[0].constraints).toEqual({ isInt: errorData.isInt });
+      });
+
+      it.each([[21], [22]])('max error for ValueObjectNumber(%p)', (value) => {
+        const type = new ValueObjectNumber(value as any);
+        const errors = validateType(type);
+        expect(errors[0]).toBeDefined();
+        expect(errors[0].constraints).toBeDefined();
+        expect(errors[0].constraints).toEqual({ max: errorData.max });
+      });
+
+      it.each([[1], [2]])('min error for ValueObjectNumber(%p)', (value) => {
+        const type = new ValueObjectNumber(value as any);
+        const errors = validateType(type);
+        expect(errors[0]).toBeDefined();
+        expect(errors[0].constraints).toBeDefined();
+        expect(errors[0].constraints).toEqual({ min: errorData.min });
+      });
+
+      it.each([['1.1'], [2.1]])('min + isInt error for ValueObjectNumber(%p)', (value) => {
+        const type = new ValueObjectNumber(value as any);
+        const errors = validateType(type);
+        expect(errors[0]).toBeDefined();
+        expect(errors[0].constraints).toBeDefined();
+        expect(errors[0].constraints).toEqual({ min: errorData.min, isInt: errorData.isInt });
+      });
+
+      it.each([['21.1'], [22.1]])('max + isInt error for ValueObjectNumber(%p)', (value) => {
+        const type = new ValueObjectNumber(value as any);
+        const errors = validateType(type);
+        expect(errors[0]).toBeDefined();
+        expect(errors[0].constraints).toBeDefined();
+        expect(errors[0].constraints).toEqual({ max: errorData.max, isInt: errorData.isInt });
+      });
     });
 
     describe('Compare values', () => {
-      typeValidationSpec(validateType, ValueObjectNumber, {
-        value: [
-          [10, 10],
-          [15, 15],
-          [20, 20],
-        ],
+      it.each([
+        [10, 10],
+        [15, 15],
+        [20, 20],
+      ])('ValueObjectNumber(%p).value toEqual %p', (input, expected) => {
+        const type = new ValueObjectNumber(input);
+        expect(type.value).toEqual(expected);
+        expect(validateType(type)).toEqual([]);
       });
     });
   });
@@ -157,20 +399,34 @@ describe('AbstractNumberType', () => {
 
   describe('Type Validation', () => {
     it('enum validation', () => {
-      @AddValidate([{ validator: 'IsNotEmpty' }, { validator: 'Min', value: 100 }, { validator: 'Max', value: 200 }, { validator: 'IsPositive' }])
+      @AddValidate([
+        { validator: 'IsNotEmpty' },
+        { validator: 'Min', value: 100 },
+        { validator: 'Max', value: 200 },
+        { validator: 'IsPositive' },
+      ])
       class TestNumberTypeRequired extends AbstractNumberType {}
 
       const instance = new TestNumberTypeRequired(-4200);
       expect(instance.isValid()).toEqual(false);
-      expect(instance.validatorMessageStr()).toEqual('must not be less than 100, must be a positive number');
-      expect(instance.validatorMessageStr('|')).toEqual('must not be less than 100| must be a positive number');
+      expect(instance.validatorMessageStr()).toEqual(
+        'must not be less than 100, must be a positive number',
+      );
+      expect(instance.validatorMessageStr('|')).toEqual(
+        'must not be less than 100| must be a positive number',
+      );
     });
   });
 
   describe('level validator', () => {
     it('get correct level', () => {
       @Level(2)
-      @AddValidate([{ validator: 'IsNotEmpty' }, { validator: 'Min', value: 100 }, { validator: 'Max', value: 200 }, { validator: 'IsPositive' }])
+      @AddValidate([
+        { validator: 'IsNotEmpty' },
+        { validator: 'Min', value: 100 },
+        { validator: 'Max', value: 200 },
+        { validator: 'IsPositive' },
+      ])
       class TestNumberTypeRequired extends AbstractNumberType {
         static empty(): TestNumberTypeRequired {
           return new TestNumberTypeRequired(0);

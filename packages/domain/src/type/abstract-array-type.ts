@@ -4,7 +4,10 @@ import { DomainException } from '../exceptions';
 import { PrimitiveType } from '../primitive/primitive-type';
 
 @AddValidate([{ validator: 'IsArray' }])
-export abstract class AbstractArrayType<T extends AbstractType<any>, R extends null | undefined = undefined> extends AbstractType<Array<PrimitiveType<T>>, R> {
+export abstract class AbstractArrayType<
+  T extends AbstractType<any>,
+  R extends null | undefined = undefined,
+> extends AbstractType<PrimitiveType<T>[], R> {
   abstract getItemClass(value: PrimitiveType<T>): T;
 
   protected filter(value: any): any {
@@ -21,12 +24,16 @@ export abstract class AbstractArrayType<T extends AbstractType<any>, R extends n
     if (this.isNull) {
       return false;
     }
-    return super.isValid() && Array.isArray(this.value) && this.value.every((item) => this.getItemClass(item).isValid());
+    return (
+      super.isValid() &&
+      Array.isArray(this.value) &&
+      this.value.every((item) => this.getItemClass(item).isValid())
+    );
   }
 
-  validatorMessageStr(separator: string = ',', customReplacement: string = ''): string {
+  validatorMessageStr(separator = ',', customReplacement = ''): string {
     if (this.isNull) {
-      return 'Value mas be to array';
+      return 'Value must be an array';
     }
     let str = super.validatorMessageStr(separator, customReplacement);
 

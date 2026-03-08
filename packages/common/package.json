@@ -1,6 +1,6 @@
 {
-  "name": "@code-core/common",
-  "version": "0.0.7",
+  "name": "@archi-code/common",
+  "version": "0.0.1",
   "keywords": [
     "DDD",
     "node",
@@ -13,7 +13,7 @@
     "url": "https://github.com/jguillermo/code-core"
   },
   "engines": {
-    "node": ">=16"
+    "node": ">=22"
   },
   "publishConfig": {
     "access": "public"

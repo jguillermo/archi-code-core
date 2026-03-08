@@ -218,7 +218,7 @@ describe('AggregateData Tests', () => {
           address: 'ValidAddress',
           slug: 'ValidSlug',
         });
-      }).toThrow('CompanyTags: Value mas be to array');
+      }).toThrow('CompanyTags: Value must be an array');
     });
     it('should throw an error if slug does not meet validation rules', () => {
       expect(() => {
@@ -272,7 +272,9 @@ describe('AggregateData Tests', () => {
           slug: undefined,
           tags: undefined,
         });
-      }).toThrow('CompanyDescription: must be a string, should not be empty, must be longer than or equal to 2 characters');
+      }).toThrow(
+        'CompanyDescription: must be a string, should not be empty, must be longer than or equal to 2 characters',
+      );
     });
 
     it('should throw an error if address is required but empty due to level 2', () => {
@@ -285,7 +287,9 @@ describe('AggregateData Tests', () => {
           slug: undefined,
           tags: undefined,
         });
-      }).toThrow('CompanyAddress: must be a string, should not be empty, must be longer than or equal to 3 characters');
+      }).toThrow(
+        'CompanyAddress: must be a string, should not be empty, must be longer than or equal to 3 characters',
+      );
     });
 
     it('should allow empty slug if currentLevel is 2', () => {
@@ -312,7 +316,9 @@ describe('AggregateData Tests', () => {
           slug: undefined, // Level 3 requires slug
           tags: undefined,
         });
-      }).toThrow('CompanySlug: must be a string, should not be empty, must be longer than or equal to 4 characters');
+      }).toThrow(
+        'CompanySlug: must be a string, should not be empty, must be longer than or equal to 4 characters',
+      );
     });
   });
 
@@ -353,7 +359,9 @@ describe('AggregateData Tests', () => {
           address: 'ValidAddress',
           slug: 'ValidSlug',
         });
-      }).toThrow('CompanyDescription: must be a string, should not be empty, must be longer than or equal to 2 characters');
+      }).toThrow(
+        'CompanyDescription: must be a string, should not be empty, must be longer than or equal to 2 characters',
+      );
     });
 
     it('validate level 1 by default', async () => {
@@ -407,14 +415,18 @@ describe('AggregateData Tests', () => {
           id: companyIdString,
           name: undefined,
         });
-      }).toThrow('CompanyName: must be a string, should not be empty, must be longer than or equal to 1 characters');
+      }).toThrow(
+        'CompanyName: must be a string, should not be empty, must be longer than or equal to 1 characters',
+      );
     });
     it('should valid items', () => {
       expect(() => {
         new CompanyData(1, {
           id: companyIdString,
         });
-      }).toThrow('CompanyName: must be a string, should not be empty, must be longer than or equal to 1 characters');
+      }).toThrow(
+        'CompanyName: must be a string, should not be empty, must be longer than or equal to 1 characters',
+      );
     });
   });
 });

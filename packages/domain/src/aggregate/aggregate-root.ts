@@ -3,7 +3,7 @@ import { EventBase } from '../event/event-base';
 export abstract class AggregateRoot {
   private domainEvents: EventBase[] = [];
 
-  protected record<T extends EventBase>(event: T) {
+  protected record<T extends EventBase>(event: T): void {
     this.domainEvents.push(event);
   }
 
@@ -12,6 +12,4 @@ export abstract class AggregateRoot {
     this.domainEvents = [];
     return events;
   }
-
-  // abstract get id<T extends IdType>(): T;
 }

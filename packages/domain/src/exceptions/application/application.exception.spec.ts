@@ -28,7 +28,9 @@ describe('Exceptions', () => {
       expect(exception).toBeInstanceOf(InvalidCredentialsException);
       expect(exception.message).toBe(message);
       expect(exception.code).toEqual('auth001');
-      expect(exception.description).toEqual('Application Exception (APP000), InvalidCredentialsException (auth001)');
+      expect(exception.description).toEqual(
+        'Application Exception (APP000), InvalidCredentialsException (auth001)',
+      );
       expect(exception.timestamp).toBeInstanceOf(Date);
     });
   });

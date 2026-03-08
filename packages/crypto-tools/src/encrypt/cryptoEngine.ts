@@ -87,13 +87,17 @@ export class CryptoEngine {
     return mapping;
   }
 
-  private createWheels(seedKey: string) {
+  private createWheels(
+    seedKey: string,
+  ): { mapping: number[]; turnover: number; position: number }[] {
     const firstNumberInKey = parseInt(seedKey.match(/\d+/)?.[0] || '0', 10);
     const numWheels = firstNumberInKey + 3;
 
     return Array.from({ length: numWheels }, (_, i) => {
       const random = this.createRandom(this.keyToSeed(seedKey + i));
-      const mapping = Array.from({ length: this.CHARACTER_SET_LENGTH }, (_, i) => i).sort(() => random() - 0.5);
+      const mapping = Array.from({ length: this.CHARACTER_SET_LENGTH }, (_item, j) => j).sort(
+        () => random() - 0.5,
+      );
       const turnover = Math.floor(random() * this.CHARACTER_SET_LENGTH);
       const position = Math.floor(random() * this.CHARACTER_SET_LENGTH);
 
@@ -103,7 +107,10 @@ export class CryptoEngine {
 
   private advanceWheels(): void {
     for (let i = this.wheels.length - 1; i >= 0; i--) {
-      if (i === this.wheels.length - 1 || this.wheels[i + 1].position === this.wheels[i + 1].turnover) {
+      if (
+        i === this.wheels.length - 1 ||
+        this.wheels[i + 1].position === this.wheels[i + 1].turnover
+      ) {
         this.wheels[i].position = (this.wheels[i].position + 1) % this.CHARACTER_SET_LENGTH;
       } else {
         break;
@@ -111,13 +118,27 @@ export class CryptoEngine {
     }
   }
 
-  private forwardThroughWheel(index: number, wheel: { mapping: number[]; position: number }): number {
+  private forwardThroughWheel(
+    index: number,
+    wheel: { mapping: number[]; position: number },
+  ): number {
     const shiftedIndex = (index + wheel.position) % this.CHARACTER_SET_LENGTH;
-    return (wheel.mapping[shiftedIndex] - wheel.position + this.CHARACTER_SET_LENGTH) % this.CHARACTER_SET_LENGTH;
+    return (
+      (wheel.mapping[shiftedIndex] - wheel.position + this.CHARACTER_SET_LENGTH) %
+      this.CHARACTER_SET_LENGTH
+    );
   }
 
-  private backwardThroughWheel(index: number, wheel: { mapping: number[]; position: number }): number {
-    return (wheel.mapping.indexOf((index + wheel.position) % this.CHARACTER_SET_LENGTH) - wheel.position + this.CHARACTER_SET_LENGTH) % this.CHARACTER_SET_LENGTH;
+  private backwardThroughWheel(
+    index: number,
+    wheel: { mapping: number[]; position: number },
+  ): number {
+    return (
+      (wheel.mapping.indexOf((index + wheel.position) % this.CHARACTER_SET_LENGTH) -
+        wheel.position +
+        this.CHARACTER_SET_LENGTH) %
+      this.CHARACTER_SET_LENGTH
+    );
   }
 
   encode(message: string): string {

@@ -9,7 +9,9 @@ describe('PasswordEncryptorFactory', () => {
   const clients = [BcryptPasswordEncryptor.name, SodiumPasswordEncryptor.name];
 
   beforeEach(() => {
-    listEncryptor = clients.map((clientName: string) => PasswordEncryptorFactory.create(clientName, 12));
+    listEncryptor = clients.map((clientName: string) =>
+      PasswordEncryptorFactory.create(clientName, 12),
+    );
   });
 
   describe('Constructor', () => {
@@ -20,15 +22,21 @@ describe('PasswordEncryptorFactory', () => {
     });
 
     it('should throw an error if saltRounds is less than 4', () => {
-      expect(() => PasswordEncryptorFactory.create(SodiumPasswordEncryptor.name, 3)).toThrowError('Salt rounds must be between 4 and 31.');
+      expect(() => PasswordEncryptorFactory.create(SodiumPasswordEncryptor.name, 3)).toThrowError(
+        'Salt rounds must be between 4 and 31.',
+      );
       for (const client of clients) {
-        expect(() => PasswordEncryptorFactory.create(client, 3)).toThrowError('Salt rounds must be between 4 and 31.');
+        expect(() => PasswordEncryptorFactory.create(client, 3)).toThrowError(
+          'Salt rounds must be between 4 and 31.',
+        );
       }
     });
 
     it('should throw an error if saltRounds is greater than 31', () => {
       for (const client of clients) {
-        expect(() => PasswordEncryptorFactory.create(client, 32)).toThrowError('Salt rounds must be between 4 and 31.');
+        expect(() => PasswordEncryptorFactory.create(client, 32)).toThrowError(
+          'Salt rounds must be between 4 and 31.',
+        );
       }
     });
   });
@@ -66,7 +74,10 @@ describe('PasswordEncryptorFactory', () => {
 
     it('should fail to verify with a malformed hash', async () => {
       for (const encryptor of listEncryptor) {
-        const isValid = await encryptor.verifyPassword('SecurePassword123!', '$2b$12$malformedhashXXXXXXXXXXXXXXXXXXXXXXX');
+        const isValid = await encryptor.verifyPassword(
+          'SecurePassword123!',
+          '$2b$12$malformedhashXXXXXXXXXXXXXXXXXXXXXXX',
+        );
         expect(isValid).toBe(false);
       }
     });

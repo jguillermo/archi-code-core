@@ -5,7 +5,11 @@ import { validateSync, ValidationError } from 'class-validator';
 import { ValidatorOptions } from 'class-validator/types/validation/ValidatorOptions';
 import { ValidatorsDoc } from './validators-doc';
 
-function registerDecorator(cls: Function, validatorConfigs: ValidatorMapI[], propertyKey: string) {
+function registerDecorator(
+  cls: Function,
+  validatorConfigs: ValidatorMapI[],
+  propertyKey: string,
+): void {
   validatorConfigs.forEach((config) => {
     let validator: any;
     if (typeof config.validator === 'string' && validatorsMap[config.validator]) {
@@ -26,17 +30,23 @@ function registerDecorator(cls: Function, validatorConfigs: ValidatorMapI[], pro
   ValidationStorage.getInstance().addValidations(cls, propertyKey, validatorConfigs);
 }
 
-function applyParentValidations(cls: Function, propertyKey: string) {
+function applyParentValidations(cls: Function, propertyKey: string): void {
   const parentPrototype = Object.getPrototypeOf(cls.prototype);
   if (parentPrototype && parentPrototype !== Object.prototype) {
-    const parentValidatorConfigs = ValidationStorage.getInstance().getValidations(parentPrototype.constructor, propertyKey);
+    const parentValidatorConfigs = ValidationStorage.getInstance().getValidations(
+      parentPrototype.constructor,
+      propertyKey,
+    );
     if (parentValidatorConfigs.length > 0) {
       registerDecorator(cls, parentValidatorConfigs, propertyKey);
     }
   }
 }
 
-export function AddValidate(validatorConfigs: ValidatorMapI[], propertyKey: string = '_value') {
+export function AddValidate(
+  validatorConfigs: ValidatorMapI[],
+  propertyKey = '_value',
+): (cls: Function) => void {
   return function (cls: Function) {
     applyParentValidations(cls, propertyKey);
     registerDecorator(cls, validatorConfigs, propertyKey);
@@ -54,7 +64,10 @@ function replacePropertyWithClassName(errors: ValidationError[]): ValidationErro
       if (error.constraints) {
         Object.keys(error.constraints).forEach((key) => {
           // @ts-expect-error: dynamic modify in runtime
-          error.constraints[key] = error.constraints[key].replace(new RegExp(property, 'g'), className);
+          error.constraints[key] = error.constraints[key].replace(
+            new RegExp(property, 'g'),
+            className,
+          );
         });
       }
     }
@@ -75,12 +88,17 @@ function getClassHierarchy(klass: any): any[] {
   return hierarchy;
 }
 
-export function validateType(object: object, validatorOptions?: ValidatorOptions): ValidationError[] {
+export function validateType(
+  object: object,
+  validatorOptions?: ValidatorOptions,
+): ValidationError[] {
   const errors = validateSync(object, validatorOptions);
   if (errors.length === 0) {
     return errors;
   }
   const classHierarchy = getClassHierarchy(object.constructor);
-  const isType = classHierarchy.some((klass) => ValidationStorage.getInstance().hasClassRegister(klass));
+  const isType = classHierarchy.some((klass) =>
+    ValidationStorage.getInstance().hasClassRegister(klass),
+  );
   return isType ? replacePropertyWithClassName(errors) : errors;
 }

@@ -57,7 +57,11 @@ describe('Builder', () => {
   });
 
   it('should handle setting values dynamically', () => {
-    const instance = Builder(TestClass).propertyA('dynamicA').propertyB(789).propertyC(false).build();
+    const instance = Builder(TestClass)
+      .propertyA('dynamicA')
+      .propertyB(789)
+      .propertyC(false)
+      .build();
 
     expect(instance.propertyA).toBe('dynamicA');
     expect(instance.propertyB).toBe(789);
@@ -110,7 +114,10 @@ describe('Builder', () => {
   });
 
   it('should handle properties with complex values', () => {
-    const instance = Builder(ComplexClass).data({ key: 'test', value: 42 }).items(['item1', 'item2']).build();
+    const instance = Builder(ComplexClass)
+      .data({ key: 'test', value: 42 })
+      .items(['item1', 'item2'])
+      .build();
 
     expect(instance.data).toEqual({ key: 'test', value: 42 });
     expect(instance.items).toEqual(['item1', 'item2']);

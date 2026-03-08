@@ -10,7 +10,9 @@ export class SymmetricEncryption {
     key: string | Buffer,
   ) {
     if (!SymmetricEncryption.validAlgorithms.includes(algorithm)) {
-      throw new Error(`Invalid algorithm: ${algorithm}. Allowed algorithms are: ${SymmetricEncryption.validAlgorithms.join(', ')}`);
+      throw new Error(
+        `Invalid algorithm: ${algorithm}. Allowed algorithms are: ${SymmetricEncryption.validAlgorithms.join(', ')}`,
+      );
     }
     const keyBuffer = typeof key === 'string' ? Buffer.from(key, 'utf-8') : key;
     if (keyBuffer.length < 16) {
@@ -75,7 +77,10 @@ export class SymmetricEncryption {
       }
 
       const decipher = createDecipheriv(this.algorithm, this.key, Buffer.from(iv, 'hex'));
-      const decrypted = Buffer.concat([decipher.update(Buffer.from(encrypted, 'hex')), decipher.final()]);
+      const decrypted = Buffer.concat([
+        decipher.update(Buffer.from(encrypted, 'hex')),
+        decipher.final(),
+      ]);
       return decrypted.toString('utf-8');
     } catch (error) {
       throw new Error(`Decryption failed: ${(error as Error).message}`);

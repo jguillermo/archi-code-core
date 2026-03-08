@@ -5,7 +5,7 @@ import { JsonValidator as JsonValidatorCore } from '../../primitive-validator/js
 import { JSON_FORMAT_VALIDATES } from '../json-fotmat-validate';
 
 export function JsonSchemaValidator(jsonSchema: any, validationOptions?: ValidationOptions) {
-  return function (object: object, propertyName: string) {
+  return function (object: object, propertyName: string): void {
     registerDecorator({
       name: 'schemaValidator',
       target: object.constructor,
@@ -40,7 +40,9 @@ export function JsonSchemaValidator(jsonSchema: any, validationOptions?: Validat
         defaultMessage(args: ValidationArguments) {
           const errors = (args.constraints[0] as any).errors;
           if (errors && errors.length > 0) {
-            const errorMessages = errors.map((error) => `${error.instancePath} ${error.message}`).join(', ');
+            const errorMessages = errors
+              .map((error) => `${error.instancePath} ${error.message}`)
+              .join(', ');
             return `JsonSchemaValidator:${errorMessages}`;
           }
           return `${args.property} error json schema must be object`;

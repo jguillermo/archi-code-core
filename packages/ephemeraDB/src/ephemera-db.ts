@@ -2,46 +2,34 @@ export class EphemeraDb<T extends { id: string }> {
   private items: T[] = [];
 
   findById(id: string): Promise<T | null> {
-    return new Promise((resolve) => {
-      const item = this.items.find((item) => item.id === id) || null;
-      resolve(item);
-    });
+    return Promise.resolve(this.items.find((entry) => entry.id === id) ?? null);
   }
 
   persist(item: T): Promise<void> {
-    return new Promise((resolve) => {
-      const index = this.items.findIndex((existingItem) => existingItem.id === item.id);
-      if (index !== -1) {
-        this.items[index] = item; // Actualiza el item si ya existe
-      } else {
-        this.items.push(item); // Agrega un nuevo item si no existe
-      }
-      resolve();
-    });
+    const index = this.items.findIndex((existingItem) => existingItem.id === item.id);
+    if (index !== -1) {
+      this.items[index] = item;
+    } else {
+      this.items.push(item);
+    }
+    return Promise.resolve();
   }
 
   findAll(): Promise<T[]> {
-    return new Promise((resolve) => {
-      resolve([...this.items]); // Devuelve una copia de los items
-    });
+    return Promise.resolve([...this.items]);
   }
 
   remove(id: string): Promise<boolean> {
-    return new Promise((resolve) => {
-      const index = this.items.findIndex((item) => item.id === id);
-      if (index !== -1) {
-        this.items.splice(index, 1); // Elimina el item
-        resolve(true);
-      } else {
-        resolve(false);
-      }
-    });
+    const index = this.items.findIndex((item) => item.id === id);
+    if (index !== -1) {
+      this.items.splice(index, 1);
+      return Promise.resolve(true);
+    }
+    return Promise.resolve(false);
   }
 
   clear(): Promise<void> {
-    return new Promise((resolve) => {
-      this.items = []; // Limpia todos los items
-      resolve();
-    });
+    this.items = [];
+    return Promise.resolve();
   }
 }

@@ -61,7 +61,9 @@ describe('CryptoEngine', () => {
     const message = '1234567890!@#$%^&*()_+-=[]{}|;:,.<>?/\\"`~ 🤖🌍🐍🚀\b\r\f\v';
 
     const encoded = machine.encode(message);
-    expect(encoded).toBe('ZvEAf9TzdS=/ldu/xZv=TE3R6J5+MeaoXmfQ+1MxyL+z7A/t/ky6b/hmd09eMBktRZXJcNcWiPYZ2qOHNTax');
+    expect(encoded).toBe(
+      'ZvEAf9TzdS=/ldu/xZv=TE3R6J5+MeaoXmfQ+1MxyL+z7A/t/ky6b/hmd09eMBktRZXJcNcWiPYZ2qOHNTax',
+    );
     const decoded = machine.decode(encoded);
 
     expect(decoded).toBe(message);

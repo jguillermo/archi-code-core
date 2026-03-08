@@ -2,7 +2,7 @@ import { registerDecorator, ValidationArguments, ValidationOptions } from 'class
 import { NumberValidator } from '../../primitive-validator/number.validator';
 
 export function CanBeNumberValidator(validationOptions?: ValidationOptions) {
-  return function (object: object, propertyName: string) {
+  return function (object: object, propertyName: string): void {
     registerDecorator({
       name: 'canBeNumber',
       target: object.constructor,

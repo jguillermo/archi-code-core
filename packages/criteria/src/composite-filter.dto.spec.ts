@@ -32,15 +32,21 @@ describe('CompositeFilterDto', () => {
   describe('Invalid cases', () => {
     it('should throw an error if the logical operator is not "and" or "or"', () => {
       const simpleFilter = new SimpleFilterDto('name', FilterOperator.EQ, 'Alice');
-      expect(() => new CompositeFilterDto('invalid' as any, [simpleFilter])).toThrow('CompositeFilterDto: logicalOperator must be "and" or "or"');
+      expect(() => new CompositeFilterDto('invalid' as any, [simpleFilter])).toThrow(
+        'CompositeFilterDto: logicalOperator must be "and" or "or"',
+      );
     });
 
     it('should throw an error if the filters array is empty', () => {
-      expect(() => new CompositeFilterDto('and', [])).toThrow('CompositeFilterDto: "filters" must be a non-empty array');
+      expect(() => new CompositeFilterDto('and', [])).toThrow(
+        'CompositeFilterDto: "filters" must be a non-empty array',
+      );
     });
 
     it('should throw an error if filters is not an array', () => {
-      expect(() => new CompositeFilterDto('and', null as any)).toThrow('CompositeFilterDto: "filters" must be a non-empty array');
+      expect(() => new CompositeFilterDto('and', null as any)).toThrow(
+        'CompositeFilterDto: "filters" must be a non-empty array',
+      );
     });
 
     it('should call validate on each nested filter', () => {

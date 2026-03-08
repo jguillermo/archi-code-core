@@ -6,7 +6,11 @@ export type IBuilder<T> = {
 
 type Constructor<T> = new (...args: unknown[]) => T;
 
-export function Builder<T>(cls: Constructor<T>, defaults?: Partial<T>, overrides?: Partial<T>): IBuilder<T> {
+export function Builder<T>(
+  cls: Constructor<T>,
+  defaults?: Partial<T>,
+  overrides?: Partial<T>,
+): IBuilder<T> {
   if (typeof cls !== 'function') {
     throw new Error('The first argument to Builder must be a valid class constructor.');
   }
