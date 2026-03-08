@@ -111,16 +111,15 @@ for (const pkg of tree) {
   const pkgJsonPath = path.join(ROOT, pkg.path, 'package.json');
   const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'));
 
-  // Pin internal dependencies to the versions released in this run (dependencies, devDependencies, peerDependencies)
+  // Pin internal dependencies to exact versions released in this run (dependencies, devDependencies, peerDependencies)
   let depsUpdated = false;
   for (const dep of pkg.internalDeps) {
     const version = releasedVersions[dep];
     if (!version) continue;
-    const range = `^${version}`;
     for (const depField of ['dependencies', 'devDependencies', 'peerDependencies']) {
-      if (pkgJson[depField]?.[dep] && pkgJson[depField][dep] !== range) {
-        console.log(`  pinning ${depField}.${dep}: ${pkgJson[depField][dep]} → ${range}`);
-        pkgJson[depField][dep] = range;
+      if (pkgJson[depField]?.[dep] && pkgJson[depField][dep] !== version) {
+        console.log(`  pinning ${depField}.${dep}: ${pkgJson[depField][dep]} → ${version}`);
+        pkgJson[depField][dep] = version;
         depsUpdated = true;
       }
     }
@@ -129,23 +128,27 @@ for (const pkg of tree) {
   if (DRY_RUN) {
     // Local commit analysis — no network, no credentials needed
     const { bump, commits, lastTag } = analyzeCommits(pkg.name, pkg.path);
+    const effectiveBump = bump ?? (depsUpdated ? 'patch' : null);
     console.log(`  last tag : ${lastTag ?? '(none)'}`);
     console.log(`  channel  : ${PRERELEASE_TAG ?? 'stable'}`);
     console.log(`  commits  : ${commits.length} since last release`);
     commits.forEach((c) => console.log(`    · ${c}`));
-    if (bump) {
-      const nextVersion = bumpVersion(releasedVersions[pkg.name], bump, PRERELEASE_TAG);
-      console.log(`  bump     : ${bump}  →  ${releasedVersions[pkg.name]} → ${nextVersion}`);
-      if (depsUpdated) console.log(`  deps     : would be updated in package.json`);
+    if (depsUpdated) console.log(`  deps     : updated → forces patch release`);
+    if (effectiveBump) {
+      const nextVersion = bumpVersion(releasedVersions[pkg.name], effectiveBump, PRERELEASE_TAG);
+      console.log(`  bump     : ${effectiveBump}  →  ${releasedVersions[pkg.name]} → ${nextVersion}`);
       releasedVersions[pkg.name] = nextVersion;
     } else {
-      console.log(`  bump     : none (no feat/fix/BREAKING commits found)`);
+      console.log(`  bump     : none (no feat/fix/BREAKING commits and no dep updates)`);
     }
     continue;
   }
 
   if (depsUpdated) {
     fs.writeFileSync(pkgJsonPath, JSON.stringify(pkgJson, null, 2) + '\n');
+    // Commit the dep update so semantic-release sees it as a fix and triggers a patch release
+    run(`git add ${pkgJsonPath}`);
+    run(`git commit -m "fix(deps): update internal @archi-code/* dependencies [${pkg.name}]"`);
   }
 
   // Build before any git push so husky tests find the compiled dist files
