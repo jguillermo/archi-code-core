@@ -9,9 +9,17 @@ import { getLevel, Level } from '../level/level.decorator';
 // canByType(NUMBER) = numeric values + numeric strings
 const VALID_NUMBERS = [
   // native numbers
-  1, -1, 1.1, -1.1, 0,
+  1,
+  -1,
+  1.1,
+  -1.1,
+  0,
   // numeric strings
-  '1', '-1', '1.1', '-1.1', '0',
+  '1',
+  '-1',
+  '1.1',
+  '-1.1',
+  '0',
 ];
 
 // canByType(NUMBER, NULL, UNDEFINED)
@@ -21,46 +29,71 @@ const VALID_NUMBERS_OPTIONAL = [...VALID_NUMBERS, null, undefined];
 // These values should trigger TypePrimitive exception for Required variant
 const NON_NUMBER_TYPES_REQUIRED = [
   // strings (empty string excluded for required)
-  'random', '   ', 'áéíóú', 'abc123',
+  'random',
+  '   ',
+  'áéíóú',
+  'abc123',
   // booleans — not numbers
-  true, false,
+  true,
+  false,
   // objects and arrays
-  { a: 123 }, [], [1, 2, 3],
+  { a: 123 },
+  [],
+  [1, 2, 3],
   // uuid string
   'df9ef000-21fc-4e06-b8f7-103c3a133d10',
   // functions
-  () => 123, new Function('return 123'),
+  () => 123,
+  new Function('return 123'),
   // exotic types
-  Symbol(), Symbol('123'),
-  new Date(), new Date('2020-01-01'),
-  new RegExp('test'), /test/,
+  Symbol(),
+  Symbol('123'),
+  new Date(),
+  new Date('2020-01-01'),
+  new RegExp('test'),
+  /test/,
   new Error('data error'),
   Promise.resolve('data promise'),
-  new Map(), new Map([[1, 2]]),
-  new Set(), new Set([1, 2, 3]),
+  new Map(),
+  new Map([[1, 2]]),
+  new Set(),
+  new Set([1, 2, 3]),
 ];
 
 // skipByType(NUMBER, NULL, UNDEFINED) = same but includes ''
 // Used for Optional variant (null/undefined are valid, so tested separately)
 const NON_NUMBER_TYPES_OPTIONAL = [
   // strings including empty
-  'random', '', '   ', 'áéíóú', 'abc123',
+  'random',
+  '',
+  '   ',
+  'áéíóú',
+  'abc123',
   // booleans — not numbers
-  true, false,
+  true,
+  false,
   // objects and arrays
-  { a: 123 }, [], [1, 2, 3],
+  { a: 123 },
+  [],
+  [1, 2, 3],
   // uuid string
   'df9ef000-21fc-4e06-b8f7-103c3a133d10',
   // functions
-  () => 123, new Function('return 123'),
+  () => 123,
+  new Function('return 123'),
   // exotic types
-  Symbol(), Symbol('123'),
-  new Date(), new Date('2020-01-01'),
-  new RegExp('test'), /test/,
+  Symbol(),
+  Symbol('123'),
+  new Date(),
+  new Date('2020-01-01'),
+  new RegExp('test'),
+  /test/,
   new Error('data error'),
   Promise.resolve('data promise'),
-  new Map(), new Map([[1, 2]]),
-  new Set(), new Set([1, 2, 3]),
+  new Map(),
+  new Map([[1, 2]]),
+  new Set(),
+  new Set([1, 2, 3]),
 ];
 
 describe('AbstractNumberType', () => {
@@ -94,7 +127,9 @@ describe('AbstractNumberType', () => {
             errors = validateType(type);
           } catch (e) {
             if (!(e instanceof TypePrimitiveException)) throw e;
-            errors = [{ property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } }];
+            errors = [
+              { property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } },
+            ];
           }
           expect(errors[0]).toBeDefined();
           expect(errors[0].constraints).toBeDefined();
@@ -114,7 +149,9 @@ describe('AbstractNumberType', () => {
             errors = validateType(type);
           } catch (e) {
             if (!(e instanceof TypePrimitiveException)) throw e;
-            errors = [{ property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } }];
+            errors = [
+              { property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } },
+            ];
           }
           expect(errors[0]).toBeDefined();
           expect(errors[0].constraints).toBeDefined();
@@ -149,9 +186,12 @@ describe('AbstractNumberType', () => {
 
   describe('NumberTypeOptional', () => {
     describe('Valid Values', () => {
-      it.each(VALID_NUMBERS_OPTIONAL.map((v) => [v]))('validates new NumberTypeOptional(%p)', (value) => {
-        expect(validateType(new NumberTypeOptional(value as any))).toEqual([]);
-      });
+      it.each(VALID_NUMBERS_OPTIONAL.map((v) => [v]))(
+        'validates new NumberTypeOptional(%p)',
+        (value) => {
+          expect(validateType(new NumberTypeOptional(value as any))).toEqual([]);
+        },
+      );
 
       it.each(VALID_NUMBERS.map((v) => [v]))(
         'typeof new NumberTypeOptional(%p).value === "number"',
@@ -180,7 +220,9 @@ describe('AbstractNumberType', () => {
             errors = validateType(type);
           } catch (e) {
             if (!(e instanceof TypePrimitiveException)) throw e;
-            errors = [{ property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } }];
+            errors = [
+              { property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } },
+            ];
           }
           expect(errors[0]).toBeDefined();
           expect(errors[0].constraints).toBeDefined();
@@ -239,9 +281,12 @@ describe('AbstractNumberType', () => {
         expect(validateType(new ValueObjectNumber(value as any))).toEqual([]);
       });
 
-      it.each([[10], [15], [20]])('typeof new ValueObjectNumber(%p).value === "number"', (value) => {
-        expect(typeof new ValueObjectNumber(value as any).value).toEqual('number');
-      });
+      it.each([[10], [15], [20]])(
+        'typeof new ValueObjectNumber(%p).value === "number"',
+        (value) => {
+          expect(typeof new ValueObjectNumber(value as any).value).toEqual('number');
+        },
+      );
     });
 
     describe('Invalid Values', () => {
@@ -262,7 +307,9 @@ describe('AbstractNumberType', () => {
             errors = validateType(type);
           } catch (e) {
             if (!(e instanceof TypePrimitiveException)) throw e;
-            errors = [{ property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } }];
+            errors = [
+              { property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } },
+            ];
           }
           expect(errors[0]).toBeDefined();
           expect(errors[0].constraints).toBeDefined();

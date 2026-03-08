@@ -21,25 +21,39 @@ class User {
 // All values that are NOT numbers (raw primitive values, not canByType expansions)
 const NON_NUMBER_VALUES = [
   // strings
-  'random', '', '   ', 'áéíóú', 'abc123',
+  'random',
+  '',
+  '   ',
+  'áéíóú',
+  'abc123',
   // booleans
-  true, false,
+  true,
+  false,
   // objects and arrays
-  { a: 123 }, [], [1, 2, 3],
+  { a: 123 },
+  [],
+  [1, 2, 3],
   // uuid
   'df9ef000-21fc-4e06-b8f7-103c3a133d10',
   // functions
-  () => 123, new Function('return 123'),
+  () => 123,
+  new Function('return 123'),
   // nullable
-  undefined, null,
+  undefined,
+  null,
   // exotic types
-  Symbol(), Symbol('123'),
-  new Date(), new Date('2020-01-01'),
-  new RegExp('test'), /test/,
+  Symbol(),
+  Symbol('123'),
+  new Date(),
+  new Date('2020-01-01'),
+  new RegExp('test'),
+  /test/,
   new Error('data error'),
   Promise.resolve('data promise'),
-  new Map(), new Map([[1, 2]]),
-  new Set(), new Set([1, 2, 3]),
+  new Map(),
+  new Map([[1, 2]]),
+  new Set(),
+  new Set([1, 2, 3]),
 ];
 
 describe('Validator', () => {
@@ -160,7 +174,9 @@ describe('Validator', () => {
           errors = validateType(type);
         } catch (e) {
           if (!(e instanceof TypePrimitiveException)) throw e;
-          errors = [{ property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } }];
+          errors = [
+            { property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } },
+          ];
         }
         expect(errors[0]).toBeDefined();
         expect(errors[0].constraints).toBeDefined();

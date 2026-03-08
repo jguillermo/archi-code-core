@@ -8,40 +8,68 @@ import { TypePrimitiveException } from '../exceptions/domain/type-primitive.exce
 // canByType(STRING) = plain strings + numbers-as-string + booleans-as-string
 // excludeItems(..., ['']) removes the empty string for Required variant
 const VALID_STRINGS_REQUIRED = [
-  'random', '   ', 'áéíóú', 'abc123', // plain strings (empty excluded for required)
-  '1', '-1', '1.1', '-1.1', '0',       // numeric strings
-  'true', 'false',                       // boolean strings
+  'random',
+  '   ',
+  'áéíóú',
+  'abc123', // plain strings (empty excluded for required)
+  '1',
+  '-1',
+  '1.1',
+  '-1.1',
+  '0', // numeric strings
+  'true',
+  'false', // boolean strings
 ];
 
 // canByType(STRING, NULL, UNDEFINED) — same strings plus nullable for Optional variant
 const VALID_STRINGS_OPTIONAL = [
-  'random', '', '   ', 'áéíóú', 'abc123',
-  '1', '-1', '1.1', '-1.1', '0',
-  'true', 'false',
-  null, undefined,
+  'random',
+  '',
+  '   ',
+  'áéíóú',
+  'abc123',
+  '1',
+  '-1',
+  '1.1',
+  '-1.1',
+  '0',
+  'true',
+  'false',
+  null,
+  undefined,
 ];
 
 // skipByType(STRING, NUMBER, BOOLEAN, UUID, NULL, UNDEFINED) — raw exotic types only
 // These cannot be coerced to string → trigger TypePrimitive exception
 const NON_STRING_COERCIBLE = [
   { a: 123 },
-  [], [1, 2, 3],
-  () => 123, new Function('return 123'),
-  Symbol(), Symbol('123'),
-  new Date(), new Date('2020-01-01'),
-  new RegExp('test'), /test/,
+  [],
+  [1, 2, 3],
+  () => 123,
+  new Function('return 123'),
+  Symbol(),
+  Symbol('123'),
+  new Date(),
+  new Date('2020-01-01'),
+  new RegExp('test'),
+  /test/,
   new Error('data error'),
   Promise.resolve('data promise'),
-  new Map(), new Map([[1, 2]]),
-  new Set(), new Set([1, 2, 3]),
+  new Map(),
+  new Map([[1, 2]]),
+  new Set(),
+  new Set([1, 2, 3]),
 ];
 
 describe('AbstractStringType', () => {
   describe('StringTypeRequired', () => {
     describe('Valid Values', () => {
-      it.each(VALID_STRINGS_REQUIRED.map((v) => [v]))('validates new StringTypeRequired(%p)', (value) => {
-        expect(validateType(new StringTypeRequired(value as any))).toEqual([]);
-      });
+      it.each(VALID_STRINGS_REQUIRED.map((v) => [v]))(
+        'validates new StringTypeRequired(%p)',
+        (value) => {
+          expect(validateType(new StringTypeRequired(value as any))).toEqual([]);
+        },
+      );
 
       it.each(VALID_STRINGS_REQUIRED.map((v) => [v]))(
         'typeof new StringTypeRequired(%p).value === "string"',
@@ -67,7 +95,9 @@ describe('AbstractStringType', () => {
             errors = validateType(type);
           } catch (e) {
             if (!(e instanceof TypePrimitiveException)) throw e;
-            errors = [{ property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } }];
+            errors = [
+              { property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } },
+            ];
           }
           expect(errors[0]).toBeDefined();
           expect(errors[0].constraints).toBeDefined();
@@ -87,7 +117,9 @@ describe('AbstractStringType', () => {
             errors = validateType(type);
           } catch (e) {
             if (!(e instanceof TypePrimitiveException)) throw e;
-            errors = [{ property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } }];
+            errors = [
+              { property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } },
+            ];
           }
           expect(errors[0]).toBeDefined();
           expect(errors[0].constraints).toBeDefined();
@@ -105,7 +137,9 @@ describe('AbstractStringType', () => {
           errors = validateType(type);
         } catch (e) {
           if (!(e instanceof TypePrimitiveException)) throw e;
-          errors = [{ property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } }];
+          errors = [
+            { property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } },
+          ];
         }
         expect(errors[0]).toBeDefined();
         expect(errors[0].constraints).toBeDefined();
@@ -136,15 +170,19 @@ describe('AbstractStringType', () => {
 
   describe('StringTypeOptional', () => {
     describe('Valid Values', () => {
-      it.each(VALID_STRINGS_OPTIONAL.map((v) => [v]))('validates new StringTypeOptional(%p)', (value) => {
-        expect(validateType(new StringTypeOptional(value as any))).toEqual([]);
-      });
+      it.each(VALID_STRINGS_OPTIONAL.map((v) => [v]))(
+        'validates new StringTypeOptional(%p)',
+        (value) => {
+          expect(validateType(new StringTypeOptional(value as any))).toEqual([]);
+        },
+      );
 
-      it.each(
-        VALID_STRINGS_OPTIONAL.filter((v) => v != null && v !== undefined).map((v) => [v]),
-      )('typeof new StringTypeOptional(%p).value === "string"', (value) => {
-        expect(typeof new StringTypeOptional(value as any).value).toEqual('string');
-      });
+      it.each(VALID_STRINGS_OPTIONAL.filter((v) => v != null && v !== undefined).map((v) => [v]))(
+        'typeof new StringTypeOptional(%p).value === "string"',
+        (value) => {
+          expect(typeof new StringTypeOptional(value as any).value).toEqual('string');
+        },
+      );
 
       it.each([[null], [undefined]])('new StringTypeOptional(%p).isNull is true', (value) => {
         expect(new StringTypeOptional(value as any).isNull).toEqual(true);
@@ -166,7 +204,9 @@ describe('AbstractStringType', () => {
             errors = validateType(type);
           } catch (e) {
             if (!(e instanceof TypePrimitiveException)) throw e;
-            errors = [{ property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } }];
+            errors = [
+              { property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } },
+            ];
           }
           expect(errors[0]).toBeDefined();
           expect(errors[0].constraints).toBeDefined();
@@ -219,9 +259,12 @@ describe('AbstractStringType', () => {
         expect(validateType(new ValueObjectString(value as any))).toEqual([]);
       });
 
-      it.each([['abc'], ['áéíóú']])('typeof new ValueObjectString(%p).value === "string"', (value) => {
-        expect(typeof new ValueObjectString(value as any).value).toEqual('string');
-      });
+      it.each([['abc'], ['áéíóú']])(
+        'typeof new ValueObjectString(%p).value === "string"',
+        (value) => {
+          expect(typeof new ValueObjectString(value as any).value).toEqual('string');
+        },
+      );
     });
 
     describe('Invalid Values', () => {
@@ -241,7 +284,9 @@ describe('AbstractStringType', () => {
             errors = validateType(type);
           } catch (e) {
             if (!(e instanceof TypePrimitiveException)) throw e;
-            errors = [{ property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } }];
+            errors = [
+              { property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } },
+            ];
           }
           expect(errors[0]).toBeDefined();
           expect(errors[0].constraints).toBeDefined();

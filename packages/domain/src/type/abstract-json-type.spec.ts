@@ -27,25 +27,40 @@ const VALID_OBJECTS = [{ a: 123 }, '{"a":123}'];
 // Plus empty object {} which also triggers typePrimitive
 const NON_OBJECT_TYPES_REQUIRED = [
   // strings excluding empty — not valid objects
-  'random', '   ', 'áéíóú', 'abc123',
+  'random',
+  '   ',
+  'áéíóú',
+  'abc123',
   // numbers — not objects
-  1, -1, 1.1, -1.1, 0,
+  1,
+  -1,
+  1.1,
+  -1.1,
+  0,
   // booleans — not objects
-  true, false,
+  true,
+  false,
   // arrays — not plain objects
-  [], [1, 2, 3],
+  [],
+  [1, 2, 3],
   // uuid — not an object
   'df9ef000-21fc-4e06-b8f7-103c3a133d10',
   // functions
-  () => 123, new Function('return 123'),
+  () => 123,
+  new Function('return 123'),
   // exotic types
-  Symbol(), Symbol('123'),
-  new Date(), new Date('2020-01-01'),
-  new RegExp('test'), /test/,
+  Symbol(),
+  Symbol('123'),
+  new Date(),
+  new Date('2020-01-01'),
+  new RegExp('test'),
+  /test/,
   new Error('data error'),
   Promise.resolve('data promise'),
-  new Map(), new Map([[1, 2]]),
-  new Set(), new Set([1, 2, 3]),
+  new Map(),
+  new Map([[1, 2]]),
+  new Set(),
+  new Set([1, 2, 3]),
   // empty object (no required properties → invalid for typed schema)
   {},
 ];
@@ -54,25 +69,41 @@ const NON_OBJECT_TYPES_REQUIRED = [
 // Plus empty object {} which also triggers typePrimitive
 const NON_OBJECT_TYPES_OPTIONAL = [
   // strings including empty — not valid objects
-  'random', '', '   ', 'áéíóú', 'abc123',
+  'random',
+  '',
+  '   ',
+  'áéíóú',
+  'abc123',
   // numbers — not objects
-  1, -1, 1.1, -1.1, 0,
+  1,
+  -1,
+  1.1,
+  -1.1,
+  0,
   // booleans — not objects
-  true, false,
+  true,
+  false,
   // arrays — not plain objects
-  [], [1, 2, 3],
+  [],
+  [1, 2, 3],
   // uuid — not an object
   'df9ef000-21fc-4e06-b8f7-103c3a133d10',
   // functions
-  () => 123, new Function('return 123'),
+  () => 123,
+  new Function('return 123'),
   // exotic types
-  Symbol(), Symbol('123'),
-  new Date(), new Date('2020-01-01'),
-  new RegExp('test'), /test/,
+  Symbol(),
+  Symbol('123'),
+  new Date(),
+  new Date('2020-01-01'),
+  new RegExp('test'),
+  /test/,
   new Error('data error'),
   Promise.resolve('data promise'),
-  new Map(), new Map([[1, 2]]),
-  new Set(), new Set([1, 2, 3]),
+  new Map(),
+  new Map([[1, 2]]),
+  new Set(),
+  new Set([1, 2, 3]),
   // empty object (no required properties → invalid for typed schema)
   {},
 ];
@@ -101,7 +132,9 @@ describe('AbstractJsonType', () => {
             errors = validateType(type);
           } catch (e) {
             if (!(e instanceof TypePrimitiveException)) throw e;
-            errors = [{ property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } }];
+            errors = [
+              { property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } },
+            ];
           }
           expect(errors[0]).toBeDefined();
           expect(errors[0].constraints).toBeDefined();
@@ -112,22 +145,27 @@ describe('AbstractJsonType', () => {
         },
       );
 
-      it.each([[null], [undefined]])('canBeJson + isNotEmpty error for JsonTypeRequired(%p)', (value) => {
-        let errors: any[] = [];
-        try {
-          const type = new JsonTypeRequired(value as any);
-          errors = validateType(type);
-        } catch (e) {
-          if (!(e instanceof TypePrimitiveException)) throw e;
-          errors = [{ property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } }];
-        }
-        expect(errors[0]).toBeDefined();
-        expect(errors[0].constraints).toBeDefined();
-        expect(errors[0].constraints).toEqual({
-          canBeJson: errorData.canBeJson,
-          isNotEmpty: errorData.isNotEmpty,
-        });
-      });
+      it.each([[null], [undefined]])(
+        'canBeJson + isNotEmpty error for JsonTypeRequired(%p)',
+        (value) => {
+          let errors: any[] = [];
+          try {
+            const type = new JsonTypeRequired(value as any);
+            errors = validateType(type);
+          } catch (e) {
+            if (!(e instanceof TypePrimitiveException)) throw e;
+            errors = [
+              { property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } },
+            ];
+          }
+          expect(errors[0]).toBeDefined();
+          expect(errors[0].constraints).toBeDefined();
+          expect(errors[0].constraints).toEqual({
+            canBeJson: errorData.canBeJson,
+            isNotEmpty: errorData.isNotEmpty,
+          });
+        },
+      );
     });
 
     describe('Compare values', () => {
@@ -176,7 +214,9 @@ describe('AbstractJsonType', () => {
             errors = validateType(type);
           } catch (e) {
             if (!(e instanceof TypePrimitiveException)) throw e;
-            errors = [{ property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } }];
+            errors = [
+              { property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } },
+            ];
           }
           expect(errors[0]).toBeDefined();
           expect(errors[0].constraints).toBeDefined();
@@ -255,7 +295,9 @@ describe('AbstractJsonType', () => {
           errors = validateType(type);
         } catch (e) {
           if (!(e instanceof TypePrimitiveException)) throw e;
-          errors = [{ property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } }];
+          errors = [
+            { property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } },
+          ];
         }
         expect(errors[0]).toBeDefined();
         expect(errors[0].constraints).toBeDefined();

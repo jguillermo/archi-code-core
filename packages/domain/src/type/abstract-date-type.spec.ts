@@ -22,7 +22,8 @@ const VALID_DATES = [
   new Date('2018-03-23 16:02:15'),
   new Date('2018-03-23 00:00:00'),
   // other valid Date instances
-  new Date(), new Date('2020-01-01'),
+  new Date(),
+  new Date('2020-01-01'),
 ];
 
 // canByType(DATE, NULL, UNDEFINED)
@@ -32,47 +33,78 @@ const VALID_DATES_OPTIONAL = [...VALID_DATES, null, undefined];
 // These should trigger TypePrimitive exception for Required variant
 const NON_DATE_TYPES_REQUIRED = [
   // strings that are not dates (empty excluded)
-  'random', '   ', 'áéíóú', 'abc123',
+  'random',
+  '   ',
+  'áéíóú',
+  'abc123',
   // numbers — not dates
-  1, -1, 1.1, -1.1, 0,
+  1,
+  -1,
+  1.1,
+  -1.1,
+  0,
   // booleans — not dates
-  true, false,
+  true,
+  false,
   // objects and arrays
-  { a: 123 }, [], [1, 2, 3],
+  { a: 123 },
+  [],
+  [1, 2, 3],
   // uuid
   'df9ef000-21fc-4e06-b8f7-103c3a133d10',
   // functions
-  () => 123, new Function('return 123'),
+  () => 123,
+  new Function('return 123'),
   // exotic types
-  Symbol(), Symbol('123'),
-  new RegExp('test'), /test/,
+  Symbol(),
+  Symbol('123'),
+  new RegExp('test'),
+  /test/,
   new Error('data error'),
   Promise.resolve('data promise'),
-  new Map(), new Map([[1, 2]]),
-  new Set(), new Set([1, 2, 3]),
+  new Map(),
+  new Map([[1, 2]]),
+  new Set(),
+  new Set([1, 2, 3]),
 ];
 
 // skipByType(DATE, NULL, UNDEFINED) = same but includes ''
 const NON_DATE_TYPES_OPTIONAL = [
   // strings including empty
-  'random', '', '   ', 'áéíóú', 'abc123',
+  'random',
+  '',
+  '   ',
+  'áéíóú',
+  'abc123',
   // numbers — not dates
-  1, -1, 1.1, -1.1, 0,
+  1,
+  -1,
+  1.1,
+  -1.1,
+  0,
   // booleans — not dates
-  true, false,
+  true,
+  false,
   // objects and arrays
-  { a: 123 }, [], [1, 2, 3],
+  { a: 123 },
+  [],
+  [1, 2, 3],
   // uuid
   'df9ef000-21fc-4e06-b8f7-103c3a133d10',
   // functions
-  () => 123, new Function('return 123'),
+  () => 123,
+  new Function('return 123'),
   // exotic types
-  Symbol(), Symbol('123'),
-  new RegExp('test'), /test/,
+  Symbol(),
+  Symbol('123'),
+  new RegExp('test'),
+  /test/,
   new Error('data error'),
   Promise.resolve('data promise'),
-  new Map(), new Map([[1, 2]]),
-  new Set(), new Set([1, 2, 3]),
+  new Map(),
+  new Map([[1, 2]]),
+  new Set(),
+  new Set([1, 2, 3]),
 ];
 
 describe('AbstractDateType', () => {
@@ -99,7 +131,9 @@ describe('AbstractDateType', () => {
             errors = validateType(type);
           } catch (e) {
             if (!(e instanceof TypePrimitiveException)) throw e;
-            errors = [{ property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } }];
+            errors = [
+              { property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } },
+            ];
           }
           expect(errors[0]).toBeDefined();
           expect(errors[0].constraints).toBeDefined();
@@ -119,7 +153,9 @@ describe('AbstractDateType', () => {
             errors = validateType(type);
           } catch (e) {
             if (!(e instanceof TypePrimitiveException)) throw e;
-            errors = [{ property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } }];
+            errors = [
+              { property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } },
+            ];
           }
           expect(errors[0]).toBeDefined();
           expect(errors[0].constraints).toBeDefined();
@@ -157,9 +193,12 @@ describe('AbstractDateType', () => {
 
   describe('DateTypeOptional', () => {
     describe('Valid Values', () => {
-      it.each(VALID_DATES_OPTIONAL.map((v) => [v]))('validates new DateTypeOptional(%p)', (value) => {
-        expect(validateType(new DateTypeOptional(value as any))).toEqual([]);
-      });
+      it.each(VALID_DATES_OPTIONAL.map((v) => [v]))(
+        'validates new DateTypeOptional(%p)',
+        (value) => {
+          expect(validateType(new DateTypeOptional(value as any))).toEqual([]);
+        },
+      );
     });
 
     describe('Invalid Values', () => {
@@ -177,7 +216,9 @@ describe('AbstractDateType', () => {
             errors = validateType(type);
           } catch (e) {
             if (!(e instanceof TypePrimitiveException)) throw e;
-            errors = [{ property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } }];
+            errors = [
+              { property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } },
+            ];
           }
           expect(errors[0]).toBeDefined();
           expect(errors[0].constraints).toBeDefined();

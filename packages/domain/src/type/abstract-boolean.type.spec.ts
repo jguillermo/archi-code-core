@@ -8,12 +8,28 @@ import { TypePrimitiveException } from '../exceptions/domain/type-primitive.exce
 // canByType(BOOLEAN) = native booleans + string variants + 0/1 variants
 const VALID_BOOLEANS = [
   // native booleans
-  true, false,
+  true,
+  false,
   // case-insensitive string booleans
-  'True', 'False', 'TRUE', 'FALSE', 'true', 'false',
-  '  True  ', ' False ', ' TRUE ', '  FALSE ', ' true ', ' false ',
+  'True',
+  'False',
+  'TRUE',
+  'FALSE',
+  'true',
+  'false',
+  '  True  ',
+  ' False ',
+  ' TRUE ',
+  '  FALSE ',
+  ' true ',
+  ' false ',
   // numeric string/number representations accepted as boolean
-  '1', ' 1', '0', ' 0', 0, 1,
+  '1',
+  ' 1',
+  '0',
+  ' 0',
+  0,
+  1,
 ];
 
 // canByType(BOOLEAN, NULL, UNDEFINED)
@@ -24,23 +40,36 @@ const VALID_BOOLEANS_OPTIONAL = [...VALID_BOOLEANS, null, undefined];
 // These trigger TypePrimitive exception (not coercible to boolean)
 const NON_BOOLEAN_TYPES_REQUIRED = [
   // strings ('' excluded, 1/0 numeric excluded)
-  'random', '   ', 'áéíóú', 'abc123',
+  'random',
+  '   ',
+  'áéíóú',
+  'abc123',
   // numbers that are NOT 0 or 1
-  -1, 1.1, -1.1,
+  -1,
+  1.1,
+  -1.1,
   // objects and arrays
-  { a: 123 }, [], [1, 2, 3],
+  { a: 123 },
+  [],
+  [1, 2, 3],
   // uuid
   'df9ef000-21fc-4e06-b8f7-103c3a133d10',
   // functions
-  () => 123, new Function('return 123'),
+  () => 123,
+  new Function('return 123'),
   // exotic types
-  Symbol(), Symbol('123'),
-  new Date(), new Date('2020-01-01'),
-  new RegExp('test'), /test/,
+  Symbol(),
+  Symbol('123'),
+  new Date(),
+  new Date('2020-01-01'),
+  new RegExp('test'),
+  /test/,
   new Error('data error'),
   Promise.resolve('data promise'),
-  new Map(), new Map([[1, 2]]),
-  new Set(), new Set([1, 2, 3]),
+  new Map(),
+  new Map([[1, 2]]),
+  new Set(),
+  new Set([1, 2, 3]),
 ];
 
 // excludeItems(skipByType(BOOLEAN, NULL, UNDEFINED), [0, 1])
@@ -48,23 +77,37 @@ const NON_BOOLEAN_TYPES_REQUIRED = [
 // Includes '' (unlike the Required variant above)
 const NON_BOOLEAN_TYPES_OPTIONAL = [
   // strings including empty
-  'random', '', '   ', 'áéíóú', 'abc123',
+  'random',
+  '',
+  '   ',
+  'áéíóú',
+  'abc123',
   // numbers that are NOT 0 or 1
-  -1, 1.1, -1.1,
+  -1,
+  1.1,
+  -1.1,
   // objects and arrays
-  { a: 123 }, [], [1, 2, 3],
+  { a: 123 },
+  [],
+  [1, 2, 3],
   // uuid
   'df9ef000-21fc-4e06-b8f7-103c3a133d10',
   // functions
-  () => 123, new Function('return 123'),
+  () => 123,
+  new Function('return 123'),
   // exotic types
-  Symbol(), Symbol('123'),
-  new Date(), new Date('2020-01-01'),
-  new RegExp('test'), /test/,
+  Symbol(),
+  Symbol('123'),
+  new Date(),
+  new Date('2020-01-01'),
+  new RegExp('test'),
+  /test/,
   new Error('data error'),
   Promise.resolve('data promise'),
-  new Map(), new Map([[1, 2]]),
-  new Set(), new Set([1, 2, 3]),
+  new Map(),
+  new Map([[1, 2]]),
+  new Set(),
+  new Set([1, 2, 3]),
 ];
 
 describe('AbstractBooleanType', () => {
@@ -98,7 +141,9 @@ describe('AbstractBooleanType', () => {
             errors = validateType(type);
           } catch (e) {
             if (!(e instanceof TypePrimitiveException)) throw e;
-            errors = [{ property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } }];
+            errors = [
+              { property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } },
+            ];
           }
           expect(errors[0]).toBeDefined();
           expect(errors[0].constraints).toBeDefined();
@@ -118,7 +163,9 @@ describe('AbstractBooleanType', () => {
             errors = validateType(type);
           } catch (e) {
             if (!(e instanceof TypePrimitiveException)) throw e;
-            errors = [{ property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } }];
+            errors = [
+              { property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } },
+            ];
           }
           expect(errors[0]).toBeDefined();
           expect(errors[0].constraints).toBeDefined();
@@ -195,7 +242,9 @@ describe('AbstractBooleanType', () => {
             errors = validateType(type);
           } catch (e) {
             if (!(e instanceof TypePrimitiveException)) throw e;
-            errors = [{ property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } }];
+            errors = [
+              { property: 'value', constraints: { typePrimitive: (e as any)?.message ?? '' } },
+            ];
           }
           expect(errors[0]).toBeDefined();
           expect(errors[0].constraints).toBeDefined();

@@ -3,15 +3,21 @@ import { JsonValidator } from './json.validator';
 
 describe('JsonValidator', () => {
   describe('canBeJson', () => {
-    it.each([
-      [{ name: 'John', age: 30 }],
-      ['{"name": "John", "age": 30}'],
-    ])('returns true for valid JSON: %p', (value) => {
-      expect(JsonValidator.canBeJson(value)).toBe(true);
-    });
+    it.each([[{ name: 'John', age: 30 }], ['{"name": "John", "age": 30}']])(
+      'returns true for valid JSON: %p',
+      (value) => {
+        expect(JsonValidator.canBeJson(value)).toBe(true);
+      },
+    );
 
     it('returns false for object with throwing toJSON', () => {
-      expect(JsonValidator.canBeJson({ toJSON: () => { throw new Error('Invalid JSON'); } })).toBe(false);
+      expect(
+        JsonValidator.canBeJson({
+          toJSON: () => {
+            throw new Error('Invalid JSON');
+          },
+        }),
+      ).toBe(false);
     });
 
     it.each([
