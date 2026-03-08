@@ -12,8 +12,9 @@ const DRY_RUN = process.argv.includes('--dry-run');
 // Disable husky hooks during release — tests already ran in CI
 process.env.HUSKY = '0';
 
-// Prerelease channels: branch name → prerelease tag (matches .releaserc.json)
-const PRERELEASE_BRANCHES = { main: 'alpha' };
+// Prerelease config per branch (matches .releaserc.json)
+// main → alpha prerelease (0.1.0-alpha.1), release → stable (0.1.0)
+const BRANCH_PRERELEASE = { main: 'alpha' };
 
 function getCurrentBranch() {
   try {
@@ -24,14 +25,11 @@ function getCurrentBranch() {
 }
 
 const CURRENT_BRANCH = getCurrentBranch();
-// In dry-run, simulate main's release channel (the actual release target)
-const RELEASE_BRANCH = DRY_RUN ? 'main' : CURRENT_BRANCH;
-const PRERELEASE_TAG = PRERELEASE_BRANCHES[RELEASE_BRANCH] ?? null;
+const PRERELEASE_TAG = BRANCH_PRERELEASE['main'] ?? null;
 
 if (DRY_RUN) {
-  const channel = PRERELEASE_TAG ? `prerelease (${PRERELEASE_TAG})` : 'stable';
   console.log(`\n[DRY RUN] Local analysis only — no builds, no publish, no git operations.`);
-  console.log(`[DRY RUN] Current branch: ${CURRENT_BRANCH}  |  Simulating: main  |  Channel: ${channel}\n`);
+  console.log(`[DRY RUN] Current branch: ${CURRENT_BRANCH}  |  Simulating: main  |  prerelease: ${PRERELEASE_TAG}\n`);
 }
 
 function run(cmd, opts = {}) {
@@ -76,16 +74,11 @@ function bumpVersion(version, bump, prereleaseTag) {
   const prMatch = version.match(/^(\d+)\.(\d+)\.(\d+)-(.+)\.(\d+)$/);
 
   if (prMatch && prereleaseTag && prMatch[4] === prereleaseTag) {
-    // Already on a prerelease of this channel
     const [major, minor, patch, , n] = [prMatch[1], prMatch[2], prMatch[3], prMatch[4], prMatch[5]].map(Number);
-    const currentBase = `${major}.${minor}.${patch}`;
-    // Only escalate to a higher base if it's a major bump (which always supersedes)
     if (bump === 'major') return `${major + 1}.0.0-${prereleaseTag}.1`;
-    // minor and patch: stay on the same planned release, increment N
-    return `${currentBase}-${prereleaseTag}.${n + 1}`;
+    return `${major}.${minor}.${patch}-${prereleaseTag}.${n + 1}`;
   }
 
-  // Not yet on a prerelease — calculate the next base version fresh
   const base = version.replace(/-.*$/, '');
   const [major, minor, patch] = base.split('.').map(Number);
   let nextBase;
@@ -137,6 +130,7 @@ for (const pkg of tree) {
     // Local commit analysis — no network, no credentials needed
     const { bump, commits, lastTag } = analyzeCommits(pkg.name, pkg.path);
     console.log(`  last tag : ${lastTag ?? '(none)'}`);
+    console.log(`  channel  : ${PRERELEASE_TAG ?? 'stable'}`);
     console.log(`  commits  : ${commits.length} since last release`);
     commits.forEach((c) => console.log(`    · ${c}`));
     if (bump) {
@@ -153,6 +147,9 @@ for (const pkg of tree) {
   if (depsUpdated) {
     fs.writeFileSync(pkgJsonPath, JSON.stringify(pkgJson, null, 2) + '\n');
   }
+
+  // Build before any git push so husky tests find the compiled dist files
+  run(`npm run build -w ${pkg.name}`);
 
   // Create the baseline tag if this package has never been released
   const initialTag = `${pkg.name}@0.0.0`;
