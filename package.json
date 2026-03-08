@@ -16,7 +16,9 @@
     "editorconfig:check": "editorconfig-checker --exclude node_modules --exclude dist --exclude '.git'",
     "prepare": "husky",
     "clean": "rm -rf packages/*/node_modules node_modules",
-    "generate-tree": "node scripts/generate-packages-tree.js"
+    "generate-tree": "node scripts/generate-packages-tree.js",
+    "release:dry-run": "node scripts/release-all.js --dry-run",
+    "test:scripts": "node --test scripts/__tests__/**/*.test.js"
   },
   "devDependencies": {
     "@jest/globals": "^29.7.0",

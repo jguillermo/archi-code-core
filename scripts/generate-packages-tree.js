@@ -3,6 +3,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { topoSort } = require('./lib/topo-sort');
 
 const ROOT = path.join(__dirname, '..');
 const PACKAGES_DIR = path.join(ROOT, 'packages');
@@ -26,25 +27,6 @@ const all = dirs.map((dir) => {
     internalDeps,
   };
 });
-
-// Topological sort (DFS)
-function topoSort(packages) {
-  const byName = Object.fromEntries(packages.map((p) => [p.name, p]));
-  const visited = new Set();
-  const result = [];
-
-  function visit(pkg) {
-    if (visited.has(pkg.name)) return;
-    visited.add(pkg.name);
-    for (const dep of pkg.internalDeps) {
-      if (byName[dep]) visit(byName[dep]);
-    }
-    result.push(pkg);
-  }
-
-  for (const pkg of packages) visit(pkg);
-  return result;
-}
 
 const sorted = topoSort(all);
 

@@ -7,15 +7,96 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const TREE_FILE = path.join(ROOT, 'packages.tree.json');
+const DRY_RUN = process.argv.includes('--dry-run');
+
+// Prerelease channels: branch name → prerelease tag (matches .releaserc.json)
+const PRERELEASE_BRANCHES = { main: 'alpha' };
+
+function getCurrentBranch() {
+  try {
+    return execSync('git branch --show-current').toString().trim();
+  } catch {
+    return null;
+  }
+}
+
+const CURRENT_BRANCH = getCurrentBranch();
+// In dry-run, simulate main's release channel (the actual release target)
+const RELEASE_BRANCH = DRY_RUN ? 'main' : CURRENT_BRANCH;
+const PRERELEASE_TAG = PRERELEASE_BRANCHES[RELEASE_BRANCH] ?? null;
+
+if (DRY_RUN) {
+  const channel = PRERELEASE_TAG ? `prerelease (${PRERELEASE_TAG})` : 'stable';
+  console.log(`\n[DRY RUN] Local analysis only — no builds, no publish, no git operations.`);
+  console.log(`[DRY RUN] Current branch: ${CURRENT_BRANCH}  |  Simulating: main  |  Channel: ${channel}\n`);
+}
 
 function run(cmd, opts = {}) {
   console.log(`\n$ ${cmd}`);
   execSync(cmd, { stdio: 'inherit', ...opts });
 }
 
+// Analyze commits for a package since its last release tag (no network needed)
+function analyzeCommits(pkgName, pkgPath) {
+  let lastTag;
+  try {
+    lastTag = execSync(`git describe --tags --match "${pkgName}@*" --abbrev=0 2>/dev/null`).toString().trim();
+  } catch {
+    lastTag = null;
+  }
+
+  const range = lastTag ? `${lastTag}..HEAD` : 'HEAD';
+  let log;
+  try {
+    log = execSync(`git log ${range} --pretty=format:"%s" -- ${pkgPath}`).toString().trim();
+  } catch {
+    log = '';
+  }
+
+  const commits = log ? log.split('\n').filter(Boolean) : [];
+  if (!commits.length) return { bump: null, commits: [], lastTag };
+
+  let bump = null;
+  for (const msg of commits) {
+    if (msg.includes('BREAKING CHANGE') || /^[^(:]+(\([^)]*\))?!:/.test(msg)) {
+      bump = 'major';
+      break;
+    }
+    if (/^feat(\(|:|\s|!)/.test(msg)) bump = bump === 'major' ? 'major' : 'minor';
+    if (/^fix(\(|:|\s|!)/.test(msg) && !bump) bump = 'patch';
+  }
+
+  return { bump, commits, lastTag };
+}
+
+function bumpVersion(version, bump, prereleaseTag) {
+  const prMatch = version.match(/^(\d+)\.(\d+)\.(\d+)-(.+)\.(\d+)$/);
+
+  if (prMatch && prereleaseTag && prMatch[4] === prereleaseTag) {
+    // Already on a prerelease of this channel
+    const [major, minor, patch, , n] = [prMatch[1], prMatch[2], prMatch[3], prMatch[4], prMatch[5]].map(Number);
+    const currentBase = `${major}.${minor}.${patch}`;
+    // Only escalate to a higher base if it's a major bump (which always supersedes)
+    if (bump === 'major') return `${major + 1}.0.0-${prereleaseTag}.1`;
+    // minor and patch: stay on the same planned release, increment N
+    return `${currentBase}-${prereleaseTag}.${n + 1}`;
+  }
+
+  // Not yet on a prerelease — calculate the next base version fresh
+  const base = version.replace(/-.*$/, '');
+  const [major, minor, patch] = base.split('.').map(Number);
+  let nextBase;
+  if (bump === 'major') nextBase = `${major + 1}.0.0`;
+  else if (bump === 'minor') nextBase = `${major}.${minor + 1}.0`;
+  else nextBase = `${major}.${minor}.${patch + 1}`;
+
+  if (!prereleaseTag) return nextBase;
+  return `${nextBase}-${prereleaseTag}.1`;
+}
+
 // Regenerate dependency tree before releasing to ensure correct order
 console.log('Generating packages.tree.json...');
-execSync('node scripts/generate-packages-tree.js', { stdio: 'inherit', cwd: ROOT });
+run('node scripts/generate-packages-tree.js', { cwd: ROOT });
 
 const tree = JSON.parse(fs.readFileSync(TREE_FILE, 'utf8'));
 
@@ -28,7 +109,7 @@ for (const pkg of tree) {
 
 for (const pkg of tree) {
   console.log(`\n${'═'.repeat(64)}`);
-  console.log(`  ${pkg.name}`);
+  console.log(`  ${pkg.name}${DRY_RUN ? '  [DRY RUN]' : ''}`);
   console.log('═'.repeat(64));
 
   const pkgJsonPath = path.join(ROOT, pkg.path, 'package.json');
@@ -48,6 +129,24 @@ for (const pkg of tree) {
       }
     }
   }
+
+  if (DRY_RUN) {
+    // Local commit analysis — no network, no credentials needed
+    const { bump, commits, lastTag } = analyzeCommits(pkg.name, pkg.path);
+    console.log(`  last tag : ${lastTag ?? '(none)'}`);
+    console.log(`  commits  : ${commits.length} since last release`);
+    commits.forEach((c) => console.log(`    · ${c}`));
+    if (bump) {
+      const nextVersion = bumpVersion(releasedVersions[pkg.name], bump, PRERELEASE_TAG);
+      console.log(`  bump     : ${bump}  →  ${releasedVersions[pkg.name]} → ${nextVersion}`);
+      if (depsUpdated) console.log(`  deps     : would be updated in package.json`);
+      releasedVersions[pkg.name] = nextVersion;
+    } else {
+      console.log(`  bump     : none (no feat/fix/BREAKING commits found)`);
+    }
+    continue;
+  }
+
   if (depsUpdated) {
     fs.writeFileSync(pkgJsonPath, JSON.stringify(pkgJson, null, 2) + '\n');
   }
@@ -81,12 +180,14 @@ for (const pkg of tree) {
   releasedVersions[pkg.name] = updated.version;
 }
 
-// Commit any package.json dep version changes back to the repo
-run('git add packages/*/package.json');
-try {
-  execSync('git diff --staged --quiet', { stdio: 'ignore' });
-  console.log('\nNo package.json changes to commit.');
-} catch {
-  run('git commit -m "chore(deps): update internal package versions [skip ci]"');
-  run('git push origin main');
+if (!DRY_RUN) {
+  // Commit any package.json dep version changes back to the repo
+  run('git add packages/*/package.json');
+  try {
+    execSync('git diff --staged --quiet', { stdio: 'ignore' });
+    console.log('\nNo package.json changes to commit.');
+  } catch {
+    run('git commit -m "chore(deps): update internal package versions [skip ci]"');
+    run('git push origin main');
+  }
 }
