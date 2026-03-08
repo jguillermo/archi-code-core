@@ -71,7 +71,7 @@
   },
   "gitHead": "ec24f58d7c943a184f815076751029df7294f689",
   "dependencies": {
-    "@archi-code/common": "^1.0.0-alpha.3",
+    "@archi-code/common": "^1.0.0-alpha.4",
     "ajv": "^8.18.0",
     "class-validator": "^0.15.1",
     "reflect-metadata": "^0.2.2",
