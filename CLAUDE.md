@@ -44,24 +44,24 @@ Lerna monorepo publishing independent npm packages implementing DDD patterns. Al
 
 | Directory | npm name | Version | Purpose |
 |---|---|---|---|
-| `common` | `@code-core/common` | 0.0.7 | Shared utilities (`universalToString`) |
-| `domain` | `@code-core/domain` | 0.0.7 | DDD framework — aggregates, value objects, validators, exceptions |
-| `criteria` | `@code-core/criteria` | 0.0.1 | Search/filter/order/paginate query builders + MongoDB converter |
-| `crypto-tools` | `@code-core/cypto-tools` | 0.0.1 | Encryption, password hashing, JWT signing ⚠️ see known issues |
-| `ephemeraDB` | `@code-core/ephemeradb` | 0.0.1 | Async in-memory key-value store |
-| `test` | `@code-core/test` | 0.0.7 | Test helpers: ObjectMother, JsonCompare, TypeExpectEqual |
+| `common` | `@archi-code/common` | 0.0.7 | Shared utilities (`universalToString`) |
+| `domain` | `@archi-code/domain` | 0.0.7 | DDD framework — aggregates, value objects, validators, exceptions |
+| `criteria` | `@archi-code/criteria` | 0.0.1 | Search/filter/order/paginate query builders + MongoDB converter |
+| `crypto-tools` | `@archi-code/cypto-tools` | 0.0.1 | Encryption, password hashing, JWT signing ⚠️ see known issues |
+| `ephemeraDB` | `@archi-code/ephemeradb` | 0.0.1 | Async in-memory key-value store |
+| `test` | `@archi-code/test` | 0.0.7 | Test helpers: ObjectMother, JsonCompare, TypeExpectEqual |
 
 ### Dependency graph
 
 ```
-@code-core/common  (zero dependencies — true foundation)
+@archi-code/common  (zero dependencies — true foundation)
     ↑
-    ├── @code-core/domain   (runtime: ajv, class-validator, reflect-metadata, uuid)
-    └── @code-core/test
+    ├── @archi-code/domain   (runtime: ajv, class-validator, reflect-metadata, uuid)
+    └── @archi-code/test
 
-@code-core/criteria    (standalone — no runtime deps)
-@code-core/ephemeradb  (standalone — no runtime deps)
-@code-core/cypto-tools (peer deps: bcrypt, jsonwebtoken, libsodium-wrappers-sumo)
+@archi-code/criteria    (standalone — no runtime deps)
+@archi-code/ephemeradb  (standalone — no runtime deps)
+@archi-code/cypto-tools (peer deps: bcrypt, jsonwebtoken, libsodium-wrappers-sumo)
 ```
 
 ### domain package internals
@@ -94,14 +94,14 @@ tsconfig.json  (extends ../../tsconfig.base.json)
 ### Testing
 
 - Jest + ts-jest. Coverage thresholds per package (20–60% minimum).
-- Use `ObjectMother` from `@code-core/test` to build test fixtures.
+- Use `ObjectMother` from `@archi-code/test` to build test fixtures.
 - Use `EphemeraDb` for in-memory repository stubs in tests.
 
 ## Known issues
 
 ### 1. Package name typo — crypto-tools
-`packages/crypto-tools/package.json` has `"name": "@code-core/cypto-tools"` (missing `r`).
-Should be `@code-core/crypto-tools`. Any external project installing this package must use the typo'd name until fixed.
+`packages/crypto-tools/package.json` has `"name": "@archi-code/cypto-tools"` (missing `r`).
+Should be `@archi-code/crypto-tools`. Any external project installing this package must use the typo'd name until fixed.
 
 ### 2. Version inconsistency
 `criteria`, `crypto-tools`, `ephemeraDB` are at `0.0.1`; `common`, `domain`, `test` are at `0.0.7`.
@@ -111,5 +111,5 @@ Lerna versioning is not synchronized across all packages.
 `domain` requires `"node": ">=22"`, all other packages require `"node": ">=16"`.
 
 ### 4. Unused declared dependencies
-- `criteria/package.json` declares `@code-core/common` but never imports it.
-- `ephemeraDB/package.json` declares `@code-core/common` but never imports it.
+- `criteria/package.json` declares `@archi-code/common` but never imports it.
+- `ephemeraDB/package.json` declares `@archi-code/common` but never imports it.
