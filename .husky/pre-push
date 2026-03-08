@@ -1,4 +1,1 @@
-#npm run lint
-#npm run format
-#npm run editorconfig:check
-#npm test
+npm test
