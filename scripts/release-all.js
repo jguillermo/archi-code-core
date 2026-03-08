@@ -154,9 +154,6 @@ for (const pkg of tree) {
     fs.writeFileSync(pkgJsonPath, JSON.stringify(pkgJson, null, 2) + '\n');
   }
 
-  // Build before any git push so husky tests find the compiled dist files
-  run(`npm run build -w ${pkg.name}`);
-
   // Create the baseline tag if this package has never been released
   const initialTag = `${pkg.name}@0.0.0`;
   try {
