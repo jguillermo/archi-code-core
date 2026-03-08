@@ -1,6 +1,6 @@
 {
   "name": "@archi-code/common",
-  "version": "0.0.1",
+  "version": "1.0.0-alpha.3",
   "keywords": [
     "DDD",
     "node",
@@ -21,18 +21,15 @@
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/esm/index.d.ts",
-
   "exports": {
     ".": {
       "import": "./dist/esm/index.js",
       "require": "./dist/cjs/index.js"
     }
   },
-
   "files": [
     "dist/"
   ],
-
   "scripts": {
     "prebuild": "rm -rf dist || true",
     "build:cjs": "tsc -p tsconfig.cjs.json",

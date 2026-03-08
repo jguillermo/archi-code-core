@@ -1,6 +1,6 @@
 {
   "name": "@archi-code/test",
-  "version": "0.0.1",
+  "version": "1.0.0-alpha.1",
   "keywords": [
     "DDD",
     "node",
@@ -21,18 +21,15 @@
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/esm/index.d.ts",
-
   "exports": {
     ".": {
       "import": "./dist/esm/index.js",
       "require": "./dist/cjs/index.js"
     }
   },
-
   "files": [
     "dist/"
   ],
-
   "scripts": {
     "prebuild": "rm -rf dist || true",
     "build:cjs": "tsc -p tsconfig.cjs.json",
@@ -74,6 +71,6 @@
   },
   "gitHead": "ec24f58d7c943a184f815076751029df7294f689",
   "dependencies": {
-    "@archi-code/common": "^0.0.1"
+    "@archi-code/common": "^1.0.0-alpha.3"
   }
 }
