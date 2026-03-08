@@ -10,7 +10,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/jguillermo/code-core"
+    "url": "https://github.com/jguillermo/archi-code-core"
   },
   "engines": {
     "node": ">=22"
