@@ -71,13 +71,13 @@
   },
   "gitHead": "ec24f58d7c943a184f815076751029df7294f689",
   "dependencies": {
-    "@archi-code/common": "1.0.0-alpha.5",
+    "@archi-code/common": "1.0.0-alpha.6",
     "ajv": "^8.18.0",
     "class-validator": "^0.15.1",
     "reflect-metadata": "^0.2.2",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
-    "@archi-code/test": "1.0.0-alpha.2"
+    "@archi-code/test": "1.0.0-alpha.3"
   }
 }
