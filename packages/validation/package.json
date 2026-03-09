@@ -1,0 +1,87 @@
+{
+  "name": "@archi-code/validation",
+  "version": "0.0.1",
+  "keywords": [
+    "validation",
+    "wasm",
+    "webassembly",
+    "rust",
+    "validator"
+  ],
+  "author": "Jose Guillermo",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jguillermo/archi-code-core"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js"
+    }
+  },
+  "imports": {
+    "#wasm": {
+      "require": "./dist/wasm-node/archi_validation.js",
+      "import": "./dist/wasm-bundler/archi_validation.js",
+      "default": "./dist/wasm-node/archi_validation.js"
+    }
+  },
+  "files": [
+    "dist/"
+  ],
+  "scripts": {
+    "setup": "bash scripts/setup.sh",
+    "prebuild": "rm -rf dist || true",
+    "build:wasm": "bash scripts/build-wasm.sh",
+    "build:copy-wasm": "node scripts/copy-wasm.js",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "build:esm": "tsc -p tsconfig.esm.json",
+    "build": "npm run build:wasm && npm run build:cjs && npm run build:esm && npm run build:copy-wasm",
+    "test": "jest",
+    "coverage": "jest --coverage",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "format": "prettier --check \"{src,test}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\"",
+    "format:fix": "prettier --write \"{src,test}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\""
+  },
+  "jest": {
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
+    "rootDir": "src",
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.ts$": "ts-jest"
+    },
+    "collectCoverageFrom": [
+      "**/*.(t|j)s"
+    ],
+    "coverageDirectory": "./../coverage",
+    "testEnvironment": "node",
+    "collectCoverage": false,
+    "injectGlobals": false,
+    "moduleNameMapper": {
+      "^#wasm$": "<rootDir>/wasm/pkg-node/archi_validation"
+    },
+    "coverageThreshold": {
+      "global": {
+        "branches": 20,
+        "functions": 20,
+        "lines": 20,
+        "statements": 20
+      }
+    }
+  }
+}

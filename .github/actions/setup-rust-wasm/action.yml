@@ -1,0 +1,24 @@
+name: Setup Rust + wasm-pack
+description: Install Rust toolchain, wasm32 target, cache Cargo, and install wasm-pack
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: wasm32-unknown-unknown
+
+    - name: Cache Cargo
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          packages/validation/rust/target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('packages/validation/rust/Cargo.lock') }}
+        restore-keys: ${{ runner.os }}-cargo-
+
+    - name: Install wasm-pack
+      run: cargo install wasm-pack --locked
+      shell: bash
