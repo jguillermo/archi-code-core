@@ -18,7 +18,8 @@
     "clean": "rm -rf packages/*/node_modules node_modules",
     "generate-tree": "node scripts/generate-packages-tree.js",
     "release:dry-run": "node scripts/release-all.js --dry-run",
-    "test:scripts": "node --test scripts/__tests__/**/*.test.js"
+    "test:scripts": "node --test scripts/__tests__/**/*.test.js",
+    "benchmark": "npm run benchmark -w packages/validation"
   },
   "devDependencies": {
     "@jest/globals": "^29.7.0",

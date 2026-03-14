@@ -1,0 +1,14 @@
+import { validate_json as wasmValidateJson } from '#wasm';
+import type { ValidateInput, ValidateOutput } from './validate';
+
+// ─── JSON batch validation ────────────────────────────────────────────────────
+//
+// Accepts the standard ValidateInput either as a pre-parsed object or as a
+// raw JSON string. In both cases a single JSON string crosses the JS↔WASM
+// boundary, all parsing and validation run inside WASM, and a single JSON
+// string comes back — only 2 boundary crossings for the entire batch.
+
+export const validateJson = (input: ValidateInput | string): ValidateOutput => {
+  const json = typeof input === 'string' ? input : JSON.stringify(input);
+  return JSON.parse(wasmValidateJson(json)) as ValidateOutput;
+};

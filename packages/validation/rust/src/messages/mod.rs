@@ -1,7 +1,9 @@
 mod en;
 mod es;
 
-pub fn get_message(rule: &str, params: &[serde_json::Value], locale: &str, custom: Option<&str>) -> String {
+use crate::Param;
+
+pub fn get_message(rule: &str, params: &[Param], locale: &str, custom: Option<&str>) -> String {
     if let Some(msg) = custom {
         return msg.to_string();
     }
@@ -12,15 +14,13 @@ pub fn get_message(rule: &str, params: &[serde_json::Value], locale: &str, custo
     interpolate(template, params)
 }
 
-fn interpolate(template: &str, params: &[serde_json::Value]) -> String {
+fn interpolate(template: &str, params: &[Param]) -> String {
     let mut result = template.to_string();
     for (i, param) in params.iter().enumerate() {
         let placeholder = format!("{{{i}}}");
         let value = match param {
-            serde_json::Value::String(s) => s.clone(),
-            serde_json::Value::Number(n) => n.to_string(),
-            serde_json::Value::Bool(b) => b.to_string(),
-            _ => param.to_string(),
+            Param::Str(s) => s.clone(),
+            Param::Num(n) => n.to_string(),
         };
         result = result.replace(&placeholder, &value);
     }
