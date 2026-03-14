@@ -378,3 +378,152 @@ fn parse_json_rule(v: &serde_json::Value) -> (String, Vec<Param>, Option<String>
 #[cfg(feature = "wasm")] #[wasm_bindgen] pub fn check_code_num_n(rule: u32, value: f64, p: f64) -> bool { orchestrator::dispatch_by_code(rule, &FieldValue::Num(value), &[Param::Num(p)]) }
 #[cfg(feature = "wasm")] #[wasm_bindgen] pub fn check_code_num_nn(rule: u32, value: f64, p1: f64, p2: f64) -> bool { orchestrator::dispatch_by_code(rule, &FieldValue::Num(value), &[Param::Num(p1), Param::Num(p2)]) }
 #[cfg(feature = "wasm")] #[wasm_bindgen] pub fn check_code_bool(rule: u32, value: bool) -> bool { orchestrator::dispatch_by_code(rule, &FieldValue::Bool(value), &[]) }
+
+// ─── Cast functions — coerce values to primitives or throw ────────────────────
+//
+// Naming: cast_{target}_{source}  (omit source when it is a string)
+//   cast_bool(s)         — string  → bool
+//   cast_bool_num(n)     — f64     → bool
+//   cast_integer(s)      — string  → f64 (whole numbers only)
+//   cast_integer_num(n)  — f64     → f64 (validates finite + no fractional part)
+//   cast_num_bool(b)     — bool    → f64 (true=1, false=0; infallible)
+//   cast_float(s)        — string  → f64 (any finite)
+//   cast_float_num(n)    — f64     → f64 (validates finite)
+//   cast_str_num(n)      — f64     → String
+//   cast_str_bool(b)     — bool    → String ("true"/"false"; infallible)
+//   cast_date(s)         — string  → f64 (timestamp ms)
+//   cast_date_num(n)     — f64     → f64 (validates finite timestamp)
+//   cast_json(s)         — string  → () (validates JSON; caller does JSON.parse)
+//
+// TypeScript cast.ts is a thin typeof-dispatcher — zero validation logic in TS.
+
+// ── bool ──────────────────────────────────────────────────────────────────────
+
+#[cfg(feature = "wasm")] #[wasm_bindgen]
+pub fn cast_bool(value: &str) -> Result<bool, JsValue> {
+    match value.trim().to_lowercase().as_str() {
+        "true"  | "1" | "yes" | "on"  => Ok(true),
+        "false" | "0" | "no"  | "off" => Ok(false),
+        _ => Err(JsValue::from_str(&format!("Cannot convert {:?} to boolean", value))),
+    }
+}
+
+#[cfg(feature = "wasm")] #[wasm_bindgen]
+pub fn cast_bool_num(value: f64) -> Result<bool, JsValue> {
+    if value == 1.0 { Ok(true)  }
+    else if value == 0.0 { Ok(false) }
+    else { Err(JsValue::from_str(&format!("Cannot convert {} to boolean: only 0 and 1 are valid", value))) }
+}
+
+// ── integer ───────────────────────────────────────────────────────────────────
+
+#[cfg(feature = "wasm")] #[wasm_bindgen]
+pub fn cast_integer(value: &str) -> Result<f64, JsValue> {
+    let s = value.trim();
+    if s.is_empty() {
+        return Err(JsValue::from_str("Cannot convert empty string to integer"));
+    }
+    s.parse::<i64>()
+        .map(|n| n as f64)
+        .map_err(|_| JsValue::from_str(&format!("Cannot convert {:?} to integer", value)))
+}
+
+#[cfg(feature = "wasm")] #[wasm_bindgen]
+pub fn cast_integer_num(value: f64) -> Result<f64, JsValue> {
+    if !value.is_finite() {
+        return Err(JsValue::from_str(&format!("Cannot convert {} to integer", value)));
+    }
+    if value.fract() != 0.0 {
+        return Err(JsValue::from_str(&format!("Cannot convert {} to integer: has fractional part", value)));
+    }
+    Ok(value)
+}
+
+/// true → 1.0, false → 0.0. Infallible — used by both canBeInteger and canBeFloat.
+#[cfg(feature = "wasm")] #[wasm_bindgen]
+pub fn cast_num_bool(value: bool) -> f64 {
+    if value { 1.0 } else { 0.0 }
+}
+
+// ── float ─────────────────────────────────────────────────────────────────────
+
+#[cfg(feature = "wasm")] #[wasm_bindgen]
+pub fn cast_float(value: &str) -> Result<f64, JsValue> {
+    let s = value.trim();
+    if s.is_empty() {
+        return Err(JsValue::from_str("Cannot convert empty string to float"));
+    }
+    s.parse::<f64>()
+        .map_err(|_| JsValue::from_str(&format!("Cannot convert {:?} to float", value)))
+        .and_then(|n| if n.is_finite() {
+            Ok(n)
+        } else {
+            Err(JsValue::from_str(&format!("Cannot convert {:?} to float: not finite", value)))
+        })
+}
+
+#[cfg(feature = "wasm")] #[wasm_bindgen]
+pub fn cast_float_num(value: f64) -> Result<f64, JsValue> {
+    if value.is_finite() { Ok(value) }
+    else { Err(JsValue::from_str(&format!("Cannot convert {} to float", value))) }
+}
+
+// ── string ────────────────────────────────────────────────────────────────────
+
+#[cfg(feature = "wasm")] #[wasm_bindgen]
+pub fn cast_str_num(value: f64) -> Result<String, JsValue> {
+    if !value.is_finite() {
+        return Err(JsValue::from_str(&format!("Cannot convert {} to string", value)));
+    }
+    // -0.0 must become "0", matching JavaScript's String(-0) behaviour
+    if value == 0.0 { Ok("0".to_string()) } else { Ok(value.to_string()) }
+}
+
+/// true → "true", false → "false". Infallible.
+#[cfg(feature = "wasm")] #[wasm_bindgen]
+pub fn cast_str_bool(value: bool) -> String {
+    if value { "true".to_string() } else { "false".to_string() }
+}
+
+// ── date ──────────────────────────────────────────────────────────────────────
+
+/// Parse a date/datetime string and return Unix timestamp in milliseconds.
+/// Formats: YYYY-MM-DD, RFC 3339, ISO 8601 with timezone.
+/// TypeScript: new Date(cast_date(s))
+#[cfg(feature = "wasm")] #[wasm_bindgen]
+pub fn cast_date(value: &str) -> Result<f64, JsValue> {
+    use chrono::{NaiveDate, DateTime};
+    let s = value.trim();
+
+    if let Ok(d) = NaiveDate::parse_from_str(s, "%Y-%m-%d") {
+        if let Some(dt) = d.and_hms_opt(0, 0, 0) {
+            return Ok(dt.and_utc().timestamp_millis() as f64);
+        }
+    }
+    if let Ok(dt) = DateTime::parse_from_rfc3339(s) {
+        return Ok(dt.timestamp_millis() as f64);
+    }
+    if let Ok(dt) = DateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S%.f%z") {
+        return Ok(dt.timestamp_millis() as f64);
+    }
+    Err(JsValue::from_str(&format!("Cannot convert {:?} to date", value)))
+}
+
+/// Validate a Unix ms timestamp (f64). Passes it through if finite; throws for NaN/±Infinity.
+/// Also used for Date objects on the TS side: cast_date_num(date.getTime()).
+#[cfg(feature = "wasm")] #[wasm_bindgen]
+pub fn cast_date_num(value: f64) -> Result<f64, JsValue> {
+    if value.is_finite() { Ok(value) }
+    else { Err(JsValue::from_str(&format!("Cannot convert {} to date: invalid timestamp", value))) }
+}
+
+// ── json ──────────────────────────────────────────────────────────────────────
+
+/// Validate that a string is valid JSON. Throws if invalid; returns void on success.
+/// TypeScript: wrapWasm(() => cast_json(s)); return JSON.parse(s);
+#[cfg(feature = "wasm")] #[wasm_bindgen]
+pub fn cast_json(value: &str) -> Result<(), JsValue> {
+    serde_json::from_str::<serde_json::Value>(value)
+        .map(|_| ())
+        .map_err(|e| JsValue::from_str(&format!("Invalid JSON: {}", e)))
+}

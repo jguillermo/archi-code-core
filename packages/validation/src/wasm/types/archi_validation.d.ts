@@ -66,6 +66,21 @@ export function check_num_n(rule: string, value: number, p: number): boolean;
 export function check_num_nn(rule: string, value: number, p1: number, p2: number): boolean;
 export function check_bool(rule: string, value: boolean): boolean;
 
+// ─── Cast functions — naming: cast_{target}_{source} ─────────────────────────
+// TypeScript cast.ts is a thin typeof-dispatcher; all validation logic is here.
+export function cast_bool(value: string): boolean; // string  → bool
+export function cast_bool_num(value: number): boolean; // f64     → bool (only 0/1)
+export function cast_integer(value: string): number; // string  → integer
+export function cast_integer_num(value: number): number; // f64     → integer (finite, no frac)
+export function cast_num_bool(value: boolean): number; // bool    → 1/0 (infallible)
+export function cast_float(value: string): number; // string  → float
+export function cast_float_num(value: number): number; // f64     → float (finite only)
+export function cast_str_num(value: number): string; // f64     → string (finite only)
+export function cast_str_bool(value: boolean): string; // bool    → "true"/"false" (infallible)
+export function cast_date(value: string): number; // string  → timestamp ms
+export function cast_date_num(value: number): number; // f64 timestamp → validated f64
+export function cast_json(value: string): void; // validates JSON; caller does JSON.parse
+
 // ─── Direct checks — integer code API (fastest, no string alloc for rule) ─────
 export function check_code_str(rule: number, value: string): boolean;
 export function check_code_str_n(rule: number, value: string, p: number): boolean;
