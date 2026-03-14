@@ -52,15 +52,12 @@ pids
 *.seed
 *.pid.lock
 
-# Diagnostic reports (https://nodejs.org/api/report.html)
-report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+# Rust build artifacts
+/rust/target
 
-lerna-debug.log
-tsconfig.build.tsbuildinfo
+# Generated WASM packages (run `npm run build:wasm` to regenerate)
+/src/wasm/pkg-node/
+/src/wasm/pkg-bundler/
 
-temp_combined.txt
-.content_files
-api-doc.json
-project/api-sdk/
-project/fusedemo
-packages.tree.json
+# TypeScript incremental build cache
+*.tsbuildinfo
