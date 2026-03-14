@@ -3,8 +3,8 @@ import { validate } from '../validators/validate';
 
 type Rules = Parameters<typeof validate>[0]['fields'][0]['validations'];
 
-/** Run validations on a single value and return its error array. */
-export const check = (value: unknown, ...rules: Rules): string[] =>
+/** Run validations on a single value and return its failing rule codes. */
+export const check = (value: unknown, ...rules: Rules): number[] =>
   validate({ fields: [{ field: 'f', value, validations: rules }] }).errors['f'];
 
 /** Assert the value passes all given rules. */

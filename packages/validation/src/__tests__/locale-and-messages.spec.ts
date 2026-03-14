@@ -2,29 +2,41 @@ import { describe, expect, it } from '@jest/globals';
 import { validate } from '../validators/validate';
 import { check } from './helpers';
 
+// Rule codes — must match RC in validate.ts
+const C = {
+  isNotEmpty: 0,
+  isMinLength: 1,
+  isInRange: 21,
+  isEmail: 25,
+  isStartsWith: 12,
+} as const;
+
+// validate() returns numeric rule codes — locale does not affect the output.
+// Use validateJson() if you need locale-aware string messages.
+
 describe('locale', () => {
-  it('defaults to en when locale is omitted', () => {
+  it('returns failing rule code regardless of locale (en default)', () => {
     const errors = check('bad', 'isEmail');
-    expect(errors).toEqual(['must be a valid email address']);
+    expect(errors).toEqual([C.isEmail]);
   });
 
-  it('explicit en locale', () => {
+  it('explicit en locale — same code', () => {
     const r = validate({
       locale: 'en',
       fields: [{ field: 'f', value: 'bad', validations: ['isEmail'] }],
     });
-    expect(r.errors['f']).toEqual(['must be a valid email address']);
+    expect(r.errors['f']).toEqual([C.isEmail]);
   });
 
-  it('es locale', () => {
+  it('es locale — same code (locale does not affect codes)', () => {
     const r = validate({
       locale: 'es',
       fields: [{ field: 'f', value: 'bad', validations: ['isEmail'] }],
     });
-    expect(r.errors['f']).toEqual(['debe ser un correo electrónico válido']);
+    expect(r.errors['f']).toEqual([C.isEmail]);
   });
 
-  it('locale applies to all fields', () => {
+  it('locale applies to all fields — codes are consistent', () => {
     const r = validate({
       locale: 'es',
       fields: [
@@ -32,51 +44,51 @@ describe('locale', () => {
         { field: 'name', value: '', validations: ['isNotEmpty'] },
       ],
     });
-    expect(r.errors.email[0]).toContain('correo');
-    expect(r.errors.name[0]).toContain('vacío');
+    expect(r.errors.email).toEqual([C.isEmail]);
+    expect(r.errors.name).toEqual([C.isNotEmpty]);
   });
 });
 
-describe('param interpolation in messages', () => {
-  it('single param {0} — en', () => {
+describe('param rules return the correct code', () => {
+  it('isMinLength failure returns code 1', () => {
     const errors = check('ab', ['isMinLength', 10]);
-    expect(errors[0]).toBe('must be at least 10 characters long');
+    expect(errors).toEqual([C.isMinLength]);
   });
 
-  it('single param {0} — es', () => {
+  it('es locale isMinLength — same code', () => {
     const r = validate({
       locale: 'es',
       fields: [{ field: 'f', value: 'hi', validations: [['isMinLength', 5]] }],
     });
-    expect(r.errors['f'][0]).toBe('debe tener al menos 5 caracteres');
+    expect(r.errors['f']).toEqual([C.isMinLength]);
   });
 
-  it('two params {0} and {1} — en', () => {
+  it('isInRange failure returns code 21', () => {
     const errors = check(200, ['isInRange', 0, 100]);
-    expect(errors[0]).toBe('must be between 0 and 100');
+    expect(errors).toEqual([C.isInRange]);
   });
 
-  it('two params {0} and {1} — es', () => {
+  it('es locale isInRange — same code', () => {
     const r = validate({
       locale: 'es',
       fields: [{ field: 'f', value: 200, validations: [['isInRange', 0, 120]] }],
     });
-    expect(r.errors['f'][0]).toBe('debe estar entre 0 y 120');
+    expect(r.errors['f']).toEqual([C.isInRange]);
   });
 
-  it('string param appears in message', () => {
+  it('isStartsWith failure returns code 12', () => {
     const errors = check('hello world', ['isStartsWith', 'foo']);
-    expect(errors[0]).toContain('foo');
+    expect(errors).toEqual([C.isStartsWith]);
   });
 });
 
-describe('custom messages', () => {
-  it('overrides default en message', () => {
+describe('custom messages — ignored, code is returned', () => {
+  it('config rule with message returns the rule code', () => {
     const errors = check('bad', { rule: 'isEmail', message: 'Enter a valid email' });
-    expect(errors).toEqual(['Enter a valid email']);
+    expect(errors).toEqual([C.isEmail]);
   });
 
-  it('overrides es locale message', () => {
+  it('es locale + custom message — still returns code', () => {
     const r = validate({
       locale: 'es',
       fields: [
@@ -87,22 +99,22 @@ describe('custom messages', () => {
         },
       ],
     });
-    expect(r.errors['f']).toEqual(['Correo inválido']);
+    expect(r.errors['f']).toEqual([C.isEmail]);
   });
 
-  it('custom message is returned even when rule has params', () => {
+  it('custom message with params returns code', () => {
     const errors = check('hi', { rule: 'isMinLength', params: [10], message: 'Name too short' });
-    expect(errors).toEqual(['Name too short']);
+    expect(errors).toEqual([C.isMinLength]);
   });
 
-  it('custom message does not affect other fields', () => {
+  it('custom message on one field does not affect another', () => {
     const r = validate({
       fields: [
         { field: 'a', value: 'bad', validations: [{ rule: 'isEmail', message: 'Custom A' }] },
         { field: 'b', value: 'bad', validations: ['isEmail'] },
       ],
     });
-    expect(r.errors['a']).toEqual(['Custom A']);
-    expect(r.errors['b']).toEqual(['must be a valid email address']);
+    expect(r.errors['a']).toEqual([C.isEmail]);
+    expect(r.errors['b']).toEqual([C.isEmail]);
   });
 });

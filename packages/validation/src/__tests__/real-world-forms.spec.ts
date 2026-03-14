@@ -81,8 +81,8 @@ describe('real-world form validation', () => {
     });
   });
 
-  describe('Spanish locale form', () => {
-    it('returns Spanish error messages for all failing fields', () => {
+  describe('failing fields return rule codes', () => {
+    it('returns codes for all failing fields (locale does not affect codes)', () => {
       const r = validate({
         locale: 'es',
         fields: [
@@ -91,14 +91,14 @@ describe('real-world form validation', () => {
           { field: 'nombre', value: '', validations: ['isNotEmpty'] },
         ],
       });
-      expect(r.errors.email[0]).toContain('correo');
-      expect(r.errors.edad[0]).toContain('entre');
-      expect(r.errors.nombre[0]).toContain('vacío');
+      expect(r.errors.email).toEqual([25]); // isEmail
+      expect(r.errors.edad).toEqual([21]); // isInRange
+      expect(r.errors.nombre).toEqual([0]); // isNotEmpty
     });
   });
 
   describe('custom messages per field', () => {
-    it('each field uses its own custom message', () => {
+    it('custom messages are ignored — rule codes returned', () => {
       const r = validate({
         fields: [
           {
@@ -113,8 +113,8 @@ describe('real-world form validation', () => {
           },
         ],
       });
-      expect(r.errors.email).toEqual(['El email no es válido']);
-      expect(r.errors.name).toEqual(['El nombre es requerido']);
+      expect(r.errors.email).toEqual([25]); // isEmail
+      expect(r.errors.name).toEqual([0]); // isNotEmpty
     });
   });
 

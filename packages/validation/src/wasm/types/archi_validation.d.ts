@@ -1,18 +1,33 @@
 // Hand-written type declarations for the archi_validation WASM module.
 // Run `npm run build:wasm` to compile Rust to WebAssembly.
 
-/** Zero-serialization validator. Data crosses the JS↔WASM boundary as native typed values. */
 export class Validator {
   constructor();
   set_locale(locale: string): void;
 
-  // Add field — one method per value type
+  // Fast field methods — NO field name (it was unused by Rust anyway)
+  val_str(value: string): void;
+  val_num(value: number): void;
+  val_bool(value: boolean): void;
+  val_null(): void;
+
+  // Fast rule methods — integer code, zero string allocation per rule
+  chk(rule: number): void;
+  chk_n(rule: number, p: number): void;
+  chk_nn(rule: number, p1: number, p2: number): void;
+  chk_s(rule: number, p: string): void;
+  chk_msg(rule: number, msg: string): void;
+  chk_n_msg(rule: number, p: number, msg: string): void;
+  chk_nn_msg(rule: number, p1: number, p2: number, msg: string): void;
+  chk_s_msg(rule: number, p: string, msg: string): void;
+
+  // Legacy field methods (backward compat)
   str_field(field: string, value: string): void;
   num_field(field: string, value: number): void;
   bool_field(field: string, value: boolean): void;
   null_field(field: string): void;
 
-  // Add rule to the last added field
+  // Legacy rule methods (backward compat, string-name API)
   check(rule: string): void;
   check_n(rule: string, p: number): void;
   check_nn(rule: string, p1: number, p2: number): void;
@@ -22,7 +37,13 @@ export class Validator {
   check_nn_msg(rule: string, p1: number, p2: number, msg: string): void;
   check_s_msg(rule: string, p: string, msg: string): void;
 
-  // Run and read results — no JSON, no serialization
+  // Run — returns packed [ok, f0_count, f0_code0, ..., f1_count, f1_code0, …] in one crossing (zero string marshaling)
+  run_codes(): Uint8Array;
+
+  // Run — returns packed [ok_byte, err_count_0, err_count_1, …] in one crossing
+  run_flags(): Uint8Array;
+
+  // Legacy run + individual result accessors
   run(): boolean;
   field_ok(index: number): boolean;
   field_error_count(index: number): number;
@@ -32,29 +53,25 @@ export class Validator {
   free(): void;
 }
 
-// ─── JSON batch validation (2 boundary crossings for the entire batch) ────────
-
-/** Validate multiple fields from a JSON string. Parsing and validation run inside WASM.
- *  Input:  JSON string of ValidateInput  { locale?, fields: [...] }
- *  Output: JSON string of ValidateOutput { ok, errors }
- */
+// ─── JSON batch validation ────────────────────────────────────────────────────
 export function validate_json(input: string): string;
 
-// ─── Direct single-rule check functions (1 boundary crossing per check) ───────
-
-/** Check a string value against a rule with no params. */
+// ─── Direct checks — string API (1 crossing, marshals rule name string) ───────
 export function check_str(rule: string, value: string): boolean;
-/** Check a string value against a rule with one numeric param. */
 export function check_str_n(rule: string, value: string, p: number): boolean;
-/** Check a string value against a rule with two numeric params. */
 export function check_str_nn(rule: string, value: string, p1: number, p2: number): boolean;
-/** Check a string value against a rule with one string param. */
 export function check_str_s(rule: string, value: string, p: string): boolean;
-/** Check a numeric value against a rule with no params. */
 export function check_num(rule: string, value: number): boolean;
-/** Check a numeric value against a rule with one numeric param. */
 export function check_num_n(rule: string, value: number, p: number): boolean;
-/** Check a numeric value against a rule with two numeric params. */
 export function check_num_nn(rule: string, value: number, p1: number, p2: number): boolean;
-/** Check a boolean value against a rule. */
 export function check_bool(rule: string, value: boolean): boolean;
+
+// ─── Direct checks — integer code API (fastest, no string alloc for rule) ─────
+export function check_code_str(rule: number, value: string): boolean;
+export function check_code_str_n(rule: number, value: string, p: number): boolean;
+export function check_code_str_nn(rule: number, value: string, p1: number, p2: number): boolean;
+export function check_code_str_s(rule: number, value: string, p: string): boolean;
+export function check_code_num(rule: number, value: number): boolean;
+export function check_code_num_n(rule: number, value: number, p: number): boolean;
+export function check_code_num_nn(rule: number, value: number, p1: number, p2: number): boolean;
+export function check_code_bool(rule: number, value: boolean): boolean;

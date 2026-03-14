@@ -100,9 +100,9 @@ describe('isInRange', () => {
   it('invalid — string letters → 0.0 outside range [1,10]', () =>
     invalid('abc', ['isInRange', 1, 10]));
   it('invalid — null → 0.0 outside range [1,10]', () => invalid(null, ['isInRange', 1, 10]));
-  it('message contains both bounds', () => {
+  it('failure returns isInRange code (21)', () => {
     const errors = check(200, ['isInRange', 0, 100]);
-    expect(errors[0]).toBe('must be between 0 and 100');
+    expect(errors[0]).toBe(21);
   });
 });
 

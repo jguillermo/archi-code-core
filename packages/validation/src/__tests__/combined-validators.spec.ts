@@ -75,7 +75,7 @@ describe('combining multiple validators on one field', () => {
     it('only reports failing rules, not passing ones', () => {
       const errors = check('ab', 'isNotEmpty', ['isMinLength', 5], ['isMaxLength', 10]);
       expect(errors).toHaveLength(1);
-      expect(errors[0]).toContain('5');
+      expect(errors[0]).toBe(1); // isMinLength = code 1
     });
   });
 });

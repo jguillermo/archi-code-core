@@ -1,95 +1,90 @@
 import {
-  check_str,
-  check_str_n,
-  check_str_nn,
-  check_str_s,
-  check_num,
-  check_num_n,
-  check_num_nn,
-  check_bool,
+  check_code_str,
+  check_code_str_n,
+  check_code_str_nn,
+  check_code_str_s,
+  check_code_num,
+  check_code_num_n,
+  check_code_num_nn,
+  check_code_bool,
 } from '#wasm';
 
-// ─── Direct typed validators (1 WASM boundary crossing per call) ──────────────
+// ─── Direct typed validators — integer code API (fastest possible) ────────────
 //
-// Each function calls the WASM dispatcher directly — no Validator instance,
-// no accumulation loop, no run() call. Use these for single-field checks where
-// low overhead matters most.
+// Each function makes exactly 1 WASM call with an integer rule code.
+// No string is marshaled for the rule name — only the value crosses the boundary.
 
 // ── String ───────────────────────────────────────────────────────────────────
 
-export const isNotEmpty = (v: string): boolean => check_str('isNotEmpty', v);
-export const isMinLength = (v: string, min: number): boolean => check_str_n('isMinLength', v, min);
-export const isMaxLength = (v: string, max: number): boolean => check_str_n('isMaxLength', v, max);
-export const isExactLength = (v: string, len: number): boolean =>
-  check_str_n('isExactLength', v, len);
+export const isNotEmpty = (v: string): boolean => check_code_str(0, v);
+export const isMinLength = (v: string, min: number): boolean => check_code_str_n(1, v, min);
+export const isMaxLength = (v: string, max: number): boolean => check_code_str_n(2, v, max);
+export const isExactLength = (v: string, len: number): boolean => check_code_str_n(3, v, len);
 export const isLengthBetween = (v: string, min: number, max: number): boolean =>
-  check_str_nn('isLengthBetween', v, min, max);
-export const isAlpha = (v: string): boolean => check_str('isAlpha', v);
-export const isAlphanumeric = (v: string): boolean => check_str('isAlphanumeric', v);
-export const isNumeric = (v: string): boolean => check_str('isNumeric', v);
-export const isAscii = (v: string): boolean => check_str('isAscii', v);
-export const isLowercase = (v: string): boolean => check_str('isLowercase', v);
-export const isUppercase = (v: string): boolean => check_str('isUppercase', v);
-export const isContains = (v: string, sub: string): boolean => check_str_s('isContains', v, sub);
-export const isStartsWith = (v: string, prefix: string): boolean =>
-  check_str_s('isStartsWith', v, prefix);
-export const isEndsWith = (v: string, suffix: string): boolean =>
-  check_str_s('isEndsWith', v, suffix);
+  check_code_str_nn(4, v, min, max);
+export const isAlpha = (v: string): boolean => check_code_str(5, v);
+export const isAlphanumeric = (v: string): boolean => check_code_str(6, v);
+export const isNumeric = (v: string): boolean => check_code_str(7, v);
+export const isAscii = (v: string): boolean => check_code_str(8, v);
+export const isLowercase = (v: string): boolean => check_code_str(9, v);
+export const isUppercase = (v: string): boolean => check_code_str(10, v);
+export const isContains = (v: string, sub: string): boolean => check_code_str_s(11, v, sub);
+export const isStartsWith = (v: string, prefix: string): boolean => check_code_str_s(12, v, prefix);
+export const isEndsWith = (v: string, suffix: string): boolean => check_code_str_s(13, v, suffix);
 export const isMatchesRegex = (v: string, pattern: string): boolean =>
-  check_str_s('isMatchesRegex', v, pattern);
+  check_code_str_s(14, v, pattern);
 
 // ── Number ───────────────────────────────────────────────────────────────────
 
-export const isInteger = (v: number): boolean => check_num('isInteger', v);
-export const isPositiveInteger = (v: number): boolean => check_num('isPositiveInteger', v);
-export const isNegativeInteger = (v: number): boolean => check_num('isNegativeInteger', v);
-export const isFloat = (v: number): boolean => check_num('isFloat', v);
-export const isPositiveNumber = (v: number): boolean => check_num('isPositiveNumber', v);
-export const isNegativeNumber = (v: number): boolean => check_num('isNegativeNumber', v);
+export const isInteger = (v: number): boolean => check_code_num(15, v);
+export const isPositiveInteger = (v: number): boolean => check_code_num(16, v);
+export const isNegativeInteger = (v: number): boolean => check_code_num(17, v);
+export const isFloat = (v: number): boolean => check_code_num(18, v);
+export const isPositiveNumber = (v: number): boolean => check_code_num(19, v);
+export const isNegativeNumber = (v: number): boolean => check_code_num(20, v);
 export const isInRange = (v: number, min: number, max: number): boolean =>
-  check_num_nn('isInRange', v, min, max);
-export const isMinValue = (v: number, min: number): boolean => check_num_n('isMinValue', v, min);
-export const isMaxValue = (v: number, max: number): boolean => check_num_n('isMaxValue', v, max);
-export const isMultipleOf = (v: number, factor: number): boolean =>
-  check_num_n('isMultipleOf', v, factor);
+  check_code_num_nn(21, v, min, max);
+export const isMinValue = (v: number, min: number): boolean => check_code_num_n(22, v, min);
+export const isMaxValue = (v: number, max: number): boolean => check_code_num_n(23, v, max);
+export const isMultipleOf = (v: number, factor: number): boolean => check_code_num_n(24, v, factor);
 
 // ── Email ────────────────────────────────────────────────────────────────────
 
-export const isEmail = (v: string): boolean => check_str('isEmail', v);
+export const isEmail = (v: string): boolean => check_code_str(25, v);
 
 // ── UUID ─────────────────────────────────────────────────────────────────────
 
-export const isUuid = (v: string): boolean => check_str('isUuid', v);
-export const isUuidV4 = (v: string): boolean => check_str('isUuidV4', v);
-export const isUuidV7 = (v: string): boolean => check_str('isUuidV7', v);
+export const isUuid = (v: string): boolean => check_code_str(26, v);
+export const isUuidV4 = (v: string): boolean => check_code_str(27, v);
+export const isUuidV7 = (v: string): boolean => check_code_str(28, v);
 
 // ── URL ──────────────────────────────────────────────────────────────────────
 
-export const isUrl = (v: string): boolean => check_str('isUrl', v);
+export const isUrl = (v: string): boolean => check_code_str(29, v);
 export const isUrlWithScheme = (v: string, scheme: string): boolean =>
-  check_str_s('isUrlWithScheme', v, scheme);
+  check_code_str_s(30, v, scheme);
 
 // ── IP ───────────────────────────────────────────────────────────────────────
 
-export const isIp = (v: string): boolean => check_str('isIp', v);
-export const isIpv4 = (v: string): boolean => check_str('isIpv4', v);
-export const isIpv6 = (v: string): boolean => check_str('isIpv6', v);
+export const isIp = (v: string): boolean => check_code_str(31, v);
+export const isIpv4 = (v: string): boolean => check_code_str(32, v);
+export const isIpv6 = (v: string): boolean => check_code_str(33, v);
 
 // ── Date / Time ──────────────────────────────────────────────────────────────
 
-export const isDate = (v: string): boolean => check_str('isDate', v);
-export const isDatetime = (v: string): boolean => check_str('isDatetime', v);
-export const isTime = (v: string): boolean => check_str('isTime', v);
+export const isDate = (v: string): boolean => check_code_str(34, v);
+export const isDatetime = (v: string): boolean => check_code_str(35, v);
+export const isTime = (v: string): boolean => check_code_str(36, v);
 
 // ── Boolean ──────────────────────────────────────────────────────────────────
 
 export const isBooleanString = (v: string | boolean): boolean =>
-  typeof v === 'boolean' ? check_bool('isBooleanString', v) : check_str('isBooleanString', v);
+  typeof v === 'boolean' ? check_code_bool(37, v) : check_code_str(37, v);
 
 // ── Misc ─────────────────────────────────────────────────────────────────────
 
-export const isCreditCard = (v: string): boolean => check_str('isCreditCard', v);
-export const isJson = (v: string): boolean => check_str('isJson', v);
-export const isHexColor = (v: string): boolean => check_str('isHexColor', v);
-export const isBase64 = (v: string): boolean => check_str('isBase64', v);
-export const isSlug = (v: string): boolean => check_str('isSlug', v);
+export const isCreditCard = (v: string): boolean => check_code_str(38, v);
+export const isJson = (v: string): boolean => check_code_str(39, v);
+export const isHexColor = (v: string): boolean => check_code_str(40, v);
+export const isBase64 = (v: string): boolean => check_code_str(41, v);
+export const isSlug = (v: string): boolean => check_code_str(42, v);

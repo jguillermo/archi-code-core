@@ -1,7 +1,4 @@
 //! archi_validation — WebAssembly validation library
-//!
-//! Zero-serialization API: typed values and rules cross the boundary directly.
-//! No JSON.stringify, no JSON.parse, no string encoding.
 
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
@@ -21,7 +18,7 @@ pub fn init_panic_hook() {
     console_error_panic_hook::set_once();
 }
 
-// ─── Native value types — no serialization ───────────────────────────────────
+// ─── Native value types ───────────────────────────────────────────────────────
 
 pub enum FieldValue {
     Str(String),
@@ -36,10 +33,18 @@ pub enum Param {
 }
 
 // ─── Internal types ───────────────────────────────────────────────────────────
+//
+// RuleId stores either an integer code (fast path, zero string alloc) or a
+// legacy string name (backward-compat path for the old check* string API).
+
+enum RuleId {
+    Code(u32),
+    Str(String),
+}
 
 struct RuleEntry {
-    name: String,
-    params: Vec<Param>,
+    id:      RuleId,
+    params:  Vec<Param>,
     message: Option<String>,
 }
 
@@ -55,7 +60,7 @@ struct FieldEntry {
 pub struct Validator {
     fields: Vec<FieldEntry>,
     locale: String,
-    errors: Vec<Vec<String>>, // indexed parallel to fields, populated after run()
+    errors: Vec<Vec<String>>,
 }
 
 #[cfg(feature = "wasm")]
@@ -70,94 +75,135 @@ impl Validator {
         self.locale = locale.to_string();
     }
 
-    // ── Add field (one method per value type — no encoding) ──────────────────
+    // ── Fast field methods — NO field name param (it was discarded anyway) ────
+    //
+    // Eliminates 1 string marshal per field vs the old str_field/num_field API.
 
-    pub fn str_field(&mut self, _field: &str, value: &str) {
+    /// Add a string field without crossing the boundary for the field name.
+    pub fn val_str(&mut self, value: &str) {
         self.fields.push(FieldEntry { value: FieldValue::Str(value.to_string()), rules: vec![] });
     }
 
-    pub fn num_field(&mut self, _field: &str, value: f64) {
+    /// Add a numeric field.
+    pub fn val_num(&mut self, value: f64) {
         self.fields.push(FieldEntry { value: FieldValue::Num(value), rules: vec![] });
     }
 
-    pub fn bool_field(&mut self, _field: &str, value: bool) {
+    /// Add a boolean field.
+    pub fn val_bool(&mut self, value: bool) {
         self.fields.push(FieldEntry { value: FieldValue::Bool(value), rules: vec![] });
     }
 
-    pub fn null_field(&mut self, _field: &str) {
+    /// Add a null field.
+    pub fn val_null(&mut self) {
         self.fields.push(FieldEntry { value: FieldValue::Null, rules: vec![] });
     }
 
-    // ── Add rule to last field (one method per param signature) ──────────────
+    // ── Fast rule methods — integer code, zero string allocation ─────────────
+    //
+    // Rule names like "isEmail" (7 bytes) cost: malloc + UTF-8 copy + free.
+    // Integer codes cost: nothing (passed as f64, fits in a register).
 
-    /// Rule with no params: `check("isEmail")`
-    pub fn check(&mut self, rule: &str) {
-        self.add_rule(rule, vec![], None);
-    }
+    pub fn chk(&mut self, rule: u32) { self.push_code(rule, vec![], None); }
+    pub fn chk_n(&mut self, rule: u32, p: f64) { self.push_code(rule, vec![Param::Num(p)], None); }
+    pub fn chk_nn(&mut self, rule: u32, p1: f64, p2: f64) { self.push_code(rule, vec![Param::Num(p1), Param::Num(p2)], None); }
+    pub fn chk_s(&mut self, rule: u32, p: &str) { self.push_code(rule, vec![Param::Str(p.to_string())], None); }
+    pub fn chk_msg(&mut self, rule: u32, msg: &str) { self.push_code(rule, vec![], Some(msg.to_string())); }
+    pub fn chk_n_msg(&mut self, rule: u32, p: f64, msg: &str) { self.push_code(rule, vec![Param::Num(p)], Some(msg.to_string())); }
+    pub fn chk_nn_msg(&mut self, rule: u32, p1: f64, p2: f64, msg: &str) { self.push_code(rule, vec![Param::Num(p1), Param::Num(p2)], Some(msg.to_string())); }
+    pub fn chk_s_msg(&mut self, rule: u32, p: &str, msg: &str) { self.push_code(rule, vec![Param::Str(p.to_string())], Some(msg.to_string())); }
 
-    /// Rule with one number param: `check_n("isMinLength", 5.0)`
-    pub fn check_n(&mut self, rule: &str, p: f64) {
-        self.add_rule(rule, vec![Param::Num(p)], None);
-    }
+    // ── Legacy field methods (backward compat) ────────────────────────────────
 
-    /// Rule with two number params: `check_nn("isInRange", 0.0, 100.0)`
-    pub fn check_nn(&mut self, rule: &str, p1: f64, p2: f64) {
-        self.add_rule(rule, vec![Param::Num(p1), Param::Num(p2)], None);
-    }
+    pub fn str_field(&mut self, _field: &str, value: &str) { self.val_str(value); }
+    pub fn num_field(&mut self, _field: &str, value: f64)  { self.val_num(value); }
+    pub fn bool_field(&mut self, _field: &str, value: bool){ self.val_bool(value); }
+    pub fn null_field(&mut self, _field: &str)             { self.val_null(); }
 
-    /// Rule with one string param: `check_s("isContains", "hello")`
-    pub fn check_s(&mut self, rule: &str, p: &str) {
-        self.add_rule(rule, vec![Param::Str(p.to_string())], None);
-    }
+    // ── Legacy rule methods (backward compat, string-name API) ───────────────
 
-    /// Rule with no params and custom message
-    pub fn check_msg(&mut self, rule: &str, msg: &str) {
-        self.add_rule(rule, vec![], Some(msg.to_string()));
-    }
-
-    /// Rule with one number param and custom message
-    pub fn check_n_msg(&mut self, rule: &str, p: f64, msg: &str) {
-        self.add_rule(rule, vec![Param::Num(p)], Some(msg.to_string()));
-    }
-
-    /// Rule with two number params and custom message
-    pub fn check_nn_msg(&mut self, rule: &str, p1: f64, p2: f64, msg: &str) {
-        self.add_rule(rule, vec![Param::Num(p1), Param::Num(p2)], Some(msg.to_string()));
-    }
-
-    /// Rule with one string param and custom message
-    pub fn check_s_msg(&mut self, rule: &str, p: &str, msg: &str) {
-        self.add_rule(rule, vec![Param::Str(p.to_string())], Some(msg.to_string()));
-    }
+    pub fn check(&mut self, rule: &str)                                    { self.push_str(rule, vec![], None); }
+    pub fn check_n(&mut self, rule: &str, p: f64)                          { self.push_str(rule, vec![Param::Num(p)], None); }
+    pub fn check_nn(&mut self, rule: &str, p1: f64, p2: f64)               { self.push_str(rule, vec![Param::Num(p1), Param::Num(p2)], None); }
+    pub fn check_s(&mut self, rule: &str, p: &str)                         { self.push_str(rule, vec![Param::Str(p.to_string())], None); }
+    pub fn check_msg(&mut self, rule: &str, msg: &str)                     { self.push_str(rule, vec![], Some(msg.to_string())); }
+    pub fn check_n_msg(&mut self, rule: &str, p: f64, msg: &str)           { self.push_str(rule, vec![Param::Num(p)], Some(msg.to_string())); }
+    pub fn check_nn_msg(&mut self, rule: &str, p1: f64, p2: f64, msg: &str){ self.push_str(rule, vec![Param::Num(p1), Param::Num(p2)], Some(msg.to_string())); }
+    pub fn check_s_msg(&mut self, rule: &str, p: &str, msg: &str)          { self.push_str(rule, vec![Param::Str(p.to_string())], Some(msg.to_string())); }
 
     // ── Run & results ─────────────────────────────────────────────────────────
 
     /// Run all validations. Returns true if every field passed.
     pub fn run(&mut self) -> bool {
-        self.errors = self.fields.iter().map(|f| {
+        self.execute();
+        self.errors.iter().all(|e| e.is_empty())
+    }
+
+    /// Run validations and return all failing rule codes in a single boundary crossing.
+    ///
+    /// Format: `[ok_byte, f0_count, f0_code0, f0_code1, …, f1_count, f1_code0, …]`
+    ///
+    /// - `ok_byte` = 1 if all passed, 0 if any failed
+    /// - `fi_count` = number of failing rules for field i
+    /// - `fi_codeN` = u8 rule code of the N-th failing rule for field i (0–42; 255 = unknown)
+    ///
+    /// Zero string marshaling: no error messages are generated or crossed.
+    /// Replaces `run_flags()` + N calls to `field_error_at()`.
+    pub fn run_codes(&mut self) -> Vec<u8> {
+        let codes: Vec<Vec<u8>> = self.fields.iter().map(|f| {
             f.rules.iter().filter_map(|r| {
-                if orchestrator::dispatch_validator(&r.name, &f.value, &r.params) {
-                    None
-                } else {
-                    Some(messages::get_message(&r.name, &r.params, &self.locale, r.message.as_deref()))
+                let passed = match &r.id {
+                    RuleId::Code(c) => orchestrator::dispatch_by_code(*c, &f.value, &r.params),
+                    RuleId::Str(s)  => orchestrator::dispatch_validator(s, &f.value, &r.params),
+                };
+                if passed { None } else {
+                    Some(match &r.id {
+                        RuleId::Code(c) => *c as u8,
+                        RuleId::Str(s)  => orchestrator::name_to_code(s),
+                    })
                 }
             }).collect()
         }).collect();
 
-        self.errors.iter().all(|e| e.is_empty())
+        let ok = codes.iter().all(|c| c.is_empty());
+        let total: usize = codes.iter().map(|c| c.len()).sum();
+        let mut buf = Vec::with_capacity(1 + codes.len() + total);
+        buf.push(ok as u8);
+        for field_codes in &codes {
+            buf.push(field_codes.len().min(255) as u8);
+            buf.extend_from_slice(field_codes);
+        }
+        buf
     }
 
-    /// Returns true if the field has no errors. Call after run().
+    /// Run validations and return a packed result in a single boundary crossing.
+    ///
+    /// Format: `[ok_byte, err_count_field_0, err_count_field_1, …]`
+    ///
+    /// - `ok_byte` = 1 if all passed, 0 if any failed
+    /// - `err_count_i` = number of errors for field i (capped at 255)
+    ///
+    /// For the happy path (all fields pass), this avoids N separate
+    /// `field_error_count()` calls — 1 crossing instead of N.
+    pub fn run_flags(&mut self) -> Vec<u8> {
+        self.execute();
+        let ok = self.errors.iter().all(|e| e.is_empty());
+        let mut buf = Vec::with_capacity(1 + self.errors.len());
+        buf.push(ok as u8);
+        for errors in &self.errors {
+            buf.push(errors.len().min(255) as u8);
+        }
+        buf
+    }
+
     pub fn field_ok(&self, index: usize) -> bool {
         self.errors.get(index).map(|e| e.is_empty()).unwrap_or(true)
     }
 
-    /// Returns the number of errors for a field. Call after run().
     pub fn field_error_count(&self, index: usize) -> usize {
         self.errors.get(index).map(|e| e.len()).unwrap_or(0)
     }
 
-    /// Returns a single error message by field index and error index. Call after run().
     pub fn field_error_at(&self, field_index: usize, error_index: usize) -> String {
         self.errors
             .get(field_index)
@@ -166,7 +212,7 @@ impl Validator {
             .unwrap_or_default()
     }
 
-    /// Remove all fields and results to reuse this instance.
+    /// Clear all fields and results to reuse this instance (avoids constructor/destructor).
     pub fn reset(&mut self) {
         self.fields.clear();
         self.errors.clear();
@@ -175,20 +221,41 @@ impl Validator {
 
 #[cfg(feature = "wasm")]
 impl Validator {
-    fn add_rule(&mut self, name: &str, params: Vec<Param>, message: Option<String>) {
+    /// Execute all validations and populate self.errors.
+    fn execute(&mut self) {
+        self.errors = self.fields.iter().map(|f| {
+            f.rules.iter().filter_map(|r| {
+                let passed = match &r.id {
+                    RuleId::Code(c) => orchestrator::dispatch_by_code(*c, &f.value, &r.params),
+                    RuleId::Str(s)  => orchestrator::dispatch_validator(s, &f.value, &r.params),
+                };
+                if passed {
+                    None
+                } else {
+                    let name: &str = match &r.id {
+                        RuleId::Code(c) => orchestrator::code_to_name(*c),
+                        RuleId::Str(s)  => s.as_str(),
+                    };
+                    Some(messages::get_message(name, &r.params, &self.locale, r.message.as_deref()))
+                }
+            }).collect()
+        }).collect();
+    }
+
+    fn push_code(&mut self, code: u32, params: Vec<Param>, message: Option<String>) {
         if let Some(field) = self.fields.last_mut() {
-            field.rules.push(RuleEntry { name: name.to_string(), params, message });
+            field.rules.push(RuleEntry { id: RuleId::Code(code), params, message });
+        }
+    }
+
+    fn push_str(&mut self, name: &str, params: Vec<Param>, message: Option<String>) {
+        if let Some(field) = self.fields.last_mut() {
+            field.rules.push(RuleEntry { id: RuleId::Str(name.to_string()), params, message });
         }
     }
 }
 
 // ─── JSON batch validation (2 boundary crossings for the entire batch) ────────
-//
-// Input:  JSON string matching ValidateInput  { locale?, fields: [...] }
-// Output: JSON string matching ValidateOutput { ok, errors }
-//
-// All parsing, validation, and serialization happens inside WASM — the only
-// JS↔WASM boundary crossings are the input string and the output string.
 
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]
@@ -253,8 +320,8 @@ fn json_to_field_value(v: &serde_json::Value) -> FieldValue {
     match v {
         serde_json::Value::String(s) => FieldValue::Str(s.clone()),
         serde_json::Value::Number(n) => FieldValue::Num(n.as_f64().unwrap_or(0.0)),
-        serde_json::Value::Bool(b) => FieldValue::Bool(*b),
-        _ => FieldValue::Null,
+        serde_json::Value::Bool(b)   => FieldValue::Bool(*b),
+        _                            => FieldValue::Null,
     }
 }
 
@@ -264,7 +331,7 @@ fn json_to_params(arr: &[serde_json::Value]) -> Vec<Param> {
         .map(|p| match p {
             serde_json::Value::Number(n) => Param::Num(n.as_f64().unwrap_or(0.0)),
             serde_json::Value::String(s) => Param::Str(s.clone()),
-            _ => Param::Str(String::new()),
+            _                            => Param::Str(String::new()),
         })
         .collect()
 }
@@ -274,17 +341,13 @@ fn parse_json_rule(v: &serde_json::Value) -> (String, Vec<Param>, Option<String>
     match v {
         serde_json::Value::String(s) => (s.clone(), vec![], None),
         serde_json::Value::Array(arr) => {
-            let name = arr.first().and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let name   = arr.first().and_then(|v| v.as_str()).unwrap_or("").to_string();
             let params = if arr.len() > 1 { json_to_params(&arr[1..]) } else { vec![] };
             (name, params, None)
         }
         serde_json::Value::Object(obj) => {
-            let name = obj.get("rule").and_then(|v| v.as_str()).unwrap_or("").to_string();
-            let params = obj
-                .get("params")
-                .and_then(|v| v.as_array())
-                .map(|arr| json_to_params(arr))
-                .unwrap_or_default();
+            let name    = obj.get("rule").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let params  = obj.get("params").and_then(|v| v.as_array()).map(|a| json_to_params(a)).unwrap_or_default();
             let message = obj.get("message").and_then(|v| v.as_str()).map(|s| s.to_string());
             (name, params, message)
         }
@@ -292,63 +355,26 @@ fn parse_json_rule(v: &serde_json::Value) -> (String, Vec<Param>, Option<String>
     }
 }
 
-// ─── Direct single-rule check functions (1 boundary crossing per check) ───────
+// ─── Direct single-rule checks — string API (1 boundary crossing per check) ───
+
+#[cfg(feature = "wasm")] #[wasm_bindgen] pub fn check_str(rule: &str, value: &str) -> bool { orchestrator::dispatch_validator(rule, &FieldValue::Str(value.to_string()), &[]) }
+#[cfg(feature = "wasm")] #[wasm_bindgen] pub fn check_str_n(rule: &str, value: &str, p: f64) -> bool { orchestrator::dispatch_validator(rule, &FieldValue::Str(value.to_string()), &[Param::Num(p)]) }
+#[cfg(feature = "wasm")] #[wasm_bindgen] pub fn check_str_nn(rule: &str, value: &str, p1: f64, p2: f64) -> bool { orchestrator::dispatch_validator(rule, &FieldValue::Str(value.to_string()), &[Param::Num(p1), Param::Num(p2)]) }
+#[cfg(feature = "wasm")] #[wasm_bindgen] pub fn check_str_s(rule: &str, value: &str, p: &str) -> bool { orchestrator::dispatch_validator(rule, &FieldValue::Str(value.to_string()), &[Param::Str(p.to_string())]) }
+#[cfg(feature = "wasm")] #[wasm_bindgen] pub fn check_num(rule: &str, value: f64) -> bool { orchestrator::dispatch_validator(rule, &FieldValue::Num(value), &[]) }
+#[cfg(feature = "wasm")] #[wasm_bindgen] pub fn check_num_n(rule: &str, value: f64, p: f64) -> bool { orchestrator::dispatch_validator(rule, &FieldValue::Num(value), &[Param::Num(p)]) }
+#[cfg(feature = "wasm")] #[wasm_bindgen] pub fn check_num_nn(rule: &str, value: f64, p1: f64, p2: f64) -> bool { orchestrator::dispatch_validator(rule, &FieldValue::Num(value), &[Param::Num(p1), Param::Num(p2)]) }
+#[cfg(feature = "wasm")] #[wasm_bindgen] pub fn check_bool(rule: &str, value: bool) -> bool { orchestrator::dispatch_validator(rule, &FieldValue::Bool(value), &[]) }
+
+// ─── Direct single-rule checks — integer code API (fastest, no string alloc) ──
 //
-// Use these when you need to validate a single value against a single rule.
-// Much faster than creating a Validator instance for one-off checks.
+// Eliminates rule name string marshaling. Use these for hot paths.
 
-/// Check a string value against a rule with no params.
-#[cfg(feature = "wasm")]
-#[wasm_bindgen]
-pub fn check_str(rule: &str, value: &str) -> bool {
-    orchestrator::dispatch_validator(rule, &FieldValue::Str(value.to_string()), &[])
-}
-
-/// Check a string value against a rule with one numeric param.
-#[cfg(feature = "wasm")]
-#[wasm_bindgen]
-pub fn check_str_n(rule: &str, value: &str, p: f64) -> bool {
-    orchestrator::dispatch_validator(rule, &FieldValue::Str(value.to_string()), &[Param::Num(p)])
-}
-
-/// Check a string value against a rule with two numeric params.
-#[cfg(feature = "wasm")]
-#[wasm_bindgen]
-pub fn check_str_nn(rule: &str, value: &str, p1: f64, p2: f64) -> bool {
-    orchestrator::dispatch_validator(rule, &FieldValue::Str(value.to_string()), &[Param::Num(p1), Param::Num(p2)])
-}
-
-/// Check a string value against a rule with one string param.
-#[cfg(feature = "wasm")]
-#[wasm_bindgen]
-pub fn check_str_s(rule: &str, value: &str, p: &str) -> bool {
-    orchestrator::dispatch_validator(rule, &FieldValue::Str(value.to_string()), &[Param::Str(p.to_string())])
-}
-
-/// Check a numeric value against a rule with no params.
-#[cfg(feature = "wasm")]
-#[wasm_bindgen]
-pub fn check_num(rule: &str, value: f64) -> bool {
-    orchestrator::dispatch_validator(rule, &FieldValue::Num(value), &[])
-}
-
-/// Check a numeric value against a rule with one numeric param.
-#[cfg(feature = "wasm")]
-#[wasm_bindgen]
-pub fn check_num_n(rule: &str, value: f64, p: f64) -> bool {
-    orchestrator::dispatch_validator(rule, &FieldValue::Num(value), &[Param::Num(p)])
-}
-
-/// Check a numeric value against a rule with two numeric params.
-#[cfg(feature = "wasm")]
-#[wasm_bindgen]
-pub fn check_num_nn(rule: &str, value: f64, p1: f64, p2: f64) -> bool {
-    orchestrator::dispatch_validator(rule, &FieldValue::Num(value), &[Param::Num(p1), Param::Num(p2)])
-}
-
-/// Check a boolean value against a rule (e.g. isBooleanString).
-#[cfg(feature = "wasm")]
-#[wasm_bindgen]
-pub fn check_bool(rule: &str, value: bool) -> bool {
-    orchestrator::dispatch_validator(rule, &FieldValue::Bool(value), &[])
-}
+#[cfg(feature = "wasm")] #[wasm_bindgen] pub fn check_code_str(rule: u32, value: &str) -> bool { orchestrator::dispatch_by_code(rule, &FieldValue::Str(value.to_string()), &[]) }
+#[cfg(feature = "wasm")] #[wasm_bindgen] pub fn check_code_str_n(rule: u32, value: &str, p: f64) -> bool { orchestrator::dispatch_by_code(rule, &FieldValue::Str(value.to_string()), &[Param::Num(p)]) }
+#[cfg(feature = "wasm")] #[wasm_bindgen] pub fn check_code_str_nn(rule: u32, value: &str, p1: f64, p2: f64) -> bool { orchestrator::dispatch_by_code(rule, &FieldValue::Str(value.to_string()), &[Param::Num(p1), Param::Num(p2)]) }
+#[cfg(feature = "wasm")] #[wasm_bindgen] pub fn check_code_str_s(rule: u32, value: &str, p: &str) -> bool { orchestrator::dispatch_by_code(rule, &FieldValue::Str(value.to_string()), &[Param::Str(p.to_string())]) }
+#[cfg(feature = "wasm")] #[wasm_bindgen] pub fn check_code_num(rule: u32, value: f64) -> bool { orchestrator::dispatch_by_code(rule, &FieldValue::Num(value), &[]) }
+#[cfg(feature = "wasm")] #[wasm_bindgen] pub fn check_code_num_n(rule: u32, value: f64, p: f64) -> bool { orchestrator::dispatch_by_code(rule, &FieldValue::Num(value), &[Param::Num(p)]) }
+#[cfg(feature = "wasm")] #[wasm_bindgen] pub fn check_code_num_nn(rule: u32, value: f64, p1: f64, p2: f64) -> bool { orchestrator::dispatch_by_code(rule, &FieldValue::Num(value), &[Param::Num(p1), Param::Num(p2)]) }
+#[cfg(feature = "wasm")] #[wasm_bindgen] pub fn check_code_bool(rule: u32, value: bool) -> bool { orchestrator::dispatch_by_code(rule, &FieldValue::Bool(value), &[]) }

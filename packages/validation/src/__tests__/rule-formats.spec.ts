@@ -19,26 +19,27 @@ describe('rule formats', () => {
     it('passes with rule + params', () => valid('hello', { rule: 'isMinLength', params: [3] }));
     it('fails with rule + params', () => invalid('hi', { rule: 'isMinLength', params: [3] }));
 
-    it('custom message overrides default error text', () => {
+    it('custom message ignored — returns rule code 25 (isEmail)', () => {
       const errors = check('bad', { rule: 'isEmail', message: 'Custom error' });
-      expect(errors).toEqual(['Custom error']);
+      expect(errors).toEqual([25]);
     });
 
-    it('custom message with params', () => {
+    it('custom message with params — returns rule code 1 (isMinLength)', () => {
       const errors = check('hi', { rule: 'isMinLength', params: [5], message: 'Too short' });
-      expect(errors).toEqual(['Too short']);
+      expect(errors).toEqual([1]);
     });
   });
 
   describe('three formats mixed on same field', () => {
-    it('each format runs independently', () => {
+    it('each format runs independently — returns failing codes', () => {
       const errors = check('AB', 'isNotEmpty', ['isMinLength', 5], {
         rule: 'isLowercase',
         message: 'must be lower',
       });
-      expect(errors).toContain('must be at least 5 characters long');
-      expect(errors).toContain('must be lower');
-      expect(errors).not.toContain('must not be empty');
+      // isMinLength=1, isLowercase=9; isNotEmpty=0 should NOT appear
+      expect(errors).toContain(1);
+      expect(errors).toContain(9);
+      expect(errors).not.toContain(0);
     });
 
     it('stops reporting only the rules that fail', () => {
