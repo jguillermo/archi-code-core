@@ -6,8 +6,26 @@
 // Requires: npm run build:wasm  (WASM must be compiled first)
 //
 // Compares:
-//   1. Rust/WASM  — pooled Validator with integer-code API (run_codes)
-//   2. class-validator — npm library functional validators
+//   1. Rust/WASM (flat)  — single binary crossing via run_flat()
+//   2. class-validator   — npm library functional validators
+//
+// Key idea behind "flat":
+//   Encodes the entire scenario to a binary buffer (once, outside the hot loop),
+//   then each iteration is just: run_flat(buf) — 1 crossing for the whole batch.
+//
+// Binary format for run_flat (little-endian):
+//   [num_fields: u16]
+//   For each field:
+//     [type: u8]   0=null 1=bool_false 2=bool_true 3=num 4=str
+//     if type==3:  [f64: 8 bytes]
+//     if type==4:  [len: u16][utf8 bytes...]
+//     [num_rules: u8]
+//     For each rule:
+//       [code: u8]
+//       [param_type: u8]  0=none  1=one_f64  2=two_f64  3=one_str
+//       if param_type==1: [p0: f64, 8 bytes]
+//       if param_type==2: [p0: f64][p1: f64, 8 bytes each]
+//       if param_type==3: [len: u16][utf8 bytes...]
 //
 // Scenarios:
 //   A. simple form          — 3 fields, 6 rules
@@ -17,14 +35,14 @@
 //   E. array of objects     — 5 user records, 3 fields each (35 rules)
 //   F. nested object        — user + address + preferences (10 fields, 22 rules)
 //   G. advanced validators  — credit card, base64, hex color, UUID v4 (10 fields)
-//   H. array of objects     — 10 items, all invalid (worst case arrays)
+//   H. invalid array        — 5 user records, all invalid (worst case arrays)
 // =============================================================================
 'use strict';
 
 const wasm = require('./src/wasm/pkg-node/archi_validation.js');
 const cv = require('class-validator');
 
-const { Validator } = wasm;
+const { run_flat } = wasm;
 
 // ── Rule codes (must match orchestrator.rs) ───────────────────────────────────
 
@@ -38,38 +56,77 @@ const RC = {
   isCreditCard: 38, isHexColor: 40, isBase64: 41, isSlug: 42,
 };
 
-// ── WASM: pooled Validator with integer-code API ───────────────────────────────
+// ── WASM flat: single binary crossing via run_flat() ─────────────────────────
+//   Encode the scenario once to a Buffer (outside the hot loop), then each
+//   iteration is just:  run_flat(preEncodedBuf) — 1 crossing, no string alloc.
 
-let _pool = null;
-function getPool() {
-  if (!_pool) _pool = new Validator();
-  return _pool;
-}
-
-function runWasm(fields) {
-  const v = getPool();
-  v.reset();
+function encodeScenario(fields) {
+  // ── Pass 1: calculate buffer size ─────────────────────────────────────────
+  let size = 2; // num_fields u16
   for (const { value, validations } of fields) {
-    if (typeof value === 'string')       v.val_str(value);
-    else if (typeof value === 'number')  v.val_num(value);
-    else if (typeof value === 'boolean') v.val_bool(value);
-    else                                 v.val_null();
+    size += 1; // type byte
+    if (typeof value === 'number') size += 8;
+    else if (typeof value === 'string') {
+      size += 2 + Buffer.byteLength(value, 'utf8');
+    }
+    // bool/null/object/array: only the type byte
+    size += 1; // num_rules
     for (const rule of validations) {
-      const [name, p0, p1] = Array.isArray(rule) ? rule : [rule];
-      const code = RC[name];
-      if (p1 !== undefined) v.chk_nn(code, p0, p1);
-      else if (p0 !== undefined) v.chk_n(code, p0);
-      else v.chk(code);
+      const [, p0, p1] = Array.isArray(rule) ? rule : [rule];
+      size += 2; // code + param_type
+      if (p1 !== undefined)       size += 16;
+      else if (p0 !== undefined)  size += 8;
     }
   }
-  const codes = v.run_codes();
-  return codes[0] === 1;
+
+  // ── Pass 2: write buffer ──────────────────────────────────────────────────
+  const buf = Buffer.allocUnsafe(size);
+  let pos = 0;
+
+  buf.writeUInt16LE(fields.length, pos); pos += 2;
+
+  for (const { value, validations } of fields) {
+    if (value === null || value === undefined || typeof value === 'object') {
+      buf[pos++] = 0;
+    } else if (typeof value === 'boolean') {
+      buf[pos++] = value ? 2 : 1;
+    } else if (typeof value === 'number') {
+      buf[pos++] = 3;
+      buf.writeDoubleLE(value, pos); pos += 8;
+    } else {
+      buf[pos++] = 4;
+      const written = buf.write(String(value), pos + 2, 'utf8');
+      buf.writeUInt16LE(written, pos); pos += 2 + written;
+    }
+
+    buf[pos++] = validations.length;
+    for (const rule of validations) {
+      const [name, p0, p1] = Array.isArray(rule) ? rule : [rule];
+      buf[pos++] = RC[name];
+      if (p1 !== undefined) {
+        buf[pos++] = 2;
+        buf.writeDoubleLE(p0, pos); pos += 8;
+        buf.writeDoubleLE(p1, pos); pos += 8;
+      } else if (p0 !== undefined) {
+        buf[pos++] = 1;
+        buf.writeDoubleLE(p0, pos); pos += 8;
+      } else {
+        buf[pos++] = 0;
+      }
+    }
+  }
+
+  return buf;
+}
+
+function runWasmFlat(encoded) {
+  return run_flat(encoded) === 1;
 }
 
 // ── class-validator: functional validators ────────────────────────────────────
 
-const SLUG_RE  = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const NUM_RE   = /^\d+$/;
+const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const NUM_RE  = /^\d+$/;
 
 function runClassValidator(fields) {
   let ok = true;
@@ -113,18 +170,14 @@ function runClassValidator(fields) {
 
 // ── Scenario data ─────────────────────────────────────────────────────────────
 
-// D — 10 email strings each validated with isNotEmpty + isEmail (20 rules)
 const EMAIL_ARRAY = [
   'alice@example.com', 'bob@company.org', 'charlie@test.net',
   'diana@domain.co', 'eve@mail.io', 'frank@web.dev',
   'grace@portal.com', 'henry@service.org', 'iris@cloud.net', 'jack@api.io',
 ].map((email, i) => ({
-  field: `emails[${i}]`,
-  value: email,
-  validations: ['isNotEmpty', 'isEmail'],
+  field: `emails[${i}]`, value: email, validations: ['isNotEmpty', 'isEmail'],
 }));
 
-// E — 5 user objects × (username:4 + email:2 + age:1) = 35 rules
 const USER_RECORDS = [
   { username: 'alice99',  email: 'alice@example.com',  age: 28 },
   { username: 'bob2025',  email: 'bob@company.org',    age: 35 },
@@ -137,21 +190,19 @@ const USER_RECORDS = [
   { field: `users[${i}].age`,      value: age,      validations: [['isInRange', 18, 120]] },
 ]);
 
-// F — user + address + preferences (10 fields, 22 rules)
 const NESTED_OBJECT = [
-  { field: 'user.name',         value: 'John Doe',           validations: ['isNotEmpty', ['isMinLength', 2], ['isMaxLength', 100]] },
-  { field: 'user.email',        value: 'john@example.com',   validations: ['isNotEmpty', 'isEmail'] },
-  { field: 'user.website',      value: 'https://john.dev',   validations: ['isNotEmpty', 'isUrl'] },
-  { field: 'user.dob',          value: '1990-05-15',         validations: ['isDate'] },
-  { field: 'address.street',    value: '123 Main Street',    validations: ['isNotEmpty', ['isMinLength', 5], ['isMaxLength', 200]] },
-  { field: 'address.city',      value: 'Springfield',        validations: ['isNotEmpty', ['isMinLength', 2], 'isAlpha'] },
-  { field: 'address.zip',       value: '12345',              validations: ['isNotEmpty', 'isNumeric', ['isExactLength', 5]] },
-  { field: 'address.country',   value: 'US',                 validations: ['isNotEmpty', 'isAlpha', ['isExactLength', 2], 'isUppercase'] },
-  { field: 'prefs.theme',       value: 'dark',               validations: ['isNotEmpty', 'isAlpha', 'isLowercase'] },
-  { field: 'prefs.locale',      value: 'en',                 validations: ['isNotEmpty', 'isAlpha', ['isExactLength', 2], 'isLowercase'] },
+  { field: 'user.name',       value: 'John Doe',          validations: ['isNotEmpty', ['isMinLength', 2], ['isMaxLength', 100]] },
+  { field: 'user.email',      value: 'john@example.com',  validations: ['isNotEmpty', 'isEmail'] },
+  { field: 'user.website',    value: 'https://john.dev',  validations: ['isNotEmpty', 'isUrl'] },
+  { field: 'user.dob',        value: '1990-05-15',        validations: ['isDate'] },
+  { field: 'addr.street',     value: '123 Main Street',   validations: ['isNotEmpty', ['isMinLength', 5], ['isMaxLength', 200]] },
+  { field: 'addr.city',       value: 'Springfield',       validations: ['isNotEmpty', ['isMinLength', 2], 'isAlpha'] },
+  { field: 'addr.zip',        value: '12345',             validations: ['isNotEmpty', 'isNumeric', ['isExactLength', 5]] },
+  { field: 'addr.country',    value: 'US',                validations: ['isNotEmpty', 'isAlpha', ['isExactLength', 2], 'isUppercase'] },
+  { field: 'prefs.theme',     value: 'dark',              validations: ['isNotEmpty', 'isAlpha', 'isLowercase'] },
+  { field: 'prefs.locale',    value: 'en',                validations: ['isNotEmpty', 'isAlpha', ['isExactLength', 2], 'isLowercase'] },
 ];
 
-// G — advanced/format validators (10 fields, 16 rules)
 const ADVANCED_VALIDATORS = [
   { field: 'id',         value: '550e8400-e29b-41d4-a716-446655440000', validations: ['isUuid'] },
   { field: 'session_id', value: 'f47ac10b-58cc-4372-a567-0e02b2c3d479', validations: ['isUuidV4'] },
@@ -165,7 +216,6 @@ const ADVANCED_VALIDATORS = [
   { field: 'api_key',    value: 'a1B2c3D4e5F6',                        validations: ['isNotEmpty', 'isAscii', ['isMinLength', 8], ['isMaxLength', 64]] },
 ];
 
-// H — 10 user objects all invalid (worst case arrays: 35 rules, all failing)
 const INVALID_USERS = [
   { username: '',      email: 'not-email',  age: -5  },
   { username: 'ab',    email: 'bad@',       age: 200 },
@@ -181,7 +231,7 @@ const INVALID_USERS = [
 // ── Scenarios registry ────────────────────────────────────────────────────────
 
 const SCENARIOS = {
-  'A — simple form         (3f, 6r)':  [
+  'A — simple form         (3f,  6r)': [
     { field: 'name',  value: 'John',             validations: ['isNotEmpty', ['isMinLength', 2], ['isMaxLength', 50], 'isAlpha'] },
     { field: 'email', value: 'john@example.com', validations: ['isEmail'] },
     { field: 'age',   value: 25,                 validations: [['isInRange', 0, 120]] },
@@ -196,18 +246,25 @@ const SCENARIOS = {
     { field: 'score',    value: 87,                                     validations: [['isInRange', 0, 100]] },
     { field: 'slug',     value: 'my-article-slug',                      validations: ['isSlug'] },
   ],
-  'C — all failing         (4f, 9r)':  [
+  'C — all failing         (4f,  9r)': [
     { field: 'email',  value: 'not-an-email', validations: ['isEmail', 'isNotEmpty', ['isMinLength', 100]] },
     { field: 'uuid',   value: 'not-a-uuid',   validations: ['isUuid'] },
     { field: 'number', value: 999,            validations: [['isInRange', 0, 10], ['isMaxLength', 5]] },
     { field: 'text',   value: '',             validations: ['isNotEmpty', ['isMinLength', 5], 'isAlpha'] },
   ],
-  'D — array of strings    (10f, 20r)': EMAIL_ARRAY,
-  'E — array of objects    (15f, 35r)': USER_RECORDS,
-  'F — nested object       (10f, 22r)': NESTED_OBJECT,
-  'G — advanced validators (10f, 16r)': ADVANCED_VALIDATORS,
-  'H — invalid array       (15f, 35r)': INVALID_USERS,
+  'D — array of strings   (10f, 20r)': EMAIL_ARRAY,
+  'E — array of objects   (15f, 35r)': USER_RECORDS,
+  'F — nested object      (10f, 22r)': NESTED_OBJECT,
+  'G — advanced validators(10f, 16r)': ADVANCED_VALIDATORS,
+  'H — invalid array      (15f, 35r)': INVALID_USERS,
 };
+
+// ── Pre-encode all scenarios outside the hot loop ─────────────────────────────
+//   Each encoded buffer is built once and reused every iteration.
+
+const ENCODED = Object.fromEntries(
+  Object.entries(SCENARIOS).map(([name, fields]) => [name, encodeScenario(fields)])
+);
 
 // ── Benchmark runner ──────────────────────────────────────────────────────────
 
@@ -228,36 +285,47 @@ function bench(fn) {
 
 // ── Run ───────────────────────────────────────────────────────────────────────
 
-const LINE = '═'.repeat(72);
-const SEP  = '─'.repeat(72);
+const LINE = '═'.repeat(76);
+const SEP  = '─'.repeat(76);
 
 console.log(`\n${LINE}`);
 console.log(`  Validation Benchmark — ${ITERATIONS.toLocaleString()} iterations per scenario`);
-console.log(`  Rust/WASM  vs  class-validator (npm)`);
+console.log(`  Rust/WASM (flat binary)  vs  class-validator`);
 console.log(`${LINE}\n`);
 
 const allResults = {};
 
 for (const [name, fields] of Object.entries(SCENARIOS)) {
-  const rWasm = bench(() => runWasm(fields));
-  const rCv   = bench(() => runClassValidator(fields));
+  const encoded = ENCODED[name];
 
-  allResults[name] = { wasm: rWasm, cv: rCv };
+  const rFlat  = bench(() => runWasmFlat(encoded));
+  const rCv    = bench(() => runClassValidator(fields));
 
-  const wasmWins = rWasm.opsPerSec >= rCv.opsPerSec;
-  const ratio = wasmWins
-    ? (rWasm.opsPerSec / rCv.opsPerSec).toFixed(2)
-    : (rCv.opsPerSec / rWasm.opsPerSec).toFixed(2);
-  const winner = wasmWins ? 'Rust/WASM' : 'class-validator';
+  allResults[name] = { flat: rFlat, cv: rCv };
 
-  console.log(`  Scenario: ${name}`);
+  const best = rFlat.opsPerSec >= rCv.opsPerSec ? rFlat : rCv;
+  const winner = best === rFlat ? 'WASM flat' : 'class-validator';
+
+  const ratio = rFlat.opsPerSec >= rCv.opsPerSec
+    ? `flat ${(rFlat.opsPerSec / rCv.opsPerSec).toFixed(2)}x faster than cv`
+    : `cv   ${(rCv.opsPerSec / rFlat.opsPerSec).toFixed(2)}x faster than flat`;
+
+  const bufSize = encoded.length;
+
+  console.log(`  Scenario: ${name}  [flat buf: ${bufSize}B]`);
   console.log(`  ${SEP}`);
-  console.log(`  ${'implementation'.padEnd(22)} │ ${'ops/sec'.padStart(12)} │ ${'ns/op'.padStart(8)} │ ${'total'.padStart(9)}`);
+  console.log(`  ${'implementation'.padEnd(26)} │ ${'ops/sec'.padStart(11)} │ ${'ns/op'.padStart(8)} │ ${'total'.padStart(9)}`);
   console.log(`  ${SEP}`);
-  console.log(`  ${'Rust/WASM'.padEnd(22)} │ ${String(rWasm.opsPerSec).padStart(12)} │ ${String(rWasm.nsPerOp).padStart(8)} │ ${String(rWasm.ms).padStart(7)} ms${wasmWins ? '  ◀ winner' : ''}`);
-  console.log(`  ${'class-validator'.padEnd(22)} │ ${String(rCv.opsPerSec).padStart(12)} │ ${String(rCv.nsPerOp).padStart(8)} │ ${String(rCv.ms).padStart(7)} ms${!wasmWins ? '  ◀ winner' : ''}`);
+  const rows = [
+    ['WASM (flat binary)', rFlat],
+    ['class-validator', rCv],
+  ];
+  for (const [label, r] of rows) {
+    const mark = r === best ? '  ◀ winner' : '';
+    console.log(`  ${label.padEnd(26)} │ ${String(r.opsPerSec).padStart(11)} │ ${String(r.nsPerOp).padStart(8)} │ ${String(r.ms).padStart(7)} ms${mark}`);
+  }
   console.log(`  ${SEP}`);
-  console.log(`  ${winner} is ${ratio}x faster\n`);
+  console.log(`  ${ratio}\n`);
 }
 
 // ── Summary ───────────────────────────────────────────────────────────────────
@@ -266,25 +334,42 @@ console.log(`${LINE}`);
 console.log(`  SUMMARY — average across all scenarios`);
 console.log(`${LINE}`);
 
-let totalWasm = 0, totalCv = 0, wasmWins = 0;
-for (const { wasm, cv } of Object.values(allResults)) {
-  totalWasm += wasm.opsPerSec;
-  totalCv   += cv.opsPerSec;
-  if (wasm.opsPerSec >= cv.opsPerSec) wasmWins++;
+let totFlat = 0, totCv = 0;
+let flatWins = 0, cvWins = 0;
+
+for (const { flat, cv } of Object.values(allResults)) {
+  totFlat  += flat.opsPerSec;
+  totCv    += cv.opsPerSec;
+  if (flat.opsPerSec >= cv.opsPerSec) flatWins++;
+  else cvWins++;
 }
 
 const n = Object.keys(allResults).length;
-const avgWasm = Math.round(totalWasm / n);
-const avgCv   = Math.round(totalCv / n);
-const avgWasmFaster = avgWasm >= avgCv;
-const avgRatio = avgWasmFaster
-  ? (avgWasm / avgCv).toFixed(2)
-  : (avgCv / avgWasm).toFixed(2);
+const avgFlat  = Math.round(totFlat  / n);
+const avgCv    = Math.round(totCv    / n);
+
+const nsFlat  = Math.round(1e9 / avgFlat);
+const nsCv    = Math.round(1e9 / avgCv);
+
+const sorted = [
+  ['WASM (flat binary)', avgFlat, nsFlat],
+  ['class-validator', avgCv, nsCv],
+].sort((a, b) => b[1] - a[1]);
 
 console.log();
-console.log(`  ${'Rust/WASM'.padEnd(22)} avg ${String(avgWasm).padStart(12)} ops/s  ${String(Math.round(1e9 / avgWasm)).padStart(6)} ns/op${avgWasmFaster ? '  ◀ faster' : ''}`);
-console.log(`  ${'class-validator'.padEnd(22)} avg ${String(avgCv).padStart(12)} ops/s  ${String(Math.round(1e9 / avgCv)).padStart(6)} ns/op${!avgWasmFaster ? '  ◀ faster' : ''}`);
+for (let i = 0; i < sorted.length; i++) {
+  const [label, ops, ns] = sorted[i];
+  const mark = i === 0 ? '  ◀ fastest' : '';
+  console.log(`  ${(i + 1) + '. ' + label.padEnd(24)} avg ${String(ops).padStart(11)} ops/s  ${String(ns).padStart(6)} ns/op${mark}`);
+}
+
+const flatVsCvRatio = avgFlat >= avgCv
+  ? `WASM flat is ${(avgFlat / avgCv).toFixed(2)}x faster than class-validator`
+  : `class-validator is ${(avgCv / avgFlat).toFixed(2)}x faster than WASM flat`;
+
 console.log();
-console.log(`  Rust/WASM wins: ${wasmWins}/${n} scenarios`);
-console.log(`  Overall: ${avgWasmFaster ? 'Rust/WASM' : 'class-validator'} is ${avgRatio}x faster on average`);
+console.log(`  WASM flat wins:       ${flatWins}/${n} scenarios`);
+console.log(`  class-validator wins: ${cvWins}/${n} scenarios`);
+console.log();
+console.log(`  Overall: ${flatVsCvRatio}`);
 console.log(`\n${LINE}\n`);
