@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "rootDir": "./src",
+    "paths": {
+      "#wasm": ["./src/wasm/types/archi_validation"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["../../node_modules", "node_modules", "dist", "coverage"]
+}
