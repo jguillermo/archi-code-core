@@ -3,29 +3,11 @@
 // benchmark.js — Validation performance comparison
 //
 // Run:     npm run benchmark
-// Requires: npm run build:wasm  (WASM must be compiled first)
+// Requires: npm run build  (package must be compiled first)
 //
 // Compares:
-//   1. Rust/WASM (flat)  — single binary crossing via run_flat()
-//   2. class-validator   — npm library functional validators
-//
-// Key idea behind "flat":
-//   Encodes the entire scenario to a binary buffer (once, outside the hot loop),
-//   then each iteration is just: run_flat(buf) — 1 crossing for the whole batch.
-//
-// Binary format for run_flat (little-endian):
-//   [num_fields: u16]
-//   For each field:
-//     [type: u8]   0=null 1=bool_false 2=bool_true 3=num 4=str
-//     if type==3:  [f64: 8 bytes]
-//     if type==4:  [len: u16][utf8 bytes...]
-//     [num_rules: u8]
-//     For each rule:
-//       [code: u8]
-//       [param_type: u8]  0=none  1=one_f64  2=two_f64  3=one_str
-//       if param_type==1: [p0: f64, 8 bytes]
-//       if param_type==2: [p0: f64][p1: f64, 8 bytes each]
-//       if param_type==3: [len: u16][utf8 bytes...]
+//   1. @archi-code/validation — Rust/WASM via validate()
+//   2. class-validator        — npm library functional validators
 //
 // Scenarios:
 //   A. simple form          — 3 fields, 6 rules
@@ -39,88 +21,13 @@
 // =============================================================================
 'use strict';
 
-const wasm = require('./src/wasm/pkg-node/archi_validation.js');
+const { validate } = require('./dist/cjs/index.js');
 const cv = require('class-validator');
 
-const { run_flat } = wasm;
+// ── @archi-code/validation ────────────────────────────────────────────────────
 
-// ── Rule codes (must match orchestrator.rs) ───────────────────────────────────
-
-const RC = {
-  isNotEmpty: 0, isMinLength: 1, isMaxLength: 2, isExactLength: 3,
-  isAlpha: 5, isAlphanumeric: 6, isNumeric: 7, isAscii: 8,
-  isLowercase: 9, isUppercase: 10,
-  isInRange: 21, isMinValue: 22, isMaxValue: 23,
-  isEmail: 25, isUuid: 26, isUuidV4: 27,
-  isUrl: 29, isIpv4: 32, isDate: 34, isDatetime: 35,
-  isCreditCard: 38, isHexColor: 40, isBase64: 41, isSlug: 42,
-};
-
-// ── WASM flat: single binary crossing via run_flat() ─────────────────────────
-//   Encode the scenario once to a Buffer (outside the hot loop), then each
-//   iteration is just:  run_flat(preEncodedBuf) — 1 crossing, no string alloc.
-
-function encodeScenario(fields) {
-  // ── Pass 1: calculate buffer size ─────────────────────────────────────────
-  let size = 2; // num_fields u16
-  for (const { value, validations } of fields) {
-    size += 1; // type byte
-    if (typeof value === 'number') size += 8;
-    else if (typeof value === 'string') {
-      size += 2 + Buffer.byteLength(value, 'utf8');
-    }
-    // bool/null/object/array: only the type byte
-    size += 1; // num_rules
-    for (const rule of validations) {
-      const [, p0, p1] = Array.isArray(rule) ? rule : [rule];
-      size += 2; // code + param_type
-      if (p1 !== undefined)       size += 16;
-      else if (p0 !== undefined)  size += 8;
-    }
-  }
-
-  // ── Pass 2: write buffer ──────────────────────────────────────────────────
-  const buf = Buffer.allocUnsafe(size);
-  let pos = 0;
-
-  buf.writeUInt16LE(fields.length, pos); pos += 2;
-
-  for (const { value, validations } of fields) {
-    if (value === null || value === undefined || typeof value === 'object') {
-      buf[pos++] = 0;
-    } else if (typeof value === 'boolean') {
-      buf[pos++] = value ? 2 : 1;
-    } else if (typeof value === 'number') {
-      buf[pos++] = 3;
-      buf.writeDoubleLE(value, pos); pos += 8;
-    } else {
-      buf[pos++] = 4;
-      const written = buf.write(String(value), pos + 2, 'utf8');
-      buf.writeUInt16LE(written, pos); pos += 2 + written;
-    }
-
-    buf[pos++] = validations.length;
-    for (const rule of validations) {
-      const [name, p0, p1] = Array.isArray(rule) ? rule : [rule];
-      buf[pos++] = RC[name];
-      if (p1 !== undefined) {
-        buf[pos++] = 2;
-        buf.writeDoubleLE(p0, pos); pos += 8;
-        buf.writeDoubleLE(p1, pos); pos += 8;
-      } else if (p0 !== undefined) {
-        buf[pos++] = 1;
-        buf.writeDoubleLE(p0, pos); pos += 8;
-      } else {
-        buf[pos++] = 0;
-      }
-    }
-  }
-
-  return buf;
-}
-
-function runWasmFlat(encoded) {
-  return run_flat(encoded) === 1;
+function runWasm(fields) {
+  return validate({ fields }).ok;
 }
 
 // ── class-validator: functional validators ────────────────────────────────────
@@ -259,13 +166,6 @@ const SCENARIOS = {
   'H — invalid array      (15f, 35r)': INVALID_USERS,
 };
 
-// ── Pre-encode all scenarios outside the hot loop ─────────────────────────────
-//   Each encoded buffer is built once and reused every iteration.
-
-const ENCODED = Object.fromEntries(
-  Object.entries(SCENARIOS).map(([name, fields]) => [name, encodeScenario(fields)])
-);
-
 // ── Benchmark runner ──────────────────────────────────────────────────────────
 
 const ITERATIONS = 100_000;
@@ -290,34 +190,29 @@ const SEP  = '─'.repeat(76);
 
 console.log(`\n${LINE}`);
 console.log(`  Validation Benchmark — ${ITERATIONS.toLocaleString()} iterations per scenario`);
-console.log(`  Rust/WASM (flat binary)  vs  class-validator`);
+console.log(`  @archi-code/validation (WASM)  vs  class-validator`);
 console.log(`${LINE}\n`);
 
 const allResults = {};
 
 for (const [name, fields] of Object.entries(SCENARIOS)) {
-  const encoded = ENCODED[name];
-
-  const rFlat  = bench(() => runWasmFlat(encoded));
+  const rWasm  = bench(() => runWasm(fields));
   const rCv    = bench(() => runClassValidator(fields));
 
-  allResults[name] = { flat: rFlat, cv: rCv };
+  allResults[name] = { wasm: rWasm, cv: rCv };
 
-  const best = rFlat.opsPerSec >= rCv.opsPerSec ? rFlat : rCv;
-  const winner = best === rFlat ? 'WASM flat' : 'class-validator';
+  const best = rWasm.opsPerSec >= rCv.opsPerSec ? rWasm : rCv;
 
-  const ratio = rFlat.opsPerSec >= rCv.opsPerSec
-    ? `flat ${(rFlat.opsPerSec / rCv.opsPerSec).toFixed(2)}x faster than cv`
-    : `cv   ${(rCv.opsPerSec / rFlat.opsPerSec).toFixed(2)}x faster than flat`;
+  const ratio = rWasm.opsPerSec >= rCv.opsPerSec
+    ? `wasm ${(rWasm.opsPerSec / rCv.opsPerSec).toFixed(2)}x faster than cv`
+    : `cv   ${(rCv.opsPerSec / rWasm.opsPerSec).toFixed(2)}x faster than wasm`;
 
-  const bufSize = encoded.length;
-
-  console.log(`  Scenario: ${name}  [flat buf: ${bufSize}B]`);
+  console.log(`  Scenario: ${name}`);
   console.log(`  ${SEP}`);
   console.log(`  ${'implementation'.padEnd(26)} │ ${'ops/sec'.padStart(11)} │ ${'ns/op'.padStart(8)} │ ${'total'.padStart(9)}`);
   console.log(`  ${SEP}`);
   const rows = [
-    ['WASM (flat binary)', rFlat],
+    ['@archi-code/validation', rWasm],
     ['class-validator', rCv],
   ];
   for (const [label, r] of rows) {
@@ -334,25 +229,25 @@ console.log(`${LINE}`);
 console.log(`  SUMMARY — average across all scenarios`);
 console.log(`${LINE}`);
 
-let totFlat = 0, totCv = 0;
-let flatWins = 0, cvWins = 0;
+let totWasm = 0, totCv = 0;
+let wasmWins = 0, cvWins = 0;
 
-for (const { flat, cv } of Object.values(allResults)) {
-  totFlat  += flat.opsPerSec;
+for (const { wasm, cv } of Object.values(allResults)) {
+  totWasm  += wasm.opsPerSec;
   totCv    += cv.opsPerSec;
-  if (flat.opsPerSec >= cv.opsPerSec) flatWins++;
+  if (wasm.opsPerSec >= cv.opsPerSec) wasmWins++;
   else cvWins++;
 }
 
 const n = Object.keys(allResults).length;
-const avgFlat  = Math.round(totFlat  / n);
+const avgWasm  = Math.round(totWasm  / n);
 const avgCv    = Math.round(totCv    / n);
 
-const nsFlat  = Math.round(1e9 / avgFlat);
+const nsWasm  = Math.round(1e9 / avgWasm);
 const nsCv    = Math.round(1e9 / avgCv);
 
 const sorted = [
-  ['WASM (flat binary)', avgFlat, nsFlat],
+  ['@archi-code/validation', avgWasm, nsWasm],
   ['class-validator', avgCv, nsCv],
 ].sort((a, b) => b[1] - a[1]);
 
@@ -363,13 +258,13 @@ for (let i = 0; i < sorted.length; i++) {
   console.log(`  ${(i + 1) + '. ' + label.padEnd(24)} avg ${String(ops).padStart(11)} ops/s  ${String(ns).padStart(6)} ns/op${mark}`);
 }
 
-const flatVsCvRatio = avgFlat >= avgCv
-  ? `WASM flat is ${(avgFlat / avgCv).toFixed(2)}x faster than class-validator`
-  : `class-validator is ${(avgCv / avgFlat).toFixed(2)}x faster than WASM flat`;
+const wasmVsCvRatio = avgWasm >= avgCv
+  ? `@archi-code/validation is ${(avgWasm / avgCv).toFixed(2)}x faster than class-validator`
+  : `class-validator is ${(avgCv / avgWasm).toFixed(2)}x faster than @archi-code/validation`;
 
 console.log();
-console.log(`  WASM flat wins:       ${flatWins}/${n} scenarios`);
-console.log(`  class-validator wins: ${cvWins}/${n} scenarios`);
+console.log(`  @archi-code/validation wins: ${wasmWins}/${n} scenarios`);
+console.log(`  class-validator wins:        ${cvWins}/${n} scenarios`);
 console.log();
-console.log(`  Overall: ${flatVsCvRatio}`);
+console.log(`  Overall: ${wasmVsCvRatio}`);
 console.log(`\n${LINE}\n`);
