@@ -2,118 +2,51 @@
 // =============================================================================
 // benchmark.js — Validation performance comparison
 //
-// Run: npm run benchmark
-// Requires: npm run build:wasm
+// Run:     npm run benchmark
+// Requires: npm run build:wasm  (WASM must be compiled first)
 //
-// Compares WASM strategies against pure JS:
-//   1. validate_json     — JSON string in/out, all work in WASM (2 boundary crossings)
-//   2. Validator (str)   — old string-name API, many crossings
-//   3. Validator (codes) — NEW: integer codes + val_* + run_codes() — pool, zero string output
-//   4. direct (str)      — old string rule name per call
-//   5. direct (codes)    — NEW: integer code per call, no rule string
-//   6. pure JS           — regex/native baseline
+// Compares:
+//   1. Rust/WASM  — pooled Validator with integer-code API (run_codes)
+//   2. class-validator — npm library functional validators
+//
+// Scenarios:
+//   A. simple form          — 3 fields, 6 rules
+//   B. complex form         — 8 fields, 14 rules
+//   C. all failing          — 4 fields, 9 rules (worst case: all invalid)
+//   D. array of strings     — 10 emails (20 rules)
+//   E. array of objects     — 5 user records, 3 fields each (35 rules)
+//   F. nested object        — user + address + preferences (10 fields, 22 rules)
+//   G. advanced validators  — credit card, base64, hex color, UUID v4 (10 fields)
+//   H. array of objects     — 10 items, all invalid (worst case arrays)
 // =============================================================================
 'use strict';
 
 const wasm = require('./src/wasm/pkg-node/archi_validation.js');
-const {
-  Validator,
-  validate_json,
-  // string API
-  check_str, check_str_n, check_str_nn, check_num, check_num_nn,
-  // integer code API
-  check_code_str, check_code_str_n, check_code_str_nn, check_code_num, check_code_num_nn,
-} = wasm;
+const cv = require('class-validator');
 
-// Rule codes (must match orchestrator.rs)
+const { Validator } = wasm;
+
+// ── Rule codes (must match orchestrator.rs) ───────────────────────────────────
+
 const RC = {
-  isNotEmpty:0, isMinLength:1, isMaxLength:2, isAlpha:5, isAlphanumeric:6,
-  isEmail:25, isUuid:26, isUrl:29, isIpv4:32, isDate:34, isInRange:21, isSlug:42,
+  isNotEmpty: 0, isMinLength: 1, isMaxLength: 2, isExactLength: 3,
+  isAlpha: 5, isAlphanumeric: 6, isNumeric: 7, isAscii: 8,
+  isLowercase: 9, isUppercase: 10,
+  isInRange: 21, isMinValue: 22, isMaxValue: 23,
+  isEmail: 25, isUuid: 26, isUuidV4: 27,
+  isUrl: 29, isIpv4: 32, isDate: 34, isDatetime: 35,
+  isCreditCard: 38, isHexColor: 40, isBase64: 41, isSlug: 42,
 };
 
-// ─── Pure JS validators ──────────────────────────────────────────────────────
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const UUID_RE  = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const URL_RE   = /^https?:\/\/[^\s/$.?#].[^\s]*$/i;
-const IPV4_RE  = /^(\d{1,3}\.){3}\d{1,3}$/;
-const DATE_RE  = /^\d{4}-\d{2}-\d{2}$/;
-const SLUG_RE  = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-
-const jsValidators = {
-  isNotEmpty:    (v) => typeof v === 'string' && v.trim().length > 0,
-  isMinLength:   (v, min) => typeof v === 'string' && v.length >= min,
-  isMaxLength:   (v, max) => typeof v === 'string' && v.length <= max,
-  isAlpha:       (v) => typeof v === 'string' && /^[a-zA-Z]+$/.test(v),
-  isAlphanumeric:(v) => typeof v === 'string' && /^[a-zA-Z0-9]+$/.test(v),
-  isEmail:       (v) => typeof v === 'string' && EMAIL_RE.test(v),
-  isUuid:        (v) => typeof v === 'string' && UUID_RE.test(v),
-  isUrl:         (v) => typeof v === 'string' && URL_RE.test(v),
-  isIpv4:        (v) => typeof v === 'string' && IPV4_RE.test(v) && v.split('.').every(n => +n <= 255),
-  isDate:        (v) => typeof v === 'string' && DATE_RE.test(v) && !isNaN(Date.parse(v)),
-  isInteger:     (v) => Number.isInteger(Number(v)),
-  isInRange:     (v, min, max) => { const n = Number(v); return n >= min && n <= max; },
-  isSlug:        (v) => typeof v === 'string' && SLUG_RE.test(v),
-};
-
-function runJs(fields) {
-  const errors = {};
-  let ok = true;
-  for (const { field, value, validations } of fields) {
-    const fieldErrors = [];
-    for (const rule of validations) {
-      const [name, ...params] = Array.isArray(rule) ? rule : [rule];
-      const fn = jsValidators[name];
-      if (fn && !fn(value, ...params)) fieldErrors.push(`${name} failed`);
-    }
-    errors[field] = fieldErrors;
-    if (fieldErrors.length > 0) ok = false;
-  }
-  return { ok, errors };
-}
-
-// ─── WASM: Validator (old string API) ────────────────────────────────────────
-
-function runValidatorStr(fields) {
-  const v = new Validator();
-  for (const { field, value, validations } of fields) {
-    if (typeof value === 'string')       v.str_field(field, value);
-    else if (typeof value === 'number')  v.num_field(field, value);
-    else if (typeof value === 'boolean') v.bool_field(field, value);
-    else                                 v.null_field(field);
-    for (const rule of validations) {
-      let name, p0, p1;
-      if (typeof rule === 'string')  { name = rule; }
-      else if (Array.isArray(rule))  { [name, p0, p1] = rule; }
-      else                           { name = rule.rule; [p0, p1] = rule.params ?? []; }
-      if (p1 !== undefined && typeof p0 === 'number' && typeof p1 === 'number') v.check_nn(name, p0, p1);
-      else if (p0 !== undefined && typeof p0 === 'number')                      v.check_n(name, p0);
-      else if (p0 !== undefined)                                                v.check_s(name, String(p0));
-      else                                                                      v.check(name);
-    }
-  }
-  const ok = v.run();
-  const errors = {};
-  for (let i = 0; i < fields.length; i++) {
-    const n = v.field_error_count(i);
-    errors[fields[i].field] = n === 0 ? [] : Array.from({ length: n }, (_, j) => v.field_error_at(i, j));
-  }
-  v.free();
-  return { ok, errors };
-}
-
-// ─── WASM: Validator (new integer-code API + pool + run_codes) ────────────────
-//
-// Optimizations vs the string API:
-//   - Pooled instance (no constructor/destructor overhead)
-//   - val_str/num/bool/null (no field name string marshal)
-//   - chk/chk_n/chk_nn (integer codes, no rule name string marshal)
-//   - run_codes() (1 crossing for all results — zero string marshaling for errors)
+// ── WASM: pooled Validator with integer-code API ───────────────────────────────
 
 let _pool = null;
-function getPool() { if (!_pool) _pool = new Validator(); return _pool; }
+function getPool() {
+  if (!_pool) _pool = new Validator();
+  return _pool;
+}
 
-function runValidatorCodes(fields, scenario_rc) {
+function runWasm(fields) {
   const v = getPool();
   v.reset();
   for (const { value, validations } of fields) {
@@ -122,241 +55,236 @@ function runValidatorCodes(fields, scenario_rc) {
     else if (typeof value === 'boolean') v.val_bool(value);
     else                                 v.val_null();
     for (const rule of validations) {
-      let code, p0, p1;
-      if (typeof rule === 'string')  { code = RC[rule]; }
-      else if (Array.isArray(rule))  { code = RC[rule[0]]; p0 = rule[1]; p1 = rule[2]; }
-      else                           { code = RC[rule.rule]; [p0, p1] = rule.params ?? []; }
-      if (p1 !== undefined && typeof p0 === 'number' && typeof p1 === 'number') v.chk_nn(code, p0, p1);
-      else if (p0 !== undefined && typeof p0 === 'number')                      v.chk_n(code, p0);
-      else if (p0 !== undefined)                                                v.chk_s(code, String(p0));
-      else                                                                      v.chk(code);
+      const [name, p0, p1] = Array.isArray(rule) ? rule : [rule];
+      const code = RC[name];
+      if (p1 !== undefined) v.chk_nn(code, p0, p1);
+      else if (p0 !== undefined) v.chk_n(code, p0);
+      else v.chk(code);
     }
   }
   const codes = v.run_codes();
-  const ok = codes[0] === 1;
-  const errors = {};
-  let pos = 1;
-  for (let i = 0; i < fields.length; i++) {
-    const count = codes[pos++];
-    errors[fields[i].field] = count === 0 ? [] : Array.from(codes.subarray(pos, pos + count));
-    pos += count;
+  return codes[0] === 1;
+}
+
+// ── class-validator: functional validators ────────────────────────────────────
+
+const SLUG_RE  = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const NUM_RE   = /^\d+$/;
+
+function runClassValidator(fields) {
+  let ok = true;
+  for (const { value, validations } of fields) {
+    const str = String(value);
+    const num = Number(value);
+    for (const rule of validations) {
+      const [name, p0, p1] = Array.isArray(rule) ? rule : [rule];
+      let valid = true;
+      switch (name) {
+        case 'isNotEmpty':     valid = !cv.isEmpty(str); break;
+        case 'isMinLength':    valid = cv.minLength(str, p0); break;
+        case 'isMaxLength':    valid = cv.maxLength(str, p0); break;
+        case 'isExactLength':  valid = str.length === p0; break;
+        case 'isAlpha':        valid = cv.isAlpha(str); break;
+        case 'isAlphanumeric': valid = cv.isAlphanumeric(str); break;
+        case 'isNumeric':      valid = NUM_RE.test(str); break;
+        case 'isAscii':        valid = cv.isAscii(str); break;
+        case 'isLowercase':    valid = cv.isLowercase(str); break;
+        case 'isUppercase':    valid = cv.isUppercase(str); break;
+        case 'isInRange':      valid = cv.min(num, p0) && cv.max(num, p1); break;
+        case 'isMinValue':     valid = cv.min(num, p0); break;
+        case 'isMaxValue':     valid = cv.max(num, p0); break;
+        case 'isEmail':        valid = cv.isEmail(str); break;
+        case 'isUuid':         valid = cv.isUUID(str); break;
+        case 'isUuidV4':       valid = cv.isUUID(str, '4'); break;
+        case 'isUrl':          valid = cv.isURL(str); break;
+        case 'isIpv4':         valid = cv.isIP(str, 4); break;
+        case 'isDate':         valid = cv.isDateString(str); break;
+        case 'isDatetime':     valid = cv.isISO8601(str); break;
+        case 'isCreditCard':   valid = cv.isCreditCard(str); break;
+        case 'isHexColor':     valid = cv.isHexColor(str); break;
+        case 'isBase64':       valid = cv.isBase64(str); break;
+        case 'isSlug':         valid = SLUG_RE.test(str); break;
+      }
+      if (!valid) ok = false;
+    }
   }
-  return { ok, errors };
+  return ok;
 }
 
-// ─── WASM: validate_json (JSON in/out, 2 boundary crossings) ─────────────────
+// ── Scenario data ─────────────────────────────────────────────────────────────
 
-function runValidateJson(input) {
-  return JSON.parse(validate_json(JSON.stringify(input)));
-}
+// D — 10 email strings each validated with isNotEmpty + isEmail (20 rules)
+const EMAIL_ARRAY = [
+  'alice@example.com', 'bob@company.org', 'charlie@test.net',
+  'diana@domain.co', 'eve@mail.io', 'frank@web.dev',
+  'grace@portal.com', 'henry@service.org', 'iris@cloud.net', 'jack@api.io',
+].map((email, i) => ({
+  field: `emails[${i}]`,
+  value: email,
+  validations: ['isNotEmpty', 'isEmail'],
+}));
 
-// ─── Test scenarios ──────────────────────────────────────────────────────────
+// E — 5 user objects × (username:4 + email:2 + age:1) = 35 rules
+const USER_RECORDS = [
+  { username: 'alice99',  email: 'alice@example.com',  age: 28 },
+  { username: 'bob2025',  email: 'bob@company.org',    age: 35 },
+  { username: 'charlie',  email: 'charlie@test.net',   age: 22 },
+  { username: 'diana77',  email: 'diana@domain.co',    age: 31 },
+  { username: 'eve2k',    email: 'eve@mail.io',        age: 44 },
+].flatMap(({ username, email, age }, i) => [
+  { field: `users[${i}].username`, value: username, validations: ['isNotEmpty', ['isMinLength', 3], ['isMaxLength', 30], 'isAlphanumeric'] },
+  { field: `users[${i}].email`,    value: email,    validations: ['isNotEmpty', 'isEmail'] },
+  { field: `users[${i}].age`,      value: age,      validations: [['isInRange', 18, 120]] },
+]);
+
+// F — user + address + preferences (10 fields, 22 rules)
+const NESTED_OBJECT = [
+  { field: 'user.name',         value: 'John Doe',           validations: ['isNotEmpty', ['isMinLength', 2], ['isMaxLength', 100]] },
+  { field: 'user.email',        value: 'john@example.com',   validations: ['isNotEmpty', 'isEmail'] },
+  { field: 'user.website',      value: 'https://john.dev',   validations: ['isNotEmpty', 'isUrl'] },
+  { field: 'user.dob',          value: '1990-05-15',         validations: ['isDate'] },
+  { field: 'address.street',    value: '123 Main Street',    validations: ['isNotEmpty', ['isMinLength', 5], ['isMaxLength', 200]] },
+  { field: 'address.city',      value: 'Springfield',        validations: ['isNotEmpty', ['isMinLength', 2], 'isAlpha'] },
+  { field: 'address.zip',       value: '12345',              validations: ['isNotEmpty', 'isNumeric', ['isExactLength', 5]] },
+  { field: 'address.country',   value: 'US',                 validations: ['isNotEmpty', 'isAlpha', ['isExactLength', 2], 'isUppercase'] },
+  { field: 'prefs.theme',       value: 'dark',               validations: ['isNotEmpty', 'isAlpha', 'isLowercase'] },
+  { field: 'prefs.locale',      value: 'en',                 validations: ['isNotEmpty', 'isAlpha', ['isExactLength', 2], 'isLowercase'] },
+];
+
+// G — advanced/format validators (10 fields, 16 rules)
+const ADVANCED_VALIDATORS = [
+  { field: 'id',         value: '550e8400-e29b-41d4-a716-446655440000', validations: ['isUuid'] },
+  { field: 'session_id', value: 'f47ac10b-58cc-4372-a567-0e02b2c3d479', validations: ['isUuidV4'] },
+  { field: 'token',      value: 'SGVsbG8gV29ybGQ=',                     validations: ['isNotEmpty', 'isBase64'] },
+  { field: 'color',      value: '#FF5733',                              validations: ['isHexColor'] },
+  { field: 'bg_color',   value: '#abc',                                 validations: ['isHexColor'] },
+  { field: 'card',       value: '4532015112830366',                     validations: ['isNotEmpty', 'isCreditCard'] },
+  { field: 'ip',         value: '192.168.1.100',                        validations: ['isIpv4'] },
+  { field: 'created_at', value: '2024-01-15T10:30:00Z',                 validations: ['isDatetime'] },
+  { field: 'slug',       value: 'my-blog-post-2024',                    validations: ['isNotEmpty', 'isSlug'] },
+  { field: 'api_key',    value: 'a1B2c3D4e5F6',                        validations: ['isNotEmpty', 'isAscii', ['isMinLength', 8], ['isMaxLength', 64]] },
+];
+
+// H — 10 user objects all invalid (worst case arrays: 35 rules, all failing)
+const INVALID_USERS = [
+  { username: '',      email: 'not-email',  age: -5  },
+  { username: 'ab',    email: 'bad@',       age: 200 },
+  { username: '!!bad', email: '@nodomain',  age: -1  },
+  { username: '',      email: 'missing',    age: 999 },
+  { username: 'x',     email: 'fail',       age: 0   },
+].flatMap(({ username, email, age }, i) => [
+  { field: `users[${i}].username`, value: username, validations: ['isNotEmpty', ['isMinLength', 3], ['isMaxLength', 30], 'isAlphanumeric'] },
+  { field: `users[${i}].email`,    value: email,    validations: ['isNotEmpty', 'isEmail'] },
+  { field: `users[${i}].age`,      value: age,      validations: [['isInRange', 18, 120]] },
+]);
+
+// ── Scenarios registry ────────────────────────────────────────────────────────
 
 const SCENARIOS = {
-  'simple form (3 fields, 6 rules)': {
-    description: [
-      '3 campos: name (isNotEmpty + isMinLength:2 + isMaxLength:50 + isAlpha),',
-      'email (isEmail), age (isInRange:0-120). Todos los valores son válidos.',
-      'Mide el overhead de setup+dispatch para un formulario corto típico.',
-    ],
-    fields: [
-      { field: 'name',  value: 'John',             validations: ['isNotEmpty', ['isMinLength', 2], ['isMaxLength', 50], 'isAlpha'] },
-      { field: 'email', value: 'john@example.com', validations: ['isEmail'] },
-      { field: 'age',   value: 25,                 validations: [['isInRange', 0, 120]] },
-    ],
-    directStr:   () => { check_str('isNotEmpty','John'); check_str_n('isMinLength','John',2); check_str_n('isMaxLength','John',50); check_str('isAlpha','John'); check_str('isEmail','john@example.com'); check_num_nn('isInRange',25,0,120); },
-    directCodes: () => { check_code_str(0,'John'); check_code_str_n(1,'John',2); check_code_str_n(2,'John',50); check_code_str(5,'John'); check_code_str(25,'john@example.com'); check_code_num_nn(21,25,0,120); },
-    directJs:    () => { jsValidators.isNotEmpty('John'); jsValidators.isMinLength('John',2); jsValidators.isMaxLength('John',50); jsValidators.isAlpha('John'); jsValidators.isEmail('john@example.com'); jsValidators.isInRange(25,0,120); },
-  },
-  'complex form (8 fields, 14 rules)': {
-    description: [
-      '8 campos: username (isNotEmpty+isMinLength+isMaxLength+isAlphanumeric),',
-      'email (isNotEmpty+isEmail), id (isUuid), website (isUrl), ip (isIpv4),',
-      'dob (isDate), score (isInRange:0-100), slug (isSlug). Todos válidos.',
-      'Mide la escala: cómo crece el costo al aumentar campos y reglas.',
-    ],
-    fields: [
-      { field: 'username', value: 'johndoe',                              validations: ['isNotEmpty', ['isMinLength', 3], ['isMaxLength', 20], 'isAlphanumeric'] },
-      { field: 'email',    value: 'john@example.com',                     validations: ['isNotEmpty', 'isEmail'] },
-      { field: 'id',       value: '550e8400-e29b-41d4-a716-446655440000', validations: ['isUuid'] },
-      { field: 'website',  value: 'https://example.com',                  validations: ['isUrl'] },
-      { field: 'ip',       value: '192.168.1.1',                          validations: ['isIpv4'] },
-      { field: 'dob',      value: '1990-05-15',                           validations: ['isDate'] },
-      { field: 'score',    value: 87,                                     validations: [['isInRange', 0, 100]] },
-      { field: 'slug',     value: 'my-article-slug',                      validations: ['isSlug'] },
-    ],
-    directStr:   () => { check_str('isNotEmpty','johndoe'); check_str_n('isMinLength','johndoe',3); check_str_n('isMaxLength','johndoe',20); check_str('isAlphanumeric','johndoe'); check_str('isNotEmpty','john@example.com'); check_str('isEmail','john@example.com'); check_str('isUuid','550e8400-e29b-41d4-a716-446655440000'); check_str('isUrl','https://example.com'); check_str('isIpv4','192.168.1.1'); check_str('isDate','1990-05-15'); check_num_nn('isInRange',87,0,100); check_str('isSlug','my-article-slug'); },
-    directCodes: () => { check_code_str(0,'johndoe'); check_code_str_n(1,'johndoe',3); check_code_str_n(2,'johndoe',20); check_code_str(6,'johndoe'); check_code_str(0,'john@example.com'); check_code_str(25,'john@example.com'); check_code_str(26,'550e8400-e29b-41d4-a716-446655440000'); check_code_str(29,'https://example.com'); check_code_str(32,'192.168.1.1'); check_code_str(34,'1990-05-15'); check_code_num_nn(21,87,0,100); check_code_str(42,'my-article-slug'); },
-    directJs:    () => { jsValidators.isNotEmpty('johndoe'); jsValidators.isMinLength('johndoe',3); jsValidators.isMaxLength('johndoe',20); jsValidators.isAlphanumeric('johndoe'); jsValidators.isNotEmpty('john@example.com'); jsValidators.isEmail('john@example.com'); jsValidators.isUuid('550e8400-e29b-41d4-a716-446655440000'); jsValidators.isUrl('https://example.com'); jsValidators.isIpv4('192.168.1.1'); jsValidators.isDate('1990-05-15'); jsValidators.isInRange(87,0,100); jsValidators.isSlug('my-article-slug'); },
-  },
-  'all failing (worst case, 4 fields)': {
-    description: [
-      '4 campos con todos los valores inválidos: email="not-an-email" (isEmail+isNotEmpty+isMinLength:100),',
-      'uuid="not-a-uuid" (isUuid), number=999 (isInRange:0-10+isMaxLength:5), text="" (isNotEmpty+isMinLength:5+isAlpha).',
-      'Peor caso: todas las reglas fallan y se generan mensajes de error para cada una.',
-    ],
-    fields: [
-      { field: 'email',  value: 'not-an-email', validations: ['isEmail', 'isNotEmpty', ['isMinLength', 100]] },
-      { field: 'uuid',   value: 'not-a-uuid',   validations: ['isUuid'] },
-      { field: 'number', value: 999,             validations: [['isInRange', 0, 10], ['isMaxLength', 5]] },
-      { field: 'text',   value: '',              validations: ['isNotEmpty', ['isMinLength', 5], 'isAlpha'] },
-    ],
-    directStr:   () => { check_str('isEmail','not-an-email'); check_str('isNotEmpty','not-an-email'); check_str_n('isMinLength','not-an-email',100); check_str('isUuid','not-a-uuid'); check_num_nn('isInRange',999,0,10); check_str_n('isMaxLength','999',5); check_str('isNotEmpty',''); check_str_n('isMinLength','',5); check_str('isAlpha',''); },
-    directCodes: () => { check_code_str(25,'not-an-email'); check_code_str(0,'not-an-email'); check_code_str_n(1,'not-an-email',100); check_code_str(26,'not-a-uuid'); check_code_num_nn(21,999,0,10); check_code_str_n(2,'999',5); check_code_str(0,''); check_code_str_n(1,'',5); check_code_str(5,''); },
-    directJs:    () => { jsValidators.isEmail('not-an-email'); jsValidators.isNotEmpty('not-an-email'); jsValidators.isMinLength('not-an-email',100); jsValidators.isUuid('not-a-uuid'); jsValidators.isInRange(999,0,10); jsValidators.isMaxLength('999',5); jsValidators.isNotEmpty(''); jsValidators.isMinLength('',5); jsValidators.isAlpha(''); },
-  },
+  'A — simple form         (3f, 6r)':  [
+    { field: 'name',  value: 'John',             validations: ['isNotEmpty', ['isMinLength', 2], ['isMaxLength', 50], 'isAlpha'] },
+    { field: 'email', value: 'john@example.com', validations: ['isEmail'] },
+    { field: 'age',   value: 25,                 validations: [['isInRange', 0, 120]] },
+  ],
+  'B — complex form        (8f, 14r)': [
+    { field: 'username', value: 'johndoe',                              validations: ['isNotEmpty', ['isMinLength', 3], ['isMaxLength', 20], 'isAlphanumeric'] },
+    { field: 'email',    value: 'john@example.com',                     validations: ['isNotEmpty', 'isEmail'] },
+    { field: 'id',       value: '550e8400-e29b-41d4-a716-446655440000', validations: ['isUuid'] },
+    { field: 'website',  value: 'https://example.com',                  validations: ['isUrl'] },
+    { field: 'ip',       value: '192.168.1.1',                          validations: ['isIpv4'] },
+    { field: 'dob',      value: '1990-05-15',                           validations: ['isDate'] },
+    { field: 'score',    value: 87,                                     validations: [['isInRange', 0, 100]] },
+    { field: 'slug',     value: 'my-article-slug',                      validations: ['isSlug'] },
+  ],
+  'C — all failing         (4f, 9r)':  [
+    { field: 'email',  value: 'not-an-email', validations: ['isEmail', 'isNotEmpty', ['isMinLength', 100]] },
+    { field: 'uuid',   value: 'not-a-uuid',   validations: ['isUuid'] },
+    { field: 'number', value: 999,            validations: [['isInRange', 0, 10], ['isMaxLength', 5]] },
+    { field: 'text',   value: '',             validations: ['isNotEmpty', ['isMinLength', 5], 'isAlpha'] },
+  ],
+  'D — array of strings    (10f, 20r)': EMAIL_ARRAY,
+  'E — array of objects    (15f, 35r)': USER_RECORDS,
+  'F — nested object       (10f, 22r)': NESTED_OBJECT,
+  'G — advanced validators (10f, 16r)': ADVANCED_VALIDATORS,
+  'H — invalid array       (15f, 35r)': INVALID_USERS,
 };
 
-// ─── Benchmark runner ────────────────────────────────────────────────────────
-
-function bench(fn, iterations) {
-  for (let i = 0; i < 200; i++) fn(); // warmup
-
-  const start = performance.now();
-  for (let i = 0; i < iterations; i++) fn();
-  const ms = performance.now() - start;
-
-  return {
-    opsPerSec: Math.round(iterations / (ms / 1000)),
-    nsPerOp:   Math.round((ms / iterations) * 1_000_000),
-    ms:        ms.toFixed(1),
-  };
-}
-
-function row(label, r, winner) {
-  const mark = winner ? ' ◀' : '';
-  return `  ${label.padEnd(20)} │ ${String(r.opsPerSec).padStart(11)} ops/s │ ${String(r.nsPerOp).padStart(8)} ns/op │ ${r.ms.padStart(7)} ms${mark}`;
-}
-
-// ─── Run ─────────────────────────────────────────────────────────────────────
+// ── Benchmark runner ──────────────────────────────────────────────────────────
 
 const ITERATIONS = 100_000;
+const WARMUP = 500;
 
-console.log(`\n${'═'.repeat(76)}`);
+function bench(fn) {
+  for (let i = 0; i < WARMUP; i++) fn();
+  const start = performance.now();
+  for (let i = 0; i < ITERATIONS; i++) fn();
+  const ms = performance.now() - start;
+  return {
+    opsPerSec: Math.round(ITERATIONS / (ms / 1000)),
+    nsPerOp:   Math.round((ms / ITERATIONS) * 1_000_000),
+    ms:        +ms.toFixed(1),
+  };
+}
+
+// ── Run ───────────────────────────────────────────────────────────────────────
+
+const LINE = '═'.repeat(72);
+const SEP  = '─'.repeat(72);
+
+console.log(`\n${LINE}`);
 console.log(`  Validation Benchmark — ${ITERATIONS.toLocaleString()} iterations per scenario`);
-console.log(`${'═'.repeat(76)}\n`);
-
-// ─── helpers ─────────────────────────────────────────────────────────────────
-
-function faster(a, b) {
-  if (a.opsPerSec >= b.opsPerSec) return `${(a.opsPerSec / b.opsPerSec).toFixed(2)}x más rápido`;
-  return `${(b.opsPerSec / a.opsPerSec).toFixed(2)}x más lento`;
-}
-
-function rank(results) {
-  return Object.entries(results)
-    .sort((a, b) => b[1].opsPerSec - a[1].opsPerSec)
-    .map(([label], i) => `${i + 1}. ${label}`)
-    .join('  ');
-}
-
-// ─── Run ─────────────────────────────────────────────────────────────────────
+console.log(`  Rust/WASM  vs  class-validator (npm)`);
+console.log(`${LINE}\n`);
 
 const allResults = {};
-for (const [name, scenario] of Object.entries(SCENARIOS)) {
-  const { fields, description, directStr, directCodes, directJs } = scenario;
-  const input = { fields };
 
-  const results = {
-    'validate_json':       bench(() => runValidateJson(input),    ITERATIONS),
-    'Validator (str API)': bench(() => runValidatorStr(fields),   ITERATIONS),
-    'Validator (codes)':   bench(() => runValidatorCodes(fields), ITERATIONS),
-    'direct (str)':        bench(directStr,                       ITERATIONS),
-    'direct (codes)':      bench(directCodes,                     ITERATIONS),
-    'direct (js)':         bench(directJs,                        ITERATIONS),
-    'runJs (batch)':       bench(() => runJs(fields),             ITERATIONS),
-  };
+for (const [name, fields] of Object.entries(SCENARIOS)) {
+  const rWasm = bench(() => runWasm(fields));
+  const rCv   = bench(() => runClassValidator(fields));
 
-  const best   = Object.values(results).reduce((a, b) => b.opsPerSec > a.opsPerSec ? b : a);
-  const worst  = Object.values(results).reduce((a, b) => b.opsPerSec < a.opsPerSec ? b : a);
+  allResults[name] = { wasm: rWasm, cv: rCv };
 
-  // ── Tabla con descripción del escenario ──────────────────────────────────
+  const wasmWins = rWasm.opsPerSec >= rCv.opsPerSec;
+  const ratio = wasmWins
+    ? (rWasm.opsPerSec / rCv.opsPerSec).toFixed(2)
+    : (rCv.opsPerSec / rWasm.opsPerSec).toFixed(2);
+  const winner = wasmWins ? 'Rust/WASM' : 'class-validator';
+
   console.log(`  Scenario: ${name}`);
-  for (const line of description) console.log(`  │ ${line}`);
-  console.log(`  ${'─'.repeat(76)}`);
-  console.log(`  ${'impl'.padEnd(20)} │ ${'ops/sec'.padStart(11)}       │ ${'ns/op'.padStart(8)}        │ total`);
-  console.log(`  ${'─'.repeat(76)}`);
-  for (const [label, r] of Object.entries(results)) {
-    console.log(row(label, r, r === best));
-  }
-  console.log(`  ${'─'.repeat(76)}`);
-
-  // ── Análisis dinámico del escenario ──────────────────────────────────────
-  const strApi  = results['Validator (str API)'];
-  const codeApi = results['Validator (codes)'];
-  const dStr    = results['direct (str)'];
-  const dCodes  = results['direct (codes)'];
-  const jsRef   = results['direct (js)'];
-  const jsonApi = results['validate_json'];
-
-  console.log(`  Validator (codes) vs (str API): ${faster(codeApi, strApi)}`);
-  console.log(`  direct (codes) vs direct (str): ${faster(dCodes, dStr)}`);
-  console.log(`  Mejor WASM vs JS:               ${faster(dCodes, jsRef)}`);
-  console.log(`  validate_json vs Validator str: ${faster(jsonApi, strApi)}`);
-  console.log();
-
-  allResults[name] = results;
+  console.log(`  ${SEP}`);
+  console.log(`  ${'implementation'.padEnd(22)} │ ${'ops/sec'.padStart(12)} │ ${'ns/op'.padStart(8)} │ ${'total'.padStart(9)}`);
+  console.log(`  ${SEP}`);
+  console.log(`  ${'Rust/WASM'.padEnd(22)} │ ${String(rWasm.opsPerSec).padStart(12)} │ ${String(rWasm.nsPerOp).padStart(8)} │ ${String(rWasm.ms).padStart(7)} ms${wasmWins ? '  ◀ winner' : ''}`);
+  console.log(`  ${'class-validator'.padEnd(22)} │ ${String(rCv.opsPerSec).padStart(12)} │ ${String(rCv.nsPerOp).padStart(8)} │ ${String(rCv.ms).padStart(7)} ms${!wasmWins ? '  ◀ winner' : ''}`);
+  console.log(`  ${SEP}`);
+  console.log(`  ${winner} is ${ratio}x faster\n`);
 }
 
-// ─── Resumen global dinámico ──────────────────────────────────────────────────
+// ── Summary ───────────────────────────────────────────────────────────────────
 
-console.log(`${'═'.repeat(76)}`);
-console.log(`  RESUMEN Y ANÁLISIS  (basado en los resultados de arriba)`);
-console.log(`${'═'.repeat(76)}\n`);
+console.log(`${LINE}`);
+console.log(`  SUMMARY — average across all scenarios`);
+console.log(`${LINE}`);
 
-// Calcular promedios por implementación
-const implNames = ['validate_json', 'Validator (str API)', 'Validator (codes)', 'direct (str)', 'direct (codes)', 'direct (js)', 'runJs (batch)'];
-const avgOps = {};
-for (const impl of implNames) {
-  const vals = Object.values(allResults).map(r => r[impl].opsPerSec);
-  avgOps[impl] = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
-}
-const sortedImpls = [...implNames].sort((a, b) => avgOps[b] - avgOps[a]);
-
-console.log(`  Ranking promedio (todos los escenarios):`);
-for (let i = 0; i < sortedImpls.length; i++) {
-  const impl = sortedImpls[i];
-  const nsAvg = Math.round(1_000_000_000 / avgOps[impl]);
-  const vsNext = i < sortedImpls.length - 1
-    ? `  (${(avgOps[impl] / avgOps[sortedImpls[i + 1]]).toFixed(2)}x faster than ${sortedImpls[i + 1]})`
-    : '';
-  const mark = i === 0 ? ' ◀ fastest' : '';
-  console.log(`  ${String(i + 1).padStart(2)}. ${impl.padEnd(22)} avg ${String(avgOps[impl]).padStart(10)} ops/s  ${String(nsAvg).padStart(7)} ns/op${mark}${vsNext}`);
+let totalWasm = 0, totalCv = 0, wasmWins = 0;
+for (const { wasm, cv } of Object.values(allResults)) {
+  totalWasm += wasm.opsPerSec;
+  totalCv   += cv.opsPerSec;
+  if (wasm.opsPerSec >= cv.opsPerSec) wasmWins++;
 }
 
-// Mejora de codes vs str
-const validatorImprovement = (avgOps['Validator (codes)'] / avgOps['Validator (str API)'] * 100 - 100).toFixed(0);
-const directImprovement    = (avgOps['direct (codes)']    / avgOps['direct (str)']        * 100 - 100).toFixed(0);
-const gapToJs              = (avgOps['direct (js)']       / avgOps['direct (codes)']).toFixed(1);
-const jsonVsStr            = avgOps['validate_json'] > avgOps['Validator (str API)']
-  ? `${(avgOps['validate_json'] / avgOps['Validator (str API)']).toFixed(2)}x más rápido`
-  : `${(avgOps['Validator (str API)'] / avgOps['validate_json']).toFixed(2)}x más lento`;
+const n = Object.keys(allResults).length;
+const avgWasm = Math.round(totalWasm / n);
+const avgCv   = Math.round(totalCv / n);
+const avgWasmFaster = avgWasm >= avgCv;
+const avgRatio = avgWasmFaster
+  ? (avgWasm / avgCv).toFixed(2)
+  : (avgCv / avgWasm).toFixed(2);
 
-console.log(`
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │  IMPACTO DE LAS OPTIMIZACIONES (promedio entre escenarios)              │
-  ├─────────────────────────────────────────────────────────────────────────┤
-  │  Validator (codes) vs (str API)  → +${validatorImprovement.padStart(3)}% más ops/s                      │
-  │    • Pool singleton: elimina new Validator() + free() por llamada       │
-  │    • val_str/num/bool: elimina string marshal del nombre de campo       │
-  │    • chk/chk_n/chk_nn: código entero, sin malloc+copy por regla        │
-  │    • run_codes(): 1 crossing, salida son códigos enteros (sin strings)  │
-  ├─────────────────────────────────────────────────────────────────────────┤
-  │  direct (codes) vs direct (str)  → +${directImprovement.padStart(3)}% más ops/s                      │
-  │    • check_code_str(25, v) vs check_str("isEmail", v)                  │
-  │    • Elimina 1 string marshal (el nombre de la regla) por cada check   │
-  ├─────────────────────────────────────────────────────────────────────────┤
-  │  validate_json vs Validator (str API) → ${jsonVsStr.padEnd(28)}│
-  │    • Solo 2 crossings totales pero paga JSON.stringify + JSON.parse     │
-  ├─────────────────────────────────────────────────────────────────────────┤
-  │  Brecha WASM vs JS puro  → JS es ${gapToJs.padStart(4)}x más rápido en velocidad bruta  │
-  │    • Cada crossing JS↔WASM cuesta ~${Math.round(1_000_000_000 / avgOps['direct (codes)'] - 1_000_000_000 / avgOps['direct (js)'])} ns de overhead (malloc+copy)    │
-  │    • WASM gana en CALIDAD: email RFC, UUID con versión, IP real, Luhn  │
-  └─────────────────────────────────────────────────────────────────────────┘
-
-  RECOMENDACIÓN según caso de uso:
-  • validate() / validateJson() — formularios completos, correctitud crítica
-  • isEmail(v), isUuid(v)... — checks puntuales de alta calidad con WASM
-  • Funciones JS propias — si la velocidad importa más que la exactitud
-`);
-console.log(`${'═'.repeat(76)}\n`);
+console.log();
+console.log(`  ${'Rust/WASM'.padEnd(22)} avg ${String(avgWasm).padStart(12)} ops/s  ${String(Math.round(1e9 / avgWasm)).padStart(6)} ns/op${avgWasmFaster ? '  ◀ faster' : ''}`);
+console.log(`  ${'class-validator'.padEnd(22)} avg ${String(avgCv).padStart(12)} ops/s  ${String(Math.round(1e9 / avgCv)).padStart(6)} ns/op${!avgWasmFaster ? '  ◀ faster' : ''}`);
+console.log();
+console.log(`  Rust/WASM wins: ${wasmWins}/${n} scenarios`);
+console.log(`  Overall: ${avgWasmFaster ? 'Rust/WASM' : 'class-validator'} is ${avgRatio}x faster on average`);
+console.log(`\n${LINE}\n`);

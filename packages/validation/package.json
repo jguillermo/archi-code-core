@@ -84,5 +84,8 @@
         "statements": 20
       }
     }
+  },
+  "devDependencies": {
+    "class-validator": "^0.15.1"
   }
 }
