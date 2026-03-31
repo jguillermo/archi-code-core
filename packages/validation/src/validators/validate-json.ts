@@ -1,6 +1,17 @@
-import { validate } from './validate';
-import type { ValidateInput, ValidationRule, ValidationRuleName } from './validate';
+import { createValidator } from './validate';
+import type { ValidationRule, ValidationRuleName } from './validate';
 import { RC } from './flat-encoder';
+
+interface FieldInput {
+  field: string;
+  value: unknown;
+  validations: ValidationRule[];
+}
+
+interface ValidateInput {
+  locale?: string;
+  fields: FieldInput[];
+}
 
 // ─── Output type ──────────────────────────────────────────────────────────────
 
@@ -145,7 +156,9 @@ export const validateJson = (input: ValidateInput | string): ValidateJsonOutput 
 
   const locale = parsed.locale ?? 'en';
   const table = TABLES[locale] ?? EN;
-  const result = validate(parsed);
+  const schemaDef = parsed.fields.map(({ field, validations }) => ({ field, validations }));
+  const values = Object.fromEntries(parsed.fields.map(({ field, value }) => [field, value]));
+  const result = createValidator(schemaDef).validate(values);
 
   const errors: Record<string, string[]> = {};
   for (const { field, validations } of parsed.fields) {

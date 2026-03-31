@@ -21,13 +21,19 @@
 // =============================================================================
 'use strict';
 
-const { validate } = require('./dist/cjs/index.js');
+const { createValidator } = require('./dist/cjs/index.js');
 const cv = require('class-validator');
 
 // ── @archi-code/validation ────────────────────────────────────────────────────
 
-function runWasm(fields) {
-  return validate({ fields }).ok;
+function makeCompiled(fields) {
+  const schemaDef = fields.map(({ field, validations }) => ({ field, validations }));
+  const validator  = createValidator(schemaDef);
+  return function runCompiled(fields) {
+    const values = {};
+    for (const { field, value } of fields) values[field] = value;
+    return validator.validate(values).ok;
+  };
 }
 
 // ── class-validator: functional validators ────────────────────────────────────
@@ -190,31 +196,33 @@ const SEP  = '─'.repeat(76);
 
 console.log(`\n${LINE}`);
 console.log(`  Validation Benchmark — ${ITERATIONS.toLocaleString()} iterations per scenario`);
-console.log(`  @archi-code/validation (WASM)  vs  class-validator`);
+console.log(`  @archi-code/validation (createValidator)  vs  class-validator`);
 console.log(`${LINE}\n`);
 
 const allResults = {};
 
 for (const [name, fields] of Object.entries(SCENARIOS)) {
-  const rWasm  = bench(() => runWasm(fields));
-  const rCv    = bench(() => runClassValidator(fields));
+  const runCompiled = makeCompiled(fields);
 
-  allResults[name] = { wasm: rWasm, cv: rCv };
+  const rCompiled = bench(() => runCompiled(fields));
+  const rCv       = bench(() => runClassValidator(fields));
 
-  const best = rWasm.opsPerSec >= rCv.opsPerSec ? rWasm : rCv;
+  allResults[name] = { compiled: rCompiled, cv: rCv };
 
-  const ratio = rWasm.opsPerSec >= rCv.opsPerSec
-    ? `wasm ${(rWasm.opsPerSec / rCv.opsPerSec).toFixed(2)}x faster than cv`
-    : `cv   ${(rCv.opsPerSec / rWasm.opsPerSec).toFixed(2)}x faster than wasm`;
+  const best = rCompiled.opsPerSec >= rCv.opsPerSec ? rCompiled : rCv;
+  const ratio = rCompiled.opsPerSec >= rCv.opsPerSec
+    ? `wasm ${(rCompiled.opsPerSec / rCv.opsPerSec).toFixed(2)}x faster than cv`
+    : `cv   ${(rCv.opsPerSec / rCompiled.opsPerSec).toFixed(2)}x faster than wasm`;
+
+  const rows = [
+    ['@archi-code/validation', rCompiled],
+    ['class-validator',        rCv],
+  ];
 
   console.log(`  Scenario: ${name}`);
   console.log(`  ${SEP}`);
   console.log(`  ${'implementation'.padEnd(26)} │ ${'ops/sec'.padStart(11)} │ ${'ns/op'.padStart(8)} │ ${'total'.padStart(9)}`);
   console.log(`  ${SEP}`);
-  const rows = [
-    ['@archi-code/validation', rWasm],
-    ['class-validator', rCv],
-  ];
   for (const [label, r] of rows) {
     const mark = r === best ? '  ◀ winner' : '';
     console.log(`  ${label.padEnd(26)} │ ${String(r.opsPerSec).padStart(11)} │ ${String(r.nsPerOp).padStart(8)} │ ${String(r.ms).padStart(7)} ms${mark}`);
@@ -229,26 +237,23 @@ console.log(`${LINE}`);
 console.log(`  SUMMARY — average across all scenarios`);
 console.log(`${LINE}`);
 
-let totWasm = 0, totCv = 0;
-let wasmWins = 0, cvWins = 0;
+let totCompiled = 0, totCv = 0;
+let compiledWins = 0, cvWins = 0;
 
-for (const { wasm, cv } of Object.values(allResults)) {
-  totWasm  += wasm.opsPerSec;
-  totCv    += cv.opsPerSec;
-  if (wasm.opsPerSec >= cv.opsPerSec) wasmWins++;
+for (const { compiled, cv } of Object.values(allResults)) {
+  totCompiled += compiled.opsPerSec;
+  totCv       += cv.opsPerSec;
+  if (compiled.opsPerSec >= cv.opsPerSec) compiledWins++;
   else cvWins++;
 }
 
 const n = Object.keys(allResults).length;
-const avgWasm  = Math.round(totWasm  / n);
-const avgCv    = Math.round(totCv    / n);
-
-const nsWasm  = Math.round(1e9 / avgWasm);
-const nsCv    = Math.round(1e9 / avgCv);
+const avgCompiled = Math.round(totCompiled / n);
+const avgCv       = Math.round(totCv       / n);
 
 const sorted = [
-  ['@archi-code/validation', avgWasm, nsWasm],
-  ['class-validator', avgCv, nsCv],
+  ['@archi-code/validation', avgCompiled, Math.round(1e9 / avgCompiled)],
+  ['class-validator',        avgCv,       Math.round(1e9 / avgCv)],
 ].sort((a, b) => b[1] - a[1]);
 
 console.log();
@@ -258,13 +263,13 @@ for (let i = 0; i < sorted.length; i++) {
   console.log(`  ${(i + 1) + '. ' + label.padEnd(24)} avg ${String(ops).padStart(11)} ops/s  ${String(ns).padStart(6)} ns/op${mark}`);
 }
 
-const wasmVsCvRatio = avgWasm >= avgCv
-  ? `@archi-code/validation is ${(avgWasm / avgCv).toFixed(2)}x faster than class-validator`
-  : `class-validator is ${(avgCv / avgWasm).toFixed(2)}x faster than @archi-code/validation`;
+const overallRatio = avgCompiled >= avgCv
+  ? `@archi-code/validation is ${(avgCompiled / avgCv).toFixed(2)}x faster than class-validator`
+  : `class-validator is ${(avgCv / avgCompiled).toFixed(2)}x faster than @archi-code/validation`;
 
 console.log();
-console.log(`  @archi-code/validation wins: ${wasmWins}/${n} scenarios`);
+console.log(`  @archi-code/validation wins: ${compiledWins}/${n} scenarios`);
 console.log(`  class-validator wins:        ${cvWins}/${n} scenarios`);
 console.log();
-console.log(`  Overall: ${wasmVsCvRatio}`);
+console.log(`  Overall: ${overallRatio}`);
 console.log(`\n${LINE}\n`);

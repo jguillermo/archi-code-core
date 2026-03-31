@@ -12,6 +12,9 @@ export function run_flat(data: Uint8Array): number;
 /** Run all validations and return per-field failing rule codes. Format: [ok_byte, f0_count, f0_code0, ..., f1_count, ...] */
 export function run_flat_codes(data: Uint8Array): Uint8Array;
 
+/** Run validations from a cached schema buffer + a per-call values buffer. Same output format as run_flat_codes. */
+export function run_split(schema: Uint8Array, values: Uint8Array): Uint8Array;
+
 // ─── Cast functions — naming: cast_{target}_{source} ─────────────────────────
 export function cast_bool(value: string): boolean;
 export function cast_bool_num(value: number): boolean;

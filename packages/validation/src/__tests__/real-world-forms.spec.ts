@@ -1,38 +1,32 @@
 import { describe, expect, it } from '@jest/globals';
-import { validate } from '../validators/validate';
+import { createValidator } from '../validators/validate';
 
 describe('real-world form validation', () => {
   describe('user registration', () => {
+    const userValidator = createValidator([
+      { field: 'email', validations: ['isEmail'] },
+      { field: 'username', validations: ['isAlphanumeric', ['isLengthBetween', 3, 20]] },
+      { field: 'age', validations: [['isInRange', 18, 99]] },
+      { field: 'website', validations: ['isUrl'] },
+    ]);
+
     it('all valid data', () => {
-      const r = validate({
-        locale: 'en',
-        fields: [
-          { field: 'email', value: 'user@example.com', validations: ['isEmail'] },
-          {
-            field: 'username',
-            value: 'user123',
-            validations: ['isAlphanumeric', ['isLengthBetween', 3, 20]],
-          },
-          { field: 'age', value: 25, validations: [['isInRange', 18, 99]] },
-          { field: 'website', value: 'https://mysite.com', validations: ['isUrl'] },
-        ],
+      const r = userValidator.validate({
+        email: 'user@example.com',
+        username: 'user123',
+        age: 25,
+        website: 'https://mysite.com',
       });
       expect(r.ok).toBe(true);
       expect(Object.values(r.errors).every((e) => e.length === 0)).toBe(true);
     });
 
     it('all invalid data', () => {
-      const r = validate({
-        fields: [
-          { field: 'email', value: 'not-email', validations: ['isEmail'] },
-          {
-            field: 'username',
-            value: 'u!',
-            validations: ['isAlphanumeric', ['isLengthBetween', 3, 20]],
-          },
-          { field: 'age', value: 15, validations: [['isInRange', 18, 99]] },
-          { field: 'website', value: 'no-scheme', validations: ['isUrl'] },
-        ],
+      const r = userValidator.validate({
+        email: 'not-email',
+        username: 'u!',
+        age: 15,
+        website: 'no-scheme',
       });
       expect(r.ok).toBe(false);
       expect(r.errors.email.length).toBeGreaterThan(0);
@@ -42,12 +36,11 @@ describe('real-world form validation', () => {
     });
 
     it('partial errors — email ok, username fails', () => {
-      const r = validate({
-        fields: [
-          { field: 'email', value: 'user@example.com', validations: ['isEmail'] },
-          { field: 'username', value: 'u!', validations: ['isAlphanumeric', ['isMinLength', 3]] },
-        ],
-      });
+      const v = createValidator([
+        { field: 'email', validations: ['isEmail'] },
+        { field: 'username', validations: ['isAlphanumeric', ['isMinLength', 3]] },
+      ]);
+      const r = v.validate({ email: 'user@example.com', username: 'u!' });
       expect(r.ok).toBe(false);
       expect(r.errors.email).toEqual([]);
       expect(r.errors.username.length).toBeGreaterThan(0);
@@ -55,25 +48,23 @@ describe('real-world form validation', () => {
   });
 
   describe('API endpoint validation', () => {
+    const apiValidator = createValidator([
+      { field: 'id', validations: ['isUuid'] },
+      { field: 'page', validations: ['isPositiveInteger'] },
+      { field: 'limit', validations: ['isPositiveInteger', ['isMaxValue', 100]] },
+    ]);
+
     it('UUID param + pagination', () => {
-      const r = validate({
-        fields: [
-          { field: 'id', value: '550e8400-e29b-41d4-a716-446655440000', validations: ['isUuid'] },
-          { field: 'page', value: 1, validations: ['isPositiveInteger'] },
-          { field: 'limit', value: 20, validations: ['isPositiveInteger', ['isMaxValue', 100]] },
-        ],
+      const r = apiValidator.validate({
+        id: '550e8400-e29b-41d4-a716-446655440000',
+        page: 1,
+        limit: 20,
       });
       expect(r.ok).toBe(true);
     });
 
     it('invalid UUID and page out of range', () => {
-      const r = validate({
-        fields: [
-          { field: 'id', value: 'bad-uuid', validations: ['isUuid'] },
-          { field: 'page', value: 0, validations: ['isPositiveInteger'] },
-          { field: 'limit', value: 200, validations: ['isPositiveInteger', ['isMaxValue', 100]] },
-        ],
-      });
+      const r = apiValidator.validate({ id: 'bad-uuid', page: 0, limit: 200 });
       expect(r.ok).toBe(false);
       expect(r.errors.id.length).toBeGreaterThan(0);
       expect(r.errors.page.length).toBeGreaterThan(0);
@@ -82,15 +73,13 @@ describe('real-world form validation', () => {
   });
 
   describe('failing fields return rule codes', () => {
-    it('returns codes for all failing fields (locale does not affect codes)', () => {
-      const r = validate({
-        locale: 'es',
-        fields: [
-          { field: 'email', value: 'bad', validations: ['isEmail'] },
-          { field: 'edad', value: 200, validations: [['isInRange', 0, 120]] },
-          { field: 'nombre', value: '', validations: ['isNotEmpty'] },
-        ],
-      });
+    it('returns codes for all failing fields', () => {
+      const v = createValidator([
+        { field: 'email', validations: ['isEmail'] },
+        { field: 'edad', validations: [['isInRange', 0, 120]] },
+        { field: 'nombre', validations: ['isNotEmpty'] },
+      ]);
+      const r = v.validate({ email: 'bad', edad: 200, nombre: '' });
       expect(r.errors.email).toEqual([25]); // isEmail
       expect(r.errors.edad).toEqual([21]); // isInRange
       expect(r.errors.nombre).toEqual([0]); // isNotEmpty
@@ -99,60 +88,37 @@ describe('real-world form validation', () => {
 
   describe('custom messages per field', () => {
     it('custom messages are ignored — rule codes returned', () => {
-      const r = validate({
-        fields: [
-          {
-            field: 'email',
-            value: 'bad',
-            validations: [{ rule: 'isEmail', message: 'El email no es válido' }],
-          },
-          {
-            field: 'name',
-            value: '',
-            validations: [{ rule: 'isNotEmpty', message: 'El nombre es requerido' }],
-          },
-        ],
-      });
+      const v = createValidator([
+        { field: 'email', validations: [{ rule: 'isEmail', message: 'El email no es válido' }] },
+        { field: 'name', validations: [{ rule: 'isNotEmpty', message: 'El nombre es requerido' }] },
+      ]);
+      const r = v.validate({ email: 'bad', name: '' });
       expect(r.errors.email).toEqual([25]); // isEmail
       expect(r.errors.name).toEqual([0]); // isNotEmpty
     });
   });
 
   describe('network/infra validation', () => {
+    const serverValidator = createValidator([
+      { field: 'host', validations: ['isIpv4'] },
+      { field: 'port', validations: ['isPositiveInteger', ['isInRange', 1, 65535]] },
+      { field: 'callback', validations: ['isUrl', ['isUrlWithScheme', 'https']] },
+    ]);
+
     it('valid server config', () => {
-      const r = validate({
-        fields: [
-          { field: 'host', value: '192.168.1.100', validations: ['isIpv4'] },
-          {
-            field: 'port',
-            value: 8080,
-            validations: ['isPositiveInteger', ['isInRange', 1, 65535]],
-          },
-          {
-            field: 'callback',
-            value: 'https://webhook.example.com/cb',
-            validations: ['isUrl', ['isUrlWithScheme', 'https']],
-          },
-        ],
+      const r = serverValidator.validate({
+        host: '192.168.1.100',
+        port: 8080,
+        callback: 'https://webhook.example.com/cb',
       });
       expect(r.ok).toBe(true);
     });
 
     it('invalid server config', () => {
-      const r = validate({
-        fields: [
-          { field: 'host', value: '999.999.999.999', validations: ['isIpv4'] },
-          {
-            field: 'port',
-            value: 99999,
-            validations: ['isPositiveInteger', ['isInRange', 1, 65535]],
-          },
-          {
-            field: 'callback',
-            value: 'http://insecure.com',
-            validations: ['isUrl', ['isUrlWithScheme', 'https']],
-          },
-        ],
+      const r = serverValidator.validate({
+        host: '999.999.999.999',
+        port: 99999,
+        callback: 'http://insecure.com',
       });
       expect(r.ok).toBe(false);
       expect(r.errors.host.length).toBeGreaterThan(0);

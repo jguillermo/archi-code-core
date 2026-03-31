@@ -1,10 +1,11 @@
 //! archi_validation — WebAssembly validation library
 //!
-//! Single binary-crossing API:
-//!   run_flat(data)       → 1 if all pass, 0 if any fail
-//!   run_flat_codes(data) → [ok, f0_count, f0_code0, ..., f1_count, ...]
+//! Validation API:
+//!   run_flat(data)                → 1 if all pass, 0 if any fail
+//!   run_flat_codes(data)          → [ok, f0_count, f0_code0, ..., f1_count, ...]
+//!   run_split(schema, values)     → same as run_flat_codes but schema is cached separately
 //!
-//! Binary format (little-endian):
+//! Flat binary format (little-endian):
 //!   [num_fields: u16]
 //!   For each field:
 //!     [type: u8]  0=null 1=bool_false 2=bool_true 3=num 4=str
@@ -16,6 +17,22 @@
 //!       if 1: [f64: 8B]
 //!       if 2: [f64: 8B][f64: 8B]
 //!       if 3: [len: u16][utf8...]
+//!
+//! Split format — schema buffer (built once, cached):
+//!   [num_fields: u16]
+//!   For each field:
+//!     [num_rules: u8]
+//!     For each rule:
+//!       [code: u8][param_type: u8]
+//!       if 1: [f64: 8B]
+//!       if 2: [f64: 8B][f64: 8B]
+//!       if 3: [len: u16][utf8...]
+//!
+//! Split format — values buffer (built per call):
+//!   For each field (same order as schema):
+//!     [type: u8]  0=null 1=bool_false 2=bool_true 3=num 4=str
+//!     if 3: [f64: 8B]
+//!     if 4: [len: u16][utf8...]
 
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
@@ -209,6 +226,121 @@ pub fn run_flat_codes(data: &[u8]) -> Vec<u8> {
             }
         }
 
+        field_codes.push(failing);
+    }
+
+    let all_ok = field_codes.iter().all(|c| c.is_empty());
+    let total: usize = field_codes.iter().map(|c| c.len()).sum();
+    let mut buf = Vec::with_capacity(1 + num_fields + total);
+    buf.push(all_ok as u8);
+    for codes in &field_codes {
+        buf.push(codes.len().min(255) as u8);
+        buf.extend_from_slice(codes);
+    }
+    buf
+}
+
+/// Run validations from a pre-compiled schema buffer + a per-call values buffer.
+///
+/// Schema is built once and cached in JS; values are encoded on each call.
+/// Returns the same format as run_flat_codes: `[ok_byte, f0_count, f0_code0, ..., f1_count, ...]`
+#[cfg(feature = "wasm")]
+#[wasm_bindgen]
+pub fn run_split(schema: &[u8], values: &[u8]) -> Vec<u8> {
+    if schema.len() < 2 {
+        return vec![1];
+    }
+
+    let num_fields = u16::from_le_bytes([schema[0], schema[1]]) as usize;
+    let mut sp = 2usize; // schema cursor
+    let mut vp = 0usize; // values cursor
+    let mut field_codes: Vec<Vec<u8>> = Vec::with_capacity(num_fields);
+
+    macro_rules! need_s {
+        ($n:expr) => {
+            if sp + $n > schema.len() {
+                return Default::default();
+            }
+        };
+    }
+    macro_rules! need_v {
+        ($n:expr) => {
+            if vp + $n > values.len() {
+                return Default::default();
+            }
+        };
+    }
+
+    for _ in 0..num_fields {
+        // ── Read value from values buffer ────────────────────────────────────
+        need_v!(1);
+        let field_type = values[vp];
+        vp += 1;
+        let field_value = match field_type {
+            0 => FieldValue::Null,
+            1 => FieldValue::Bool(false),
+            2 => FieldValue::Bool(true),
+            3 => {
+                need_v!(8);
+                let v = f64::from_le_bytes(values[vp..vp + 8].try_into().unwrap());
+                vp += 8;
+                FieldValue::Num(v)
+            }
+            4 => {
+                need_v!(2);
+                let slen = u16::from_le_bytes([values[vp], values[vp + 1]]) as usize;
+                vp += 2;
+                need_v!(slen);
+                let s = std::str::from_utf8(&values[vp..vp + slen]).unwrap_or("").to_string();
+                vp += slen;
+                FieldValue::Str(s)
+            }
+            _ => FieldValue::Null,
+        };
+
+        // ── Read rules from schema buffer ────────────────────────────────────
+        need_s!(1);
+        let num_rules = schema[sp] as usize;
+        sp += 1;
+        let mut failing: Vec<u8> = Vec::new();
+
+        for _ in 0..num_rules {
+            need_s!(2);
+            let code = schema[sp] as u32;
+            sp += 1;
+            let param_type = schema[sp];
+            sp += 1;
+            let passed = match param_type {
+                0 => orchestrator::dispatch_by_code(code, &field_value, &[]),
+                1 => {
+                    need_s!(8);
+                    let p0 = f64::from_le_bytes(schema[sp..sp + 8].try_into().unwrap());
+                    sp += 8;
+                    orchestrator::dispatch_by_code(code, &field_value, &[Param::Num(p0)])
+                }
+                2 => {
+                    need_s!(16);
+                    let p0 = f64::from_le_bytes(schema[sp..sp + 8].try_into().unwrap());
+                    sp += 8;
+                    let p1 = f64::from_le_bytes(schema[sp..sp + 8].try_into().unwrap());
+                    sp += 8;
+                    orchestrator::dispatch_by_code(code, &field_value, &[Param::Num(p0), Param::Num(p1)])
+                }
+                3 => {
+                    need_s!(2);
+                    let plen = u16::from_le_bytes([schema[sp], schema[sp + 1]]) as usize;
+                    sp += 2;
+                    need_s!(plen);
+                    let p_str = std::str::from_utf8(&schema[sp..sp + plen]).unwrap_or("").to_string();
+                    sp += plen;
+                    orchestrator::dispatch_by_code(code, &field_value, &[Param::Str(p_str)])
+                }
+                _ => true,
+            };
+            if !passed {
+                failing.push(code as u8);
+            }
+        }
         field_codes.push(failing);
     }
 
