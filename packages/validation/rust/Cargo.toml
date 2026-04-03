@@ -11,12 +11,13 @@ name = "archi_validation"
 
 [features]
 default = []
-wasm = ["wasm-bindgen", "console_error_panic_hook"]
+wasm = ["wasm-bindgen", "console_error_panic_hook", "js-sys"]
 
 [dependencies]
 # WASM bindings — optional so the lib compiles without wasm target too (useful for native tests)
 wasm-bindgen = { version = "0.2", optional = true }
 console_error_panic_hook = { version = "0.1", optional = true }
+js-sys = { version = "0.3", optional = true }
 
 # Validation
 validator = { version = "0.19", features = ["derive"] }

@@ -28,3 +28,13 @@ export function cast_str_bool(value: boolean): string;
 export function cast_date(value: string): number;
 export function cast_date_num(value: number): number;
 export function cast_json(value: string): void;
+
+// ─── Primitive type checkers — accept any JS value ───────────────────────────
+export function can_be_string(value: unknown): boolean;
+export function can_be_boolean(value: unknown): boolean;
+export function can_be_integer(value: unknown): boolean;
+export function can_be_float(value: unknown): boolean;
+export function can_be_date(value: unknown): boolean;
+export function can_be_json(value: unknown): boolean;
+export function can_be_array(value: unknown): boolean;
+export function can_be_enum(value: unknown, options_json: string): boolean;

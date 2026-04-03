@@ -24,6 +24,7 @@ dependencies = [
  "chrono",
  "console_error_panic_hook",
  "getrandom",
+ "js-sys",
  "once_cell",
  "regex",
  "serde",
