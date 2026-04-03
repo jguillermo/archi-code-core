@@ -27,51 +27,51 @@ function wrap<T>(fn: () => T, fallback: string): T {
   }
 }
 
-// ─── toBeInteger ──────────────────────────────────────────────────────────────
+// ─── toInteger ────────────────────────────────────────────────────────────────
 
-export function toBeInteger(v: unknown): number {
+export function toInteger(v: unknown): number {
   return wrap(() => to_integer(v), 'Value is not a valid integer');
 }
 
-// ─── toBeFloat ────────────────────────────────────────────────────────────────
+// ─── toFloat ──────────────────────────────────────────────────────────────────
 
-export function toBeFloat(v: unknown): number {
+export function toFloat(v: unknown): number {
   return wrap(() => to_float(v), 'Value is not a valid float');
 }
 
-// ─── toBeBoolean ─────────────────────────────────────────────────────────────
+// ─── toBoolean ────────────────────────────────────────────────────────────────
 
-export function toBeBoolean(v: unknown): boolean {
+export function toBoolean(v: unknown): boolean {
   return wrap(() => to_boolean(v), 'Value is not a valid boolean');
 }
 
-// ─── toBeString ───────────────────────────────────────────────────────────────
+// ─── toString ─────────────────────────────────────────────────────────────────
 
-export function toBeString(v: unknown): string {
+export function toString(v: unknown): string {
   return wrap(() => to_string(v), 'Value is not a valid string');
 }
 
-// ─── toBeDate ─────────────────────────────────────────────────────────────────
+// ─── toDate ───────────────────────────────────────────────────────────────────
 
-export function toBeDate(v: unknown): Date {
+export function toDate(v: unknown): Date {
   return new Date(wrap(() => to_date(v), 'Value is not a valid date'));
 }
 
-// ─── toBeJson ─────────────────────────────────────────────────────────────────
+// ─── toJson ───────────────────────────────────────────────────────────────────
 
-export function toBeJson(v: unknown): Record<string, unknown> {
+export function toJson(v: unknown): Record<string, unknown> {
   return wrap(() => to_json(v) as Record<string, unknown>, 'Value is not a valid JSON object');
 }
 
-// ─── toBeArray ────────────────────────────────────────────────────────────────
+// ─── toArray ──────────────────────────────────────────────────────────────────
 
-export function toBeArray(v: unknown): unknown[] {
+export function toArray(v: unknown): unknown[] {
   return wrap(() => to_array(v) as unknown[], 'Value is not a valid array');
 }
 
-// ─── toBeEnum ─────────────────────────────────────────────────────────────────
+// ─── toEnum ───────────────────────────────────────────────────────────────────
 
-export function toBeEnum(v: unknown, options: string[]): string | number | boolean {
+export function toEnum(v: unknown, options: string[]): string | number | boolean {
   return wrap(
     () => to_enum(v, JSON.stringify(options)) as string | number | boolean,
     'Value is not a valid enum option',

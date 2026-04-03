@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
-import { toBeInteger, ConvertError } from '../../convert';
+import { toInteger, ConvertError } from '../../convert';
 
 describe('ConvertError', () => {
   it('is an instance of Error', () => expect(new ConvertError('x')).toBeInstanceOf(Error));
@@ -7,7 +7,7 @@ describe('ConvertError', () => {
   it('message includes the invalid value', () => {
     const err = (() => {
       try {
-        toBeInteger('abc');
+        toInteger('abc');
       } catch (e) {
         return e;
       }
