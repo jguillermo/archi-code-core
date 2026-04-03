@@ -3,7 +3,11 @@
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
-fn from_str(s: &str) -> bool {
+pub(crate) fn from_num(n: f64) -> bool {
+    n == 0.0 || n == 1.0
+}
+
+pub(crate) fn from_str(s: &str) -> bool {
     matches!(s.trim().to_lowercase().as_str(), "true" | "false" | "1" | "0")
 }
 

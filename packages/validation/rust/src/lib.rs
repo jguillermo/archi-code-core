@@ -15,6 +15,7 @@ mod validators;
 mod batch;
 mod cast;
 mod can_be_type;
+mod convert;
 
 // ─── Shared types (used by batch + orchestrator) ──────────────────────────────
 

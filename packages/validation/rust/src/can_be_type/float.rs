@@ -4,12 +4,12 @@
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
-fn from_str(s: &str) -> bool {
+pub(crate) fn from_str(s: &str) -> bool {
     let s = s.trim();
     !s.is_empty() && s.parse::<f64>().map(|n| n.is_finite()).unwrap_or(false)
 }
 
-fn from_num(n: f64) -> bool {
+pub(crate) fn from_num(n: f64) -> bool {
     n.is_finite()
 }
 

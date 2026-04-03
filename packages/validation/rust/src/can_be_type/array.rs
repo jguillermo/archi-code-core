@@ -3,7 +3,7 @@
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
-fn from_str(s: &str) -> bool {
+pub(crate) fn from_str(s: &str) -> bool {
     matches!(
         serde_json::from_str::<serde_json::Value>(s),
         Ok(serde_json::Value::Array(_))

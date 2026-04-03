@@ -6,7 +6,7 @@ use wasm_bindgen::prelude::*;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::JsCast;
 
-fn from_str(s: &str) -> bool {
+pub(crate) fn from_str(s: &str) -> bool {
     use chrono::{DateTime, NaiveDate, NaiveDateTime};
     let s = s.trim();
     // Require 4-digit year prefix

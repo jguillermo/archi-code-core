@@ -6,7 +6,7 @@ use wasm_bindgen::prelude::*;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::JsCast;
 
-fn from_str(s: &str) -> bool {
+pub(crate) fn from_str(s: &str) -> bool {
     match serde_json::from_str::<serde_json::Value>(s) {
         Ok(serde_json::Value::Object(map)) => !map.is_empty(),
         _ => false,

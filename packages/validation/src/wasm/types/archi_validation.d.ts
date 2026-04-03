@@ -38,3 +38,13 @@ export function can_be_date(value: unknown): boolean;
 export function can_be_json(value: unknown): boolean;
 export function can_be_array(value: unknown): boolean;
 export function can_be_enum(value: unknown, options_json: string): boolean;
+
+// ─── Conversion functions — convert or throw ─────────────────────────────────
+export function to_integer(value: unknown): number;
+export function to_float(value: unknown): number;
+export function to_boolean(value: unknown): boolean;
+export function to_string(value: unknown): string;
+export function to_date(value: unknown): number;
+export function to_json(value: unknown): unknown;
+export function to_array(value: unknown): unknown;
+export function to_enum(value: unknown, options_json: string): unknown;

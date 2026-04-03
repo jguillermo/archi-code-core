@@ -4,7 +4,7 @@
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
-fn value_to_string(s: Option<String>, b: Option<bool>, n: Option<f64>) -> Option<String> {
+pub(crate) fn value_to_string(s: Option<String>, b: Option<bool>, n: Option<f64>) -> Option<String> {
     if let Some(s) = s {
         return Some(s);
     }
@@ -20,7 +20,7 @@ fn value_to_string(s: Option<String>, b: Option<bool>, n: Option<f64>) -> Option
     None
 }
 
-fn check(str_value: &str, options_json: &str) -> bool {
+pub(crate) fn check(str_value: &str, options_json: &str) -> bool {
     match serde_json::from_str::<Vec<String>>(options_json) {
         Ok(options) => options.iter().any(|o| o == str_value),
         Err(_) => false,
