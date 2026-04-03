@@ -1,4 +1,4 @@
-import { createValidator } from './validate';
+import { validate } from './validate';
 import type { ValidationRule, ValidationRuleName } from './validate';
 import { RC } from './flat-encoder';
 
@@ -158,7 +158,7 @@ export const validateJson = (input: ValidateInput | string): ValidateJsonOutput 
   const table = TABLES[locale] ?? EN;
   const schemaDef = parsed.fields.map(({ field, validations }) => ({ field, validations }));
   const values = Object.fromEntries(parsed.fields.map(({ field, value }) => [field, value]));
-  const result = createValidator(schemaDef).validate(values);
+  const result = validate(schemaDef, values);
 
   const errors: Record<string, string[]> = {};
   for (const { field, validations } of parsed.fields) {

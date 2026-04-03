@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
-import { createValidator } from '../validators/validate';
+import { validate } from '../validators/validate';
 import { check } from './helpers';
 
 // Rule codes — must match RC in validate.ts
@@ -21,11 +21,13 @@ describe('locale', () => {
   });
 
   it('codes are consistent across multiple fields', () => {
-    const v = createValidator([
-      { field: 'email', validations: ['isEmail'] },
-      { field: 'name', validations: ['isNotEmpty'] },
-    ]);
-    const r = v.validate({ email: 'bad', name: '' });
+    const r = validate(
+      [
+        { field: 'email', validations: ['isEmail'] },
+        { field: 'name', validations: ['isNotEmpty'] },
+      ],
+      { email: 'bad', name: '' },
+    );
     expect(r.errors.email).toEqual([C.isEmail]);
     expect(r.errors.name).toEqual([C.isNotEmpty]);
   });
@@ -60,11 +62,13 @@ describe('custom messages — ignored, code is returned', () => {
   });
 
   it('custom message on one field does not affect another', () => {
-    const v = createValidator([
-      { field: 'a', validations: [{ rule: 'isEmail', message: 'Custom A' }] },
-      { field: 'b', validations: ['isEmail'] },
-    ]);
-    const r = v.validate({ a: 'bad', b: 'bad' });
+    const r = validate(
+      [
+        { field: 'a', validations: [{ rule: 'isEmail', message: 'Custom A' }] },
+        { field: 'b', validations: ['isEmail'] },
+      ],
+      { a: 'bad', b: 'bad' },
+    );
     expect(r.errors['a']).toEqual([C.isEmail]);
     expect(r.errors['b']).toEqual([C.isEmail]);
   });

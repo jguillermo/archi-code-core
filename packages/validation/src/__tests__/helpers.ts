@@ -1,11 +1,10 @@
 import { expect } from '@jest/globals';
-import { createValidator } from '../validators/validate';
+import { validate } from '../validators/validate';
 import type { ValidationRule } from '../validators/validate';
 
 /** Run validations on a single value and return its failing rule codes. */
 export const check = (value: unknown, ...rules: ValidationRule[]): number[] => {
-  const validator = createValidator([{ field: 'f', validations: rules }]);
-  return validator.validate({ f: value }).errors['f'];
+  return validate([{ field: 'f', validations: rules }], { f: value }).errors['f'];
 };
 
 /** Assert the value passes all given rules. */
