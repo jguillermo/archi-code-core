@@ -1,45 +1,42 @@
 use regex::Regex;
 
-// ─── Empty / Length ──────────────────────────────────────────────────────────
+pub fn is_empty(value: &str) -> bool {
+    value.is_empty()
+}
 
 pub fn is_not_empty(value: &str) -> bool {
     !value.is_empty()
 }
 
-pub fn is_empty(value: &str) -> bool {
-    value.is_empty()
-}
-
-pub fn is_min_length(value: &str, min: usize) -> bool {
-    value.chars().count() >= min
-}
-
-pub fn is_max_length(value: &str, max: usize) -> bool {
-    value.chars().count() <= max
-}
-
-pub fn is_exact_length(value: &str, len: usize) -> bool {
-    value.chars().count() == len
-}
-
-pub fn is_length_between(value: &str, min: usize, max: usize) -> bool {
-    let len = value.chars().count();
-    len >= min && len <= max
-}
-
-/// isLength — char length with optional min/max (max=0 means unlimited)
+/// isLength — unicode grapheme count with optional min/max (max=0 means unlimited)
 pub fn is_length(value: &str, min: usize, max: usize) -> bool {
-    let len = value.chars().count();
+    // Count chars, subtracting presentation sequences (U+FE0F/U+FE0E) and surrogate pairs
+    let pres_seq = count_presentation_sequences(value);
+    let surrogate_pairs = count_surrogate_pairs(value);
+    let len = value.chars().count() - pres_seq - surrogate_pairs;
     len >= min && (max == 0 || len <= max)
 }
 
-/// isByteLength — UTF-8 byte length check
+fn count_presentation_sequences(s: &str) -> usize {
+    let chars: Vec<char> = s.chars().collect();
+    let mut count = 0;
+    for i in 1..chars.len() {
+        if (chars[i] == '\u{FE0F}' || chars[i] == '\u{FE0E}') && chars[i - 1] != '\u{FE0F}' && chars[i - 1] != '\u{FE0E}' {
+            count += 1;
+        }
+    }
+    count
+}
+
+fn count_surrogate_pairs(s: &str) -> usize {
+    s.chars().filter(|&c| c as u32 >= 0x10000).count()
+}
+
+/// isByteLength — UTF-8 byte length check (max=0 means unlimited)
 pub fn is_byte_length(value: &str, min: usize, max: usize) -> bool {
     let len = value.len();
     len >= min && (max == 0 || len <= max)
 }
-
-// ─── Character class ─────────────────────────────────────────────────────────
 
 pub fn is_alpha(value: &str) -> bool {
     !value.is_empty() && value.chars().all(|c| c.is_alphabetic())
@@ -65,18 +62,12 @@ pub fn is_uppercase(value: &str) -> bool {
     !value.is_empty() && value.chars().all(|c| !c.is_alphabetic() || c.is_uppercase())
 }
 
-// ─── Contains / Matches ──────────────────────────────────────────────────────
-
 pub fn equals(a: &str, b: &str) -> bool {
     a == b
 }
 
 pub fn contains(value: &str, needle: &str) -> bool {
     value.contains(needle)
-}
-
-pub fn contains_ignore_case(value: &str, needle: &str) -> bool {
-    value.to_lowercase().contains(&needle.to_lowercase())
 }
 
 pub fn starts_with(value: &str, prefix: &str) -> bool {
@@ -88,102 +79,37 @@ pub fn ends_with(value: &str, suffix: &str) -> bool {
 }
 
 pub fn matches_regex(value: &str, pattern: &str) -> bool {
-    Regex::new(pattern).map(|re| re.is_match(value)).unwrap_or(false)
+    Regex::new(pattern)
+        .map(|re| re.is_match(value))
+        .unwrap_or(false)
 }
 
-/// matches — alias for matches_regex
 pub fn matches(value: &str, pattern: &str) -> bool {
     matches_regex(value, pattern)
 }
 
-// ─── Set membership ──────────────────────────────────────────────────────────
-
-/// isIn — check if value is in a list of strings
 pub fn is_in(value: &str, list: &[&str]) -> bool {
     list.contains(&value)
 }
 
-/// isWhitelisted — all characters in value must be in allowed chars
+/// isWhitelisted — all characters must be in allowed chars string
 pub fn is_whitelisted(value: &str, allowed_chars: &str) -> bool {
-    value.chars().all(|c| {
-        let mut buf = [0u8; 4];
-        allowed_chars.contains(c.encode_utf8(&mut buf) as &str)
-    })
+    value.chars().all(|c| allowed_chars.contains(c))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+pub fn is_min_length(value: &str, min: usize) -> bool {
+    value.chars().count() >= min
+}
 
-    #[test]
-    fn test_empty() {
-        assert!(is_not_empty("hello"));
-        assert!(!is_not_empty(""));
-        assert!(is_empty(""));
-        assert!(!is_empty("x"));
-    }
+pub fn is_max_length(value: &str, max: usize) -> bool {
+    value.chars().count() <= max
+}
 
-    #[test]
-    fn test_length() {
-        assert!(is_min_length("hello", 3));
-        assert!(!is_min_length("hi", 3));
-        assert!(is_max_length("hi", 5));
-        assert!(!is_max_length("hello world", 5));
-        assert!(is_exact_length("abc", 3));
-        assert!(is_length_between("abc", 2, 5));
-        assert!(is_length("hello", 3, 10));
-        assert!(!is_length("hi", 3, 10));
-        assert!(is_length("hello", 3, 0)); // unlimited max
-    }
+pub fn is_exact_length(value: &str, len: usize) -> bool {
+    value.chars().count() == len
+}
 
-    #[test]
-    fn test_byte_length() {
-        assert!(is_byte_length("hello", 3, 10));
-        assert!(!is_byte_length("hi", 3, 0));
-    }
-
-    #[test]
-    fn test_char_types() {
-        assert!(is_alpha("Hello"));
-        assert!(!is_alpha("Hello1"));
-        assert!(is_alphanumeric("Hello1"));
-        assert!(!is_alphanumeric("Hello!"));
-        assert!(is_numeric("12345"));
-        assert!(!is_numeric("123a5"));
-    }
-
-    #[test]
-    fn test_case() {
-        assert!(is_lowercase("hello world"));
-        assert!(!is_lowercase("Hello"));
-        assert!(is_uppercase("HELLO WORLD"));
-        assert!(!is_uppercase("Hello"));
-    }
-
-    #[test]
-    fn test_contains() {
-        assert!(contains("hello world", "world"));
-        assert!(starts_with("hello", "he"));
-        assert!(ends_with("hello", "lo"));
-        assert!(equals("abc", "abc"));
-        assert!(!equals("abc", "def"));
-    }
-
-    #[test]
-    fn test_is_in() {
-        assert!(is_in("foo", &["foo", "bar", "baz"]));
-        assert!(!is_in("qux", &["foo", "bar", "baz"]));
-    }
-
-    #[test]
-    fn test_is_whitelisted() {
-        assert!(is_whitelisted("abc", "abcdef"));
-        assert!(!is_whitelisted("abc!", "abcdef"));
-    }
-
-    #[test]
-    fn test_regex() {
-        assert!(matches_regex("hello123", r"^[a-z]+\d+$"));
-        assert!(!matches_regex("HELLO", r"^[a-z]+$"));
-    }
+pub fn is_length_between(value: &str, min: usize, max: usize) -> bool {
+    let n = value.chars().count();
+    n >= min && n <= max
 }

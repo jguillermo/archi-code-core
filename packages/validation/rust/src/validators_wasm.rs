@@ -58,7 +58,7 @@ pub fn is_ip_range(str: &str, version: u8) -> bool {
 pub fn is_mac_address(str: &str) -> bool { ip::is_mac_address(str) }
 
 #[cfg_attr(feature = "wasm", wasm_bindgen(js_name = "isFQDN"))]
-pub fn is_fqdn(str: &str) -> bool { ip::is_fqdn(str) }
+pub fn is_fqdn(str: &str) -> bool { ip::is_fqdn(str, false) }
 
 #[cfg_attr(feature = "wasm", wasm_bindgen(js_name = "isPort"))]
 pub fn is_port(str: &str) -> bool { ip::is_port(str) }

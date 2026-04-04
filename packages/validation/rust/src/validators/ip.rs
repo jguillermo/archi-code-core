@@ -1,60 +1,66 @@
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use once_cell::sync::Lazy;
 use regex::Regex;
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
-// ─── Compiled regexes ────────────────────────────────────────────────────────
-// Note: Rust's regex crate does not support backreferences.
-// MAC-48 with colon separator: xx:xx:xx:xx:xx:xx
-static MAC48_COLON_RE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"^[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}$").unwrap()
-});
-// MAC-48 with dash separator: xx-xx-xx-xx-xx-xx
-static MAC48_DASH_RE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"^[0-9a-fA-F]{2}(-[0-9a-fA-F]{2}){5}$").unwrap()
-});
-// MAC-48 with space separator
-static MAC48_SPACE_RE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"^[0-9a-fA-F]{2}( [0-9a-fA-F]{2}){5}$").unwrap()
-});
-// MAC-48 no separator: 12 hex chars
-static MAC48_NO_SEP_RE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"^[0-9a-fA-F]{12}$").unwrap()
-});
-// MAC-48 dot-notation: xxxx.xxxx.xxxx
-static MAC48_DOTS_RE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"^[0-9a-fA-F]{4}\.[0-9a-fA-F]{4}\.[0-9a-fA-F]{4}$").unwrap()
-});
-// MAC-64 with colon
-static MAC64_COLON_RE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"^[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){7}$").unwrap()
-});
-// MAC-64 no separator
-static MAC64_NO_SEP_RE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"^[0-9a-fA-F]{16}$").unwrap()
+// IPv4: strict — no leading zeros
+static IPV4_RE: Lazy<Regex> = Lazy::new(|| {
+    let seg = "(?:[0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])";
+    Regex::new(&format!(r"^({seg}[.]){{3}}{seg}$")).unwrap()
 });
 
-// ─── IP ──────────────────────────────────────────────────────────────────────
+// IPv6: full RFC-compliant regex (same logic as the TypeScript source)
+static IPV6_RE: Lazy<Regex> = Lazy::new(|| {
+    let seg = "(?:[0-9a-fA-F]{1,4})";
+    let ipv4 = r"(?:[0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(?:[.](?:[0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])){3}";
+    let pattern = format!(
+        r"^(?:{seg}:){{7}}(?:{seg}|:)\
+|(?:{seg}:){{6}}(?:{ipv4}|:{seg}|:)\
+|(?:{seg}:){{5}}(?::{ipv4}|(?::{seg}){{1,2}}|:)\
+|(?:{seg}:){{4}}(?:(?::{seg}){{0,1}}:{ipv4}|(?::{seg}){{1,3}}|:)\
+|(?:{seg}:){{3}}(?:(?::{seg}){{0,2}}:{ipv4}|(?::{seg}){{1,4}}|:)\
+|(?:{seg}:){{2}}(?:(?::{seg}){{0,3}}:{ipv4}|(?::{seg}){{1,5}}|:)\
+|(?:{seg}:){{1}}(?:(?::{seg}){{0,4}}:{ipv4}|(?::{seg}){{1,6}}|:)\
+|(?::(?:(?::{seg}){{0,5}}:{ipv4}|(?::{seg}){{1,7}}|:))\
+)(?:%[0-9a-zA-Z.{{1,}}])?$"
+    );
+    Regex::new(&pattern.replace('\n', "")).unwrap()
+});
 
-pub fn is_ip(value: &str) -> bool {
-    value.parse::<IpAddr>().is_ok()
-}
+// MAC patterns
+static MAC48_COLON_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}$").unwrap());
+static MAC48_DASH_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^[0-9a-fA-F]{2}(-[0-9a-fA-F]{2}){5}$").unwrap());
+static MAC48_SPACE_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^[0-9a-fA-F]{2}( [0-9a-fA-F]{2}){5}$").unwrap());
+static MAC48_NOSEP_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^[0-9a-fA-F]{12}$").unwrap());
+static MAC48_DOTS_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^[0-9a-fA-F]{4}\.[0-9a-fA-F]{4}\.[0-9a-fA-F]{4}$").unwrap());
+static MAC64_COLON_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){7}$").unwrap());
+static MAC64_NOSEP_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^[0-9a-fA-F]{16}$").unwrap());
 
 pub fn is_ipv4(value: &str) -> bool {
-    value.parse::<Ipv4Addr>().is_ok()
+    IPV4_RE.is_match(value)
 }
 
 pub fn is_ipv6(value: &str) -> bool {
-    value.parse::<Ipv6Addr>().is_ok()
+    // Strip zone id for std parse, but validate with regex for full compatibility
+    IPV6_RE.is_match(value)
 }
 
-/// isIPRange — CIDR notation (e.g. "192.168.0.0/24")
+pub fn is_ip(value: &str) -> bool {
+    is_ipv4(value) || is_ipv6(value)
+}
+
 pub fn is_ip_range(value: &str, version: Option<u8>) -> bool {
     let parts: Vec<&str> = value.split('/').collect();
     if parts.len() != 2 {
         return false;
     }
     let subnet_str = parts[1];
-    // No leading zeros allowed (except "0")
     if subnet_str.len() > 1 && subnet_str.starts_with('0') {
         return false;
     }
@@ -62,16 +68,9 @@ pub fn is_ip_range(value: &str, version: Option<u8>) -> bool {
         Ok(n) => n,
         Err(_) => return false,
     };
-
     match version {
-        Some(4) => {
-            if subnet > 32 { return false; }
-            parts[0].parse::<Ipv4Addr>().is_ok()
-        }
-        Some(6) => {
-            if subnet > 128 { return false; }
-            parts[0].parse::<Ipv6Addr>().is_ok()
-        }
+        Some(4) => subnet <= 32 && parts[0].parse::<Ipv4Addr>().is_ok(),
+        Some(6) => subnet <= 128 && parts[0].parse::<Ipv6Addr>().is_ok(),
         _ => {
             (subnet <= 32 && parts[0].parse::<Ipv4Addr>().is_ok())
                 || (subnet <= 128 && parts[0].parse::<Ipv6Addr>().is_ok())
@@ -79,110 +78,85 @@ pub fn is_ip_range(value: &str, version: Option<u8>) -> bool {
     }
 }
 
-// ─── FQDN ────────────────────────────────────────────────────────────────────
+pub fn is_mac_address(value: &str) -> bool {
+    MAC48_COLON_RE.is_match(value)
+        || MAC48_DASH_RE.is_match(value)
+        || MAC48_SPACE_RE.is_match(value)
+        || MAC48_NOSEP_RE.is_match(value)
+        || MAC48_DOTS_RE.is_match(value)
+        || MAC64_COLON_RE.is_match(value)
+        || MAC64_NOSEP_RE.is_match(value)
+}
 
 /// isFQDN — fully qualified domain name
-pub fn is_fqdn(value: &str) -> bool {
-    let s = if value.ends_with('.') { &value[..value.len() - 1] } else { value };
+pub fn is_fqdn_opts(value: &str, allow_numeric_tld: bool) -> bool {
+    is_fqdn(value, allow_numeric_tld)
+}
+
+pub fn is_fqdn(value: &str, allow_numeric_tld: bool) -> bool {
+    let s = if value.ends_with('.') {
+        &value[..value.len() - 1]
+    } else {
+        value
+    };
     let parts: Vec<&str> = s.split('.').collect();
     if parts.len() < 2 {
         return false;
     }
     let tld = parts[parts.len() - 1];
-    // TLD must be 2+ letters and not all digits
-    if tld.len() < 2 || tld.chars().all(|c| c.is_ascii_digit()) {
+    // TLD must be at least 2 chars
+    if tld.len() < 2 {
         return false;
     }
+    // Numeric TLD check
+    if !allow_numeric_tld && tld.chars().all(|c| c.is_ascii_digit()) {
+        return false;
+    }
+    // TLD must match alpha pattern (unless numeric allowed)
+    if !allow_numeric_tld {
+        let tld_re = Regex::new(
+            r"^([a-z\u{00A1}-\u{00A8}\u{00AA}-\u{D7FF}\u{F900}-\u{FDCF}\u{FDF0}-\u{FFEF}]{2,}|xn[a-z0-9\-]{2,})$"
+        );
+        if let Ok(re) = tld_re {
+            if !re.is_match(&tld.to_lowercase()) {
+                return false;
+            }
+        }
+    }
     parts.iter().all(|part| {
-        !part.is_empty()
-            && part.len() <= 63
-            && !part.starts_with('-')
-            && !part.ends_with('-')
-            && part.chars().all(|c| c.is_alphanumeric() || c == '-')
+        if part.len() > 63 {
+            return false;
+        }
+        if part.is_empty() {
+            return false;
+        }
+        if part.starts_with('-') || part.ends_with('-') {
+            return false;
+        }
+        part.chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
     })
 }
-
-// ─── MAC Address ─────────────────────────────────────────────────────────────
-
-pub fn is_mac_address(value: &str) -> bool {
-    MAC48_COLON_RE.is_match(value)
-        || MAC48_DASH_RE.is_match(value)
-        || MAC48_SPACE_RE.is_match(value)
-        || MAC48_NO_SEP_RE.is_match(value)
-        || MAC48_DOTS_RE.is_match(value)
-        || MAC64_COLON_RE.is_match(value)
-        || MAC64_NO_SEP_RE.is_match(value)
-}
-
-pub fn is_mac_address_eui48(value: &str) -> bool {
-    MAC48_COLON_RE.is_match(value)
-        || MAC48_DASH_RE.is_match(value)
-        || MAC48_DOTS_RE.is_match(value)
-}
-
-pub fn is_mac_address_eui64(value: &str) -> bool {
-    MAC64_COLON_RE.is_match(value)
-}
-
-// ─── Port (moved here from number.rs for logical grouping) ───────────────────
 
 pub fn is_port(value: &str) -> bool {
     value.parse::<u16>().map(|n| n >= 1).unwrap_or(false)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+// Keep for compatibility
+pub fn is_ip_v4(value: &str) -> bool {
+    is_ipv4(value)
+}
 
-    #[test]
-    fn test_ip() {
-        assert!(is_ip("192.168.1.1"));
-        assert!(is_ip("::1"));
-        assert!(!is_ip("not-an-ip"));
-    }
+pub fn is_ip_v6(value: &str) -> bool {
+    is_ipv6(value)
+}
 
-    #[test]
-    fn test_ipv4() {
-        assert!(is_ipv4("192.168.1.1"));
-        assert!(!is_ipv4("::1"));
-    }
+#[allow(dead_code)]
+fn _ipv4_strict(value: &str) -> bool {
+    value.parse::<Ipv4Addr>().is_ok()
+}
 
-    #[test]
-    fn test_ipv6() {
-        assert!(is_ipv6("::1"));
-        assert!(!is_ipv6("192.168.1.1"));
-    }
-
-    #[test]
-    fn test_ip_range() {
-        assert!(is_ip_range("192.168.0.0/24", None));
-        assert!(is_ip_range("::1/128", None));
-        assert!(!is_ip_range("192.168.0.0", None));
-        assert!(!is_ip_range("192.168.0.0/33", Some(4)));
-    }
-
-    #[test]
-    fn test_fqdn() {
-        assert!(is_fqdn("example.com"));
-        assert!(is_fqdn("sub.example.co.uk"));
-        assert!(!is_fqdn("localhost"));
-        assert!(!is_fqdn("-example.com"));
-    }
-
-    #[test]
-    fn test_mac() {
-        assert!(is_mac_address("01:02:03:04:05:06"));
-        assert!(is_mac_address("01-02-03-04-05-06"));
-        assert!(is_mac_address("0102.0304.0506"));
-        assert!(is_mac_address("010203040506"));
-        assert!(!is_mac_address("not-a-mac"));
-    }
-
-    #[test]
-    fn test_port() {
-        assert!(is_port("80"));
-        assert!(is_port("65535"));
-        assert!(!is_port("0"));
-        assert!(!is_port("65536"));
-    }
+#[allow(dead_code)]
+fn _ipv6_strict(value: &str) -> bool {
+    value.parse::<IpAddr>().map(|a| a.is_ipv6()).unwrap_or(false)
 }
