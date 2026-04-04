@@ -28,6 +28,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Setup Rust + wasm-pack
+        uses: ./.github/actions/setup-rust-wasm
+
       - name: Configure git
         run: |
           git config user.email "github-actions[bot]@users.noreply.github.com"
