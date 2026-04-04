@@ -93,9 +93,7 @@ describe('Validators', () => {
     test({
       validator: 'isEmail',
       args: [{ allow_underscores: true }],
-      valid: [
-        'foobar@my_sarisari_store.typepad.com',
-      ],
+      valid: ['foobar@my_sarisari_store.typepad.com'],
       invalid: [],
     });
   });
@@ -154,7 +152,7 @@ describe('Validators', () => {
         'Some Name <hans@m端ller.com>',
         'Some Name <test|123@m端ller.com>',
         'Some Name <test123+ext@gmail.com>',
-        '\'Foo Bar, Esq\'<foo@bar.com>',
+        "'Foo Bar, Esq'<foo@bar.com>",
         'Some Name <some.name.midd.leNa.me+extension@GoogleMail.com>',
         'Some Middle Name <some.name.midd.leNa.me+extension@GoogleMail.com>',
         'Name <some.name.midd.leNa.me+extension@GoogleMail.com>',
@@ -245,15 +243,8 @@ describe('Validators', () => {
     test({
       validator: 'isEmail',
       args: [{ allow_ip_domain: true }],
-      valid: [
-        'email@[123.123.123.123]',
-        'email@255.255.255.255',
-      ],
-      invalid: [
-        'email@0.0.0.256',
-        'email@26.0.0.256',
-        'email@[266.266.266.266]',
-      ],
+      valid: ['email@[123.123.123.123]', 'email@255.255.255.255'],
+      invalid: ['email@0.0.0.256', 'email@26.0.0.256', 'email@[266.266.266.266]'],
     });
   });
 
@@ -261,9 +252,7 @@ describe('Validators', () => {
     test({
       validator: 'isEmail',
       args: [{ blacklisted_chars: 'abc"' }],
-      valid: [
-        'emil@gmail.com',
-      ],
+      valid: ['emil@gmail.com'],
       invalid: [
         'email@gmail.com',
         '"foobr"@example.com',
@@ -278,17 +267,13 @@ describe('Validators', () => {
       validator: 'isEmail',
       args: [{ ignore_max_length: false }],
       valid: [],
-      invalid: [
-        'Deleted-user-id-19430-Team-5051deleted-user-id-19430-team-5051XXXXXX@example.com',
-      ],
+      invalid: ['Deleted-user-id-19430-Team-5051deleted-user-id-19430-team-5051XXXXXX@example.com'],
     });
 
     test({
       validator: 'isEmail',
       args: [{ ignore_max_length: true }],
-      valid: [
-        'Deleted-user-id-19430-Team-5051deleted-user-id-19430-team-5051XXXXXX@example.com',
-      ],
+      valid: ['Deleted-user-id-19430-Team-5051deleted-user-id-19430-team-5051XXXXXX@example.com'],
       invalid: [],
     });
 
@@ -306,32 +291,21 @@ describe('Validators', () => {
     test({
       validator: 'isEmail',
       args: [{ host_blacklist: ['gmail.com', 'foo.bar.com'] }],
-      valid: [
-        'email@foo.gmail.com',
-      ],
-      invalid: [
-        'foo+bar@gmail.com',
-        'email@foo.bar.com',
-      ],
+      valid: ['email@foo.gmail.com'],
+      invalid: ['foo+bar@gmail.com', 'email@foo.bar.com'],
     });
   });
 
   it('should allow regular expressions in the host blacklist of isEmail', () => {
     test({
       validator: 'isEmail',
-      args: [{
-        host_blacklist: ['bar.com', 'foo.com', /\.foo\.com$/],
-      }],
-      valid: [
-        'email@foobar.com',
-        'email@foo.bar.com',
-        'email@qux.com',
+      args: [
+        {
+          host_blacklist: ['bar.com', 'foo.com', /\.foo\.com$/],
+        },
       ],
-      invalid: [
-        'email@bar.com',
-        'email@foo.com',
-        'email@a.b.c.foo.com',
-      ],
+      valid: ['email@foobar.com', 'email@foo.bar.com', 'email@qux.com'],
+      invalid: ['email@bar.com', 'email@foo.com', 'email@a.b.c.foo.com'],
     });
   });
 
@@ -339,34 +313,21 @@ describe('Validators', () => {
     test({
       validator: 'isEmail',
       args: [{ host_whitelist: ['gmail.com', 'foo.bar.com'] }],
-      valid: [
-        'email@gmail.com',
-        'test@foo.bar.com',
-      ],
-      invalid: [
-        'foo+bar@test.com',
-        'email@foo.com',
-        'email@bar.com',
-      ],
+      valid: ['email@gmail.com', 'test@foo.bar.com'],
+      invalid: ['foo+bar@test.com', 'email@foo.com', 'email@bar.com'],
     });
   });
 
   it('should allow regular expressions in the host whitelist of isEmail', () => {
     test({
       validator: 'isEmail',
-      args: [{
-        host_whitelist: ['bar.com', 'foo.com', /\.foo\.com$/],
-      }],
-      valid: [
-        'email@bar.com',
-        'email@foo.com',
-        'email@a.b.c.foo.com',
+      args: [
+        {
+          host_whitelist: ['bar.com', 'foo.com', /\.foo\.com$/],
+        },
       ],
-      invalid: [
-        'email@foobar.com',
-        'email@foo.bar.com',
-        'email@qux.com',
-      ],
+      valid: ['email@bar.com', 'email@foo.com', 'email@a.b.c.foo.com'],
+      invalid: ['email@foobar.com', 'email@foo.bar.com', 'email@qux.com'],
     });
   });
 });

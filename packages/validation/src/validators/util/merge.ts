@@ -1,4 +1,4 @@
-export default function merge(obj = { }, defaults) {
+export default function merge(obj = {}, defaults) {
   if (typeof obj !== 'object' || obj === null) {
     obj = {};
   }

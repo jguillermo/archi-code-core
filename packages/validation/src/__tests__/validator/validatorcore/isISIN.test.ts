@@ -14,12 +14,7 @@ describe('Validators', () => {
         'PLLWBGD00016',
         'US0378331005',
       ],
-      invalid: [
-        'DE000BAY0018',
-        'PLLWBGD00019',
-        'foo',
-        '5398228707871528',
-      ],
+      invalid: ['DE000BAY0018', 'PLLWBGD00019', 'foo', '5398228707871528'],
     });
   });
 });

@@ -49,10 +49,7 @@ describe('Validators', () => {
     test({
       validator: 'isIBAN',
       args: [{ whitelist: ['DK', 'GB'] }],
-      valid: [
-        'DK5000400440116243',
-        'GB29NWBK60161331926819',
-      ],
+      valid: ['DK5000400440116243', 'GB29NWBK60161331926819'],
       invalid: [
         'BE71 0961 2345 6769',
         'FR76 3000 6000 0112 3456 7890 189',

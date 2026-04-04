@@ -42,13 +42,7 @@ describe('Validators', () => {
         'CMAU2184010',
         'TCLU2265970',
       ],
-      invalid: [
-        'APZU3789871',
-        'TEMU1002031',
-        'DFSU1704421',
-        'CMAU2221481',
-        'SEGU5060261',
-      ],
+      invalid: ['APZU3789871', 'TEMU1002031', 'DFSU1704421', 'CMAU2221481', 'SEGU5060261'],
     });
   });
 });

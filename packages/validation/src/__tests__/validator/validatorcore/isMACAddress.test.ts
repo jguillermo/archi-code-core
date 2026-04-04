@@ -46,9 +46,11 @@ describe('Validators', () => {
     });
     test({
       validator: 'isMACAddress',
-      args: [{
-        eui: '48',
-      }],
+      args: [
+        {
+          eui: '48',
+        },
+      ],
       valid: [
         'ab:ab:ab:ab:ab:ab',
         'FF:FF:FF:FF:FF:FF',
@@ -72,9 +74,11 @@ describe('Validators', () => {
     });
     test({
       validator: 'isMACAddress',
-      args: [{
-        eui: '64',
-      }],
+      args: [
+        {
+          eui: '64',
+        },
+      ],
       valid: [
         'ab:ab:ab:ab:ab:ab:ab:ab',
         'FF:FF:FF:FF:FF:FF:FF:FF',
@@ -101,9 +105,11 @@ describe('Validators', () => {
   it('should validate MAC addresses without separator', () => {
     test({
       validator: 'isMACAddress',
-      args: [{
-        no_separators: true,
-      }],
+      args: [
+        {
+          no_separators: true,
+        },
+      ],
       valid: [
         'abababababab',
         'FFFFFFFFFFFF',
@@ -144,41 +150,25 @@ describe('Validators', () => {
     });
     test({
       validator: 'isMACAddress',
-      args: [{
-        no_separators: true,
-        eui: '48',
-      }],
-      valid: [
-        'abababababab',
-        'FFFFFFFFFFFF',
-        '0102030405ab',
-        '01AB03040506',
+      args: [
+        {
+          no_separators: true,
+          eui: '48',
+        },
       ],
-      invalid: [
-        'abababababababab',
-        'FFFFFFFFFFFFFFFF',
-        '01020304050607ab',
-        '01AB030405060708',
-      ],
+      valid: ['abababababab', 'FFFFFFFFFFFF', '0102030405ab', '01AB03040506'],
+      invalid: ['abababababababab', 'FFFFFFFFFFFFFFFF', '01020304050607ab', '01AB030405060708'],
     });
     test({
       validator: 'isMACAddress',
-      args: [{
-        no_separators: true,
-        eui: '64',
-      }],
-      valid: [
-        'abababababababab',
-        'FFFFFFFFFFFFFFFF',
-        '01020304050607ab',
-        '01AB030405060708',
+      args: [
+        {
+          no_separators: true,
+          eui: '64',
+        },
       ],
-      invalid: [
-        'abababababab',
-        'FFFFFFFFFFFF',
-        '0102030405ab',
-        '01AB03040506',
-      ],
+      valid: ['abababababababab', 'FFFFFFFFFFFFFFFF', '01020304050607ab', '01AB030405060708'],
+      invalid: ['abababababab', 'FFFFFFFFFFFF', '0102030405ab', '01AB03040506'],
     });
   });
 });

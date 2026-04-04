@@ -43,10 +43,7 @@ const default_normalize_email_options = {
 };
 
 // List of domains used by iCloud
-const icloud_domains = [
-  'icloud.com',
-  'me.com',
-];
+const icloud_domains = ['icloud.com', 'me.com'];
 
 // List of domains used by Outlook.com and its predecessors
 // This list is likely incomplete.
@@ -152,14 +149,7 @@ const yahoo_domains = [
 ];
 
 // List of domains used by yandex.ru
-const yandex_domains = [
-  'yandex.ru',
-  'yandex.ua',
-  'yandex.kz',
-  'yandex.com',
-  'yandex.by',
-  'ya.ru',
-];
+const yandex_domains = ['yandex.ru', 'yandex.ua', 'yandex.kz', 'yandex.com', 'yandex.by', 'ya.ru'];
 
 // replace single dots, but not multiple consecutive dots
 function dotsReplacer(match) {
@@ -221,8 +211,8 @@ export default function normalizeEmail(email, options) {
   } else if (yahoo_domains.indexOf(parts[1]) >= 0) {
     // Address is Yahoo
     if (options.yahoo_remove_subaddress) {
-      let components = parts[0].split('-');
-      parts[0] = (components.length > 1) ? components.slice(0, -1).join('-') : components[0];
+      const components = parts[0].split('-');
+      parts[0] = components.length > 1 ? components.slice(0, -1).join('-') : components[0];
     }
     if (!parts[0].length) {
       return false;

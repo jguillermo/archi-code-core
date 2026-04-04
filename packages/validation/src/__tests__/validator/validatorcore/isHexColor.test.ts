@@ -6,61 +6,20 @@ describe('Validators', () => {
   it('should validate hexadecimal color strings', () => {
     test({
       validator: 'isHexColor',
-      valid: [
-        '#ff0000ff',
-        '#ff0034',
-        '#CCCCCC',
-        '0f38',
-        'fff',
-        '#f00',
-      ],
-      invalid: [
-        '#ff',
-        'fff0a',
-        '#ff12FG',
-        '#######',
-        '',
-      ],
+      valid: ['#ff0000ff', '#ff0034', '#CCCCCC', '0f38', 'fff', '#f00'],
+      invalid: ['#ff', 'fff0a', '#ff12FG', '#######', ''],
     });
     test({
       validator: 'isHexColor',
       args: [{ require_hashtag: false }],
-      valid: [
-        '#ff0000ff',
-        '#ff0034',
-        '#CCCCCC',
-        '0f38',
-        'fff',
-        '#f00',
-      ],
-      invalid: [
-        '#ff',
-        'fff0a',
-        '#ff12FG',
-        '#######',
-        '',
-      ],
+      valid: ['#ff0000ff', '#ff0034', '#CCCCCC', '0f38', 'fff', '#f00'],
+      invalid: ['#ff', 'fff0a', '#ff12FG', '#######', ''],
     });
     test({
       validator: 'isHexColor',
       args: [{ require_hashtag: true }],
-      valid: [
-        '#ff0000ff',
-        '#ff0034',
-        '#CCCCCC',
-        '#0f38',
-        '#fff',
-        '#f00',
-      ],
-      invalid: [
-        '#ff',
-        'fff0a',
-        '#ff12FG',
-        '0f38',
-        'fff',
-        '#######',
-        '',
-      ],
+      valid: ['#ff0000ff', '#ff0034', '#CCCCCC', '#0f38', '#fff', '#f00'],
+      invalid: ['#ff', 'fff0a', '#ff12FG', '0f38', 'fff', '#######', ''],
     });
     test({
       validator: 'isHexColor',

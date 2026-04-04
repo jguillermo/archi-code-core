@@ -23,8 +23,8 @@ export function isISO6346(str) {
         else if (letterCode >= 11 && letterCode <= 20) convertedCode = 12 + (letterCode % 11);
         else if (letterCode >= 21 && letterCode <= 30) convertedCode = 23 + (letterCode % 21);
         else convertedCode = 34 + (letterCode % 31);
-        sum += convertedCode * (2 ** i);
-      } else sum += str[i] * (2 ** i);
+        sum += convertedCode * 2 ** i;
+      } else sum += str[i] * 2 ** i;
     }
 
     let checkSumDigit = sum % 11;

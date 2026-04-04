@@ -31,12 +31,7 @@ describe('Validators', () => {
     test({
       validator: 'isBase32',
       args: [{ crockford: true }],
-      valid: [
-        '91JPRV3F41BPYWKCCGGG',
-        '60',
-        '64',
-        'B5QQA833C5Q20S3F41MQ8',
-      ],
+      valid: ['91JPRV3F41BPYWKCCGGG', '60', '64', 'B5QQA833C5Q20S3F41MQ8'],
       invalid: [
         '91JPRV3F41BUPYWKCCGGG',
         'B5QQA833C5Q20S3F41MQ8L',

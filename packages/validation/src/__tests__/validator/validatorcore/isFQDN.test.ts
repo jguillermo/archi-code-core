@@ -45,66 +45,40 @@ describe('Validators', () => {
   it('should validate FQDN with trailing dot option', () => {
     test({
       validator: 'isFQDN',
-      args: [
-        { allow_trailing_dot: true },
-      ],
-      valid: [
-        'example.com.',
-      ],
+      args: [{ allow_trailing_dot: true }],
+      valid: ['example.com.'],
     });
   });
 
   it('should invalidate FQDN when not require_tld', () => {
     test({
       validator: 'isFQDN',
-      args: [
-        { require_tld: false },
-      ],
-      invalid: [
-        'example.0',
-        '192.168.0',
-        '192.168.0.9999',
-      ],
+      args: [{ require_tld: false }],
+      invalid: ['example.0', '192.168.0', '192.168.0.9999'],
     });
   });
 
   it('should validate FQDN when not require_tld but allow_numeric_tld', () => {
     test({
       validator: 'isFQDN',
-      args: [
-        { allow_numeric_tld: true, require_tld: false },
-      ],
-      valid: [
-        'example.0',
-        '192.168.0',
-        '192.168.0.9999',
-      ],
+      args: [{ allow_numeric_tld: true, require_tld: false }],
+      valid: ['example.0', '192.168.0', '192.168.0.9999'],
     });
   });
 
   it('should validate FQDN with wildcard option', () => {
     test({
       validator: 'isFQDN',
-      args: [
-        { allow_wildcard: true },
-      ],
-      valid: [
-        '*.example.com',
-        '*.shop.example.com',
-      ],
+      args: [{ allow_wildcard: true }],
+      valid: ['*.example.com', '*.shop.example.com'],
     });
   });
 
   it('should validate FQDN with required allow_trailing_dot, allow_underscores and allow_numeric_tld options', () => {
     test({
       validator: 'isFQDN',
-      args: [
-        { allow_trailing_dot: true, allow_underscores: true, allow_numeric_tld: true },
-      ],
-      valid: [
-        'abc.efg.g1h.',
-        'as1s.sad3s.ssa2d.',
-      ],
+      args: [{ allow_trailing_dot: true, allow_underscores: true, allow_numeric_tld: true }],
+      valid: ['abc.efg.g1h.', 'as1s.sad3s.ssa2d.'],
     });
   });
 });

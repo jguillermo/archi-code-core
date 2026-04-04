@@ -12,11 +12,7 @@ describe('Validators', () => {
         'ｶﾀｶﾅ',
         '中文',
       ],
-      invalid: [
-        'abc',
-        'abc123',
-        '<>@" *.',
-      ],
+      invalid: ['abc', 'abc123', '<>@" *.'],
     });
   });
 });

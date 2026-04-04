@@ -17,12 +17,7 @@ describe('Validators', () => {
         '$Zs.ewu.su84',
         'ks64$S/9.dy$§kz.3sd73b',
       ],
-      error: [
-        [],
-        {},
-        null,
-        undefined,
-      ],
+      error: [[], {}, null, undefined],
     });
   });
 });

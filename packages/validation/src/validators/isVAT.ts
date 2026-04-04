@@ -14,7 +14,7 @@ const AU = (str) => {
   for (let i = 0; i < 11; i++) {
     total += weights[i] * ABN.charAt(i);
   }
-  return (total !== 0 && total % 89 === 0);
+  return total !== 0 && total % 89 === 0;
 };
 
 const CH = (str) => {
@@ -22,13 +22,17 @@ const CH = (str) => {
   const hasValidCheckNumber = (digits) => {
     const lastDigit = digits.pop(); // used as check number
     const weights = [5, 4, 3, 2, 7, 6, 5, 4];
-    const calculatedCheckNumber = (11 - (digits.reduce((acc, el, idx) => acc + (el * weights[idx]), 0) % 11)) % 11;
+    const calculatedCheckNumber =
+      (11 - (digits.reduce((acc, el, idx) => acc + el * weights[idx], 0) % 11)) % 11;
 
     return lastDigit === calculatedCheckNumber;
   };
 
   // @see {@link https://www.estv.admin.ch/estv/de/home/mehrwertsteuer/uid/mwst-uid-nummer.html}
-  return /^(CHE[- ]?)?(\d{9}|(\d{3}\.\d{3}\.\d{3})|(\d{3} \d{3} \d{3})) ?(TVA|MWST|IVA)?$/.test(str) && hasValidCheckNumber((str.match(/\d/g).map((el) => +el)));
+  return (
+    /^(CHE[- ]?)?(\d{9}|(\d{3}\.\d{3}\.\d{3})|(\d{3} \d{3} \d{3})) ?(TVA|MWST|IVA)?$/.test(str) &&
+    hasValidCheckNumber(str.match(/\d/g).map((el) => +el))
+  );
 };
 
 const PT = (str) => {
@@ -39,7 +43,16 @@ const PT = (str) => {
 
   const tin = match[2];
 
-  const checksum = 11 - (algorithms.reverseMultiplyAndSum(tin.split('').slice(0, 8).map((a) => parseInt(a, 10)), 9) % 11);
+  const checksum =
+    11 -
+    (algorithms.reverseMultiplyAndSum(
+      tin
+        .split('')
+        .slice(0, 8)
+        .map((a) => parseInt(a, 10)),
+      9,
+    ) %
+      11);
   if (checksum > 9) {
     return parseInt(tin[8], 10) === 0;
   }
@@ -102,7 +115,10 @@ export const vatMatchers = {
   CH,
   TR: (str) => /^(TR)?\d{10}$/.test(str),
   UA: (str) => /^(UA)?\d{12}$/.test(str),
-  GB: (str) => /^GB((\d{3} \d{4} ([0-8][0-9]|9[0-6]))|(\d{9} \d{3})|(((GD[0-4])|(HA[5-9]))[0-9]{2}))$/.test(str),
+  GB: (str) =>
+    /^GB((\d{3} \d{4} ([0-8][0-9]|9[0-6]))|(\d{9} \d{3})|(((GD[0-4])|(HA[5-9]))[0-9]{2}))$/.test(
+      str,
+    ),
   UZ: (str) => /^(UZ)?\d{9}$/.test(str),
 
   /**
@@ -123,7 +139,8 @@ export const vatMatchers = {
   PA: (str) => /^(PA)?$/.test(str),
   PY: (str) => /^(PY)?\d{6,8}-\d{1}$/.test(str),
   PE: (str) => /^(PE)?\d{11}$/.test(str),
-  DO: (str) => /^(DO)?(\d{11}|(\d{3}-\d{7}-\d{1})|[1,4,5]{1}\d{8}|([1,4,5]{1})-\d{2}-\d{5}-\d{1})$/.test(str),
+  DO: (str) =>
+    /^(DO)?(\d{11}|(\d{3}-\d{7}-\d{1})|[1,4,5]{1}\d{8}|([1,4,5]{1})-\d{2}-\d{5}-\d{1})$/.test(str),
   UY: (str) => /^(UY)?\d{12}$/.test(str),
   VE: (str) => /^(VE)?[J,G,V,E]{1}-(\d{9}|(\d{8}-\d{1}))$/.test(str),
 };

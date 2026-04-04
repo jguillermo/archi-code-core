@@ -33,10 +33,10 @@ const validEanRegex = /^(\d{8}|\d{13}|\d{14})$/;
  */
 function getPositionWeightThroughLengthAndIndex(length, index) {
   if (length === LENGTH_EAN_8 || length === LENGTH_EAN_14) {
-    return (index % 2 === 0) ? 3 : 1;
+    return index % 2 === 0 ? 3 : 1;
   }
 
-  return (index % 2 === 0) ? 1 : 3;
+  return index % 2 === 0 ? 1 : 3;
 }
 
 /**

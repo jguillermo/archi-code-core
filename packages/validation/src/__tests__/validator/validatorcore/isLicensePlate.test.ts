@@ -5,12 +5,7 @@ describe('Validators', () => {
     test({
       validator: 'isLicensePlate',
       args: ['es-AR'],
-      valid: [
-        'AB 123 CD',
-        'AB123CD',
-        'ABC 123',
-        'ABC123',
-      ],
+      valid: ['AB 123 CD', 'AB123CD', 'ABC 123', 'ABC123'],
       invalid: [
         '',
         'notalicenseplate',
@@ -68,17 +63,8 @@ describe('Validators', () => {
     test({
       validator: 'isLicensePlate',
       args: ['de-LI'],
-      valid: [
-        'FL 1',
-        'FL 99999',
-        'FL 1337',
-      ],
-      invalid: [
-        '',
-        'FL 999999',
-        'AB 12345',
-        'FL -1',
-      ],
+      valid: ['FL 1', 'FL 99999', 'FL 1337'],
+      invalid: ['', 'FL 999999', 'AB 12345', 'FL -1'],
     });
     test({
       validator: 'isLicensePlate',
@@ -156,41 +142,18 @@ describe('Validators', () => {
         '199 AA',
         '199-AA',
       ],
-      invalid: [
-        ' ',
-        'A-1',
-        'A1A-100',
-        '1-A-2',
-        'C1234567',
-        'A B C 1 2 3',
-        'abc-123',
-      ],
+      invalid: [' ', 'A-1', 'A1A-100', '1-A-2', 'C1234567', 'A B C 1 2 3', 'abc-123'],
     });
     test({
       validator: 'isLicensePlate',
       args: ['sq-AL'],
-      valid: [
-        'AA 000 AA',
-        'ZZ 999 ZZ',
-      ],
-      invalid: [
-        '',
-        'AA 0 A',
-        'AAA 00 AAA',
-      ],
+      valid: ['AA 000 AA', 'ZZ 999 ZZ'],
+      invalid: ['', 'AA 0 A', 'AAA 00 AAA'],
     });
     test({
       validator: 'isLicensePlate',
       args: ['cs-CZ'],
-      valid: [
-        'ALA4011',
-        '4A23000',
-        'DICTAT0R',
-        'VETERAN',
-        'AZKVIZ8',
-        '2A45876',
-        'DIC-TAT0R',
-      ],
+      valid: ['ALA4011', '4A23000', 'DICTAT0R', 'VETERAN', 'AZKVIZ8', '2A45876', 'DIC-TAT0R'],
       invalid: [
         '',
         'invalidlicenseplate',
@@ -217,14 +180,7 @@ describe('Validators', () => {
         'ABC 1D23',
         'ABC-1D23',
       ],
-      invalid: [
-        '',
-        'AA 0 A',
-        'AAA 00 AAA',
-        'ABCD123',
-        'AB12345',
-        'AB123DC',
-      ],
+      invalid: ['', 'AA 0 A', 'AAA 00 AAA', 'ABCD123', 'AB12345', 'AB123DC'],
     });
     test({
       validator: 'isLicensePlate',
@@ -299,25 +255,13 @@ describe('Validators', () => {
     test({
       validator: 'isLicensePlate',
       args: ['any'],
-      valid: [
-        'FL 1',
-        'FS AB 123',
-      ],
-      invalid: [
-        '',
-        'FL 999999',
-        'FS AB 1234 A',
-      ],
+      valid: ['FL 1', 'FS AB 123'],
+      invalid: ['', 'FL 999999', 'FS AB 1234 A'],
     });
     test({
       validator: 'isLicensePlate',
       args: ['asdfasdf'],
-      error: [
-        'FL 1',
-        'FS AB 123',
-        'FL 999999',
-        'FS AB 1234 A',
-      ],
+      error: ['FL 1', 'FS AB 123', 'FL 999999', 'FS AB 1234 A'],
     });
     test({
       validator: 'isLicensePlate',
@@ -374,18 +318,8 @@ describe('Validators', () => {
     test({
       validator: 'isLicensePlate',
       args: ['en-SG'],
-      valid: [
-        'SGX 1234 A',
-        'SGX-1234-A',
-        'SGB1234Z',
-      ],
-      invalid: [
-        'sg1234a',
-        'invalidlicenseplate',
-        '4578',
-        '',
-        'GJ054GH4785',
-      ],
+      valid: ['SGX 1234 A', 'SGX-1234-A', 'SGB1234Z'],
+      invalid: ['sg1234a', 'invalidlicenseplate', '4578', '', 'GJ054GH4785'],
     });
   });
 });

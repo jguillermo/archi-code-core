@@ -14,12 +14,7 @@ describe('Validators', () => {
           'd94f3F016Ae679C3008de268209132F2',
           '88DAE00e614d8f24cfd5a8b3f8002E93',
         ],
-        invalid: [
-          'q94375dj93458w34',
-          '39485729348',
-          '%&FHKJFvk',
-          'KYT0bf1c35032a71a14c2f719e5a1',
-        ],
+        invalid: ['q94375dj93458w34', '39485729348', '%&FHKJFvk', 'KYT0bf1c35032a71a14c2f719e5a1'],
       });
     });
 
@@ -27,14 +22,7 @@ describe('Validators', () => {
       test({
         validator: 'isHash',
         args: [algorithm],
-        valid: [
-          'd94f3f01',
-          '751adbc5',
-          '88dae00e',
-          '0bf1c350',
-          '88DAE00e',
-          '751aDBc5',
-        ],
+        valid: ['d94f3f01', '751adbc5', '88dae00e', '0bf1c350', '88DAE00e', '751aDBc5'],
         invalid: [
           'KYT0bf1c35032a71a14c2f719e5a14c1',
           'q94375dj93458w34',

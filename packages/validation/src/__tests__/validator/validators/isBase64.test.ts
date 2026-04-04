@@ -17,13 +17,13 @@ describe('isBase64', () => {
         'TG9yZW0gaXBzdW0gZG9sb3Igc2l0IGFtZXQsIGNvbnNlY3RldHVyIGFkaXBpc2NpbmcgZWxpdC4=',
         'Vml2YW11cyBmZXJtZW50dW0gc2VtcGVyIHBvcnRhLg==',
         'U3VzcGVuZGlzc2UgbGVjdHVzIGxlbw==',
-        'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuMPNS1Ufof9EW/M98FNw'
-        + 'UAKrwflsqVxaxQjBQnHQmiI7Vac40t8x7pIb8gLGV6wL7sBTJiPovJ0V7y7oc0Ye'
-        + 'rhKh0Rm4skP2z/jHwwZICgGzBvA0rH8xlhUiTvcwDCJ0kc+fh35hNt8srZQM4619'
-        + 'FTgB66Xmp4EtVyhpQV+t02g6NzK72oZI0vnAvqhpkxLeLiMCyrI416wHm5Tkukhx'
-        + 'QmcL2a6hNOyu0ixX/x2kSFXApEnVrJ+/IxGyfyw8kf4N2IZpW5nEP847lpfj0SZZ'
-        + 'Fwrd1mnfnDbYohX2zRptLy2ZUn06Qo9pkG5ntvFEPo9bfZeULtjYzIl6K8gJ2uGZ'
-        + 'HQIDAQAB',
+        'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuMPNS1Ufof9EW/M98FNw' +
+          'UAKrwflsqVxaxQjBQnHQmiI7Vac40t8x7pIb8gLGV6wL7sBTJiPovJ0V7y7oc0Ye' +
+          'rhKh0Rm4skP2z/jHwwZICgGzBvA0rH8xlhUiTvcwDCJ0kc+fh35hNt8srZQM4619' +
+          'FTgB66Xmp4EtVyhpQV+t02g6NzK72oZI0vnAvqhpkxLeLiMCyrI416wHm5Tkukhx' +
+          'QmcL2a6hNOyu0ixX/x2kSFXApEnVrJ+/IxGyfyw8kf4N2IZpW5nEP847lpfj0SZZ' +
+          'Fwrd1mnfnDbYohX2zRptLy2ZUn06Qo9pkG5ntvFEPo9bfZeULtjYzIl6K8gJ2uGZ' +
+          'HQIDAQAB',
       ],
       invalid: [
         '12345',
@@ -55,20 +55,14 @@ describe('isBase64', () => {
         'This+isa/bad+base64Url==',
         '0K3RgtC+INC30LDQutC+0LTQuNGA0L7QstCw0L3QvdCw0Y8g0YHRgtGA0L7QutCw',
       ],
-      error: [
-        null,
-        undefined,
-        {},
-        [],
-        42,
-      ],
+      error: [null, undefined, {}, [], 42],
     });
 
     for (let i = 0, str = '', encoded; i < 1000; i++) {
-      str += String.fromCharCode(Math.random() * 26 | 97);
+      str += String.fromCharCode((Math.random() * 26) | 97);
       encoded = Buffer.from(str).toString('base64');
       if (!validator.isBase64(encoded)) {
-        let msg = format('validator.isBase64() failed with "%s"', encoded);
+        const msg = format('validator.isBase64() failed with "%s"', encoded);
         throw new Error(msg);
       }
     }
@@ -87,14 +81,7 @@ describe('isBase64', () => {
         'U29mdHdhcmU=',
         'YW55IGNhcm5hbCBwbGVhc3VyZS4=',
       ],
-      invalid: [
-        'TWF',
-        'TWE===',
-        'SGVsbG8@',
-        'SGVsbG8===',
-        'SGVsb G8=',
-        '====',
-      ],
+      invalid: ['TWF', 'TWE===', 'SGVsbG8@', 'SGVsbG8===', 'SGVsb G8=', '===='],
     });
   });
 
@@ -102,23 +89,8 @@ describe('isBase64', () => {
     test({
       validator: 'isBase64',
       args: [{ urlSafe: false, padding: false }],
-      valid: [
-        '',
-        'TWFu',
-        'TWE',
-        'TQ',
-        'SGVsbG8',
-        'U29mdHdhcmU',
-        'YW55IGNhcm5hbCBwbGVhc3VyZS4',
-      ],
-      invalid: [
-        'TWE=',
-        'TQ===',
-        'SGVsbG8@',
-        'SGVsbG8===',
-        'SGVsb G8',
-        '====',
-      ],
+      valid: ['', 'TWFu', 'TWE', 'TQ', 'SGVsbG8', 'U29mdHdhcmU', 'YW55IGNhcm5hbCBwbGVhc3VyZS4'],
+      invalid: ['TWE=', 'TQ===', 'SGVsbG8@', 'SGVsbG8===', 'SGVsb G8', '===='],
     });
   });
 
@@ -134,12 +106,7 @@ describe('isBase64', () => {
         'SGVsbG8-',
         'SGVsbG8_',
       ],
-      invalid: [
-        'SGVsbG8===',
-        'SGVsbG8@',
-        'SGVsb G8=',
-        '====',
-      ],
+      invalid: ['SGVsbG8===', 'SGVsbG8@', 'SGVsb G8=', '===='],
     });
   });
 
@@ -147,21 +114,8 @@ describe('isBase64', () => {
     test({
       validator: 'isBase64',
       args: [{ urlSafe: true, padding: false }],
-      valid: [
-        '',
-        'SGVsbG8',
-        'U29mdHdhcmU',
-        'YW55IGNhcm5hbCBwbGVhc3VyZS4',
-        'SGVsbG8-',
-        'SGVsbG8_',
-      ],
-      invalid: [
-        'SGVsbG8=',
-        'SGVsbG8===',
-        'SGVsbG8@',
-        'SGVsb G8',
-        '====',
-      ],
+      valid: ['', 'SGVsbG8', 'U29mdHdhcmU', 'YW55IGNhcm5hbCBwbGVhc3VyZS4', 'SGVsbG8-', 'SGVsbG8_'],
+      invalid: ['SGVsbG8=', 'SGVsbG8===', 'SGVsbG8@', 'SGVsb G8', '===='],
     });
   });
 
@@ -169,33 +123,15 @@ describe('isBase64', () => {
     test({
       validator: 'isBase64',
       args: [{ urlSafe: false, padding: true }],
-      valid: [
-        '',
-        'TWFu',
-        'TWE=',
-        'TQ==',
-      ],
-      invalid: [
-        'TWE',
-        'TQ=',
-        'TQ===',
-      ],
+      valid: ['', 'TWFu', 'TWE=', 'TQ=='],
+      invalid: ['TWE', 'TQ=', 'TQ==='],
     });
 
     test({
       validator: 'isBase64',
       args: [{ urlSafe: true, padding: false }],
-      valid: [
-        '',
-        'SGVsbG8',
-        'SGVsbG8-',
-        'SGVsbG8_',
-      ],
-      invalid: [
-        'SGVsbG8=',
-        'SGVsbG8@',
-        'SGVsb G8',
-      ],
+      valid: ['', 'SGVsbG8', 'SGVsbG8-', 'SGVsbG8_'],
+      invalid: ['SGVsbG8=', 'SGVsbG8@', 'SGVsb G8'],
     });
   });
 });

@@ -10,12 +10,7 @@ describe('Validators', () => {
         '88dae00e614d8f24cfd5a8b3f8002e93',
         '0bf1c35032a71a14c2f719e5a14c1e96',
       ],
-      invalid: [
-        'KYT0bf1c35032a71a14c2f719e5a14c1',
-        'q94375dj93458w34',
-        '39485729348',
-        '%&FHKJFvk',
-      ],
+      invalid: ['KYT0bf1c35032a71a14c2f719e5a14c1', 'q94375dj93458w34', '39485729348', '%&FHKJFvk'],
     });
   });
 });

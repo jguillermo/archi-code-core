@@ -1,7 +1,6 @@
 import test from '../testFunctions';
 
 describe('Validators', () => {
-
   const validISO8601 = [
     '2009-12T12:34',
     '2009',
@@ -89,9 +88,7 @@ describe('Validators', () => {
   it('should validate ISO 8601 dates, with strict = true (regression)', () => {
     test({
       validator: 'isISO8601',
-      args: [
-        { strict: true },
-      ],
+      args: [{ strict: true }],
       valid: validISO8601,
       invalid: invalidISO8601,
     });
@@ -100,31 +97,16 @@ describe('Validators', () => {
   it('should validate ISO 8601 dates, with strict = true', () => {
     test({
       validator: 'isISO8601',
-      args: [
-        { strict: true },
-      ],
-      valid: [
-        '2000-02-29',
-        '2009-123',
-        '2009-222',
-        '2020-366',
-        '2400-366',
-      ],
-      invalid: [
-        '2010-02-30',
-        '2009-02-29',
-        '2009-366',
-        '2019-02-31',
-      ],
+      args: [{ strict: true }],
+      valid: ['2000-02-29', '2009-123', '2009-222', '2020-366', '2400-366'],
+      invalid: ['2010-02-30', '2009-02-29', '2009-366', '2019-02-31'],
     });
   });
 
   it('should validate ISO 8601 dates, with strictSeparator = true', () => {
     test({
       validator: 'isISO8601',
-      args: [
-        { strictSeparator: true },
-      ],
+      args: [{ strictSeparator: true }],
       valid: [
         '2009-12T12:34',
         '2009',
@@ -201,16 +183,8 @@ describe('Validators', () => {
   it('should validate ISO 8601 dates, with strict = true and strictSeparator = true (regression)', () => {
     test({
       validator: 'isISO8601',
-      args: [
-        { strict: true, strictSeparator: true },
-      ],
-      valid: [
-        '2000-02-29',
-        '2009-123',
-        '2009-222',
-        '2020-366',
-        '2400-366',
-      ],
+      args: [{ strict: true, strictSeparator: true }],
+      valid: ['2000-02-29', '2009-123', '2009-222', '2020-366', '2400-366'],
       invalid: [
         '2010-02-30',
         '2009-02-29',

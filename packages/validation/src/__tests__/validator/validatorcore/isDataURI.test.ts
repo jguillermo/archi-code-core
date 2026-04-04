@@ -2,7 +2,6 @@ import test from '../testFunctions';
 
 describe('Validators', () => {
   it('should validate dataURI', () => {
-     
     test({
       validator: 'isDataURI',
       valid: [
@@ -26,13 +25,13 @@ describe('Validators', () => {
         'data:,A%20brief%20invalid%20[note',
         'file:text/plain;base64,SGVsbG8sIFdvcmxkIQ%3D%3D',
         'data:text/html;charset=,%3Ch1%3EHello!%3C%2Fh1%3E',
-        'data:text/html;charset,%3Ch1%3EHello!%3C%2Fh1%3E', 'data:base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQAQMAAAAlPW0iAAAABlBMVEUAAAD///+l2Z/dAAAAM0lEQVR4nGP4/5/h/1+G/58ZDrAz3D/McH8yw83NDDeNGe4Ug9C9zwz3gVLMDA/A6P9/AFGGFyjOXZtQAAAAAElFTkSuQmCC',
+        'data:text/html;charset,%3Ch1%3EHello!%3C%2Fh1%3E',
+        'data:base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQAQMAAAAlPW0iAAAABlBMVEUAAAD///+l2Z/dAAAAM0lEQVR4nGP4/5/h/1+G/58ZDrAz3D/McH8yw83NDDeNGe4Ug9C9zwz3gVLMDA/A6P9/AFGGFyjOXZtQAAAAAElFTkSuQmCC',
         '',
         'http://wikipedia.org',
         'base64',
         'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQAQMAAAAlPW0iAAAABlBMVEUAAAD///+l2Z/dAAAAM0lEQVR4nGP4/5/h/1+G/58ZDrAz3D/McH8yw83NDDeNGe4Ug9C9zwz3gVLMDA/A6P9/AFGGFyjOXZtQAAAAAElFTkSuQmCC',
       ],
     });
-     
   });
 });

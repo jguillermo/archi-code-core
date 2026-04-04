@@ -14,7 +14,9 @@ const timeSecFrac = /(\.[0-9]+)?/;
 const timeNumOffset = new RegExp(`[-+]${timeHour.source}:${timeMinute.source}`);
 const timeOffset = new RegExp(`([zZ]|${timeNumOffset.source})`);
 
-const partialTime = new RegExp(`${timeHour.source}:${timeMinute.source}:${timeSecond.source}${timeSecFrac.source}`);
+const partialTime = new RegExp(
+  `${timeHour.source}:${timeMinute.source}:${timeSecond.source}${timeSecFrac.source}`,
+);
 
 const fullDate = new RegExp(`${dateFullYear.source}-${dateMonth.source}-${dateMDay.source}`);
 const fullTime = new RegExp(`${partialTime.source}${timeOffset.source}`);

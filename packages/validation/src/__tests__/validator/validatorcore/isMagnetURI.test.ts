@@ -2,7 +2,6 @@ import test from '../testFunctions';
 
 describe('Validators', () => {
   it('should validate magnetURI', () => {
-     
     test({
       validator: 'isMagnetURI',
       valid: [
@@ -31,6 +30,5 @@ describe('Validators', () => {
         'magnet:?ttxt=urn:btmh:1220caf1e1c30e81cb361b9ee167c4aa64228a7fa4fa9f6105232b28ad099f3a302e',
       ],
     });
-     
   });
 });

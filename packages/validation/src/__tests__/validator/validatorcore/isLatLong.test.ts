@@ -63,9 +63,11 @@ describe('Validators', () => {
 
     test({
       validator: 'isLatLong',
-      args: [{
-        checkDMS: true,
-      }],
+      args: [
+        {
+          checkDMS: true,
+        },
+      ],
       valid: [
         '40° 26′ 46″ N, 79° 58′ 56″ W',
         '40° 26′ 46″ S, 79° 58′ 56″ E',
@@ -75,7 +77,6 @@ describe('Validators', () => {
         '40°26′46″s, 79°58′56″e',
         '11° 0′ 0.005″ S, 180° 0′ 0″ E',
         '40°26′45.9996″N, 79°58′55.2″E',
-
       ],
       invalid: [
         '100° 26′ 46″ N, 79° 70′ 56″ W',

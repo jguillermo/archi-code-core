@@ -59,11 +59,7 @@ describe('Validators', () => {
     test({
       validator: 'isIPRange',
       args: [6],
-      valid: [
-        '::1/1',
-        '2001:db8:0000:1:1:1:1:1/1',
-        '::ffff:127.0.0.1/1',
-      ],
+      valid: ['::1/1', '2001:db8:0000:1:1:1:1:1/1', '::ffff:127.0.0.1/1'],
       invalid: [
         'abc',
         '127.0.0.1',

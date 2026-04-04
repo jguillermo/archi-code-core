@@ -4,32 +4,13 @@ describe('Validators', () => {
   it('should validate time', () => {
     test({
       validator: 'isTime',
-      valid: [
-        '00:00',
-        '23:59',
-        '9:00',
-      ],
-      invalid: [
-        '',
-        null,
-        undefined,
-        0,
-        '07:00 PM',
-        '23',
-        '00:60',
-        '00:',
-        '01:0 ',
-        '001:01',
-      ],
+      valid: ['00:00', '23:59', '9:00'],
+      invalid: ['', null, undefined, 0, '07:00 PM', '23', '00:60', '00:', '01:0 ', '001:01'],
     });
     test({
       validator: 'isTime',
       args: [{ hourFormat: 'hour24', mode: 'withSeconds' }],
-      valid: [
-        '23:59:59',
-        '00:00:00',
-        '9:50:01',
-      ],
+      valid: ['23:59:59', '00:00:00', '9:50:01'],
       invalid: [
         '',
         null,
@@ -51,14 +32,7 @@ describe('Validators', () => {
     test({
       validator: 'isTime',
       args: [{ hourFormat: 'hour24', mode: 'withOptionalSeconds' }],
-      valid: [
-        '23:59:59',
-        '00:00:00',
-        '9:50:01',
-        '00:00',
-        '23:59',
-        '9:00',
-      ],
+      valid: ['23:59:59', '00:00:00', '9:50:01', '00:00', '23:59', '9:00'],
       invalid: [
         '',
         null,
@@ -80,13 +54,7 @@ describe('Validators', () => {
     test({
       validator: 'isTime',
       args: [{ hourFormat: 'hour12' }],
-      valid: [
-        '12:59 PM',
-        '12:59 AM',
-        '01:00 PM',
-        '01:00 AM',
-        '7:00 AM',
-      ],
+      valid: ['12:59 PM', '12:59 AM', '01:00 PM', '01:00 AM', '7:00 AM'],
       invalid: [
         '',
         null,
@@ -111,11 +79,7 @@ describe('Validators', () => {
     test({
       validator: 'isTime',
       args: [{ hourFormat: 'hour12', mode: 'withSeconds' }],
-      valid: [
-        '12:59:59 PM',
-        '2:34:45 AM',
-        '7:00:00 AM',
-      ],
+      valid: ['12:59:59 PM', '2:34:45 AM', '7:00:00 AM'],
       invalid: [
         '',
         null,

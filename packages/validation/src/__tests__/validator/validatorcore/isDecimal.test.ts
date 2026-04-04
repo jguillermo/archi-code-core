@@ -204,35 +204,21 @@ describe('Validators', () => {
     test({
       validator: 'isDecimal',
       args: [{ locale: ['ar-EG'] }],
-      valid: [
-        '0.01',
-      ],
-      invalid: [
-        '0,01',
-      ],
+      valid: ['0.01'],
+      invalid: ['0,01'],
     });
 
     test({
       validator: 'isDecimal',
       args: [{ locale: ['en-ZM'] }],
-      valid: [
-        '0,01',
-      ],
-      invalid: [
-        '0.01',
-      ],
+      valid: ['0,01'],
+      invalid: ['0.01'],
     });
 
     test({
       validator: 'isDecimal',
       args: [{ force_decimal: true }],
-      valid: [
-        '0.01',
-        '.1',
-        '1.0',
-        '-.25',
-        '0.0000000000001',
-      ],
+      valid: ['0.01', '.1', '1.0', '-.25', '0.0000000000001'],
       invalid: [
         '-0',
         '123',
@@ -261,19 +247,7 @@ describe('Validators', () => {
     test({
       validator: 'isDecimal',
       args: [{ decimal_digits: '2,3' }],
-      valid: [
-        '123',
-        '00123',
-        '-00123',
-        '0',
-        '-0',
-        '+123',
-        '0.01',
-        '1.043',
-        '.15',
-        '-.255',
-        '-0',
-      ],
+      valid: ['123', '00123', '-00123', '0', '-0', '+123', '0.01', '1.043', '.15', '-.255', '-0'],
       invalid: [
         '0.0000000000001',
         '0.0',
@@ -302,11 +276,7 @@ describe('Validators', () => {
     test({
       validator: 'isDecimal',
       args: [{ locale: ['is-NOT'] }],
-      error: [
-        '123',
-        '0.01',
-        '0,01',
-      ],
+      error: ['123', '0.01', '0,01'],
     });
   });
 });

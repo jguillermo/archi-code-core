@@ -62,9 +62,7 @@ describe('Validators', () => {
     test({
       validator: 'isCreditCard',
       args: [{ provider: 'AmEx' }],
-      valid: [
-        '375556917985515',
-      ],
+      valid: ['375556917985515'],
       invalid: [
         'foo',
         '2222155765072228',
@@ -97,9 +95,7 @@ describe('Validators', () => {
     test({
       validator: 'isCreditCard',
       args: [{ provider: 'DinersClub' }],
-      valid: [
-        '36050234196908',
-      ],
+      valid: ['36050234196908'],
       invalid: [
         'foo',
         '2222155765072228',
@@ -132,10 +128,7 @@ describe('Validators', () => {
     test({
       validator: 'isCreditCard',
       args: [{ provider: 'Discover' }],
-      valid: [
-        '6011111111111117',
-        '6011000990139424',
-      ],
+      valid: ['6011111111111117', '6011000990139424'],
       invalid: [
         'foo',
         '2222155765072228',
@@ -169,10 +162,7 @@ describe('Validators', () => {
     test({
       validator: 'isCreditCard',
       args: [{ provider: 'JCB' }],
-      valid: [
-        '3530111333300000',
-        '3566002020360505',
-      ],
+      valid: ['3530111333300000', '3566002020360505'],
       invalid: [
         'foo',
         '2222155765072228',

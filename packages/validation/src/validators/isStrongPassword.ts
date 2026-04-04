@@ -23,11 +23,11 @@ const defaultOptions = {
 
 /* Counts number of occurrences of each char in a string
  * could be moved to util/ ?
-*/
+ */
 function countChars(str) {
-  let result = {};
+  const result = {};
   Array.from(str).forEach((char) => {
-    let curVal = result[char];
+    const curVal = result[char];
     if (curVal) {
       result[char] += 1;
     } else {
@@ -39,8 +39,8 @@ function countChars(str) {
 
 /* Return information about a password */
 function analyzePassword(password) {
-  let charMap = countChars(password);
-  let analysis = {
+  const charMap = countChars(password);
+  const analysis = {
     length: password.length,
     uniqueChars: Object.keys(charMap).length,
     uppercaseCount: 0,
@@ -89,9 +89,11 @@ export default function isStrongPassword(str, options = null) {
   if (options.returnScore) {
     return scorePassword(analysis, options);
   }
-  return analysis.length >= options.minLength
-        && analysis.lowercaseCount >= options.minLowercase
-        && analysis.uppercaseCount >= options.minUppercase
-        && analysis.numberCount >= options.minNumbers
-        && analysis.symbolCount >= options.minSymbols;
+  return (
+    analysis.length >= options.minLength &&
+    analysis.lowercaseCount >= options.minLowercase &&
+    analysis.uppercaseCount >= options.minUppercase &&
+    analysis.numberCount >= options.minNumbers &&
+    analysis.symbolCount >= options.minSymbols
+  );
 }

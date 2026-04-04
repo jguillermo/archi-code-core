@@ -14,7 +14,7 @@ export default function isMACAddress(str, options) {
   }
   /**
    * @deprecated `no_colons` TODO: remove it in the next major
-  */
+   */
   if (options?.no_colons || options?.no_separators) {
     if (options.eui === '48') {
       return macAddress48NoSeparators.test(str);

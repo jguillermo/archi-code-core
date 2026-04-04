@@ -5,30 +5,8 @@ describe('isISO31661Alpha2', () => {
     // from https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2
     test({
       validator: 'isISO31661Alpha2',
-      valid: [
-        'FR',
-        'fR',
-        'GB',
-        'PT',
-        'CM',
-        'JP',
-        'PM',
-        'ZW',
-        'MM',
-        'cc',
-        'GG',
-      ],
-      invalid: [
-        '',
-        'FRA',
-        'AA',
-        'PI',
-        'RP',
-        'WV',
-        'WL',
-        'UK',
-        'ZZ',
-      ],
+      valid: ['FR', 'fR', 'GB', 'PT', 'CM', 'JP', 'PM', 'ZW', 'MM', 'cc', 'GG'],
+      invalid: ['', 'FRA', 'AA', 'PI', 'RP', 'WV', 'WL', 'UK', 'ZZ'],
     });
   });
 

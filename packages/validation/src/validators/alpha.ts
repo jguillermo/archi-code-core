@@ -110,8 +110,25 @@ for (let locale, i = 0; i < englishLocales.length; i++) {
 }
 
 // Source: http://www.localeplanet.com/java/
-export const arabicLocales = ['AE', 'BH', 'DZ', 'EG', 'IQ', 'JO', 'KW', 'LB', 'LY',
-  'MA', 'QM', 'QA', 'SA', 'SD', 'SY', 'TN', 'YE'];
+export const arabicLocales = [
+  'AE',
+  'BH',
+  'DZ',
+  'EG',
+  'IQ',
+  'JO',
+  'KW',
+  'LB',
+  'LY',
+  'MA',
+  'QM',
+  'QA',
+  'SA',
+  'SD',
+  'SY',
+  'TN',
+  'YE',
+];
 
 for (let locale, i = 0; i < arabicLocales.length; i++) {
   locale = `ar-${arabicLocales[i]}`;
@@ -140,10 +157,43 @@ for (let locale, i = 0; i < bengaliLocales.length; i++) {
 // Source: https://en.wikipedia.org/wiki/Decimal_mark
 export const dotDecimal = ['ar-EG', 'ar-LB', 'ar-LY'];
 export const commaDecimal = [
-  'bg-BG', 'cs-CZ', 'da-DK', 'de-DE', 'el-GR', 'en-ZM', 'eo', 'es-ES', 'fr-CA', 'fr-FR',
-  'gu-IN', 'hi-IN', 'hu-HU', 'id-ID', 'it-IT', 'kk-KZ', 'kn-IN', 'ku-IQ', 'ml-IN', 'nb-NO',
-  'nl-NL', 'nn-NO', 'or-IN', 'pa-IN', 'pl-PL', 'pt-PT', 'ru-RU', 'si-LK', 'sl-SI', 'sr-RS',
-  'sr-RS@latin', 'sv-SE', 'ta-IN', 'te-IN', 'tr-TR', 'uk-UA', 'vi-VN',
+  'bg-BG',
+  'cs-CZ',
+  'da-DK',
+  'de-DE',
+  'el-GR',
+  'en-ZM',
+  'eo',
+  'es-ES',
+  'fr-CA',
+  'fr-FR',
+  'gu-IN',
+  'hi-IN',
+  'hu-HU',
+  'id-ID',
+  'it-IT',
+  'kk-KZ',
+  'kn-IN',
+  'ku-IQ',
+  'ml-IN',
+  'nb-NO',
+  'nl-NL',
+  'nn-NO',
+  'or-IN',
+  'pa-IN',
+  'pl-PL',
+  'pt-PT',
+  'ru-RU',
+  'si-LK',
+  'sl-SI',
+  'sr-RS',
+  'sr-RS@latin',
+  'sv-SE',
+  'ta-IN',
+  'te-IN',
+  'tr-TR',
+  'uk-UA',
+  'vi-VN',
 ];
 
 for (let i = 0; i < dotDecimal.length; i++) {

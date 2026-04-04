@@ -84,10 +84,7 @@ describe('Validators', () => {
     test({
       validator: 'isRgbColor',
       args: [false],
-      valid: [
-        'rgb(5,5,5)',
-        'rgba(5,5,5,.3)',
-      ],
+      valid: ['rgb(5,5,5)', 'rgba(5,5,5,.3)'],
       invalid: [
         'rgb(4,4,5%)',
         'rgba(5%,5%,5%)',
@@ -100,10 +97,7 @@ describe('Validators', () => {
     test({
       validator: 'isRgbColor',
       args: [{ includePercentValues: false }],
-      valid: [
-        'rgb(5,5,5)',
-        'rgba(5,5,5,.3)',
-      ],
+      valid: ['rgb(5,5,5)', 'rgba(5,5,5,.3)'],
       invalid: [
         'rgb(4,4,5%)',
         'rgba(5%,5%,5%)',
@@ -158,12 +152,7 @@ describe('Validators', () => {
     test({
       validator: 'isRgbColor',
       args: [{ includePercentValues: false, allowSpaces: true }],
-      valid: [
-        'rgb(5,5,5)',
-        'rgba(5,5,5,.3)',
-        'rgba(255,255,255,0.2)',
-        'rgba(255, 255, 255 ,0.2)',
-      ],
+      valid: ['rgb(5,5,5)', 'rgba(5,5,5,.3)', 'rgba(255,255,255,0.2)', 'rgba(255, 255, 255 ,0.2)'],
       invalid: [
         'rgb(4,4,5%)',
         'rgba(5%,5%,5%)',
@@ -178,7 +167,6 @@ describe('Validators', () => {
         'rgb(101%, 101%, 101%)',
         'rgba(3%,3%,101%,0.3)',
       ],
-
     });
 
     // test where both are true as part of options object
@@ -201,7 +189,6 @@ describe('Validators', () => {
         'r         g    b(   0,         251,       222     )',
         'rgb(4,4,5%)',
         'rgb(101%,101%,101%)',
-
       ],
     });
 
@@ -221,7 +208,6 @@ describe('Validators', () => {
         'rgba(255,255,255,0.1)',
         'rgb(5%,5%,5%)',
         'rgba(5%,5%,5%,.3)',
-
       ],
       invalid: [
         'rgb( 255,255 ,255)',

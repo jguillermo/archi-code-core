@@ -28,7 +28,7 @@ export default function isCreditCard(card, options = {}) {
   const sanitized = card.replace(/[- ]+/g, '');
   if (provider && provider.toLowerCase() in cards) {
     // specific provider in the list
-    if (!(cards[provider.toLowerCase()].test(sanitized))) {
+    if (!cards[provider.toLowerCase()].test(sanitized)) {
       return false;
     }
   } else if (provider && !(provider.toLowerCase() in cards)) {

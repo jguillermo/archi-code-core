@@ -47,13 +47,7 @@ describe('Validators', () => {
         'zh-CN-a-myext-x-private',
         'en-a-myext-b-another',
       ],
-      invalid: [
-        'lo_POP',
-        '12',
-        '12_DD',
-        'de-419-DE',
-        'a-DE',
-      ],
+      invalid: ['lo_POP', '12', '12_DD', 'de-419-DE', 'a-DE'],
     });
   });
 });

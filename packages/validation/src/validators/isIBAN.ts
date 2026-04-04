@@ -98,8 +98,9 @@ const ibanRegexThroughCountryCode = {
  */
 
 function hasOnlyValidCountryCodes(countryCodeArray) {
-  const countryCodeArrayFilteredWithObjectIbanCode = countryCodeArray
-    .filter((countryCode) => !(countryCode in ibanRegexThroughCountryCode));
+  const countryCodeArrayFilteredWithObjectIbanCode = countryCodeArray.filter(
+    (countryCode) => !(countryCode in ibanRegexThroughCountryCode),
+  );
 
   return countryCodeArrayFilteredWithObjectIbanCode.length === 0;
 }
@@ -143,29 +144,35 @@ function hasValidIbanFormat(str, options) {
     }
   }
 
-  return (isoCountryCodeInIbanRegexCodeObject)
-    && ibanRegexThroughCountryCode[isoCountryCode].test(strippedStr);
+  return (
+    isoCountryCodeInIbanRegexCodeObject &&
+    ibanRegexThroughCountryCode[isoCountryCode].test(strippedStr)
+  );
 }
 
 /**
-   * Check whether string has valid IBAN Checksum
-   * by performing basic mod-97 operation and
-   * the remainder should equal 1
-   * -- Start by rearranging the IBAN by moving the four initial characters to the end of the string
-   * -- Replace each letter in the string with two digits, A -> 10, B = 11, Z = 35
-   * -- Interpret the string as a decimal integer and
-   * -- compute the remainder on division by 97 (mod 97)
-   * Reference: https://en.wikipedia.org/wiki/International_Bank_Account_Number
-   *
-   * @param {string} str
-   * @return {boolean}
-   */
+ * Check whether string has valid IBAN Checksum
+ * by performing basic mod-97 operation and
+ * the remainder should equal 1
+ * -- Start by rearranging the IBAN by moving the four initial characters to the end of the string
+ * -- Replace each letter in the string with two digits, A -> 10, B = 11, Z = 35
+ * -- Interpret the string as a decimal integer and
+ * -- compute the remainder on division by 97 (mod 97)
+ * Reference: https://en.wikipedia.org/wiki/International_Bank_Account_Number
+ *
+ * @param {string} str
+ * @return {boolean}
+ */
 function hasValidIbanChecksum(str) {
   const strippedStr = str.replace(/[^A-Z0-9]+/gi, '').toUpperCase(); // Keep only digits and A-Z latin alphabetic
   const rearranged = strippedStr.slice(4) + strippedStr.slice(0, 4);
-  const alphaCapsReplacedWithDigits = rearranged.replace(/[A-Z]/g, (char) => char.charCodeAt(0) - 55);
+  const alphaCapsReplacedWithDigits = rearranged.replace(
+    /[A-Z]/g,
+    (char) => char.charCodeAt(0) - 55,
+  );
 
-  const remainder = alphaCapsReplacedWithDigits.match(/\d{1,7}/g)
+  const remainder = alphaCapsReplacedWithDigits
+    .match(/\d{1,7}/g)
     .reduce((acc, value) => Number(acc + value) % 97, '');
 
   return remainder === 1;

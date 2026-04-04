@@ -4,12 +4,7 @@ describe('Validators', () => {
   it('should validate variable-width strings', () => {
     test({
       validator: 'isVariableWidth',
-      valid: [
-        'ひらがなカタカナ漢字ABCDE',
-        '３ー０123',
-        'Ｆｶﾀｶﾅﾞﾬ',
-        'Good＝Parts',
-      ],
+      valid: ['ひらがなカタカナ漢字ABCDE', '３ー０123', 'Ｆｶﾀｶﾅﾞﾬ', 'Good＝Parts'],
       invalid: [
         'abc',
         'abc123',

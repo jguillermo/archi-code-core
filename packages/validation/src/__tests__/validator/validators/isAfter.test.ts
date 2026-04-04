@@ -29,7 +29,9 @@ describe('isAfter', () => {
     expect(isAfter('2100-08-04', undefined)).toBe(true);
     expect(isAfter(new Date(Date.now() + 86400000).toString(), undefined)).toBe(true);
     expect(isAfter('2100-08-04', { comparisonDate: undefined })).toBe(true);
-    expect(isAfter(new Date(Date.now() + 86400000).toString(), { comparisonDate: undefined })).toBe(true);
+    expect(isAfter(new Date(Date.now() + 86400000).toString(), { comparisonDate: undefined })).toBe(
+      true,
+    );
   });
 
   describe('legacy syntax (string as second argument)', () => {

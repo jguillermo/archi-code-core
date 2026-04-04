@@ -8,16 +8,30 @@ describe('isBefore', () => {
       expect(isBefore(new Date(0).toString(), { comparisonDate: '08/04/2011' })).toBe(true);
 
       expect(isBefore('08/04/2011', { comparisonDate: '08/04/2011' })).toBe(false);
-      expect(isBefore(new Date(2011, 9, 10).toString(), { comparisonDate: '08/04/2011' })).toBe(false);
+      expect(isBefore(new Date(2011, 9, 10).toString(), { comparisonDate: '08/04/2011' })).toBe(
+        false,
+      );
     });
 
     it('accepts a Date object as comparisonDate', () => {
-      expect(isBefore('2010-07-02', { comparisonDate: new Date(2011, 7, 4).toString() })).toBe(true);
-      expect(isBefore('2010-08-04', { comparisonDate: new Date(2011, 7, 4).toString() })).toBe(true);
-      expect(isBefore(new Date(0).toString(), { comparisonDate: new Date(2011, 7, 4).toString() })).toBe(true);
+      expect(isBefore('2010-07-02', { comparisonDate: new Date(2011, 7, 4).toString() })).toBe(
+        true,
+      );
+      expect(isBefore('2010-08-04', { comparisonDate: new Date(2011, 7, 4).toString() })).toBe(
+        true,
+      );
+      expect(
+        isBefore(new Date(0).toString(), { comparisonDate: new Date(2011, 7, 4).toString() }),
+      ).toBe(true);
 
-      expect(isBefore('08/04/2011', { comparisonDate: new Date(2011, 7, 4).toString() })).toBe(false);
-      expect(isBefore(new Date(2011, 9, 10).toString(), { comparisonDate: new Date(2011, 7, 4).toString() })).toBe(false);
+      expect(isBefore('08/04/2011', { comparisonDate: new Date(2011, 7, 4).toString() })).toBe(
+        false,
+      );
+      expect(
+        isBefore(new Date(2011, 9, 10).toString(), {
+          comparisonDate: new Date(2011, 7, 4).toString(),
+        }),
+      ).toBe(false);
     });
 
     it('returns false for invalid date strings', () => {
@@ -48,7 +62,9 @@ describe('isBefore', () => {
       expect(isBefore(new Date(0).toString(), new Date(2011, 7, 4).toString())).toBe(true);
 
       expect(isBefore('08/04/2011', new Date(2011, 7, 4).toString())).toBe(false);
-      expect(isBefore(new Date(2011, 9, 10).toString(), new Date(2011, 7, 4).toString())).toBe(false);
+      expect(isBefore(new Date(2011, 9, 10).toString(), new Date(2011, 7, 4).toString())).toBe(
+        false,
+      );
     });
 
     it('returns false for invalid date strings', () => {

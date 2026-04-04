@@ -4,29 +4,15 @@ describe('Validators', () => {
   it('should validate booleans', () => {
     test({
       validator: 'isBoolean',
-      valid: [
-        'true',
-        'false',
-        '0',
-        '1',
-      ],
-      invalid: [
-        '1.0',
-        '0.0',
-        'true ',
-        'False',
-        'True',
-        'yes',
-      ],
+      valid: ['true', 'false', '0', '1'],
+      invalid: ['1.0', '0.0', 'true ', 'False', 'True', 'yes'],
     });
   });
 
   it('should validate booleans with option loose set to true', () => {
     test({
       validator: 'isBoolean',
-      args: [
-        { loose: true },
-      ],
+      args: [{ loose: true }],
       valid: [
         'true',
         'True',
@@ -43,12 +29,7 @@ describe('Validators', () => {
         'No',
         'NO',
       ],
-      invalid: [
-        '1.0',
-        '0.0',
-        'true ',
-        ' false',
-      ],
+      invalid: ['1.0', '0.0', 'true ', ' false'],
     });
   });
 });

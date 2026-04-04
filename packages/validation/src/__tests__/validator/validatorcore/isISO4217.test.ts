@@ -20,19 +20,7 @@ describe('Validators', () => {
         'VED',
         'SLE',
       ],
-      invalid: [
-        '',
-        '$',
-        'US',
-        'us',
-        'AAA',
-        'aaa',
-        'RWA',
-        'EURO',
-        'euro',
-        'HRK',
-        'CUC',
-      ],
+      invalid: ['', '$', 'US', 'us', 'AAA', 'aaa', 'RWA', 'EURO', 'euro', 'HRK', 'CUC'],
     });
   });
 });

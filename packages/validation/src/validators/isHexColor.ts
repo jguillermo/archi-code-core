@@ -12,8 +12,6 @@ export default function isHexColor(str, options) {
   assertString(str);
   options = merge(options, default_is_hexcolor_options);
 
-  const hexcolor_regex = options.require_hashtag
-    ? hexcolor_with_prefix
-    : hexcolor;
+  const hexcolor_regex = options.require_hashtag ? hexcolor_with_prefix : hexcolor;
   return hexcolor_regex.test(str);
 }
