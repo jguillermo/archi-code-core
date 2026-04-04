@@ -1,6 +1,5 @@
-export * from './validators/validate';
-export * from './validators/validate-json';
-export * from './validators/direct';
-export * from './cast';
+export { default as validator } from './validators/validator';
+export type { HashAlgorithm } from './validators/validator';
+export { CastError } from './cast';
 export * from './primitives';
 export * from './convert';

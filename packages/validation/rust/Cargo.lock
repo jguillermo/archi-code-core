@@ -27,6 +27,7 @@ dependencies = [
  "js-sys",
  "once_cell",
  "regex",
+ "semver",
  "serde",
  "serde_json",
  "url",

@@ -1,9 +1,16 @@
 pub mod boolean;
+pub mod convert;
 pub mod date;
 pub mod email;
+pub mod finance;
+pub mod hash;
+pub mod identity;
 pub mod ip;
+pub mod locale_codes;
 pub mod misc;
 pub mod number;
+pub mod sanitizer;
 pub mod string;
+pub mod unicode;
 pub mod url;
 pub mod uuid;

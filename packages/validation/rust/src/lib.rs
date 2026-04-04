@@ -11,6 +11,7 @@ use wasm_bindgen::prelude::*;
 mod messages;
 pub(crate) mod orchestrator;
 mod validators;
+pub mod validators_wasm;
 
 mod batch;
 mod cast;
