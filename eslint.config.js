@@ -40,7 +40,7 @@ module.exports = tseslint.config(
       '@typescript-eslint/no-unsafe-function-type': 'off', // Function type allowed
 
       // --- Strict correctness ---
-      'eqeqeq': ['error', 'always', { null: 'ignore' }], // allow == null to check both null and undefined
+      eqeqeq: ['error', 'always', { null: 'ignore' }], // allow == null to check both null and undefined
       'no-var': 'error',
       'prefer-const': 'error',
       'no-shadow': 'off',
@@ -55,7 +55,10 @@ module.exports = tseslint.config(
           allowTypedFunctionExpressions: true,
         },
       ],
-      '@typescript-eslint/explicit-module-boundary-types': ['error', { allowArgumentsExplicitlyTypedAsAny: true, allowHigherOrderFunctions: true }],
+      '@typescript-eslint/explicit-module-boundary-types': [
+        'error',
+        { allowArgumentsExplicitlyTypedAsAny: true, allowHigherOrderFunctions: true },
+      ],
       '@typescript-eslint/no-empty-function': ['error', { allow: ['private-constructors'] }],
       '@typescript-eslint/no-extraneous-class': 'off', // static factory/initializer classes are valid OOP patterns
 
@@ -76,7 +79,7 @@ module.exports = tseslint.config(
 
   // Test files — relaxed rules (no need for explicit types in tests)
   {
-    files: ['packages/*/src/**/*.spec.ts'],
+    files: ['packages/*/src/**/*.spec.ts', 'packages/*/src/**/*.test.ts'],
     rules: {
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/explicit-module-boundary-types': 'off',
