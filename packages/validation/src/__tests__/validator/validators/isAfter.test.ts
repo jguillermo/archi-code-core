@@ -1,4 +1,4 @@
-import isAfter from '../../src/lib/isAfter';
+import isAfter from '../../../validators/isAfter';
 
 describe('isAfter', () => {
   it('validates dates after a comparisonDate', () => {

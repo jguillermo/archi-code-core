@@ -2,7 +2,7 @@ import assert from 'assert';
 import fs from 'fs';
 import vm from 'vm';
 import { join } from 'path';
-import validator from '../src/index';
+import validator from '../../validators';
 
 const _dirname = __dirname;
 

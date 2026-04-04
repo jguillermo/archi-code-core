@@ -1,6 +1,6 @@
 import assert from 'assert';
 import { format } from 'util';
-import validator from '../src/index';
+import validator from '../../validators';
 
 function stringifyArgs(argsArr) {
   return argsArr.map((arg) => JSON.stringify(arg)).join(', ');

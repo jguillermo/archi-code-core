@@ -1,12 +1,12 @@
 import assert from 'assert';
-import validator from '../src/index';
-import { locales as isPostalCodeLocales } from '../src/lib/isPostalCode';
-import { locales as isAlphaLocales } from '../src/lib/isAlpha';
-import { locales as isAlphanumericLocales } from '../src/lib/isAlphanumeric';
-import { locales as isMobilePhoneLocales } from '../src/lib/isMobilePhone';
-import { locales as isFloatLocales } from '../src/lib/isFloat';
-import { locales as ibanCountryCodes } from '../src/lib/isIBAN';
-import { locales as passportNumberLocales } from '../src/lib/isPassportNumber';
+import validator from '../../validators';
+import { locales as isPostalCodeLocales } from '../../validators/isPostalCode';
+import { locales as isAlphaLocales } from '../../validators/isAlpha';
+import { locales as isAlphanumericLocales } from '../../validators/isAlphanumeric';
+import { locales as isMobilePhoneLocales } from '../../validators/isMobilePhone';
+import { locales as isFloatLocales } from '../../validators/isFloat';
+import { locales as ibanCountryCodes } from '../../validators/isIBAN';
+import { locales as passportNumberLocales } from '../../validators/isPassportNumber';
 
 const _require = require;
 

@@ -1,6 +1,6 @@
 import { format } from 'util';
 import test from '../testFunctions';
-import validator from '../../src/index';
+import validator from '../../../validators';
 
 describe('isBase64', () => {
   it('should validate base64 strings with default options', () => {
@@ -65,7 +65,7 @@ describe('isBase64', () => {
     });
 
     for (let i = 0, str = '', encoded; i < 1000; i++) {
-      str += String.fromCharCode(Math.random() * 26 | 97);  
+      str += String.fromCharCode(Math.random() * 26 | 97);
       encoded = Buffer.from(str).toString('base64');
       if (!validator.isBase64(encoded)) {
         let msg = format('validator.isBase64() failed with "%s"', encoded);
