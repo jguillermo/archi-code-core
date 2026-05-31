@@ -183,4 +183,71 @@ describe('toFloat', () => {
     it('Symbol.for("pi") throws', () => expect(() => toFloat(Symbol.for('pi'))).toThrow(ConvertError));
     it('Symbol error mentions "symbol" type', () => expect(() => toFloat(Symbol('x'))).toThrow(/symbol/));
   });
+
+  describe('exact error message text', () => {
+    function getMsg(fn: () => void): string {
+      try { fn(); } catch (e) { return (e as Error).message; }
+      throw new Error('Expected to throw');
+    }
+
+    // number branch: Cannot convert ${v} to float
+    it('NaN → "Cannot convert NaN to float"', () =>
+      expect(getMsg(() => toFloat(NaN))).toBe('Cannot convert NaN to float'));
+    it('Infinity → "Cannot convert Infinity to float"', () =>
+      expect(getMsg(() => toFloat(Infinity))).toBe('Cannot convert Infinity to float'));
+    it('-Infinity → "Cannot convert -Infinity to float"', () =>
+      expect(getMsg(() => toFloat(-Infinity))).toBe('Cannot convert -Infinity to float'));
+
+    // string branch — empty: Cannot convert "" to float  (hardcoded empty string)
+    it('"" → \'Cannot convert "" to float\'', () =>
+      expect(getMsg(() => toFloat(''))).toBe('Cannot convert "" to float'));
+    it('" " (spaces) → \'Cannot convert "" to float\' (trimmed to empty)', () =>
+      expect(getMsg(() => toFloat(' '))).toBe('Cannot convert "" to float'));
+    it('"   " (multiple spaces) → \'Cannot convert "" to float\'', () =>
+      expect(getMsg(() => toFloat('   '))).toBe('Cannot convert "" to float'));
+
+    // string branch — non-numeric: Cannot convert "${v}" to float  (uses original v, not trimmed)
+    it('"hello" → \'Cannot convert "hello" to float\'', () =>
+      expect(getMsg(() => toFloat('hello'))).toBe('Cannot convert "hello" to float'));
+    it('"Infinity" → \'Cannot convert "Infinity" to float\'', () =>
+      expect(getMsg(() => toFloat('Infinity'))).toBe('Cannot convert "Infinity" to float'));
+    it('"-Infinity" → \'Cannot convert "-Infinity" to float\'', () =>
+      expect(getMsg(() => toFloat('-Infinity'))).toBe('Cannot convert "-Infinity" to float'));
+    it('"NaN" → \'Cannot convert "NaN" to float\'', () =>
+      expect(getMsg(() => toFloat('NaN'))).toBe('Cannot convert "NaN" to float'));
+    it('"abc123" → \'Cannot convert "abc123" to float\'', () =>
+      expect(getMsg(() => toFloat('abc123'))).toBe('Cannot convert "abc123" to float'));
+    it('" hello " (with spaces) → message preserves original string', () =>
+      expect(getMsg(() => toFloat(' hello '))).toBe('Cannot convert " hello " to float'));
+    it('"1,234" → \'Cannot convert "1,234" to float\'', () =>
+      expect(getMsg(() => toFloat('1,234'))).toBe('Cannot convert "1,234" to float'));
+
+    // other types branch: Cannot convert ${typeof v} to float
+    it('true → "Cannot convert boolean to float"', () =>
+      expect(getMsg(() => toFloat(true))).toBe('Cannot convert boolean to float'));
+    it('false → "Cannot convert boolean to float"', () =>
+      expect(getMsg(() => toFloat(false))).toBe('Cannot convert boolean to float'));
+    it('null → "Cannot convert object to float" (typeof null === "object")', () =>
+      expect(getMsg(() => toFloat(null))).toBe('Cannot convert object to float'));
+    it('undefined → "Cannot convert undefined to float"', () =>
+      expect(getMsg(() => toFloat(undefined))).toBe('Cannot convert undefined to float'));
+    it('{} → "Cannot convert object to float"', () =>
+      expect(getMsg(() => toFloat({}))).toBe('Cannot convert object to float'));
+    it('[] → "Cannot convert object to float"', () =>
+      expect(getMsg(() => toFloat([]))).toBe('Cannot convert object to float'));
+    it('() => {} → "Cannot convert function to float"', () =>
+      expect(getMsg(() => toFloat(() => {}))).toBe('Cannot convert function to float'));
+    it('Symbol("x") → "Cannot convert symbol to float"', () =>
+      expect(getMsg(() => toFloat(Symbol('x')))).toBe('Cannot convert symbol to float'));
+    it('BigInt(1) → "Cannot convert bigint to float"', () =>
+      expect(getMsg(() => toFloat(BigInt(1)))).toBe('Cannot convert bigint to float'));
+    it('new Map() → "Cannot convert object to float"', () =>
+      expect(getMsg(() => toFloat(new Map()))).toBe('Cannot convert object to float'));
+    it('new Date() → "Cannot convert object to float"', () =>
+      expect(getMsg(() => toFloat(new Date()))).toBe('Cannot convert object to float'));
+    it('new Promise(() => {}) → "Cannot convert object to float"', () =>
+      expect(getMsg(() => toFloat(new Promise(() => {})))).toBe('Cannot convert object to float'));
+    it('new Uint8Array() → "Cannot convert object to float"', () =>
+      expect(getMsg(() => toFloat(new Uint8Array()))).toBe('Cannot convert object to float'));
+  });
 });

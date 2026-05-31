@@ -173,4 +173,73 @@ describe('toEnum', () => {
     it('Symbol.for("red") throws', () => expect(() => toEnum(Symbol.for('red'), COLORS)).toThrow(ConvertError));
     it('Symbol error mentions "symbol" type', () => expect(() => toEnum(Symbol('x'), COLORS)).toThrow(/symbol/));
   });
+
+  describe('exact error message text', () => {
+    function getMsg(fn: () => void): string {
+      try { fn(); } catch (e) { return (e as Error).message; }
+      throw new Error('Expected to throw');
+    }
+
+    // null/undefined → hardcoded message
+    it('null → "Cannot convert null/undefined to enum"', () =>
+      expect(getMsg(() => toEnum(null, COLORS))).toBe('Cannot convert null/undefined to enum'));
+    it('undefined → "Cannot convert null/undefined to enum"', () =>
+      expect(getMsg(() => toEnum(undefined, COLORS))).toBe('Cannot convert null/undefined to enum'));
+
+    // Invalid type → Cannot convert ${typeof v} to enum
+    it('{} → "Cannot convert object to enum"', () =>
+      expect(getMsg(() => toEnum({}, COLORS))).toBe('Cannot convert object to enum'));
+    it('[] → "Cannot convert object to enum" (typeof [] === "object")', () =>
+      expect(getMsg(() => toEnum([], COLORS))).toBe('Cannot convert object to enum'));
+    it('new Map() → "Cannot convert object to enum"', () =>
+      expect(getMsg(() => toEnum(new Map(), COLORS))).toBe('Cannot convert object to enum'));
+    it('new Date() → "Cannot convert object to enum"', () =>
+      expect(getMsg(() => toEnum(new Date(), COLORS))).toBe('Cannot convert object to enum'));
+    it('new Error("x") → "Cannot convert object to enum"', () =>
+      expect(getMsg(() => toEnum(new Error('x'), COLORS))).toBe('Cannot convert object to enum'));
+    it('() => {} → "Cannot convert function to enum"', () =>
+      expect(getMsg(() => toEnum(() => {}, COLORS))).toBe('Cannot convert function to enum'));
+    it('async () => {} → "Cannot convert function to enum"', () =>
+      expect(getMsg(() => toEnum(async () => {}, COLORS))).toBe('Cannot convert function to enum'));
+    it('Symbol("x") → "Cannot convert symbol to enum"', () =>
+      expect(getMsg(() => toEnum(Symbol('x'), COLORS))).toBe('Cannot convert symbol to enum'));
+    it('BigInt(1) → "Cannot convert bigint to enum"', () =>
+      expect(getMsg(() => toEnum(BigInt(1), COLORS))).toBe('Cannot convert bigint to enum'));
+    it('new Promise(() => {}) → "Cannot convert object to enum"', () =>
+      expect(getMsg(() => toEnum(new Promise(() => {}), COLORS))).toBe('Cannot convert object to enum'));
+    it('new Uint8Array() → "Cannot convert object to enum"', () =>
+      expect(getMsg(() => toEnum(new Uint8Array(), COLORS))).toBe('Cannot convert object to enum'));
+
+    // Value not in options → "${str}" is not a valid enum option
+    it('"yellow" not in COLORS → \'"yellow" is not a valid enum option\'', () =>
+      expect(getMsg(() => toEnum('yellow', COLORS))).toBe('"yellow" is not a valid enum option'));
+    it('"RED" wrong case → \'"RED" is not a valid enum option\'', () =>
+      expect(getMsg(() => toEnum('RED', COLORS))).toBe('"RED" is not a valid enum option'));
+    it('"" not in COLORS → \'"" is not a valid enum option\'', () =>
+      expect(getMsg(() => toEnum('', COLORS))).toBe('"" is not a valid enum option'));
+    it('"red " trailing space → \'"red " is not a valid enum option\'', () =>
+      expect(getMsg(() => toEnum('red ', COLORS))).toBe('"red " is not a valid enum option'));
+    it('" red" leading space → \'" red" is not a valid enum option\'', () =>
+      expect(getMsg(() => toEnum(' red', COLORS))).toBe('" red" is not a valid enum option'));
+
+    // Number not in options → String(v) is used for the message
+    it('number 4 not in ["1","2","3"] → \'"4" is not a valid enum option\'', () =>
+      expect(getMsg(() => toEnum(4, ['1', '2', '3']))).toBe('"4" is not a valid enum option'));
+    it('number 0 not in ["1","2"] → \'"0" is not a valid enum option\'', () =>
+      expect(getMsg(() => toEnum(0, ['1', '2']))).toBe('"0" is not a valid enum option'));
+    it('number 3.14 not in ["1"] → \'"3.14" is not a valid enum option\'', () =>
+      expect(getMsg(() => toEnum(3.14, ['1']))).toBe('"3.14" is not a valid enum option'));
+
+    // Boolean not in options
+    it('true not in ["false"] → \'"true" is not a valid enum option\'', () =>
+      expect(getMsg(() => toEnum(true, ['false']))).toBe('"true" is not a valid enum option'));
+    it('false not in ["true"] → \'"false" is not a valid enum option\'', () =>
+      expect(getMsg(() => toEnum(false, ['true']))).toBe('"false" is not a valid enum option'));
+
+    // Empty options list
+    it('"red" with [] → \'"red" is not a valid enum option\'', () =>
+      expect(getMsg(() => toEnum('red', []))).toBe('"red" is not a valid enum option'));
+    it('1 with [] → \'"1" is not a valid enum option\'', () =>
+      expect(getMsg(() => toEnum(1, []))).toBe('"1" is not a valid enum option'));
+  });
 });

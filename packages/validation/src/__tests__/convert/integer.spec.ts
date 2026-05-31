@@ -179,4 +179,69 @@ describe('toInteger', () => {
     it('Symbol() throws', () => expect(() => toInteger(Symbol())).toThrow(ConvertError));
     it('Symbol.for("key") throws', () => expect(() => toInteger(Symbol.for('key'))).toThrow(ConvertError));
   });
+
+  describe('exact error message text', () => {
+    function getMsg(fn: () => void): string {
+      try { fn(); } catch (e) { return (e as Error).message; }
+      throw new Error('Expected to throw');
+    }
+
+    // number branch: Cannot convert ${v} to integer
+    it('NaN → "Cannot convert NaN to integer"', () =>
+      expect(getMsg(() => toInteger(NaN))).toBe('Cannot convert NaN to integer'));
+    it('Infinity → "Cannot convert Infinity to integer"', () =>
+      expect(getMsg(() => toInteger(Infinity))).toBe('Cannot convert Infinity to integer'));
+    it('-Infinity → "Cannot convert -Infinity to integer"', () =>
+      expect(getMsg(() => toInteger(-Infinity))).toBe('Cannot convert -Infinity to integer'));
+    it('3.14 → "Cannot convert 3.14 to integer"', () =>
+      expect(getMsg(() => toInteger(3.14))).toBe('Cannot convert 3.14 to integer'));
+    it('-3.14 → "Cannot convert -3.14 to integer"', () =>
+      expect(getMsg(() => toInteger(-3.14))).toBe('Cannot convert -3.14 to integer'));
+    it('0.5 → "Cannot convert 0.5 to integer"', () =>
+      expect(getMsg(() => toInteger(0.5))).toBe('Cannot convert 0.5 to integer'));
+
+    // string branch: Cannot convert "${v}" to integer  (uses original v, not trimmed)
+    it('"abc" → \'Cannot convert "abc" to integer\'', () =>
+      expect(getMsg(() => toInteger('abc'))).toBe('Cannot convert "abc" to integer'));
+    it('"3.14" → \'Cannot convert "3.14" to integer\'', () =>
+      expect(getMsg(() => toInteger('3.14'))).toBe('Cannot convert "3.14" to integer'));
+    it('"" → \'Cannot convert "" to integer\'', () =>
+      expect(getMsg(() => toInteger(''))).toBe('Cannot convert "" to integer'));
+    it('" " → \'Cannot convert " " to integer\' (original string, not trimmed)', () =>
+      expect(getMsg(() => toInteger(' '))).toBe('Cannot convert " " to integer'));
+    it('"  abc  " → message uses original with spaces', () =>
+      expect(getMsg(() => toInteger('  abc  '))).toBe('Cannot convert "  abc  " to integer'));
+    it('"+42" → \'Cannot convert "+42" to integer\'', () =>
+      expect(getMsg(() => toInteger('+42'))).toBe('Cannot convert "+42" to integer'));
+    it('"1e5" → \'Cannot convert "1e5" to integer\'', () =>
+      expect(getMsg(() => toInteger('1e5'))).toBe('Cannot convert "1e5" to integer'));
+    it('"0xFF" → \'Cannot convert "0xFF" to integer\'', () =>
+      expect(getMsg(() => toInteger('0xFF'))).toBe('Cannot convert "0xFF" to integer'));
+
+    // other types branch: Cannot convert ${typeof v} to integer
+    it('true → "Cannot convert boolean to integer"', () =>
+      expect(getMsg(() => toInteger(true))).toBe('Cannot convert boolean to integer'));
+    it('false → "Cannot convert boolean to integer"', () =>
+      expect(getMsg(() => toInteger(false))).toBe('Cannot convert boolean to integer'));
+    it('null → "Cannot convert object to integer" (typeof null === "object")', () =>
+      expect(getMsg(() => toInteger(null))).toBe('Cannot convert object to integer'));
+    it('undefined → "Cannot convert undefined to integer"', () =>
+      expect(getMsg(() => toInteger(undefined))).toBe('Cannot convert undefined to integer'));
+    it('{} → "Cannot convert object to integer"', () =>
+      expect(getMsg(() => toInteger({}))).toBe('Cannot convert object to integer'));
+    it('[] → "Cannot convert object to integer"', () =>
+      expect(getMsg(() => toInteger([]))).toBe('Cannot convert object to integer'));
+    it('() => {} → "Cannot convert function to integer"', () =>
+      expect(getMsg(() => toInteger(() => {}))).toBe('Cannot convert function to integer'));
+    it('Symbol("x") → "Cannot convert symbol to integer"', () =>
+      expect(getMsg(() => toInteger(Symbol('x')))).toBe('Cannot convert symbol to integer'));
+    it('BigInt(1) → "Cannot convert bigint to integer"', () =>
+      expect(getMsg(() => toInteger(BigInt(1)))).toBe('Cannot convert bigint to integer'));
+    it('new Map() → "Cannot convert object to integer"', () =>
+      expect(getMsg(() => toInteger(new Map()))).toBe('Cannot convert object to integer'));
+    it('new Date() → "Cannot convert object to integer"', () =>
+      expect(getMsg(() => toInteger(new Date()))).toBe('Cannot convert object to integer'));
+    it('new Promise(() => {}) → "Cannot convert object to integer"', () =>
+      expect(getMsg(() => toInteger(new Promise(() => {})))).toBe('Cannot convert object to integer'));
+  });
 });

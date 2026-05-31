@@ -256,4 +256,71 @@ describe('toJson', () => {
     it('Symbol() throws', () => expect(() => toJson(Symbol())).toThrow(ConvertError));
     it('Symbol error mentions type', () => expect(() => toJson(Symbol('x'))).toThrow(/symbol/));
   });
+
+  describe('exact error message text', () => {
+    function getMsg(fn: () => void): string {
+      try { fn(); } catch (e) { return (e as Error).message; }
+      throw new Error('Expected to throw');
+    }
+
+    // Any string input (valid or invalid JSON) → hardcoded message
+    it('"hello" → "Cannot convert string to JSON object"', () =>
+      expect(getMsg(() => toJson('hello'))).toBe('Cannot convert string to JSON object'));
+    it('"" → "Cannot convert string to JSON object"', () =>
+      expect(getMsg(() => toJson(''))).toBe('Cannot convert string to JSON object'));
+    it('"null" → "Cannot convert string to JSON object"', () =>
+      expect(getMsg(() => toJson('null'))).toBe('Cannot convert string to JSON object'));
+    it('"true" → "Cannot convert string to JSON object"', () =>
+      expect(getMsg(() => toJson('true'))).toBe('Cannot convert string to JSON object'));
+    it('"42" → "Cannot convert string to JSON object"', () =>
+      expect(getMsg(() => toJson('42'))).toBe('Cannot convert string to JSON object'));
+    it('"[]" → "Cannot convert string to JSON object"', () =>
+      expect(getMsg(() => toJson('[]'))).toBe('Cannot convert string to JSON object'));
+    it('"{}" → "Cannot convert string to JSON object" (empty object has 0 keys)', () =>
+      expect(getMsg(() => toJson('{}'))).toBe('Cannot convert string to JSON object'));
+    it('"[1,2,3]" → "Cannot convert string to JSON object"', () =>
+      expect(getMsg(() => toJson('[1,2,3]'))).toBe('Cannot convert string to JSON object'));
+    it('"{" (invalid JSON) → "Cannot convert string to JSON object"', () =>
+      expect(getMsg(() => toJson('{'))).toBe('Cannot convert string to JSON object'));
+
+    // null → special case uses 'null' string not typeof
+    it('null → "Cannot convert null to JSON object"', () =>
+      expect(getMsg(() => toJson(null))).toBe('Cannot convert null to JSON object'));
+
+    // Other non-object types → Cannot convert ${typeof v} to JSON object
+    it('undefined → "Cannot convert undefined to JSON object"', () =>
+      expect(getMsg(() => toJson(undefined))).toBe('Cannot convert undefined to JSON object'));
+    it('42 → "Cannot convert number to JSON object"', () =>
+      expect(getMsg(() => toJson(42))).toBe('Cannot convert number to JSON object'));
+    it('0 → "Cannot convert number to JSON object"', () =>
+      expect(getMsg(() => toJson(0))).toBe('Cannot convert number to JSON object'));
+    it('true → "Cannot convert boolean to JSON object"', () =>
+      expect(getMsg(() => toJson(true))).toBe('Cannot convert boolean to JSON object'));
+    it('false → "Cannot convert boolean to JSON object"', () =>
+      expect(getMsg(() => toJson(false))).toBe('Cannot convert boolean to JSON object'));
+
+    // Arrays and empty objects → typeof is 'object'
+    it('[] → "Cannot convert object to JSON object"', () =>
+      expect(getMsg(() => toJson([]))).toBe('Cannot convert object to JSON object'));
+    it('[1,2,3] → "Cannot convert object to JSON object"', () =>
+      expect(getMsg(() => toJson([1, 2, 3]))).toBe('Cannot convert object to JSON object'));
+    it('{} → "Cannot convert object to JSON object" (0 keys)', () =>
+      expect(getMsg(() => toJson({}))).toBe('Cannot convert object to JSON object'));
+
+    // Exotic types
+    it('() => {} → "Cannot convert function to JSON object"', () =>
+      expect(getMsg(() => toJson(() => {}))).toBe('Cannot convert function to JSON object'));
+    it('Symbol("x") → "Cannot convert symbol to JSON object"', () =>
+      expect(getMsg(() => toJson(Symbol('x')))).toBe('Cannot convert symbol to JSON object'));
+    it('BigInt(1) → "Cannot convert bigint to JSON object"', () =>
+      expect(getMsg(() => toJson(BigInt(1)))).toBe('Cannot convert bigint to JSON object'));
+    it('new Map() → "Cannot convert object to JSON object"', () =>
+      expect(getMsg(() => toJson(new Map()))).toBe('Cannot convert object to JSON object'));
+    it('new Set() → "Cannot convert object to JSON object"', () =>
+      expect(getMsg(() => toJson(new Set()))).toBe('Cannot convert object to JSON object'));
+    it('new Error("x") → "Cannot convert object to JSON object"', () =>
+      expect(getMsg(() => toJson(new Error('x')))).toBe('Cannot convert object to JSON object'));
+    it('new Promise(() => {}) → "Cannot convert object to JSON object"', () =>
+      expect(getMsg(() => toJson(new Promise(() => {})))).toBe('Cannot convert object to JSON object'));
+  });
 });

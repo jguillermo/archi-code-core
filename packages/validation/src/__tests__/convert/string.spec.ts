@@ -172,4 +172,46 @@ describe('toString', () => {
     it('Symbol.for("key") throws', () => expect(() => toString(Symbol.for('key'))).toThrow(ConvertError));
     it('Symbol error mentions "symbol" type', () => expect(() => toString(Symbol('x'))).toThrow(/symbol/));
   });
+
+  describe('exact error message text', () => {
+    function getMsg(fn: () => void): string {
+      try { fn(); } catch (e) { return (e as Error).message; }
+      throw new Error('Expected to throw');
+    }
+
+    it('NaN → "Cannot convert NaN to string"', () =>
+      expect(getMsg(() => toString(NaN))).toBe('Cannot convert NaN to string'));
+    it('Infinity → "Cannot convert Infinity to string"', () =>
+      expect(getMsg(() => toString(Infinity))).toBe('Cannot convert Infinity to string'));
+    it('-Infinity → "Cannot convert -Infinity to string"', () =>
+      expect(getMsg(() => toString(-Infinity))).toBe('Cannot convert -Infinity to string'));
+    it('null → "Cannot convert object to string" (typeof null === "object")', () =>
+      expect(getMsg(() => toString(null))).toBe('Cannot convert object to string'));
+    it('undefined → "Cannot convert undefined to string"', () =>
+      expect(getMsg(() => toString(undefined))).toBe('Cannot convert undefined to string'));
+    it('{} → "Cannot convert object to string"', () =>
+      expect(getMsg(() => toString({}))).toBe('Cannot convert object to string'));
+    it('[] → "Cannot convert object to string" (typeof [] === "object")', () =>
+      expect(getMsg(() => toString([]))).toBe('Cannot convert object to string'));
+    it('() => {} → "Cannot convert function to string"', () =>
+      expect(getMsg(() => toString(() => {}))).toBe('Cannot convert function to string'));
+    it('Symbol("x") → "Cannot convert symbol to string"', () =>
+      expect(getMsg(() => toString(Symbol('x')))).toBe('Cannot convert symbol to string'));
+    it('BigInt(1) → "Cannot convert bigint to string"', () =>
+      expect(getMsg(() => toString(BigInt(1)))).toBe('Cannot convert bigint to string'));
+    it('new Map() → "Cannot convert object to string"', () =>
+      expect(getMsg(() => toString(new Map()))).toBe('Cannot convert object to string'));
+    it('new Date() → "Cannot convert object to string"', () =>
+      expect(getMsg(() => toString(new Date()))).toBe('Cannot convert object to string'));
+    it('new Error("x") → "Cannot convert object to string"', () =>
+      expect(getMsg(() => toString(new Error('x')))).toBe('Cannot convert object to string'));
+    it('async () => {} → "Cannot convert function to string"', () =>
+      expect(getMsg(() => toString(async () => {}))).toBe('Cannot convert function to string'));
+    it('new Set() → "Cannot convert object to string"', () =>
+      expect(getMsg(() => toString(new Set()))).toBe('Cannot convert object to string'));
+    it('new Uint8Array() → "Cannot convert object to string"', () =>
+      expect(getMsg(() => toString(new Uint8Array()))).toBe('Cannot convert object to string'));
+    it('new Promise(() => {}) → "Cannot convert object to string"', () =>
+      expect(getMsg(() => toString(new Promise(() => {})))).toBe('Cannot convert object to string'));
+  });
 });

@@ -255,4 +255,65 @@ describe('toDate', () => {
     it('Symbol() throws', () => expect(() => toDate(Symbol())).toThrow(ConvertError));
     it('Symbol error mentions "symbol" type', () => expect(() => toDate(Symbol('x'))).toThrow(/symbol/));
   });
+
+  describe('exact error message text', () => {
+    function getMsg(fn: () => void): string {
+      try { fn(); } catch (e) { return (e as Error).message; }
+      throw new Error('Expected to throw');
+    }
+
+    // Invalid Date instance → hardcoded message
+    it('new Date("invalid") → "Invalid Date object"', () =>
+      expect(getMsg(() => toDate(new Date('invalid')))).toBe('Invalid Date object'));
+    it('new Date("") → "Invalid Date object"', () =>
+      expect(getMsg(() => toDate(new Date('')))).toBe('Invalid Date object'));
+
+    // Invalid string → Cannot convert "${v}" to date
+    it('"not-a-date" → \'Cannot convert "not-a-date" to date\'', () =>
+      expect(getMsg(() => toDate('not-a-date'))).toBe('Cannot convert "not-a-date" to date'));
+    it('"" → \'Cannot convert "" to date\'', () =>
+      expect(getMsg(() => toDate(''))).toBe('Cannot convert "" to date'));
+    it('"2024-13-01" → \'Cannot convert "2024-13-01" to date\'', () =>
+      expect(getMsg(() => toDate('2024-13-01'))).toBe('Cannot convert "2024-13-01" to date'));
+    it('"2024-00-01" → \'Cannot convert "2024-00-01" to date\'', () =>
+      expect(getMsg(() => toDate('2024-00-01'))).toBe('Cannot convert "2024-00-01" to date'));
+    it('"2024-01-32" → \'Cannot convert "2024-01-32" to date\'', () =>
+      expect(getMsg(() => toDate('2024-01-32'))).toBe('Cannot convert "2024-01-32" to date'));
+    it('"abc" → \'Cannot convert "abc" to date\'', () =>
+      expect(getMsg(() => toDate('abc'))).toBe('Cannot convert "abc" to date'));
+    it('" " → \'Cannot convert " " to date\'', () =>
+      expect(getMsg(() => toDate(' '))).toBe('Cannot convert " " to date'));
+    it('"31/12/2024" → \'Cannot convert "31/12/2024" to date\'', () =>
+      expect(getMsg(() => toDate('31/12/2024'))).toBe('Cannot convert "31/12/2024" to date'));
+
+    // Other types → Cannot convert ${typeof v} to date
+    it('number 1705276800000 → "Cannot convert number to date"', () =>
+      expect(getMsg(() => toDate(1705276800000))).toBe('Cannot convert number to date'));
+    it('number 0 → "Cannot convert number to date"', () =>
+      expect(getMsg(() => toDate(0))).toBe('Cannot convert number to date'));
+    it('null → "Cannot convert object to date" (typeof null === "object")', () =>
+      expect(getMsg(() => toDate(null))).toBe('Cannot convert object to date'));
+    it('undefined → "Cannot convert undefined to date"', () =>
+      expect(getMsg(() => toDate(undefined))).toBe('Cannot convert undefined to date'));
+    it('true → "Cannot convert boolean to date"', () =>
+      expect(getMsg(() => toDate(true))).toBe('Cannot convert boolean to date'));
+    it('false → "Cannot convert boolean to date"', () =>
+      expect(getMsg(() => toDate(false))).toBe('Cannot convert boolean to date'));
+    it('{} → "Cannot convert object to date"', () =>
+      expect(getMsg(() => toDate({}))).toBe('Cannot convert object to date'));
+    it('[] → "Cannot convert object to date"', () =>
+      expect(getMsg(() => toDate([]))).toBe('Cannot convert object to date'));
+    it('() => {} → "Cannot convert function to date"', () =>
+      expect(getMsg(() => toDate(() => {}))).toBe('Cannot convert function to date'));
+    it('Symbol("x") → "Cannot convert symbol to date"', () =>
+      expect(getMsg(() => toDate(Symbol('x')))).toBe('Cannot convert symbol to date'));
+    it('BigInt(1) → "Cannot convert bigint to date"', () =>
+      expect(getMsg(() => toDate(BigInt(1)))).toBe('Cannot convert bigint to date'));
+    it('new Map() → "Cannot convert object to date"', () =>
+      expect(getMsg(() => toDate(new Map()))).toBe('Cannot convert object to date'));
+    it('new Promise(() => {}) → "Cannot convert object to date"', () =>
+      expect(getMsg(() => toDate(new Promise(() => {})))).toBe('Cannot convert object to date'));
+    it('new Uint8Array() → "Cannot convert object to date"', () =>
+      expect(getMsg(() => toDate(new Uint8Array()))).toBe('Cannot convert object to date'));
+  });
 });

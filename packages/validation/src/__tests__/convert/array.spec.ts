@@ -214,4 +214,69 @@ describe('toArray', () => {
     it('Symbol() throws', () => expect(() => toArray(Symbol())).toThrow(ConvertError));
     it('Symbol error mentions "symbol" type', () => expect(() => toArray(Symbol('x'))).toThrow(/symbol/));
   });
+
+  describe('exact error message text', () => {
+    function getMsg(fn: () => void): string {
+      try { fn(); } catch (e) { return (e as Error).message; }
+      throw new Error('Expected to throw');
+    }
+
+    // String branch: Cannot convert "${v}" to array  (uses original v)
+    it('"hello" → \'Cannot convert "hello" to array\'', () =>
+      expect(getMsg(() => toArray('hello'))).toBe('Cannot convert "hello" to array'));
+    it('"" → \'Cannot convert "" to array\'', () =>
+      expect(getMsg(() => toArray(''))).toBe('Cannot convert "" to array'));
+    it('"null" → \'Cannot convert "null" to array\'', () =>
+      expect(getMsg(() => toArray('null'))).toBe('Cannot convert "null" to array'));
+    it('"true" → \'Cannot convert "true" to array\'', () =>
+      expect(getMsg(() => toArray('true'))).toBe('Cannot convert "true" to array'));
+    it('"42" → \'Cannot convert "42" to array\'', () =>
+      expect(getMsg(() => toArray('42'))).toBe('Cannot convert "42" to array'));
+    it('"{}" → \'Cannot convert "{}" to array\' (valid JSON but object, not array)', () =>
+      expect(getMsg(() => toArray('{}'))).toBe('Cannot convert "{}" to array'));
+    it('\'{"a":1}\' → message contains the original JSON string', () =>
+      expect(getMsg(() => toArray('{"a":1}'))).toBe('Cannot convert "{"a":1}" to array'));
+    it('"[1,2,]" (invalid JSON) → message contains original string', () =>
+      expect(getMsg(() => toArray('[1,2,]'))).toBe('Cannot convert "[1,2,]" to array'));
+    it('" hello " → message preserves spaces', () =>
+      expect(getMsg(() => toArray(' hello '))).toBe('Cannot convert " hello " to array'));
+
+    // Other types → Cannot convert ${typeof v} to array
+    it('42 → "Cannot convert number to array"', () =>
+      expect(getMsg(() => toArray(42))).toBe('Cannot convert number to array'));
+    it('0 → "Cannot convert number to array"', () =>
+      expect(getMsg(() => toArray(0))).toBe('Cannot convert number to array'));
+    it('true → "Cannot convert boolean to array"', () =>
+      expect(getMsg(() => toArray(true))).toBe('Cannot convert boolean to array'));
+    it('false → "Cannot convert boolean to array"', () =>
+      expect(getMsg(() => toArray(false))).toBe('Cannot convert boolean to array'));
+    it('null → "Cannot convert object to array" (typeof null === "object")', () =>
+      expect(getMsg(() => toArray(null))).toBe('Cannot convert object to array'));
+    it('undefined → "Cannot convert undefined to array"', () =>
+      expect(getMsg(() => toArray(undefined))).toBe('Cannot convert undefined to array'));
+    it('{} → "Cannot convert object to array"', () =>
+      expect(getMsg(() => toArray({}))).toBe('Cannot convert object to array'));
+    it('{a:1} → "Cannot convert object to array"', () =>
+      expect(getMsg(() => toArray({ a: 1 }))).toBe('Cannot convert object to array'));
+    it('() => {} → "Cannot convert function to array"', () =>
+      expect(getMsg(() => toArray(() => {}))).toBe('Cannot convert function to array'));
+    it('Symbol("x") → "Cannot convert symbol to array"', () =>
+      expect(getMsg(() => toArray(Symbol('x')))).toBe('Cannot convert symbol to array'));
+    it('BigInt(1) → "Cannot convert bigint to array"', () =>
+      expect(getMsg(() => toArray(BigInt(1)))).toBe('Cannot convert bigint to array'));
+    it('new Map() → "Cannot convert object to array"', () =>
+      expect(getMsg(() => toArray(new Map()))).toBe('Cannot convert object to array'));
+    it('new Set() → "Cannot convert object to array"', () =>
+      expect(getMsg(() => toArray(new Set()))).toBe('Cannot convert object to array'));
+    it('new Uint8Array([1]) → "Cannot convert object to array"', () =>
+      expect(getMsg(() => toArray(new Uint8Array([1])))).toBe('Cannot convert object to array'));
+    it('new Date() → "Cannot convert object to array"', () =>
+      expect(getMsg(() => toArray(new Date()))).toBe('Cannot convert object to array'));
+    it('new Error("x") → "Cannot convert object to array"', () =>
+      expect(getMsg(() => toArray(new Error('x')))).toBe('Cannot convert object to array'));
+    it('new Promise(() => {}) → "Cannot convert object to array"', () =>
+      expect(getMsg(() => toArray(new Promise(() => {})))).toBe('Cannot convert object to array'));
+    it('async () => {} → "Cannot convert function to array"', () =>
+      expect(getMsg(() => toArray(async () => {}))).toBe('Cannot convert function to array'));
+  });
 });

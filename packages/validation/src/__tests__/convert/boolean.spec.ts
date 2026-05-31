@@ -185,4 +185,85 @@ describe('toBoolean', () => {
       expect(() => toBoolean(Symbol('x'))).toThrow(/symbol/);
     });
   });
+
+  describe('exact error message text', () => {
+    function getMsg(fn: () => void): string {
+      try { fn(); } catch (e) { return (e as Error).message; }
+      throw new Error('Expected to throw');
+    }
+
+    // Numbers that are not 0 or 1 → JSON.stringify(n) gives the number as string
+    it('2 → "Cannot convert 2 to boolean"', () =>
+      expect(getMsg(() => toBoolean(2))).toBe('Cannot convert 2 to boolean'));
+    it('-1 → "Cannot convert -1 to boolean"', () =>
+      expect(getMsg(() => toBoolean(-1))).toBe('Cannot convert -1 to boolean'));
+    it('0.5 → "Cannot convert 0.5 to boolean"', () =>
+      expect(getMsg(() => toBoolean(0.5))).toBe('Cannot convert 0.5 to boolean'));
+    it('100 → "Cannot convert 100 to boolean"', () =>
+      expect(getMsg(() => toBoolean(100))).toBe('Cannot convert 100 to boolean'));
+
+    // NaN and Infinity: JSON.stringify serializes them as "null" per JSON spec
+    it('NaN → "Cannot convert null to boolean" (JSON.stringify(NaN) === "null")', () =>
+      expect(getMsg(() => toBoolean(NaN))).toBe('Cannot convert null to boolean'));
+    it('Infinity → "Cannot convert null to boolean" (JSON.stringify(Infinity) === "null")', () =>
+      expect(getMsg(() => toBoolean(Infinity))).toBe('Cannot convert null to boolean'));
+    it('-Infinity → "Cannot convert null to boolean" (JSON.stringify(-Infinity) === "null")', () =>
+      expect(getMsg(() => toBoolean(-Infinity))).toBe('Cannot convert null to boolean'));
+
+    // Strings that don't match true/false/0/1 → JSON.stringify adds quotes around them
+    it('"maybe" → \'Cannot convert "maybe" to boolean\'', () =>
+      expect(getMsg(() => toBoolean('maybe'))).toBe('Cannot convert "maybe" to boolean'));
+    it('"yes" → \'Cannot convert "yes" to boolean\'', () =>
+      expect(getMsg(() => toBoolean('yes'))).toBe('Cannot convert "yes" to boolean'));
+    it('"no" → \'Cannot convert "no" to boolean\'', () =>
+      expect(getMsg(() => toBoolean('no'))).toBe('Cannot convert "no" to boolean'));
+    it('"" → \'Cannot convert "" to boolean\'', () =>
+      expect(getMsg(() => toBoolean(''))).toBe('Cannot convert "" to boolean'));
+    it('" " → \'Cannot convert " " to boolean\'', () =>
+      expect(getMsg(() => toBoolean(' '))).toBe('Cannot convert " " to boolean'));
+    it('"2" → \'Cannot convert "2" to boolean\'', () =>
+      expect(getMsg(() => toBoolean('2'))).toBe('Cannot convert "2" to boolean'));
+    it('"on" → \'Cannot convert "on" to boolean\'', () =>
+      expect(getMsg(() => toBoolean('on'))).toBe('Cannot convert "on" to boolean'));
+
+    // null → JSON.stringify(null) = "null"
+    it('null → "Cannot convert null to boolean"', () =>
+      expect(getMsg(() => toBoolean(null))).toBe('Cannot convert null to boolean'));
+
+    // undefined → JSON.stringify(undefined) returns undefined → fallback to typeof
+    it('undefined → "Cannot convert undefined to boolean"', () =>
+      expect(getMsg(() => toBoolean(undefined))).toBe('Cannot convert undefined to boolean'));
+
+    // Objects → JSON.stringify gives their JSON representation
+    it('{} → "Cannot convert {} to boolean"', () =>
+      expect(getMsg(() => toBoolean({}))).toBe('Cannot convert {} to boolean'));
+    it('{a:1} → \'Cannot convert {"a":1} to boolean\'', () =>
+      expect(getMsg(() => toBoolean({ a: 1 }))).toBe('Cannot convert {"a":1} to boolean'));
+    it('{x:true,y:false} → serialized JSON form', () =>
+      expect(getMsg(() => toBoolean({ x: true, y: false }))).toBe('Cannot convert {"x":true,"y":false} to boolean'));
+    it('[] → "Cannot convert [] to boolean"', () =>
+      expect(getMsg(() => toBoolean([]))).toBe('Cannot convert [] to boolean'));
+    it('[true] → "Cannot convert [true] to boolean"', () =>
+      expect(getMsg(() => toBoolean([true]))).toBe('Cannot convert [true] to boolean'));
+    it('new Map() → "Cannot convert {} to boolean" (Map serializes as {})', () =>
+      expect(getMsg(() => toBoolean(new Map()))).toBe('Cannot convert {} to boolean'));
+    it('new Set() → "Cannot convert {} to boolean" (Set serializes as {})', () =>
+      expect(getMsg(() => toBoolean(new Set()))).toBe('Cannot convert {} to boolean'));
+
+    // Functions → JSON.stringify returns undefined → fallback to typeof
+    it('() => {} → "Cannot convert function to boolean"', () =>
+      expect(getMsg(() => toBoolean(() => {}))).toBe('Cannot convert function to boolean'));
+    it('async () => {} → "Cannot convert function to boolean"', () =>
+      expect(getMsg(() => toBoolean(async () => {}))).toBe('Cannot convert function to boolean'));
+
+    // Symbol → JSON.stringify returns undefined → fallback to typeof
+    it('Symbol("x") → "Cannot convert symbol to boolean"', () =>
+      expect(getMsg(() => toBoolean(Symbol('x')))).toBe('Cannot convert symbol to boolean'));
+
+    // BigInt → JSON.stringify throws → catch → fallback to typeof
+    it('BigInt(1) → "Cannot convert bigint to boolean"', () =>
+      expect(getMsg(() => toBoolean(BigInt(1)))).toBe('Cannot convert bigint to boolean'));
+    it('BigInt(0) → "Cannot convert bigint to boolean"', () =>
+      expect(getMsg(() => toBoolean(BigInt(0)))).toBe('Cannot convert bigint to boolean'));
+  });
 });
