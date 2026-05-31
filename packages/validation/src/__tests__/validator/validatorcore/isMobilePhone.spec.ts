@@ -3011,7 +3011,7 @@ describe('Validators', () => {
       },
     ];
 
-    let allValid = [];
+    let allValid: string[] = [];
 
     fixtures.forEach((fixture) => {
       // to be used later on for validating 'any' locale

@@ -301,7 +301,7 @@ describe('Validators', () => {
       },
     ];
 
-    let allValid = [];
+    let allValid: string[] = [];
 
     // Test fixtures
     fixtures.forEach((fixture) => {
