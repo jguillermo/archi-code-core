@@ -25,4 +25,11 @@ describe('Validators', () => {
       invalid: ['', 'password', 'hunter2', 'hello world', 'passw0rd', 'password!', 'PASSWORD!'],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isStrongPassword',
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
 });

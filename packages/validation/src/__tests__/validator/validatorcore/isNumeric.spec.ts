@@ -47,4 +47,15 @@ describe('Validators', () => {
       invalid: [' ', '', '.'],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isNumeric',
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
+  it('should correctly validate coercible non-string inputs', () => {
+    test({ validator: 'isNumeric', valid: [42, 0, 3.14, -7] });
+    test({ validator: 'isNumeric', invalid: [true, false] });
+  });
 });

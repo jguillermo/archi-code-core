@@ -48,4 +48,11 @@ describe('Validators', () => {
       invalid: ['ｇ', 'a'],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isByteLength',
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
 });

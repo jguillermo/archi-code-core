@@ -9,4 +9,12 @@ describe('Validators', () => {
       invalid: ['Abc', '123'],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'equals',
+      args: ['x'],
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
 });

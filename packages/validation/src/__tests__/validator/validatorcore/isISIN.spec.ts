@@ -17,4 +17,11 @@ describe('Validators', () => {
       invalid: ['DE000BAY0018', 'PLLWBGD00019', 'foo', '5398228707871528'],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isISIN',
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
 });

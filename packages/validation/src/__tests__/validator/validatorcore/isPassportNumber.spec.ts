@@ -426,4 +426,12 @@ describe('Validators', () => {
       invalid: ['123456789', 'Z12345678'],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isPassportNumber',
+      args: ['ANY'],
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
 });

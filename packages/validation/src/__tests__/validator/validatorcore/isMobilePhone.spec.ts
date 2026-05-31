@@ -3065,4 +3065,12 @@ describe('Validators', () => {
       error: ['+123456789', '012345'],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isMobilePhone',
+      args: ['any'],
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
 });

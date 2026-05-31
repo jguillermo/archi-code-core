@@ -505,4 +505,15 @@ describe('Validators', () => {
       error: ['abc', 'ABC'],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isAlpha',
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
+  it('should correctly validate coercible non-string inputs', () => {
+    test({ validator: 'isAlpha', invalid: [42, 0] });
+    test({ validator: 'isAlpha', valid: [true, false] });
+  });
 });

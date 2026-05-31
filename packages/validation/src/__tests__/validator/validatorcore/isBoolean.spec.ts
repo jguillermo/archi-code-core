@@ -32,4 +32,15 @@ describe('Validators', () => {
       invalid: ['1.0', '0.0', 'true ', ' false'],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isBoolean',
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
+  it('should correctly validate coercible non-string inputs', () => {
+    test({ validator: 'isBoolean', valid: [true, false, 1, 0] });
+    test({ validator: 'isBoolean', invalid: [42, -1] });
+  });
 });

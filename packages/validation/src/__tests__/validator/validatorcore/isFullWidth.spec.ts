@@ -8,4 +8,11 @@ describe('Validators', () => {
       invalid: ['abc', 'abc123', '!"#$%&()<>/+=-_? ~^|.,@`{}[]'],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isFullWidth',
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
 });

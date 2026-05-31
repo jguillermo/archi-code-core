@@ -27,4 +27,15 @@ describe('Validators', () => {
       ],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isHexadecimal',
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
+  it('should correctly validate coercible non-string inputs', () => {
+    test({ validator: 'isHexadecimal', valid: [255, 0] });
+    test({ validator: 'isHexadecimal', invalid: [true, false] });
+  });
 });

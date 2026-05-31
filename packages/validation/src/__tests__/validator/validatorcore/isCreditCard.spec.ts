@@ -295,4 +295,11 @@ describe('Validators', () => {
       ],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isCreditCard',
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
 });

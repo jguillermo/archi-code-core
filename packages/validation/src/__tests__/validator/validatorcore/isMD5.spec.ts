@@ -13,4 +13,11 @@ describe('Validators', () => {
       invalid: ['KYT0bf1c35032a71a14c2f719e5a14c1', 'q94375dj93458w34', '39485729348', '%&FHKJFvk'],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isMD5',
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
 });

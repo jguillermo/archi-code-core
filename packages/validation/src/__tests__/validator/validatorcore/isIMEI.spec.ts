@@ -31,4 +31,11 @@ describe('Validators', () => {
       invalid: ['49-015420-323751-7', '35-686800-0041412-0', '35-209900-1761482-3'],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isIMEI',
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
 });

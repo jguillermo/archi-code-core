@@ -330,4 +330,14 @@ describe('Validators', () => {
       invalid: ['email@foobar.com', 'email@foo.bar.com', 'email@qux.com'],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isEmail',
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
+  it('should correctly validate coercible non-string inputs', () => {
+    test({ validator: 'isEmail', invalid: [true, false, 42, 0] });
+  });
 });

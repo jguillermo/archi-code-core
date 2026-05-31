@@ -354,4 +354,12 @@ describe('Validators', () => {
       error: ['293940', '1234'],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isPostalCode',
+      args: ['any'],
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
 });

@@ -43,4 +43,12 @@ describe('Validators', () => {
       invalid: ['4', ''],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isIn',
+      args: [['a', 'b']],
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
 });

@@ -471,4 +471,14 @@ describe('Validators', () => {
       error: ['1234568960', 'abc123'],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isAlphanumeric',
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
+  it('should correctly validate coercible non-string inputs', () => {
+    test({ validator: 'isAlphanumeric', valid: [42, true, false] });
+  });
 });

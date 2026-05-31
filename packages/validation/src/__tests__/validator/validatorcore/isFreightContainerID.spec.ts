@@ -45,4 +45,11 @@ describe('Validators', () => {
       invalid: ['APZU3789871', 'TEMU1002031', 'DFSU1704421', 'CMAU2221481', 'SEGU5060261'],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isFreightContainerID',
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
 });

@@ -21,10 +21,10 @@ describe('Validators', () => {
     });
   });
 
-  it('should error on non-string input', () => {
+  it('should return false for non-string input instead of throwing', () => {
     test({
       validator: 'isEmpty',
-      error: [undefined, null, [], NaN],
+      invalid: [undefined, null, [], NaN],
     });
   });
 });

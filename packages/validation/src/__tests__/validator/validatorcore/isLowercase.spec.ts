@@ -8,4 +8,14 @@ describe('Validators', () => {
       invalid: ['fooBar', '123A'],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isLowercase',
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
+  it('should correctly validate coercible non-string inputs', () => {
+    test({ validator: 'isLowercase', valid: [true, false, 42, 0] });
+  });
 });

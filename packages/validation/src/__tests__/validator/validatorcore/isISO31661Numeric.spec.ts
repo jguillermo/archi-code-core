@@ -9,4 +9,11 @@ describe('Validators', () => {
       invalid: ['', 'NL', 'NLD', '002', '197', '249', '569', '810', '900', '999'],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isISO31661Numeric',
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
 });

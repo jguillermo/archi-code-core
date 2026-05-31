@@ -36,4 +36,11 @@ describe('Validators', () => {
       invalid: ['2434-561x', '2434561X', '2434561x', '03785955'],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isISSN',
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
 });

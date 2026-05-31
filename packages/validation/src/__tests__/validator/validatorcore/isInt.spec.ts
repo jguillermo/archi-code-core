@@ -96,4 +96,15 @@ describe('Validators', () => {
       invalid: [',', '+11212+', 'fail', '111987234i'],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isInt',
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
+  it('should correctly validate coercible non-string inputs', () => {
+    test({ validator: 'isInt', valid: [42, 0, -7] });
+    test({ validator: 'isInt', invalid: [3.14, true, false] });
+  });
 });

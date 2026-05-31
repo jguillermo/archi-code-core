@@ -201,4 +201,15 @@ describe('Validators', () => {
       invalid: ['ab565', '-.123', '+.123', '7866.t', '22.3'],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isFloat',
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
+  it('should correctly validate coercible non-string inputs', () => {
+    test({ validator: 'isFloat', valid: [3.14, 42, -1.5] });
+    test({ validator: 'isFloat', invalid: [true, false] });
+  });
 });

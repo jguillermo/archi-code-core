@@ -199,4 +199,11 @@ describe('Validators', () => {
       ],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isISO8601',
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
 });

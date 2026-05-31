@@ -919,4 +919,11 @@ describe('Validators', () => {
       invalid: ['$ 1.400,00', '$R 1.400,00'],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isCurrency',
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
 });

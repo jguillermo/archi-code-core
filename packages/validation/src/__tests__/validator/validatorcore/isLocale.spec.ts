@@ -50,4 +50,11 @@ describe('Validators', () => {
       invalid: ['lo_POP', '12', '12_DD', 'de-419-DE', 'a-DE'],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isLocale',
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
 });

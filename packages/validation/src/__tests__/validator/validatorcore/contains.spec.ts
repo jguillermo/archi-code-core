@@ -33,4 +33,12 @@ describe('Validators', () => {
       invalid: ['foo', 'foobar', 'Fooofoo', 'foofo'],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'contains',
+      args: ['x'],
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
 });

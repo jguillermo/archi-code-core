@@ -54,8 +54,11 @@ describe('isBase64', () => {
         '\nAA',
         'This+isa/bad+base64Url==',
         '0K3RgtC+INC30LDQutC+0LTQuNGA0L7QstCw0L3QvdCw0Y8g0YHRgtGA0L7QutCw',
+        null,
+        undefined,
+        {},
+        [],
       ],
-      error: [null, undefined, {}, [], 42],
     });
 
     for (let i = 0, str = '', encoded; i < 1000; i++) {

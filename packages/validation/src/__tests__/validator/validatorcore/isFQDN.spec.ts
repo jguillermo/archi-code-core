@@ -81,4 +81,11 @@ describe('Validators', () => {
       valid: ['abc.efg.g1h.', 'as1s.sad3s.ssa2d.'],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isFQDN',
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
 });

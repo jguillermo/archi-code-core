@@ -322,4 +322,12 @@ describe('Validators', () => {
       invalid: ['sg1234a', 'invalidlicenseplate', '4578', '', 'GJ054GH4785'],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isLicensePlate',
+      args: ['any'],
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
 });

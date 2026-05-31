@@ -279,4 +279,15 @@ describe('Validators', () => {
       error: ['123', '0.01', '0,01'],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isDecimal',
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
+  it('should correctly validate coercible non-string inputs', () => {
+    test({ validator: 'isDecimal', valid: [3.14, 42] });
+    test({ validator: 'isDecimal', invalid: [true, false] });
+  });
 });

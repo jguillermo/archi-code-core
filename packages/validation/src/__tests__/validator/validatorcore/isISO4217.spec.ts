@@ -23,4 +23,11 @@ describe('Validators', () => {
       invalid: ['', '$', 'US', 'us', 'AAA', 'aaa', 'RWA', 'EURO', 'euro', 'HRK', 'CUC'],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isISO4217',
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
 });

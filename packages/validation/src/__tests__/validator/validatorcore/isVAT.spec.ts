@@ -532,4 +532,12 @@ describe('Validators', () => {
       error: ['GB999 9999 00'],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isVAT',
+      args: ['AT'],
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
 });

@@ -8,4 +8,11 @@ describe('Validators', () => {
       invalid: ['426317017', '789456124', '603558459', 'qwerty', '12430306', '382070381'],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isAbaRouting',
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
 });

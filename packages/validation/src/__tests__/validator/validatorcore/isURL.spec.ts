@@ -552,4 +552,14 @@ describe('Validators', () => {
       ],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isURL',
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
+  it('should correctly validate coercible non-string inputs', () => {
+    test({ validator: 'isURL', invalid: [true, false, 42] });
+  });
 });

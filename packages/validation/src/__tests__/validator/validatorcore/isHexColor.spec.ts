@@ -36,4 +36,11 @@ describe('Validators', () => {
     const validColors = ['#ff0034', '#CCCCCC'].filter(validator.isHexColor);
     assert.strictEqual(validColors.length, 2);
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isHexColor',
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
 });

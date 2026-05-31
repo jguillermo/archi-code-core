@@ -8,4 +8,11 @@ describe('Validators', () => {
       invalid: ['aj', 'al', 'pe', 'pf', 'abc', '123', ''],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isISO6391',
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
 });

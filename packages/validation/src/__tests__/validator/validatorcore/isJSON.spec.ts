@@ -26,4 +26,14 @@ describe('Validators', () => {
       invalid: ['{ key: "value" }', "{ 'key': 'value' }", '{ "key": value }', '01234', "'nope'"],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isJSON',
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
+  it('should correctly validate coercible non-string inputs', () => {
+    test({ validator: 'isJSON', invalid: [true, false, 42, 0] });
+  });
 });

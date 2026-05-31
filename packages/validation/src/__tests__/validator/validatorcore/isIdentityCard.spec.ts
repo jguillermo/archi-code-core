@@ -374,4 +374,12 @@ describe('Validators', () => {
       error: ['99999999R', '12345678Z'],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isIdentityCard',
+      args: ['any'],
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
 });

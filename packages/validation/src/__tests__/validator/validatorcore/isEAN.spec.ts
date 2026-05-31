@@ -18,4 +18,11 @@ describe('Validators', () => {
       invalid: ['5901234123451', '079777681629', '0705632085948'],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isEAN',
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
 });

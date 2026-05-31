@@ -171,4 +171,11 @@ describe('Validators', () => {
       invalid: ['abababababab', 'FFFFFFFFFFFF', '0102030405ab', '01AB03040506'],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isMACAddress',
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
 });

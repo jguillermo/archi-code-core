@@ -8,4 +8,11 @@ describe('Validators', () => {
       invalid: ['あいうえお', '００１１'],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isHalfWidth',
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
 });

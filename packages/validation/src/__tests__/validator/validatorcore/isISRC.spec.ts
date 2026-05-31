@@ -8,4 +8,11 @@ describe('Validators', () => {
       invalid: ['USAT2990060', 'SRC15705223', 'US-CA29500702', 'USARC15705223'],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isISRC',
+      invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
+    });
+  });
 });
