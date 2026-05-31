@@ -8,17 +8,25 @@ describe('benchmark cases dataset', () => {
     expect(new Set(names).size).toBe(names.length);
   });
 
+  it('every case has at least one input', () => {
+    for (const c of cases) {
+      expect(c.inputs.length).toBeGreaterThan(0);
+    }
+  });
+
   it.each(cases.map((c) => [c.name, c] as const))(
-    '%s: our library validates its own sample input as true',
+    '%s: our library validates ALL sample inputs as true',
     (_name, c) => {
-      expect(c.mine(c.input)).toBe(true);
+      for (const input of c.inputs) {
+        expect(c.mine(input)).toBe(true);
+      }
     },
   );
 
   it.each(cases.filter((c) => c.cvFn).map((c) => [c.name, c] as const))(
     '%s: class-validator standalone fn validates its sample input as true',
     (_name, c) => {
-      const cvInput = 'cvInput' in c ? c.cvInput : c.input;
+      const cvInput = 'cvInput' in c ? c.cvInput : c.inputs[0];
       expect(c.cvFn!(cvInput)).toBe(true);
     },
   );
@@ -26,7 +34,7 @@ describe('benchmark cases dataset', () => {
   it.each(cases.filter((c) => c.cvDecorator).map((c) => [c.name, c] as const))(
     '%s: class-validator decorator validates its sample input as true',
     (_name, c) => {
-      const cvInput = 'cvInput' in c ? c.cvInput : c.input;
+      const cvInput = 'cvInput' in c ? c.cvInput : c.inputs[0];
       const Klass = makeDecoratedClass(c.cvDecorator!);
       expect(validateDecorator(Klass, cvInput)).toBe(true);
     },

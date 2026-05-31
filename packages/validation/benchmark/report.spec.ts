@@ -1,8 +1,8 @@
 import { formatTable, type Row } from './report';
 
 const rows: Row[] = [
-  { name: 'isEmail', mineOps: 1_000_000, mineNs: 1000, mineRme: 1.2, cvOps: 500_000, cvNs: 2000, ratio: 2.0 },
-  { name: 'isUUID', mineOps: 4_000_000, mineNs: 250, mineRme: 0.8, cvOps: null, cvNs: null, ratio: null },
+  { name: 'isEmail', ops: 1_000_000, msPerCall: 0.001000, rme: 1.2 },
+  { name: 'isUUID',  ops: 4_000_000, msPerCall: 0.000250, rme: 0.8 },
 ];
 
 describe('report.formatTable', () => {
@@ -10,16 +10,18 @@ describe('report.formatTable', () => {
     const out = formatTable(rows);
     expect(out).toContain('isEmail');
     expect(out).toContain('isUUID');
-    expect(out).toContain('ops/sec');
+    expect(out).toContain('ops/seg');
   });
 
-  it('sorts rows by mine ops/sec descending', () => {
+  it('sorts rows slowest first (ascending ops/sec)', () => {
     const out = formatTable(rows);
-    expect(out.indexOf('isUUID')).toBeLessThan(out.indexOf('isEmail'));
+    // isEmail (1M ops) is slower → must appear before isUUID (4M ops)
+    expect(out.indexOf('isEmail')).toBeLessThan(out.indexOf('isUUID'));
   });
 
-  it('renders "—" when there is no class-validator comparison', () => {
-    const out = formatTable([rows[1]]);
-    expect(out).toContain('—');
+  it('shows ns/llamada column and legend for ±%', () => {
+    const out = formatTable(rows);
+    expect(out).toContain('ns/llamada');
+    expect(out).toContain('margen de error');
   });
 });
