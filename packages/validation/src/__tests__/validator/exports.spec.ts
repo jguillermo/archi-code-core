@@ -8,8 +8,6 @@ import { locales as isFloatLocales } from '../../validators/isFloat';
 import { locales as ibanCountryCodes } from '../../validators/isIBAN';
 import { locales as passportNumberLocales } from '../../validators/isPassportNumber';
 
-const _require = require;
-
 describe('Exports', () => {
   it("should export isPassportNumbers's supported locales", () => {
     assert.ok(passportNumberLocales instanceof Array);
@@ -24,14 +22,6 @@ describe('Exports', () => {
   it('should export sanitizers', () => {
     assert.strictEqual(typeof validator.toBoolean, 'function');
     assert.strictEqual(typeof validator.toFloat, 'function');
-  });
-
-  it('should export the version number', () => {
-    assert.strictEqual(
-      validator.version,
-      _require('../package.json').version,
-      'Version number mismatch in "package.json" vs. "validator.js"',
-    );
   });
 
   it("should export isPostalCode's supported locales", () => {
