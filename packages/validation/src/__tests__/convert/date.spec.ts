@@ -48,11 +48,52 @@ describe('toDate', () => {
     });
   });
 
-  describe('V8 coercion — out-of-range days roll over (do NOT throw)', () => {
-    it('"2023-02-29" → V8 rolls to Mar 1 2023', () =>
-      expect(isNaN(toDate('2023-02-29').getTime())).toBe(false));
-    it('"2024-02-30" → V8 rolls to Mar 1 2024', () =>
-      expect(isNaN(toDate('2024-02-30').getTime())).toBe(false));
+  describe('out-of-range date strings — throw even when V8 silently rolls over', () => {
+    // months with 30 days: April(4), June(6), September(9), November(11)
+    it('"2024-04-31" → ConvertError (April has 30 days)', () =>
+      expectConvertError(() => toDate('2024-04-31'), 'Cannot convert "2024-04-31" to date'));
+    it('"2024-06-31" → ConvertError (June has 30 days)', () =>
+      expectConvertError(() => toDate('2024-06-31'), 'Cannot convert "2024-06-31" to date'));
+    it('"2024-09-31" → ConvertError (September has 30 days)', () =>
+      expectConvertError(() => toDate('2024-09-31'), 'Cannot convert "2024-09-31" to date'));
+    it('"2024-11-31" → ConvertError (November has 30 days)', () =>
+      expectConvertError(() => toDate('2024-11-31'), 'Cannot convert "2024-11-31" to date'));
+
+    // February edge cases
+    it('"2023-02-29" → ConvertError (2023 is not a leap year)', () =>
+      expectConvertError(() => toDate('2023-02-29'), 'Cannot convert "2023-02-29" to date'));
+    it('"2100-02-29" → ConvertError (2100 is not a leap year — divisible by 100, not 400)', () =>
+      expectConvertError(() => toDate('2100-02-29'), 'Cannot convert "2100-02-29" to date'));
+    it('"2024-02-30" → ConvertError (February never has 30 days)', () =>
+      expectConvertError(() => toDate('2024-02-30'), 'Cannot convert "2024-02-30" to date'));
+    it('"2024-02-29" → valid (2024 IS a leap year)', () => {
+      const d = toDate('2024-02-29');
+      expect(d.getUTCDate()).toBe(29);
+      expect(d.getUTCMonth()).toBe(1);
+    });
+
+    // time overflow
+    it('"2024-03-23T24:00:00" → ConvertError (hour 24 not valid)', () =>
+      expectConvertError(
+        () => toDate('2024-03-23T24:00:00'),
+        'Cannot convert "2024-03-23T24:00:00" to date',
+      ));
+    it('"2024-03-23T00:60:00" → ConvertError (minute 60)', () =>
+      expectConvertError(
+        () => toDate('2024-03-23T00:60:00'),
+        'Cannot convert "2024-03-23T00:60:00" to date',
+      ));
+    it('"2024-03-23T00:00:60" → ConvertError (second 60)', () =>
+      expectConvertError(
+        () => toDate('2024-03-23T00:00:60'),
+        'Cannot convert "2024-03-23T00:00:60" to date',
+      ));
+
+    // day/month lower-bound overflow
+    it('"2024-01-00" → ConvertError (day 0)', () =>
+      expectConvertError(() => toDate('2024-01-00'), 'Cannot convert "2024-01-00" to date'));
+    it('"2024-00-15" → ConvertError (month 0)', () =>
+      expectConvertError(() => toDate('2024-00-15'), 'Cannot convert "2024-00-15" to date'));
   });
 
   // ─── error cases ──────────────────────────────────────────────────────────

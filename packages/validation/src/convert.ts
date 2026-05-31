@@ -1,3 +1,5 @@
+import { canBeDate } from './primitives';
+
 export class ConvertError extends Error {
   constructor(message: string) {
     super(message);
@@ -88,9 +90,8 @@ export function toDate(v: unknown): Date {
     return v;
   }
   if (typeof v === 'string') {
-    const d = new Date(v);
-    if (isNaN(d.getTime())) throw new ConvertError(`Cannot convert "${v}" to date`);
-    return d;
+    if (!canBeDate(v)) throw new ConvertError(`Cannot convert "${v}" to date`);
+    return new Date(v.replace(' ', 'T'));
   }
   throw new ConvertError(`Cannot convert ${describeValue(v)} to date`);
 }
