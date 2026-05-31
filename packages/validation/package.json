@@ -35,7 +35,7 @@
     "build:esm": "tsc -p tsconfig.esm.json",
     "build": "npm run build:cjs && npm run build:esm",
     "test": "jest",
-    "bench": "ts-node --project benchmark/tsconfig.json benchmark/run.ts",
+    "benchmark": "ts-node --transpile-only --project benchmark/tsconfig.json benchmark/run.ts",
     "coverage": "jest --coverage",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",

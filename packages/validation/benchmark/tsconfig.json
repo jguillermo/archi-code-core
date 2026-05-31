@@ -7,5 +7,6 @@
     "noEmit": true,
     "types": ["node", "reflect-metadata"]
   },
-  "include": ["../src/**/*", "./**/*"]
+  "include": ["../src/**/*", "./**/*"],
+  "exclude": ["./**/*.spec.ts", "../src/**/*.spec.ts"]
 }
