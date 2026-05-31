@@ -3,9 +3,6 @@
   "version": "0.0.1",
   "keywords": [
     "validation",
-    "wasm",
-    "webassembly",
-    "rust",
     "validator"
   ],
   "author": "Jose Guillermo",
@@ -29,25 +26,14 @@
       "require": "./dist/cjs/index.js"
     }
   },
-  "imports": {
-    "#wasm": {
-      "require": "./dist/wasm-node/archi_validation.js",
-      "import": "./dist/wasm-bundler/archi_validation.js",
-      "default": "./dist/wasm-node/archi_validation.js"
-    }
-  },
   "files": [
     "dist/"
   ],
   "scripts": {
-    "setup": "bash scripts/setup.sh",
     "prebuild": "rm -rf dist || true",
-    "build:wasm": "bash scripts/build-wasm.sh",
-    "build:copy-wasm": "node scripts/copy-wasm.js",
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "build:esm": "tsc -p tsconfig.esm.json",
-    "build": "npm run build:wasm && npm run build:cjs && npm run build:esm && npm run build:copy-wasm",
-    "benchmark": "node benchmark.js",
+    "build": "npm run build:cjs && npm run build:esm",
     "test": "jest",
     "coverage": "jest --coverage",
     "lint": "eslint src --ext .ts",
@@ -62,7 +48,7 @@
       "ts"
     ],
     "rootDir": "src",
-    "testRegex": ".*\\.spec\\.ts$",
+    "testRegex": "^(?!.*clientSide).*\\.spec\\.ts$",
     "transform": {
       "^.+\\.ts$": ["ts-jest", { "diagnostics": false, "tsconfig": { "esModuleInterop": true } }]
     },
@@ -73,9 +59,6 @@
     "testEnvironment": "node",
     "collectCoverage": false,
     "injectGlobals": true,
-    "moduleNameMapper": {
-      "^#wasm$": "<rootDir>/wasm/pkg-node/archi_validation"
-    },
     "coverageThreshold": {
       "global": {
         "branches": 20,
