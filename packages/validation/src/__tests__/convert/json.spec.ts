@@ -42,21 +42,21 @@ describe('toJson', () => {
 
   // ─── error cases ──────────────────────────────────────────────────────────
 
-  describe('any string input → "Cannot convert string to JSON object"  (hardcoded)', () => {
-    it('"hello" → "Cannot convert string to JSON object"', () =>
-      expectConvertError(() => toJson('hello'), 'Cannot convert string to JSON object'));
-    it('"" → "Cannot convert string to JSON object"', () =>
-      expectConvertError(() => toJson(''), 'Cannot convert string to JSON object'));
-    it('"null" → "Cannot convert string to JSON object"', () =>
-      expectConvertError(() => toJson('null'), 'Cannot convert string to JSON object'));
-    it('"true" → "Cannot convert string to JSON object"', () =>
-      expectConvertError(() => toJson('true'), 'Cannot convert string to JSON object'));
-    it('"42" → "Cannot convert string to JSON object"', () =>
-      expectConvertError(() => toJson('42'), 'Cannot convert string to JSON object'));
-    it('"{}" → "Cannot convert string to JSON object" (empty object)', () =>
-      expectConvertError(() => toJson('{}'), 'Cannot convert string to JSON object'));
-    it('"[]" → "Cannot convert string to JSON object" (array)', () =>
-      expectConvertError(() => toJson('[]'), 'Cannot convert string to JSON object'));
+  describe('non-object string input → message quotes the ORIGINAL string (not generic "string")', () => {
+    it('"hello" → \'Cannot convert "hello" to JSON object\'', () =>
+      expectConvertError(() => toJson('hello'), 'Cannot convert "hello" to JSON object'));
+    it('"" → \'Cannot convert "" to JSON object\'', () =>
+      expectConvertError(() => toJson(''), 'Cannot convert "" to JSON object'));
+    it('"null" → \'Cannot convert "null" to JSON object\'', () =>
+      expectConvertError(() => toJson('null'), 'Cannot convert "null" to JSON object'));
+    it('"true" → \'Cannot convert "true" to JSON object\'', () =>
+      expectConvertError(() => toJson('true'), 'Cannot convert "true" to JSON object'));
+    it('"42" → \'Cannot convert "42" to JSON object\'', () =>
+      expectConvertError(() => toJson('42'), 'Cannot convert "42" to JSON object'));
+    it('"{}" → \'Cannot convert "{}" to JSON object\' (empty object)', () =>
+      expectConvertError(() => toJson('{}'), 'Cannot convert "{}" to JSON object'));
+    it('"[]" → \'Cannot convert "[]" to JSON object\' (array)', () =>
+      expectConvertError(() => toJson('[]'), 'Cannot convert "[]" to JSON object'));
   });
 
   describe('null → "Cannot convert null to JSON object"  (special case)', () => {

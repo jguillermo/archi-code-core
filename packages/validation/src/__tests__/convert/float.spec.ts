@@ -45,13 +45,13 @@ describe('toFloat', () => {
       expectConvertError(() => toFloat(-Infinity), 'Cannot convert -Infinity to float'));
   });
 
-  describe('empty / whitespace strings — hardcoded "" in message', () => {
+  describe('empty / whitespace strings — message quotes the ORIGINAL string (not trimmed)', () => {
     it('"" → \'Cannot convert "" to float\'', () =>
       expectConvertError(() => toFloat(''), 'Cannot convert "" to float'));
-    it('" " → \'Cannot convert "" to float\' (trimmed to empty)', () =>
-      expectConvertError(() => toFloat(' '), 'Cannot convert "" to float'));
-    it('"   " → \'Cannot convert "" to float\'', () =>
-      expectConvertError(() => toFloat('   '), 'Cannot convert "" to float'));
+    it('" " → \'Cannot convert " " to float\' (original string, not trimmed)', () =>
+      expectConvertError(() => toFloat(' '), 'Cannot convert " " to float'));
+    it('"   " → \'Cannot convert "   " to float\'', () =>
+      expectConvertError(() => toFloat('   '), 'Cannot convert "   " to float'));
   });
 
   describe('non-numeric strings — message quotes the ORIGINAL string (not trimmed)', () => {

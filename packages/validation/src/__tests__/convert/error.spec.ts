@@ -108,8 +108,8 @@ describe('all converters — representative error messages', () => {
   });
 
   describe('toJson', () => {
-    it('"hello" → "Cannot convert string to JSON object"', () =>
-      expectConvertError(() => toJson('hello'), 'Cannot convert string to JSON object'));
+    it('"hello" → \'Cannot convert "hello" to JSON object\'', () =>
+      expectConvertError(() => toJson('hello'), 'Cannot convert "hello" to JSON object'));
     it('null → "Cannot convert null to JSON object"', () =>
       expectConvertError(() => toJson(null), 'Cannot convert null to JSON object'));
     it('42 → "Cannot convert 42 to JSON object"  (NOT "number")', () =>
