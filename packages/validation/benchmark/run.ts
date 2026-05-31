@@ -3,14 +3,26 @@ import { Bench } from 'tinybench';
 import { cases } from './cases';
 import { formatTable, writeMarkdown, type Row } from './report';
 
-// Per-task measurement window (ms). Override with BENCH_TIME env var.
-const TIME = Number(process.env.BENCH_TIME ?? 150);
+// ── Cambia este número para controlar cuántos ciclos se miden por validador. ──
+// Menos ciclos = benchmark más rápido pero menos preciso.
+// Más ciclos  = más lento pero resultados más estables (±% más bajo).
+//
+//   50  → ~5 seg   (exploración rápida)
+//   200 → ~20 seg  (balance)
+//   500 → ~50 seg  (resultados precisos para publicar)
+const CYCLES_PER_VALIDATOR = 200;
+// ─────────────────────────────────────────────────────────────────────────────
 
 /** Runs a tinybench and returns a name -> result map. */
 async function runBench(
   register: (bench: Bench) => void,
 ): Promise<Map<string, { hz: number; mean: number; rme: number }>> {
-  const bench = new Bench({ time: TIME });
+  const bench = new Bench({
+    time: 0,            // deshabilita el mínimo de tiempo — solo cuentan las iteraciones
+    warmupTime: 0,      // ídem para el warmup
+    iterations: CYCLES_PER_VALIDATOR,
+    warmupIterations: Math.max(1, Math.floor(CYCLES_PER_VALIDATOR / 10)),
+  });
   register(bench);
   await bench.run();
   const map = new Map<string, { hz: number; mean: number; rme: number }>();
@@ -26,7 +38,7 @@ async function runBench(
 }
 
 async function main(): Promise<void> {
-  console.log(`Running benchmark (${TIME}ms/task, ${cases.length} validators × 2 paths)...\n`);
+  console.log(`Running benchmark (${CYCLES_PER_VALIDATOR} ciclos/validador, ${cases.length} validators × 2 paths)...\n`);
 
   const okResults = await runBench((b) => {
     for (const c of cases) {
