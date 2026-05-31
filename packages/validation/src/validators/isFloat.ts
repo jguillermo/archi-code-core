@@ -18,18 +18,17 @@ export default function isFloat(str: unknown, options?) {
   // Non-string: coerce if possible, otherwise reject
   const s = coerceToString(str);
   if (s === false) return false;
-  str = s;
-  assertString(str);
+  assertString(s);
   options = options || {};
   const float = new RegExp(
     `^(?:[-+])?(?:[0-9]+)?(?:\\${options.locale ? decimal[options.locale] : '.'}[0-9]*)?(?:[eE][\\+\\-]?(?:[0-9]+))?$`,
   );
-  if (str === '' || str === '.' || str === ',' || str === '-' || str === '+') {
+  if (s === '' || s === '.' || s === ',' || s === '-' || s === '+') {
     return false;
   }
-  const value = parseFloat(str.replace(',', '.'));
+  const value = parseFloat(s.replace(',', '.'));
   return (
-    float.test(str) &&
+    float.test(s) &&
     (!options.hasOwnProperty('min') || isNullOrUndefined(options.min) || value >= options.min) &&
     (!options.hasOwnProperty('max') || isNullOrUndefined(options.max) || value <= options.max) &&
     (!options.hasOwnProperty('lt') || isNullOrUndefined(options.lt) || value < options.lt) &&

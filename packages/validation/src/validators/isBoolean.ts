@@ -14,10 +14,9 @@ export default function isBoolean(str: unknown, options = defaultOptions) {
   // Non-string: coerce if possible, otherwise reject
   const s = coerceToString(str);
   if (s === false) return false;
-  str = s;
-  assertString(str);
+  assertString(s);
   if (options.loose) {
-    return includes(looseBooleans, str.toLowerCase());
+    return includes(looseBooleans, s.toLowerCase());
   }
-  return includes(strictBooleans, str);
+  return includes(strictBooleans, s);
 }

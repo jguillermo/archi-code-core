@@ -52,10 +52,10 @@ const default_url_options = {
 
 const wrapped_ipv6 = /^\[([^\]]+)\](?::([0-9]+))?$/;
 
-export default function isURL(url: unknown, options?) {
-  const s = coerceToString(url);
+export default function isURL(urlInput: unknown, options?) {
+  const s = coerceToString(urlInput);
   if (s === false) return false;
-  url = s;
+  let url: string = s;
   if (!url || /[\s<>]/.test(url)) {
     return false;
   }
@@ -79,10 +79,10 @@ export default function isURL(url: unknown, options?) {
   let protocol, auth, host, hostname, port, port_str, split, ipv6;
 
   split = url.split('#');
-  url = split.shift();
+  url = split.shift() ?? '';
 
   split = url.split('?');
-  url = split.shift();
+  url = split.shift() ?? '';
 
   // Replaced the 'split("://")' logic with a regex to match the protocol.
   // This correctly identifies schemes like `javascript:` which don't use `//`.
@@ -101,7 +101,7 @@ export default function isURL(url: unknown, options?) {
     }
 
     // Remove the protocol from the URL string.
-    return url.substring(protocol_match[0].length);
+    return url.substring(protocol_match![0].length);
   };
 
   if (protocol_match) {
@@ -141,11 +141,11 @@ export default function isURL(url: unknown, options?) {
         } else {
           // This looks like a malicious protocol (e.g., javascript:alert();@host)
           // or URL-encoded protocol handler (e.g., javascript:%61%6c%65%72%74%28%31%29@host)
-          url = cleanUpProtocol(potential_protocol);
-
-          if (url === false) {
+          const cleaned1 = cleanUpProtocol(potential_protocol);
+          if (cleaned1 === false) {
             return false;
           }
+          url = cleaned1;
         }
       } else {
         // No @ symbol found. Check if this could be a port number instead of a protocol.
@@ -161,20 +161,20 @@ export default function isURL(url: unknown, options?) {
           // Don't consume anything; let it be parsed as hostname:port
         } else {
           // This is definitely a protocol
-          url = cleanUpProtocol(potential_protocol);
-
-          if (url === false) {
+          const cleaned2 = cleanUpProtocol(potential_protocol);
+          if (cleaned2 === false) {
             return false;
           }
+          url = cleaned2;
         }
       }
     } else {
       // Starts with '//', this is definitely a protocol like http://
-      url = cleanUpProtocol(potential_protocol);
-
-      if (url === false) {
+      const cleaned3 = cleanUpProtocol(potential_protocol);
+      if (cleaned3 === false) {
         return false;
       }
+      url = cleaned3;
     }
   } else if (options.require_protocol) {
     return false;
@@ -196,7 +196,7 @@ export default function isURL(url: unknown, options?) {
   }
 
   split = url.split('/');
-  url = split.shift();
+  url = split.shift() ?? '';
 
   if (url === '' && !options.require_host) {
     return true;

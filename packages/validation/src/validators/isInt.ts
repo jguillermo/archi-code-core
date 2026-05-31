@@ -20,17 +20,16 @@ export default function isInt(str: unknown, options?) {
   // Non-string: coerce if possible, otherwise reject
   const s = coerceToString(str);
   if (s === false) return false;
-  str = s;
-  assertString(str);
+  assertString(s);
   options = options || {};
   const regex = options.allow_leading_zeroes === false ? int : intLeadingZeroes;
   const minCheckPassed =
-    !options.hasOwnProperty('min') || isNullOrUndefined(options.min) || str >= options.min;
+    !options.hasOwnProperty('min') || isNullOrUndefined(options.min) || s >= options.min;
   const maxCheckPassed =
-    !options.hasOwnProperty('max') || isNullOrUndefined(options.max) || str <= options.max;
+    !options.hasOwnProperty('max') || isNullOrUndefined(options.max) || s <= options.max;
   const ltCheckPassed =
-    !options.hasOwnProperty('lt') || isNullOrUndefined(options.lt) || str < options.lt;
+    !options.hasOwnProperty('lt') || isNullOrUndefined(options.lt) || s < options.lt;
   const gtCheckPassed =
-    !options.hasOwnProperty('gt') || isNullOrUndefined(options.gt) || str > options.gt;
-  return regex.test(str) && minCheckPassed && maxCheckPassed && ltCheckPassed && gtCheckPassed;
+    !options.hasOwnProperty('gt') || isNullOrUndefined(options.gt) || s > options.gt;
+  return regex.test(s) && minCheckPassed && maxCheckPassed && ltCheckPassed && gtCheckPassed;
 }
