@@ -56,7 +56,9 @@ export function toBoolean(v: unknown): boolean {
     if (lc === 'true' || lc === '1') return true;
     if (lc === 'false' || lc === '0') return false;
   }
-  throw new ConvertError(`Cannot convert ${JSON.stringify(v)} to boolean`);
+  let repr: string;
+  try { repr = JSON.stringify(v) ?? typeof v; } catch { repr = typeof v; }
+  throw new ConvertError(`Cannot convert ${repr} to boolean`);
 }
 
 export function toDate(v: unknown): Date {

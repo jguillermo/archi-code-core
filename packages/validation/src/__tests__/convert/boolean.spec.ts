@@ -109,14 +109,12 @@ describe('toBoolean', () => {
     it('typeof result is boolean for string "false"', () => expect(typeof toBoolean('false')).toBe('boolean'));
   });
 
-  describe('BigInt — throws TypeError (JSON.stringify cannot serialize BigInt)', () => {
-    // Implementation reaches `throw new ConvertError(JSON.stringify(v)...)` but
-    // JSON.stringify(BigInt) itself throws TypeError before ConvertError is created.
-    it('BigInt(0) throws (any error)', () => expect(() => toBoolean(BigInt(0))).toThrow());
-    it('BigInt(1) throws (any error)', () => expect(() => toBoolean(BigInt(1))).toThrow());
-    it('BigInt(-1) throws (any error)', () => expect(() => toBoolean(BigInt(-1))).toThrow());
-    it('BigInt(0) throws TypeError specifically', () => expect(() => toBoolean(BigInt(0))).toThrow(TypeError));
-    it('BigInt(1) throws TypeError specifically', () => expect(() => toBoolean(BigInt(1))).toThrow(TypeError));
+  describe('BigInt throws ConvertError', () => {
+    it('BigInt(0) throws ConvertError', () => expect(() => toBoolean(BigInt(0))).toThrow(ConvertError));
+    it('BigInt(1) throws ConvertError', () => expect(() => toBoolean(BigInt(1))).toThrow(ConvertError));
+    it('BigInt(-1) throws ConvertError', () => expect(() => toBoolean(BigInt(-1))).toThrow(ConvertError));
+    it('BigInt error message mentions "bigint" type', () => expect(() => toBoolean(BigInt(1))).toThrow(/bigint/));
+    it('BigInt(42) throws ConvertError', () => expect(() => toBoolean(BigInt(42))).toThrow(ConvertError));
   });
 
   describe('Promise throws ConvertError', () => {
@@ -134,8 +132,8 @@ describe('toBoolean', () => {
       function* gen() { yield true; }
       expect(() => toBoolean(gen())).toThrow(ConvertError);
     });
-    // JSON.stringify(fn) === undefined → template literal → "Cannot convert undefined to boolean"
-    it('function error message contains "undefined"', () => expect(() => toBoolean(() => {})).toThrow(/undefined/));
+    // JSON.stringify(fn) returns undefined → fallback to typeof → "Cannot convert function to boolean"
+    it('function error message mentions "function" type', () => expect(() => toBoolean(() => {})).toThrow(/function/));
   });
 
   describe('RegExp throws ConvertError', () => {
@@ -178,12 +176,13 @@ describe('toBoolean', () => {
     });
   });
 
-  describe('Symbol throws ConvertError (message shows "undefined" because JSON.stringify returns undefined for symbols)', () => {
+  describe('Symbol throws ConvertError', () => {
     it('Symbol("x") throws ConvertError', () => expect(() => toBoolean(Symbol('x'))).toThrow(ConvertError));
     it('Symbol() throws ConvertError', () => expect(() => toBoolean(Symbol())).toThrow(ConvertError));
     it('Symbol.for("key") throws ConvertError', () => expect(() => toBoolean(Symbol.for('key'))).toThrow(ConvertError));
-    it('Symbol error message shows "undefined" (JSON.stringify of Symbol is undefined)', () => {
-      expect(() => toBoolean(Symbol('x'))).toThrow(/undefined/);
+    it('Symbol error message mentions "symbol" type', () => {
+      // JSON.stringify(Symbol) returns undefined → fallback to typeof → "Cannot convert symbol to boolean"
+      expect(() => toBoolean(Symbol('x'))).toThrow(/symbol/);
     });
   });
 });
