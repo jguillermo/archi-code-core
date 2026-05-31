@@ -1,10 +1,9 @@
-import assertString from './util/assertString';
 import coerceToString from './util/coerceToString';
 
 const int = /^(?:[-+]?(?:0|[1-9][0-9]*))$/;
 const intLeadingZeroes = /^[-+]?[0-9]+$/;
 
-export default function isInt(str: unknown, options?) {
+export default function isInt(str: unknown, options?): boolean {
   // Fast path: native integer — skip regex entirely
   if (typeof str === 'number') {
     if (!Number.isInteger(str)) return false;
@@ -19,7 +18,6 @@ export default function isInt(str: unknown, options?) {
   // Non-string: coerce if possible, otherwise reject
   const s = coerceToString(str);
   if (s === false) return false;
-  assertString(s);
   options = options || {};
   const regex = options.allow_leading_zeroes === false ? int : intLeadingZeroes;
   const minCheckPassed =

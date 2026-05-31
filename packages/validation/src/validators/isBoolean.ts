@@ -1,4 +1,3 @@
-import assertString from './util/assertString';
 import coerceToString from './util/coerceToString';
 
 const defaultOptions = { loose: false };
@@ -13,7 +12,6 @@ export default function isBoolean(str: unknown, options = defaultOptions) {
   // Non-string: coerce if possible, otherwise reject
   const s = coerceToString(str);
   if (s === false) return false;
-  assertString(s);
   if (options.loose) {
     return looseBooleans.includes(s.toLowerCase());
   }

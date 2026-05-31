@@ -1,8 +1,7 @@
-import assertString from './util/assertString';
 import { decimal } from './alpha';
 import coerceToString from './util/coerceToString';
 
-export default function isFloat(str: unknown, options?) {
+export default function isFloat(str: unknown, options?): boolean {
   // Fast path: native number — skip regex entirely
   if (typeof str === 'number') {
     if (!isFinite(str)) return false;
@@ -17,7 +16,6 @@ export default function isFloat(str: unknown, options?) {
   // Non-string: coerce if possible, otherwise reject
   const s = coerceToString(str);
   if (s === false) return false;
-  assertString(s);
   options = options || {};
   const float = new RegExp(
     `^(?:[-+])?(?:[0-9]+)?(?:\\${options.locale ? decimal[options.locale] : '.'}[0-9]*)?(?:[eE][\\+\\-]?(?:[0-9]+))?$`,
