@@ -14,7 +14,10 @@ export function canBeString(v: unknown): boolean {
 export function canBeBoolean(v: unknown): boolean {
   if (typeof v === 'boolean') return true;
   if (typeof v === 'number') return v === 0 || v === 1;
-  if (typeof v === 'string') return /^\s*(true|false|1|0)\s*$/i.test(v);
+  if (typeof v === 'string') {
+    const s = v.trim().toLowerCase();
+    return s === 'true' || s === 'false' || s === '1' || s === '0';
+  }
   return false;
 }
 
@@ -40,8 +43,6 @@ export function canBeDate(v: unknown): boolean {
   if (typeof v === 'string') {
     if (!DATE_FORMAT.test(v)) return false;
     const normalized = v.replace(' ', 'T');
-    const d = new Date(normalized);
-    if (isNaN(d.getTime())) return false;
 
     const [datePart, timePart] = normalized.split('T');
     const [year, month, day] = datePart.split('-').map(Number);
@@ -51,6 +52,8 @@ export function canBeDate(v: unknown): boolean {
       const [hhmmss] = timePart.split(/[Z+-]/);
       const [hh, mm, ss] = hhmmss.split(':').map(Number);
       if (hh > 23 || mm > 59 || Math.floor(ss) > 59) return false;
+      const tzStr = timePart.slice(hhmmss.length);
+      if (tzStr.length > 1 && (Number(tzStr.slice(1, 3)) > 23 || Number(tzStr.slice(4, 6)) > 59)) return false;
     }
 
     return true;
