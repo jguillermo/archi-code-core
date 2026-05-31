@@ -1,5 +1,4 @@
 import coerceToString from './util/coerceToString';
-import includes from './util/includesArray';
 
 /**
  * List of country codes with
@@ -129,7 +128,7 @@ function hasValidIbanFormat(str, options) {
       return false;
     }
 
-    const isoCountryCodeInWhiteList = includes(options.whitelist, isoCountryCode);
+    const isoCountryCodeInWhiteList = options.whitelist.includes(isoCountryCode);
 
     if (!isoCountryCodeInWhiteList) {
       return false;
@@ -137,7 +136,7 @@ function hasValidIbanFormat(str, options) {
   }
 
   if (options.blacklist) {
-    const isoCountryCodeInBlackList = includes(options.blacklist, isoCountryCode);
+    const isoCountryCodeInBlackList = options.blacklist.includes(isoCountryCode);
 
     if (isoCountryCodeInBlackList) {
       return false;

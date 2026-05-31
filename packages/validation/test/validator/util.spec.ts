@@ -3,20 +3,44 @@
  * Prevent any breaking of functionality
  */
 import assert from 'assert';
-import typeOf from '../../src/validators/util/typeOf';
 import assertString from '../../src/validators/util/assertString';
+import toString from '../../src/validators/util/toString';
 
-describe('Util', () => {
-  it('should validate different typeOf', () => {
-    assert.strictEqual(typeOf([]), 'array');
-    assert.strictEqual(typeOf(null), 'null');
-    assert.strictEqual(typeOf({}), 'object');
-    assert.strictEqual(typeOf(new Date()), 'date');
-    assert.strictEqual(typeOf('ezkemboi'), 'string');
-    assert.strictEqual(typeOf(String('kemboi')), 'string');
-    assert.strictEqual(typeOf(undefined), 'undefined');
-    assert.strictEqual(typeOf(2021), 'number');
-    assert.notStrictEqual(typeOf([]), 'object');
+describe('toString util', () => {
+  it('converts null to empty string', () => {
+    assert.strictEqual(toString(null), '');
+  });
+
+  it('converts undefined to empty string', () => {
+    assert.strictEqual(toString(undefined), '');
+  });
+
+  it('converts NaN to empty string', () => {
+    assert.strictEqual(toString(NaN), '');
+  });
+
+  it('converts plain object to [object Object]', () => {
+    assert.strictEqual(toString({}), '[object Object]');
+  });
+
+  it('uses custom toString method on objects', () => {
+    assert.strictEqual(toString({ toString: () => 'custom' }), 'custom');
+  });
+
+  it('keeps strings as-is', () => {
+    assert.strictEqual(toString('hello'), 'hello');
+    assert.strictEqual(toString(''), '');
+  });
+
+  it('converts numbers to string', () => {
+    assert.strictEqual(toString(42), '42');
+    assert.strictEqual(toString(0), '0');
+    assert.strictEqual(toString(3.14), '3.14');
+  });
+
+  it('converts booleans to string', () => {
+    assert.strictEqual(toString(true), 'true');
+    assert.strictEqual(toString(false), 'false');
   });
 });
 

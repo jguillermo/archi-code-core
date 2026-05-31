@@ -1,5 +1,4 @@
 import coerceToString from './util/coerceToString';
-import includes from './util/includesArray';
 import merge from './util/merge';
 
 const default_json_options = {
@@ -25,7 +24,7 @@ export default function isJSON(str, options) {
       primitives = [null, false, true];
     }
 
-    return includes(primitives, obj) || (!!obj && typeof obj === 'object');
+    return primitives.includes(obj) || (!!obj && typeof obj === 'object');
   } catch {
     /* ignore */
   }

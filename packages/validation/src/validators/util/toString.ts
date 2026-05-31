@@ -1,12 +1,9 @@
-export default function toString(input) {
-  if (typeof input === 'object' && input !== null) {
-    if (typeof input.toString === 'function') {
-      input = input.toString();
-    } else {
-      input = '[object Object]';
-    }
-  } else if (input === null || typeof input === 'undefined' || (isNaN(input) && !input.length)) {
-    input = '';
+export default function toString(input: unknown): string {
+  if (input === null || input === undefined) return '';
+  if (typeof input === 'number' && isNaN(input)) return '';
+  if (typeof input === 'object') {
+    const obj = input as { toString?: unknown };
+    return typeof obj.toString === 'function' ? (obj.toString as () => string)() : '[object Object]';
   }
   return String(input);
 }

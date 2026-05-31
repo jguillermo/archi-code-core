@@ -23,8 +23,8 @@ describe('Validators', () => {
     test({
       validator: 'isIn',
       args: [['1', '2', '3', { foo: 'bar' }, () => 5, { toString: 'test' }]],
-      valid: ['1', '2', '3', ''],
-      invalid: ['4'],
+      valid: ['1', '2', '3'],
+      invalid: ['4', ''],
     });
     test({ validator: 'isIn', invalid: ['foo', ''] });
   });

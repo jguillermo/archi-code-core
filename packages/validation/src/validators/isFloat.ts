@@ -1,5 +1,4 @@
 import assertString from './util/assertString';
-import isNullOrUndefined from './util/nullUndefinedCheck';
 import { decimal } from './alpha';
 import coerceToString from './util/coerceToString';
 
@@ -9,10 +8,10 @@ export default function isFloat(str: unknown, options?) {
     if (!isFinite(str)) return false;
     options = options || {};
     return (
-      (!options.hasOwnProperty('min') || isNullOrUndefined(options.min) || str >= options.min) &&
-      (!options.hasOwnProperty('max') || isNullOrUndefined(options.max) || str <= options.max) &&
-      (!options.hasOwnProperty('lt') || isNullOrUndefined(options.lt) || str < options.lt) &&
-      (!options.hasOwnProperty('gt') || isNullOrUndefined(options.gt) || str > options.gt)
+      (!options.hasOwnProperty('min') || options.min == null || str >= options.min) &&
+      (!options.hasOwnProperty('max') || options.max == null || str <= options.max) &&
+      (!options.hasOwnProperty('lt') || options.lt == null || str < options.lt) &&
+      (!options.hasOwnProperty('gt') || options.gt == null || str > options.gt)
     );
   }
   // Non-string: coerce if possible, otherwise reject
@@ -29,10 +28,10 @@ export default function isFloat(str: unknown, options?) {
   const value = parseFloat(s.replace(',', '.'));
   return (
     float.test(s) &&
-    (!options.hasOwnProperty('min') || isNullOrUndefined(options.min) || value >= options.min) &&
-    (!options.hasOwnProperty('max') || isNullOrUndefined(options.max) || value <= options.max) &&
-    (!options.hasOwnProperty('lt') || isNullOrUndefined(options.lt) || value < options.lt) &&
-    (!options.hasOwnProperty('gt') || isNullOrUndefined(options.gt) || value > options.gt)
+    (!options.hasOwnProperty('min') || options.min == null || value >= options.min) &&
+    (!options.hasOwnProperty('max') || options.max == null || value <= options.max) &&
+    (!options.hasOwnProperty('lt') || options.lt == null || value < options.lt) &&
+    (!options.hasOwnProperty('gt') || options.gt == null || value > options.gt)
   );
 }
 

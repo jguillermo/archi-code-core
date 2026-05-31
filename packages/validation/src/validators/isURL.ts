@@ -1,7 +1,5 @@
 import coerceToString from './util/coerceToString';
 import checkHost from './util/checkHost';
-import includes from './util/includesString';
-
 import isFQDN from './isFQDN';
 import isIP from './isIP';
 import merge from './util/merge';
@@ -68,11 +66,11 @@ export default function isURL(urlInput: unknown, options?) {
     return false;
   }
 
-  if (!options.allow_fragments && includes(url, '#')) {
+  if (!options.allow_fragments && url.includes('#')) {
     return false;
   }
 
-  if (!options.allow_query_components && (includes(url, '?') || includes(url, '&'))) {
+  if (!options.allow_query_components && (url.includes('?') || url.includes('&'))) {
     return false;
   }
 

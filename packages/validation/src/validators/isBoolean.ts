@@ -1,5 +1,4 @@
 import assertString from './util/assertString';
-import includes from './util/includesArray';
 import coerceToString from './util/coerceToString';
 
 const defaultOptions = { loose: false };
@@ -16,7 +15,7 @@ export default function isBoolean(str: unknown, options = defaultOptions) {
   if (s === false) return false;
   assertString(s);
   if (options.loose) {
-    return includes(looseBooleans, s.toLowerCase());
+    return looseBooleans.includes(s.toLowerCase());
   }
-  return includes(strictBooleans, s);
+  return strictBooleans.includes(s);
 }

@@ -1,5 +1,4 @@
 import coerceToString from './util/coerceToString';
-import includes from './util/includesArray';
 import isInt from './isInt';
 
 const validators = {
@@ -336,7 +335,7 @@ const validators = {
 
     const parityBit = ['1', '0', 'X', '9', '8', '7', '6', '5', '4', '3', '2'];
 
-    const checkAddressCode = (addressCode) => includes(provincesAndCities, addressCode);
+    const checkAddressCode = (addressCode) => provincesAndCities.includes(addressCode);
 
     const checkBirthDayCode = (birDayCode) => {
       const yyyy = parseInt(birDayCode.substring(0, 4), 10);
