@@ -8,17 +8,27 @@ describe('benchmark cases dataset', () => {
     expect(new Set(names).size).toBe(names.length);
   });
 
-  it('every case has at least one input', () => {
+  it('every case has at least one valid and one invalid input', () => {
     for (const c of cases) {
       expect(c.inputs.length).toBeGreaterThan(0);
+      expect(c.errorInputs.length).toBeGreaterThan(0);
     }
   });
 
   it.each(cases.map((c) => [c.name, c] as const))(
-    '%s: our library validates ALL sample inputs as true',
+    '%s: mine() returns TRUE for all valid inputs',
     (_name, c) => {
       for (const input of c.inputs) {
         expect(c.mine(input)).toBe(true);
+      }
+    },
+  );
+
+  it.each(cases.map((c) => [c.name, c] as const))(
+    '%s: mine() returns FALSE for all error inputs',
+    (_name, c) => {
+      for (const input of c.errorInputs) {
+        expect(c.mine(input)).toBe(false);
       }
     },
   );

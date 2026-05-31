@@ -17,7 +17,6 @@ async function runBench(
   for (const task of bench.tasks) {
     const r = task.result;
     if (!r) continue;
-    // tinybench: throughput.mean (ops/sec), latency.mean (ms), latency.rme (%).
     const hz = (r as any).throughput?.mean ?? (r as any).hz ?? 0;
     const meanMs = (r as any).latency?.mean ?? (r as any).mean ?? 0;
     const rme = (r as any).latency?.rme ?? (r as any).rme ?? 0;
@@ -27,22 +26,33 @@ async function runBench(
 }
 
 async function main(): Promise<void> {
-  console.log(`Running benchmark (${TIME}ms/task, ${cases.length} validators)...\n`);
+  console.log(`Running benchmark (${TIME}ms/task, ${cases.length} validators × 2 paths)...\n`);
 
-  const results = await runBench((b) => {
+  const okResults = await runBench((b) => {
     for (const c of cases) {
       let i = 0;
       b.add(c.name, () => c.mine(c.inputs[i++ % c.inputs.length]));
     }
   });
 
+  const errResults = await runBench((b) => {
+    for (const c of cases) {
+      let i = 0;
+      b.add(c.name, () => c.mine(c.errorInputs[i++ % c.errorInputs.length]));
+    }
+  });
+
   const rows: Row[] = cases.map((c) => {
-    const r = results.get(c.name)!;
+    const ok = okResults.get(c.name)!;
+    const err = errResults.get(c.name)!;
     return {
       name: c.name,
-      ops: r.hz,
-      msPerCall: r.mean,
-      rme: r.rme,
+      okOps: ok.hz,
+      okNs: ok.mean,
+      okRme: ok.rme,
+      errOps: err.hz,
+      errNs: err.mean,
+      errRme: err.rme,
     };
   });
 

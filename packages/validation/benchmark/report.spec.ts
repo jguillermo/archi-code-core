@@ -1,8 +1,8 @@
 import { formatTable, type Row } from './report';
 
 const rows: Row[] = [
-  { name: 'isEmail', ops: 1_000_000, msPerCall: 0.001000, rme: 1.2 },
-  { name: 'isUUID',  ops: 4_000_000, msPerCall: 0.000250, rme: 0.8 },
+  { name: 'isEmail', okOps: 1_000_000, okNs: 0.001, okRme: 1.2, errOps: 1_200_000, errNs: 0.0009, errRme: 0.8 },
+  { name: 'isUUID',  okOps: 4_000_000, okNs: 0.00025, okRme: 0.5, errOps: 5_000_000, errNs: 0.0002, errRme: 0.4 },
 ];
 
 describe('report.formatTable', () => {
@@ -13,15 +13,20 @@ describe('report.formatTable', () => {
     expect(out).toContain('ops/seg');
   });
 
-  it('sorts rows slowest first (ascending ops/sec)', () => {
+  it('sorts rows slowest first (ascending ok ops/seg)', () => {
     const out = formatTable(rows);
-    // isEmail (1M ops) is slower → must appear before isUUID (4M ops)
     expect(out.indexOf('isEmail')).toBeLessThan(out.indexOf('isUUID'));
   });
 
-  it('shows ns/llamada column and legend for ±%', () => {
+  it('shows success and error columns', () => {
     const out = formatTable(rows);
-    expect(out).toContain('ns/llamada');
-    expect(out).toContain('margen de error');
+    expect(out).toContain('✓ ops/seg');
+    expect(out).toContain('✗ ops/seg');
+  });
+
+  it('shows legend explaining the symbols', () => {
+    const out = formatTable(rows);
+    expect(out).toContain('input válido');
+    expect(out).toContain('input inválido');
   });
 });

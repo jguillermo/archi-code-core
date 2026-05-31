@@ -3,16 +3,18 @@ import { join } from 'path';
 
 export type Row = {
   name: string;
-  ops: number;
-  msPerCall: number; // milliseconds per call
-  rme: number;       // relative margin of error, %
+  okOps: number;
+  okNs: number;
+  okRme: number;
+  errOps: number;
+  errNs: number;
+  errRme: number;
 };
 
 function fmtOps(n: number): string {
   return Math.round(n).toLocaleString('en-US');
 }
 
-/** Converts ms to ns and formats as an integer. */
 function fmtNs(ms: number): string {
   return Math.round(ms * 1_000_000).toLocaleString('en-US');
 }
@@ -21,24 +23,31 @@ function pad(s: string, width: number): string {
   return s.length >= width ? s : s + ' '.repeat(width - s.length);
 }
 
-const LEGEND = '±% = margen de error estadístico de la medición (cuanto menor, más estable el resultado)';
+const LEGEND =
+  '✓ = input válido (debe retornar true)  |  ✗ = input inválido (debe retornar false)  |  ±% = margen de error estadístico';
 
-/** Builds a fixed-width text table sorted slowest first, fastest last. */
+/** Builds a fixed-width text table sorted slowest (success) first, fastest last. */
 export function formatTable(rows: Row[]): string {
-  const sorted = [...rows].sort((a, b) => a.ops - b.ops);
+  const sorted = [...rows].sort((a, b) => a.okOps - b.okOps);
   const header = [
     pad('validator', 26),
-    pad('ops/seg', 16),
-    pad('ns/llamada', 12),
-    pad('±%', 6),
+    pad('✓ ops/seg', 16),
+    pad('✓ ns', 10),
+    pad('✓±%', 6),
+    pad('✗ ops/seg', 16),
+    pad('✗ ns', 10),
+    pad('✗±%', 6),
   ].join(' ');
   const sep = '-'.repeat(header.length);
   const lines = sorted.map((r) =>
     [
       pad(r.name, 26),
-      pad(fmtOps(r.ops), 16),
-      pad(fmtNs(r.msPerCall), 12),
-      pad(r.rme.toFixed(1), 6),
+      pad(fmtOps(r.okOps), 16),
+      pad(fmtNs(r.okNs), 10),
+      pad(r.okRme.toFixed(1), 6),
+      pad(fmtOps(r.errOps), 16),
+      pad(fmtNs(r.errNs), 10),
+      pad(r.errRme.toFixed(1), 6),
     ].join(' '),
   );
   return [header, sep, ...lines, '', LEGEND].join('\n');
@@ -46,16 +55,20 @@ export function formatTable(rows: Row[]): string {
 
 /** Writes a markdown version of the report next to the benchmark sources. */
 export function writeMarkdown(rows: Row[], meta: { node: string }): string {
-  const sorted = [...rows].sort((a, b) => a.ops - b.ops);
+  const sorted = [...rows].sort((a, b) => a.okOps - b.okOps);
   const head =
     `# Benchmark results\n\n` +
     `- Node: ${meta.node}\n\n` +
-    `Ordenado de más lento a más rápido.\n\n` +
-    `> **±%** = margen de error estadístico de la medición. Cuanto menor, más estable el resultado.\n\n` +
-    `| validator | ops/seg | ns/llamada | ±% |\n` +
-    `|---|--:|--:|--:|\n`;
+    `Ordenado de más lento a más rápido (por éxito).\n\n` +
+    `> **✓** = input válido · **✗** = input inválido · **±%** = margen de error estadístico\n\n` +
+    `| validator | ✓ ops/seg | ✓ ns | ✓±% | ✗ ops/seg | ✗ ns | ✗±% |\n` +
+    `|---|--:|--:|--:|--:|--:|--:|\n`;
   const body = sorted
-    .map((r) => `| ${r.name} | ${fmtOps(r.ops)} | ${fmtNs(r.msPerCall)} | ${r.rme.toFixed(1)} |`)
+    .map(
+      (r) =>
+        `| ${r.name} | ${fmtOps(r.okOps)} | ${fmtNs(r.okNs)} | ${r.okRme.toFixed(1)} | ` +
+        `${fmtOps(r.errOps)} | ${fmtNs(r.errNs)} | ${r.errRme.toFixed(1)} |`,
+    )
     .join('\n');
   const out = head + body + '\n';
   const path = join(__dirname, 'RESULTS.md');
