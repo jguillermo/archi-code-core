@@ -1,4 +1,4 @@
-import coerceToString from './util/coerceToString';
+import tryToString from './util/tryToString';
 
 const validMediaType = /^[a-z]+\/[a-z0-9\-\+\._]+$/i;
 
@@ -7,7 +7,7 @@ const validAttribute = /^[a-z\-]+=[a-z0-9\-]+$/i;
 const validData = /^[a-z0-9!\$&'\(\)\*\+,;=\-\._~:@\/\?%\s]*$/i;
 
 export default function isDataURI(str) {
-  const s = coerceToString(str);
+  const s = tryToString(str);
   if (s === false) return false;
   str = s;
   const data = str.split(',');

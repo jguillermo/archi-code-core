@@ -1,4 +1,4 @@
-import coerceToString from './util/coerceToString';
+import tryToString from './util/tryToString';
 import checkHost from './util/checkHost';
 import isFQDN from './isFQDN';
 import isIP from './isIP';
@@ -51,7 +51,7 @@ const default_url_options = {
 const wrapped_ipv6 = /^\[([^\]]+)\](?::([0-9]+))?$/;
 
 export default function isURL(urlInput: unknown, options?) {
-  const s = coerceToString(urlInput);
+  const s = tryToString(urlInput);
   if (s === false) return false;
   let url: string = s;
   if (!url || /[\s<>]/.test(url)) {

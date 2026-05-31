@@ -1,5 +1,5 @@
 import merge from './util/merge';
-import coerceToString from './util/coerceToString';
+import tryToString from './util/tryToString';
 
 const upperCaseRegex = /^[A-Z]$/;
 const lowerCaseRegex = /^[a-z]$/;
@@ -83,7 +83,7 @@ function scorePassword(analysis, scoringOptions) {
 }
 
 export default function isStrongPassword(str, options: typeof defaultOptions | null = null) {
-  const s = coerceToString(str);
+  const s = tryToString(str);
   if (s === false) return false;
   str = s;
   const analysis = analyzePassword(str);

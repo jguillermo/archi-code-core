@@ -1,9 +1,9 @@
-import coerceToString from './util/coerceToString';
+import tryToString from './util/tryToString';
 import isInt from './isInt';
 
 const validators = {
   PL: (str) => {
-    const s = coerceToString(str);
+    const s = tryToString(str);
   if (s === false) return false;
   str = s;
 
@@ -39,7 +39,7 @@ const validators = {
     return false;
   },
   ES: (str) => {
-    const s = coerceToString(str);
+    const s = tryToString(str);
   if (s === false) return false;
   str = s;
 
@@ -92,7 +92,7 @@ const validators = {
   },
   FI: (str) => {
     // https://dvv.fi/en/personal-identity-code#:~:text=control%20character%20for%20a-,personal,-identity%20code%20calculated
-    const s = coerceToString(str);
+    const s = tryToString(str);
   if (s === false) return false;
   str = s;
 
@@ -497,7 +497,7 @@ const validators = {
 };
 
 export default function isIdentityCard(str, locale) {
-  const s = coerceToString(str);
+  const s = tryToString(str);
   if (s === false) return false;
   str = s;
   if (locale in validators) {

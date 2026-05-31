@@ -1,10 +1,10 @@
-import coerceToString from './util/coerceToString';
+import tryToString from './util/tryToString';
 import { decimal } from './alpha';
 
 const numericNoSymbols = /^[0-9]+$/;
 
 export default function isNumeric(str, options) {
-  const s = coerceToString(str);
+  const s = tryToString(str);
   if (s === false) return false;
   str = s;
   if (options && options.no_symbols) {

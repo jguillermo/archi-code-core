@@ -1,4 +1,4 @@
-import coerceToString from './util/coerceToString';
+import tryToString from './util/tryToString';
 
 const validators = {
   'cs-CZ': (str) => /^(([ABCDEFHIJKLMNPRSTUVXYZ]|[0-9])-?){5,8}$/.test(str),
@@ -31,7 +31,7 @@ const validators = {
 };
 
 export default function isLicensePlate(str, locale) {
-  const s = coerceToString(str);
+  const s = tryToString(str);
   if (s === false) return false;
   str = s;
   if (locale in validators) {

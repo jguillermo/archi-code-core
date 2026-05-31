@@ -1,4 +1,4 @@
-import coerceToString from './util/coerceToString';
+import tryToString from './util/tryToString';
 import merge from './util/merge';
 
 const default_is_empty_options = {
@@ -6,7 +6,7 @@ const default_is_empty_options = {
 };
 
 export default function isEmpty(str, options) {
-  const s = coerceToString(str);
+  const s = tryToString(str);
   if (s === false) return false;
   str = s;
   options = merge(options, default_is_empty_options);

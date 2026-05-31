@@ -1,4 +1,4 @@
-import coerceToString from './util/coerceToString';
+import tryToString from './util/tryToString';
 import * as algorithms from './util/algorithms';
 import isDate from './isDate';
 
@@ -1507,7 +1507,7 @@ sanitizeRegexes['nl-BE'] = sanitizeRegexes['fr-BE'];
  * Throw an error exception if the locale is not supported.
  */
 export default function isTaxID(str, locale = 'en-US') {
-  const s = coerceToString(str);
+  const s = tryToString(str);
   if (s === false) return false;
   str = s;
   // Copy TIN to avoid replacement if sanitized

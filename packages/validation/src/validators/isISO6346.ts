@@ -1,4 +1,4 @@
-import coerceToString from './util/coerceToString';
+import tryToString from './util/tryToString';
 
 // https://en.wikipedia.org/wiki/ISO_6346
 // according to ISO6346 standard, checksum digit is mandatory for freight container but recommended
@@ -7,7 +7,7 @@ const isISO6346Str = /^[A-Z]{3}(U[0-9]{7})|([J,Z][0-9]{6,7})$/;
 const isDigit = /^[0-9]$/;
 
 export function isISO6346(str) {
-  const s = coerceToString(str);
+  const s = tryToString(str);
   if (s === false) return false;
   str = s;
 

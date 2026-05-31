@@ -1,4 +1,4 @@
-import coerceToString from './util/coerceToString';
+import tryToString from './util/tryToString';
 
 const phones = {
   'am-AM': /^(\+?374|0)(33|4[134]|55|77|88|9[13-689])\d{6}$/,
@@ -180,7 +180,7 @@ phones['fr-CH'] = phones['de-CH'];
 phones['it-CH'] = phones['fr-CH'];
 
 export default function isMobilePhone(str, locale, options) {
-  const s = coerceToString(str);
+  const s = tryToString(str);
   if (s === false) return false;
   str = s;
   if (options && options.strictMode && !str.startsWith('+')) {

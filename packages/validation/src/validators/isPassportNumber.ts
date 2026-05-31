@@ -1,4 +1,4 @@
-import coerceToString from './util/coerceToString';
+import tryToString from './util/tryToString';
 
 /**
  * Reference:
@@ -80,7 +80,7 @@ export const locales = Object.keys(passportRegexByCountryCode);
  * @return {boolean}
  */
 export default function isPassportNumber(str, countryCode) {
-  const s = coerceToString(str);
+  const s = tryToString(str);
   if (s === false) return false;
   str = s;
   /** Remove All Whitespaces, Convert to UPPERCASE */

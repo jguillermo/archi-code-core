@@ -1,4 +1,4 @@
-import coerceToString from './util/coerceToString';
+import tryToString from './util/tryToString';
 
 const macAddress48 = /^(?:[0-9a-fA-F]{2}([-:\s]))([0-9a-fA-F]{2}\1){4}([0-9a-fA-F]{2})$/;
 const macAddress48NoSeparators = /^([0-9a-fA-F]){12}$/;
@@ -8,7 +8,7 @@ const macAddress64NoSeparators = /^([0-9a-fA-F]){16}$/;
 const macAddress64WithDots = /^([0-9a-fA-F]{4}\.){3}([0-9a-fA-F]{4})$/;
 
 export default function isMACAddress(str, options) {
-  const s = coerceToString(str);
+  const s = tryToString(str);
   if (s === false) return false;
   str = s;
   if (options?.eui) {

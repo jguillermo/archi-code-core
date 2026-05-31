@@ -1,18 +1,21 @@
-import coerceToString from './util/coerceToString';
-import toString from './util/toString';
+import tryToString from './util/tryToString';
+import { toString } from '../convert';
 
 export default function isIn(str, options) {
-  const s = coerceToString(str);
+  const s = tryToString(str);
   if (s === false) return false;
   str = s;
   let i;
   if (Object.prototype.toString.call(options) === '[object Array]') {
     const array: string[] = [];
     for (i in options) {
-      // https://github.com/gotwarlost/istanbul/blob/master/ignoring-code-for-coverage.md#ignoring-code-for-coverage-purposes
       // istanbul ignore else
       if ({}.hasOwnProperty.call(options, i)) {
-        array[i] = toString(options[i]);
+        try {
+          array[i] = toString(options[i]);
+        } catch {
+          // non-convertible element: skip
+        }
       }
     }
     return array.indexOf(str) >= 0;

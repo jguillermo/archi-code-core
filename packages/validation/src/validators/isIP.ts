@@ -1,4 +1,4 @@
-import coerceToString from './util/coerceToString';
+import tryToString from './util/tryToString';
 /**
 11.3.  Examples
 
@@ -47,7 +47,7 @@ const IPv6AddressRegExp = new RegExp(
 );
 
 export default function isIP(ipAddress, options: { version?: number | string } | number | string = {}) {
-  const s = coerceToString(ipAddress);
+  const s = tryToString(ipAddress);
   if (s === false) return false;
   ipAddress = s;
 

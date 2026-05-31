@@ -1,4 +1,4 @@
-import coerceToString from './util/coerceToString';
+import tryToString from './util/tryToString';
 import checkHost from './util/checkHost';
 
 import isByteLength from './isByteLength';
@@ -65,7 +65,7 @@ function validateDisplayName(display_name) {
 }
 
 export default function isEmail(str, options) {
-  const s = coerceToString(str);
+  const s = tryToString(str);
   if (s === false) return false;
   str = s;
   options = merge(options, default_email_options);

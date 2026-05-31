@@ -1,4 +1,4 @@
-import coerceToString from './util/coerceToString';
+import tryToString from './util/tryToString';
 
 // from https://www.unicode.org/iso15924/iso15924-codes.html
 const validISO15924Codes = new Set([
@@ -276,7 +276,7 @@ const validISO15924Codes = new Set([
 ]);
 
 export default function isISO15924(str) {
-  const s = coerceToString(str);
+  const s = tryToString(str);
   if (s === false) return false;
   str = s;
   return validISO15924Codes.has(str);

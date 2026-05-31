@@ -1,4 +1,4 @@
-import coerceToString from './util/coerceToString';
+import tryToString from './util/tryToString';
 import merge from './util/merge';
 
 const base64WithPadding = /^[A-Za-z0-9+/]+={0,2}$/;
@@ -7,7 +7,7 @@ const base64UrlWithPadding = /^[A-Za-z0-9_-]+={0,2}$/;
 const base64UrlWithoutPadding = /^[A-Za-z0-9_-]+$/;
 
 export default function isBase64(str, options?) {
-  const s = coerceToString(str);
+  const s = tryToString(str);
   if (s === false) return false;
   str = s;
   options = merge(options, { urlSafe: false, padding: !options?.urlSafe });

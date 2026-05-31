@@ -1,4 +1,4 @@
-import coerceToString from './util/coerceToString';
+import tryToString from './util/tryToString';
 
 // common patterns
 const threeDigit = /^\d{3}$/;
@@ -83,7 +83,7 @@ const patterns = {
 export const locales = Object.keys(patterns);
 
 export default function isPostalCode(str, locale) {
-  const s = coerceToString(str);
+  const s = tryToString(str);
   if (s === false) return false;
   str = s;
   if (locale in patterns) {

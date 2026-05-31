@@ -1,4 +1,4 @@
-import coerceToString from './util/coerceToString';
+import tryToString from './util/tryToString';
 
 /**
  * List of country codes with
@@ -178,7 +178,7 @@ function hasValidIbanChecksum(str) {
 }
 
 export default function isIBAN(str, options = {}) {
-  const s = coerceToString(str);
+  const s = tryToString(str);
   if (s === false) return false;
   str = s;
 

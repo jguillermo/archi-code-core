@@ -1,7 +1,7 @@
-import coerceToString from './util/coerceToString';
+import tryToString from './util/tryToString';
 
 export default function isLuhnNumber(str) {
-  const s = coerceToString(str);
+  const s = tryToString(str);
   if (s === false) return false;
   str = s;
   const sanitized = str.replace(/[- ]+/g, '');

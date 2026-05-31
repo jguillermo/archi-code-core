@@ -1,4 +1,4 @@
-import coerceToString from './util/coerceToString';
+import tryToString from './util/tryToString';
 
 const defaultOptions = { loose: false };
 const strictBooleans = ['true', 'false', '1', '0'];
@@ -10,7 +10,7 @@ export default function isBoolean(str: unknown, options = defaultOptions) {
   // Fast path: number acting as boolean (1/0 only)
   if (typeof str === 'number') return str === 1 || str === 0;
   // Non-string: coerce if possible, otherwise reject
-  const s = coerceToString(str);
+  const s = tryToString(str);
   if (s === false) return false;
   if (options.loose) {
     return looseBooleans.includes(s.toLowerCase());

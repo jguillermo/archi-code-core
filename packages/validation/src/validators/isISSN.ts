@@ -1,9 +1,9 @@
-import coerceToString from './util/coerceToString';
+import tryToString from './util/tryToString';
 
 const issn = '^\\d{4}-?\\d{3}[\\dX]$';
 
 export default function isISSN(str, options: { require_hyphen?: boolean; case_sensitive?: boolean } = {}) {
-  const s = coerceToString(str);
+  const s = tryToString(str);
   if (s === false) return false;
   str = s;
   let testIssn: string | RegExp = issn;

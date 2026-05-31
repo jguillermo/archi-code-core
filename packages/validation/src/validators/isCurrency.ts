@@ -1,5 +1,5 @@
 import merge from './util/merge';
-import coerceToString from './util/coerceToString';
+import tryToString from './util/tryToString';
 
 function currencyRegex(options) {
   let decimal_digits = `\\d{${options.digits_after_decimal[0]}}`;
@@ -77,7 +77,7 @@ const default_currency_options = {
 };
 
 export default function isCurrency(str, options) {
-  const s = coerceToString(str);
+  const s = tryToString(str);
   if (s === false) return false;
   str = s;
   options = merge(options, default_currency_options);

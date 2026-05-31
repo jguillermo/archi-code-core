@@ -1,5 +1,5 @@
 import assertString from './util/assertString';
-import coerceToString from './util/coerceToString';
+import tryToString from './util/tryToString';
 import * as algorithms from './util/algorithms';
 
 const AU = (str) => {
@@ -147,7 +147,7 @@ export const vatMatchers = {
 };
 
 export default function isVAT(str, countryCode) {
-  const s = coerceToString(str);
+  const s = tryToString(str);
   if (s === false) return false;
   str = s;
   assertString(countryCode);

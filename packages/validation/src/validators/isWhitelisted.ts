@@ -1,7 +1,7 @@
-import coerceToString from './util/coerceToString';
+import tryToString from './util/tryToString';
 
 export default function isWhitelisted(str, chars) {
-  const s = coerceToString(str);
+  const s = tryToString(str);
   if (s === false) return false;
   str = s;
   for (let i = str.length - 1; i >= 0; i--) {

@@ -1,8 +1,8 @@
-import coerceToString from './util/coerceToString';
+import tryToString from './util/tryToString';
 import isBase64 from './isBase64';
 
 export default function isJWT(str) {
-  const s = coerceToString(str);
+  const s = tryToString(str);
   if (s === false) return false;
   str = s;
 

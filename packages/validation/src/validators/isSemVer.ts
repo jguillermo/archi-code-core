@@ -1,4 +1,4 @@
-import coerceToString from './util/coerceToString';
+import tryToString from './util/tryToString';
 
 // https://semver.org/
 const semanticVersioningRegex = new RegExp(
@@ -9,7 +9,7 @@ const semanticVersioningRegex = new RegExp(
 );
 
 export default function isSemVer(str) {
-  const s = coerceToString(str);
+  const s = tryToString(str);
   if (s === false) return false;
   str = s;
 

@@ -1,10 +1,10 @@
-import coerceToString from './util/coerceToString';
+import tryToString from './util/tryToString';
 
 import { fullWidth } from './isFullWidth';
 import { halfWidth } from './isHalfWidth';
 
 export default function isVariableWidth(str) {
-  const s = coerceToString(str);
+  const s = tryToString(str);
   if (s === false) return false;
   str = s;
   return fullWidth.test(str) && halfWidth.test(str);

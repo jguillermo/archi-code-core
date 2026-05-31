@@ -1,4 +1,4 @@
-import coerceToString from './util/coerceToString';
+import tryToString from './util/tryToString';
 import merge from './util/merge';
 
 const base32 = /^[A-Z2-7]+=*$/;
@@ -9,7 +9,7 @@ const defaultBase32Options = {
 };
 
 export default function isBase32(str, options) {
-  const s = coerceToString(str);
+  const s = tryToString(str);
   if (s === false) return false;
   str = s;
   options = merge(options, defaultBase32Options);

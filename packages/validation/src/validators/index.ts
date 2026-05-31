@@ -2,7 +2,7 @@ import toDate from './toDate';
 import toFloat from './toFloat';
 import toInt from './toInt';
 import toBoolean from './toBoolean';
-import toString from './util/toString';
+import { toString } from '../convert';
 import equals from './equals';
 import contains from './contains';
 import matches from './matches';

@@ -1,4 +1,4 @@
-import coerceToString from './util/coerceToString';
+import tryToString from './util/tryToString';
 import isLuhnValid from './isLuhnNumber';
 
 const cards = {
@@ -23,7 +23,7 @@ const allCards = (() => {
 })();
 
 export default function isCreditCard(card, options: { provider?: string } = {}) {
-  const s = coerceToString(card);
+  const s = tryToString(card);
   if (s === false) return false;
   card = s;
   const { provider } = options;

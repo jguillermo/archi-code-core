@@ -1,4 +1,4 @@
-import coerceToString from './util/coerceToString';
+import tryToString from './util/tryToString';
 
 const int = /^(?:[-+]?(?:0|[1-9][0-9]*))$/;
 const intLeadingZeroes = /^[-+]?[0-9]+$/;
@@ -16,7 +16,7 @@ export default function isInt(str: unknown, options?): boolean {
     );
   }
   // Non-string: coerce if possible, otherwise reject
-  const s = coerceToString(str);
+  const s = tryToString(str);
   if (s === false) return false;
   options = options || {};
   const regex = options.allow_leading_zeroes === false ? int : intLeadingZeroes;

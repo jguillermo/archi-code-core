@@ -1,7 +1,7 @@
-import coerceToString from './util/coerceToString';
+import tryToString from './util/tryToString';
 
 export default function isByteLength(str, options) {
-  const s = coerceToString(str);
+  const s = tryToString(str);
   if (s === false) return false;
   str = s;
   let min;

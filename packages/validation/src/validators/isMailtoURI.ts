@@ -1,6 +1,6 @@
 import trim from './trim';
 import isEmail from './isEmail';
-import coerceToString from './util/coerceToString';
+import tryToString from './util/tryToString';
 
 function parseMailtoQueryString(queryString) {
   const allowedParams = new Set(['subject', 'body', 'cc', 'bcc']),
@@ -35,7 +35,7 @@ function parseMailtoQueryString(queryString) {
 }
 
 export default function isMailtoURI(url, options) {
-  const s = coerceToString(url);
+  const s = tryToString(url);
   if (s === false) return false;
   url = s;
 

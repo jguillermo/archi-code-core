@@ -1,5 +1,5 @@
-import coerceToString from './util/coerceToString';
-import toString from './util/toString';
+import tryToString from './util/tryToString';
+import { toString } from '../convert';
 import merge from './util/merge';
 
 const defaultContainsOptions = {
@@ -8,14 +8,21 @@ const defaultContainsOptions = {
 };
 
 export default function contains(str, elem, options) {
-  const s = coerceToString(str);
+  const s = tryToString(str);
   if (s === false) return false;
   str = s;
   options = merge(options, defaultContainsOptions);
 
-  if (options.ignoreCase) {
-    return str.toLowerCase().split(toString(elem).toLowerCase()).length > options.minOccurrences;
+  let elemStr: string;
+  try {
+    elemStr = toString(elem);
+  } catch {
+    return false;
   }
 
-  return str.split(toString(elem)).length > options.minOccurrences;
+  if (options.ignoreCase) {
+    return str.toLowerCase().split(elemStr.toLowerCase()).length > options.minOccurrences;
+  }
+
+  return str.split(elemStr).length > options.minOccurrences;
 }

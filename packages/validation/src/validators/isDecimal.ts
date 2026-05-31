@@ -1,5 +1,5 @@
 import merge from './util/merge';
-import coerceToString from './util/coerceToString';
+import tryToString from './util/tryToString';
 import { decimal } from './alpha';
 
 function decimalRegExp(options) {
@@ -18,7 +18,7 @@ const default_decimal_options = {
 const blacklist = ['', '-', '+'];
 
 export default function isDecimal(str, options) {
-  const s = coerceToString(str);
+  const s = tryToString(str);
   if (s === false) return false;
   str = s;
   options = merge(options, default_decimal_options);

@@ -1,4 +1,4 @@
-import coerceToString from './util/coerceToString';
+import tryToString from './util/tryToString';
 import merge from './util/merge';
 
 const default_fqdn_options = {
@@ -11,7 +11,7 @@ const default_fqdn_options = {
 };
 
 export default function isFQDN(str, options) {
-  const s = coerceToString(str);
+  const s = tryToString(str);
   if (s === false) return false;
   str = s;
   options = merge(options, default_fqdn_options);

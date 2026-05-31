@@ -1,4 +1,4 @@
-import coerceToString from './util/coerceToString';
+import tryToString from './util/tryToString';
 
 // from http://goo.gl/0ejHHW
 const iso8601 =
@@ -36,7 +36,7 @@ const isValidDate = (str) => {
 };
 
 export default function isISO8601(str, options: { strictSeparator?: boolean; strict?: boolean } = {}) {
-  const s = coerceToString(str);
+  const s = tryToString(str);
   if (s === false) return false;
   str = s;
   const check = options.strictSeparator ? iso8601StrictSeparator.test(str) : iso8601.test(str);

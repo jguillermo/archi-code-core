@@ -1,8 +1,8 @@
-import coerceToString from './util/coerceToString';
+import tryToString from './util/tryToString';
 import { alpha } from './alpha';
 
 export default function isAlpha(_str, locale = 'en-US', options: { ignore?: string | RegExp } = {}) {
-  const s = coerceToString(_str);
+  const s = tryToString(_str);
   if (s === false) return false;
   _str = s;
 
