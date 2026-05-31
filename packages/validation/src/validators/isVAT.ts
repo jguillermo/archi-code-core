@@ -12,7 +12,7 @@ const AU = (str) => {
   const ABN = (parseInt(str.slice(0, 1), 10) - 1).toString() + str.slice(1);
   let total = 0;
   for (let i = 0; i < 11; i++) {
-    total += weights[i] * ABN.charAt(i);
+    total += weights[i] * Number(ABN.charAt(i));
   }
   return total !== 0 && total % 89 === 0;
 };

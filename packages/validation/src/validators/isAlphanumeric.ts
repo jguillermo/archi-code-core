@@ -1,7 +1,7 @@
 import assertString from './util/assertString';
 import { alphanumeric } from './alpha';
 
-export default function isAlphanumeric(_str, locale = 'en-US', options = {}) {
+export default function isAlphanumeric(_str, locale = 'en-US', options: { ignore?: string | RegExp } = {}) {
   assertString(_str);
 
   let str = _str;

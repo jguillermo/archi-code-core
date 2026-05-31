@@ -2,12 +2,12 @@ import assertString from './util/assertString';
 
 const issn = '^\\d{4}-?\\d{3}[\\dX]$';
 
-export default function isISSN(str, options = {}) {
+export default function isISSN(str, options: { require_hyphen?: boolean; case_sensitive?: boolean } = {}) {
   assertString(str);
-  let testIssn = issn;
-  testIssn = options.require_hyphen ? testIssn.replace('?', '') : testIssn;
+  let testIssn: string | RegExp = issn;
+  testIssn = options.require_hyphen ? (testIssn as string).replace('?', '') : testIssn;
   testIssn = options.case_sensitive ? new RegExp(testIssn) : new RegExp(testIssn, 'i');
-  if (!testIssn.test(str)) {
+  if (!(testIssn as RegExp).test(str)) {
     return false;
   }
   const digits = str.replace('-', '').toUpperCase();

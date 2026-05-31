@@ -24,7 +24,7 @@ export default function isISBN(isbn, options) {
       return false;
     }
 
-    for (let i = 0; i < version - 1; i++) {
+    for (let i = 0; i < Number(version) - 1; i++) {
       checksum += (i + 1) * sanitizedIsbn.charAt(i);
     }
 

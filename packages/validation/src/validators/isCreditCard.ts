@@ -12,7 +12,7 @@ const cards = {
 };
 
 const allCards = (() => {
-  const tmpCardsArray = [];
+  const tmpCardsArray: RegExp[] = [];
   for (const cardProvider in cards) {
     // istanbul ignore else
     if (cards.hasOwnProperty(cardProvider)) {
@@ -22,7 +22,7 @@ const allCards = (() => {
   return tmpCardsArray;
 })();
 
-export default function isCreditCard(card, options = {}) {
+export default function isCreditCard(card, options: { provider?: string } = {}) {
   assertString(card);
   const { provider } = options;
   const sanitized = card.replace(/[- ]+/g, '');

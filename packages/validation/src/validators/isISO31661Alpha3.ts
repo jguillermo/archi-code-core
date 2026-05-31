@@ -255,11 +255,11 @@ const validISO31661Alpha3CountriesCodes = new Set([
 
 const alpha3CountryCode = /^[a-zA-Z]{3}$/;
 
-export default function isISO31661Alpha3(str, options = {}) {
+export default function isISO31661Alpha3(str, options: { userAssignedCodes?: string[] } = {}) {
   assertString(str);
 
   const { userAssignedCodes } = options;
-  const validUserAssignedCodes = (userAssignedCodes || []).reduce(
+  const validUserAssignedCodes = (userAssignedCodes || []).reduce<string[]>(
     (accumulator, userAssignedCode) => {
       if (alpha3CountryCode.test(userAssignedCode)) {
         accumulator.push(userAssignedCode.toUpperCase());

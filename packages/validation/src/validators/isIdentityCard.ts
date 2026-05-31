@@ -465,18 +465,18 @@ const validators = {
 
     if (!/^[A-Z][0-9]{9}$/.test(sanitized)) return false;
 
-    return Array.from(sanitized).reduce((sum, number, index) => {
+    return Array.from(sanitized).reduce<number | boolean>((sum, char, index) => {
       if (index === 0) {
-        const code = ALPHABET_CODES[number];
+        const code = ALPHABET_CODES[char as keyof typeof ALPHABET_CODES];
 
         return (code % 10) * 9 + Math.floor(code / 10);
       }
 
       if (index === 9) {
-        return (10 - (sum % 10) - Number(number)) % 10 === 0;
+        return (10 - ((sum as number) % 10) - Number(char)) % 10 === 0;
       }
 
-      return sum + Number(number) * (9 - index);
+      return (sum as number) + Number(char) * (9 - index);
     }, 0);
   },
   PK: (str) => {

@@ -13,7 +13,7 @@ function isValidFormat(format) {
 }
 
 function zip(date, format) {
-  const zippedArr = [],
+  const zippedArr: [string, string][] = [],
     len = Math.max(date.length, format.length);
 
   for (let i = 0; i < len; i++) {
@@ -42,7 +42,7 @@ export default function isDate(input, options) {
       input.split(dateDelimiter),
       options.format.toLowerCase().split(formatDelimiter),
     );
-    const dateObj = {};
+    const dateObj: { [key: string]: string } = {};
 
     for (const [dateWord, formatWord] of dateAndFormat) {
       if (!dateWord || !formatWord || dateWord.length !== formatWord.length) {

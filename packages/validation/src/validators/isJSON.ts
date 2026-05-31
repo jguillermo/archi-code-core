@@ -18,7 +18,7 @@ export default function isJSON(str, options) {
       return true;
     }
 
-    let primitives = [];
+    let primitives: (null | boolean)[] = [];
     if (options.allow_primitives) {
       primitives = [null, false, true];
     }

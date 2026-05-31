@@ -5,7 +5,7 @@ export default function isIn(str, options) {
   assertString(str);
   let i;
   if (Object.prototype.toString.call(options) === '[object Array]') {
-    const array = [];
+    const array: string[] = [];
     for (i in options) {
       // https://github.com/gotwarlost/istanbul/blob/master/ignoring-code-for-coverage.md#ignoring-code-for-coverage-purposes
       // istanbul ignore else

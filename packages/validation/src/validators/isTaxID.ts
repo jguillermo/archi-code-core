@@ -33,19 +33,17 @@ import isDate from './isDate';
 function bgBgCheck(tin) {
   // Extract full year, normalize month and check birth date validity
   let century_year = tin.slice(0, 2);
-  let month = parseInt(tin.slice(2, 4), 10);
-  if (month > 40) {
-    month -= 40;
+  let monthNum = parseInt(tin.slice(2, 4), 10);
+  if (monthNum > 40) {
+    monthNum -= 40;
     century_year = `20${century_year}`;
-  } else if (month > 20) {
-    month -= 20;
+  } else if (monthNum > 20) {
+    monthNum -= 20;
     century_year = `18${century_year}`;
   } else {
     century_year = `19${century_year}`;
   }
-  if (month < 10) {
-    month = `0${month}`;
-  }
+  const month: string | number = monthNum < 10 ? `0${monthNum}` : monthNum;
   const date = `${century_year}/${month}/${tin.slice(4, 6)}`;
   if (!isDate(date, 'YYYY/MM/DD')) {
     return false;
@@ -106,19 +104,20 @@ function csCzCheck(tin) {
   tin = tin.replace(/\W/, '');
 
   // Extract full year from TIN length
-  let full_year = parseInt(tin.slice(0, 2), 10);
+  let full_year_num = parseInt(tin.slice(0, 2), 10);
+  let full_year: string;
   if (tin.length === 10) {
-    if (full_year < 54) {
-      full_year = `20${full_year}`;
+    if (full_year_num < 54) {
+      full_year = `20${full_year_num}`;
     } else {
-      full_year = `19${full_year}`;
+      full_year = `19${full_year_num}`;
     }
   } else {
     if (tin.slice(6) === '000') {
       return false;
     } // Three-zero serial not assigned before 1954
-    if (full_year < 54) {
-      full_year = `19${full_year}`;
+    if (full_year_num < 54) {
+      full_year = `19${full_year_num}`;
     } else {
       return false; // No 18XX years seen in any of the resources
     }
@@ -129,20 +128,18 @@ function csCzCheck(tin) {
   }
 
   // Extract month from TIN and normalize
-  let month = parseInt(tin.slice(2, 4), 10);
-  if (month > 50) {
-    month -= 50;
+  let monthNum2 = parseInt(tin.slice(2, 4), 10);
+  if (monthNum2 > 50) {
+    monthNum2 -= 50;
   }
-  if (month > 20) {
+  if (monthNum2 > 20) {
     // Month-plus-twenty was only introduced in 2004
     if (parseInt(full_year, 10) < 2004) {
       return false;
     }
-    month -= 20;
+    monthNum2 -= 20;
   }
-  if (month < 10) {
-    month = `0${month}`;
-  }
+  const month: string | number = monthNum2 < 10 ? `0${monthNum2}` : monthNum2;
 
   // Check date validity
   const date = `${full_year}/${month}/${tin.slice(4, 6)}`;
@@ -188,7 +185,7 @@ function deDeCheck(tin) {
   const digits = tin.split('').map((a) => parseInt(a, 10));
 
   // Fill array with strings of number positions
-  let occurrences = [];
+  let occurrences: string[] = [];
   for (let i = 0; i < digits.length - 1; i++) {
     occurrences.push('');
     for (let j = 0; j < digits.length - 1; j++) {
@@ -230,28 +227,29 @@ function dkDkCheck(tin) {
   tin = tin.replace(/\W/, '');
 
   // Extract year, check if valid for given century digit and add century
-  let year = parseInt(tin.slice(4, 6), 10);
+  let year_num = parseInt(tin.slice(4, 6), 10);
+  let year: string;
   const century_digit = tin.slice(6, 7);
   switch (century_digit) {
     case '0':
     case '1':
     case '2':
     case '3':
-      year = `19${year}`;
+      year = `19${year_num}`;
       break;
     case '4':
     case '9':
-      if (year < 37) {
-        year = `20${year}`;
+      if (year_num < 37) {
+        year = `20${year_num}`;
       } else {
-        year = `19${year}`;
+        year = `19${year_num}`;
       }
       break;
     default:
-      if (year < 37) {
-        year = `20${year}`;
-      } else if (year > 58) {
-        year = `18${year}`;
+      if (year_num < 37) {
+        year = `20${year_num}`;
+      } else if (year_num > 58) {
+        year = `18${year_num}`;
       } else {
         return false;
       }
@@ -442,7 +440,7 @@ const enUsCampusPrefix = {
 
 // Return an array of all US IRS campus prefixes
 function enUsGetPrefixes() {
-  const prefixes = [];
+  const prefixes: string[] = [];
 
   for (const location in enUsCampusPrefix) {
     // https://github.com/gotwarlost/istanbul/blob/master/ignoring-code-for-coverage.md#ignoring-code-for-coverage-purposes
@@ -853,13 +851,11 @@ function itItCheck(tin) {
   };
   const month = month_replace[chars[8]];
 
-  let day = parseInt(chars[9] + chars[10], 10);
-  if (day > 40) {
-    day -= 40;
+  let dayNum = parseInt(chars[9] + chars[10], 10);
+  if (dayNum > 40) {
+    dayNum -= 40;
   }
-  if (day < 10) {
-    day = `0${day}`;
-  }
+  const day: string | number = dayNum < 10 ? `0${dayNum}` : dayNum;
 
   const date = `${chars[6]}${chars[7]}/${month}/${day}`;
   if (!isDate(date, 'YY/MM/DD')) {
@@ -1055,26 +1051,24 @@ function plPlCheck(tin) {
   // PESEL
   // Extract full year using month
   let full_year = tin.slice(0, 2);
-  let month = parseInt(tin.slice(2, 4), 10);
-  if (month > 80) {
+  let monthNum3 = parseInt(tin.slice(2, 4), 10);
+  if (monthNum3 > 80) {
     full_year = `18${full_year}`;
-    month -= 80;
-  } else if (month > 60) {
+    monthNum3 -= 80;
+  } else if (monthNum3 > 60) {
     full_year = `22${full_year}`;
-    month -= 60;
-  } else if (month > 40) {
+    monthNum3 -= 60;
+  } else if (monthNum3 > 40) {
     full_year = `21${full_year}`;
-    month -= 40;
-  } else if (month > 20) {
+    monthNum3 -= 40;
+  } else if (monthNum3 > 20) {
     full_year = `20${full_year}`;
-    month -= 20;
+    monthNum3 -= 20;
   } else {
     full_year = `19${full_year}`;
   }
   // Add leading zero to month if needed
-  if (month < 10) {
-    month = `0${month}`;
-  }
+  const month: string | number = monthNum3 < 10 ? `0${monthNum3}` : monthNum3;
   // Check date validity
   const date = `${full_year}/${month}/${tin.slice(4, 6)}`;
   if (!isDate(date, 'YYYY/MM/DD')) {
@@ -1291,24 +1285,18 @@ function skSkCheck(tin) {
     } // Three-zero serial not assigned before 1954
 
     // Extract full year from TIN length
-    let full_year = parseInt(tin.slice(0, 2), 10);
-    if (full_year > 53) {
+    let full_year_num2 = parseInt(tin.slice(0, 2), 10);
+    if (full_year_num2 > 53) {
       return false;
     }
-    if (full_year < 10) {
-      full_year = `190${full_year}`;
-    } else {
-      full_year = `19${full_year}`;
-    }
+    const full_year: string = full_year_num2 < 10 ? `190${full_year_num2}` : `19${full_year_num2}`;
 
     // Extract month from TIN and normalize
-    let month = parseInt(tin.slice(2, 4), 10);
-    if (month > 50) {
-      month -= 50;
+    let monthNum4 = parseInt(tin.slice(2, 4), 10);
+    if (monthNum4 > 50) {
+      monthNum4 -= 50;
     }
-    if (month < 10) {
-      month = `0${month}`;
-    }
+    const month: string | number = monthNum4 < 10 ? `0${monthNum4}` : monthNum4;
 
     // Check date validity
     const date = `${full_year}/${month}/${tin.slice(4, 6)}`;
@@ -1364,18 +1352,18 @@ function svSeCheck(tin) {
     if (tin.length === 11 && day < 60) {
       // Extract full year from centenarian symbol
       // Should work just fine until year 10000 or so
-      let current_year = new Date().getFullYear().toString();
-      const current_century = parseInt(current_year.slice(0, 2), 10);
-      current_year = parseInt(current_year, 10);
+      const current_year_str = new Date().getFullYear().toString();
+      const current_century = parseInt(current_year_str.slice(0, 2), 10);
+      const current_year_num = parseInt(current_year_str, 10);
       if (tin[6] === '-') {
-        if (parseInt(`${current_century}${full_year}`, 10) > current_year) {
+        if (parseInt(`${current_century}${full_year}`, 10) > current_year_num) {
           full_year = `${current_century - 1}${full_year}`;
         } else {
           full_year = `${current_century}${full_year}`;
         }
       } else {
         full_year = `${current_century - 1}${full_year}`;
-        if (current_year - parseInt(full_year, 10) < 100) {
+        if (current_year_num - parseInt(full_year, 10) < 100) {
           return false;
         }
       }
@@ -1386,10 +1374,8 @@ function svSeCheck(tin) {
   if (day > 60) {
     day -= 60;
   }
-  if (day < 10) {
-    day = `0${day}`;
-  }
-  const date = `${full_year}/${month}/${day}`;
+  const dayStr: string | number = day < 10 ? `0${day}` : day;
+  const date = `${full_year}/${month}/${dayStr}`;
   if (date.length === 8) {
     if (!isDate(date, 'YY/MM/DD')) {
       return false;

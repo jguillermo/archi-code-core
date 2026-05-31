@@ -24,8 +24,8 @@ const defaultOptions = {
 /* Counts number of occurrences of each char in a string
  * could be moved to util/ ?
  */
-function countChars(str) {
-  const result = {};
+function countChars(str: string) {
+  const result: Record<string, number> = {};
   Array.from(str).forEach((char) => {
     const curVal = result[char];
     if (curVal) {
@@ -82,18 +82,18 @@ function scorePassword(analysis, scoringOptions) {
   return points;
 }
 
-export default function isStrongPassword(str, options = null) {
+export default function isStrongPassword(str, options: typeof defaultOptions | null = null) {
   assertString(str);
   const analysis = analyzePassword(str);
-  options = merge(options || {}, defaultOptions);
-  if (options.returnScore) {
-    return scorePassword(analysis, options);
+  const mergedOptions = merge(options || {}, defaultOptions) as typeof defaultOptions;
+  if (mergedOptions.returnScore) {
+    return scorePassword(analysis, mergedOptions);
   }
   return (
-    analysis.length >= options.minLength &&
-    analysis.lowercaseCount >= options.minLowercase &&
-    analysis.uppercaseCount >= options.minUppercase &&
-    analysis.numberCount >= options.minNumbers &&
-    analysis.symbolCount >= options.minSymbols
+    analysis.length >= mergedOptions.minLength &&
+    analysis.lowercaseCount >= mergedOptions.minLowercase &&
+    analysis.uppercaseCount >= mergedOptions.minUppercase &&
+    analysis.numberCount >= mergedOptions.minNumbers &&
+    analysis.symbolCount >= mergedOptions.minSymbols
   );
 }
