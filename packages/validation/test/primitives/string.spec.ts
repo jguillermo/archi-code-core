@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
-import { canBeString } from '../../primitives';
+import { canBeString } from '../../src/primitives';
 
 describe('canBeString', () => {
   it.each([

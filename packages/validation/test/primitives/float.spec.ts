@@ -1,37 +1,47 @@
 import { describe, expect, it } from '@jest/globals';
-import { canBeInteger } from '../../primitives';
+import { canBeFloat } from '../../src/primitives';
 
-describe('canBeInteger', () => {
+describe('canBeFloat', () => {
   it.each([
+    [123],
+    [-123],
     [0],
-    [42],
-    [-7],
-    [42.0],
-    [Number.MAX_SAFE_INTEGER],
-    [Number.MIN_SAFE_INTEGER],
-    ['42'],
-    ['-7'],
-    ['0'],
-    ['  10  '],
-  ])('returns true for integer: %p', (value) => {
-    expect(canBeInteger(value)).toBe(true);
+    [0.456],
+    [4e2],
+    [-1.2345e-2],
+    [0xff],
+    [0b111110111],
+    [0o543],
+    ['123'],
+    ['-123'],
+    ['   123   '],
+    ['0.456'],
+    ['4e2'],
+    ['0034'],
+    ['+123'],
+    [Number.MAX_VALUE],
+    [Number.MIN_VALUE],
+    [Number.EPSILON],
+  ])('returns true for numeric: %p', (value) => {
+    expect(canBeFloat(value)).toBe(true);
   });
 
   it.each([
-    [3.14],
-    [0.1],
-    [-0.5],
     [NaN],
     [Infinity],
     [-Infinity],
     [Number.POSITIVE_INFINITY],
     [Number.NEGATIVE_INFINITY],
-    ['3.14'],
-    ['abc'],
     [''],
     ['   '],
+    ['abc'],
+    ['123abc'],
     ['NaN'],
     ['Infinity'],
+    ['undefined'],
+    ['null'],
+    ['123.456.789'],
+    ['123,456'],
     [true],
     [false],
     [null],
@@ -40,6 +50,8 @@ describe('canBeInteger', () => {
     [[]],
     [[123]],
     [new Date()],
+    [{ value: 123 }],
+    [[1, 2, 3]],
     [() => 123],
     [Symbol('123')],
     [Symbol()],
@@ -55,7 +67,7 @@ describe('canBeInteger', () => {
     [new Error('data error')],
     [Promise.resolve('data promise')],
     [BigInt(42)],
-  ])('returns false for non-integer: %p', (value) => {
-    expect(canBeInteger(value)).toBe(false);
+  ])('returns false for non-numeric: %p', (value) => {
+    expect(canBeFloat(value)).toBe(false);
   });
 });

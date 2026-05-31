@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
-import { canBeBoolean } from '../../primitives';
+import { canBeBoolean } from '../../src/primitives';
 
 // All values that should be coercible to boolean
 const VALID = [

@@ -1,32 +1,26 @@
 import { describe, expect, it } from '@jest/globals';
-import { canBeFloat } from '../../primitives';
+import { canBeJson } from '../../src/primitives';
 
-describe('canBeFloat', () => {
-  it.each([
-    [123],
-    [-123],
-    [0],
-    [0.456],
-    [4e2],
-    [-1.2345e-2],
-    [0xff],
-    [0b111110111],
-    [0o543],
-    ['123'],
-    ['-123'],
-    ['   123   '],
-    ['0.456'],
-    ['4e2'],
-    ['0034'],
-    ['+123'],
-    [Number.MAX_VALUE],
-    [Number.MIN_VALUE],
-    [Number.EPSILON],
-  ])('returns true for numeric: %p', (value) => {
-    expect(canBeFloat(value)).toBe(true);
+describe('canBeJson', () => {
+  it.each([[{ name: 'John', age: 30 }], ['{"name": "John", "age": 30}']])(
+    'returns true for valid JSON object: %p',
+    (value) => {
+      expect(canBeJson(value)).toBe(true);
+    },
+  );
+
+  it('returns false for object with throwing toJSON', () => {
+    expect(
+      canBeJson({
+        toJSON: () => {
+          throw new Error('Invalid JSON');
+        },
+      }),
+    ).toBe(false);
   });
 
   it.each([
+    ['not an object'],
     [NaN],
     [Infinity],
     [-Infinity],
@@ -50,7 +44,6 @@ describe('canBeFloat', () => {
     [[]],
     [[123]],
     [new Date()],
-    [{ value: 123 }],
     [[1, 2, 3]],
     [() => 123],
     [Symbol('123')],
@@ -67,7 +60,13 @@ describe('canBeFloat', () => {
     [new Error('data error')],
     [Promise.resolve('data promise')],
     [BigInt(42)],
-  ])('returns false for non-numeric: %p', (value) => {
-    expect(canBeFloat(value)).toBe(false);
+    // JSON arrays and primitives are NOT valid — must be a non-empty object
+    ['[1,2,3]'],
+    ['42'],
+    ['"hello"'],
+    // empty object string
+    ['{}'],
+  ])('returns false for invalid JSON: %p', (value) => {
+    expect(canBeJson(value)).toBe(false);
   });
 });

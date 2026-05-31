@@ -3,8 +3,8 @@
  * Prevent any breaking of functionality
  */
 import assert from 'assert';
-import typeOf from '../../validators/util/typeOf';
-import assertString from '../../validators/util/assertString';
+import typeOf from '../../src/validators/util/typeOf';
+import assertString from '../../src/validators/util/assertString';
 
 describe('Util', () => {
   it('should validate different typeOf', () => {

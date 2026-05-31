@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
-import { toBoolean, ConvertError } from '../../convert';
+import { toBoolean, ConvertError } from '../../src/convert';
 
 function expectConvertError(fn: () => void, expectedMessage: string): void {
   let err: unknown;

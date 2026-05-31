@@ -48,13 +48,14 @@
       "json",
       "ts"
     ],
-    "rootDir": "src",
-    "testRegex": "^(?!.*clientSide).*\\.spec\\.ts$",
+    "rootDir": ".",
+    "roots": ["<rootDir>/test"],
+    "testRegex": "\\.spec\\.ts$",
     "transform": {
       "^.+\\.ts$": ["ts-jest", { "diagnostics": false, "tsconfig": { "esModuleInterop": true } }]
     },
     "collectCoverageFrom": [
-      "**/*.(t|j)s"
+      "src/**/*.(t|j)s"
     ],
     "coverageDirectory": "./../coverage",
     "testEnvironment": "node",

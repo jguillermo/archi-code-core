@@ -1,6 +1,6 @@
 import { format } from 'util';
 import test from '../testFunctions';
-import validator from '../../../validators';
+import validator from '../../../src/validators';
 
 describe('isBase64', () => {
   it('should validate base64 strings with default options', () => {

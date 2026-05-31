@@ -1,4 +1,4 @@
-import isBefore from '../../../validators/isBefore';
+import isBefore from '../../../src/validators/isBefore';
 
 describe('isBefore', () => {
   describe('new syntax (comparisonDate option)', () => {

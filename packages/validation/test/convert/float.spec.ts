@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
-import { toFloat, ConvertError } from '../../convert';
+import { toFloat, ConvertError } from '../../src/convert';
 
 function expectConvertError(fn: () => void, expectedMessage: string): void {
   let err: unknown;

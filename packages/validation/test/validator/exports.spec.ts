@@ -1,12 +1,12 @@
 import assert from 'assert';
-import validator from '../../validators';
-import { locales as isPostalCodeLocales } from '../../validators/isPostalCode';
-import { locales as isAlphaLocales } from '../../validators/isAlpha';
-import { locales as isAlphanumericLocales } from '../../validators/isAlphanumeric';
-import { locales as isMobilePhoneLocales } from '../../validators/isMobilePhone';
-import { locales as isFloatLocales } from '../../validators/isFloat';
-import { locales as ibanCountryCodes } from '../../validators/isIBAN';
-import { locales as passportNumberLocales } from '../../validators/isPassportNumber';
+import validator from '../../src/validators';
+import { locales as isPostalCodeLocales } from '../../src/validators/isPostalCode';
+import { locales as isAlphaLocales } from '../../src/validators/isAlpha';
+import { locales as isAlphanumericLocales } from '../../src/validators/isAlphanumeric';
+import { locales as isMobilePhoneLocales } from '../../src/validators/isMobilePhone';
+import { locales as isFloatLocales } from '../../src/validators/isFloat';
+import { locales as ibanCountryCodes } from '../../src/validators/isIBAN';
+import { locales as passportNumberLocales } from '../../src/validators/isPassportNumber';
 
 describe('Exports', () => {
   it("should export isPassportNumbers's supported locales", () => {
