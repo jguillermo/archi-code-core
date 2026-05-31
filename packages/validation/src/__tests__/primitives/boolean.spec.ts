@@ -72,6 +72,9 @@ const INVALID = [
   new Map([[1, 2]]),
   new Set(),
   new Set([1, 2, 3]),
+  new WeakMap(),
+  new WeakSet(),
+  BigInt(42),
 ];
 
 describe('canBeBoolean', () => {

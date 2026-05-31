@@ -34,10 +34,28 @@ describe('canBeEnum', () => {
   });
 
   describe('non-convertible types', () => {
-    it.each([[null], [undefined], [{}], [[]], [new Date()], [Symbol('x')]])(
-      'returns false for %p',
-      (value) => expect(canBeEnum(value, COLORS)).toBe(false),
-    );
+    it.each([
+      [null],
+      [undefined],
+      [{}],
+      [[]],
+      [new Date()],
+      [Symbol('x')],
+      [Symbol()],
+      [() => 123],
+      [new Function('return 123')],
+      [new Map()],
+      [new Map([['key', 'value']])],
+      [new Set()],
+      [new Set([1, 2, 3])],
+      [new WeakMap()],
+      [new WeakSet()],
+      [/test/],
+      [new RegExp('test')],
+      [new Error('data error')],
+      [Promise.resolve('data promise')],
+      [BigInt(42)],
+    ])('returns false for %p', (value) => expect(canBeEnum(value, COLORS)).toBe(false));
   });
 
   describe('empty options list', () => {

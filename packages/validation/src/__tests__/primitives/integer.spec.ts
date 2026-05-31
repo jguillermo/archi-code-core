@@ -42,6 +42,19 @@ describe('canBeInteger', () => {
     [new Date()],
     [() => 123],
     [Symbol('123')],
+    [Symbol()],
+    [new Function('return 123')],
+    [new Map()],
+    [new Map([['key', 'value']])],
+    [new Set()],
+    [new Set([1, 2, 3])],
+    [new WeakMap()],
+    [new WeakSet()],
+    [/test/],
+    [new RegExp('test')],
+    [new Error('data error')],
+    [Promise.resolve('data promise')],
+    [BigInt(42)],
   ])('returns false for non-integer: %p', (value) => {
     expect(canBeInteger(value)).toBe(false);
   });
