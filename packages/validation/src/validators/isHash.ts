@@ -1,4 +1,4 @@
-import assertString from './util/assertString';
+import coerceToString from './util/coerceToString';
 
 const lengths = {
   md5: 32,
@@ -17,7 +17,9 @@ const lengths = {
 };
 
 export default function isHash(str, algorithm) {
-  assertString(str);
+  const s = coerceToString(str);
+  if (s === false) return false;
+  str = s;
   const hash = new RegExp(`^[a-fA-F0-9]{${lengths[algorithm]}}$`);
   return hash.test(str);
 }

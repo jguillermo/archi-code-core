@@ -1,4 +1,4 @@
-import assertString from './util/assertString';
+import coerceToString from './util/coerceToString';
 import multilineRegexp from './util/multilineRegex';
 
 /**
@@ -17,7 +17,9 @@ const semanticVersioningRegex = multilineRegexp(
 );
 
 export default function isSemVer(str) {
-  assertString(str);
+  const s = coerceToString(str);
+  if (s === false) return false;
+  str = s;
 
   return semanticVersioningRegex.test(str);
 }

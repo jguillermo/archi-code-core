@@ -1,10 +1,12 @@
-import assertString from './util/assertString';
+import coerceToString from './util/coerceToString';
 import includes from './util/includesArray';
 import isInt from './isInt';
 
 const validators = {
   PL: (str) => {
-    assertString(str);
+    const s = coerceToString(str);
+  if (s === false) return false;
+  str = s;
 
     const weightOfDigits = {
       1: 1,
@@ -38,7 +40,9 @@ const validators = {
     return false;
   },
   ES: (str) => {
-    assertString(str);
+    const s = coerceToString(str);
+  if (s === false) return false;
+  str = s;
 
     const DNI = /^[0-9X-Z][0-9]{7}[TRWAGMYFPDXBNJZSQVHLCKE]$/;
 
@@ -89,7 +93,9 @@ const validators = {
   },
   FI: (str) => {
     // https://dvv.fi/en/personal-identity-code#:~:text=control%20character%20for%20a-,personal,-identity%20code%20calculated
-    assertString(str);
+    const s = coerceToString(str);
+  if (s === false) return false;
+  str = s;
 
     if (str.length !== 11) {
       return false;
@@ -492,7 +498,9 @@ const validators = {
 };
 
 export default function isIdentityCard(str, locale) {
-  assertString(str);
+  const s = coerceToString(str);
+  if (s === false) return false;
+  str = s;
   if (locale in validators) {
     return validators[locale](str);
   }

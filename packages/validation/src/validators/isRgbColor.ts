@@ -1,4 +1,4 @@
-import assertString from './util/assertString';
+import coerceToString from './util/coerceToString';
 
 const rgbColor =
   /^rgb\((([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5]),){2}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\)$/;
@@ -9,7 +9,9 @@ const rgbaColorPercent = /^rgba\((([0-9]%|[1-9][0-9]%|100%),){3}(0?\.\d\d?|1(\.0
 const startsWithRgb = /^rgba?/;
 
 export default function isRgbColor(str, options) {
-  assertString(str);
+  const s = coerceToString(str);
+  if (s === false) return false;
+  str = s;
   // default options to true for percent and false for spaces
   let allowSpaces = false;
   let includePercentValues = true;

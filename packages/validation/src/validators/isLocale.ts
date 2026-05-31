@@ -1,4 +1,4 @@
-import assertString from './util/assertString';
+import coerceToString from './util/coerceToString';
 
 /*
   = 3ALPHA              ; selected ISO 639 codes
@@ -108,6 +108,8 @@ const langtag = `${language}(${delimiter}${script})?(${delimiter}${region})?(${d
 const languageTagRegex = new RegExp(`(^${privateuse}$)|(^${grandfathered}$)|(^${langtag}$)`);
 
 export default function isLocale(str) {
-  assertString(str);
+  const s = coerceToString(str);
+  if (s === false) return false;
+  str = s;
   return languageTagRegex.test(str);
 }

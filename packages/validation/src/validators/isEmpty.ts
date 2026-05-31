@@ -1,4 +1,4 @@
-import assertString from './util/assertString';
+import coerceToString from './util/coerceToString';
 import merge from './util/merge';
 
 const default_is_empty_options = {
@@ -6,7 +6,9 @@ const default_is_empty_options = {
 };
 
 export default function isEmpty(str, options) {
-  assertString(str);
+  const s = coerceToString(str);
+  if (s === false) return false;
+  str = s;
   options = merge(options, default_is_empty_options);
 
   return (options.ignore_whitespace ? str.trim().length : str.length) === 0;

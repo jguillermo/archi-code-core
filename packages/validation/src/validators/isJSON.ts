@@ -1,4 +1,4 @@
-import assertString from './util/assertString';
+import coerceToString from './util/coerceToString';
 import includes from './util/includesArray';
 import merge from './util/merge';
 
@@ -8,7 +8,9 @@ const default_json_options = {
 };
 
 export default function isJSON(str, options) {
-  assertString(str);
+  const s = coerceToString(str);
+  if (s === false) return false;
+  str = s;
   try {
     options = merge(options, default_json_options);
     const obj = JSON.parse(str);

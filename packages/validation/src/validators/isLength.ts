@@ -1,7 +1,9 @@
-import assertString from './util/assertString';
+import coerceToString from './util/coerceToString';
 
 export default function isLength(str, options) {
-  assertString(str);
+  const s = coerceToString(str);
+  if (s === false) return false;
+  str = s;
   let min;
   let max;
 

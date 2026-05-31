@@ -1,4 +1,4 @@
-import assertString from './util/assertString';
+import coerceToString from './util/coerceToString';
 import checkHost from './util/checkHost';
 import includes from './util/includesString';
 
@@ -52,8 +52,10 @@ const default_url_options = {
 
 const wrapped_ipv6 = /^\[([^\]]+)\](?::([0-9]+))?$/;
 
-export default function isURL(url, options) {
-  assertString(url);
+export default function isURL(url: unknown, options?) {
+  const s = coerceToString(url);
+  if (s === false) return false;
+  url = s;
   if (!url || /[\s<>]/.test(url)) {
     return false;
   }

@@ -1,4 +1,4 @@
-import assertString from './util/assertString';
+import coerceToString from './util/coerceToString';
 import includes from './util/includesArray';
 
 /**
@@ -179,7 +179,9 @@ function hasValidIbanChecksum(str) {
 }
 
 export default function isIBAN(str, options = {}) {
-  assertString(str);
+  const s = coerceToString(str);
+  if (s === false) return false;
+  str = s;
 
   return hasValidIbanFormat(str, options) && hasValidIbanChecksum(str);
 }

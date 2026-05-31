@@ -1,8 +1,10 @@
-import assertString from './util/assertString';
+import coerceToString from './util/coerceToString';
 import { alpha } from './alpha';
 
 export default function isAlpha(_str, locale = 'en-US', options: { ignore?: string | RegExp } = {}) {
-  assertString(_str);
+  const s = coerceToString(_str);
+  if (s === false) return false;
+  _str = s;
 
   let str = _str;
   const { ignore } = options;

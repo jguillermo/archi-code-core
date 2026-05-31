@@ -1,4 +1,4 @@
-import assertString from './util/assertString';
+import coerceToString from './util/coerceToString';
 
 const isin = /^[A-Z]{2}[0-9A-Z]{9}[0-9]$/;
 
@@ -10,7 +10,9 @@ const isin = /^[A-Z]{2}[0-9A-Z]{9}[0-9]$/;
 // the loop.
 
 export default function isISIN(str) {
-  assertString(str);
+  const s = coerceToString(str);
+  if (s === false) return false;
+  str = s;
   if (!isin.test(str)) {
     return false;
   }

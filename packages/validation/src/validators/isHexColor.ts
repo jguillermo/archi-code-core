@@ -1,4 +1,4 @@
-import assertString from './util/assertString';
+import coerceToString from './util/coerceToString';
 import merge from './util/merge';
 
 const hexcolor = /^#?([0-9A-F]{3}|[0-9A-F]{4}|[0-9A-F]{6}|[0-9A-F]{8})$/i;
@@ -9,7 +9,9 @@ const default_is_hexcolor_options = {
 };
 
 export default function isHexColor(str, options) {
-  assertString(str);
+  const s = coerceToString(str);
+  if (s === false) return false;
+  str = s;
   options = merge(options, default_is_hexcolor_options);
 
   const hexcolor_regex = options.require_hashtag ? hexcolor_with_prefix : hexcolor;

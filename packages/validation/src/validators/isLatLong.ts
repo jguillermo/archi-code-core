@@ -1,4 +1,4 @@
-import assertString from './util/assertString';
+import coerceToString from './util/coerceToString';
 import merge from './util/merge';
 import includes from './util/includesString';
 
@@ -14,7 +14,9 @@ const defaultLatLongOptions = {
 };
 
 export default function isLatLong(str, options) {
-  assertString(str);
+  const s = coerceToString(str);
+  if (s === false) return false;
+  str = s;
   options = merge(options, defaultLatLongOptions);
 
   if (!includes(str, ',')) return false;

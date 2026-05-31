@@ -1,4 +1,4 @@
-import assertString from './util/assertString';
+import coerceToString from './util/coerceToString';
 
 const phones = {
   'am-AM': /^(\+?374|0)(33|4[134]|55|77|88|9[13-689])\d{6}$/,
@@ -180,7 +180,9 @@ phones['fr-CH'] = phones['de-CH'];
 phones['it-CH'] = phones['fr-CH'];
 
 export default function isMobilePhone(str, locale, options) {
-  assertString(str);
+  const s = coerceToString(str);
+  if (s === false) return false;
+  str = s;
   if (options && options.strictMode && !str.startsWith('+')) {
     return false;
   }

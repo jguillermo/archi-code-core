@@ -1,4 +1,4 @@
-import assertString from './util/assertString';
+import coerceToString from './util/coerceToString';
 
 // from https://www.unicode.org/iso15924/iso15924-codes.html
 const validISO15924Codes = new Set([
@@ -276,7 +276,9 @@ const validISO15924Codes = new Set([
 ]);
 
 export default function isISO15924(str) {
-  assertString(str);
+  const s = coerceToString(str);
+  if (s === false) return false;
+  str = s;
   return validISO15924Codes.has(str);
 }
 

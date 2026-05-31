@@ -1,4 +1,4 @@
-import assertString from './util/assertString';
+import coerceToString from './util/coerceToString';
 
 const macAddress48 = /^(?:[0-9a-fA-F]{2}([-:\s]))([0-9a-fA-F]{2}\1){4}([0-9a-fA-F]{2})$/;
 const macAddress48NoSeparators = /^([0-9a-fA-F]){12}$/;
@@ -8,7 +8,9 @@ const macAddress64NoSeparators = /^([0-9a-fA-F]){16}$/;
 const macAddress64WithDots = /^([0-9a-fA-F]{4}\.){3}([0-9a-fA-F]{4})$/;
 
 export default function isMACAddress(str, options) {
-  assertString(str);
+  const s = coerceToString(str);
+  if (s === false) return false;
+  str = s;
   if (options?.eui) {
     options.eui = String(options.eui);
   }

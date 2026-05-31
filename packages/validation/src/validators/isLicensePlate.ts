@@ -1,4 +1,4 @@
-import assertString from './util/assertString';
+import coerceToString from './util/coerceToString';
 
 const validators = {
   'cs-CZ': (str) => /^(([ABCDEFHIJKLMNPRSTUVXYZ]|[0-9])-?){5,8}$/.test(str),
@@ -31,7 +31,9 @@ const validators = {
 };
 
 export default function isLicensePlate(str, locale) {
-  assertString(str);
+  const s = coerceToString(str);
+  if (s === false) return false;
+  str = s;
   if (locale in validators) {
     return validators[locale](str);
   }

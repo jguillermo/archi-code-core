@@ -1,4 +1,4 @@
-import assertString from './util/assertString';
+import coerceToString from './util/coerceToString';
 
 // from https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2
 const validISO31661Alpha2CountriesCodes = new Set([
@@ -256,7 +256,9 @@ const validISO31661Alpha2CountriesCodes = new Set([
 const alpha2CountryCode = /^[a-zA-Z]{2}$/;
 
 export default function isISO31661Alpha2(str, options: { userAssignedCodes?: string[] } = {}) {
-  assertString(str);
+  const s = coerceToString(str);
+  if (s === false) return false;
+  str = s;
 
   const { userAssignedCodes } = options;
   const validUserAssignedCodes = (userAssignedCodes || []).reduce<string[]>(

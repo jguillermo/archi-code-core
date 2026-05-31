@@ -1,10 +1,12 @@
-import assertString from './util/assertString';
+import coerceToString from './util/coerceToString';
 
 const imeiRegexWithoutHyphens = /^[0-9]{15}$/;
 const imeiRegexWithHyphens = /^\d{2}-\d{6}-\d{6}-\d{1}$/;
 
 export default function isIMEI(str, options) {
-  assertString(str);
+  const s = coerceToString(str);
+  if (s === false) return false;
+  str = s;
   options = options || {};
 
   // default regex for checking imei is the one without hyphens

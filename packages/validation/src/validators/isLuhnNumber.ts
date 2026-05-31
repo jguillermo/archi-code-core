@@ -1,7 +1,9 @@
-import assertString from './util/assertString';
+import coerceToString from './util/coerceToString';
 
 export default function isLuhnNumber(str) {
-  assertString(str);
+  const s = coerceToString(str);
+  if (s === false) return false;
+  str = s;
   const sanitized = str.replace(/[- ]+/g, '');
   let sum = 0;
   let digit;

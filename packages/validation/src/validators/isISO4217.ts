@@ -1,4 +1,4 @@
-import assertString from './util/assertString';
+import coerceToString from './util/coerceToString';
 
 // from https://en.wikipedia.org/wiki/ISO_4217
 const validISO4217CurrencyCodes = new Set([
@@ -184,7 +184,9 @@ const validISO4217CurrencyCodes = new Set([
 ]);
 
 export default function isISO4217(str) {
-  assertString(str);
+  const s = coerceToString(str);
+  if (s === false) return false;
+  str = s;
   return validISO4217CurrencyCodes.has(str.toUpperCase());
 }
 

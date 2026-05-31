@@ -1,4 +1,4 @@
-import assertString from './util/assertString';
+import coerceToString from './util/coerceToString';
 import merge from './util/merge';
 
 const default_fqdn_options = {
@@ -11,7 +11,9 @@ const default_fqdn_options = {
 };
 
 export default function isFQDN(str, options) {
-  assertString(str);
+  const s = coerceToString(str);
+  if (s === false) return false;
+  str = s;
   options = merge(options, default_fqdn_options);
 
   /* Remove the optional trailing dot before checking validity */

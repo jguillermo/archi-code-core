@@ -1,11 +1,13 @@
-import assertString from './util/assertString';
+import coerceToString from './util/coerceToString';
 
 const possibleIsbn10 = /^(?:[0-9]{9}X|[0-9]{10})$/;
 const possibleIsbn13 = /^(?:[0-9]{13})$/;
 const factor = [1, 3];
 
 export default function isISBN(isbn, options) {
-  assertString(isbn);
+  const s = coerceToString(isbn);
+  if (s === false) return false;
+  isbn = s;
 
   // For backwards compatibility:
   // isISBN(str [, version]), i.e. `options` could be used as argument for the legacy `version`

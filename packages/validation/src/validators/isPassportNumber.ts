@@ -1,4 +1,4 @@
-import assertString from './util/assertString';
+import coerceToString from './util/coerceToString';
 
 /**
  * Reference:
@@ -80,7 +80,9 @@ export const locales = Object.keys(passportRegexByCountryCode);
  * @return {boolean}
  */
 export default function isPassportNumber(str, countryCode) {
-  assertString(str);
+  const s = coerceToString(str);
+  if (s === false) return false;
+  str = s;
   /** Remove All Whitespaces, Convert to UPPERCASE */
   const normalizedStr = str.replace(/\s/g, '').toUpperCase();
 

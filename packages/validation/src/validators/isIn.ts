@@ -1,8 +1,10 @@
-import assertString from './util/assertString';
+import coerceToString from './util/coerceToString';
 import toString from './util/toString';
 
 export default function isIn(str, options) {
-  assertString(str);
+  const s = coerceToString(str);
+  if (s === false) return false;
+  str = s;
   let i;
   if (Object.prototype.toString.call(options) === '[object Array]') {
     const array: string[] = [];

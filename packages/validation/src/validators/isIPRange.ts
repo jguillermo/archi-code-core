@@ -1,4 +1,4 @@
-import assertString from './util/assertString';
+import coerceToString from './util/coerceToString';
 import isIP from './isIP';
 
 const subnetMaybe = /^\d{1,3}$/;
@@ -6,7 +6,9 @@ const v4Subnet = 32;
 const v6Subnet = 128;
 
 export default function isIPRange(str, version = '') {
-  assertString(str);
+  const s = coerceToString(str);
+  if (s === false) return false;
+  str = s;
   const parts = str.split('/');
 
   // parts[0] -> ip, parts[1] -> subnet

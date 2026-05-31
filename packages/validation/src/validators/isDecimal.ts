@@ -1,5 +1,5 @@
 import merge from './util/merge';
-import assertString from './util/assertString';
+import coerceToString from './util/coerceToString';
 import includes from './util/includesArray';
 import { decimal } from './alpha';
 
@@ -19,7 +19,9 @@ const default_decimal_options = {
 const blacklist = ['', '-', '+'];
 
 export default function isDecimal(str, options) {
-  assertString(str);
+  const s = coerceToString(str);
+  if (s === false) return false;
+  str = s;
   options = merge(options, default_decimal_options);
   if (options.locale in decimal) {
     return !includes(blacklist, str.replace(/ /g, '')) && decimalRegExp(options).test(str);

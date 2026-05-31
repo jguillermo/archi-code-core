@@ -1,4 +1,4 @@
-import assertString from './util/assertString';
+import coerceToString from './util/coerceToString';
 
 const isISO6391Set = new Set([
   'aa',
@@ -189,6 +189,8 @@ const isISO6391Set = new Set([
 ]);
 
 export default function isISO6391(str) {
-  assertString(str);
+  const s = coerceToString(str);
+  if (s === false) return false;
+  str = s;
   return isISO6391Set.has(str);
 }

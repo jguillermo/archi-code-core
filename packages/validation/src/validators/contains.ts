@@ -1,4 +1,4 @@
-import assertString from './util/assertString';
+import coerceToString from './util/coerceToString';
 import toString from './util/toString';
 import merge from './util/merge';
 
@@ -8,7 +8,9 @@ const defaultContainsOptions = {
 };
 
 export default function contains(str, elem, options) {
-  assertString(str);
+  const s = coerceToString(str);
+  if (s === false) return false;
+  str = s;
   options = merge(options, defaultContainsOptions);
 
   if (options.ignoreCase) {

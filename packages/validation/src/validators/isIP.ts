@@ -1,4 +1,4 @@
-import assertString from './util/assertString';
+import coerceToString from './util/coerceToString';
 /**
 11.3.  Examples
 
@@ -47,7 +47,9 @@ const IPv6AddressRegExp = new RegExp(
 );
 
 export default function isIP(ipAddress, options: { version?: number | string } | number | string = {}) {
-  assertString(ipAddress);
+  const s = coerceToString(ipAddress);
+  if (s === false) return false;
+  ipAddress = s;
 
   // accessing 'arguments' for backwards compatibility: isIP(ipAddress [, version])
 

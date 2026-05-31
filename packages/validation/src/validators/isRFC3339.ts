@@ -1,4 +1,4 @@
-import assertString from './util/assertString';
+import coerceToString from './util/coerceToString';
 
 /* Based on https://tools.ietf.org/html/rfc3339#section-5.6 */
 
@@ -24,6 +24,8 @@ const fullTime = new RegExp(`${partialTime.source}${timeOffset.source}`);
 const rfc3339 = new RegExp(`^${fullDate.source}[ tT]${fullTime.source}$`);
 
 export default function isRFC3339(str) {
-  assertString(str);
+  const s = coerceToString(str);
+  if (s === false) return false;
+  str = s;
   return rfc3339.test(str);
 }

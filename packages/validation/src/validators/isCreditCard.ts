@@ -1,4 +1,4 @@
-import assertString from './util/assertString';
+import coerceToString from './util/coerceToString';
 import isLuhnValid from './isLuhnNumber';
 
 const cards = {
@@ -23,7 +23,9 @@ const allCards = (() => {
 })();
 
 export default function isCreditCard(card, options: { provider?: string } = {}) {
-  assertString(card);
+  const s = coerceToString(card);
+  if (s === false) return false;
+  card = s;
   const { provider } = options;
   const sanitized = card.replace(/[- ]+/g, '');
   if (provider && provider.toLowerCase() in cards) {
