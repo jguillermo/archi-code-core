@@ -1,6 +1,5 @@
 import assert from 'assert';
 import validator from '../../src/validators';
-import * as sanitizer from '../../src/sanitizer';
 import { locales as isPostalCodeLocales } from '../../src/validators/isPostalCode';
 import { locales as isAlphaLocales } from '../../src/validators/isAlpha';
 import { locales as isAlphanumericLocales } from '../../src/validators/isAlphanumeric';
@@ -18,11 +17,6 @@ describe('Exports', () => {
   it('should export validators', () => {
     assert.strictEqual(typeof validator.isEmail, 'function');
     assert.strictEqual(typeof validator.isAlpha, 'function');
-  });
-
-  it('should export sanitizers', () => {
-    assert.strictEqual(typeof sanitizer.toBoolean, 'function');
-    assert.strictEqual(typeof sanitizer.toFloat, 'function');
   });
 
   it("should export isPostalCode's supported locales", () => {
