@@ -1,5 +1,15 @@
 import { describe, expect, it } from '@jest/globals';
-import { ConvertError, toString, toInteger, toFloat, toBoolean, toDate, toJson, toArray, toEnum } from '../../src/convert';
+import {
+  ConvertError,
+  toString,
+  toInteger,
+  toFloat,
+  toBoolean,
+  toDate,
+  toJson,
+  toArray,
+  toEnum,
+} from '../../src/convert';
 
 function expectConvertError(fn: () => void, expectedMessage: string): void {
   let err: unknown;
@@ -14,14 +24,21 @@ function expectConvertError(fn: () => void, expectedMessage: string): void {
 
 describe('ConvertError class', () => {
   it('is an instance of Error', () => expect(new ConvertError('x')).toBeInstanceOf(Error));
-  it('is an instance of ConvertError', () => expect(new ConvertError('x')).toBeInstanceOf(ConvertError));
+  it('is an instance of ConvertError', () =>
+    expect(new ConvertError('x')).toBeInstanceOf(ConvertError));
   it('name is "ConvertError"', () => expect(new ConvertError('x').name).toBe('ConvertError'));
-  it('message is stored correctly', () => expect(new ConvertError('hello world').message).toBe('hello world'));
+  it('message is stored correctly', () =>
+    expect(new ConvertError('hello world').message).toBe('hello world'));
   it('has a stack trace', () => expect(new ConvertError('x').stack).toBeDefined());
-  it('stack includes "ConvertError"', () => expect(new ConvertError('x').stack).toContain('ConvertError'));
+  it('stack includes "ConvertError"', () =>
+    expect(new ConvertError('x').stack).toContain('ConvertError'));
   it('can be caught as Error', () => {
     let caught: unknown;
-    try { toInteger('abc'); } catch (e) { caught = e; }
+    try {
+      toInteger('abc');
+    } catch (e) {
+      caught = e;
+    }
     expect(caught).toBeInstanceOf(Error);
     expect(caught).toBeInstanceOf(ConvertError);
   });

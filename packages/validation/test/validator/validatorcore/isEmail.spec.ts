@@ -257,7 +257,7 @@ describe('Validators', () => {
         'email@gmail.com',
         '"foobr"@example.com',
         '" foo m端ller "@example.com',
-        '"foo\@br"@example.com',
+        '"foo@br"@example.com',
       ],
     });
   });

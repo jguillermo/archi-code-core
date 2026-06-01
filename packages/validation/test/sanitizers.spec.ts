@@ -2,7 +2,10 @@ import { format } from 'util';
 import validatorObj from '../src/validators';
 import * as sanitizer from '../src/sanitizer';
 
-const api = { ...sanitizer, isStrongPassword: validatorObj.isStrongPassword } as Record<string, (...a: unknown[]) => unknown>;
+const api = { ...sanitizer, isStrongPassword: validatorObj.isStrongPassword } as Record<
+  string,
+  (...a: unknown[]) => unknown
+>;
 
 function test(options) {
   const args = options.args || [];
@@ -13,7 +16,12 @@ function test(options) {
     args[0] = input;
     const result = api[options.sanitizer](...args);
     const expected = options.expect[input];
-    if (typeof result === 'number' && isNaN(result as number) && typeof expected === 'number' && isNaN(expected)) {
+    if (
+      typeof result === 'number' &&
+      isNaN(result as number) &&
+      typeof expected === 'number' &&
+      isNaN(expected)
+    ) {
       return;
     }
 
@@ -89,7 +97,6 @@ describe('Sanitizers', () => {
       expect: { '01010020100001\\S': '01010020100001' },
     });
   });
-
 
   it('should escape HTML', () => {
     test({

@@ -20,8 +20,10 @@ describe('toInteger', () => {
     it('42 → 42', () => expect(toInteger(42)).toBe(42));
     it('-7 → -7', () => expect(toInteger(-7)).toBe(-7));
     it('1.0 → 1 (integer-valued float)', () => expect(toInteger(1.0)).toBe(1));
-    it('Number.MAX_SAFE_INTEGER → same', () => expect(toInteger(Number.MAX_SAFE_INTEGER)).toBe(9007199254740991));
-    it('Number.MIN_SAFE_INTEGER → same', () => expect(toInteger(Number.MIN_SAFE_INTEGER)).toBe(-9007199254740991));
+    it('Number.MAX_SAFE_INTEGER → same', () =>
+      expect(toInteger(Number.MAX_SAFE_INTEGER)).toBe(9007199254740991));
+    it('Number.MIN_SAFE_INTEGER → same', () =>
+      expect(toInteger(Number.MIN_SAFE_INTEGER)).toBe(-9007199254740991));
   });
 
   describe('string → parsed integer', () => {
@@ -30,7 +32,8 @@ describe('toInteger', () => {
     it('"0" → 0', () => expect(toInteger('0')).toBe(0));
     it('"  10  " → 10 (trimmed)', () => expect(toInteger('  10  ')).toBe(10));
     it('"007" → 7 (decimal, not octal)', () => expect(toInteger('007')).toBe(7));
-    it('"-0" → -0 (parseInt preserves -0)', () => expect(Object.is(toInteger('-0'), -0)).toBe(true));
+    it('"-0" → -0 (parseInt preserves -0)', () =>
+      expect(Object.is(toInteger('-0'), -0)).toBe(true));
   });
 
   // ─── error cases ──────────────────────────────────────────────────────────
@@ -98,7 +101,10 @@ describe('toInteger', () => {
     it('arrow fn → "Cannot convert [Function] to integer"', () =>
       expectConvertError(() => toInteger(() => 42), 'Cannot convert [Function] to integer'));
     it('named fn → "Cannot convert [Function: foo] to integer"', () =>
-      expectConvertError(() => toInteger(function foo() {}), 'Cannot convert [Function: foo] to integer'));
+      expectConvertError(
+        () => toInteger(function foo() {}),
+        'Cannot convert [Function: foo] to integer',
+      ));
     it('async fn → "Cannot convert [Function] to integer"', () =>
       expectConvertError(() => toInteger(async () => 42), 'Cannot convert [Function] to integer'));
   });
@@ -125,9 +131,15 @@ describe('toInteger', () => {
     it('new Date() → "Cannot convert [Date] to integer"', () =>
       expectConvertError(() => toInteger(new Date()), 'Cannot convert [Date] to integer'));
     it('new Promise(() => {}) → "Cannot convert [Promise] to integer"', () =>
-      expectConvertError(() => toInteger(new Promise(() => {})), 'Cannot convert [Promise] to integer'));
+      expectConvertError(
+        () => toInteger(new Promise(() => {})),
+        'Cannot convert [Promise] to integer',
+      ));
     it('new Uint8Array() → "Cannot convert [Uint8Array] to integer"', () =>
-      expectConvertError(() => toInteger(new Uint8Array()), 'Cannot convert [Uint8Array] to integer'));
+      expectConvertError(
+        () => toInteger(new Uint8Array()),
+        'Cannot convert [Uint8Array] to integer',
+      ));
     it('new Error("x") → "Cannot convert [Error] to integer"', () =>
       expectConvertError(() => toInteger(new Error('x')), 'Cannot convert [Error] to integer'));
   });

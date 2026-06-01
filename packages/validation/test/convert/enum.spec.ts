@@ -53,7 +53,10 @@ describe('toEnum', () => {
     it('{} → "Cannot convert {} to enum"  (NOT "object")', () =>
       expectConvertError(() => toEnum({}, COLORS), 'Cannot convert {} to enum'));
     it('{ color: "red" } → \'Cannot convert {"color":"red"} to enum\'', () =>
-      expectConvertError(() => toEnum({ color: 'red' }, COLORS), 'Cannot convert {"color":"red"} to enum'));
+      expectConvertError(
+        () => toEnum({ color: 'red' }, COLORS),
+        'Cannot convert {"color":"red"} to enum',
+      ));
     it('[] → "Cannot convert [] to enum"', () =>
       expectConvertError(() => toEnum([], COLORS), 'Cannot convert [] to enum'));
     it('["red"] → "Cannot convert ["red"] to enum" (array ≠ string)', () =>
@@ -64,12 +67,18 @@ describe('toEnum', () => {
     it('arrow fn → "Cannot convert [Function] to enum"  (NOT "function")', () =>
       expectConvertError(() => toEnum(() => {}, COLORS), 'Cannot convert [Function] to enum'));
     it('named fn → "Cannot convert [Function: getColor] to enum"', () =>
-      expectConvertError(() => toEnum(function getColor() {}, COLORS), 'Cannot convert [Function: getColor] to enum'));
+      expectConvertError(
+        () => toEnum(function getColor() {}, COLORS),
+        'Cannot convert [Function: getColor] to enum',
+      ));
   });
 
   describe('Symbol — show Symbol(description)', () => {
     it('Symbol("red") → "Cannot convert Symbol(red) to enum"  (NOT "symbol")', () =>
-      expectConvertError(() => toEnum(Symbol('red'), COLORS), 'Cannot convert Symbol(red) to enum'));
+      expectConvertError(
+        () => toEnum(Symbol('red'), COLORS),
+        'Cannot convert Symbol(red) to enum',
+      ));
     it('Symbol() → "Cannot convert Symbol() to enum"', () =>
       expectConvertError(() => toEnum(Symbol(), COLORS), 'Cannot convert Symbol() to enum'));
   });
@@ -89,7 +98,10 @@ describe('toEnum', () => {
     it('new Date() → "Cannot convert [Date] to enum"', () =>
       expectConvertError(() => toEnum(new Date(), COLORS), 'Cannot convert [Date] to enum'));
     it('new Promise(() => {}) → "Cannot convert [Promise] to enum"', () =>
-      expectConvertError(() => toEnum(new Promise(() => {}), COLORS), 'Cannot convert [Promise] to enum'));
+      expectConvertError(
+        () => toEnum(new Promise(() => {}), COLORS),
+        'Cannot convert [Promise] to enum',
+      ));
     it('new Error("x") → "Cannot convert [Error] to enum"', () =>
       expectConvertError(() => toEnum(new Error('x'), COLORS), 'Cannot convert [Error] to enum'));
   });

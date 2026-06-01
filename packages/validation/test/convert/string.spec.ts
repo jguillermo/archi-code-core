@@ -20,7 +20,10 @@ describe('toString', () => {
     it('"hello" → "hello"', () => expect(toString('hello')).toBe('hello'));
     it('"  spaces  " → preserved', () => expect(toString('  spaces  ')).toBe('  spaces  '));
     it('unicode "héllo 🎉" → same', () => expect(toString('héllo 🎉')).toBe('héllo 🎉'));
-    it('10 000-char string → same', () => { const s = 'a'.repeat(10_000); expect(toString(s)).toBe(s); });
+    it('10 000-char string → same', () => {
+      const s = 'a'.repeat(10_000);
+      expect(toString(s)).toBe(s);
+    });
   });
 
   describe('boolean → string', () => {
@@ -34,7 +37,8 @@ describe('toString', () => {
     it('42 → "42"', () => expect(toString(42)).toBe('42'));
     it('3.14 → "3.14"', () => expect(toString(3.14)).toBe('3.14'));
     it('1e10 → "10000000000"', () => expect(toString(1e10)).toBe('10000000000'));
-    it('Number.MAX_SAFE_INTEGER → "9007199254740991"', () => expect(toString(Number.MAX_SAFE_INTEGER)).toBe('9007199254740991'));
+    it('Number.MAX_SAFE_INTEGER → "9007199254740991"', () =>
+      expect(toString(Number.MAX_SAFE_INTEGER)).toBe('9007199254740991'));
   });
 
   // ─── error cases ──────────────────────────────────────────────────────────
@@ -86,9 +90,18 @@ describe('toString', () => {
     it('async fn → "Cannot convert [Function] to string"', () =>
       expectConvertError(() => toString(async () => {}), 'Cannot convert [Function] to string'));
     it('generator fn → "Cannot convert [Function] to string"', () =>
-      expectConvertError(() => toString(function* () { yield 1; }), 'Cannot convert [Function] to string'));
+      expectConvertError(
+        () =>
+          toString(function* () {
+            yield 1;
+          }),
+        'Cannot convert [Function] to string',
+      ));
     it('named fn → "Cannot convert [Function: foo] to string"', () =>
-      expectConvertError(() => toString(function foo() {}), 'Cannot convert [Function: foo] to string'));
+      expectConvertError(
+        () => toString(function foo() {}),
+        'Cannot convert [Function: foo] to string',
+      ));
   });
 
   describe('Symbol — show Symbol(description)', () => {
@@ -97,7 +110,10 @@ describe('toString', () => {
     it('Symbol() → "Cannot convert Symbol() to string"', () =>
       expectConvertError(() => toString(Symbol()), 'Cannot convert Symbol() to string'));
     it('Symbol.for("key") → "Cannot convert Symbol(key) to string"', () =>
-      expectConvertError(() => toString(Symbol.for('key')), 'Cannot convert Symbol(key) to string'));
+      expectConvertError(
+        () => toString(Symbol.for('key')),
+        'Cannot convert Symbol(key) to string',
+      ));
   });
 
   describe('BigInt — show BigInt(n)', () => {
@@ -121,17 +137,28 @@ describe('toString', () => {
     it('new WeakSet() → "Cannot convert [WeakSet] to string"', () =>
       expectConvertError(() => toString(new WeakSet()), 'Cannot convert [WeakSet] to string'));
     it('new Date("2024-01-01") → "Cannot convert [Date] to string"', () =>
-      expectConvertError(() => toString(new Date('2024-01-01')), 'Cannot convert [Date] to string'));
+      expectConvertError(
+        () => toString(new Date('2024-01-01')),
+        'Cannot convert [Date] to string',
+      ));
     it('new Error("x") → "Cannot convert [Error] to string"', () =>
       expectConvertError(() => toString(new Error('x')), 'Cannot convert [Error] to string'));
     it('/abc/ → "Cannot convert /abc/ to string"  (regex literal)', () =>
       expectConvertError(() => toString(/abc/), 'Cannot convert /abc/ to string'));
     it('new Uint8Array() → "Cannot convert [Uint8Array] to string"', () =>
-      expectConvertError(() => toString(new Uint8Array()), 'Cannot convert [Uint8Array] to string'));
+      expectConvertError(
+        () => toString(new Uint8Array()),
+        'Cannot convert [Uint8Array] to string',
+      ));
     it('new Promise(() => {}) → "Cannot convert [Promise] to string"', () =>
-      expectConvertError(() => toString(new Promise(() => {})), 'Cannot convert [Promise] to string'));
+      expectConvertError(
+        () => toString(new Promise(() => {})),
+        'Cannot convert [Promise] to string',
+      ));
     it('generator object → "Cannot convert [Generator] to string"', () => {
-      function* gen() { yield 1; }
+      function* gen() {
+        yield 1;
+      }
       expectConvertError(() => toString(gen()), 'Cannot convert [Generator] to string');
     });
     it('circular object → "Cannot convert [Object] to string"', () => {

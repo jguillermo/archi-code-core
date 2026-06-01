@@ -94,7 +94,10 @@ describe('toFloat', () => {
     it('arrow fn → "Cannot convert [Function] to float"', () =>
       expectConvertError(() => toFloat(() => 3.14), 'Cannot convert [Function] to float'));
     it('named fn → "Cannot convert [Function: calc] to float"', () =>
-      expectConvertError(() => toFloat(function calc() {}), 'Cannot convert [Function: calc] to float'));
+      expectConvertError(
+        () => toFloat(function calc() {}),
+        'Cannot convert [Function: calc] to float',
+      ));
   });
 
   describe('Symbol — show Symbol(description)', () => {
@@ -119,7 +122,10 @@ describe('toFloat', () => {
     it('new Date() → "Cannot convert [Date] to float"', () =>
       expectConvertError(() => toFloat(new Date()), 'Cannot convert [Date] to float'));
     it('new Promise(() => {}) → "Cannot convert [Promise] to float"', () =>
-      expectConvertError(() => toFloat(new Promise(() => {})), 'Cannot convert [Promise] to float'));
+      expectConvertError(
+        () => toFloat(new Promise(() => {})),
+        'Cannot convert [Promise] to float',
+      ));
     it('new Uint8Array() → "Cannot convert [Uint8Array] to float"', () =>
       expectConvertError(() => toFloat(new Uint8Array()), 'Cannot convert [Uint8Array] to float'));
     it('new Error("x") → "Cannot convert [Error] to float"', () =>

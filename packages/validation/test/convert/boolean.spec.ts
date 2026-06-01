@@ -28,9 +28,11 @@ describe('toBoolean', () => {
 
   describe('string → boolean (case-insensitive, trims whitespace)', () => {
     it.each(['true', 'TRUE', 'True', 'tRuE', '  true  ', '1', '  1  '])('"%s" → true', (s) =>
-      expect(toBoolean(s)).toBe(true));
+      expect(toBoolean(s)).toBe(true),
+    );
     it.each(['false', 'FALSE', 'False', 'fAlSe', '  false  ', '0', '  0  '])('"%s" → false', (s) =>
-      expect(toBoolean(s)).toBe(false));
+      expect(toBoolean(s)).toBe(false),
+    );
   });
 
   // ─── error cases ──────────────────────────────────────────────────────────
@@ -101,7 +103,10 @@ describe('toBoolean', () => {
     it('async fn → "Cannot convert [Function] to boolean"', () =>
       expectConvertError(() => toBoolean(async () => {}), 'Cannot convert [Function] to boolean'));
     it('named fn → "Cannot convert [Function: foo] to boolean"', () =>
-      expectConvertError(() => toBoolean(function foo() {}), 'Cannot convert [Function: foo] to boolean'));
+      expectConvertError(
+        () => toBoolean(function foo() {}),
+        'Cannot convert [Function: foo] to boolean',
+      ));
   });
 
   describe('Symbol — show Symbol(description)  ⚠ currently says "undefined"', () => {
@@ -124,12 +129,18 @@ describe('toBoolean', () => {
     it('new Set() → "Cannot convert [Set] to boolean"  (NOT "{}")', () =>
       expectConvertError(() => toBoolean(new Set()), 'Cannot convert [Set] to boolean'));
     it('new Promise(() => {}) → "Cannot convert [Promise] to boolean"  (NOT "{}")', () =>
-      expectConvertError(() => toBoolean(new Promise(() => {})), 'Cannot convert [Promise] to boolean'));
+      expectConvertError(
+        () => toBoolean(new Promise(() => {})),
+        'Cannot convert [Promise] to boolean',
+      ));
     it('/regex/ → "Cannot convert /regex/ to boolean"  (NOT "{}")', () =>
       expectConvertError(() => toBoolean(/regex/), 'Cannot convert /regex/ to boolean'));
     it('new Error("x") → "Cannot convert [Error] to boolean"', () =>
       expectConvertError(() => toBoolean(new Error('x')), 'Cannot convert [Error] to boolean'));
     it('new Date("2024-01-01") → "Cannot convert [Date] to boolean"', () =>
-      expectConvertError(() => toBoolean(new Date('2024-01-01')), 'Cannot convert [Date] to boolean'));
+      expectConvertError(
+        () => toBoolean(new Date('2024-01-01')),
+        'Cannot convert [Date] to boolean',
+      ));
   });
 });

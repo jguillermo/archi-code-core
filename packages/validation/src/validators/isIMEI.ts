@@ -25,8 +25,8 @@ export default function isIMEI(str: unknown, options?: IsIMEIOptions): boolean {
   strVal = strVal.replace(/-/g, '');
 
   let sum = 0,
-    mul = 2,
-    l = 14;
+    mul = 2;
+  const l = 14;
 
   for (let i = 0; i < l; i++) {
     const digit = strVal.substring(l - i - 1, l - i);

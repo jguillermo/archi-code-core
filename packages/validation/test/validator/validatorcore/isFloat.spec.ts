@@ -214,8 +214,22 @@ describe('Validators', () => {
   });
 
   it('should correctly validate number inputs with min/max/lt/gt options', () => {
-    test({ validator: 'isFloat', args: [{ min: 1.0, max: 10.0 }], valid: [3.14, 1.0, 10.0], invalid: [0.5, 11.0] });
-    test({ validator: 'isFloat', args: [{ gt: 1.0, lt: 10.0 }], valid: [3.14, 1.5, 9.9], invalid: [1.0, 10.0] });
-    test({ validator: 'isFloat', args: [{ min: null, max: null, gt: null, lt: null }], valid: [3.14] });
+    test({
+      validator: 'isFloat',
+      args: [{ min: 1.0, max: 10.0 }],
+      valid: [3.14, 1.0, 10.0],
+      invalid: [0.5, 11.0],
+    });
+    test({
+      validator: 'isFloat',
+      args: [{ gt: 1.0, lt: 10.0 }],
+      valid: [3.14, 1.5, 9.9],
+      invalid: [1.0, 10.0],
+    });
+    test({
+      validator: 'isFloat',
+      args: [{ min: null, max: null, gt: null, lt: null }],
+      valid: [3.14],
+    });
   });
 });

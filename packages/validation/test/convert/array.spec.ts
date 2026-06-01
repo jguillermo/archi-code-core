@@ -34,10 +34,15 @@ describe('toArray', () => {
     it('"[1,2,3]" → [1,2,3]', () => expect(toArray('[1,2,3]')).toEqual([1, 2, 3]));
     it('"[]" → []', () => expect(toArray('[]')).toEqual([]));
     it('\'["a","b"]\' → ["a","b"]', () => expect(toArray('["a","b"]')).toEqual(['a', 'b']));
-    it('"[true,false]" → [true,false]', () => expect(toArray('[true,false]')).toEqual([true, false]));
+    it('"[true,false]" → [true,false]', () =>
+      expect(toArray('[true,false]')).toEqual([true, false]));
     it('"[null,null]" → [null,null]', () => expect(toArray('[null,null]')).toEqual([null, null]));
     it('\'[{"a":1}]\' → [{a:1}]', () => expect(toArray('[{"a":1}]')).toEqual([{ a: 1 }]));
-    it('"[[1,2],[3,4]]" → nested', () => expect(toArray('[[1,2],[3,4]]')).toEqual([[1, 2], [3, 4]]));
+    it('"[[1,2],[3,4]]" → nested', () =>
+      expect(toArray('[[1,2],[3,4]]')).toEqual([
+        [1, 2],
+        [3, 4],
+      ]));
   });
 
   // ─── error cases ──────────────────────────────────────────────────────────
@@ -95,7 +100,10 @@ describe('toArray', () => {
     it('arrow fn → "Cannot convert [Function] to array"', () =>
       expectConvertError(() => toArray(() => [1, 2]), 'Cannot convert [Function] to array'));
     it('named fn → "Cannot convert [Function: getItems] to array"', () =>
-      expectConvertError(() => toArray(function getItems() {}), 'Cannot convert [Function: getItems] to array'));
+      expectConvertError(
+        () => toArray(function getItems() {}),
+        'Cannot convert [Function: getItems] to array',
+      ));
   });
 
   describe('Symbol — show Symbol(description)', () => {
@@ -120,11 +128,20 @@ describe('toArray', () => {
     it('new Error("x") → "Cannot convert [Error] to array"', () =>
       expectConvertError(() => toArray(new Error('x')), 'Cannot convert [Error] to array'));
     it('new Promise(() => {}) → "Cannot convert [Promise] to array"', () =>
-      expectConvertError(() => toArray(new Promise(() => {})), 'Cannot convert [Promise] to array'));
+      expectConvertError(
+        () => toArray(new Promise(() => {})),
+        'Cannot convert [Promise] to array',
+      ));
     it('new Uint8Array([1,2,3]) → "Cannot convert [Uint8Array] to array" (TypedArray ≠ Array)', () =>
-      expectConvertError(() => toArray(new Uint8Array([1, 2, 3])), 'Cannot convert [Uint8Array] to array'));
+      expectConvertError(
+        () => toArray(new Uint8Array([1, 2, 3])),
+        'Cannot convert [Uint8Array] to array',
+      ));
     it('generator object → "Cannot convert [Generator] to array" (iterable but not Array)', () => {
-      function* gen() { yield 1; yield 2; }
+      function* gen() {
+        yield 1;
+        yield 2;
+      }
       expectConvertError(() => toArray(gen()), 'Cannot convert [Generator] to array');
     });
   });

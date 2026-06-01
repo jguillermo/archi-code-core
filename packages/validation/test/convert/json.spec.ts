@@ -25,7 +25,9 @@ describe('toJson', () => {
       expect(toJson(o)).toBe(o);
     });
     it('class instance with own enumerable props → returned as-is', () => {
-      class Person { constructor(public name: string) {} }
+      class Person {
+        constructor(public name: string) {}
+      }
       const p = new Person('Bob');
       expect(toJson(p)).toBe(p as unknown as Record<string, unknown>);
     });
@@ -98,7 +100,10 @@ describe('toJson', () => {
     it('arrow fn → "Cannot convert [Function] to JSON object"', () =>
       expectConvertError(() => toJson(() => ({})), 'Cannot convert [Function] to JSON object'));
     it('named fn → "Cannot convert [Function: foo] to JSON object"', () =>
-      expectConvertError(() => toJson(function foo() {}), 'Cannot convert [Function: foo] to JSON object'));
+      expectConvertError(
+        () => toJson(function foo() {}),
+        'Cannot convert [Function: foo] to JSON object',
+      ));
   });
 
   describe('Symbol — show Symbol(description)', () => {
@@ -123,11 +128,17 @@ describe('toJson', () => {
     it('new Set([1,2]) → "Cannot convert [Set] to JSON object"', () =>
       expectConvertError(() => toJson(new Set([1, 2])), 'Cannot convert [Set] to JSON object'));
     it('new Date("2024-01-01") → "Cannot convert [Date] to JSON object"', () =>
-      expectConvertError(() => toJson(new Date('2024-01-01')), 'Cannot convert [Date] to JSON object'));
+      expectConvertError(
+        () => toJson(new Date('2024-01-01')),
+        'Cannot convert [Date] to JSON object',
+      ));
     it('new Error("x") → "Cannot convert [Error] to JSON object"', () =>
       expectConvertError(() => toJson(new Error('x')), 'Cannot convert [Error] to JSON object'));
     it('new Promise(() => {}) → "Cannot convert [Promise] to JSON object"', () =>
-      expectConvertError(() => toJson(new Promise(() => {})), 'Cannot convert [Promise] to JSON object'));
+      expectConvertError(
+        () => toJson(new Promise(() => {})),
+        'Cannot convert [Promise] to JSON object',
+      ));
     it('new WeakMap() → "Cannot convert [WeakMap] to JSON object"', () =>
       expectConvertError(() => toJson(new WeakMap()), 'Cannot convert [WeakMap] to JSON object'));
   });
