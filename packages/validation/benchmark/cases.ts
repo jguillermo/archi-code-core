@@ -643,13 +643,13 @@ export const cases: BenchCase[] = [
   },
   {
     name: 'isISO6346',
-    inputs: ['HLXU2008419', 'HLXU2008419', 'HLXU2008419', 'HLXU2008419'],
+    inputs: ['HLXU2008419', 'TGHU7599330', 'ECMU4657496', 'MEDU6246078'],
     errorInputs: ['HLXU2008410', 'NOTCONTAINER', 'ABCD1234567', 'HLXU000000'],
     mine: (v) => validator.isISO6346(v as string),
   },
   {
     name: 'isFreightContainerID',
-    inputs: ['HLXU2008419', 'HLXU2008419', 'HLXU2008419', 'HLXU2008419'],
+    inputs: ['HLXU2008419', 'TGHU7599330', 'ECMU4657496', 'MEDU6246078'],
     errorInputs: ['HLXU2008410', 'NOTCONTAINER', 'ABCD1234567', 'HLXU000000'],
     mine: (v) => validator.isFreightContainerID(v as string),
   },

@@ -67,6 +67,12 @@ export function toFloat(v: unknown): number {
   return Number((v as string).trim());
 }
 
+/**
+ * Strictly converts `v` to boolean. Throws `ConvertError` if the value
+ * cannot be interpreted as a boolean.
+ *
+ * For lenient string-to-boolean conversion (no exceptions), use `validator.toBoolean()`.
+ */
 export function toBoolean(v: unknown): boolean {
   if (!canBeBoolean(v)) {
     if (typeof v === 'string') throw new ConvertError(`Cannot convert "${v}" to boolean`);
@@ -78,6 +84,11 @@ export function toBoolean(v: unknown): boolean {
   return s === 'true' || s === '1';
 }
 
+/**
+ * Strictly converts `v` to a Date. Throws `ConvertError` if conversion fails.
+ *
+ * For lenient date conversion from strings, use `validator.toDate()` which returns null on failure.
+ */
 export function toDate(v: unknown): Date {
   if (v instanceof Date) {
     if (isNaN(v.getTime())) throw new ConvertError('Cannot convert Invalid Date to date');

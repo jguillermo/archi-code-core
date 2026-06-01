@@ -1,11 +1,6 @@
-function isRegExp(obj) {
-  return Object.prototype.toString.call(obj) === '[object RegExp]';
-}
-
-export default function checkHost(host, matches) {
-  for (let i = 0; i < matches.length; i++) {
-    const match = matches[i];
-    if (host === match || (isRegExp(match) && match.test(host))) {
+export default function checkHost(host: string, matches: Array<string | RegExp>): boolean {
+  for (const match of matches) {
+    if (typeof match === 'string' ? host === match : match.test(host)) {
       return true;
     }
   }

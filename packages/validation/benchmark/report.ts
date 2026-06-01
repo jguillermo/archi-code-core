@@ -9,6 +9,8 @@ export type Row = {
   errOps: number;
   errNs: number;
   errRme: number;
+  okCvOps?: number;
+  errCvOps?: number;
 };
 
 function fmtOps(n: number): string {
@@ -34,9 +36,11 @@ export function formatTable(rows: Row[]): string {
     pad('✓ ops/seg', 16),
     pad('✓ ns', 10),
     pad('✓±%', 6),
+    pad('✓ ratio', 8),
     pad('✗ ops/seg', 16),
     pad('✗ ns', 10),
     pad('✗±%', 6),
+    pad('✗ ratio', 8),
   ].join(' ');
   const sep = '-'.repeat(header.length);
   const lines = sorted.map((r) =>
@@ -45,9 +49,11 @@ export function formatTable(rows: Row[]): string {
       pad(fmtOps(r.okOps), 16),
       pad(fmtNs(r.okNs), 10),
       pad(r.okRme.toFixed(1), 6),
+      pad(r.okCvOps ? (r.okOps / r.okCvOps).toFixed(2) + '×' : '—', 8),
       pad(fmtOps(r.errOps), 16),
       pad(fmtNs(r.errNs), 10),
       pad(r.errRme.toFixed(1), 6),
+      pad(r.errCvOps ? (r.errOps / r.errCvOps).toFixed(2) + '×' : '—', 8),
     ].join(' '),
   );
   return [header, sep, ...lines, '', LEGEND].join('\n');
@@ -60,14 +66,16 @@ export function writeMarkdown(rows: Row[], meta: { node: string }): string {
     `# Benchmark results\n\n` +
     `- Node: ${meta.node}\n\n` +
     `Ordenado de más lento a más rápido (por éxito).\n\n` +
-    `> **✓** = input válido · **✗** = input inválido · **±%** = margen de error estadístico\n\n` +
-    `| validator | ✓ ops/seg | ✓ ns | ✓±% | ✗ ops/seg | ✗ ns | ✗±% |\n` +
-    `|---|--:|--:|--:|--:|--:|--:|\n`;
+    `> **✓** = input válido · **✗** = input inválido · **±%** = margen de error estadístico · **ratio** = speedup vs class-validator\n\n` +
+    `| validator | ✓ ops/seg | ✓ ns | ✓±% | ✓ ratio | ✗ ops/seg | ✗ ns | ✗±% | ✗ ratio |\n` +
+    `|---|--:|--:|--:|--:|--:|--:|--:|--:|\n`;
   const body = sorted
     .map(
       (r) =>
         `| ${r.name} | ${fmtOps(r.okOps)} | ${fmtNs(r.okNs)} | ${r.okRme.toFixed(1)} | ` +
-        `${fmtOps(r.errOps)} | ${fmtNs(r.errNs)} | ${r.errRme.toFixed(1)} |`,
+        `${r.okCvOps ? (r.okOps / r.okCvOps).toFixed(2) + '×' : '—'} | ` +
+        `${fmtOps(r.errOps)} | ${fmtNs(r.errNs)} | ${r.errRme.toFixed(1)} | ` +
+        `${r.errCvOps ? (r.errOps / r.errCvOps).toFixed(2) + '×' : '—'} |`,
     )
     .join('\n');
   const out = head + body + '\n';

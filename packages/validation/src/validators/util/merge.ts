@@ -1,11 +1,13 @@
-export default function merge(obj = {}, defaults) {
-  if (typeof obj !== 'object' || obj === null) {
-    obj = {};
-  }
+export default function merge<T extends object, D extends object>(
+  obj: T | null | undefined,
+  defaults: D,
+): T & D {
+  const result: Record<string, unknown> =
+    typeof obj === 'object' && obj !== null ? { ...obj } : {};
   for (const key in defaults) {
-    if (typeof obj[key] === 'undefined') {
-      obj[key] = defaults[key];
+    if (typeof result[key] === 'undefined') {
+      result[key] = (defaults as Record<string, unknown>)[key];
     }
   }
-  return obj;
+  return result as T & D;
 }

@@ -61,6 +61,14 @@ export function canBeDate(v: unknown): boolean {
   return false;
 }
 
+/**
+ * Returns true if `v` can be used as a non-empty JSON object (plain record).
+ * Arrays and empty objects return false intentionally — this validates that
+ * a value is a domain-safe JSON object, not arbitrary JSON.
+ *
+ * For generic JSON syntax validation (including arrays and primitives),
+ * use `validator.isJSON()` instead.
+ */
 export function canBeJson(v: unknown): boolean {
   if (typeof v === 'string') {
     try {
@@ -81,6 +89,12 @@ export function canBeJson(v: unknown): boolean {
   }
   return false;
 }
+
+/**
+ * Alias for `canBeJson` — makes it explicit that this validates objects, not all JSON.
+ * @see canBeJson
+ */
+export const canBeJsonObject = canBeJson;
 
 export function canBeArray(v: unknown): boolean {
   if (Array.isArray(v)) return true;

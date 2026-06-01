@@ -1,3 +1,4 @@
+import type { IsJSONOptions } from '../types';
 import tryToString from './util/tryToString';
 import merge from './util/merge';
 
@@ -6,13 +7,19 @@ const default_json_options = {
   allow_any_value: false,
 };
 
-export default function isJSON(str, options) {
+/**
+ * Returns true if `str` is syntactically valid JSON.
+ * Arrays (`[1,2,3]`) and primitive JSON (`"hello"`, `42`) are accepted by default.
+ *
+ * For domain object validation (plain records only, no arrays),
+ * use `canBeJson()` from the primitives module instead.
+ */
+export default function isJSON(str: unknown, options?: IsJSONOptions): boolean {
   const s = tryToString(str);
   if (s === false) return false;
-  str = s;
   try {
     options = merge(options, default_json_options);
-    const obj = JSON.parse(str);
+    const obj = JSON.parse(s);
 
     // When allow_any_value is true, accept anything that JSON.parse successfully parses
     if (options.allow_any_value) {

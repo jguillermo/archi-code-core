@@ -1,0 +1,298 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<coverage generated="1780280252093" clover="3.2.0">
+  <project timestamp="1780280252093" name="All files">
+    <metrics statements="235" coveredstatements="201" conditionals="76" coveredconditionals="58" methods="58" coveredmethods="56" elements="369" coveredelements="315" complexity="0" loc="235" ncloc="235" packages="7" files="12" classes="12"/>
+    <package name="src">
+      <metrics statements="66" coveredstatements="48" conditionals="18" coveredconditionals="14" methods="9" coveredmethods="8"/>
+      <file name="index.ts" path="/Users/guillermo/project/misa/archi-code-core/packages/crypto-tools/src/index.ts">
+        <metrics statements="9" coveredstatements="0" conditionals="0" coveredconditionals="0" methods="0" coveredmethods="0"/>
+        <line num="1" count="0" type="stmt"/>
+        <line num="3" count="0" type="stmt"/>
+        <line num="5" count="0" type="stmt"/>
+        <line num="6" count="0" type="stmt"/>
+        <line num="7" count="0" type="stmt"/>
+        <line num="9" count="0" type="stmt"/>
+        <line num="10" count="0" type="stmt"/>
+        <line num="11" count="0" type="stmt"/>
+        <line num="12" count="0" type="stmt"/>
+      </file>
+      <file name="sodium-initializer.ts" path="/Users/guillermo/project/misa/archi-code-core/packages/crypto-tools/src/sodium-initializer.ts">
+        <metrics statements="14" coveredstatements="11" conditionals="2" coveredconditionals="1" methods="4" coveredmethods="3"/>
+        <line num="1" count="3" type="stmt"/>
+        <line num="2" count="3" type="stmt"/>
+        <line num="3" count="3" type="stmt"/>
+        <line num="6" count="15" type="cond" truecount="1" falsecount="0"/>
+        <line num="8" count="2" type="stmt"/>
+        <line num="9" count="2" type="stmt"/>
+        <line num="11" count="2" type="stmt"/>
+        <line num="14" count="0" type="stmt"/>
+        <line num="15" count="0" type="stmt"/>
+        <line num="18" count="15" type="stmt"/>
+        <line num="22" count="15" type="stmt"/>
+        <line num="23" count="15" type="cond" truecount="0" falsecount="1"/>
+        <line num="24" count="0" type="stmt"/>
+        <line num="26" count="15" type="stmt"/>
+      </file>
+      <file name="symmetric-encryption.ts" path="/Users/guillermo/project/misa/archi-code-core/packages/crypto-tools/src/symmetric-encryption.ts">
+        <metrics statements="43" coveredstatements="37" conditionals="16" coveredconditionals="13" methods="5" coveredmethods="5"/>
+        <line num="1" count="1" type="stmt"/>
+        <line num="3" count="1" type="stmt"/>
+        <line num="4" count="1" type="stmt"/>
+        <line num="6" count="17" type="stmt"/>
+        <line num="9" count="17" type="stmt"/>
+        <line num="12" count="17" type="cond" truecount="1" falsecount="0"/>
+        <line num="13" count="1" type="stmt"/>
+        <line num="17" count="16" type="cond" truecount="2" falsecount="0"/>
+        <line num="18" count="16" type="cond" truecount="1" falsecount="0"/>
+        <line num="19" count="2" type="stmt"/>
+        <line num="21" count="14" type="stmt"/>
+        <line num="25" count="14" type="stmt"/>
+        <line num="30" count="14" type="cond" truecount="3" falsecount="1"/>
+        <line num="32" count="14" type="cond" truecount="0" falsecount="1"/>
+        <line num="33" count="0" type="stmt"/>
+        <line num="36" count="14" type="cond" truecount="0" falsecount="1"/>
+        <line num="37" count="0" type="stmt"/>
+        <line num="38" count="0" type="stmt"/>
+        <line num="39" count="0" type="stmt"/>
+        <line num="41" count="0" type="stmt"/>
+        <line num="43" count="14" type="stmt"/>
+        <line num="47" count="17" type="stmt"/>
+        <line num="48" count="17" type="stmt"/>
+        <line num="49" count="17" type="stmt"/>
+        <line num="53" count="10" type="stmt"/>
+        <line num="54" count="10" type="stmt"/>
+        <line num="55" count="10" type="stmt"/>
+        <line num="57" count="10" type="stmt"/>
+        <line num="58" count="10" type="stmt"/>
+        <line num="59" count="10" type="stmt"/>
+        <line num="60" count="10" type="stmt"/>
+        <line num="62" count="0" type="stmt"/>
+        <line num="67" count="9" type="stmt"/>
+        <line num="68" count="9" type="stmt"/>
+        <line num="69" count="9" type="cond" truecount="5" falsecount="0"/>
+        <line num="70" count="2" type="stmt"/>
+        <line num="74" count="7" type="stmt"/>
+        <line num="75" count="7" type="cond" truecount="1" falsecount="0"/>
+        <line num="76" count="2" type="stmt"/>
+        <line num="79" count="5" type="stmt"/>
+        <line num="80" count="5" type="stmt"/>
+        <line num="84" count="5" type="stmt"/>
+        <line num="86" count="4" type="stmt"/>
+      </file>
+    </package>
+    <package name="src.encrypt">
+      <metrics statements="74" coveredstatements="74" conditionals="20" coveredconditionals="19" methods="26" coveredmethods="26"/>
+      <file name="cryptoEngine.ts" path="/Users/guillermo/project/misa/archi-code-core/packages/crypto-tools/src/encrypt/cryptoEngine.ts">
+        <metrics statements="74" coveredstatements="74" conditionals="20" coveredconditionals="19" methods="26" coveredmethods="26"/>
+        <line num="1" count="1" type="stmt"/>
+        <line num="2" count="14" type="stmt"/>
+        <line num="3" count="14" type="stmt"/>
+        <line num="11" count="14" type="stmt"/>
+        <line num="12" count="14" type="stmt"/>
+        <line num="13" count="14" type="stmt"/>
+        <line num="14" count="14" type="stmt"/>
+        <line num="15" count="66" type="stmt"/>
+        <line num="19" count="28" type="stmt"/>
+        <line num="23" count="11" type="stmt"/>
+        <line num="27" count="25" type="stmt"/>
+        <line num="28" count="121" type="stmt"/>
+        <line num="33" count="6408" type="stmt"/>
+        <line num="37" count="6408" type="stmt"/>
+        <line num="41" count="94" type="stmt"/>
+        <line num="42" count="94" type="stmt"/>
+        <line num="43" count="1630" type="stmt"/>
+        <line num="45" count="94" type="stmt"/>
+        <line num="49" count="94" type="stmt"/>
+        <line num="50" count="21532" type="stmt"/>
+        <line num="51" count="21532" type="stmt"/>
+        <line num="56" count="14" type="stmt"/>
+        <line num="57" count="14" type="stmt"/>
+        <line num="59" count="910" type="stmt"/>
+        <line num="60" count="14" type="stmt"/>
+        <line num="61" count="448" type="stmt"/>
+        <line num="62" count="448" type="stmt"/>
+        <line num="63" count="448" type="stmt"/>
+        <line num="64" count="448" type="stmt"/>
+        <line num="67" count="14" type="stmt"/>
+        <line num="71" count="14" type="stmt"/>
+        <line num="72" count="910" type="stmt"/>
+        <line num="73" count="14" type="stmt"/>
+        <line num="75" count="14" type="stmt"/>
+        <line num="76" count="448" type="stmt"/>
+        <line num="77" count="448" type="stmt"/>
+        <line num="78" count="448" type="stmt"/>
+        <line num="79" count="448" type="stmt"/>
+        <line num="82" count="14" type="cond" truecount="1" falsecount="0"/>
+        <line num="83" count="14" type="stmt"/>
+        <line num="84" count="14" type="stmt"/>
+        <line num="87" count="14" type="stmt"/>
+        <line num="93" count="14" type="cond" truecount="6" falsecount="0"/>
+        <line num="94" count="14" type="stmt"/>
+        <line num="96" count="14" type="stmt"/>
+        <line num="97" count="66" type="stmt"/>
+        <line num="98" count="4290" type="stmt"/>
+        <line num="99" count="19608" type="stmt"/>
+        <line num="101" count="66" type="stmt"/>
+        <line num="102" count="66" type="stmt"/>
+        <line num="104" count="66" type="stmt"/>
+        <line num="109" count="6408" type="stmt"/>
+        <line num="110" count="12908" type="cond" truecount="2" falsecount="0"/>
+        <line num="114" count="6500" type="stmt"/>
+        <line num="116" count="6408" type="stmt"/>
+        <line num="125" count="31976" type="stmt"/>
+        <line num="126" count="31976" type="stmt"/>
+        <line num="136" count="31976" type="stmt"/>
+        <line num="145" count="14" type="stmt"/>
+        <line num="146" count="14" type="stmt"/>
+        <line num="150" count="11" type="stmt"/>
+        <line num="151" count="11" type="stmt"/>
+        <line num="155" count="25" type="stmt"/>
+        <line num="158" count="6408" type="cond" truecount="0" falsecount="1"/>
+        <line num="160" count="6408" type="stmt"/>
+        <line num="161" count="6408" type="stmt"/>
+        <line num="163" count="6408" type="cond" truecount="4" falsecount="0"/>
+        <line num="165" count="6408" type="stmt"/>
+        <line num="166" count="31976" type="stmt"/>
+        <line num="169" count="6408" type="stmt"/>
+        <line num="171" count="6408" type="stmt"/>
+        <line num="172" count="31976" type="stmt"/>
+        <line num="175" count="6408" type="cond" truecount="4" falsecount="0"/>
+        <line num="177" count="6408" type="stmt"/>
+      </file>
+    </package>
+    <package name="src.hash">
+      <metrics statements="10" coveredstatements="8" conditionals="5" coveredconditionals="2" methods="2" coveredmethods="2"/>
+      <file name="hasher-factory.ts" path="/Users/guillermo/project/misa/archi-code-core/packages/crypto-tools/src/hash/hasher-factory.ts">
+        <metrics statements="6" coveredstatements="4" conditionals="3" coveredconditionals="1" methods="1" coveredmethods="1"/>
+        <line num="1" count="1" type="stmt"/>
+        <line num="4" count="1" type="stmt"/>
+        <line num="6" count="11" type="cond" truecount="1" falsecount="1"/>
+        <line num="8" count="11" type="stmt"/>
+        <line num="9" count="0" type="stmt"/>
+        <line num="11" count="0" type="stmt"/>
+      </file>
+      <file name="hasher.ts" path="/Users/guillermo/project/misa/archi-code-core/packages/crypto-tools/src/hash/hasher.ts">
+        <metrics statements="4" coveredstatements="4" conditionals="2" coveredconditionals="1" methods="1" coveredmethods="1"/>
+        <line num="1" count="1" type="stmt"/>
+        <line num="5" count="11" type="cond" truecount="1" falsecount="0"/>
+        <line num="6" count="2" type="stmt"/>
+        <line num="8" count="9" type="stmt"/>
+      </file>
+    </package>
+    <package name="src.hash.client">
+      <metrics statements="22" coveredstatements="19" conditionals="5" coveredconditionals="3" methods="6" coveredmethods="5"/>
+      <file name="sodium-hasher.ts" path="/Users/guillermo/project/misa/archi-code-core/packages/crypto-tools/src/hash/client/sodium-hasher.ts">
+        <metrics statements="22" coveredstatements="19" conditionals="5" coveredconditionals="3" methods="6" coveredmethods="5"/>
+        <line num="1" count="1" type="stmt"/>
+        <line num="2" count="1" type="stmt"/>
+        <line num="4" count="1" type="stmt"/>
+        <line num="6" count="11" type="stmt"/>
+        <line num="10" count="8" type="stmt"/>
+        <line num="13" count="83" type="cond" truecount="1" falsecount="0"/>
+        <line num="14" count="5" type="stmt"/>
+        <line num="18" count="8" type="stmt"/>
+        <line num="19" count="8" type="stmt"/>
+        <line num="20" count="8" type="stmt"/>
+        <line num="21" count="8" type="stmt"/>
+        <line num="25" count="8" type="cond" truecount="2" falsecount="1"/>
+        <line num="27" count="5" type="stmt"/>
+        <line num="28" count="5" type="stmt"/>
+        <line num="30" count="3" type="stmt"/>
+        <line num="31" count="3" type="stmt"/>
+        <line num="33" count="0" type="stmt"/>
+        <line num="34" count="0" type="stmt"/>
+        <line num="36" count="8" type="stmt"/>
+        <line num="40" count="0" type="stmt"/>
+        <line num="44" count="5" type="stmt"/>
+        <line num="48" count="3" type="stmt"/>
+      </file>
+    </package>
+    <package name="src.password-encryptor">
+      <metrics statements="13" coveredstatements="10" conditionals="8" coveredconditionals="5" methods="2" coveredmethods="2"/>
+      <file name="password-encryptor-factory.ts" path="/Users/guillermo/project/misa/archi-code-core/packages/crypto-tools/src/password-encryptor/password-encryptor-factory.ts">
+        <metrics statements="9" coveredstatements="6" conditionals="4" coveredconditionals="2" methods="1" coveredmethods="1"/>
+        <line num="1" count="2" type="stmt"/>
+        <line num="3" count="2" type="stmt"/>
+        <line num="5" count="2" type="stmt"/>
+        <line num="7" count="26" type="cond" truecount="2" falsecount="1"/>
+        <line num="9" count="15" type="stmt"/>
+        <line num="10" count="0" type="stmt"/>
+        <line num="12" count="11" type="stmt"/>
+        <line num="13" count="0" type="stmt"/>
+        <line num="15" count="0" type="stmt"/>
+      </file>
+      <file name="password-encryptor.ts" path="/Users/guillermo/project/misa/archi-code-core/packages/crypto-tools/src/password-encryptor/password-encryptor.ts">
+        <metrics statements="4" coveredstatements="4" conditionals="4" coveredconditionals="3" methods="1" coveredmethods="1"/>
+        <line num="1" count="2" type="stmt"/>
+        <line num="5" count="26" type="cond" truecount="3" falsecount="0"/>
+        <line num="6" count="5" type="stmt"/>
+        <line num="8" count="21" type="stmt"/>
+      </file>
+    </package>
+    <package name="src.password-encryptor.client">
+      <metrics statements="27" coveredstatements="23" conditionals="6" coveredconditionals="3" methods="8" coveredmethods="8"/>
+      <file name="bcrypt-password-encryptor.ts" path="/Users/guillermo/project/misa/archi-code-core/packages/crypto-tools/src/password-encryptor/client/bcrypt-password-encryptor.ts">
+        <metrics statements="14" coveredstatements="12" conditionals="2" coveredconditionals="1" methods="5" coveredmethods="5"/>
+        <line num="2" count="2" type="stmt"/>
+        <line num="4" count="2" type="stmt"/>
+        <line num="5" count="2" type="stmt"/>
+        <line num="12" count="15" type="stmt"/>
+        <line num="13" count="13" type="stmt"/>
+        <line num="17" count="13" type="cond" truecount="1" falsecount="0"/>
+        <line num="18" count="2" type="stmt"/>
+        <line num="20" count="2" type="stmt"/>
+        <line num="22" count="0" type="stmt"/>
+        <line num="23" count="0" type="stmt"/>
+        <line num="34" count="5" type="stmt"/>
+        <line num="44" count="3" type="stmt"/>
+        <line num="53" count="4" type="stmt"/>
+        <line num="54" count="4" type="stmt"/>
+      </file>
+      <file name="sodium-password-encryptor.ts" path="/Users/guillermo/project/misa/archi-code-core/packages/crypto-tools/src/password-encryptor/client/sodium-password-encryptor.ts">
+        <metrics statements="13" coveredstatements="11" conditionals="4" coveredconditionals="2" methods="3" coveredmethods="3"/>
+        <line num="1" count="2" type="stmt"/>
+        <line num="2" count="2" type="stmt"/>
+        <line num="4" count="2" type="stmt"/>
+        <line num="6" count="4" type="cond" truecount="1" falsecount="1"/>
+        <line num="7" count="0" type="stmt"/>
+        <line num="11" count="4" type="cond" truecount="1" falsecount="1"/>
+        <line num="12" count="4" type="stmt"/>
+        <line num="17" count="0" type="stmt"/>
+        <line num="25" count="4" type="stmt"/>
+        <line num="26" count="4" type="stmt"/>
+        <line num="28" count="4" type="stmt"/>
+        <line num="32" count="3" type="stmt"/>
+        <line num="33" count="3" type="stmt"/>
+      </file>
+    </package>
+    <package name="src.sign">
+      <metrics statements="23" coveredstatements="19" conditionals="14" coveredconditionals="12" methods="5" coveredmethods="5"/>
+      <file name="jwt-data-signer.ts" path="/Users/guillermo/project/misa/archi-code-core/packages/crypto-tools/src/sign/jwt-data-signer.ts">
+        <metrics statements="23" coveredstatements="19" conditionals="14" coveredconditionals="12" methods="5" coveredmethods="5"/>
+        <line num="1" count="1" type="stmt"/>
+        <line num="2" count="1" type="stmt"/>
+        <line num="8" count="7" type="stmt"/>
+        <line num="10" count="7" type="stmt"/>
+        <line num="12" count="7" type="cond" truecount="2" falsecount="1"/>
+        <line num="13" count="0" type="stmt"/>
+        <line num="18" count="7" type="stmt"/>
+        <line num="19" count="7" type="stmt"/>
+        <line num="20" count="7" type="stmt"/>
+        <line num="24" count="7" type="cond" truecount="1" falsecount="0"/>
+        <line num="25" count="1" type="stmt"/>
+        <line num="27" count="1" type="stmt"/>
+        <line num="29" count="0" type="stmt"/>
+        <line num="32" count="0" type="stmt"/>
+        <line num="38" count="3" type="stmt"/>
+        <line num="42" count="3" type="stmt"/>
+        <line num="43" count="3" type="stmt"/>
+        <line num="46" count="1" type="cond" truecount="3" falsecount="1"/>
+        <line num="48" count="2" type="stmt"/>
+        <line num="53" count="3" type="stmt"/>
+        <line num="54" count="3" type="stmt"/>
+        <line num="55" count="3" type="cond" truecount="4" falsecount="0"/>
+        <line num="57" count="0" type="stmt"/>
+      </file>
+    </package>
+  </project>
+</coverage>

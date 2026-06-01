@@ -131,9 +131,11 @@ import isStrongPassword from './isStrongPassword';
 
 import isVAT from './isVAT';
 
+import type { ValidatorRegistry } from '../types';
+
 const version = '13.15.35';
 
-const validator = {
+const validator: ValidatorRegistry = {
   version,
   toDate,
   toFloat,

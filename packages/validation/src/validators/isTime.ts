@@ -1,3 +1,4 @@
+import type { IsTimeOptions } from '../types';
 import merge from './util/merge';
 
 const default_time_options = {
@@ -18,8 +19,8 @@ const formats = {
   },
 };
 
-export default function isTime(input, options) {
-  options = merge(options, default_time_options);
+export default function isTime(input: unknown, options?: IsTimeOptions): boolean {
+  const mergedOptions = merge(options, default_time_options);
   if (typeof input !== 'string') return false;
-  return formats[options.hourFormat][options.mode].test(input);
+  return formats[mergedOptions.hourFormat][mergedOptions.mode].test(input);
 }

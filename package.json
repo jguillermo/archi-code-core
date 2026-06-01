@@ -7,7 +7,7 @@
   "scripts": {
     "build": "node scripts/generate-packages-tree.js && node scripts/build-all.js",
     "test": "npm run test -ws --if-present",
-    "coverage": "npm run coverage -ws --if-present",
+    "test:coverage": "npm run test:coverage -ws --if-present",
     "lint": "npm run lint -ws --if-present",
     "lint:fix": "npm run lint:fix -ws --if-present",
     "format": "npm run format -ws --if-present",

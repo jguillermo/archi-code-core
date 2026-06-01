@@ -1,3 +1,4 @@
+import type { IsFQDNOptions } from '../types';
 import tryToString from './util/tryToString';
 import merge from './util/merge';
 
@@ -10,23 +11,23 @@ const default_fqdn_options = {
   ignore_max_length: false,
 };
 
-export default function isFQDN(str, options) {
+export default function isFQDN(str: unknown, options?: IsFQDNOptions): boolean {
   const s = tryToString(str);
   if (s === false) return false;
-  str = s;
+  let strVal = s;
   options = merge(options, default_fqdn_options);
 
   /* Remove the optional trailing dot before checking validity */
-  if (options.allow_trailing_dot && str[str.length - 1] === '.') {
-    str = str.substring(0, str.length - 1);
+  if (options.allow_trailing_dot && strVal[strVal.length - 1] === '.') {
+    strVal = strVal.substring(0, strVal.length - 1);
   }
 
   /* Remove the optional wildcard before checking validity */
-  if (options.allow_wildcard === true && str.indexOf('*.') === 0) {
-    str = str.substring(2);
+  if (options.allow_wildcard === true && strVal.indexOf('*.') === 0) {
+    strVal = strVal.substring(2);
   }
 
-  const parts = str.split('.');
+  const parts = strVal.split('.');
   const tld = parts[parts.length - 1];
 
   if (options.require_tld) {

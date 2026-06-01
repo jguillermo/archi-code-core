@@ -62,3 +62,4 @@ pids
 # TypeScript incremental build cache
 *.tsbuildinfo
 
+coverage

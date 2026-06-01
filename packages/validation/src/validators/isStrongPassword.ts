@@ -1,3 +1,4 @@
+import type { IsStrongPasswordOptions } from '../types';
 import merge from './util/merge';
 import tryToString from './util/tryToString';
 
@@ -82,11 +83,10 @@ function scorePassword(analysis, scoringOptions) {
   return points;
 }
 
-export default function isStrongPassword(str, options: typeof defaultOptions | null = null) {
+export default function isStrongPassword(str: unknown, options?: IsStrongPasswordOptions): boolean | number {
   const s = tryToString(str);
   if (s === false) return false;
-  str = s;
-  const analysis = analyzePassword(str);
+  const analysis = analyzePassword(s);
   const mergedOptions = merge(options || {}, defaultOptions) as typeof defaultOptions;
   if (mergedOptions.returnScore) {
     return scorePassword(analysis, mergedOptions);

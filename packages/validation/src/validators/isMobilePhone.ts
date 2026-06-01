@@ -1,3 +1,4 @@
+import type { IsMobilePhoneOptions } from '../types';
 import tryToString from './util/tryToString';
 
 const phones = {
@@ -179,11 +180,10 @@ phones['ga-IE'] = phones['en-IE'];
 phones['fr-CH'] = phones['de-CH'];
 phones['it-CH'] = phones['fr-CH'];
 
-export default function isMobilePhone(str, locale, options) {
+export default function isMobilePhone(str: unknown, locale?: string | string[], options?: IsMobilePhoneOptions): boolean {
   const s = tryToString(str);
   if (s === false) return false;
-  str = s;
-  if (options && options.strictMode && !str.startsWith('+')) {
+  if (options && options.strictMode && !s.startsWith('+')) {
     return false;
   }
   if (Array.isArray(locale)) {
@@ -192,15 +192,15 @@ export default function isMobilePhone(str, locale, options) {
       // istanbul ignore else
       if (phones.hasOwnProperty(key)) {
         const phone = phones[key];
-        if (phone.test(str)) {
+        if (phone.test(s)) {
           return true;
         }
       }
       return false;
     });
   }
-  if (locale in phones) {
-    return phones[locale].test(str);
+  if (locale && locale in phones) {
+    return phones[locale as string].test(s);
     // alias falsey locale as 'any'
   }
   if (!locale || locale === 'any') {
@@ -208,7 +208,7 @@ export default function isMobilePhone(str, locale, options) {
       // istanbul ignore else
       if (phones.hasOwnProperty(key)) {
         const phone = phones[key];
-        if (phone.test(str)) {
+        if (phone.test(s)) {
           return true;
         }
       }

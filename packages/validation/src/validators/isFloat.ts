@@ -1,7 +1,8 @@
+import type { IsFloatOptions } from '../types';
 import { decimal } from './alpha';
 import tryToString from './util/tryToString';
 
-export default function isFloat(str: unknown, options?): boolean {
+export default function isFloat(str: unknown, options?: IsFloatOptions): boolean {
   // Fast path: native number — skip regex entirely
   if (typeof str === 'number') {
     if (!isFinite(str)) return false;

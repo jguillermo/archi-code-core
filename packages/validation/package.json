@@ -36,7 +36,7 @@
     "build": "npm run build:cjs && npm run build:esm",
     "test": "jest",
     "benchmark": "ts-node --project benchmark/tsconfig.json benchmark/run.ts",
-    "coverage": "jest --coverage",
+    "test:coverage": "jest --coverage",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
     "format": "prettier --check \"{src,test}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\"",
@@ -57,16 +57,16 @@
     "collectCoverageFrom": [
       "src/**/*.(t|j)s"
     ],
-    "coverageDirectory": "./../coverage",
+    "coverageDirectory": "./coverage",
     "testEnvironment": "node",
     "collectCoverage": false,
     "injectGlobals": true,
     "coverageThreshold": {
       "global": {
-        "branches": 20,
-        "functions": 20,
-        "lines": 20,
-        "statements": 20
+        "branches": 60,
+        "functions": 60,
+        "lines": 60,
+        "statements": 60
       }
     }
   },

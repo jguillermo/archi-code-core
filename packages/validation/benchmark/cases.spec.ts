@@ -15,6 +15,13 @@ describe('benchmark cases dataset', () => {
     }
   });
 
+  it('each case has at least 2 distinct valid inputs', () => {
+    for (const c of cases) {
+      const unique = new Set(c.inputs);
+      expect(unique.size).toBeGreaterThanOrEqual(2);
+    }
+  });
+
   it.each(cases.map((c) => [c.name, c] as const))(
     '%s: mine() returns TRUE for all valid inputs',
     (_name, c) => {

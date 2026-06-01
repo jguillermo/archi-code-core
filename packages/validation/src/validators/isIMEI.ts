@@ -1,12 +1,13 @@
+import type { IsIMEIOptions } from '../types';
 import tryToString from './util/tryToString';
 
 const imeiRegexWithoutHyphens = /^[0-9]{15}$/;
 const imeiRegexWithHyphens = /^\d{2}-\d{6}-\d{6}-\d{1}$/;
 
-export default function isIMEI(str, options) {
+export default function isIMEI(str: unknown, options?: IsIMEIOptions): boolean {
   const s = tryToString(str);
   if (s === false) return false;
-  str = s;
+  let strVal = s;
   options = options || {};
 
   // default regex for checking imei is the one without hyphens
@@ -17,18 +18,18 @@ export default function isIMEI(str, options) {
     imeiRegex = imeiRegexWithHyphens;
   }
 
-  if (!imeiRegex.test(str)) {
+  if (!imeiRegex.test(strVal)) {
     return false;
   }
 
-  str = str.replace(/-/g, '');
+  strVal = strVal.replace(/-/g, '');
 
   let sum = 0,
     mul = 2,
     l = 14;
 
   for (let i = 0; i < l; i++) {
-    const digit = str.substring(l - i - 1, l - i);
+    const digit = strVal.substring(l - i - 1, l - i);
     const tp = parseInt(digit, 10) * mul;
     if (tp >= 10) {
       sum += (tp % 10) + 1;
@@ -42,7 +43,7 @@ export default function isIMEI(str, options) {
     }
   }
   const chk = (10 - (sum % 10)) % 10;
-  if (chk !== parseInt(str.substring(14, 15), 10)) {
+  if (chk !== parseInt(strVal.substring(14, 15), 10)) {
     return false;
   }
   return true;

@@ -1,3 +1,4 @@
+import type { IsDecimalOptions } from '../types';
 import merge from './util/merge';
 import tryToString from './util/tryToString';
 import { decimal } from './alpha';
@@ -17,13 +18,12 @@ const default_decimal_options = {
 
 const blacklist = ['', '-', '+'];
 
-export default function isDecimal(str, options) {
+export default function isDecimal(str: unknown, options?: IsDecimalOptions): boolean {
   const s = tryToString(str);
   if (s === false) return false;
-  str = s;
   options = merge(options, default_decimal_options);
-  if (options.locale in decimal) {
-    return !blacklist.includes(str.replace(/ /g, '')) && decimalRegExp(options).test(str);
+  if (options.locale! in decimal) {
+    return !blacklist.includes(s.replace(/ /g, '')) && decimalRegExp(options).test(s);
   }
   throw new Error(`Invalid locale '${options.locale}'`);
 }

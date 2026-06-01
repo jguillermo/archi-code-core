@@ -1,3 +1,4 @@
+import type { IsBase32Options } from '../types';
 import tryToString from './util/tryToString';
 import merge from './util/merge';
 
@@ -8,15 +9,14 @@ const defaultBase32Options = {
   crockford: false,
 };
 
-export default function isBase32(str, options) {
+export default function isBase32(str: unknown, options?: IsBase32Options): boolean {
   const s = tryToString(str);
   if (s === false) return false;
-  str = s;
   options = merge(options, defaultBase32Options);
 
   if (options.crockford) {
-    return crockfordBase32.test(str);
+    return crockfordBase32.test(s);
   }
 
-  return str.length % 8 === 0 && base32.test(str);
+  return s.length % 8 === 0 && base32.test(s);
 }

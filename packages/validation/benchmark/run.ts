@@ -10,7 +10,9 @@ import { formatTable, writeMarkdown, type Row } from './report';
 //   50  → ~5 seg   (exploración rápida)
 //   200 → ~20 seg  (balance)
 //   500 → ~50 seg  (resultados precisos para publicar)
-const CYCLES_PER_VALIDATOR = 200;
+//
+// Puede ser sobrescrito via env var: BENCH_CYCLES=500 npm run benchmark
+const CYCLES_PER_VALIDATOR = parseInt(process.env['BENCH_CYCLES'] ?? '500', 10);
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Runs a tinybench and returns a name -> result map. */
@@ -54,10 +56,26 @@ async function main(): Promise<void> {
     }
   });
 
+  // Run class-validator baseline for cases that have cvFn
+  const casesWithCv = cases.filter((c) => c.cvFn);
+  const cvResults = new Map<string, { hz: number }>();
+  if (casesWithCv.length > 0) {
+    const cvOkResults = await runBench((b) => {
+      for (const c of casesWithCv) {
+        let i = 0;
+        const input = c.cvInput ?? c.inputs[0];
+        b.add(c.name, () => c.cvFn!(input));
+      }
+    });
+    for (const [name, result] of cvOkResults) {
+      cvResults.set(name, { hz: result.hz });
+    }
+  }
+
   const rows: Row[] = cases.map((c) => {
     const ok = okResults.get(c.name)!;
     const err = errResults.get(c.name)!;
-    return {
+    const row: Row = {
       name: c.name,
       okOps: ok.hz,
       okNs: ok.mean,
@@ -66,6 +84,11 @@ async function main(): Promise<void> {
       errNs: err.mean,
       errRme: err.rme,
     };
+    const cvResult = cvResults.get(c.name);
+    if (cvResult) {
+      row.okCvOps = cvResult.hz;
+    }
+    return row;
   });
 
   console.log(formatTable(rows));

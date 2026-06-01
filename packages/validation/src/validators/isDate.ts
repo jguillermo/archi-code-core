@@ -1,3 +1,4 @@
+import type { IsDateOptions } from '../types';
 import merge from './util/merge';
 
 const default_date_options = {
@@ -23,24 +24,25 @@ function zip(date, format) {
   return zippedArr;
 }
 
-export default function isDate(input, options) {
+export default function isDate(input: unknown, options?: IsDateOptions | string): boolean {
+  let mergedOptions: IsDateOptions & { format: string; delimiters: string[]; strictMode: boolean };
   if (typeof options === 'string') {
     // Allow backward compatibility for old format isDate(input [, format])
-    options = merge({ format: options }, default_date_options);
+    mergedOptions = merge({ format: options }, default_date_options);
   } else {
-    options = merge(options, default_date_options);
+    mergedOptions = merge(options, default_date_options);
   }
-  if (typeof input === 'string' && isValidFormat(options.format)) {
-    if (options.strictMode && input.length !== options.format.length) return false;
-    const formatDelimiter = options.delimiters.find(
-      (delimiter) => options.format.indexOf(delimiter) !== -1,
+  if (typeof input === 'string' && isValidFormat(mergedOptions.format)) {
+    if (mergedOptions.strictMode && input.length !== mergedOptions.format.length) return false;
+    const formatDelimiter = mergedOptions.delimiters.find(
+      (delimiter) => mergedOptions.format.indexOf(delimiter) !== -1,
     );
-    const dateDelimiter = options.strictMode
+    const dateDelimiter = mergedOptions.strictMode
       ? formatDelimiter
-      : options.delimiters.find((delimiter) => input.indexOf(delimiter) !== -1);
+      : mergedOptions.delimiters.find((delimiter) => input.indexOf(delimiter) !== -1);
     const dateAndFormat = zip(
-      input.split(dateDelimiter),
-      options.format.toLowerCase().split(formatDelimiter),
+      input.split(dateDelimiter!),
+      mergedOptions.format.toLowerCase().split(formatDelimiter!),
     );
     const dateObj: { [key: string]: string } = {};
 
@@ -90,8 +92,8 @@ export default function isDate(input, options) {
     return new Date(`${fullYear}-${month}-${day}T00:00:00.000Z`).getUTCDate() === +dateObj.d;
   }
 
-  if (!options.strictMode) {
-    return Object.prototype.toString.call(input) === '[object Date]' && isFinite(input);
+  if (!mergedOptions.strictMode) {
+    return Object.prototype.toString.call(input) === '[object Date]' && isFinite(input as number);
   }
 
   return false;

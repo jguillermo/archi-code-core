@@ -1,3 +1,4 @@
+import type { IsLatLongOptions } from '../types';
 import tryToString from './util/tryToString';
 import merge from './util/merge';
 const lat = /^\(?[+-]?(90(\.0+)?|[1-8]?\d(\.\d+)?)$/;
@@ -11,14 +12,13 @@ const defaultLatLongOptions = {
   checkDMS: false,
 };
 
-export default function isLatLong(str, options) {
+export default function isLatLong(str: unknown, options?: IsLatLongOptions): boolean {
   const s = tryToString(str);
   if (s === false) return false;
-  str = s;
   options = merge(options, defaultLatLongOptions);
 
-  if (!str.includes(',')) return false;
-  const pair = str.split(',');
+  if (!s.includes(',')) return false;
+  const pair = s.split(',');
   if (
     (pair[0].startsWith('(') && !pair[1].endsWith(')')) ||
     (pair[1].endsWith(')') && !pair[0].startsWith('('))

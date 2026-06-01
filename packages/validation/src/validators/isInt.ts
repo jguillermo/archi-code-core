@@ -1,9 +1,10 @@
+import type { IsIntOptions } from '../types';
 import tryToString from './util/tryToString';
 
 const int = /^(?:[-+]?(?:0|[1-9][0-9]*))$/;
 const intLeadingZeroes = /^[-+]?[0-9]+$/;
 
-export default function isInt(str: unknown, options?): boolean {
+export default function isInt(str: unknown, options?: IsIntOptions): boolean {
   // Fast path: native integer — skip regex entirely
   if (typeof str === 'number') {
     if (!Number.isInteger(str)) return false;
@@ -20,13 +21,14 @@ export default function isInt(str: unknown, options?): boolean {
   if (s === false) return false;
   options = options || {};
   const regex = options.allow_leading_zeroes === false ? int : intLeadingZeroes;
+  const sNum = Number(s);
   const minCheckPassed =
-    !options.hasOwnProperty('min') || options.min == null || s >= options.min;
+    !options.hasOwnProperty('min') || options.min == null || sNum >= options.min;
   const maxCheckPassed =
-    !options.hasOwnProperty('max') || options.max == null || s <= options.max;
+    !options.hasOwnProperty('max') || options.max == null || sNum <= options.max;
   const ltCheckPassed =
-    !options.hasOwnProperty('lt') || options.lt == null || s < options.lt;
+    !options.hasOwnProperty('lt') || options.lt == null || sNum < options.lt;
   const gtCheckPassed =
-    !options.hasOwnProperty('gt') || options.gt == null || s > options.gt;
+    !options.hasOwnProperty('gt') || options.gt == null || sNum > options.gt;
   return regex.test(s) && minCheckPassed && maxCheckPassed && ltCheckPassed && gtCheckPassed;
 }

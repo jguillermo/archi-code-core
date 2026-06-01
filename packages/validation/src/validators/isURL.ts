@@ -1,3 +1,4 @@
+import type { IsURLOptions } from '../types';
 import tryToString from './util/tryToString';
 import checkHost from './util/checkHost';
 import isFQDN from './isFQDN';
@@ -50,7 +51,7 @@ const default_url_options = {
 
 const wrapped_ipv6 = /^\[([^\]]+)\](?::([0-9]+))?$/;
 
-export default function isURL(urlInput: unknown, options?) {
+export default function isURL(urlInput: unknown, options?: IsURLOptions): boolean {
   const s = tryToString(urlInput);
   if (s === false) return false;
   let url: string = s;
@@ -62,7 +63,7 @@ export default function isURL(urlInput: unknown, options?) {
   }
   options = merge(options, default_url_options);
 
-  if (options.validate_length && url.length > options.max_allowed_length) {
+  if (options.validate_length && url.length > options.max_allowed_length!) {
     return false;
   }
 
@@ -93,7 +94,7 @@ export default function isURL(urlInput: unknown, options?) {
     had_explicit_protocol = true;
     protocol = potential_protocol.toLowerCase();
 
-    if (options.require_valid_protocol && options.protocols.indexOf(protocol) === -1) {
+    if (options.require_valid_protocol && options.protocols!.indexOf(protocol) === -1) {
       // The identified protocol is not in the allowed list.
       return false;
     }

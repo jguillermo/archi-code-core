@@ -1,3 +1,4 @@
+import type { IsEmailOptions } from '../types';
 import tryToString from './util/tryToString';
 import checkHost from './util/checkHost';
 
@@ -64,20 +65,20 @@ function validateDisplayName(display_name) {
   return true;
 }
 
-export default function isEmail(str, options) {
+export default function isEmail(str: unknown, options?: IsEmailOptions): boolean {
   const s = tryToString(str);
   if (s === false) return false;
-  str = s;
+  let strVal = s;
   options = merge(options, default_email_options);
 
   if (options.require_display_name || options.allow_display_name) {
-    const display_email = str.match(splitNameAddress);
+    const display_email = strVal.match(splitNameAddress);
     if (display_email) {
       let display_name = display_email[1];
 
       // Remove display name and angle brackets to get email address
       // Can be done in the regex but will introduce a ReDOS (See  #1597 for more info)
-      str = str.replace(display_name, '').replace(/(^<|>$)/g, '');
+      strVal = strVal.replace(display_name, '').replace(/(^<|>$)/g, '');
 
       // sometimes need to trim the last space to get the display name
       // because there may be a space between display name and email address
@@ -94,19 +95,19 @@ export default function isEmail(str, options) {
       return false;
     }
   }
-  if (!options.ignore_max_length && str.length > defaultMaxEmailLength) {
+  if (!options.ignore_max_length && strVal.length > defaultMaxEmailLength) {
     return false;
   }
 
-  const parts = str.split('@');
-  const domain = parts.pop();
+  const parts = strVal.split('@');
+  const domain = parts.pop()!;
   const lower_domain = domain.toLowerCase();
 
-  if (options.host_blacklist.length > 0 && checkHost(lower_domain, options.host_blacklist)) {
+  if ((options.host_blacklist?.length ?? 0) > 0 && checkHost(lower_domain, options.host_blacklist!)) {
     return false;
   }
 
-  if (options.host_whitelist.length > 0 && !checkHost(lower_domain, options.host_whitelist)) {
+  if ((options.host_whitelist?.length ?? 0) > 0 && !checkHost(lower_domain, options.host_whitelist!)) {
     return false;
   }
 

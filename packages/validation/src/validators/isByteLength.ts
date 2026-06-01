@@ -1,9 +1,9 @@
+import type { IsByteLengthOptions } from '../types';
 import tryToString from './util/tryToString';
 
-export default function isByteLength(str, options) {
+export default function isByteLength(str: unknown, options?: IsByteLengthOptions): boolean {
   const s = tryToString(str);
   if (s === false) return false;
-  str = s;
   let min;
   let max;
   if (typeof options === 'object') {
@@ -14,6 +14,6 @@ export default function isByteLength(str, options) {
     min = arguments[1];
     max = arguments[2];
   }
-  const len = encodeURI(str).split(/%..|./).length - 1;
+  const len = encodeURI(s).split(/%..|./).length - 1;
   return len >= min && (typeof max === 'undefined' || len <= max);
 }

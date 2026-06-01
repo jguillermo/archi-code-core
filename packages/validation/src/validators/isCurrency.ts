@@ -1,3 +1,4 @@
+import type { IsCurrencyOptions } from '../types';
 import merge from './util/merge';
 import tryToString from './util/tryToString';
 
@@ -76,10 +77,9 @@ const default_currency_options = {
   allow_space_after_digits: false,
 };
 
-export default function isCurrency(str, options) {
+export default function isCurrency(str: unknown, options?: IsCurrencyOptions): boolean {
   const s = tryToString(str);
   if (s === false) return false;
-  str = s;
   options = merge(options, default_currency_options);
-  return currencyRegex(options).test(str);
+  return currencyRegex(options).test(s);
 }

@@ -1,9 +1,9 @@
+import type { IsLengthOptions } from '../types';
 import tryToString from './util/tryToString';
 
-export default function isLength(str, options) {
+export default function isLength(str: unknown, options?: IsLengthOptions): boolean {
   const s = tryToString(str);
   if (s === false) return false;
-  str = s;
   let min;
   let max;
 
@@ -16,9 +16,9 @@ export default function isLength(str, options) {
     max = arguments[2];
   }
 
-  const presentationSequences = str.match(/[^\uFE0F\uFE0E][\uFE0F\uFE0E]/g) || [];
-  const surrogatePairs = str.match(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g) || [];
-  const len = str.length - presentationSequences.length - surrogatePairs.length;
+  const presentationSequences = s.match(/[^\uFE0F\uFE0E][\uFE0F\uFE0E]/g) || [];
+  const surrogatePairs = s.match(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g) || [];
+  const len = s.length - presentationSequences.length - surrogatePairs.length;
   const isInsideRange = len >= min && (typeof max === 'undefined' || len <= max);
 
   if (isInsideRange && Array.isArray(options?.discreteLengths)) {
