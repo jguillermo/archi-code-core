@@ -3,9 +3,9 @@ import tryToString from './util/tryToString';
 const issn = '^\\d{4}-?\\d{3}[\\dX]$';
 
 export default function isISSN(
-  str,
+  str: unknown,
   options: { require_hyphen?: boolean; case_sensitive?: boolean } = {},
-) {
+): boolean {
   const s = tryToString(str);
   if (s === false) return false;
   str = s;

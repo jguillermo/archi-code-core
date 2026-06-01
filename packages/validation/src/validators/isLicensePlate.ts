@@ -30,7 +30,7 @@ const validators = {
     ),
 };
 
-export default function isLicensePlate(str, locale) {
+export default function isLicensePlate(str: unknown, locale: string): boolean {
   const s = tryToString(str);
   if (s === false) return false;
   str = s;

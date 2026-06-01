@@ -6,7 +6,7 @@ import tryToString from './util/tryToString';
 const isRoutingReg =
   /^(?!(1[3-9])|(20)|(3[3-9])|(4[0-9])|(5[0-9])|(60)|(7[3-9])|(8[1-9])|(9[0-2])|(9[3-9]))[0-9]{9}$/;
 
-export default function isAbaRouting(str) {
+export default function isAbaRouting(str: unknown): boolean {
   const s = tryToString(str);
   if (s === false) return false;
   str = s;

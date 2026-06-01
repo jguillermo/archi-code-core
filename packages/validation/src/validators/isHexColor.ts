@@ -8,7 +8,7 @@ const default_is_hexcolor_options = {
   require_hashtag: false,
 };
 
-export default function isHexColor(str, options) {
+export default function isHexColor(str: unknown, options?: { allow_hash?: boolean }): boolean {
   const s = tryToString(str);
   if (s === false) return false;
   str = s;

@@ -47,16 +47,15 @@ const IPv6AddressRegExp = new RegExp(
 );
 
 export default function isIP(
-  ipAddress,
+  ipAddress: unknown,
   options: { version?: number | string } | number | string = {},
-) {
+): boolean {
   const s = tryToString(ipAddress);
   if (s === false) return false;
   ipAddress = s;
 
-  // accessing 'arguments' for backwards compatibility: isIP(ipAddress [, version])
-
-  const version = (typeof options === 'object' ? options.version : arguments[1]) || '';
+  // backwards compatibility: isIP(ipAddress, version) where version is a number or string
+  const version = (typeof options === 'object' ? options.version : options) || '';
 
   if (!version) {
     return isIP(ipAddress, { version: 4 }) || isIP(ipAddress, { version: 6 });

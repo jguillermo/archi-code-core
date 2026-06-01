@@ -8,10 +8,18 @@ export default function isFloat(str: unknown, options?: IsFloatOptions): boolean
     if (!isFinite(str)) return false;
     options = options || {};
     return (
-      (!options.hasOwnProperty('min') || options.min == null || str >= options.min) &&
-      (!options.hasOwnProperty('max') || options.max == null || str <= options.max) &&
-      (!options.hasOwnProperty('lt') || options.lt == null || str < options.lt) &&
-      (!options.hasOwnProperty('gt') || options.gt == null || str > options.gt)
+      (!Object.prototype.hasOwnProperty.call(options, 'min') ||
+        options.min == null ||
+        str >= options.min) &&
+      (!Object.prototype.hasOwnProperty.call(options, 'max') ||
+        options.max == null ||
+        str <= options.max) &&
+      (!Object.prototype.hasOwnProperty.call(options, 'lt') ||
+        options.lt == null ||
+        str < options.lt) &&
+      (!Object.prototype.hasOwnProperty.call(options, 'gt') ||
+        options.gt == null ||
+        str > options.gt)
     );
   }
   // Non-string: coerce if possible, otherwise reject
@@ -27,10 +35,18 @@ export default function isFloat(str: unknown, options?: IsFloatOptions): boolean
   const value = parseFloat(s.replace(',', '.'));
   return (
     float.test(s) &&
-    (!options.hasOwnProperty('min') || options.min == null || value >= options.min) &&
-    (!options.hasOwnProperty('max') || options.max == null || value <= options.max) &&
-    (!options.hasOwnProperty('lt') || options.lt == null || value < options.lt) &&
-    (!options.hasOwnProperty('gt') || options.gt == null || value > options.gt)
+    (!Object.prototype.hasOwnProperty.call(options, 'min') ||
+      options.min == null ||
+      value >= options.min) &&
+    (!Object.prototype.hasOwnProperty.call(options, 'max') ||
+      options.max == null ||
+      value <= options.max) &&
+    (!Object.prototype.hasOwnProperty.call(options, 'lt') ||
+      options.lt == null ||
+      value < options.lt) &&
+    (!Object.prototype.hasOwnProperty.call(options, 'gt') ||
+      options.gt == null ||
+      value > options.gt)
   );
 }
 

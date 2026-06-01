@@ -4,7 +4,10 @@ const possibleIsbn10 = /^(?:[0-9]{9}X|[0-9]{10})$/;
 const possibleIsbn13 = /^(?:[0-9]{13})$/;
 const factor = [1, 3];
 
-export default function isISBN(isbn, options) {
+export default function isISBN(
+  isbn: unknown,
+  options?: '10' | '13' | 10 | 13 | { version?: '10' | '13' | 10 | 13 },
+): boolean {
   const s = tryToString(isbn);
   if (s === false) return false;
   isbn = s;

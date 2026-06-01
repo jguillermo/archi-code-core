@@ -16,7 +16,7 @@ const lengths = {
   crc32b: 8,
 };
 
-export default function isHash(str, algorithm) {
+export default function isHash(str: unknown, algorithm: string): boolean {
   const s = tryToString(str);
   if (s === false) return false;
   str = s;

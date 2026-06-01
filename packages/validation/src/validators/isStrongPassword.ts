@@ -5,7 +5,7 @@ import tryToString from './util/tryToString';
 const upperCaseRegex = /^[A-Z]$/;
 const lowerCaseRegex = /^[a-z]$/;
 const numberRegex = /^[0-9]$/;
-const symbolRegex = /^[-#!$@£%^&*()_+|~=`{}\[\]:";'<>?,.\/\\ ]$/;
+const symbolRegex = /^[-#!$@£%^&*()_+|~=`{}[\]:";'<>?,./\\ ]$/;
 
 const defaultOptions = {
   minLength: 8,
@@ -25,7 +25,7 @@ const defaultOptions = {
 /* Counts number of occurrences of each char in a string
  * could be moved to util/ ?
  */
-function countChars(str: string) {
+function countChars(str: string): Record<string, number> {
   const result: Record<string, number> = {};
   Array.from(str).forEach((char) => {
     const curVal = result[char];
@@ -39,7 +39,14 @@ function countChars(str: string) {
 }
 
 /* Return information about a password */
-function analyzePassword(password) {
+function analyzePassword(password: string): {
+  length: number;
+  uniqueChars: number;
+  uppercaseCount: number;
+  lowercaseCount: number;
+  numberCount: number;
+  symbolCount: number;
+} {
   const charMap = countChars(password);
   const analysis = {
     length: password.length,
@@ -64,7 +71,17 @@ function analyzePassword(password) {
   return analysis;
 }
 
-function scorePassword(analysis, scoringOptions) {
+function scorePassword(
+  analysis: {
+    uniqueChars: number;
+    length: number;
+    lowercaseCount: number;
+    uppercaseCount: number;
+    numberCount: number;
+    symbolCount: number;
+  },
+  scoringOptions: Record<string, number>,
+): number {
   let points = 0;
   points += analysis.uniqueChars * scoringOptions.pointsPerUnique;
   points += (analysis.length - analysis.uniqueChars) * scoringOptions.pointsPerRepeat;

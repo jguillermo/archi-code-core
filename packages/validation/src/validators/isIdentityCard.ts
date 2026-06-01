@@ -88,7 +88,7 @@ const validators = {
       return false;
     }
 
-    if (!str.match(/^\d{6}[\-A\+]\d{3}[0-9ABCDEFHJKLMNPRSTUVWXY]{1}$/)) {
+    if (!str.match(/^\d{6}[-A+]\d{3}[0-9ABCDEFHJKLMNPRSTUVWXY]{1}$/)) {
       return false;
     }
 
@@ -323,9 +323,10 @@ const validators = {
 
     const parityBit = ['1', '0', 'X', '9', '8', '7', '6', '5', '4', '3', '2'];
 
-    const checkAddressCode = (addressCode) => provincesAndCities.includes(addressCode);
+    const checkAddressCode = (addressCode: string): boolean =>
+      provincesAndCities.includes(addressCode);
 
-    const checkBirthDayCode = (birDayCode) => {
+    const checkBirthDayCode = (birDayCode: string): boolean => {
       const yyyy = parseInt(birDayCode.substring(0, 4), 10);
       const mm = parseInt(birDayCode.substring(4, 6), 10);
       const dd = parseInt(birDayCode.substring(6), 10);
@@ -339,7 +340,7 @@ const validators = {
       return false;
     };
 
-    const getParityBit = (idCardNo) => {
+    const getParityBit = (idCardNo: string): string => {
       const id17 = idCardNo.substring(0, 17);
 
       let power = 0;
@@ -351,10 +352,10 @@ const validators = {
       return parityBit[mod];
     };
 
-    const checkParityBit = (idCardNo) =>
+    const checkParityBit = (idCardNo: string): boolean =>
       getParityBit(idCardNo) === idCardNo.charAt(17).toUpperCase();
 
-    const check15IdCardNo = (idCardNo) => {
+    const check15IdCardNo = (idCardNo: string): boolean => {
       let check = /^[1-9]\d{7}((0[1-9])|(1[0-2]))((0[1-9])|([1-2][0-9])|(3[0-1]))\d{3}$/.test(
         idCardNo,
       );
@@ -368,7 +369,7 @@ const validators = {
       return true;
     };
 
-    const check18IdCardNo = (idCardNo) => {
+    const check18IdCardNo = (idCardNo: string): boolean => {
       let check =
         /^[1-9]\d{5}[1-9]\d{3}((0[1-9])|(1[0-2]))((0[1-9])|([1-2][0-9])|(3[0-1]))\d{3}(\d|x|X)$/.test(
           idCardNo,
@@ -383,7 +384,7 @@ const validators = {
       return checkParityBit(idCardNo);
     };
 
-    const checkIdCardNo = (idCardNo) => {
+    const checkIdCardNo = (idCardNo: string): boolean => {
       const check = /^\d{15}|(\d{17}(\d|x|X))$/.test(idCardNo);
       if (!check) return false;
       if (idCardNo.length === 15) {
@@ -484,7 +485,7 @@ const validators = {
   },
 };
 
-export default function isIdentityCard(str, locale) {
+export default function isIdentityCard(str: unknown, locale = 'any'): boolean {
   const s = tryToString(str);
   if (s === false) return false;
   str = s;
@@ -493,7 +494,7 @@ export default function isIdentityCard(str, locale) {
   }
   if (locale === 'any') {
     for (const key in validators) {
-      if (validators.hasOwnProperty(key)) {
+      if (Object.prototype.hasOwnProperty.call(validators, key)) {
         const validator = validators[key];
         if (validator(str)) {
           return true;

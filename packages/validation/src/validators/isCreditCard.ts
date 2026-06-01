@@ -15,14 +15,14 @@ const allCards = (() => {
   const tmpCardsArray: RegExp[] = [];
   for (const cardProvider in cards) {
     // istanbul ignore else
-    if (cards.hasOwnProperty(cardProvider)) {
+    if (Object.prototype.hasOwnProperty.call(cards, cardProvider)) {
       tmpCardsArray.push(cards[cardProvider]);
     }
   }
   return tmpCardsArray;
 })();
 
-export default function isCreditCard(card, options: { provider?: string } = {}) {
+export default function isCreditCard(card: unknown, options: { provider?: string } = {}): boolean {
   const s = tryToString(card);
   if (s === false) return false;
   card = s;

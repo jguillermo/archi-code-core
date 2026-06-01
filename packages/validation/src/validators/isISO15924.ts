@@ -275,7 +275,7 @@ const validISO15924Codes = new Set([
   'Zzzz',
 ]);
 
-export default function isISO15924(str) {
+export default function isISO15924(str: unknown): boolean {
   const s = tryToString(str);
   if (s === false) return false;
   str = s;

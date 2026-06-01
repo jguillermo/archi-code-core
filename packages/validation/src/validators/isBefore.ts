@@ -1,6 +1,9 @@
 import { toDateLax } from '../convert';
 
-export default function isBefore(date?, options?) {
+export default function isBefore(
+  date: unknown,
+  options?: string | { comparisonDate?: string },
+): boolean {
   // For backwards compatibility:
   // isBefore(str [, date]), i.e. `options` could be used as argument for the legacy `date`
   const comparisonDate =

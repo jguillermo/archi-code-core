@@ -4,7 +4,7 @@ import tryToString from './util/tryToString';
 const multibyte = /[^\x00-\x7F]/;
 /* eslint-enable no-control-regex */
 
-export default function isMultibyte(str) {
+export default function isMultibyte(str: unknown): boolean {
   const s = tryToString(str);
   if (s === false) return false;
   str = s;

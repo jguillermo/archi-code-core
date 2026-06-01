@@ -1,12 +1,12 @@
 import tryToString from './util/tryToString';
 
-const validMediaType = /^[a-z]+\/[a-z0-9\-\+\._]+$/i;
+const validMediaType = /^[a-z]+\/[a-z0-9\-+._]+$/i;
 
-const validAttribute = /^[a-z\-]+=[a-z0-9\-]+$/i;
+const validAttribute = /^[a-z-]+=[a-z0-9-]+$/i;
 
-const validData = /^[a-z0-9!\$&'\(\)\*\+,;=\-\._~:@\/\?%\s]*$/i;
+const validData = /^[a-z0-9!$&'()*+,;=\-._~:@/?%\s]*$/i;
 
-export default function isDataURI(str) {
+export default function isDataURI(str: unknown): boolean {
   const s = tryToString(str);
   if (s === false) return false;
   str = s;
@@ -31,8 +31,8 @@ export default function isDataURI(str) {
       return false;
     }
   }
-  for (let i = 0; i < data.length; i++) {
-    if (!validData.test(data[i])) {
+  for (const item of data) {
+    if (!validData.test(item)) {
       return false;
     }
   }

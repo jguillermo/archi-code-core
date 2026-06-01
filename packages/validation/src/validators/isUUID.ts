@@ -18,7 +18,10 @@ const uuid = {
   all: /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$/i,
 };
 
-export default function isUUID(str, version) {
+export default function isUUID(
+  str: unknown,
+  version?: 'all' | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8,
+): boolean {
   const s = tryToString(str);
   if (s === false) return false;
   str = s;

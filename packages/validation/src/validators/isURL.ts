@@ -63,7 +63,7 @@ export default function isURL(urlInput: unknown, options?: IsURLOptions): boolea
   }
   options = merge(options, default_url_options);
 
-  if (options.validate_length && url.length > options.max_allowed_length!) {
+  if (options.validate_length && url.length > (options.max_allowed_length as number)) {
     return false;
   }
 
@@ -78,10 +78,10 @@ export default function isURL(urlInput: unknown, options?: IsURLOptions): boolea
   let protocol, auth, host, port, port_str, split, ipv6;
 
   split = url.split('#');
-  url = split.shift()!;
+  url = split.shift() as string;
 
   split = url.split('?');
-  url = split.shift()!;
+  url = split.shift() as string;
 
   // Replaced the 'split("://")' logic with a regex to match the protocol.
   // This correctly identifies schemes like `javascript:` which don't use `//`.
@@ -90,17 +90,20 @@ export default function isURL(urlInput: unknown, options?: IsURLOptions): boolea
   const protocol_match = url.match(/^([a-z][a-z0-9+\-.]*):/i);
   let had_explicit_protocol = false;
 
-  const cleanUpProtocol = (potential_protocol) => {
+  const cleanUpProtocol = (potential_protocol: string): string | false => {
     had_explicit_protocol = true;
     protocol = potential_protocol.toLowerCase();
 
-    if (options.require_valid_protocol && options.protocols!.indexOf(protocol) === -1) {
+    if (
+      options.require_valid_protocol &&
+      (options.protocols as string[]).indexOf(protocol) === -1
+    ) {
       // The identified protocol is not in the allowed list.
       return false;
     }
 
     // Remove the protocol from the URL string.
-    return url.substring(protocol_match![0].length);
+    return url.substring((protocol_match as RegExpMatchArray)[0].length);
   };
 
   if (protocol_match) {
@@ -195,7 +198,7 @@ export default function isURL(urlInput: unknown, options?: IsURLOptions): boolea
   }
 
   split = url.split('/');
-  url = split.shift()!;
+  url = split.shift() as string;
 
   if (url === '' && !options.require_host) {
     return true;

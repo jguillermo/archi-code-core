@@ -152,14 +152,17 @@ const yahoo_domains = [
 const yandex_domains = ['yandex.ru', 'yandex.ua', 'yandex.kz', 'yandex.com', 'yandex.by', 'ya.ru'];
 
 // replace single dots, but not multiple consecutive dots
-function dotsReplacer(match) {
+function dotsReplacer(match: string): string {
   if (match.length > 1) {
     return match;
   }
   return '';
 }
 
-export default function normalizeEmail(email, options) {
+export default function normalizeEmail(
+  email: string,
+  options?: Record<string, unknown>,
+): string | false {
   options = merge(options, default_normalize_email_options);
 
   const raw_parts = email.split('@');

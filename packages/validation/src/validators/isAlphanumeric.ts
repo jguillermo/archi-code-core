@@ -2,10 +2,10 @@ import tryToString from './util/tryToString';
 import { alphanumeric } from './alpha';
 
 export default function isAlphanumeric(
-  _str,
+  _str: unknown,
   locale = 'en-US',
   options: { ignore?: string | RegExp } = {},
-) {
+): boolean {
   const s = tryToString(_str);
   if (s === false) return false;
   _str = s;

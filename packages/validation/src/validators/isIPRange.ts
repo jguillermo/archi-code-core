@@ -5,7 +5,7 @@ const subnetMaybe = /^\d{1,3}$/;
 const v4Subnet = 32;
 const v6Subnet = 128;
 
-export default function isIPRange(str, version = '') {
+export default function isIPRange(str: unknown, version: number | string = ''): boolean {
   const s = tryToString(str);
   if (s === false) return false;
   str = s;

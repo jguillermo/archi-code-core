@@ -1,7 +1,7 @@
 import tryToString from './util/tryToString';
 import { toFloat } from '../convert';
 
-export default function isDivisibleBy(str, num) {
+export default function isDivisibleBy(str: unknown, num: number): boolean {
   const s = tryToString(str);
   if (s === false) return false;
   try {

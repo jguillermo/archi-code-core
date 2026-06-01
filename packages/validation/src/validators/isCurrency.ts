@@ -2,7 +2,7 @@ import type { IsCurrencyOptions } from '../types';
 import merge from './util/merge';
 import tryToString from './util/tryToString';
 
-function currencyRegex(options) {
+function currencyRegex(options: Required<IsCurrencyOptions>): RegExp {
   let decimal_digits = `\\d{${options.digits_after_decimal[0]}}`;
   options.digits_after_decimal.forEach((digit, index) => {
     if (index !== 0) decimal_digits = `${decimal_digits}|\\d{${digit}}`;

@@ -1,6 +1,6 @@
 import tryToString from './util/tryToString';
 
-export default function isLuhnNumber(str) {
+export default function isLuhnNumber(str: unknown): boolean {
   const s = tryToString(str);
   if (s === false) return false;
   str = s;

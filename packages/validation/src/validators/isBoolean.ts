@@ -4,7 +4,7 @@ const defaultOptions = { loose: false };
 const strictBooleans = ['true', 'false', '1', '0'];
 const looseBooleans = [...strictBooleans, 'yes', 'no'];
 
-export default function isBoolean(str: unknown, options = defaultOptions) {
+export default function isBoolean(str: unknown, options = defaultOptions): boolean {
   // Fast path: native boolean — always valid
   if (typeof str === 'boolean') return true;
   // Fast path: number acting as boolean (1/0 only)

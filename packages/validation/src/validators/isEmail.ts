@@ -21,12 +21,11 @@ const default_email_options = {
 
 /* eslint-disable no-control-regex */
 const splitNameAddress = /^([^\x00-\x1F\x7F-\x9F\cX]+)</i;
-const emailUserPart = /^[a-z\d!#\$%&'\*\+\-\/=\?\^_`{\|}~]+$/i;
+const emailUserPart = /^[a-z\d!#$%&'*+\-/=?^_`{|}~]+$/i;
 const gmailUserPart = /^[a-z\d]+$/;
 const quotedEmailUser =
   /^([\s\x01-\x08\x0b\x0c\x0e-\x1f\x7f\x21\x23-\x5b\x5d-\x7e]|(\\[\x01-\x09\x0b\x0c\x0d-\x7f]))*$/i;
-const emailUserUtf8Part =
-  /^[a-z\d!#\$%&'\*\+\-\/=\?\^_`{\|}~\u00A1-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]+$/i;
+const emailUserUtf8Part = /^[a-z\d!#$%&'*+\-/=?^_`{|}~\u00A1-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]+$/i;
 const quotedEmailUserUtf8 =
   /^([\s\x01-\x08\x0b\x0c\x0e-\x1f\x7f\x21\x23-\x5b\x5d-\x7e\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]|(\\[\x01-\x09\x0b\x0c\x0d-\x7f\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]))*$/i;
 const defaultMaxEmailLength = 254;
@@ -37,7 +36,7 @@ const defaultMaxEmailLength = 254;
  * Validate display name according to the RFC2822: https://tools.ietf.org/html/rfc2822#appendix-A.1.2
  * @param {String} display_name
  */
-function validateDisplayName(display_name) {
+function validateDisplayName(display_name: string): boolean {
   const display_name_without_quotes = display_name.replace(/^"(.+)"$/, '$1');
   // display name with only spaces is not valid
   if (!display_name_without_quotes.trim()) {
@@ -45,7 +44,7 @@ function validateDisplayName(display_name) {
   }
 
   // check whether display name contains illegal character
-  const contains_illegal = /[\.";<>]/.test(display_name_without_quotes);
+  const contains_illegal = /[.";<>]/.test(display_name_without_quotes);
   if (contains_illegal) {
     // if contains illegal characters,
     // must to be enclosed in double-quotes, otherwise it's not a valid display name
@@ -100,19 +99,19 @@ export default function isEmail(str: unknown, options?: IsEmailOptions): boolean
   }
 
   const parts = strVal.split('@');
-  const domain = parts.pop()!;
+  const domain = parts.pop() as string;
   const lower_domain = domain.toLowerCase();
 
   if (
     (options.host_blacklist?.length ?? 0) > 0 &&
-    checkHost(lower_domain, options.host_blacklist!)
+    checkHost(lower_domain, options.host_blacklist as (string | RegExp)[])
   ) {
     return false;
   }
 
   if (
     (options.host_whitelist?.length ?? 0) > 0 &&
-    !checkHost(lower_domain, options.host_whitelist!)
+    !checkHost(lower_domain, options.host_whitelist as (string | RegExp)[])
   ) {
     return false;
   }
@@ -141,8 +140,8 @@ export default function isEmail(str: unknown, options?: IsEmailOptions): boolean
     }
 
     const user_parts = username.split('.');
-    for (let i = 0; i < user_parts.length; i++) {
-      if (!gmailUserPart.test(user_parts[i])) {
+    for (const part of user_parts) {
+      if (!gmailUserPart.test(part)) {
         return false;
       }
     }
@@ -193,8 +192,8 @@ export default function isEmail(str: unknown, options?: IsEmailOptions): boolean
   const pattern = options.allow_utf8_local_part ? emailUserUtf8Part : emailUserPart;
 
   const user_parts = user.split('.');
-  for (let i = 0; i < user_parts.length; i++) {
-    if (!pattern.test(user_parts[i])) {
+  for (const part of user_parts) {
+    if (!pattern.test(part)) {
       return false;
     }
   }

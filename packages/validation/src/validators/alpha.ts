@@ -31,9 +31,11 @@ export const alpha = {
   'vi-VN': /^[A-ZÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴĐÈÉẸẺẼÊỀẾỆỂỄÌÍỊỈĨÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠÙÚỤỦŨƯỪỨỰỬỮỲÝỴỶỸ]+$/i,
   'ko-KR': /^[ㄱ-ㅎㅏ-ㅣ가-힣]*$/,
   'ku-IQ': /^[ئابپتجچحخدرڕزژسشعغفڤقکگلڵمنوۆھەیێيطؤثآإأكضصةظذ]+$/i,
+  // eslint-disable-next-line no-misleading-character-class
   ar: /^[ءآأؤإئابةتثجحخدذرزسشصضطظعغفقكلمنهوىيًٌٍَُِّْٰ]+$/,
   he: /^[א-ת]+$/,
   fa: /^['آاءأؤئبپتثجچحخدذرزژسشصضطظعغفقکگلمنوهةی']+$/i,
+  // eslint-disable-next-line no-misleading-character-class
   bn: /^['ঀঁংঃঅআইঈউঊঋঌএঐওঔকখগঘঙচছজঝঞটঠডঢণতথদধনপফবভমযরলশষসহ়ঽািীুূৃৄেৈোৌ্ৎৗড়ঢ়য়ৠৡৢৣৰৱ৲৳৴৵৶৷৸৹৺৻']+$/,
   eo: /^[ABCĈD-GĜHĤIJĴK-PRSŜTUŬVZ]+$/i,
   'hi-IN': /^[\u0900-\u0961]+[\u0972-\u097F]*$/i,
@@ -79,16 +81,20 @@ export const alphanumeric = {
   'ko-KR': /^[0-9ㄱ-ㅎㅏ-ㅣ가-힣]*$/,
   'ku-IQ': /^[٠١٢٣٤٥٦٧٨٩0-9ئابپتجچحخدرڕزژسشعغفڤقکگلڵمنوۆھەیێيطؤثآإأكضصةظذ]+$/i,
   'vi-VN': /^[0-9A-ZÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴĐÈÉẸẺẼÊỀẾỆỂỄÌÍỊỈĨÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠÙÚỤỦŨƯỪỨỰỬỮỲÝỴỶỸ]+$/i,
+  // eslint-disable-next-line no-misleading-character-class
   ar: /^[٠١٢٣٤٥٦٧٨٩0-9ءآأؤإئابةتثجحخدذرزسشصضطظعغفقكلمنهوىيًٌٍَُِّْٰ]+$/,
   he: /^[0-9א-ת]+$/,
   fa: /^['0-9آاءأؤئبپتثجچحخدذرزژسشصضطظعغفقکگلمنوهةی۱۲۳۴۵۶۷۸۹۰']+$/i,
+  // eslint-disable-next-line no-misleading-character-class
   bn: /^['ঀঁংঃঅআইঈউঊঋঌএঐওঔকখগঘঙচছজঝঞটঠডঢণতথদধনপফবভমযরলশষসহ়ঽািীুূৃৄেৈোৌ্ৎৗড়ঢ়য়ৠৡৢৣ০১২৩৪৫৬৭৮৯ৰৱ৲৳৴৵৶৷৸৹৺৻']+$/,
   eo: /^[0-9ABCĈD-GĜHĤIJĴK-PRSŜTUŬVZ]+$/i,
   'hi-IN': /^[\u0900-\u0963]+[\u0966-\u097F]*$/i,
   'si-LK': /^[0-9\u0D80-\u0DFF]+$/,
   'ta-IN': /^[0-9\u0B80-\u0BFF.]+$/i,
+  // eslint-disable-next-line no-misleading-character-class
   'te-IN': /^[0-9\u0C00-\u0C7F.]+$/i,
   'kn-IN': /^[0-9\u0C80-\u0CFF.]+$/i,
+  // eslint-disable-next-line no-misleading-character-class
   'ml-IN': /^[0-9\u0D00-\u0D7F.]+$/i,
   'gu-IN': /^[0-9\u0A80-\u0AFF.]+$/i,
   'pa-IN': /^[0-9\u0A00-\u0A7F.]+$/i,
@@ -196,12 +202,12 @@ export const commaDecimal = [
   'vi-VN',
 ];
 
-for (let i = 0; i < dotDecimal.length; i++) {
-  decimal[dotDecimal[i]] = decimal['en-US'];
+for (const locale of dotDecimal) {
+  decimal[locale] = decimal['en-US'];
 }
 
-for (let i = 0; i < commaDecimal.length; i++) {
-  decimal[commaDecimal[i]] = ',';
+for (const locale of commaDecimal) {
+  decimal[locale] = ',';
 }
 
 alpha['fr-CA'] = alpha['fr-FR'];

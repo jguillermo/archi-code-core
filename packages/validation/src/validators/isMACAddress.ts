@@ -7,7 +7,10 @@ const macAddress64 = /^(?:[0-9a-fA-F]{2}([-:\s]))([0-9a-fA-F]{2}\1){6}([0-9a-fA-
 const macAddress64NoSeparators = /^([0-9a-fA-F]){16}$/;
 const macAddress64WithDots = /^([0-9a-fA-F]{4}\.){3}([0-9a-fA-F]{4})$/;
 
-export default function isMACAddress(str, options) {
+export default function isMACAddress(
+  str: unknown,
+  options?: { no_separators?: boolean; eui?: string },
+): boolean {
   const s = tryToString(str);
   if (s === false) return false;
   str = s;

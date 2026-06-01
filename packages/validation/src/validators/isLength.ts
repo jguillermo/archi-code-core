@@ -1,19 +1,23 @@
 import type { IsLengthOptions } from '../types';
 import tryToString from './util/tryToString';
 
-export default function isLength(str: unknown, options?: IsLengthOptions): boolean {
+export default function isLength(
+  str: unknown,
+  optionsOrMin?: IsLengthOptions | number,
+  maxArg?: number,
+): boolean {
   const s = tryToString(str);
   if (s === false) return false;
-  let min;
-  let max;
+  let min: number;
+  let max: number | undefined;
 
-  if (typeof options === 'object') {
-    min = options.min || 0;
-    max = options.max;
+  if (typeof optionsOrMin === 'object') {
+    min = optionsOrMin.min || 0;
+    max = optionsOrMin.max;
   } else {
     // backwards compatibility: isLength(str, min [, max])
-    min = arguments[1] || 0;
-    max = arguments[2];
+    min = optionsOrMin || 0;
+    max = maxArg;
   }
 
   const presentationSequences = s.match(/[^\uFE0F\uFE0E][\uFE0F\uFE0E]/g) || [];
@@ -21,8 +25,12 @@ export default function isLength(str: unknown, options?: IsLengthOptions): boole
   const len = s.length - presentationSequences.length - surrogatePairs.length;
   const isInsideRange = len >= min && (typeof max === 'undefined' || len <= max);
 
-  if (isInsideRange && Array.isArray(options?.discreteLengths)) {
-    return options.discreteLengths.some((discreteLen) => discreteLen === len);
+  if (
+    isInsideRange &&
+    typeof optionsOrMin === 'object' &&
+    Array.isArray(optionsOrMin?.discreteLengths)
+  ) {
+    return optionsOrMin.discreteLengths.some((discreteLen) => discreteLen === len);
   }
 
   return isInsideRange;

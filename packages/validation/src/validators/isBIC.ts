@@ -4,7 +4,7 @@ import { CountryCodes } from './isISO31661Alpha2';
 // https://en.wikipedia.org/wiki/ISO_9362
 const isBICReg = /^[A-Za-z]{6}[A-Za-z0-9]{2}([A-Za-z0-9]{3})?$/;
 
-export default function isBIC(str) {
+export default function isBIC(str: unknown): boolean {
   const s = tryToString(str);
   if (s === false) return false;
   str = s;

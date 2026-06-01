@@ -17,7 +17,7 @@ const patterns = {
   BG: fourDigit,
   BR: /^\d{5}-?\d{3}$/,
   BY: /^2[1-4]\d{4}$/,
-  CA: /^[ABCEGHJKLMNPRSTVXY]\d[ABCEGHJ-NPRSTV-Z][\s\-]?\d[ABCEGHJ-NPRSTV-Z]\d$/i,
+  CA: /^[ABCEGHJKLMNPRSTVXY]\d[ABCEGHJ-NPRSTV-Z][\s-]?\d[ABCEGHJ-NPRSTV-Z]\d$/i,
   CH: fourDigit,
   CN: /^(0[1-7]|1[012356]|2[0-7]|3[0-6]|4[0-7]|5[1-7]|6[1-7]|7[1-5]|8[1345]|9[09])\d{4}$/,
   CO: /^(05|08|11|13|15|17|18|19|20|23|25|27|41|44|47|50|52|54|63|66|68|70|73|76|81|85|86|88|91|94|95|97|99)(\d{4})$/,
@@ -42,13 +42,13 @@ const patterns = {
   IR: /^(?!(\d)\1{3})[13-9]{4}[1346-9][013-9]{5}$/,
   IS: threeDigit,
   IT: fiveDigit,
-  JP: /^\d{3}\-\d{4}$/,
+  JP: /^\d{3}-\d{4}$/,
   KE: fiveDigit,
   KR: /^(\d{5}|\d{6})$/,
   LI: /^(948[5-9]|949[0-7])$/,
-  LT: /^LT\-\d{5}$/,
+  LT: /^LT-\d{5}$/,
   LU: fourDigit,
-  LV: /^LV\-\d{4}$/,
+  LV: /^LV-\d{4}$/,
   LK: fiveDigit,
   MC: /^980\d{2}$/,
   MG: threeDigit,
@@ -61,9 +61,9 @@ const patterns = {
   NZ: fourDigit,
   // https://www.pakpost.gov.pk/postcodes.php
   PK: fiveDigit,
-  PL: /^\d{2}\-\d{3}$/,
+  PL: /^\d{2}-\d{3}$/,
   PR: /^00[679]\d{2}([ -]\d{4})?$/,
-  PT: /^\d{4}\-\d{3}?$/,
+  PT: /^\d{4}-\d{3}?$/,
   RO: sixDigit,
   RU: sixDigit,
   SA: fiveDigit,
@@ -82,7 +82,7 @@ const patterns = {
 
 export const locales = Object.keys(patterns);
 
-export default function isPostalCode(str, locale) {
+export default function isPostalCode(str: unknown, locale: string): boolean {
   const s = tryToString(str);
   if (s === false) return false;
   str = s;
@@ -93,7 +93,7 @@ export default function isPostalCode(str, locale) {
     for (const key in patterns) {
       // https://github.com/gotwarlost/istanbul/blob/master/ignoring-code-for-coverage.md#ignoring-code-for-coverage-purposes
       // istanbul ignore else
-      if (patterns.hasOwnProperty(key)) {
+      if (Object.prototype.hasOwnProperty.call(patterns, key)) {
         const pattern = patterns[key];
         if (pattern.test(str)) {
           return true;

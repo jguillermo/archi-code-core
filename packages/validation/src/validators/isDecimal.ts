@@ -3,7 +3,7 @@ import merge from './util/merge';
 import tryToString from './util/tryToString';
 import { decimal } from './alpha';
 
-function decimalRegExp(options) {
+function decimalRegExp(options: Required<IsDecimalOptions>): RegExp {
   const regExp = new RegExp(
     `^[-+]?([0-9]+)?(\\${decimal[options.locale]}[0-9]{${options.decimal_digits}})${options.force_decimal ? '' : '?'}$`,
   );
@@ -22,7 +22,7 @@ export default function isDecimal(str: unknown, options?: IsDecimalOptions): boo
   const s = tryToString(str);
   if (s === false) return false;
   options = merge(options, default_decimal_options);
-  if (options.locale! in decimal) {
+  if ((options.locale as string) in decimal) {
     return !blacklist.includes(s.replace(/ /g, '')) && decimalRegExp(options).test(s);
   }
   throw new Error(`Invalid locale '${options.locale}'`);

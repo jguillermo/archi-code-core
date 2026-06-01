@@ -7,13 +7,13 @@ const default_date_options = {
   strictMode: false,
 };
 
-function isValidFormat(format) {
-  return /(^(y{4}|y{2})[.\/-](m{1,2})[.\/-](d{1,2})$)|(^(m{1,2})[.\/-](d{1,2})[.\/-]((y{4}|y{2})$))|(^(d{1,2})[.\/-](m{1,2})[.\/-]((y{4}|y{2})$))/gi.test(
+function isValidFormat(format: string): boolean {
+  return /(^(y{4}|y{2})[./-](m{1,2})[./-](d{1,2})$)|(^(m{1,2})[./-](d{1,2})[./-]((y{4}|y{2})$))|(^(d{1,2})[./-](m{1,2})[./-]((y{4}|y{2})$))/gi.test(
     format,
   );
 }
 
-function zip(date, format) {
+function zip(date: string[], format: string[]): [string, string][] {
   const zippedArr: [string, string][] = [],
     len = Math.max(date.length, format.length);
 
@@ -41,8 +41,8 @@ export default function isDate(input: unknown, options?: IsDateOptions | string)
       ? formatDelimiter
       : mergedOptions.delimiters.find((delimiter) => input.indexOf(delimiter) !== -1);
     const dateAndFormat = zip(
-      input.split(dateDelimiter!),
-      mergedOptions.format.toLowerCase().split(formatDelimiter!),
+      input.split(dateDelimiter as string),
+      mergedOptions.format.toLowerCase().split(formatDelimiter as string),
     );
     const dateObj: Record<string, string> = {};
 

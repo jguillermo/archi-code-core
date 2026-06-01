@@ -1,6 +1,6 @@
 import tryToString from './util/tryToString';
 
-export default function isWhitelisted(str, chars) {
+export default function isWhitelisted(str: unknown, chars: string | string[]): boolean {
   const s = tryToString(str);
   if (s === false) return false;
   str = s;

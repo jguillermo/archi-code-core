@@ -3,7 +3,10 @@ import { decimal } from './alpha';
 
 const numericNoSymbols = /^[0-9]+$/;
 
-export default function isNumeric(str, options) {
+export default function isNumeric(
+  str: unknown,
+  options?: { no_symbols?: boolean; locale?: string },
+): boolean {
   const s = tryToString(str);
   if (s === false) return false;
   str = s;

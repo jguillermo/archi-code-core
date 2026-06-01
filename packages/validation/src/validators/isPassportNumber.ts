@@ -79,7 +79,7 @@ export const locales = Object.keys(passportRegexByCountryCode);
  * @param {string} countryCode
  * @return {boolean}
  */
-export default function isPassportNumber(str, countryCode) {
+export default function isPassportNumber(str: unknown, countryCode: string): boolean {
   const s = tryToString(str);
   if (s === false) return false;
   str = s;

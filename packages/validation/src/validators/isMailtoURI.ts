@@ -2,7 +2,7 @@ import { trim } from '../sanitizer';
 import isEmail from './isEmail';
 import tryToString from './util/tryToString';
 
-function parseMailtoQueryString(queryString) {
+function parseMailtoQueryString(queryString: string): { cc: string; bcc: string } | false {
   const allowedParams = new Set(['subject', 'body', 'cc', 'bcc']),
     query = { cc: '', bcc: '' };
   let isParseFailed = false;
@@ -34,7 +34,7 @@ function parseMailtoQueryString(queryString) {
   return isParseFailed ? false : query;
 }
 
-export default function isMailtoURI(url, options) {
+export default function isMailtoURI(url: unknown, options?: unknown): boolean {
   const s = tryToString(url);
   if (s === false) return false;
   url = s;

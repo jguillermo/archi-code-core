@@ -7,7 +7,11 @@ const defaultContainsOptions = {
   minOccurrences: 1,
 };
 
-export default function contains(str, elem, options) {
+export default function contains(
+  str: unknown,
+  elem: unknown,
+  options?: { ignoreCase?: boolean; minOccurrences?: number },
+): boolean {
   const s = tryToString(str);
   if (s === false) return false;
   str = s;

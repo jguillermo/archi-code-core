@@ -27,17 +27,17 @@ import tryToString from './util/tryToString';
 //   Subtype length must not exceed 100 characters.
 //   This rule does not comply to the RFC specs (what is the max length ?).
 const mimeTypeSimple =
-  /^(application|audio|font|image|message|model|multipart|text|video)\/[a-zA-Z0-9\.\-\+_]{1,100}$/i;
+  /^(application|audio|font|image|message|model|multipart|text|video)\/[a-zA-Z0-9.\-+_]{1,100}$/i;
 
 // Handle "charset" in "text/*"
 const mimeTypeText =
-  /^text\/[a-zA-Z0-9\.\-\+]{1,100};\s?charset=("[a-zA-Z0-9\.\-\+\s]{0,70}"|[a-zA-Z0-9\.\-\+]{0,70})(\s?\([a-zA-Z0-9\.\-\+\s]{1,20}\))?$/i;
+  /^text\/[a-zA-Z0-9.\-+]{1,100};\s?charset=("[a-zA-Z0-9.\-+\s]{0,70}"|[a-zA-Z0-9.\-+]{0,70})(\s?\([a-zA-Z0-9.\-+\s]{1,20}\))?$/i;
 
 // Handle "boundary" in "multipart/*"
 const mimeTypeMultipart =
-  /^multipart\/[a-zA-Z0-9\.\-\+]{1,100}(;\s?(boundary|charset)=("[a-zA-Z0-9\.\-\+\s]{0,70}"|[a-zA-Z0-9\.\-\+]{0,70})(\s?\([a-zA-Z0-9\.\-\+\s]{1,20}\))?){0,2}$/i;
+  /^multipart\/[a-zA-Z0-9.\-+]{1,100}(;\s?(boundary|charset)=("[a-zA-Z0-9.\-+\s]{0,70}"|[a-zA-Z0-9.\-+]{0,70})(\s?\([a-zA-Z0-9.\-+\s]{1,20}\))?){0,2}$/i;
 
-export default function isMimeType(str) {
+export default function isMimeType(str: unknown): boolean {
   const s = tryToString(str);
   if (s === false) return false;
   str = s;

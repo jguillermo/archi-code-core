@@ -10,10 +10,18 @@ export default function isInt(str: unknown, options?: IsIntOptions): boolean {
     if (!Number.isInteger(str)) return false;
     options = options || {};
     return (
-      (!options.hasOwnProperty('min') || options.min == null || str >= options.min) &&
-      (!options.hasOwnProperty('max') || options.max == null || str <= options.max) &&
-      (!options.hasOwnProperty('lt') || options.lt == null || str < options.lt) &&
-      (!options.hasOwnProperty('gt') || options.gt == null || str > options.gt)
+      (!Object.prototype.hasOwnProperty.call(options, 'min') ||
+        options.min == null ||
+        str >= options.min) &&
+      (!Object.prototype.hasOwnProperty.call(options, 'max') ||
+        options.max == null ||
+        str <= options.max) &&
+      (!Object.prototype.hasOwnProperty.call(options, 'lt') ||
+        options.lt == null ||
+        str < options.lt) &&
+      (!Object.prototype.hasOwnProperty.call(options, 'gt') ||
+        options.gt == null ||
+        str > options.gt)
     );
   }
   // Non-string: coerce if possible, otherwise reject
@@ -23,10 +31,16 @@ export default function isInt(str: unknown, options?: IsIntOptions): boolean {
   const regex = options.allow_leading_zeroes === false ? int : intLeadingZeroes;
   const sNum = Number(s);
   const minCheckPassed =
-    !options.hasOwnProperty('min') || options.min == null || sNum >= options.min;
+    !Object.prototype.hasOwnProperty.call(options, 'min') ||
+    options.min == null ||
+    sNum >= options.min;
   const maxCheckPassed =
-    !options.hasOwnProperty('max') || options.max == null || sNum <= options.max;
-  const ltCheckPassed = !options.hasOwnProperty('lt') || options.lt == null || sNum < options.lt;
-  const gtCheckPassed = !options.hasOwnProperty('gt') || options.gt == null || sNum > options.gt;
+    !Object.prototype.hasOwnProperty.call(options, 'max') ||
+    options.max == null ||
+    sNum <= options.max;
+  const ltCheckPassed =
+    !Object.prototype.hasOwnProperty.call(options, 'lt') || options.lt == null || sNum < options.lt;
+  const gtCheckPassed =
+    !Object.prototype.hasOwnProperty.call(options, 'gt') || options.gt == null || sNum > options.gt;
   return regex.test(s) && minCheckPassed && maxCheckPassed && ltCheckPassed && gtCheckPassed;
 }
