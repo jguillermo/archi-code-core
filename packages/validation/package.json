@@ -37,9 +37,9 @@
     "test": "jest",
     "test:coverage": "jest --coverage",
     "benchmark": "ts-node --project benchmark/tsconfig.json benchmark/run.ts",
-    "check:lint": "eslint src --ext .ts",
+    "check:lint": "eslint src test --ext .ts",
     "check:prettier": "prettier --check \"{src,test}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\"",
-    "fix:lint": "eslint src --ext .ts --fix",
+    "fix:lint": "eslint src test --ext .ts --fix",
     "fix:prettier": "prettier --write \"{src,test}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\""
   },
   "jest": {
