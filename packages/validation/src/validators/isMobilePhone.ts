@@ -180,7 +180,11 @@ phones['ga-IE'] = phones['en-IE'];
 phones['fr-CH'] = phones['de-CH'];
 phones['it-CH'] = phones['fr-CH'];
 
-export default function isMobilePhone(str: unknown, locale?: string | string[], options?: IsMobilePhoneOptions): boolean {
+export default function isMobilePhone(
+  str: unknown,
+  locale?: string | string[],
+  options?: IsMobilePhoneOptions,
+): boolean {
   const s = tryToString(str);
   if (s === false) return false;
   if (options && options.strictMode && !s.startsWith('+')) {

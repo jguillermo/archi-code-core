@@ -26,9 +26,7 @@ export default function isInt(str: unknown, options?: IsIntOptions): boolean {
     !options.hasOwnProperty('min') || options.min == null || sNum >= options.min;
   const maxCheckPassed =
     !options.hasOwnProperty('max') || options.max == null || sNum <= options.max;
-  const ltCheckPassed =
-    !options.hasOwnProperty('lt') || options.lt == null || sNum < options.lt;
-  const gtCheckPassed =
-    !options.hasOwnProperty('gt') || options.gt == null || sNum > options.gt;
+  const ltCheckPassed = !options.hasOwnProperty('lt') || options.lt == null || sNum < options.lt;
+  const gtCheckPassed = !options.hasOwnProperty('gt') || options.gt == null || sNum > options.gt;
   return regex.test(s) && minCheckPassed && maxCheckPassed && ltCheckPassed && gtCheckPassed;
 }

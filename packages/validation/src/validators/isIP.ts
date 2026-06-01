@@ -46,7 +46,10 @@ const IPv6AddressRegExp = new RegExp(
     ')(%[0-9a-zA-Z.]{1,})?$',
 );
 
-export default function isIP(ipAddress, options: { version?: number | string } | number | string = {}) {
+export default function isIP(
+  ipAddress,
+  options: { version?: number | string } | number | string = {},
+) {
   const s = tryToString(ipAddress);
   if (s === false) return false;
   ipAddress = s;

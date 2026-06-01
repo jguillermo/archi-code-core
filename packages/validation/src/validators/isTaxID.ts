@@ -104,7 +104,7 @@ function csCzCheck(tin) {
   tin = tin.replace(/\W/, '');
 
   // Extract full year from TIN length
-  let full_year_num = parseInt(tin.slice(0, 2), 10);
+  const full_year_num = parseInt(tin.slice(0, 2), 10);
   let full_year: string;
   if (tin.length === 10) {
     if (full_year_num < 54) {
@@ -227,7 +227,7 @@ function dkDkCheck(tin) {
   tin = tin.replace(/\W/, '');
 
   // Extract year, check if valid for given century digit and add century
-  let year_num = parseInt(tin.slice(4, 6), 10);
+  const year_num = parseInt(tin.slice(4, 6), 10);
   let year: string;
   const century_digit = tin.slice(6, 7);
   switch (century_digit) {
@@ -1285,7 +1285,7 @@ function skSkCheck(tin) {
     } // Three-zero serial not assigned before 1954
 
     // Extract full year from TIN length
-    let full_year_num2 = parseInt(tin.slice(0, 2), 10);
+    const full_year_num2 = parseInt(tin.slice(0, 2), 10);
     if (full_year_num2 > 53) {
       return false;
     }

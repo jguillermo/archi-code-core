@@ -29,8 +29,8 @@ export interface IsURLOptions {
   disallow_auth?: boolean;
   validate_length?: boolean;
   max_allowed_length?: number;
-  host_whitelist?: Array<string | RegExp>;
-  host_blacklist?: Array<string | RegExp>;
+  host_whitelist?: (string | RegExp)[];
+  host_blacklist?: (string | RegExp)[];
 }
 
 export interface IsFQDNOptions {
@@ -301,7 +301,11 @@ export interface ValidatorRegistry {
   isStrongPassword(str: unknown, options?: IsStrongPasswordOptions): boolean | number;
 
   equals(str: unknown, comparison: string): boolean;
-  contains(str: unknown, elem: string, options?: { ignoreCase?: boolean; minOccurrences?: number }): boolean;
+  contains(
+    str: unknown,
+    elem: string,
+    options?: { ignoreCase?: boolean; minOccurrences?: number },
+  ): boolean;
   matches(str: unknown, pattern: RegExp | string, modifiers?: string): boolean;
 
   // — Locale data —

@@ -9,7 +9,7 @@
     "test": "npm run test -ws --if-present",
     "test:coverage": "npm run test:coverage -ws --if-present",
     "test:scripts": "node --test scripts/__tests__/**/*.test.js",
-    "check": "npm run check:lint && npm run check:format && npm run check:editorconfig",
+    "check": "npm run check:format && npm run check:lint && npm run check:editorconfig",
     "check:lint": "npm run check:lint -ws --if-present",
     "check:format": "npm run check:prettier -ws --if-present",
     "check:editorconfig": "editorconfig-checker --exclude node_modules --exclude dist --exclude '.git'",

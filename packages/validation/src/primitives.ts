@@ -53,7 +53,8 @@ export function canBeDate(v: unknown): boolean {
       const [hh, mm, ss] = hhmmss.split(':').map(Number);
       if (hh > 23 || mm > 59 || Math.floor(ss) > 59) return false;
       const tzStr = timePart.slice(hhmmss.length);
-      if (tzStr.length > 1 && (Number(tzStr.slice(1, 3)) > 23 || Number(tzStr.slice(4, 6)) > 59)) return false;
+      if (tzStr.length > 1 && (Number(tzStr.slice(1, 3)) > 23 || Number(tzStr.slice(4, 6)) > 59))
+        return false;
     }
 
     return true;

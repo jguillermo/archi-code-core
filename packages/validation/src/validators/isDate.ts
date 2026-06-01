@@ -44,7 +44,7 @@ export default function isDate(input: unknown, options?: IsDateOptions | string)
       input.split(dateDelimiter!),
       mergedOptions.format.toLowerCase().split(formatDelimiter!),
     );
-    const dateObj: { [key: string]: string } = {};
+    const dateObj: Record<string, string> = {};
 
     for (const [dateWord, formatWord] of dateAndFormat) {
       if (!dateWord || !formatWord || dateWord.length !== formatWord.length) {

@@ -83,7 +83,10 @@ function scorePassword(analysis, scoringOptions) {
   return points;
 }
 
-export default function isStrongPassword(str: unknown, options?: IsStrongPasswordOptions): boolean | number {
+export default function isStrongPassword(
+  str: unknown,
+  options?: IsStrongPasswordOptions,
+): boolean | number {
   const s = tryToString(str);
   if (s === false) return false;
   const analysis = analyzePassword(s);

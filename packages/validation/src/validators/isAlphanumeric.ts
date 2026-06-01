@@ -1,7 +1,11 @@
 import tryToString from './util/tryToString';
 import { alphanumeric } from './alpha';
 
-export default function isAlphanumeric(_str, locale = 'en-US', options: { ignore?: string | RegExp } = {}) {
+export default function isAlphanumeric(
+  _str,
+  locale = 'en-US',
+  options: { ignore?: string | RegExp } = {},
+) {
   const s = tryToString(_str);
   if (s === false) return false;
   _str = s;

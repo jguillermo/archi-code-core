@@ -63,8 +63,6 @@ export function whitelist(str: string, chars: string): string {
 
 export function stripLow(str: string, keepNewLines?: boolean): string {
   assertString(str);
-  const chars = keepNewLines
-    ? '\\x00-\\x09\\x0B\\x0C\\x0E-\\x1F\\x7F'
-    : '\\x00-\\x1F\\x7F';
+  const chars = keepNewLines ? '\\x00-\\x09\\x0B\\x0C\\x0E-\\x1F\\x7F' : '\\x00-\\x1F\\x7F';
   return blacklist(str, chars);
 }

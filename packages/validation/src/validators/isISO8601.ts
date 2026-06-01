@@ -35,7 +35,10 @@ const isValidDate = (str) => {
   return true;
 };
 
-export default function isISO8601(str, options: { strictSeparator?: boolean; strict?: boolean } = {}) {
+export default function isISO8601(
+  str,
+  options: { strictSeparator?: boolean; strict?: boolean } = {},
+) {
   const s = tryToString(str);
   if (s === false) return false;
   str = s;
