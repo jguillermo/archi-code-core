@@ -272,4 +272,11 @@ describe('isIP', () => {
       });
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isIP',
+      invalid: [null, {}, []],
+    });
+  });
 });

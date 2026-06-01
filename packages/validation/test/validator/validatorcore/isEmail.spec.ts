@@ -340,4 +340,12 @@ describe('Validators', () => {
   it('should correctly validate coercible non-string inputs', () => {
     test({ validator: 'isEmail', invalid: [true, false, 42, 0] });
   });
+
+  it('should handle null host_blacklist and host_whitelist (covers ?? fallback branch)', () => {
+    test({
+      validator: 'isEmail',
+      args: [{ host_blacklist: null, host_whitelist: null }],
+      valid: ['test@gmail.com', 'user@example.com'],
+    });
+  });
 });

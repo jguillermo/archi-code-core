@@ -34,6 +34,12 @@ describe('isAfter', () => {
     );
   });
 
+  it('accepts Date objects directly (covers toDateLax Date-instance branch)', () => {
+    expect(isAfter(new Date('2100-01-01'))).toBe(true);
+    expect(isAfter(new Date('invalid'))).toBe(false);
+    expect(isAfter(42 as any)).toBe(false);
+  });
+
   describe('legacy syntax (string as second argument)', () => {
     it('validates dates after a comparison date string', () => {
       expect(isAfter('2011-08-04', '2011-08-03')).toBe(true);

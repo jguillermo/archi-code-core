@@ -99,6 +99,9 @@ const OUT_OF_RANGE_DATE_STRINGS = [
   '2018-03-23T00:60:00', // minutes 60
   '2018-03-23T15:02:61.000Z', // seconds 61
   '2018-03-23T00:00:60', // seconds 60
+
+  // --- timezone offset out of range ---
+  '2018-03-23T16:02:15+00:60', // valid tz hours (0) but invalid tz minutes (60)
 ];
 
 // Date strings that don't match the expected format (fail regex)

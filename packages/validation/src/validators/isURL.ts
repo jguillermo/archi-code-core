@@ -78,10 +78,10 @@ export default function isURL(urlInput: unknown, options?: IsURLOptions): boolea
   let protocol, auth, host, hostname, port, port_str, split, ipv6;
 
   split = url.split('#');
-  url = split.shift() ?? '';
+  url = split.shift()!;
 
   split = url.split('?');
-  url = split.shift() ?? '';
+  url = split.shift()!;
 
   // Replaced the 'split("://")' logic with a regex to match the protocol.
   // This correctly identifies schemes like `javascript:` which don't use `//`.
@@ -195,7 +195,7 @@ export default function isURL(urlInput: unknown, options?: IsURLOptions): boolea
   }
 
   split = url.split('/');
-  url = split.shift() ?? '';
+  url = split.shift()!;
 
   if (url === '' && !options.require_host) {
     return true;

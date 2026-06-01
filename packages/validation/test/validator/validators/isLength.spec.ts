@@ -168,4 +168,11 @@ describe('isLength', () => {
       invalid: ['a', 'cat', 'lengthy'],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isLength',
+      invalid: [null, {}, []],
+    });
+  });
 });

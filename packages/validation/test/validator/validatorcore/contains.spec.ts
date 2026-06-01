@@ -41,4 +41,12 @@ describe('Validators', () => {
       invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
     });
   });
+
+  it('should return false when elem cannot be converted to string', () => {
+    test({
+      validator: 'contains',
+      args: [null],
+      invalid: ['hello', 'foobar'],
+    });
+  });
 });

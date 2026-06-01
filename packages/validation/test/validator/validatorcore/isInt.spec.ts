@@ -107,4 +107,10 @@ describe('Validators', () => {
     test({ validator: 'isInt', valid: [42, 0, -7] });
     test({ validator: 'isInt', invalid: [3.14, true, false] });
   });
+
+  it('should correctly validate number inputs with min/max/lt/gt options', () => {
+    test({ validator: 'isInt', args: [{ min: 5, max: 20 }], valid: [10, 5, 20], invalid: [4, 21] });
+    test({ validator: 'isInt', args: [{ gt: 5, lt: 20 }], valid: [10, 6, 19], invalid: [5, 20] });
+    test({ validator: 'isInt', args: [{ min: null, max: null, gt: null, lt: null }], valid: [42] });
+  });
 });

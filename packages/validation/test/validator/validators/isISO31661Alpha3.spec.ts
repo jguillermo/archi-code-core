@@ -45,4 +45,11 @@ describe('isISO31661Alpha3', () => {
       invalid: ['XXK'],
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isISO31661Alpha3',
+      invalid: [null, {}, []],
+    });
+  });
 });

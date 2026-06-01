@@ -142,4 +142,11 @@ describe('isISBN', () => {
       });
     });
   });
+
+  it('should return false for non-string inputs', () => {
+    test({
+      validator: 'isISBN',
+      invalid: [null, {}, []],
+    });
+  });
 });

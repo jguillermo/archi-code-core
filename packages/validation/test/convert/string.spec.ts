@@ -134,5 +134,10 @@ describe('toString', () => {
       function* gen() { yield 1; }
       expectConvertError(() => toString(gen()), 'Cannot convert [Generator] to string');
     });
+    it('circular object → "Cannot convert [Object] to string"', () => {
+      const obj = {} as any;
+      obj.self = obj;
+      expectConvertError(() => toString(obj), 'Cannot convert [Object] to string');
+    });
   });
 });

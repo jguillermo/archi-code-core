@@ -14,11 +14,11 @@ export type Row = {
 };
 
 function fmtOps(n: number): string {
-  return Math.round(n).toLocaleString('en-US');
+  return Math.round(n).toLocaleString('en-US').replace(/,/g, ' ');
 }
 
 function fmtNs(ms: number): string {
-  return Math.round(ms * 1_000_000).toLocaleString('en-US');
+  return Math.round(ms * 1_000_000).toString();
 }
 
 function pad(s: string, width: number): string {

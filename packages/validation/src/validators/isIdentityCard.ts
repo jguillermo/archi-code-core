@@ -3,10 +3,6 @@ import isInt from './isInt';
 
 const validators = {
   PL: (str) => {
-    const s = tryToString(str);
-  if (s === false) return false;
-  str = s;
-
     const weightOfDigits = {
       1: 1,
       2: 3,
@@ -39,10 +35,6 @@ const validators = {
     return false;
   },
   ES: (str) => {
-    const s = tryToString(str);
-  if (s === false) return false;
-  str = s;
-
     const DNI = /^[0-9X-Z][0-9]{7}[TRWAGMYFPDXBNJZSQVHLCKE]$/;
 
     const charsValue = {
@@ -92,10 +84,6 @@ const validators = {
   },
   FI: (str) => {
     // https://dvv.fi/en/personal-identity-code#:~:text=control%20character%20for%20a-,personal,-identity%20code%20calculated
-    const s = tryToString(str);
-  if (s === false) return false;
-  str = s;
-
     if (str.length !== 11) {
       return false;
     }
@@ -505,8 +493,6 @@ export default function isIdentityCard(str, locale) {
   }
   if (locale === 'any') {
     for (const key in validators) {
-      // https://github.com/gotwarlost/istanbul/blob/master/ignoring-code-for-coverage.md#ignoring-code-for-coverage-purposes
-      // istanbul ignore else
       if (validators.hasOwnProperty(key)) {
         const validator = validators[key];
         if (validator(str)) {
