@@ -382,4 +382,12 @@ describe('Validators', () => {
       invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
     });
   });
+
+  it('should use default locale (any) when no locale is provided', () => {
+    test({
+      validator: 'isIdentityCard',
+      valid: ['99999999R'],
+      invalid: ['foo'],
+    });
+  });
 });
