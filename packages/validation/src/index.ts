@@ -1,6 +1,7 @@
 export { default as validator } from './validators';
 export * from './primitives';
 export * from './convert';
+export * as sanitizer from './sanitizer';
 export { createValidator } from './createValidator';
 export type {
   ValidatorRegistry,

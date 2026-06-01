@@ -1,4 +1,4 @@
-import trim from './trim';
+import { trim } from '../sanitizer';
 import isEmail from './isEmail';
 import tryToString from './util/tryToString';
 

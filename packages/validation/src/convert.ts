@@ -101,6 +101,24 @@ export function toDate(v: unknown): Date {
   throw new ConvertError(`Cannot convert ${describeValue(v)} to date`);
 }
 
+/**
+ * Lenient date parser that accepts any string the JS Date constructor understands
+ * (ISO 8601, locale strings, US date format, etc.).
+ * Used internally by `isAfter` and `isBefore`. Throws `ConvertError` on unparseable input.
+ */
+export function toDateLax(v: unknown): Date {
+  if (v instanceof Date) {
+    if (isNaN(v.getTime())) throw new ConvertError('Cannot convert Invalid Date to date');
+    return v;
+  }
+  if (typeof v === 'string') {
+    const d = new Date(v);
+    if (isNaN(d.getTime())) throw new ConvertError(`Cannot convert "${v}" to date`);
+    return d;
+  }
+  throw new ConvertError(`Cannot convert ${describeValue(v)} to date`);
+}
+
 export function toJson(v: unknown): Record<string, unknown> {
   if (!canBeJson(v)) {
     if (typeof v === 'string') throw new ConvertError(`Cannot convert "${v}" to JSON object`);

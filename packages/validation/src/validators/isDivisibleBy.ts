@@ -1,9 +1,12 @@
 import tryToString from './util/tryToString';
-import toFloat from './toFloat';
+import { toFloat } from '../convert';
 
 export default function isDivisibleBy(str, num) {
   const s = tryToString(str);
   if (s === false) return false;
-  str = s;
-  return toFloat(str) % parseInt(num, 10) === 0;
+  try {
+    return toFloat(s) % parseInt(num, 10) === 0;
+  } catch {
+    return false;
+  }
 }

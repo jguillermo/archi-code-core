@@ -1,8 +1,3 @@
-import toDate from './toDate';
-import toFloat from './toFloat';
-import toInt from './toInt';
-import toBoolean from './toBoolean';
-import { toString } from '../convert';
 import equals from './equals';
 import contains from './contains';
 import matches from './matches';
@@ -113,17 +108,7 @@ import isMimeType from './isMimeType';
 import isLatLong from './isLatLong';
 import isPostalCode, { locales as isPostalCodeLocales } from './isPostalCode';
 
-import ltrim from './ltrim';
-import rtrim from './rtrim';
-import trim from './trim';
-import escape from './escape';
-import unescape from './unescape';
-import stripLow from './stripLow';
-import whitelist from './whitelist';
-import blacklist from './blacklist';
 import isWhitelisted from './isWhitelisted';
-
-import normalizeEmail from './normalizeEmail';
 
 import isSlug from './isSlug';
 import isLicensePlate from './isLicensePlate';
@@ -133,14 +118,7 @@ import isVAT from './isVAT';
 
 import type { ValidatorRegistry } from '../types';
 
-const version = '13.15.35';
-
 const validator: ValidatorRegistry = {
-  version,
-  toDate,
-  toFloat,
-  toInt,
-  toBoolean,
   equals,
   contains,
   matches,
@@ -229,17 +207,7 @@ const validator: ValidatorRegistry = {
   isMailtoURI,
   isMimeType,
   isLatLong,
-  ltrim,
-  rtrim,
-  trim,
-  escape,
-  unescape,
-  stripLow,
-  whitelist,
-  blacklist,
   isWhitelisted,
-  normalizeEmail,
-  toString,
   isSlug,
   isStrongPassword,
   isTaxID,

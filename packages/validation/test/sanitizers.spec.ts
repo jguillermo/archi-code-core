@@ -1,5 +1,8 @@
 import { format } from 'util';
-import validator from '../../src/validators';
+import validatorObj from '../src/validators';
+import * as sanitizer from '../src/sanitizer';
+
+const api = { ...sanitizer, isStrongPassword: validatorObj.isStrongPassword } as Record<string, (...a: unknown[]) => unknown>;
 
 function test(options) {
   const args = options.args || [];
@@ -8,15 +11,15 @@ function test(options) {
 
   Object.keys(options.expect).forEach((input) => {
     args[0] = input;
-    const result = validator[options.sanitizer](...args);
+    const result = api[options.sanitizer](...args);
     const expected = options.expect[input];
-    if (isNaN(result) && !result.length && isNaN(expected)) {
+    if (typeof result === 'number' && isNaN(result as number) && typeof expected === 'number' && isNaN(expected)) {
       return;
     }
 
     if (result !== expected) {
       const warning = format(
-        'validator.%s(%s) returned "%s" but should have returned "%s"',
+        'sanitizer.%s(%s) returned "%s" but should have returned "%s"',
         options.sanitizer,
         args.join(', '),
         result,
@@ -29,42 +32,6 @@ function test(options) {
 }
 
 describe('Sanitizers', () => {
-  it('should sanitize boolean strings', () => {
-    test({
-      sanitizer: 'toBoolean',
-      expect: {
-        0: false,
-        '': false,
-        1: true,
-        true: true,
-        True: true,
-        TRUE: true,
-        foobar: true,
-        '   ': true,
-        false: false,
-        False: false,
-        FALSE: false,
-      },
-    });
-    test({
-      sanitizer: 'toBoolean',
-      args: [true], // strict
-      expect: {
-        0: false,
-        '': false,
-        1: true,
-        true: true,
-        True: true,
-        TRUE: true,
-        foobar: false,
-        '   ': false,
-        false: false,
-        False: false,
-        FALSE: false,
-      },
-    });
-  });
-
   it('should trim whitespace', () => {
     test({
       sanitizer: 'trim',
@@ -123,37 +90,6 @@ describe('Sanitizers', () => {
     });
   });
 
-  it('should convert strings to integers', () => {
-    test({
-      sanitizer: 'toInt',
-      expect: {
-        3: 3,
-        ' 3 ': 3,
-        2.4: 2,
-        foo: NaN,
-      },
-    });
-
-    test({
-      sanitizer: 'toInt',
-      args: [16],
-      expect: { ff: 255 },
-    });
-  });
-
-  it('should convert strings to floats', () => {
-    test({
-      sanitizer: 'toFloat',
-      expect: {
-        2: 2.0,
-        '2.': 2.0,
-        '-2.5': -2.5,
-        '.5': 0.5,
-        '2020-01-06T14:31:00.135Z': NaN,
-        foo: NaN,
-      },
-    });
-  });
 
   it('should escape HTML', () => {
     test({

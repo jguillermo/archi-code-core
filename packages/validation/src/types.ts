@@ -192,10 +192,8 @@ export interface IsStrongPasswordOptions {
 
 // ─── Registry ─────────────────────────────────────────────────────────────────
 
-/** Public contract of the `validator` object. */
+/** Public contract of the `validator` object — only boolean validators. */
 export interface ValidatorRegistry {
-  version: string;
-
   // — Core validators —
   isEmail(str: unknown, options?: IsEmailOptions): boolean;
   isURL(str: unknown, options?: IsURLOptions): boolean;
@@ -305,22 +303,6 @@ export interface ValidatorRegistry {
   equals(str: unknown, comparison: string): boolean;
   contains(str: unknown, elem: string, options?: { ignoreCase?: boolean; minOccurrences?: number }): boolean;
   matches(str: unknown, pattern: RegExp | string, modifiers?: string): boolean;
-
-  // — Sanitizers (kept for backward compat) —
-  toDate(str: string): Date | null;
-  toFloat(str: string): number;
-  toInt(str: string, radix?: number): number;
-  toBoolean(str: string, strict?: boolean): boolean;
-  trim(str: string, chars?: string): string;
-  ltrim(str: string, chars?: string): string;
-  rtrim(str: string, chars?: string): string;
-  escape(str: string): string;
-  unescape(str: string): string;
-  stripLow(str: string, keep_new_lines?: boolean): string;
-  whitelist(str: string, chars: string): string;
-  blacklist(str: string, chars: string): string;
-  normalizeEmail(email: string, options?: NormalizeEmailOptions): string | false;
-  toString(v: unknown): string;
 
   // — Locale data —
   isFloatLocales: string[];
