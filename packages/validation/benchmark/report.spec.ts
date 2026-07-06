@@ -55,14 +55,14 @@ describe('report.formatTable', () => {
     expect(out).toContain('rojo = más lento');
   });
 
-  it('shows "new" for Δ when there is no baseline', () => {
+  it('shows "base" for Δ when there is no baseline', () => {
     const out = formatTable(rows, { color: false });
-    expect(out).toContain('new');
+    expect(out).toContain('base');
   });
 
-  it('paints a regression in red and a new record in green when color is on', () => {
-    const regressed: Row[] = [{ ...rows[0], bestOkNs: 0.0005 }]; // now 0.001 > best*1.1 → regression
-    const improved: Row[] = [{ ...rows[0], bestOkNs: 0.002 }]; // now 0.001 < best → new record
+  it('paints a regression in red and a real improvement in green when color is on', () => {
+    const regressed: Row[] = [{ ...rows[0], bestOkNs: 0.0005 }]; // now 0.001, +100% → regression
+    const improved: Row[] = [{ ...rows[0], bestOkNs: 0.002 }]; // now 0.001, -50% → improved
     expect(formatTable(regressed, { color: true, tolerance: 0.1 })).toContain('\x1b[31m'); // red
     expect(formatTable(improved, { color: true, tolerance: 0.1 })).toContain('\x1b[32m'); // green
   });
@@ -74,17 +74,23 @@ describe('report.formatTable', () => {
 });
 
 describe('report.compareNs', () => {
-  it('returns "new" when there is no previous best', () => {
-    expect(compareNs(10, undefined, 0.1)).toBe('new');
+  it('returns "first" when there is no previous reference', () => {
+    expect(compareNs(10, undefined, 0.1)).toBe('first');
   });
-  it('returns "new" when the current time beats the record', () => {
-    expect(compareNs(9, 10, 0.1)).toBe('new');
+  it('returns "improved" when faster beyond the band', () => {
+    expect(compareNs(8, 10, 0.1, 0)).toBe('improved'); // -20% < -10%
   });
-  it('returns "regression" when slower than best beyond the tolerance', () => {
-    expect(compareNs(12, 10, 0.1)).toBe('regression'); // +20% > 10%
+  it('returns "regression" when slower beyond tolerance and noise', () => {
+    expect(compareNs(12, 10, 0.1, 1)).toBe('regression'); // +20% > max(10%, 1%)
   });
-  it('returns "neutral" when slower than best but within the tolerance', () => {
-    expect(compareNs(10.5, 10, 0.1)).toBe('neutral'); // +5% <= 10%
+  it('returns "neutral" for a small change within the tolerance (both directions)', () => {
+    expect(compareNs(10.5, 10, 0.1, 0)).toBe('neutral'); // +5%
+    expect(compareNs(9.5, 10, 0.1, 0)).toBe('neutral'); // -5%
+  });
+  it('returns "neutral" when the change is within the measurement noise (rme)', () => {
+    // ±20% supera la tolerancia del 10%, pero el ±% de la medición es 50% → es ruido.
+    expect(compareNs(12, 10, 0.1, 50)).toBe('neutral');
+    expect(compareNs(8, 10, 0.1, 50)).toBe('neutral');
   });
 });
 

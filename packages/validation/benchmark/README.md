@@ -11,12 +11,24 @@ npm install -w packages/validation   # una vez, para tinybench
 npm run benchmark -w packages/validation
 ```
 
-Número de ciclos medidos por validador (default 500):
+Cada validador se mide un **número fijo de muestras** (`BENCH_SAMPLES`). Más muestras =
+promedio más estable y reproducible (dos corridas del mismo código dan casi lo mismo), pero
+tarda más. Default **30000**:
 
 ```bash
-BENCH_CYCLES=50 npm run benchmark -w packages/validation    # rápido, menos preciso
-BENCH_CYCLES=500 npm run benchmark -w packages/validation   # preciso, más lento
+BENCH_SAMPLES=5000 npm run benchmark -w packages/validation     # rápido, algo de ruido
+BENCH_SAMPLES=30000 npm run benchmark -w packages/validation    # estable (default)
+BENCH_SAMPLES=100000 npm run benchmark -w packages/validation   # muy estable, más lento
 ```
+
+> Se mide por número fijo de muestras (no por tiempo) a propósito: tinybench guarda cada
+> muestra en memoria, y medir "por tiempo" sobre funciones de nanosegundos genera millones de
+> muestras y agota la RAM. Un microbenchmark siempre tiene algo de ruido (GC, JIT,
+> turbo/throttle del CPU); por eso el rojo es "consciente del ruido" (ver abajo): un cambio
+> dentro del margen de error **no** se marca como regresión.
+>
+> Mientras corre verás una **barra de progreso** por ruta (éxito y error) indicando cuántos
+> validadores van medidos.
 
 ## De dónde salen los valores a testear
 
@@ -33,20 +45,26 @@ El benchmark los lee desde `test/validator/samples/index.ts`. El spec-contrato
 retorne `true` y todo `invalid` retorne `false`, garantizando que las mediciones son
 correctas.
 
-## Mejor marca histórica (best) y colores
+## Referencia y colores
 
-- En cada corrida se guarda el **tiempo mínimo** (mejor marca) de cada validador para éxito
-  y error en `benchmark/best-scores.json` (**local**, ignorado por git — los tiempos dependen
-  del hardware). El baseline **solo baja**: nunca sube.
+- En cada corrida se guarda una **referencia** por validador (éxito y error) en
+  `benchmark/best-scores.json` (**local**, ignorado por git — los tiempos dependen del
+  hardware). La referencia **solo se mueve ante un cambio real**: baja cuando de verdad
+  mejoras (más allá del ruido) y se mantiene en caso de regresión o ruido. Así no se arrastra
+  hacia un mínimo "con suerte" ni genera colores falsos.
 - La tabla muestra 4 datos por validador: el tiempo **éxito (ns)**, su **Δ**, el tiempo
-  **error (ns)** y su **Δ**. El tiempo se colorea y el **Δ** indica cuánto cambió vs tu mejor
-  marca (la mejor marca se guarda internamente, no se muestra como columna):
-  - 🔴 **rojo** = el actual es peor que el récord por más de la tolerancia (regresión).
-  - 🟢 **verde** = nuevo récord (igual o más rápido que el mejor); se guarda como nueva marca.
-  - ⚪ gris = peor que el récord pero dentro de la tolerancia (ruido de medición).
+  **error (ns)** y su **Δ**. El **Δ** indica cuánto cambió vs tu referencia:
+  - 🔴 **rojo** = más lento que la referencia (regresión real).
+  - 🟢 **verde** = más rápido que la referencia (mejora real); baja la referencia.
+  - ⚪ gris = sin cambio real (dentro del ruido/tolerancia).
 - `ns` = nanosegundos por llamada. **Menos ns = más rápido.**
 
-Tolerancia (default 10 %), para no marcar rojo por el ruido de tinybench:
+**Comparación consciente del ruido (en ambos sentidos):** solo se marca rojo/verde si el
+cambio supera **tanto** la tolerancia fija **como** el margen de error (±%) de esa medición.
+Así el ruido estadístico no se marca como cambio. Correr dos veces el mismo código debería
+dar casi todo gris.
+
+Tolerancia fija (default 10 %):
 
 ```bash
 BENCH_TOLERANCE=0.05 npm run benchmark -w packages/validation   # 5%

@@ -26,18 +26,29 @@ export function colorEnabled(): boolean {
   return !process.env['NO_COLOR'] && Boolean(process.stdout.isTTY);
 }
 
-export type CompareStatus = 'new' | 'regression' | 'neutral';
+export type CompareStatus = 'first' | 'improved' | 'regression' | 'neutral';
 
 /**
- * Compara el tiempo actual contra la mejor marca histórica.
- * - 'new'        → sin marca previa o el actual es un nuevo récord (≤ mejor). Se pinta verde.
- * - 'regression' → el actual supera al mejor por más de `tolerance`. Se pinta rojo.
- * - 'neutral'    → peor que el mejor pero dentro de la tolerancia (ruido). Se atenúa.
+ * Compara el tiempo actual contra la referencia guardada, de forma SIMÉTRICA y consciente
+ * del ruido: un cambio solo cuenta (verde/rojo) si supera la "banda" = max(tolerancia fija,
+ * margen de error de la medición). Dentro de la banda = ruido → gris. Esto evita el churn de
+ * colores al correr dos veces el mismo código.
+ * - 'first'      → no hay referencia previa (primera vez). Gris.
+ * - 'improved'   → más rápido que la referencia por más que el ruido. Verde.
+ * - 'regression' → más lento que la referencia por más que el ruido. Rojo.
+ * - 'neutral'    → dentro del ruido/tolerancia (sin cambio real). Gris.
  */
-export function compareNs(now: number, best: number | undefined, tolerance: number): CompareStatus {
-  if (best === undefined || !Number.isFinite(best) || best <= 0) return 'new';
-  if (now <= best) return 'new';
-  if (now > best * (1 + tolerance)) return 'regression';
+export function compareNs(
+  now: number,
+  best: number | undefined,
+  tolerance: number,
+  rme = 0,
+): CompareStatus {
+  if (best === undefined || !Number.isFinite(best) || best <= 0) return 'first';
+  const deltaPct = ((now - best) / best) * 100;
+  const band = Math.max(tolerance * 100, rme);
+  if (deltaPct < -band) return 'improved';
+  if (deltaPct > band) return 'regression';
   return 'neutral';
 }
 
@@ -45,9 +56,9 @@ function fmtNs(ms: number): string {
   return Math.round(ms * 1_000_000).toString();
 }
 
-/** Δ% del actual respecto al mejor (negativo = mejora). '—' si no hay marca previa. */
+/** Δ% del actual respecto a la referencia (negativo = mejora). 'base' si no hay marca previa. */
 function fmtDelta(now: number, best: number | undefined): string {
-  if (best === undefined || !Number.isFinite(best) || best <= 0) return 'new';
+  if (best === undefined || !Number.isFinite(best) || best <= 0) return 'base';
   const pct = ((now - best) / best) * 100;
   const rounded = Math.round(pct);
   return `${rounded >= 0 ? '+' : ''}${rounded}%`;
@@ -60,7 +71,7 @@ function pad(s: string, width: number): string {
 /** Aplica color DESPUÉS del pad (los códigos ANSI no cuentan como ancho visible). */
 function paint(padded: string, status: CompareStatus, color: boolean): string {
   if (!color) return padded;
-  const code = status === 'regression' ? ANSI.red : status === 'new' ? ANSI.green : ANSI.dim;
+  const code = status === 'regression' ? ANSI.red : status === 'improved' ? ANSI.green : ANSI.dim;
   return code + padded + ANSI.reset;
 }
 
@@ -68,7 +79,7 @@ function paint(padded: string, status: CompareStatus, color: boolean): string {
 const HEADER_ES = [
   'Tiempo por llamada en nanosegundos (ns) — menos ns = más rápido.',
   '  éxito = tiempo validando un input VÁLIDO   ·   error = tiempo validando un input INVÁLIDO',
-  '  Δ = cuánto cambió vs tu mejor marca:  rojo = más lento (peor)  ·  verde = mejor / nuevo récord  ·  gris = igual',
+  '  Δ = cambio vs tu referencia:  rojo = más lento  ·  verde = más rápido  ·  gris = sin cambio real (ruido)',
 ].join('\n');
 
 /** Builds a fixed-width text table sorted slowest (success) first, fastest last. */
@@ -87,8 +98,8 @@ export function formatTable(rows: Row[], opts?: { color?: boolean; tolerance?: n
   const sep = '-'.repeat(header.length);
 
   const lines = sorted.map((r) => {
-    const okStatus = compareNs(r.okNs, r.bestOkNs, tol);
-    const errStatus = compareNs(r.errNs, r.bestErrNs, tol);
+    const okStatus = compareNs(r.okNs, r.bestOkNs, tol, r.okRme);
+    const errStatus = compareNs(r.errNs, r.bestErrNs, tol, r.errRme);
     return [
       pad(r.name, W.name),
       paint(pad(fmtNs(r.okNs), W.ns), okStatus, color),
@@ -102,7 +113,7 @@ export function formatTable(rows: Row[], opts?: { color?: boolean; tolerance?: n
 
 /** Emoji de estado para la salida markdown (no soporta ANSI). */
 function emoji(status: CompareStatus): string {
-  return status === 'regression' ? '🔴' : status === 'new' ? '🟢' : '⚪';
+  return status === 'regression' ? '🔴' : status === 'improved' ? '🟢' : '⚪';
 }
 
 /** Writes a markdown version of the report next to the benchmark sources. */
@@ -123,8 +134,8 @@ export function writeMarkdown(
     `|---|--:|:--|--:|:--|\n`;
   const body = sorted
     .map((r) => {
-      const okStatus = compareNs(r.okNs, r.bestOkNs, tolerance);
-      const errStatus = compareNs(r.errNs, r.bestErrNs, tolerance);
+      const okStatus = compareNs(r.okNs, r.bestOkNs, tolerance, r.okRme);
+      const errStatus = compareNs(r.errNs, r.bestErrNs, tolerance, r.errRme);
       return (
         `| ${r.name} | ${fmtNs(r.okNs)} | ${emoji(okStatus)} ${fmtDelta(r.okNs, r.bestOkNs)} | ` +
         `${fmtNs(r.errNs)} | ${emoji(errStatus)} ${fmtDelta(r.errNs, r.bestErrNs)} |`

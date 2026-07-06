@@ -1,33 +1,64 @@
 import 'reflect-metadata';
 import { Bench } from 'tinybench';
 import { samples } from '../test/validator/samples';
-import { formatTable, writeMarkdown, type Row } from './report';
+import { formatTable, writeMarkdown, compareNs, DEFAULT_TOLERANCE, type Row } from './report';
 import { readBaseline, writeBaseline, type Baseline } from './baseline';
 
-// ── Cambia este número para controlar cuántos ciclos se miden por validador. ──
-// Menos ciclos = benchmark más rápido pero menos preciso.
-// Más ciclos  = más lento pero resultados más estables (±% más bajo).
+// ── Número de muestras (iteraciones) medidas por validador. ──────────────────
+// Se mide un número FIJO de veces (no por tiempo): tinybench guarda cada muestra en
+// memoria, así que medir "por tiempo" sobre funciones de nanosegundos genera millones
+// de muestras y agota la RAM. Un número fijo mantiene la memoria acotada.
+// Más muestras = promedio más estable y ±% más bajo (dos corridas dan casi lo mismo),
+// pero tarda más. Configurable con BENCH_SAMPLES.
 //
-//   50  → ~5 seg   (exploración rápida)
-//   200 → ~20 seg  (balance)
-//   500 → ~50 seg  (resultados precisos para publicar)
-//
-// Puede ser sobrescrito via env var: BENCH_CYCLES=500 npm run benchmark
-const CYCLES_PER_VALIDATOR = parseInt(process.env['BENCH_CYCLES'] ?? '500', 10);
+//   5000   → rápido, algo de ruido
+//   30000  → estable (por defecto)
+//   100000 → muy estable, más lento
+const BENCH_SAMPLES = parseInt(process.env['BENCH_SAMPLES'] ?? '30000', 10);
+const WARMUP_SAMPLES = Math.max(200, Math.floor(BENCH_SAMPLES / 10));
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Runs a tinybench and returns a name -> result map. */
+/** ¿Renderizar barra de progreso animada? Solo si la salida es una terminal. */
+const SHOW_PROGRESS = Boolean(process.stdout.isTTY);
+
+/** Dibuja una barra de progreso en la MISMA línea (se sobrescribe con \r). */
+function renderProgress(label: string, done: number, total: number, current: string): void {
+  const width = 24;
+  const filled = Math.round((done / total) * width);
+  const bar = '█'.repeat(filled) + '░'.repeat(width - filled);
+  const line = `  ${label} [${bar}] ${done}/${total}  ${current}`;
+  // Se rellena con espacios para borrar el nombre anterior (más largo) y \r vuelve al inicio.
+  process.stdout.write('\r' + line.padEnd(72) + '\r' + line.padEnd(72));
+}
+
+/** Runs a tinybench and returns a name -> result map, con barra de progreso por validador. */
 async function runBench(
   register: (bench: Bench) => void,
+  label: string,
 ): Promise<Map<string, { hz: number; mean: number; rme: number }>> {
   const bench = new Bench({
-    time: 0, // deshabilita el mínimo de tiempo — solo cuentan las iteraciones
-    warmupTime: 0, // ídem para el warmup
-    iterations: CYCLES_PER_VALIDATOR,
-    warmupIterations: Math.max(1, Math.floor(CYCLES_PER_VALIDATOR / 10)),
+    time: 0, // desactiva el modo por tiempo — se usa un número fijo de iteraciones (memoria acotada)
+    warmupTime: 0,
+    iterations: BENCH_SAMPLES,
+    warmupIterations: WARMUP_SAMPLES,
   });
   register(bench);
+
+  const total = bench.tasks.length;
+  let done = 0;
+  // El evento 'cycle' del bench se dispara UNA vez por validador al terminar de medirse.
+  const onCycle = (e: any): void => {
+    done += 1;
+    if (SHOW_PROGRESS) renderProgress(label, done, total, e?.task?.name ?? '');
+  };
+  bench.addEventListener('cycle', onCycle);
+  if (SHOW_PROGRESS) renderProgress(label, 0, total, 'iniciando…');
+  else console.log(`  ${label}: midiendo ${total} validadores (${BENCH_SAMPLES} muestras c/u)…`);
+
   await bench.run();
+  bench.removeEventListener('cycle', onCycle);
+  if (SHOW_PROGRESS) process.stdout.write('\n');
+
   const map = new Map<string, { hz: number; mean: number; rme: number }>();
   for (const task of bench.tasks) {
     const r = task.result;
@@ -40,14 +71,21 @@ async function runBench(
   return map;
 }
 
-/** Menor de dos números tratando undefined como +Infinito (para acumular mínimos históricos). */
-function minNs(prev: number | undefined, current: number): number {
-  return Math.min(prev ?? Number.POSITIVE_INFINITY, current);
+/**
+ * Nueva referencia para un validador. La referencia SOLO se mueve ante un cambio real:
+ * - primera vez → guarda el actual;
+ * - mejora real (más rápido más allá del ruido) → baja la referencia al actual;
+ * - regresión o ruido → mantiene la referencia previa (así el rojo persiste hasta que
+ *   realmente mejores, y el ruido no arrastra la referencia hacia un mínimo "con suerte").
+ */
+function nextRef(prev: number | undefined, current: number, rme: number): number {
+  if (prev === undefined) return current;
+  return compareNs(current, prev, DEFAULT_TOLERANCE, rme) === 'improved' ? current : prev;
 }
 
 async function main(): Promise<void> {
   console.log(
-    `Running benchmark (${CYCLES_PER_VALIDATOR} ciclos/validador, ${samples.length} validators × 2 paths)...\n`,
+    `Benchmark: ${samples.length} validadores × 2 rutas (éxito/error), ${BENCH_SAMPLES} muestras c/u.\n`,
   );
 
   // Ruta ✓ éxito: se rota sobre los valores válidos.
@@ -56,7 +94,7 @@ async function main(): Promise<void> {
       let i = 0;
       b.add(s.name, () => s.run(s.valid[i++ % s.valid.length]));
     }
-  });
+  }, 'éxito ✓');
 
   // Ruta ✗ error: se rota sobre los valores inválidos.
   const errResults = await runBench((b) => {
@@ -64,7 +102,7 @@ async function main(): Promise<void> {
       let i = 0;
       b.add(s.name, () => s.run(s.invalid[i++ % s.invalid.length]));
     }
-  });
+  }, 'error ✗');
 
   // Mejor marca histórica: se lee la referencia previa (para mostrar/colorear) y se
   // recalcula el mínimo (nunca sube) para guardarlo de cara a futuras corridas.
@@ -76,8 +114,8 @@ async function main(): Promise<void> {
     const err = errResults.get(s.name)!;
     const prev = prevBaseline[s.name];
     nextBaseline[s.name] = {
-      okNs: minNs(prev?.okNs, ok.mean),
-      errNs: minNs(prev?.errNs, err.mean),
+      okNs: nextRef(prev?.okNs, ok.mean, ok.rme),
+      errNs: nextRef(prev?.errNs, err.mean, err.rme),
     };
     return {
       name: s.name,
