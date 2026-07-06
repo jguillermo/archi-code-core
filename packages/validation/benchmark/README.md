@@ -11,24 +11,26 @@ npm install -w packages/validation   # una vez, para tinybench
 npm run benchmark -w packages/validation
 ```
 
-Cada validador se mide un **número fijo de muestras** (`BENCH_SAMPLES`). Más muestras =
-promedio más estable y reproducible (dos corridas del mismo código dan casi lo mismo), pero
-tarda más. Default **30000**:
+La medición completa se **repite varias veces** (`BENCH_REPEATS`, default **10**) y el valor
+final de cada validador es el **promedio recortado** de esas repeticiones: se descarta la más
+lenta (y la más rápida si hay ≥4) y se promedia el resto. Así una corrida con mala suerte (GC,
+throttling) no define el resultado. Cada repetición mide `BENCH_SAMPLES` muestras (default
+**10000**). Total ≈ 10 s.
 
 ```bash
-BENCH_SAMPLES=5000 npm run benchmark -w packages/validation     # rápido, algo de ruido
-BENCH_SAMPLES=30000 npm run benchmark -w packages/validation    # estable (default)
-BENCH_SAMPLES=100000 npm run benchmark -w packages/validation   # muy estable, más lento
+npm run benchmark -w packages/validation                              # 10 reps × 10000 (default)
+BENCH_REPEATS=3 BENCH_SAMPLES=5000 npm run benchmark -w ...           # rápido para iterar
+BENCH_REPEATS=20 npm run benchmark -w ...                             # aún más estable, más lento
 ```
 
 > Se mide por número fijo de muestras (no por tiempo) a propósito: tinybench guarda cada
 > muestra en memoria, y medir "por tiempo" sobre funciones de nanosegundos genera millones de
 > muestras y agota la RAM. Un microbenchmark siempre tiene algo de ruido (GC, JIT,
-> turbo/throttle del CPU); por eso el rojo es "consciente del ruido" (ver abajo): un cambio
-> dentro del margen de error **no** se marca como regresión.
+> turbo/throttle del CPU); por eso además de promediar repeticiones, el color es "consciente
+> del ruido" (ver abajo): un cambio dentro del margen de error **no** se marca.
 >
-> Mientras corre verás una **barra de progreso** por ruta (éxito y error) indicando cuántos
-> validadores van medidos.
+> Mientras corre verás **una sola barra de progreso** (0-100% de todo el trabajo):
+> `[██████████░░░░░░░░░░] 42%`.
 
 ## De dónde salen los valores a testear
 
