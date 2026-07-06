@@ -7,6 +7,9 @@
     "noEmit": true,
     "types": ["node", "reflect-metadata"]
   },
-  "include": ["../src/**/*", "./**/*"],
+  "ts-node": {
+    "transpileOnly": true
+  },
+  "include": ["../src/**/*", "../test/validator/samples/**/*", "./**/*"],
   "exclude": ["./**/*.spec.ts", "../src/**/*.spec.ts"]
 }

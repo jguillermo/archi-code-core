@@ -46,6 +46,9 @@ lerna-debug.log*
 .temp
 .tmp
 
+# Benchmark: mejor marca histórica (local, depende del hardware de cada máquina)
+benchmark/best-scores.json
+
 # Runtime data
 pids
 *.pid

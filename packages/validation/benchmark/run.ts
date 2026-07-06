@@ -1,7 +1,8 @@
 import 'reflect-metadata';
 import { Bench } from 'tinybench';
-import { cases } from './cases';
+import { samples } from '../test/validator/samples';
 import { formatTable, writeMarkdown, type Row } from './report';
+import { readBaseline, writeBaseline, type Baseline } from './baseline';
 
 // ── Cambia este número para controlar cuántos ciclos se miden por validador. ──
 // Menos ciclos = benchmark más rápido pero menos preciso.
@@ -20,8 +21,8 @@ async function runBench(
   register: (bench: Bench) => void,
 ): Promise<Map<string, { hz: number; mean: number; rme: number }>> {
   const bench = new Bench({
-    time: 0,            // deshabilita el mínimo de tiempo — solo cuentan las iteraciones
-    warmupTime: 0,      // ídem para el warmup
+    time: 0, // deshabilita el mínimo de tiempo — solo cuentan las iteraciones
+    warmupTime: 0, // ídem para el warmup
     iterations: CYCLES_PER_VALIDATOR,
     warmupIterations: Math.max(1, Math.floor(CYCLES_PER_VALIDATOR / 10)),
   });
@@ -39,60 +40,61 @@ async function runBench(
   return map;
 }
 
+/** Menor de dos números tratando undefined como +Infinito (para acumular mínimos históricos). */
+function minNs(prev: number | undefined, current: number): number {
+  return Math.min(prev ?? Number.POSITIVE_INFINITY, current);
+}
+
 async function main(): Promise<void> {
-  console.log(`Running benchmark (${CYCLES_PER_VALIDATOR} ciclos/validador, ${cases.length} validators × 2 paths)...\n`);
+  console.log(
+    `Running benchmark (${CYCLES_PER_VALIDATOR} ciclos/validador, ${samples.length} validators × 2 paths)...\n`,
+  );
 
+  // Ruta ✓ éxito: se rota sobre los valores válidos.
   const okResults = await runBench((b) => {
-    for (const c of cases) {
+    for (const s of samples) {
       let i = 0;
-      b.add(c.name, () => c.mine(c.inputs[i++ % c.inputs.length]));
+      b.add(s.name, () => s.run(s.valid[i++ % s.valid.length]));
     }
   });
 
+  // Ruta ✗ error: se rota sobre los valores inválidos.
   const errResults = await runBench((b) => {
-    for (const c of cases) {
+    for (const s of samples) {
       let i = 0;
-      b.add(c.name, () => c.mine(c.errorInputs[i++ % c.errorInputs.length]));
+      b.add(s.name, () => s.run(s.invalid[i++ % s.invalid.length]));
     }
   });
 
-  // Run class-validator baseline for cases that have cvFn
-  const casesWithCv = cases.filter((c) => c.cvFn);
-  const cvResults = new Map<string, { hz: number }>();
-  if (casesWithCv.length > 0) {
-    const cvOkResults = await runBench((b) => {
-      for (const c of casesWithCv) {
-        let i = 0;
-        const input = c.cvInput ?? c.inputs[0];
-        b.add(c.name, () => c.cvFn!(input));
-      }
-    });
-    for (const [name, result] of cvOkResults) {
-      cvResults.set(name, { hz: result.hz });
-    }
-  }
+  // Mejor marca histórica: se lee la referencia previa (para mostrar/colorear) y se
+  // recalcula el mínimo (nunca sube) para guardarlo de cara a futuras corridas.
+  const prevBaseline = readBaseline();
+  const nextBaseline: Baseline = {};
 
-  const rows: Row[] = cases.map((c) => {
-    const ok = okResults.get(c.name)!;
-    const err = errResults.get(c.name)!;
-    const row: Row = {
-      name: c.name,
+  const rows: Row[] = samples.map((s) => {
+    const ok = okResults.get(s.name)!;
+    const err = errResults.get(s.name)!;
+    const prev = prevBaseline[s.name];
+    nextBaseline[s.name] = {
+      okNs: minNs(prev?.okNs, ok.mean),
+      errNs: minNs(prev?.errNs, err.mean),
+    };
+    return {
+      name: s.name,
       okOps: ok.hz,
       okNs: ok.mean,
       okRme: ok.rme,
       errOps: err.hz,
       errNs: err.mean,
       errRme: err.rme,
+      bestOkNs: prev?.okNs,
+      bestErrNs: prev?.errNs,
     };
-    const cvResult = cvResults.get(c.name);
-    if (cvResult) {
-      row.okCvOps = cvResult.hz;
-    }
-    return row;
   });
 
   console.log(formatTable(rows));
 
+  writeBaseline(nextBaseline);
   const path = writeMarkdown(rows, { node: process.version });
   console.log(`\nMarkdown report written to ${path}`);
 }
