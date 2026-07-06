@@ -59,7 +59,8 @@ describe('SymmetricEncryption', () => {
   it('should throw an error if HMAC validation fails (tampered ciphertext)', () => {
     const instance = new SymmetricEncryption(algorithm, validKey);
     const encrypted = instance.encrypt(textToEncrypt);
-    const tamperedEncrypted = encrypted.replace(/.$/, '0'); // Modify the last character
+    const lastChar = encrypted[encrypted.length - 1];
+    const tamperedEncrypted = encrypted.slice(0, -1) + (lastChar === '0' ? '1' : '0'); // Modify the last character ensuring it actually changes
     expect(() => instance.decrypt(tamperedEncrypted)).toThrow(
       'Invalid HMAC. Data may have been tampered with.',
     );
