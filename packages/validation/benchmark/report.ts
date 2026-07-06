@@ -4,14 +4,16 @@ import { join } from 'path';
 export type Row = {
   name: string;
   okOps: number;
+  /** Tiempo de la ruta ✓ en nanosegundos (entero). */
   okNs: number;
   okRme: number;
   errOps: number;
+  /** Tiempo de la ruta ✗ en nanosegundos (entero). */
   errNs: number;
   errRme: number;
-  /** Mejor marca histórica (ms) de la ruta ✓ ANTES de esta corrida; undefined si es la primera vez. */
+  /** Referencia (ns entero) de la ruta ✓ ANTES de esta corrida; undefined si es la primera vez. */
   bestOkNs?: number;
-  /** Mejor marca histórica (ms) de la ruta ✗ ANTES de esta corrida; undefined si es la primera vez. */
+  /** Referencia (ns entero) de la ruta ✗ ANTES de esta corrida; undefined si es la primera vez. */
   bestErrNs?: number;
 };
 
@@ -52,8 +54,8 @@ export function compareNs(
   return 'neutral';
 }
 
-function fmtNs(ms: number): string {
-  return Math.round(ms * 1_000_000).toString();
+function fmtNs(ns: number): string {
+  return Math.round(ns).toString();
 }
 
 /** Δ% del actual respecto a la referencia (negativo = mejora). 'base' si no hay marca previa. */

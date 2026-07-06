@@ -52,6 +52,11 @@ function cvPct(values: number[]): number {
   return (Math.sqrt(variance) / m) * 100;
 }
 
+/** Convierte milisegundos (media de tinybench) a nanosegundos ENTEROS. */
+function toNs(ms: number): number {
+  return Math.round(ms * 1_000_000);
+}
+
 /** ¿Renderizar barra de progreso animada? Solo si la salida es una terminal. */
 const SHOW_PROGRESS = Boolean(process.stdout.isTTY);
 
@@ -177,9 +182,10 @@ async function main(): Promise<void> {
   const rows: Row[] = samples.map((s) => {
     const ok = okAcc.get(s.name)!;
     const err = errAcc.get(s.name)!;
-    const okNs = trimmedMean(ok.ns);
-    const okRme = cvPct(ok.ns); // ruido real = dispersión entre repeticiones
-    const errNs = trimmedMean(err.ns);
+    // Valor final en nanosegundos ENTEROS (promedio recortado convertido a ns).
+    const okNs = toNs(trimmedMean(ok.ns));
+    const okRme = cvPct(ok.ns); // ruido real = dispersión entre repeticiones (%)
+    const errNs = toNs(trimmedMean(err.ns));
     const errRme = cvPct(err.ns);
     const prev = prevBaseline[s.name];
     nextBaseline[s.name] = {

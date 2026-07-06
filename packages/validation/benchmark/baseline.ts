@@ -2,9 +2,9 @@ import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 
 /**
- * Mejor marca histórica (tiempo mínimo) por validador, para las dos rutas: ✓ éxito y ✗ error.
- * Los tiempos están en milisegundos (media de tinybench). Solo descienden: cada corrida
- * guarda el mínimo entre lo previo y lo actual, nunca sube. Se usa como referencia para
+ * Referencia (tiempo) por validador, para las dos rutas: ✓ éxito y ✗ error.
+ * Los tiempos se guardan en NANOSEGUNDOS ENTEROS. La referencia solo se mueve ante un cambio
+ * real (ver `nextRef` en run.ts): baja en mejoras reales, se mantiene si no. Se usa para
  * marcar en rojo las regresiones y en verde las mejoras.
  */
 export type BaselineEntry = { okNs: number; errNs: number };

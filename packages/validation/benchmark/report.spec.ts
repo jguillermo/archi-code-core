@@ -4,23 +4,24 @@ import { tmpdir } from 'os';
 import { formatTable, writeMarkdown, compareNs, colorEnabled, type Row } from './report';
 import { readBaseline, writeBaseline, type Baseline } from './baseline';
 
+// Tiempos en nanosegundos ENTEROS (igual que en producción).
 const rows: Row[] = [
   {
     name: 'isEmail',
     okOps: 1_000_000,
-    okNs: 0.001,
+    okNs: 1000,
     okRme: 1.2,
     errOps: 1_200_000,
-    errNs: 0.0009,
+    errNs: 900,
     errRme: 0.8,
   },
   {
     name: 'isUUID',
     okOps: 4_000_000,
-    okNs: 0.00025,
+    okNs: 250,
     okRme: 0.5,
     errOps: 5_000_000,
-    errNs: 0.0002,
+    errNs: 200,
     errRme: 0.4,
   },
 ];
@@ -61,14 +62,14 @@ describe('report.formatTable', () => {
   });
 
   it('paints a regression in red and a real improvement in green when color is on', () => {
-    const regressed: Row[] = [{ ...rows[0], bestOkNs: 0.0005 }]; // now 0.001, +100% → regression
-    const improved: Row[] = [{ ...rows[0], bestOkNs: 0.002 }]; // now 0.001, -50% → improved
+    const regressed: Row[] = [{ ...rows[0], bestOkNs: 500 }]; // now 1000, +100% → regression
+    const improved: Row[] = [{ ...rows[0], bestOkNs: 2000 }]; // now 1000, -50% → improved
     expect(formatTable(regressed, { color: true, tolerance: 0.1 })).toContain('\x1b[31m'); // red
     expect(formatTable(improved, { color: true, tolerance: 0.1 })).toContain('\x1b[32m'); // green
   });
 
   it('never emits ANSI codes when color is off', () => {
-    const out = formatTable([{ ...rows[0], bestOkNs: 0.0005 }], { color: false });
+    const out = formatTable([{ ...rows[0], bestOkNs: 500 }], { color: false });
     expect(out).not.toContain('\x1b[');
   });
 });
@@ -117,8 +118,8 @@ describe('report.writeMarkdown', () => {
   it('renders 🔴 for a regression and 🟢 for a record', () => {
     const path = writeMarkdown(
       [
-        { ...rows[0], bestOkNs: 0.0005 }, // regression on ✓
-        { ...rows[1], bestOkNs: 0.002 }, // record on ✓
+        { ...rows[0], bestOkNs: 500 }, // regression on ✓ (now 1000)
+        { ...rows[1], bestOkNs: 2000 }, // improvement on ✓ (now 250)
       ],
       { node: 'v22' },
       { tolerance: 0.1, path: tmpPath },
@@ -149,7 +150,7 @@ describe('baseline round-trip', () => {
   });
 
   it('writes and reads back the same data', () => {
-    const b: Baseline = { isEmail: { okNs: 0.001, errNs: 0.0009 } };
+    const b: Baseline = { isEmail: { okNs: 1000, errNs: 900 } };
     writeBaseline(b, tmpPath);
     const prev = process.env['BENCH_RESET'];
     delete process.env['BENCH_RESET'];
@@ -158,7 +159,7 @@ describe('baseline round-trip', () => {
   });
 
   it('ignores the stored baseline when BENCH_RESET is set', () => {
-    writeBaseline({ isEmail: { okNs: 0.001, errNs: 0.0009 } }, tmpPath);
+    writeBaseline({ isEmail: { okNs: 1000, errNs: 900 } }, tmpPath);
     const prev = process.env['BENCH_RESET'];
     process.env['BENCH_RESET'] = '1';
     expect(readBaseline(tmpPath)).toEqual({});
