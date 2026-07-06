@@ -2,6 +2,21 @@ import type { IsFloatOptions } from '../types';
 import { decimal } from './alpha';
 import tryToString from './util/tryToString';
 
+// The float regex only depends on the decimal separator (derived from locale).
+// Cache the compiled regex per separator to avoid recompiling on every call.
+const floatRegexCache = new Map<string, RegExp>();
+
+function getFloatRegex(separator: string): RegExp {
+  let re = floatRegexCache.get(separator);
+  if (re === undefined) {
+    re = new RegExp(
+      `^(?:[-+])?(?:[0-9]+)?(?:\\${separator}[0-9]*)?(?:[eE][\\+\\-]?(?:[0-9]+))?$`,
+    );
+    floatRegexCache.set(separator, re);
+  }
+  return re;
+}
+
 export default function isFloat(str: unknown, options?: IsFloatOptions): boolean {
   // Fast path: native number — skip regex entirely
   if (typeof str === 'number') {
@@ -26,9 +41,7 @@ export default function isFloat(str: unknown, options?: IsFloatOptions): boolean
   const s = tryToString(str);
   if (s === false) return false;
   options = options || {};
-  const float = new RegExp(
-    `^(?:[-+])?(?:[0-9]+)?(?:\\${options.locale ? decimal[options.locale] : '.'}[0-9]*)?(?:[eE][\\+\\-]?(?:[0-9]+))?$`,
-  );
+  const float = getFloatRegex(options.locale ? decimal[options.locale] : '.');
   if (s === '' || s === '.' || s === ',' || s === '-' || s === '+') {
     return false;
   }

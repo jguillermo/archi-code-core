@@ -50,12 +50,19 @@ const default_url_options = {
 };
 
 const wrapped_ipv6 = /^\[([^\]]+)\](?::([0-9]+))?$/;
+// Hoisted regexes — compiled once instead of allocating a new RegExp on every call.
+const whitespaceAnglesRegex = /[\s<>]/;
+const protocolRegex = /^([a-z][a-z0-9+\-.]*):/i;
+const validAuthRegex = /^[a-zA-Z0-9\-_.%:]*$/;
+const encodedContentRegex = /%[0-9a-fA-F]{2}/;
+const leadingDigitRegex = /^[0-9]/;
+const digitsOnlyRegex = /^[0-9]+$/;
 
 export default function isURL(urlInput: unknown, options?: IsURLOptions): boolean {
   const s = tryToString(urlInput);
   if (s === false) return false;
   let url: string = s;
-  if (!url || /[\s<>]/.test(url)) {
+  if (!url || whitespaceAnglesRegex.test(url)) {
     return false;
   }
   if (url.indexOf('mailto:') === 0) {
@@ -87,7 +94,7 @@ export default function isURL(urlInput: unknown, options?: IsURLOptions): boolea
   // This correctly identifies schemes like `javascript:` which don't use `//`.
   // However, we need to be careful not to confuse authentication credentials (user:password@host)
   // with protocols. A colon before an @ symbol might be part of auth, not a protocol separator.
-  const protocol_match = url.match(/^([a-z][a-z0-9+\-.]*):/i);
+  const protocol_match = url.match(protocolRegex);
   let had_explicit_protocol = false;
 
   const cleanUpProtocol = (potential_protocol: string): string | false => {
@@ -125,13 +132,12 @@ export default function isURL(urlInput: unknown, options?: IsURLOptions): boolea
 
       if (at_position !== -1) {
         const before_at = before_slash.substring(0, at_position);
-        const valid_auth_regex = /^[a-zA-Z0-9\-_.%:]*$/;
-        const is_valid_auth = valid_auth_regex.test(before_at);
+        const is_valid_auth = validAuthRegex.test(before_at);
 
         // Check if this contains URL-encoded content that could be malicious
         // For example: javascript:%61%6c%65%72%74%28%31%29@example.com
         // The encoded part decodes to: alert(1)
-        const has_encoded_content = /%[0-9a-fA-F]{2}/.test(before_at);
+        const has_encoded_content = encodedContentRegex.test(before_at);
 
         if (is_valid_auth && !has_encoded_content) {
           // This looks like authentication (e.g., user:password@host), not a protocol
@@ -153,7 +159,7 @@ export default function isURL(urlInput: unknown, options?: IsURLOptions): boolea
         // No @ symbol found. Check if this could be a port number instead of a protocol.
         // If what's after the colon is numeric (or starts with a digit and contains only
         // valid port characters until a path separator), it's likely hostname:port, not a protocol.
-        const looks_like_port = /^[0-9]/.test(after_colon);
+        const looks_like_port = leadingDigitRegex.test(after_colon);
 
         if (looks_like_port) {
           // This looks like hostname:port, not a protocol
@@ -240,7 +246,7 @@ export default function isURL(urlInput: unknown, options?: IsURLOptions): boolea
 
   if (port_str !== null && port_str.length > 0) {
     port = parseInt(port_str, 10);
-    if (!/^[0-9]+$/.test(port_str) || port <= 0 || port > 65535) {
+    if (!digitsOnlyRegex.test(port_str) || port <= 0 || port > 65535) {
       return false;
     }
   } else if (options.require_port) {

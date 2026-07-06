@@ -11,6 +11,16 @@ const default_fqdn_options = {
   ignore_max_length: false,
 };
 
+// Hoisted regexes — declaring them at module scope avoids reallocating a RegExp
+// object for every part on every call (the per-part checks run inside a hot loop).
+const tldRegex = /^([a-z¡-¨ª-퟿豈-﷏ﷰ-￯]{2,}|xn[a-z0-9-]{2,})$/i;
+const whitespaceRegex = /\s/;
+const numericRegex = /^\d+$/;
+const partCharsRegex = /^[a-z_¡-￿0-9-]+$/i;
+const fullWidthRegex = /[！-～]/;
+const hyphenEdgeRegex = /^-|-$/;
+const underscoreRegex = /_/;
+
 export default function isFQDN(str: unknown, options?: IsFQDNOptions): boolean {
   const s = tryToString(str);
   if (s === false) return false;
@@ -36,23 +46,18 @@ export default function isFQDN(str: unknown, options?: IsFQDNOptions): boolean {
       return false;
     }
 
-    if (
-      !options.allow_numeric_tld &&
-      !/^([a-z\u00A1-\u00A8\u00AA-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]{2,}|xn[a-z0-9-]{2,})$/i.test(
-        tld,
-      )
-    ) {
+    if (!options.allow_numeric_tld && !tldRegex.test(tld)) {
       return false;
     }
 
     // disallow spaces
-    if (/\s/.test(tld)) {
+    if (whitespaceRegex.test(tld)) {
       return false;
     }
   }
 
   // reject numeric TLDs
-  if (!options.allow_numeric_tld && /^\d+$/.test(tld)) {
+  if (!options.allow_numeric_tld && numericRegex.test(tld)) {
     return false;
   }
 
@@ -61,21 +66,21 @@ export default function isFQDN(str: unknown, options?: IsFQDNOptions): boolean {
       return false;
     }
 
-    if (!/^[a-z_\u00a1-\uffff0-9-]+$/i.test(part)) {
+    if (!partCharsRegex.test(part)) {
       return false;
     }
 
     // disallow full-width chars
-    if (/[\uff01-\uff5e]/.test(part)) {
+    if (fullWidthRegex.test(part)) {
       return false;
     }
 
     // disallow parts starting or ending with hyphen
-    if (/^-|-$/.test(part)) {
+    if (hyphenEdgeRegex.test(part)) {
       return false;
     }
 
-    if (!options.allow_underscores && /_/.test(part)) {
+    if (!options.allow_underscores && underscoreRegex.test(part)) {
       return false;
     }
 

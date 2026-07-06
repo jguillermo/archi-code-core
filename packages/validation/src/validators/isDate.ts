@@ -7,10 +7,14 @@ const default_date_options = {
   strictMode: false,
 };
 
+// Hoisted to module scope so the regex is compiled once rather than on every call.
+// The `g` flag is intentionally omitted: with a shared regex instance it would make
+// `.test()` stateful (advancing lastIndex) and produce wrong results across calls.
+const validFormatRegex =
+  /(^(y{4}|y{2})[./-](m{1,2})[./-](d{1,2})$)|(^(m{1,2})[./-](d{1,2})[./-]((y{4}|y{2})$))|(^(d{1,2})[./-](m{1,2})[./-]((y{4}|y{2})$))/i;
+
 function isValidFormat(format: string): boolean {
-  return /(^(y{4}|y{2})[./-](m{1,2})[./-](d{1,2})$)|(^(m{1,2})[./-](d{1,2})[./-]((y{4}|y{2})$))|(^(d{1,2})[./-](m{1,2})[./-]((y{4}|y{2})$))/gi.test(
-    format,
-  );
+  return validFormatRegex.test(format);
 }
 
 function zip(date: string[], format: string[]): [string, string][] {

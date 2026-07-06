@@ -3,10 +3,19 @@ import merge from './util/merge';
 import tryToString from './util/tryToString';
 import { decimal } from './alpha';
 
+// Cache the compiled regex keyed by the options that shape it, so repeated calls
+// with the same options skip recompilation.
+const decimalRegexCache = new Map<string, RegExp>();
+
 function decimalRegExp(options: Required<IsDecimalOptions>): RegExp {
-  const regExp = new RegExp(
-    `^[-+]?([0-9]+)?(\\${decimal[options.locale]}[0-9]{${options.decimal_digits}})${options.force_decimal ? '' : '?'}$`,
-  );
+  const key = `${options.locale} ${options.decimal_digits} ${options.force_decimal}`;
+  let regExp = decimalRegexCache.get(key);
+  if (regExp === undefined) {
+    regExp = new RegExp(
+      `^[-+]?([0-9]+)?(\\${decimal[options.locale]}[0-9]{${options.decimal_digits}})${options.force_decimal ? '' : '?'}$`,
+    );
+    decimalRegexCache.set(key, regExp);
+  }
   return regExp;
 }
 
