@@ -14,8 +14,8 @@ export interface FloatConvertOptions {
    * - `'validator'`: rule PORTED FROM `validator.isFloat`, moved here so the validator no longer
    *   duplicates the float rule. It is NOT compatible with the default: strings are not trimmed,
    *   the decimal separator is configurable, booleans/finite numbers are read through `toString`,
-   *   and its historic syntax accepts forms without digits such as `'.e5'` or `'e5'` — for those
-   *   the returned value is `NaN` (as `parseFloat` gives).
+   *   and forms without digits (`'.e5'`, `'e5'`) or beyond the number range (`'1e400'`) fail:
+   *   a successful result always holds a finite number.
    */
   syntax?: 'default' | 'validator';
   /** Only for `syntax: 'validator'`: decimal separator (isFloat resolves it from the locale). Default `'.'`. */
@@ -62,5 +62,6 @@ function toFloatValidatorSyntax(v: unknown, separator: string): Converted<number
   if (VALIDATOR_REJECTED.includes(s) || !getValidatorFloatRegex(separator).test(s)) {
     return failure(ConvertMessages.FLOAT);
   }
-  return success(parseFloat(s.replace(',', '.')));
+  const n = parseFloat(separator === '' ? s : s.replace(separator, '.'));
+  return Number.isFinite(n) ? success(n) : failure(ConvertMessages.FLOAT);
 }

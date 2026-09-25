@@ -3,6 +3,7 @@ import { decimal } from './alpha';
 import { toString } from '../convert/string';
 import { ValidationConfigError } from './util/errors';
 import { hasOwn } from './util/hasOwn';
+import { configText } from './util/config';
 
 export interface IsFloatOptions {
   min?: number;
@@ -22,7 +23,7 @@ export function isFloat(str: unknown, options?: IsFloatOptions): boolean {
     // Config errors are reported only for readable values (historic order of checks).
     if (!toString(str).ok) return false;
     if (opts.locale && !hasOwn(decimal, opts.locale)) {
-      throw new ValidationConfigError(`Invalid locale '${opts.locale}'`);
+      throw new ValidationConfigError(`Invalid locale '${configText(opts.locale)}'`);
     }
   }
   const decimalSeparator = opts.locale ? decimal[opts.locale] : '.';

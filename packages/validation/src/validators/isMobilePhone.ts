@@ -1,6 +1,7 @@
 import { ValidationConfigError } from './util/errors';
 import { hasOwn } from './util/hasOwn';
 import { toString } from '../convert/string';
+import { configText } from './util/config';
 
 export interface IsMobilePhoneOptions {
   strictMode?: boolean;
@@ -200,17 +201,12 @@ export function isMobilePhone(
     return false;
   }
   if (Array.isArray(locale)) {
-    return locale.some((key) => {
-      // https://github.com/gotwarlost/istanbul/blob/master/ignoring-code-for-coverage.md#ignoring-code-for-coverage-purposes
-      // istanbul ignore else
-      if (Object.prototype.hasOwnProperty.call(phones, key)) {
-        const phone = phones[key];
-        if (phone.test(s)) {
-          return true;
-        }
-      }
-      return false;
-    });
+    // Same contract as a single locale: an unknown one is a configuration error, not silently skipped.
+    const unknown = locale.find((key) => !hasOwn(phones, key));
+    if (unknown !== undefined) {
+      throw new ValidationConfigError(`Invalid locale '${configText(unknown)}'`);
+    }
+    return locale.some((key) => phones[key].test(s));
   }
   if (hasOwn(phones, locale)) {
     return phones[locale].test(s);
@@ -228,7 +224,7 @@ export function isMobilePhone(
     }
     return false;
   }
-  throw new ValidationConfigError(`Invalid locale '${locale}'`);
+  throw new ValidationConfigError(`Invalid locale '${configText(locale)}'`);
 }
 
 export const locales: readonly string[] = Object.freeze(Object.keys(phones));

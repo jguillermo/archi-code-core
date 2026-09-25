@@ -18,7 +18,7 @@ export function isISBN(input: unknown, options?: IsISBNVersion | IsISBNOptions):
 
   // For backwards compatibility:
   // isISBN(str [, version]), i.e. `options` could be used as argument for the legacy `version`
-  const rawVersion = typeof options === 'object' ? options.version : options;
+  const rawVersion = options !== null && typeof options === 'object' ? options.version : options;
   const version = String(rawVersion);
 
   if (!rawVersion) {

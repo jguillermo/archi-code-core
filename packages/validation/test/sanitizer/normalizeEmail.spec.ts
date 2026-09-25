@@ -1,3 +1,4 @@
+import * as sanitizer from '../../src/sanitizer';
 import { test } from '../cross/support/sanitizerTest';
 
 describe('Sanitizers', () => {
@@ -247,5 +248,14 @@ describe('Sanitizers', () => {
         'test@yandex.by': 'test@yandex.ru',
       },
     });
+  });
+});
+
+describe('normalizeEmail input contract', () => {
+  it('non-strings throw a clear TypeError; strings without "@" → false', () => {
+    expect(() => sanitizer.normalizeEmail(null as unknown as string)).toThrow(TypeError);
+    expect(() => sanitizer.normalizeEmail(null as unknown as string)).toThrow(/Expected a string/);
+    expect(sanitizer.normalizeEmail('NoAt')).toBe(false);
+    expect(sanitizer.normalizeEmail('A@Example.COM')).toBe('a@example.com');
   });
 });

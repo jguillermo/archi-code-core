@@ -165,11 +165,28 @@ describe('toFloat syntax: validator (ported from isFloat)', () => {
     });
     expect(toFloat('1,5', { syntax: 'validator' })).toEqual(fail(ConvertMessages.FLOAT));
   });
-  it('keeps the historic syntax quirks: ".e5" is accepted with value NaN', () => {
-    const r = toFloat('.e5', { syntax: 'validator' });
-    expect(r.ok).toBe(true);
-    expect(r.value).toBeNaN();
+  it('a success always holds a finite number: forms without digits and out-of-range values fail', () => {
+    for (const input of ['.e5', 'e5', '-e5', '1e400', '-1e400']) {
+      expect(toFloat(input, { syntax: 'validator' })).toEqual(fail(ConvertMessages.FLOAT));
+    }
     expect(toFloat('.e5').ok).toBe(false);
+  });
+  it('returns the value read with the configured separator (not only ",")', () => {
+    expect(toFloat('1٫5', { syntax: 'validator', decimalSeparator: '٫' })).toEqual({
+      ok: true,
+      value: 1.5,
+      error: null,
+    });
+    expect(toFloat('1*5', { syntax: 'validator', decimalSeparator: '*' })).toEqual({
+      ok: true,
+      value: 1.5,
+      error: null,
+    });
+    expect(toFloat('15', { syntax: 'validator', decimalSeparator: '' })).toEqual({
+      ok: true,
+      value: 15,
+      error: null,
+    });
   });
   it('numbers: finite only; unreadable values fail', () => {
     expect(toFloat(Infinity, { syntax: 'validator' })).toEqual(fail(ConvertMessages.FLOAT));

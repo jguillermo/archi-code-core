@@ -15,7 +15,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
 
       - name: Install dependencies
         run: npm ci
@@ -26,13 +26,7 @@ jobs:
       - name: Run tests
         run: npm run test
 
-      # @archi-code/validation reliability gates: types (strict), lint, and the 100% coverage
-      # threshold (contract, canBe⇔convertTo properties, import-cycle guard, ReDoS, parity).
-      - name: validation — typecheck (src + tests)
-        run: npx tsc -p packages/validation/tsconfig.json --noEmit --incremental false
-
-      - name: validation — lint
-        run: npm run check:lint -w @archi-code/validation
-
-      - name: validation — tests with coverage threshold
-        run: npm run test:coverage -w @archi-code/validation
+      # @archi-code/validation: the full gate (prettier, eslint, strict tsc on src/test/benchmark,
+      # jest with the 100% coverage threshold, CJS+ESM build, dist and web-realm checks).
+      - name: validation — full gate (check:all)
+        run: npm run check:validator

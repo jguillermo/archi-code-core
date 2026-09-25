@@ -66,3 +66,28 @@ it('anyToString reuses convert/string for the values toString accepts', () => {
     expect(anyToString(v)).toBe(toString(v).value);
   }
 });
+
+it('never throws: invalid dates, self-referencing collections and hostile values', () => {
+  expect(anyToString(new Date('x'))).toBe('Date(Invalid)');
+
+  const map = new Map<string, unknown>();
+  map.set('self', map);
+  expect(anyToString(map)).toBe('Map({self: [Circular]})');
+  const set = new Set<unknown>();
+  set.add(set);
+  expect(anyToString(set)).toBe('Set([Circular])');
+  // The same collection twice (not a cycle) is described both times.
+  const shared = new Set([1]);
+  expect(
+    anyToString(
+      new Map([
+        ['a', shared],
+        ['b', shared],
+      ]),
+    ),
+  ).toBe('Map({a: Set(1), b: Set(1)})');
+
+  const { proxy, revoke } = Proxy.revocable({}, {});
+  revoke();
+  expect(anyToString(proxy)).toBe('[Unrepresentable value]');
+});

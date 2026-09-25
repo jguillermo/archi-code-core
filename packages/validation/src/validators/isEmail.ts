@@ -1,5 +1,7 @@
 import { toString } from '../convert/string';
-import { checkHost } from './util/checkHost';
+import { checkHost, hostList } from './util/checkHost';
+import { configText } from './util/config';
+import { ValidationConfigError } from './util/errors';
 import { escapeRegExp } from './util/escapeRegExp';
 
 import { isByteLength } from './isByteLength';
@@ -15,8 +17,8 @@ export interface IsEmailOptions {
   require_tld?: boolean;
   blacklisted_chars?: string;
   ignore_max_length?: boolean;
-  host_blacklist?: string[];
-  host_whitelist?: string[];
+  host_blacklist?: (string | RegExp)[];
+  host_whitelist?: (string | RegExp)[];
   allow_ip_domain?: boolean;
   domain_specific_validation?: boolean;
 }
@@ -37,12 +39,18 @@ const default_email_options = {
 const splitNameAddress = /^([^\x00-\x1F\x7F-\x9F\cX]+)</i;
 const emailUserPart = /^[a-z\d!#$%&'*+\-/=?^_`{|}~]+$/i;
 const gmailUserPart = /^[a-z\d]+$/;
-const quotedEmailUser =
-  /^([\s\x01-\x08\x0b\x0c\x0e-\x1f\x7f\x21\x23-\x5b\x5d-\x7e]|(\\[\x01-\x09\x0b\x0c\x0d-\x7f]))*$/i;
+// Quoted local part (RFC 5322 qtext / quoted-pair without the obsolete control characters): only
+// space and tab as whitespace. CR, LF, DEL and C0 controls would allow header injection
+// (`"\r\nBcc: x@evil.com"@c.com`).
+const quotedEmailUser = /^([\t \x21\x23-\x5b\x5d-\x7e]|(\\[\t\x20-\x7e]))*$/i;
 const emailUserUtf8Part = /^[a-z\d!#$%&'*+\-/=?^_`{|}~\u00A1-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]+$/i;
 const quotedEmailUserUtf8 =
-  /^([\s\x01-\x08\x0b\x0c\x0e-\x1f\x7f\x21\x23-\x5b\x5d-\x7e\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]|(\\[\x01-\x09\x0b\x0c\x0d-\x7f\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]))*$/i;
+  /^([\t \x21\x23-\x5b\x5d-\x7e\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]|(\\[\t\x20-\x7e\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]))*$/i;
 const defaultMaxEmailLength = 254;
+// Invisible / spoofing code points the UTF-8 ranges above would let into the local part: format
+// characters (zero-width, bidi overrides, BOM, soft hyphen…) and unpaired surrogates, plus any
+// separator other than the plain space (which only a quoted local part accepts).
+const invisibleLocalPart = /[\p{Cf}\p{Cs}\p{Zl}\p{Zp}\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/u;
 
 /* eslint-enable no-control-regex */
 
@@ -92,7 +100,12 @@ export function isEmail(str: unknown, options?: IsEmailOptions): boolean {
 
       // Remove display name and angle brackets to get email address
       // Can be done in the regex but will introduce a ReDOS (See  #1597 for more info)
-      strVal = strVal.replace(display_name, '').replace(/(^<|>$)/g, '');
+      const address = strVal.replace(display_name, '');
+      // `Name <a@b.com` (no closing bracket) is not a valid display-name form.
+      if (!address.endsWith('>')) {
+        return false;
+      }
+      strVal = address.slice(1, -1);
 
       // sometimes need to trim the last space to get the display name
       // because there may be a space between display name and email address
@@ -117,17 +130,14 @@ export function isEmail(str: unknown, options?: IsEmailOptions): boolean {
   const domain = parts.pop() as string;
   const lower_domain = domain.toLowerCase();
 
-  if (
-    (options.host_blacklist?.length ?? 0) > 0 &&
-    checkHost(lower_domain, options.host_blacklist as (string | RegExp)[])
-  ) {
+  const host_blacklist = hostList(options.host_blacklist, 'host_blacklist');
+  const host_whitelist = hostList(options.host_whitelist, 'host_whitelist');
+
+  if (host_blacklist.length > 0 && checkHost(lower_domain, host_blacklist)) {
     return false;
   }
 
-  if (
-    (options.host_whitelist?.length ?? 0) > 0 &&
-    !checkHost(lower_domain, options.host_whitelist as (string | RegExp)[])
-  ) {
+  if (host_whitelist.length > 0 && !checkHost(lower_domain, host_whitelist)) {
     return false;
   }
 
@@ -163,7 +173,7 @@ export function isEmail(str: unknown, options?: IsEmailOptions): boolean {
   }
 
   if (
-    options.ignore_max_length === false &&
+    !options.ignore_max_length &&
     (!isByteLength(user, { max: 64 }) || !isByteLength(domain, { max: 254 }))
   ) {
     return false;
@@ -194,8 +204,17 @@ export function isEmail(str: unknown, options?: IsEmailOptions): boolean {
   }
 
   if (options.blacklisted_chars) {
+    if (typeof options.blacklisted_chars !== 'string') {
+      throw new ValidationConfigError(
+        `blacklisted_chars must be a string, got ${configText(options.blacklisted_chars)}`,
+      );
+    }
     // Characters are taken literally (escaped) — never interpreted as regex syntax.
     if (new RegExp(`[${escapeRegExp(options.blacklisted_chars)}]`).test(user)) return false;
+  }
+
+  if (invisibleLocalPart.test(user)) {
+    return false;
   }
 
   if (user[0] === '"' && user[user.length - 1] === '"') {

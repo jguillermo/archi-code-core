@@ -1,6 +1,7 @@
 import { toString } from '../convert/string';
 import { ValidationConfigError } from './util/errors';
 import { hasOwn } from './util/hasOwn';
+import { configText } from './util/config';
 
 const lengths = {
   md5: 32,
@@ -28,7 +29,7 @@ const hashRegex: Record<string, RegExp> = Object.fromEntries(
 
 export function isHash(input: unknown, algorithm: HashAlgorithm): boolean {
   if (!hasOwn(hashRegex, algorithm)) {
-    throw new ValidationConfigError(`Invalid hash algorithm '${String(algorithm)}'`);
+    throw new ValidationConfigError(`Invalid hash algorithm '${configText(algorithm)}'`);
   }
   const stringResult = toString(input);
   if (!stringResult.ok) return false;

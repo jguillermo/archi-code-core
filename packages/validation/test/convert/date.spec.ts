@@ -334,3 +334,17 @@ describe('toDate lax mode (ported from isAfter / isBefore)', () => {
     expect(parseDateLax('1900-02-29')).toBeUndefined();
   });
 });
+
+describe('toDate default rule never throws on unusable format options', () => {
+  it('format delimiter not among `delimiters` → { ok: false }', () => {
+    expect(toDate('2024.01.02', { format: 'YYYY.MM.DD' })).toEqual(fail(ConvertMessages.DATE));
+    expect(converted(toDate('2024.01.02', { format: 'YYYY.MM.DD', delimiters: ['.'] }))).toEqual(
+      new Date('2024-01-02T00:00:00.000Z'),
+    );
+  });
+  it('non-array `delimiters` → { ok: false }', () => {
+    expect(toDate('2024/01/02', { delimiters: '/' as unknown as string[] })).toEqual(
+      fail(ConvertMessages.DATE),
+    );
+  });
+});

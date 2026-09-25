@@ -23,7 +23,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
 
       - name: Install dependencies
         run: npm ci
@@ -33,6 +33,13 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
           git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+
+      # Never publish what CI would reject: a direct push to main/release skips the PR checks.
+      - name: Test all packages
+        run: npm run build && npm run test
+
+      - name: validation — full gate (check:all)
+        run: npm run check:validator
 
       - name: Release all packages
         env:

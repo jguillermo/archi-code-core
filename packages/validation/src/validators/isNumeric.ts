@@ -2,6 +2,7 @@ import { toString } from '../convert/string';
 import { ValidationConfigError } from './util/errors';
 import { hasOwn } from './util/hasOwn';
 import { decimal } from './alpha';
+import { configText } from './util/config';
 
 export interface IsNumericOptions {
   no_symbols?: boolean;
@@ -26,7 +27,7 @@ export function isNumeric(input: unknown, options?: IsNumericOptions): boolean {
   let separator = '.';
   if (options?.locale) {
     if (!hasOwn(decimal, options.locale))
-      throw new ValidationConfigError(`Invalid locale '${options.locale}'`);
+      throw new ValidationConfigError(`Invalid locale '${configText(options.locale)}'`);
     separator = decimal[options.locale];
   }
   const stringResult = toString(input);

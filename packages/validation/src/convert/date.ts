@@ -67,7 +67,7 @@ export interface DateConvertOptions {
   lax?: boolean;
 }
 
-// ─── default rule (ISO) ──────────────────────────────────────────────────────
+// ─── ISO rule ────────────────────────────────────────────────────────────────
 
 const DATE_FORMAT =
   /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}):(\d{2})(\.\d+)?(Z|[+-]\d{2}:\d{2})?)?$/;
@@ -82,9 +82,14 @@ const DATE_FORMAT =
  * `{ lax: true }` is the rule ported from `isAfter`/`isBefore`.
  */
 export function toDate(v: unknown, options?: DateConvertOptions): Converted<Date> {
-  if (options?.lax) return toDateLax(v);
-  if (options?.iso) return toDateIso(v);
-  return toDateByFormat(v, options);
+  try {
+    if (options?.lax) return toDateLax(v);
+    if (options?.iso) return toDateIso(v);
+    return toDateByFormat(v, options);
+  } catch {
+    // Hostile values (revoked proxies, throwing getters) make even `instanceof` throw.
+    return failure(ConvertMessages.DATE);
+  }
 }
 
 /**
@@ -184,15 +189,19 @@ function toDateByFormat(input: unknown, options: DateConvertOptions | undefined)
     if (mergedOptions.strictMode && input.length !== mergedOptions.format.length) {
       return failure(ConvertMessages.DATE);
     }
+    // Garbage `delimiters`, or a format whose delimiter is not one of them (e.g. 'YYYY.MM.DD' with
+    // the default ['/', '-']), can never match: fail instead of throwing (converters never throw).
+    if (!Array.isArray(mergedOptions.delimiters)) return failure(ConvertMessages.DATE);
     const formatDelimiter = mergedOptions.delimiters.find(
       (delimiter) => mergedOptions.format.indexOf(delimiter) !== -1,
     );
+    if (formatDelimiter === undefined) return failure(ConvertMessages.DATE);
     const dateDelimiter = mergedOptions.strictMode
       ? formatDelimiter
       : mergedOptions.delimiters.find((delimiter) => input.indexOf(delimiter) !== -1);
     const dateAndFormat = zip(
       input.split(dateDelimiter as string),
-      mergedOptions.format.toLowerCase().split(formatDelimiter as string),
+      mergedOptions.format.toLowerCase().split(formatDelimiter),
     );
     const dateObj: Record<string, string> = {};
 

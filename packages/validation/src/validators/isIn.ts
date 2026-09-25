@@ -1,7 +1,12 @@
 import { toString } from '../convert/string';
 import { toEnum } from '../convert/enum';
+import { configText } from './util/config';
+import { ValidationConfigError } from './util/errors';
 
-export function isIn(input: unknown, values: unknown[]): boolean {
+export function isIn(
+  input: unknown,
+  values: unknown[] | Record<string, unknown> | string,
+): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
@@ -9,7 +14,7 @@ export function isIn(input: unknown, values: unknown[]): boolean {
   let i;
   if (Object.prototype.toString.call(values) === '[object Array]') {
     const array: string[] = [];
-    for (i in values) {
+    for (i in values as unknown[]) {
       // istanbul ignore else
       if ({}.hasOwnProperty.call(values, i)) {
         // non-convertible elements are skipped
@@ -20,11 +25,16 @@ export function isIn(input: unknown, values: unknown[]): boolean {
     // Membership in a list of options is the enum rule of convert.
     return toEnum(str, array).ok;
   }
-  if (typeof values === 'object') {
+  if (values !== null && typeof values === 'object') {
     return Object.prototype.hasOwnProperty.call(values, str);
   }
-  if (values && typeof (values as string[]).indexOf === 'function') {
-    return (values as string[]).indexOf(str) >= 0;
+  // No list (undefined / null) → nothing is in it (historic behaviour).
+  if (values === undefined || values === null) return false;
+  if (typeof values === 'string') {
+    // Historic behaviour: "in another string" is a substring check.
+    return (values as string).indexOf(str) >= 0;
   }
-  return false;
+  throw new ValidationConfigError(
+    `values must be an array, an object or a string, got ${configText(values)}`,
+  );
 }

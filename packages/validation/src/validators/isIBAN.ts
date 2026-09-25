@@ -1,5 +1,7 @@
 import { hasOwn } from './util/hasOwn';
 import { toString } from '../convert/string';
+import { configText, optionsOf } from './util/config';
+import { ValidationConfigError } from './util/errors';
 
 export interface IsIBANOptions {
   /** Only accept IBANs from these ISO 3166-1 alpha-2 country codes. */
@@ -113,6 +115,21 @@ function hasOnlyValidCountryCodes(countryCodeArray: string[]): boolean {
 }
 
 /**
+ * Reads `whitelist` / `blacklist`: an array of country codes compared case-insensitively. A string
+ * would otherwise be matched by substring (`'XDEX'` "contains" DE), so anything that is not an array
+ * of strings is a configuration error.
+ */
+function countryCodeList(list: unknown, name: string): string[] | undefined {
+  if (list === undefined || list === null) return undefined;
+  if (!Array.isArray(list) || !list.every((code) => typeof code === 'string')) {
+    throw new ValidationConfigError(
+      `${name} must be an array of country codes, got ${configText(list)}`,
+    );
+  }
+  return list.map((code) => code.toUpperCase());
+}
+
+/**
  * Check whether string has correct universal IBAN format
  * The IBAN consists of up to 34 alphanumeric characters, as follows:
  * Country Code using ISO 3166-1 alpha-2, two letters
@@ -131,20 +148,23 @@ function hasValidIbanFormat(str: string, options: IsIBANOptions): boolean {
 
   const isoCountryCodeInIbanRegexCodeObject = hasOwn(ibanRegexThroughCountryCode, isoCountryCode);
 
-  if (options.whitelist) {
-    if (!hasOnlyValidCountryCodes(options.whitelist)) {
+  const whitelist = countryCodeList(options.whitelist, 'whitelist');
+  const blacklist = countryCodeList(options.blacklist, 'blacklist');
+
+  if (whitelist) {
+    if (!hasOnlyValidCountryCodes(whitelist)) {
       return false;
     }
 
-    const isoCountryCodeInWhiteList = options.whitelist.includes(isoCountryCode);
+    const isoCountryCodeInWhiteList = whitelist.includes(isoCountryCode);
 
     if (!isoCountryCodeInWhiteList) {
       return false;
     }
   }
 
-  if (options.blacklist) {
-    const isoCountryCodeInBlackList = options.blacklist.includes(isoCountryCode);
+  if (blacklist) {
+    const isoCountryCodeInBlackList = blacklist.includes(isoCountryCode);
 
     if (isoCountryCodeInBlackList) {
       return false;
@@ -187,13 +207,13 @@ function hasValidIbanChecksum(str: string): boolean {
   return remainder === 1;
 }
 
-export function isIBAN(input: unknown, options: IsIBANOptions = {}): boolean {
+export function isIBAN(input: unknown, options?: IsIBANOptions): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   const str: string = s;
 
-  return hasValidIbanFormat(str, options) && hasValidIbanChecksum(str);
+  return hasValidIbanFormat(str, optionsOf(options)) && hasValidIbanChecksum(str);
 }
 
 export const locales: readonly string[] = Object.freeze(Object.keys(ibanRegexThroughCountryCode));

@@ -53,14 +53,15 @@ const IPv6AddressRegExp = new RegExp(
     ')(%[0-9a-zA-Z.]{1,})?$',
 );
 
-export function isIP(ipAddress: unknown, options: IsIPOptions | IsIPVersion = {}): boolean {
+export function isIP(ipAddress: unknown, options?: IsIPOptions | IsIPVersion): boolean {
   const stringResult = toString(ipAddress);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   const ip: string = s;
 
   // backwards compatibility: isIP(ipAddress, version) where version is a number or string
-  const version = (typeof options === 'object' ? options.version : options) || '';
+  const version =
+    (options !== null && typeof options === 'object' ? options.version : options) || '';
 
   if (!version) {
     return IPv4AddressRegExp.test(ip) || IPv6AddressRegExp.test(ip);

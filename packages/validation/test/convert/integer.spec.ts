@@ -184,6 +184,14 @@ describe('toInteger syntax: validator (ported from isInt)', () => {
     expect(toInteger(1.5, { syntax: 'validator' })).toEqual(fail(ConvertMessages.INTEGER));
     expect(toInteger(null, { syntax: 'validator' })).toEqual(fail(ConvertMessages.INTEGER));
   });
+  it('integers too large for a finite number → INTEGER_OVERFLOW (never ok with Infinity)', () => {
+    expect(toInteger('9'.repeat(400), { syntax: 'validator' })).toEqual(
+      fail(ConvertMessages.INTEGER_OVERFLOW),
+    );
+    expect(toInteger(`-${'9'.repeat(400)}`, { syntax: 'validator' })).toEqual(
+      fail(ConvertMessages.INTEGER_OVERFLOW),
+    );
+  });
   it('allowLeadingZeroes: false rejects "012"', () => {
     expect(toInteger('012', { syntax: 'validator' }).ok).toBe(true);
     expect(toInteger('012', { syntax: 'validator', allowLeadingZeroes: false }).ok).toBe(false);

@@ -1,4 +1,5 @@
 import { toString } from '../convert/string';
+import { optionsOf } from './util/config';
 
 export interface IsISSNOptions {
   /** Only accept the upper-case check digit `X`. */
@@ -9,14 +10,15 @@ export interface IsISSNOptions {
 
 const issn = '^\\d{4}-?\\d{3}[\\dX]$';
 
-export function isISSN(input: unknown, options: IsISSNOptions = {}): boolean {
+export function isISSN(input: unknown, options?: IsISSNOptions): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   const str: string = s;
+  const opts = optionsOf(options);
   let testIssn: string | RegExp = issn;
-  testIssn = options.require_hyphen ? (testIssn as string).replace('?', '') : testIssn;
-  testIssn = options.case_sensitive ? new RegExp(testIssn) : new RegExp(testIssn, 'i');
+  testIssn = opts.require_hyphen ? (testIssn as string).replace('?', '') : testIssn;
+  testIssn = opts.case_sensitive ? new RegExp(testIssn) : new RegExp(testIssn, 'i');
   if (!(testIssn as RegExp).test(str)) {
     return false;
   }
