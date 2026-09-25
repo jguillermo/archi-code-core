@@ -20,11 +20,20 @@
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/esm/index.d.ts",
+  "browser": "./dist/esm/index.js",
   "exports": {
     ".": {
+      "types": "./dist/esm/index.d.ts",
+      "browser": "./dist/esm/index.js",
+      "node": {
+        "import": "./dist/esm/index.js",
+        "require": "./dist/cjs/index.js"
+      },
       "import": "./dist/esm/index.js",
-      "require": "./dist/cjs/index.js"
-    }
+      "require": "./dist/cjs/index.js",
+      "default": "./dist/esm/index.js"
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist/"
@@ -32,15 +41,18 @@
   "scripts": {
     "prebuild": "rm -rf dist || true",
     "build:cjs": "tsc -p tsconfig.cjs.json",
-    "build:esm": "tsc -p tsconfig.esm.json",
+    "build:esm": "tsc -p tsconfig.esm.json && node scripts/fix-esm.js",
     "build": "npm run build:cjs && npm run build:esm",
     "test": "jest",
     "test:coverage": "jest --coverage",
+    "check:types": "tsc -p tsconfig.json --noEmit --incremental false && tsc -p benchmark/tsconfig.json --noEmit --incremental false",
+    "check:dist": "node scripts/check-dist.js && node --experimental-vm-modules --no-warnings scripts/check-web.js",
+    "check:all": "npm run check:prettier && npm run check:lint && npm run check:types && npm run test:coverage && npm run build && npm run check:dist",
     "benchmark": "ts-node --project benchmark/tsconfig.json benchmark/run.ts",
     "check:lint": "eslint src test --ext .ts",
-    "check:prettier": "prettier --check \"{src,test}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\"",
+    "check:prettier": "prettier --check \"{src,test,scripts}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\"",
     "fix:lint": "eslint src test --ext .ts --fix",
-    "fix:prettier": "prettier --write \"{src,test}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\""
+    "fix:prettier": "prettier --write \"{src,test,scripts}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\""
   },
   "jest": {
     "moduleFileExtensions": [
