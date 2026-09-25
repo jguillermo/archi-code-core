@@ -1,12 +1,25 @@
-import type { IsEmailOptions } from '../types';
 import { toString } from '../convert/string';
-import checkHost from './util/checkHost';
-import escapeRegExp from './util/escapeRegExp';
+import { checkHost } from './util/checkHost';
+import { escapeRegExp } from './util/escapeRegExp';
 
-import isByteLength from './isByteLength';
-import isFQDN from './isFQDN';
-import isIP from './isIP';
-import merge from './util/merge';
+import { isByteLength } from './isByteLength';
+import { isFQDN } from './isFQDN';
+import { isIP } from './isIP';
+import { merge } from './util/merge';
+
+export interface IsEmailOptions {
+  allow_display_name?: boolean;
+  allow_underscores?: boolean;
+  require_display_name?: boolean;
+  allow_utf8_local_part?: boolean;
+  require_tld?: boolean;
+  blacklisted_chars?: string;
+  ignore_max_length?: boolean;
+  host_blacklist?: string[];
+  host_whitelist?: string[];
+  allow_ip_domain?: boolean;
+  domain_specific_validation?: boolean;
+}
 
 const default_email_options = {
   allow_display_name: false,
@@ -65,7 +78,7 @@ function validateDisplayName(display_name: string): boolean {
   return true;
 }
 
-export default function isEmail(str: unknown, options?: IsEmailOptions): boolean {
+export function isEmail(str: unknown, options?: IsEmailOptions): boolean {
   const stringResult = toString(str);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

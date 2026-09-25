@@ -1,6 +1,9 @@
-import type { IsLatLongOptions } from '../types';
 import { toString } from '../convert/string';
-import merge from './util/merge';
+import { merge } from './util/merge';
+
+export interface IsLatLongOptions {
+  checkDMS?: boolean;
+}
 const lat = /^\(?[+-]?(90(\.0+)?|[1-8]?\d(\.\d+)?)$/;
 const long = /^\s?[+-]?(180(\.0+)?|1[0-7]\d(\.\d+)?|\d{1,2}(\.\d+)?)\)?$/;
 
@@ -12,7 +15,7 @@ const defaultLatLongOptions = {
   checkDMS: false,
 };
 
-export default function isLatLong(str: unknown, options?: IsLatLongOptions): boolean {
+export function isLatLong(str: unknown, options?: IsLatLongOptions): boolean {
   const stringResult = toString(str);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

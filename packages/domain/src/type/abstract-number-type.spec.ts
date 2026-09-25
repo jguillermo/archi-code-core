@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 import { AddValidate, validateType } from '../validator/decorator/type-validator';
 import { expectTypeOf } from 'expect-type';
-import { universalToString } from '@archi-code/common';
+import { anyToString } from '@archi-code/validation';
 import { AbstractNumberType, NumberTypeOptional, NumberTypeRequired } from './index';
 import { TypePrimitiveException } from '../exceptions/domain/type-primitive.exception';
 import { getLevel, Level } from '../level/level.decorator';
@@ -135,7 +135,7 @@ describe('AbstractNumberType', () => {
           expect(errors[0].constraints).toBeDefined();
           const displayValue = typeof value === 'string' ? `"${value}"` : value;
           expect(errors[0].constraints?.typePrimitive).toEqual(
-            errorData.typePrimitive.replace('{{$1}}', universalToString(displayValue)),
+            errorData.typePrimitive.replace('{{$1}}', anyToString(displayValue)),
           );
         },
       );
@@ -228,7 +228,7 @@ describe('AbstractNumberType', () => {
           expect(errors[0].constraints).toBeDefined();
           const displayValue = typeof value === 'string' ? `"${value}"` : value;
           expect(errors[0].constraints?.typePrimitive).toEqual(
-            errorData.typePrimitive.replace('{{$1}}', universalToString(displayValue)),
+            errorData.typePrimitive.replace('{{$1}}', anyToString(displayValue)),
           );
         },
       );
@@ -315,7 +315,7 @@ describe('AbstractNumberType', () => {
           expect(errors[0].constraints).toBeDefined();
           const displayValue = typeof value === 'string' ? `"${value}"` : value;
           expect(errors[0].constraints?.typePrimitive).toEqual(
-            errorData.typePrimitive.replace('{{$1}}', universalToString(displayValue)),
+            errorData.typePrimitive.replace('{{$1}}', anyToString(displayValue)),
           );
         },
       );

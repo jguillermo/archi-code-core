@@ -1,5 +1,5 @@
 import { ValidationConfigError } from './util/errors';
-import hasOwn from './util/hasOwn';
+import { hasOwn } from './util/hasOwn';
 import { toString } from '../convert/string';
 import * as algorithms from './util/algorithms';
 
@@ -151,7 +151,10 @@ export const vatMatchers = {
   VE: (str: string): boolean => /^(VE)?[J,G,V,E]{1}-(\d{9}|(\d{8}-\d{1}))$/.test(str),
 };
 
-export default function isVAT(input: unknown, countryCode: string): boolean {
+/** Known country codes (autocomplete); any string is accepted, unknown ones throw ValidationConfigError. */
+export type VATCountryCode = keyof typeof vatMatchers | (string & {});
+
+export function isVAT(input: unknown, countryCode: VATCountryCode): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

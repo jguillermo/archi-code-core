@@ -1,7 +1,7 @@
 import { toString } from '../convert/string';
 import { toFloat } from '../convert/float';
 
-export default function isDivisibleBy(str: unknown, num: number): boolean {
+export function isDivisibleBy(str: unknown, num: number): boolean {
   const stringResult = toString(str);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

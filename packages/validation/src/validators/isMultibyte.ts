@@ -4,7 +4,7 @@ import { toString } from '../convert/string';
 const multibyte = /[^\x00-\x7F]/;
 /* eslint-enable no-control-regex */
 
-export default function isMultibyte(input: unknown): boolean {
+export function isMultibyte(input: unknown): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

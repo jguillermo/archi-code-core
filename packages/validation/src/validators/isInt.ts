@@ -1,12 +1,19 @@
-import type { IsIntOptions } from '../types';
 import { toInteger } from '../convert/integer';
 import { toString } from '../convert/string';
+
+export interface IsIntOptions {
+  min?: number;
+  max?: number;
+  lt?: number;
+  gt?: number;
+  allow_leading_zeroes?: boolean;
+}
 
 /**
  * Integer check. The integer syntax lives in `convert/integer` (`syntax: 'validator'`, ported from
  * this validator); this function only adds the bounds (`min`/`max`/`lt`/`gt`).
  */
-export default function isInt(str: unknown, options?: IsIntOptions): boolean {
+export function isInt(str: unknown, options?: IsIntOptions): boolean {
   const opts = options || {};
   const r = toInteger(str, { syntax: 'validator', allowLeadingZeroes: opts.allow_leading_zeroes });
   if (!r.ok) return false;

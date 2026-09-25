@@ -2,7 +2,7 @@ import { toString } from '../convert/string';
 
 const eth = /^(0x)[0-9a-f]{40}$/i;
 
-export default function isEthereumAddress(input: unknown): boolean {
+export function isEthereumAddress(input: unknown): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

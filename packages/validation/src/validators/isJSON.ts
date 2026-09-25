@@ -1,5 +1,9 @@
-import type { IsJSONOptions } from '../types';
 import { toJsonValue } from '../convert/json';
+
+export interface IsJSONOptions {
+  allow_primitives?: boolean;
+  allow_any_value?: boolean;
+}
 
 /**
  * Returns true if `str` is syntactically valid JSON text. Objects and arrays are accepted;
@@ -9,7 +13,7 @@ import { toJsonValue } from '../convert/json';
  * For domain object validation (plain records only, no arrays),
  * use `canBeJson()` from the canBe module instead.
  */
-export default function isJSON(str: unknown, options?: IsJSONOptions): boolean {
+export function isJSON(str: unknown, options?: IsJSONOptions): boolean {
   return toJsonValue(str, {
     allowPrimitives: options?.allow_primitives,
     allowAnyValue: options?.allow_any_value,

@@ -1,4 +1,4 @@
-export default function checkHost(host: string, matches: (string | RegExp)[]): boolean {
+export function checkHost(host: string, matches: (string | RegExp)[]): boolean {
   for (const match of matches) {
     if (typeof match === 'string') {
       if (host === match) return true;

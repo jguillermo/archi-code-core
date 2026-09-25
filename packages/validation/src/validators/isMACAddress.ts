@@ -1,5 +1,11 @@
 import { toString } from '../convert/string';
-import type { IsMACAddressOptions } from '../types';
+
+export interface IsMACAddressOptions {
+  no_separators?: boolean;
+  /** @deprecated use `no_separators` */
+  no_colons?: boolean;
+  eui?: '48' | '64' | 48 | 64;
+}
 
 const macAddress48 = /^(?:[0-9a-fA-F]{2}([-:\s]))([0-9a-fA-F]{2}\1){4}([0-9a-fA-F]{2})$/;
 const macAddress48NoSeparators = /^([0-9a-fA-F]){12}$/;
@@ -8,7 +14,7 @@ const macAddress64 = /^(?:[0-9a-fA-F]{2}([-:\s]))([0-9a-fA-F]{2}\1){6}([0-9a-fA-
 const macAddress64NoSeparators = /^([0-9a-fA-F]){16}$/;
 const macAddress64WithDots = /^([0-9a-fA-F]{4}\.){3}([0-9a-fA-F]{4})$/;
 
-export default function isMACAddress(input: unknown, options?: IsMACAddressOptions): boolean {
+export function isMACAddress(input: unknown, options?: IsMACAddressOptions): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

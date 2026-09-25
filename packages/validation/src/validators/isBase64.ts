@@ -1,13 +1,17 @@
-import type { IsBase64Options } from '../types';
 import { toString } from '../convert/string';
-import merge from './util/merge';
+import { merge } from './util/merge';
+
+export interface IsBase64Options {
+  urlSafe?: boolean;
+  padding?: boolean;
+}
 
 const base64WithPadding = /^[A-Za-z0-9+/]+={0,2}$/;
 const base64WithoutPadding = /^[A-Za-z0-9+/]+$/;
 const base64UrlWithPadding = /^[A-Za-z0-9_-]+={0,2}$/;
 const base64UrlWithoutPadding = /^[A-Za-z0-9_-]+$/;
 
-export default function isBase64(str: unknown, options?: IsBase64Options): boolean {
+export function isBase64(str: unknown, options?: IsBase64Options): boolean {
   const stringResult = toString(str);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

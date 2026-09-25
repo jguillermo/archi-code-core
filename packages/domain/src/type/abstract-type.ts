@@ -1,4 +1,4 @@
-import { universalToString } from '@archi-code/common';
+import { anyToString } from '@archi-code/validation';
 import { TypeValidatorInterface } from '../validator';
 import { validateSync } from 'class-validator';
 
@@ -50,7 +50,7 @@ export abstract class AbstractType<
   }
 
   get toString(): string {
-    return this.isNull ? '' : universalToString(this._value);
+    return this.isNull ? '' : anyToString(this._value);
   }
 
   protected abstract filter(value: any | null): any | null;

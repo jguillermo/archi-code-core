@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 import { expectTypeOf } from 'expect-type';
-import { universalToString } from '@archi-code/common';
+import { anyToString } from '@archi-code/validation';
 import { DateTypeOptional, DateTypeRequired } from './index';
 import { validateType } from '../validator/decorator/type-validator';
 import { TypePrimitiveException } from '../exceptions/domain/type-primitive.exception';
@@ -139,7 +139,7 @@ describe('AbstractDateType', () => {
           expect(errors[0].constraints).toBeDefined();
           const displayValue = typeof value === 'string' ? `"${value}"` : value;
           expect(errors[0].constraints?.typePrimitive).toEqual(
-            errorData.typePrimitive.replace('{{$1}}', universalToString(displayValue)),
+            errorData.typePrimitive.replace('{{$1}}', anyToString(displayValue)),
           );
         },
       );
@@ -224,7 +224,7 @@ describe('AbstractDateType', () => {
           expect(errors[0].constraints).toBeDefined();
           const displayValue = typeof value === 'string' ? `"${value}"` : value;
           expect(errors[0].constraints?.typePrimitive).toEqual(
-            errorData.typePrimitive.replace('{{$1}}', universalToString(displayValue)),
+            errorData.typePrimitive.replace('{{$1}}', anyToString(displayValue)),
           );
         },
       );

@@ -1,7 +1,7 @@
 import { toString } from '../convert/string';
 import { ValidationConfigError } from './util/errors';
-import hasOwn from './util/hasOwn';
-import isLuhnValid from './isLuhnNumber';
+import { hasOwn } from './util/hasOwn';
+import { isLuhnNumber as isLuhnValid } from './isLuhnNumber';
 
 const cards = {
   amex: /^3[47][0-9]{13}$/,
@@ -12,6 +12,14 @@ const cards = {
   unionpay: /^(6[27][0-9]{14}|^(81[0-9]{14,17}))$/,
   visa: /^(?:4[0-9]{12})(?:[0-9]{3,6})?$/,
 };
+
+/** Supported providers (autocomplete); any string is accepted, unknown ones throw ValidationConfigError. */
+export type CreditCardProvider = keyof typeof cards | (string & {});
+
+export interface IsCreditCardOptions {
+  /** Restrict to one provider. */
+  provider?: CreditCardProvider;
+}
 
 const allCards = (() => {
   const tmpCardsArray: RegExp[] = [];
@@ -24,7 +32,7 @@ const allCards = (() => {
   return tmpCardsArray;
 })();
 
-export default function isCreditCard(input: unknown, options: { provider?: string } = {}): boolean {
+export function isCreditCard(input: unknown, options: IsCreditCardOptions = {}): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

@@ -11,6 +11,5 @@
   "ts-node": {
     "transpileOnly": true
   },
-  "include": ["../src/**/*", "../test/validator/samples/**/*", "./**/*"],
-  "exclude": ["./**/*.spec.ts", "../src/**/*.spec.ts"]
+  "include": ["../src/**/*", "./**/*"]
 }

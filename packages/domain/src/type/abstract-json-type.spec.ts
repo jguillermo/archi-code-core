@@ -3,7 +3,7 @@ import { AbstractJsonType } from './abstract-json-type';
 import { AddValidate, validateType } from '../validator/decorator/type-validator';
 import { JsonSchemaValidator } from '../validator/decorator/custom/json-schema-validator';
 import { expectTypeOf } from 'expect-type';
-import { universalToString } from '@archi-code/common';
+import { anyToString } from '@archi-code/validation';
 import { TypePrimitiveException } from '../exceptions/domain/type-primitive.exception';
 
 interface JsonValuesTest {
@@ -140,7 +140,7 @@ describe('AbstractJsonType', () => {
           expect(errors[0].constraints).toBeDefined();
           const displayValue = typeof value === 'string' ? `"${value}"` : value;
           expect(errors[0].constraints?.typePrimitive).toEqual(
-            errorData.typePrimitive.replace('{{$1}}', universalToString(displayValue)),
+            errorData.typePrimitive.replace('{{$1}}', anyToString(displayValue)),
           );
         },
       );
@@ -222,7 +222,7 @@ describe('AbstractJsonType', () => {
           expect(errors[0].constraints).toBeDefined();
           const displayValue = typeof value === 'string' ? `"${value}"` : value;
           expect(errors[0].constraints?.typePrimitive).toEqual(
-            errorData.typePrimitive.replace('{{$1}}', universalToString(displayValue)),
+            errorData.typePrimitive.replace('{{$1}}', anyToString(displayValue)),
           );
         },
       );

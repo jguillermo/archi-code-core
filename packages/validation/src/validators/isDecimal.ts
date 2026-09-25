@@ -1,11 +1,16 @@
-import type { IsDecimalOptions } from '../types';
 import { ValidationConfigError } from './util/errors';
-import hasOwn from './util/hasOwn';
-import merge from './util/merge';
+import { hasOwn } from './util/hasOwn';
+import { merge } from './util/merge';
 import { toString } from '../convert/string';
-import escapeRegExp from './util/escapeRegExp';
-import BoundedCache from './util/boundedCache';
+import { escapeRegExp } from './util/escapeRegExp';
+import { BoundedCache } from './util/boundedCache';
 import { decimal } from './alpha';
+
+export interface IsDecimalOptions {
+  force_decimal?: boolean;
+  decimal_digits?: string;
+  locale?: string;
+}
 
 // Cache the compiled regex keyed by the options that shape it, so repeated calls
 // with the same options skip recompilation. Bounded: options may vary per request.
@@ -33,7 +38,7 @@ const default_decimal_options = {
 
 const blacklist = ['', '-', '+'];
 
-export default function isDecimal(str: unknown, options?: IsDecimalOptions): boolean {
+export function isDecimal(str: unknown, options?: IsDecimalOptions): boolean {
   const opts = merge(options, default_decimal_options) as Required<IsDecimalOptions>;
   // Historic API also accepts `locale: ['xx-YY']`; normalise like the former `in` lookup did.
   opts.locale = String(opts.locale);

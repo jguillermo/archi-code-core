@@ -6,7 +6,7 @@ const validAttribute = /^[a-z-]+=[a-z0-9-]+$/i;
 
 const validData = /^[a-z0-9!$&'()*+,;=\-._~:@/?%\s]*$/i;
 
-export default function isDataURI(input: unknown): boolean {
+export function isDataURI(input: unknown): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

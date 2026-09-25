@@ -77,6 +77,25 @@ module.exports = tseslint.config(
     },
   },
 
+  // @archi-code/validation — named exports only (no `export default`, no re-exported defaults)
+  {
+    files: ['packages/validation/src/**/*.ts'],
+    rules: {
+      'no-restricted-exports': [
+        'error',
+        {
+          restrictDefaultExports: {
+            direct: true,
+            named: true,
+            defaultFrom: true,
+            namedFrom: true,
+            namespaceFrom: true,
+          },
+        },
+      ],
+    },
+  },
+
   // Test files — relaxed rules (no need for explicit types in tests)
   {
     files: ['packages/*/src/**/*.spec.ts', 'packages/*/src/**/*.test.ts', 'packages/*/test/**/*.ts'],

@@ -1,7 +1,7 @@
 import { writeFileSync } from 'fs';
 import { join } from 'path';
 
-export type Row = {
+export interface Row {
   name: string;
   okOps: number;
   /** Tiempo de la ruta ✓ en nanosegundos (entero). */
@@ -15,7 +15,7 @@ export type Row = {
   bestOkNs?: number;
   /** Referencia (ns entero) de la ruta ✗ ANTES de esta corrida; undefined si es la primera vez. */
   bestErrNs?: number;
-};
+}
 
 /** Tolerancia por defecto: solo se marca rojo si el actual supera al mejor por más de este %. */
 export const DEFAULT_TOLERANCE = parseFloat(process.env['BENCH_TOLERANCE'] ?? '0.10');

@@ -1,6 +1,9 @@
 import { describe, expect, it } from '@jest/globals';
 import { toEnum, ConvertMessages } from '../../src/convert';
-import { converted, expectNotConvertible } from './helpers';
+import { converted, expectNotConvertible } from '../cross/support/convertHelpers';
+import type { Converted } from '../../src/convert';
+
+const value = <T>(r: Converted<T>): T | null => r.value;
 
 const COLORS = ['red', 'green', 'blue'];
 const NUMS = ['0', '1', '2', '-1'];
@@ -115,5 +118,37 @@ describe('toEnum', () => {
       expectNotConvertible(toEnum(true, ['false']), ConvertMessages.ENUM));
     it('"red" with [] → { ok: false, error }', () =>
       expectNotConvertible(toEnum('red', []), ConvertMessages.ENUM));
+  });
+});
+
+describe('convert rules — { ok, value, error }', () => {
+  describe('toEnum — returns the matching OPTION', () => {
+    it('by text form', () => {
+      expect(value(toEnum(1, ['1', '2']))).toBe('1');
+      expect(value(toEnum(true, ['true']))).toBe('true');
+      expect(value(toEnum('b', ['a', 'b']))).toBe('b');
+    });
+    it('rejects unknown values and non-primitives (prototype keys included)', () => {
+      expect(toEnum('c', ['a', 'b'])).toEqual({
+        ok: false,
+        value: null,
+        error: ConvertMessages.ENUM,
+      });
+      expect(toEnum('toString', ['a'])).toEqual({
+        ok: false,
+        value: null,
+        error: ConvertMessages.ENUM,
+      });
+      expect(toEnum(null, ['null'])).toEqual({
+        ok: false,
+        value: null,
+        error: ConvertMessages.ENUM,
+      });
+      expect(toEnum({}, ['[object Object]'])).toEqual({
+        ok: false,
+        value: null,
+        error: ConvertMessages.ENUM,
+      });
+    });
   });
 });

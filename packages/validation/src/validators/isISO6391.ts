@@ -188,7 +188,7 @@ const isISO6391Set = new Set([
   'zu',
 ]);
 
-export default function isISO6391(input: unknown): boolean {
+export function isISO6391(input: unknown): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

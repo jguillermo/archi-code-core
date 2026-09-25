@@ -1,10 +1,6 @@
 import { toString } from '../convert/string';
 
-export default function matches(
-  input: unknown,
-  pattern: RegExp | string,
-  modifiers?: string,
-): boolean {
+export function matches(input: unknown, pattern: RegExp | string, modifiers?: string): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

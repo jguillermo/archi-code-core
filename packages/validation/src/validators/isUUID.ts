@@ -1,5 +1,7 @@
 import { toString } from '../convert/string';
-import hasOwn from './util/hasOwn';
+import { hasOwn } from './util/hasOwn';
+
+export type IsUUIDVersion = 'all' | 'loose' | 'nil' | 'max' | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
 const uuid = {
   1: /^[0-9A-F]{8}-[0-9A-F]{4}-1[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i,
@@ -19,10 +21,7 @@ const uuid = {
   all: /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$/i,
 };
 
-export default function isUUID(
-  input: unknown,
-  version?: 'all' | 'loose' | 'nil' | 'max' | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8,
-): boolean {
+export function isUUID(input: unknown, version?: IsUUIDVersion): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

@@ -38,3 +38,12 @@ describe('createValidator', () => {
     expect(Object.getPrototypeOf(myValidator)).toBeNull();
   });
 });
+
+describe('immutability', () => {
+  it('createValidator extends without mutating the singleton', () => {
+    const custom = createValidator({ isAnswer: (v: unknown) => v === 42 });
+    expect(custom.isAnswer(42)).toBe(true);
+    expect(custom.isEmail('a@b.com')).toBe(true);
+    expect((validator as unknown as Record<string, unknown>).isAnswer).toBeUndefined();
+  });
+});

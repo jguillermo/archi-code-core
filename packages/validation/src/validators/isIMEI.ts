@@ -1,10 +1,13 @@
-import type { IsIMEIOptions } from '../types';
 import { toString } from '../convert/string';
+
+export interface IsIMEIOptions {
+  allow_hyphens?: boolean;
+}
 
 const imeiRegexWithoutHyphens = /^[0-9]{15}$/;
 const imeiRegexWithHyphens = /^\d{2}-\d{6}-\d{6}-\d{1}$/;
 
-export default function isIMEI(str: unknown, options?: IsIMEIOptions): boolean {
+export function isIMEI(str: unknown, options?: IsIMEIOptions): boolean {
   const stringResult = toString(str);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

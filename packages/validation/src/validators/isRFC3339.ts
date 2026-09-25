@@ -29,7 +29,7 @@ function isRealCalendarDate(str: string): boolean {
   return isCalendarDate(Number(str.slice(0, 4)), Number(str.slice(5, 7)), Number(str.slice(8, 10)));
 }
 
-export default function isRFC3339(input: unknown): boolean {
+export function isRFC3339(input: unknown): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

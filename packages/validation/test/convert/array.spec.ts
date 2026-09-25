@@ -1,6 +1,9 @@
 import { describe, expect, it } from '@jest/globals';
 import { toArray, ConvertMessages } from '../../src/convert';
-import { converted, expectNotConvertible } from './helpers';
+import { converted, expectNotConvertible } from '../cross/support/convertHelpers';
+import type { Converted } from '../../src/convert';
+
+const value = <T>(r: Converted<T>): T | null => r.value;
 
 describe('toArray', () => {
   // ─── valid conversions ────────────────────────────────────────────────────
@@ -129,6 +132,17 @@ describe('toArray', () => {
         yield 2;
       }
       expectNotConvertible(toArray(gen()), ConvertMessages.ARRAY);
+    });
+  });
+});
+
+describe('convert rules — { ok, value, error }', () => {
+  describe('toJson / toArray — single JSON.parse', () => {
+    it('toArray', () => {
+      expect(value(toArray('[1,2]'))).toEqual([1, 2]);
+      expect(toArray('{"a":1}')).toEqual({ ok: false, value: null, error: ConvertMessages.ARRAY });
+      expect(toArray('[')).toEqual({ ok: false, value: null, error: ConvertMessages.ARRAY });
+      expect(toArray(1)).toEqual({ ok: false, value: null, error: ConvertMessages.ARRAY });
     });
   });
 });

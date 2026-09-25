@@ -1,4 +1,11 @@
 import { toString } from '../convert/string';
+
+/** `4`/`6` (or `'4'`/`'6'`); any other value makes the address invalid. */
+export type IsIPVersion = 4 | 6 | '4' | '6' | (number & {}) | (string & {});
+
+export interface IsIPOptions {
+  version?: IsIPVersion;
+}
 /**
 11.3.  Examples
 
@@ -46,10 +53,7 @@ const IPv6AddressRegExp = new RegExp(
     ')(%[0-9a-zA-Z.]{1,})?$',
 );
 
-export default function isIP(
-  ipAddress: unknown,
-  options: { version?: number | string } | number | string = {},
-): boolean {
+export function isIP(ipAddress: unknown, options: IsIPOptions | IsIPVersion = {}): boolean {
   const stringResult = toString(ipAddress);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

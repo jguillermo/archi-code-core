@@ -117,7 +117,7 @@ async function main() {
       .filter(([, fn]) => typeof fn === 'function')
       .map(([name, fn]) => [`validator.${name}`, fn]),
     ...Object.entries(ns)
-      .filter(([name, fn]) => typeof fn === 'function' && /^(to|canBe)/.test(name))
+      .filter(([name, fn]) => typeof fn === 'function' && /^(to|canBe|anyToString$)/.test(name))
       .map(([name, fn]) => [name, fn]),
     ...Object.entries(ns.sanitizer)
       .filter(([, fn]) => typeof fn === 'function')

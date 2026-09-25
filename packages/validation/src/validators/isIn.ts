@@ -1,7 +1,7 @@
 import { toString } from '../convert/string';
 import { toEnum } from '../convert/enum';
 
-export default function isIn(input: unknown, values: unknown[]): boolean {
+export function isIn(input: unknown, values: unknown[]): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

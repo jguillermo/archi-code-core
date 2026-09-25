@@ -1,7 +1,11 @@
-import type { IsByteLengthOptions } from '../types';
 import { toString } from '../convert/string';
 
-export default function isByteLength(
+export interface IsByteLengthOptions {
+  min?: number;
+  max?: number;
+}
+
+export function isByteLength(
   str: unknown,
   optionsOrMin?: IsByteLengthOptions | number,
   maxArg?: number,

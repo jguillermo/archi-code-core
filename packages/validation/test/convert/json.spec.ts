@@ -1,6 +1,12 @@
 import { describe, expect, it } from '@jest/globals';
 import { toJson, ConvertMessages } from '../../src/convert';
-import { converted, expectNotConvertible } from './helpers';
+import { converted, expectNotConvertible } from '../cross/support/convertHelpers';
+import type { Converted } from '../../src/convert';
+import { toJsonValue } from '../../src/convert';
+
+const value = <T>(r: Converted<T>): T | null => r.value;
+
+const fail = (error: string): unknown => ({ ok: false, value: null, error });
 
 describe('toJson', () => {
   // ─── valid conversions ────────────────────────────────────────────────────
@@ -122,5 +128,46 @@ describe('toJson', () => {
       expectNotConvertible(toJson(new Promise(() => {})), ConvertMessages.JSON));
     it('new WeakMap() → { ok: false, error }', () =>
       expectNotConvertible(toJson(new WeakMap()), ConvertMessages.JSON));
+  });
+});
+
+describe('convert rules — { ok, value, error }', () => {
+  describe('toJson / toArray — single JSON.parse', () => {
+    it('toJson', () => {
+      expect(value(toJson('{"a":1}'))).toEqual({ a: 1 });
+      expect(toJson('[1]')).toEqual({ ok: false, value: null, error: ConvertMessages.JSON });
+      expect(toJson('{}')).toEqual({ ok: false, value: null, error: ConvertMessages.JSON });
+      expect(toJson('{')).toEqual({ ok: false, value: null, error: ConvertMessages.JSON });
+      const circular: Record<string, unknown> = { a: 1 };
+      circular.self = circular;
+      expect(toJson(circular)).toEqual({ ok: false, value: null, error: ConvertMessages.JSON });
+      const obj = { a: 1 };
+      expect(value(toJson(obj))).toBe(obj);
+    });
+  });
+});
+
+describe('toJsonValue (ported from isJSON)', () => {
+  it('any object or array is accepted, unlike toJson', () => {
+    expect(toJsonValue('{}')).toEqual({ ok: true, value: {}, error: null });
+    expect(toJsonValue('[1]')).toEqual({ ok: true, value: [1], error: null });
+  });
+  it('primitives are opt-in', () => {
+    expect(toJsonValue('null')).toEqual(fail(ConvertMessages.JSON_VALUE));
+    expect(toJsonValue('true', { allowPrimitives: true })).toEqual({
+      ok: true,
+      value: true,
+      error: null,
+    });
+    expect(toJsonValue('42', { allowPrimitives: true })).toEqual(fail(ConvertMessages.JSON_VALUE));
+    expect(toJsonValue('42', { allowAnyValue: true })).toEqual({
+      ok: true,
+      value: 42,
+      error: null,
+    });
+  });
+  it('invalid text and unreadable values fail', () => {
+    expect(toJsonValue('{')).toEqual(fail(ConvertMessages.JSON_VALUE));
+    expect(toJsonValue({ a: 1 })).toEqual(fail(ConvertMessages.JSON_VALUE));
   });
 });

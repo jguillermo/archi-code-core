@@ -1,6 +1,6 @@
 import { toString } from '../convert/string';
 
-export default function isWhitelisted(input: unknown, chars: string | string[]): boolean {
+export function isWhitelisted(input: unknown, chars: string | string[]): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

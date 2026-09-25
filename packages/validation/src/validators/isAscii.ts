@@ -4,7 +4,7 @@ import { toString } from '../convert/string';
 const ascii = /^[\x00-\x7F]+$/;
 /* eslint-enable no-control-regex */
 
-export default function isAscii(input: unknown): boolean {
+export function isAscii(input: unknown): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

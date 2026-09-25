@@ -1,8 +1,8 @@
 import { toString } from '../convert/string';
 import { isCalendarDate } from '../convert/date';
 import { ValidationConfigError } from './util/errors';
-import hasOwn from './util/hasOwn';
-import isInt from './isInt';
+import { hasOwn } from './util/hasOwn';
+import { isInt } from './isInt';
 
 const validators = {
   PL: (str) => {
@@ -483,7 +483,10 @@ const validators = {
   },
 };
 
-export default function isIdentityCard(input: unknown, locale = 'any'): boolean {
+/** Known locales (autocomplete); any string is accepted, unknown ones throw ValidationConfigError. */
+export type IdentityCardLocale = keyof typeof validators | 'any' | (string & {});
+
+export function isIdentityCard(input: unknown, locale: IdentityCardLocale = 'any'): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

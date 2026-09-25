@@ -1,17 +1,17 @@
 import { describe, expect, it } from '@jest/globals';
 import { JsonCompare } from './json-commpare';
-import { universalToString } from '@archi-code/common';
+import { anyToString } from '@archi-code/validation';
 
 function s(data: any, reference: any, errors: string[] = []) {
   const diff = JsonCompare.strict(data, reference);
-  it(`compare strict: ${universalToString(data)} eq ${universalToString(reference)}`, () => {
+  it(`compare strict: ${anyToString(data)} eq ${anyToString(reference)}`, () => {
     expect(errors).toEqual(diff);
   });
 }
 
 function _(include: any, reference: any, errors: string[] = []) {
   const diff = JsonCompare.include(include, reference);
-  it(`compare include: ${universalToString(include)} in ${universalToString(reference)}`, () => {
+  it(`compare include: ${anyToString(include)} in ${anyToString(reference)}`, () => {
     expect(errors).toEqual(diff);
   });
 }

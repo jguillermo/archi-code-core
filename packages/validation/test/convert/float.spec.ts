@@ -1,6 +1,11 @@
 import { describe, expect, it } from '@jest/globals';
 import { toFloat, ConvertMessages } from '../../src/convert';
-import { converted, expectNotConvertible } from './helpers';
+import { converted, expectNotConvertible } from '../cross/support/convertHelpers';
+import type { Converted } from '../../src/convert';
+
+const value = <T>(r: Converted<T>): T | null => r.value;
+
+const fail = (error: string): unknown => ({ ok: false, value: null, error });
 
 describe('toFloat', () => {
   // ─── valid conversions ────────────────────────────────────────────────────
@@ -119,5 +124,62 @@ describe('toFloat', () => {
       expectNotConvertible(toFloat(new Uint8Array()), ConvertMessages.FLOAT));
     it('new Error("x") → { ok: false, error }', () =>
       expectNotConvertible(toFloat(new Error('x')), ConvertMessages.FLOAT));
+  });
+});
+
+describe('convert rules — { ok, value, error }', () => {
+  describe('toFloat — plain decimal notation only', () => {
+    it.each([
+      ['1.5', 1.5],
+      [' -.5 ', -0.5],
+      ['+1.', 1],
+      ['1e3', 1000],
+      ['2E-2', 0.02],
+      [3, 3],
+    ])('%p → %p', (input, expected) => expect(value(toFloat(input))).toBe(expected));
+    it.each([
+      ['0x10'],
+      ['0b101'],
+      ['0o7'],
+      ['Infinity'],
+      ['1e400'],
+      [''],
+      ['.'],
+      ['1,5'],
+      [NaN],
+      [null],
+    ])('%p → { ok: false, error }', (input) =>
+      expect(toFloat(input)).toEqual({ ok: false, value: null, error: ConvertMessages.FLOAT }),
+    );
+  });
+});
+
+describe('toFloat syntax: validator (ported from isFloat)', () => {
+  it('does not trim and honours the decimal separator', () => {
+    expect(toFloat(' 1.5', { syntax: 'validator' })).toEqual(fail(ConvertMessages.FLOAT));
+    expect(toFloat('1.5', { syntax: 'validator' })).toEqual({ ok: true, value: 1.5, error: null });
+    expect(toFloat('1,5', { syntax: 'validator', decimalSeparator: ',' })).toEqual({
+      ok: true,
+      value: 1.5,
+      error: null,
+    });
+    expect(toFloat('1,5', { syntax: 'validator' })).toEqual(fail(ConvertMessages.FLOAT));
+  });
+  it('keeps the historic syntax quirks: ".e5" is accepted with value NaN', () => {
+    const r = toFloat('.e5', { syntax: 'validator' });
+    expect(r.ok).toBe(true);
+    expect(r.value).toBeNaN();
+    expect(toFloat('.e5').ok).toBe(false);
+  });
+  it('numbers: finite only; unreadable values fail', () => {
+    expect(toFloat(Infinity, { syntax: 'validator' })).toEqual(fail(ConvertMessages.FLOAT));
+    expect(toFloat(2, { syntax: 'validator' })).toEqual({ ok: true, value: 2, error: null });
+    expect(toFloat({}, { syntax: 'validator' })).toEqual(fail(ConvertMessages.FLOAT));
+  });
+  it('the separator is escaped (no regex injection) and the regex cache is bounded', () => {
+    expect(toFloat('1*5', { syntax: 'validator', decimalSeparator: '*' }).ok).toBe(true);
+    expect(toFloat('1x5', { syntax: 'validator', decimalSeparator: '*' }).ok).toBe(false);
+    for (let i = 0; i < 100; i++) toFloat('1', { syntax: 'validator', decimalSeparator: `s${i}` });
+    expect(toFloat('1s995', { syntax: 'validator', decimalSeparator: 's99' }).ok).toBe(true);
   });
 });

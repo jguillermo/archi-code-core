@@ -1,6 +1,14 @@
-import type { IsFQDNOptions } from '../types';
 import { toString } from '../convert/string';
-import merge from './util/merge';
+import { merge } from './util/merge';
+
+export interface IsFQDNOptions {
+  require_tld?: boolean;
+  allow_underscores?: boolean;
+  allow_trailing_dot?: boolean;
+  allow_numeric_tld?: boolean;
+  allow_wildcard?: boolean;
+  ignore_max_length?: boolean;
+}
 
 const default_fqdn_options = {
   require_tld: true,
@@ -21,7 +29,7 @@ const fullWidthRegex = /[！-～]/;
 const hyphenEdgeRegex = /^-|-$/;
 const underscoreRegex = /_/;
 
-export default function isFQDN(str: unknown, options?: IsFQDNOptions): boolean {
+export function isFQDN(str: unknown, options?: IsFQDNOptions): boolean {
   const stringResult = toString(str);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

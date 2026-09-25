@@ -1,6 +1,11 @@
 import { describe, expect, it } from '@jest/globals';
 import { toBoolean, ConvertMessages } from '../../src/convert';
-import { converted, expectNotConvertible } from './helpers';
+import { converted, expectNotConvertible } from '../cross/support/convertHelpers';
+import type { Converted } from '../../src/convert';
+
+const value = <T>(r: Converted<T>): T | null => r.value;
+
+const fail = (error: string): unknown => ({ ok: false, value: null, error });
 
 describe('toBoolean', () => {
   // ─── valid conversions ────────────────────────────────────────────────────
@@ -120,5 +125,43 @@ describe('toBoolean', () => {
       expectNotConvertible(toBoolean(new Error('x')), ConvertMessages.BOOLEAN));
     it('new Date("2024-01-01") → { ok: false, error }', () =>
       expectNotConvertible(toBoolean(new Date('2024-01-01')), ConvertMessages.BOOLEAN));
+  });
+});
+
+describe('convert rules — { ok, value, error }', () => {
+  describe('toBoolean', () => {
+    it.each([
+      [true, true],
+      [false, false],
+      [1, true],
+      [0, false],
+      [' TRUE ', true],
+      ['0', false],
+    ])('%p → %p', (input, expected) => expect(value(toBoolean(input))).toBe(expected));
+    it.each([[2], ['yes'], [null], [{}]])('%p → { ok: false, error }', (input) =>
+      expect(toBoolean(input)).toEqual({ ok: false, value: null, error: ConvertMessages.BOOLEAN }),
+    );
+  });
+});
+
+describe('toBoolean modes (ported from isBoolean)', () => {
+  it('default trims and ignores case; strict does neither', () => {
+    expect(toBoolean(' TRUE ')).toEqual({ ok: true, value: true, error: null });
+    expect(toBoolean(' TRUE ', { mode: 'strict' })).toEqual(fail(ConvertMessages.BOOLEAN));
+    expect(toBoolean('true', { mode: 'strict' })).toEqual({ ok: true, value: true, error: null });
+    expect(toBoolean('0', { mode: 'strict' })).toEqual({ ok: true, value: false, error: null });
+  });
+  it('loose lower-cases (no trim) and accepts yes/no', () => {
+    expect(toBoolean('YES', { mode: 'loose' })).toEqual({ ok: true, value: true, error: null });
+    expect(toBoolean('No', { mode: 'loose' })).toEqual({ ok: true, value: false, error: null });
+    expect(toBoolean(' yes', { mode: 'loose' })).toEqual(fail(ConvertMessages.BOOLEAN));
+    expect(toBoolean('yes')).toEqual(fail(ConvertMessages.BOOLEAN));
+  });
+  it('unknown modes fall back to default (converters never throw)', () => {
+    expect(toBoolean(' true ', { mode: 'nope' as never })).toEqual({
+      ok: true,
+      value: true,
+      error: null,
+    });
   });
 });

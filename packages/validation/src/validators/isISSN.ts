@@ -1,11 +1,15 @@
 import { toString } from '../convert/string';
 
+export interface IsISSNOptions {
+  /** Only accept the upper-case check digit `X`. */
+  case_sensitive?: boolean;
+  /** The hyphen (`1234-5678`) is mandatory. */
+  require_hyphen?: boolean;
+}
+
 const issn = '^\\d{4}-?\\d{3}[\\dX]$';
 
-export default function isISSN(
-  input: unknown,
-  options: { require_hyphen?: boolean; case_sensitive?: boolean } = {},
-): boolean {
+export function isISSN(input: unknown, options: IsISSNOptions = {}): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

@@ -21,6 +21,7 @@
 export type { Converted, ConvertMessage, Success, Failure } from './result';
 export { ConvertMessages } from './result';
 export { toString } from './string';
+export { anyToString } from './any-to-string';
 export { toBoolean } from './boolean';
 export type { BooleanConvertOptions } from './boolean';
 export { toInteger } from './integer';

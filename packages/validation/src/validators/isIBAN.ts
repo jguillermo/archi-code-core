@@ -1,6 +1,12 @@
-import type { IsIBANOptions } from '../types';
-import hasOwn from './util/hasOwn';
+import { hasOwn } from './util/hasOwn';
 import { toString } from '../convert/string';
+
+export interface IsIBANOptions {
+  /** Only accept IBANs from these ISO 3166-1 alpha-2 country codes. */
+  whitelist?: string[];
+  /** Reject IBANs from these ISO 3166-1 alpha-2 country codes. */
+  blacklist?: string[];
+}
 
 /**
  * List of country codes with
@@ -181,7 +187,7 @@ function hasValidIbanChecksum(str: string): boolean {
   return remainder === 1;
 }
 
-export default function isIBAN(input: unknown, options: IsIBANOptions = {}): boolean {
+export function isIBAN(input: unknown, options: IsIBANOptions = {}): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
