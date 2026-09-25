@@ -82,9 +82,14 @@ const DATE_FORMAT =
  * `{ lax: true }` is the rule ported from `isAfter`/`isBefore`.
  */
 export function toDate(v: unknown, options?: DateConvertOptions): Converted<Date> {
-  if (options?.lax) return toDateLax(v);
-  if (options?.iso) return toDateIso(v);
-  return toDateByFormat(v, options);
+  try {
+    if (options?.lax) return toDateLax(v);
+    if (options?.iso) return toDateIso(v);
+    return toDateByFormat(v, options);
+  } catch {
+    // Hostile values (revoked proxies, throwing getters) make even `instanceof` throw.
+    return failure(ConvertMessages.DATE);
+  }
 }
 
 /**

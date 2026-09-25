@@ -20,15 +20,60 @@ describe('toJson', () => {
       const o = { a: 1 };
       expect(converted(toJson(o))).toBe(o);
     });
-    it('class instance with own enumerable props → returned as-is', () => {
-      class Person {
-        constructor(public name: string) {}
-      }
-      const p = new Person('Bob');
-      expect(converted(toJson(p))).toBe(p as unknown as Record<string, unknown>);
+    it('null-prototype object and nested plain objects / arrays → same reference', () => {
+      const o = Object.assign(Object.create(null), { a: { b: [1, 'x', true, null, { c: 2 }] } });
+      expect(converted(toJson(o))).toBe(o);
     });
-    it('non-empty Uint8Array → valid (numeric indices are own enumerable keys)', () =>
-      expect(() => converted(toJson(new Uint8Array([1, 2])))).not.toThrow());
+    it('shared (non-cyclic) references are fine', () => {
+      const shared = { x: 1 };
+      const o = { a: shared, b: shared, c: [shared] };
+      expect(converted(toJson(o))).toBe(o);
+    });
+    it('deep nesting does not overflow the stack', () => {
+      let deep: Record<string, unknown> = { leaf: 1 };
+      for (let i = 0; i < 100_000; i++) deep = { next: deep };
+      expect(toJson(deep).ok).toBe(true);
+    });
+  });
+
+  describe('objects that would not survive a JSON round trip → { ok: false, error }', () => {
+    class Person {
+      constructor(public name: string) {}
+    }
+    const { proxy: revoked, revoke } = Proxy.revocable({ a: 1 }, {});
+    revoke();
+    it.each([
+      ['class instance', new Person('Bob')],
+      ['Uint8Array', new Uint8Array([1, 2])],
+      ['function value', { a: () => 1 }],
+      ['undefined value', { a: undefined }],
+      ['symbol value', { a: Symbol('s') }],
+      ['bigint value', { a: BigInt(1) }],
+      ['NaN value', { a: NaN }],
+      ['Infinity value', { a: Infinity }],
+      ['nested Date', { a: new Date(0) }],
+      ['nested Map', { a: new Map([[1, 2]]) }],
+      ['nested class instance', { a: [new Person('Bob')] }],
+      ['toJSON method', { toJSON: () => ({ a: 1 }) }],
+      [
+        'cycle through an array',
+        (() => {
+          const o: Record<string, unknown> = { a: [] };
+          (o.a as unknown[]).push(o);
+          return o;
+        })(),
+      ],
+      [
+        'throwing getter',
+        Object.defineProperty({ a: 1 }, 'b', {
+          enumerable: true,
+          get: () => {
+            throw new Error('x');
+          },
+        }),
+      ],
+      ['revoked proxy', revoked],
+    ])('%s', (_label, input) => expect(toJson(input)).toEqual(fail(ConvertMessages.JSON)));
   });
 
   describe('JSON string of non-empty object → parsed', () => {

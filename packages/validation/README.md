@@ -75,7 +75,7 @@ dynamic access (`validator[name]`) or `createValidator`, and named imports every
 | `toInteger` | Safe integers, as numbers or trimmed `-?\d+` strings (`INTEGER_OVERFLOW` beyond ±2^53) | `syntax: 'validator'` (the isInt rule) |
 | `toFloat` | Finite numbers, or trimmed strings in plain decimal notation (no `0x`/`0b`/`0o`) | `syntax: 'validator'`, `decimalSeparator` |
 | `toDate` | `YYYY/MM/DD` with `/` or `-` as delimiter; the result is that day at 00:00 UTC | `format`, `delimiters`, `strictMode`, `iso: true`, `lax: true` |
-| `toJson` | A non-empty plain JSON object, either as an object or as JSON text | — |
+| `toJson` | A non-empty plain JSON object, as JSON text or as an object that survives a JSON round trip (plain objects/arrays with string, boolean, finite number or null leaves — no functions, Dates, class instances…) | — |
 | `toJsonValue` | Any JSON text that parses to an object or array | `allowPrimitives`, `allowAnyValue` |
 | `toArray` | Arrays, or JSON text holding an array | — |
 | `toEnum` | A string, number or boolean whose text form is one of the options | — |
@@ -107,10 +107,15 @@ wrong input.
 
 - **`isURL`** rejects a backslash in the authority. `http://evil.com\@good.com` is `false`
   because browsers treat `\` as `/`.
+- **`isURL`** never reads a code-executing scheme as a user name: `javascript:foo@example.com`
+  (also `vbscript:` and `data:`) is `false` unless `require_valid_protocol: false`. User and
+  password must use RFC 3986 userinfo characters, and C0 controls or DEL anywhere in the URL are
+  rejected.
 - **`isURL` and `isEmail` host lists** compare hosts case-insensitively and ignore a trailing
   dot. A bracketed IPv6 host is checked against the whitelist by its address.
 - **`isEmail`**: the quoted local part rejects CR, LF, DEL and other control characters (header
-  injection), and a display name requires the closing `>`.
+  injection), the local part rejects invisible characters (zero-width, bidi, BOM, non-ASCII
+  spaces), and a display name requires the closing `>`.
 - **`isFQDN`**, and therefore `isURL` and `isEmail`, rejects invisible characters, bidi
   controls, Unicode separators and unpaired surrogates in host names.
 

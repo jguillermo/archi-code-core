@@ -1,4 +1,5 @@
 import { loadWithoutNative, WHITESPACE_SAMPLES } from '../cross/support/withoutNative';
+import { describeGrowth, isLinear, measureGrowth } from '../cross/support/timing';
 import { rtrim } from '../../src/sanitizer/rtrim';
 import * as sanitizer from '../../src/sanitizer';
 import { test } from '../cross/support/sanitizerTest';
@@ -38,10 +39,16 @@ describe('Sanitizers', () => {
 describe('rtrim is linear (no ReDoS)', () => {
   it('long runs of chars not at the end', () => {
     const input = `${'a'.repeat(100_000)}b`;
-    const t0 = performance.now();
     expect(sanitizer.rtrim(input, 'a')).toBe(input);
     expect(sanitizer.trim(input, 'a')).toBe('b');
-    expect(performance.now() - t0).toBeLessThan(150);
+    // Growth, not absolute time: the former regex was ×16 for ×4 input.
+    const inputs = new Map<number, string>();
+    const growth = measureGrowth((n) => {
+      let s = inputs.get(n);
+      if (s === undefined) inputs.set(n, (s = `${'a'.repeat(n)}b`));
+      sanitizer.rtrim(s, 'a');
+    }, 25_000);
+    expect(isLinear(growth) || describeGrowth(growth)).toBe(true);
   });
   it('trims surrogate halves per code unit, like the former character class', () => {
     expect(sanitizer.rtrim('x😀', '😀')).toBe('x');

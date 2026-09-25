@@ -77,7 +77,13 @@ const default_url_options = {
 
 const wrapped_ipv6 = /^\[([^\]]+)\](?::([0-9]+))?$/;
 // Hoisted regexes — compiled once instead of allocating a new RegExp on every call.
-const whitespaceAnglesRegex = /[\s<>]/;
+// Whitespace, angle brackets and C0/DEL control characters are never part of a URL.
+// eslint-disable-next-line no-control-regex
+const whitespaceAnglesRegex = /[\s<>\x00-\x1f\x7f]/;
+// RFC 3986 userinfo (unreserved / sub-delims / pct-encoded) plus Unicode letters, marks and digits.
+const userinfoPartRegex = /^(?:[\p{L}\p{M}\p{N}\-._~!$&'()*+,;=]|%[0-9A-Fa-f]{2})*$/u;
+// Schemes that execute code: `javascript:foo@example.com` must never be read as user "javascript".
+const dangerousSchemes = ['javascript', 'vbscript', 'data'];
 const protocolRegex = /^([a-z][a-z0-9+\-.]*):/i;
 const validAuthRegex = /^[a-zA-Z0-9\-_.%:]*$/;
 const encodedContentRegex = /%[0-9a-fA-F]{2}/;
@@ -185,7 +191,9 @@ export function isURL(urlInput: unknown, options?: IsURLOptions): boolean {
         // The encoded part decodes to: alert(1)
         const has_encoded_content = encodedContentRegex.test(before_at);
 
-        if (is_valid_auth && !has_encoded_content) {
+        const is_dangerous_scheme = dangerousSchemes.includes(potential_protocol.toLowerCase());
+
+        if (is_valid_auth && !has_encoded_content && !is_dangerous_scheme) {
           // This looks like authentication (e.g., user:password@host), not a protocol
           if (options.require_protocol) {
             return false;
@@ -276,6 +284,12 @@ export function isURL(urlInput: unknown, options?: IsURLOptions): boolean {
     }
     const [user, password] = auth.split(':');
     if (user === '' && password === '') {
+      return false;
+    }
+    if (
+      !userinfoPartRegex.test(user) ||
+      (password !== undefined && !userinfoPartRegex.test(password))
+    ) {
       return false;
     }
   }

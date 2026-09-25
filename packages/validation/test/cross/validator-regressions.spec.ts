@@ -327,3 +327,52 @@ describe('false positives', () => {
     expect(validator.isISO8601('0050-02-30', { strict: true })).toBe(false);
   });
 });
+
+describe('isURL — userinfo, dangerous schemes and control characters', () => {
+  it('a code-executing scheme before "@" is a scheme, never a user name', () => {
+    expect(validator.isURL('javascript:foo@example.com')).toBe(false);
+    expect(validator.isURL('JavaScript:foo@example.com')).toBe(false);
+    expect(validator.isURL('vbscript:foo@example.com')).toBe(false);
+    expect(validator.isURL('data:foo@example.com')).toBe(false);
+    // Only when protocol validation is explicitly disabled (frozen upstream behaviour).
+    expect(validator.isURL('javascript:foo@example.com', { require_valid_protocol: false })).toBe(
+      true,
+    );
+    expect(validator.isURL('user:pw@example.com')).toBe(true);
+  });
+
+  it('user and password use RFC 3986 userinfo characters only', () => {
+    expect(validator.isURL('http://us\u0001er@example.com')).toBe(false);
+    expect(validator.isURL('http://"\'();{}@example.com')).toBe(false);
+    expect(validator.isURL('http://user:pa{ss@example.com')).toBe(false);
+    expect(validator.isURL('http://us%ZZer@example.com')).toBe(false);
+    expect(validator.isURL('http://us%20er:p%40ss@example.com')).toBe(true);
+    expect(validator.isURL("http://a-b_c.d~!$&'()*+,;=:x@example.com")).toBe(true);
+    expect(validator.isURL('http://josé:contraseña@example.com')).toBe(true);
+  });
+
+  it('rejects C0 controls and DEL anywhere', () => {
+    expect(validator.isURL('http://example.com/\u0000')).toBe(false);
+    expect(validator.isURL('http://example.com/a\u007f')).toBe(false);
+    expect(validator.isURL('http://example.com/?q=\u001b')).toBe(false);
+    expect(validator.isURL('http://example.com/#\u0007')).toBe(false);
+  });
+});
+
+describe('isEmail — invisible characters in the local part', () => {
+  it('rejects format characters, bidi controls, unpaired surrogates and non-ASCII spaces', () => {
+    expect(validator.isEmail('a​b@example.com')).toBe(false);
+    expect(validator.isEmail('a‮b@example.com')).toBe(false);
+    expect(validator.isEmail('a﻿b@example.com')).toBe(false);
+    expect(validator.isEmail('a\uD800b@example.com')).toBe(false);
+    expect(validator.isEmail('a b@example.com')).toBe(false);
+    expect(validator.isEmail('"a​b"@example.com')).toBe(false);
+    expect(validator.isEmail('"a　b"@example.com')).toBe(false);
+  });
+
+  it('keeps accepting Unicode letters and quoted plain spaces', () => {
+    expect(validator.isEmail('müller@example.com')).toBe(true);
+    expect(validator.isEmail('用户@example.com')).toBe(true);
+    expect(validator.isEmail('" a b "@example.com')).toBe(true);
+  });
+});

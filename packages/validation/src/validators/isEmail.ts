@@ -47,6 +47,10 @@ const emailUserUtf8Part = /^[a-z\d!#$%&'*+\-/=?^_`{|}~\u00A1-\uD7FF\uF900-\uFDCF
 const quotedEmailUserUtf8 =
   /^([\t \x21\x23-\x5b\x5d-\x7e\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]|(\\[\t\x20-\x7e\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]))*$/i;
 const defaultMaxEmailLength = 254;
+// Invisible / spoofing code points the UTF-8 ranges above would let into the local part: format
+// characters (zero-width, bidi overrides, BOM, soft hyphen…) and unpaired surrogates, plus any
+// separator other than the plain space (which only a quoted local part accepts).
+const invisibleLocalPart = /[\p{Cf}\p{Cs}\p{Zl}\p{Zp}\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/u;
 
 /* eslint-enable no-control-regex */
 
@@ -207,6 +211,10 @@ export function isEmail(str: unknown, options?: IsEmailOptions): boolean {
     }
     // Characters are taken literally (escaped) — never interpreted as regex syntax.
     if (new RegExp(`[${escapeRegExp(options.blacklisted_chars)}]`).test(user)) return false;
+  }
+
+  if (invisibleLocalPart.test(user)) {
+    return false;
   }
 
   if (user[0] === '"' && user[user.length - 1] === '"') {
