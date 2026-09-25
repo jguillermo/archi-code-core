@@ -1,4 +1,6 @@
 import tryToString from './util/tryToString';
+import { ValidationConfigError } from './util/errors';
+import hasOwn from './util/hasOwn';
 import isInt from './isInt';
 
 const validators = {
@@ -485,11 +487,11 @@ const validators = {
   },
 };
 
-export default function isIdentityCard(str: unknown, locale = 'any'): boolean {
-  const s = tryToString(str);
+export default function isIdentityCard(input: unknown, locale = 'any'): boolean {
+  const s = tryToString(input);
   if (s === false) return false;
-  str = s;
-  if (locale in validators) {
+  const str: string = s;
+  if (hasOwn(validators, locale)) {
     return validators[locale](str);
   }
   if (locale === 'any') {
@@ -503,5 +505,5 @@ export default function isIdentityCard(str: unknown, locale = 'any'): boolean {
     }
     return false;
   }
-  throw new Error(`Invalid locale '${locale}'`);
+  throw new ValidationConfigError(`Invalid locale '${locale}'`);
 }

@@ -20,11 +20,19 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Setup Rust + wasm-pack
-        uses: ./.github/actions/setup-rust-wasm
-
       - name: Build packages in dependency order
         run: npm run build
 
       - name: Run tests
         run: npm run test
+
+      # @archi-code/validation reliability gates: types (strict), lint, and the 100% coverage
+      # threshold (contract, canBe⇔convertTo properties, import-cycle guard, ReDoS, parity).
+      - name: validation — typecheck (src + tests)
+        run: npx tsc -p packages/validation/tsconfig.json --noEmit --incremental false
+
+      - name: validation — lint
+        run: npm run check:lint -w @archi-code/validation
+
+      - name: validation — tests with coverage threshold
+        run: npm run test:coverage -w @archi-code/validation

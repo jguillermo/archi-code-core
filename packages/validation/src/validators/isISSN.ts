@@ -3,12 +3,12 @@ import tryToString from './util/tryToString';
 const issn = '^\\d{4}-?\\d{3}[\\dX]$';
 
 export default function isISSN(
-  str: unknown,
+  input: unknown,
   options: { require_hyphen?: boolean; case_sensitive?: boolean } = {},
 ): boolean {
-  const s = tryToString(str);
+  const s = tryToString(input);
   if (s === false) return false;
-  str = s;
+  const str: string = s;
   let testIssn: string | RegExp = issn;
   testIssn = options.require_hyphen ? (testIssn as string).replace('?', '') : testIssn;
   testIssn = options.case_sensitive ? new RegExp(testIssn) : new RegExp(testIssn, 'i');

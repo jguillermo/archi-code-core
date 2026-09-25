@@ -275,10 +275,10 @@ const validISO15924Codes = new Set([
   'Zzzz',
 ]);
 
-export default function isISO15924(str: unknown): boolean {
-  const s = tryToString(str);
+export default function isISO15924(input: unknown): boolean {
+  const s = tryToString(input);
   if (s === false) return false;
-  str = s;
+  const str: string = s;
   return validISO15924Codes.has(str);
 }
 

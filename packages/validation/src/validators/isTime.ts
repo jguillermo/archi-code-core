@@ -1,5 +1,8 @@
 import type { IsTimeOptions } from '../types';
 import merge from './util/merge';
+import tryToString from './util/tryToString';
+import { ValidationConfigError } from './util/errors';
+import hasOwn from './util/hasOwn';
 
 const default_time_options = {
   hourFormat: 'hour24',
@@ -19,8 +22,13 @@ const formats = {
   },
 };
 
-export default function isTime(input: unknown, options?: IsTimeOptions): boolean {
-  const mergedOptions = merge(options, default_time_options);
-  if (typeof input !== 'string') return false;
-  return formats[mergedOptions.hourFormat][mergedOptions.mode].test(input);
+export default function isTime(input: unknown, options?: IsTimeOptions | null): boolean {
+  const { hourFormat, mode } = merge(options, default_time_options);
+  if (!hasOwn(formats, hourFormat))
+    throw new ValidationConfigError(`Invalid hourFormat '${hourFormat}'`);
+  const byMode = formats[hourFormat];
+  if (!hasOwn(byMode, mode)) throw new ValidationConfigError(`Invalid mode '${mode}'`);
+  const s = tryToString(input);
+  if (s === false) return false;
+  return byMode[mode].test(s);
 }

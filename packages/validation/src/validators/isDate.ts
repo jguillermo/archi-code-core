@@ -72,9 +72,11 @@ export default function isDate(input: unknown, options?: IsDateOptions | string)
         return false;
       }
 
-      const currentYearLastTwoDigits = new Date().getFullYear() % 100;
+      // Two-digit years below the pivot are 20xx, the rest 19xx. The default pivot (current year's
+      // last two digits) makes results drift over time; pass `twoDigitYearPivot` for stable output.
+      const pivot = mergedOptions.twoDigitYearPivot ?? new Date().getFullYear() % 100;
 
-      if (parsedYear < currentYearLastTwoDigits) {
+      if (parsedYear < pivot) {
         fullYear = `20${dateObj.y}`;
       } else {
         fullYear = `19${dateObj.y}`;

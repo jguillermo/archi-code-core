@@ -256,12 +256,12 @@ const validISO31661Alpha2CountriesCodes = new Set([
 const alpha2CountryCode = /^[a-zA-Z]{2}$/;
 
 export default function isISO31661Alpha2(
-  str: unknown,
+  input: unknown,
   options: { userAssignedCodes?: string[] } = {},
 ): boolean {
-  const s = tryToString(str);
+  const s = tryToString(input);
   if (s === false) return false;
-  str = s;
+  const str: string = s;
 
   const { userAssignedCodes } = options;
   const validUserAssignedCodes = (userAssignedCodes || []).reduce<string[]>(

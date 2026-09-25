@@ -4,7 +4,10 @@ const defaultOptions = { loose: false };
 const strictBooleans = ['true', 'false', '1', '0'];
 const looseBooleans = [...strictBooleans, 'yes', 'no'];
 
-export default function isBoolean(str: unknown, options = defaultOptions): boolean {
+export default function isBoolean(
+  str: unknown,
+  options: { loose?: boolean } | null = defaultOptions,
+): boolean {
   // Fast path: native boolean — always valid
   if (typeof str === 'boolean') return true;
   // Fast path: number acting as boolean (1/0 only)
@@ -12,7 +15,7 @@ export default function isBoolean(str: unknown, options = defaultOptions): boole
   // Non-string: coerce if possible, otherwise reject
   const s = tryToString(str);
   if (s === false) return false;
-  if (options.loose) {
+  if (options?.loose) {
     return looseBooleans.includes(s.toLowerCase());
   }
   return strictBooleans.includes(s);

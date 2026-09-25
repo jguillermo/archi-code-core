@@ -183,10 +183,10 @@ const validISO4217CurrencyCodes = new Set([
   'ZWL',
 ]);
 
-export default function isISO4217(str: unknown): boolean {
-  const s = tryToString(str);
+export default function isISO4217(input: unknown): boolean {
+  const s = tryToString(input);
   if (s === false) return false;
-  str = s;
+  const str: string = s;
   return validISO4217CurrencyCodes.has(str.toUpperCase());
 }
 

@@ -5,10 +5,10 @@ const hslComma =
 const hslSpace =
   /^hsla?\(((\+|-)?([0-9]+(\.[0-9]+)?(e(\+|-)?[0-9]+)?|\.[0-9]+(e(\+|-)?[0-9]+)?))(deg|grad|rad|turn)?(\s(\+|-)?([0-9]+(\.[0-9]+)?(e(\+|-)?[0-9]+)?|\.[0-9]+(e(\+|-)?[0-9]+)?)%){2}\s?(\/\s((\+|-)?([0-9]+(\.[0-9]+)?(e(\+|-)?[0-9]+)?|\.[0-9]+(e(\+|-)?[0-9]+)?)%?)\s?)?\)$/i;
 
-export default function isHSL(str: unknown): boolean {
-  const s = tryToString(str);
+export default function isHSL(input: unknown): boolean {
+  const s = tryToString(input);
   if (s === false) return false;
-  str = s;
+  const str: string = s;
 
   // Strip duplicate spaces before calling the validation regex (See  #1598 for more info)
   const strippedStr = str.replace(/\s+/g, ' ').replace(/\s?(hsla?\(|\)|,)\s?/gi, '$1');

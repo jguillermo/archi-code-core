@@ -1,8 +1,8 @@
 import tryToString from './util/tryToString';
 
-export default function equals(str: unknown, comparison: string): boolean {
-  const s = tryToString(str);
+export default function equals(input: unknown, comparison: string): boolean {
+  const s = tryToString(input);
   if (s === false) return false;
-  str = s;
+  const str: string = s;
   return str === comparison;
 }

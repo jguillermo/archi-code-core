@@ -6,16 +6,16 @@ const validAttribute = /^[a-z-]+=[a-z0-9-]+$/i;
 
 const validData = /^[a-z0-9!$&'()*+,;=\-._~:@/?%\s]*$/i;
 
-export default function isDataURI(str: unknown): boolean {
-  const s = tryToString(str);
+export default function isDataURI(input: unknown): boolean {
+  const s = tryToString(input);
   if (s === false) return false;
-  str = s;
+  const str: string = s;
   const data = str.split(',');
   if (data.length < 2) {
     return false;
   }
-  const attributes = data.shift().trim().split(';');
-  const schemeAndMediaType = attributes.shift();
+  const attributes = (data.shift() as string).trim().split(';');
+  const schemeAndMediaType = attributes.shift() as string;
   if (schemeAndMediaType.slice(0, 5) !== 'data:') {
     return false;
   }

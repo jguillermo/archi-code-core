@@ -76,7 +76,6 @@ import isEAN from './isEAN';
 import isISIN from './isISIN';
 import isISBN from './isISBN';
 import isISSN from './isISSN';
-import isTaxID from './isTaxID';
 
 import isMobilePhone, { locales as isMobilePhoneLocales } from './isMobilePhone';
 
@@ -118,7 +117,8 @@ import isVAT from './isVAT';
 
 import type { ValidatorRegistry } from '../types';
 
-const validator: ValidatorRegistry = {
+// Frozen: no consumer can monkey-patch a validator globally (use createValidator() to extend).
+const validator: ValidatorRegistry = Object.freeze({
   equals,
   contains,
   matches,
@@ -209,13 +209,13 @@ const validator: ValidatorRegistry = {
   isLatLong,
   isWhitelisted,
   isSlug,
-  isStrongPassword,
-  isTaxID,
+  // Overloaded in ValidatorRegistry (boolean, or score with the deprecated `returnScore`).
+  isStrongPassword: isStrongPassword as ValidatorRegistry['isStrongPassword'],
   isDate,
   isTime,
   isLicensePlate,
   isVAT,
   ibanLocales,
-};
+});
 
 export default validator;

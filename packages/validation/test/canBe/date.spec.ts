@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
-import { canBeDate } from '../../src/primitives';
+import { canBeDate } from '../../src/canBe';
 
 // All values accepted as valid dates
 const VALID_DATES = [

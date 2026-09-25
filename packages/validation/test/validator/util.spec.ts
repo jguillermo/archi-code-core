@@ -1,39 +1,27 @@
 import assert from 'assert';
 import assertString from '../../src/validators/util/assertString';
 import tryToString from '../../src/validators/util/tryToString';
-import { toString, ConvertError } from '../../src/convert';
+import { toString, ConvertMessages } from '../../src/convert';
 
 describe('toString (convert module)', () => {
   it('keeps strings as-is', () => {
-    assert.strictEqual(toString('hello'), 'hello');
-    assert.strictEqual(toString(''), '');
+    assert.deepStrictEqual(toString('hello'), { ok: true, value: 'hello', error: null });
+    assert.deepStrictEqual(toString(''), { ok: true, value: '', error: null });
   });
 
   it('converts finite numbers to string', () => {
-    assert.strictEqual(toString(42), '42');
-    assert.strictEqual(toString(0), '0');
-    assert.strictEqual(toString(3.14), '3.14');
+    assert.deepStrictEqual(toString(42), { ok: true, value: '42', error: null });
+    assert.deepStrictEqual(toString(0), { ok: true, value: '0', error: null });
+    assert.deepStrictEqual(toString(3.14), { ok: true, value: '3.14', error: null });
   });
 
   it('converts booleans to string', () => {
-    assert.strictEqual(toString(true), 'true');
-    assert.strictEqual(toString(false), 'false');
+    assert.deepStrictEqual(toString(true), { ok: true, value: 'true', error: null });
+    assert.deepStrictEqual(toString(false), { ok: true, value: 'false', error: null });
   });
 
-  it('throws ConvertError for null', () => {
-    assert.throws(() => toString(null), ConvertError);
-  });
-
-  it('throws ConvertError for undefined', () => {
-    assert.throws(() => toString(undefined), ConvertError);
-  });
-
-  it('throws ConvertError for NaN', () => {
-    assert.throws(() => toString(NaN), ConvertError);
-  });
-
-  it('throws ConvertError for plain object', () => {
-    assert.throws(() => toString({}), ConvertError);
+  it.each([[null], [undefined], [NaN], [{}]])('%p → { ok: false, error }', (v) => {
+    assert.deepStrictEqual(toString(v), { ok: false, value: null, error: ConvertMessages.STRING });
   });
 });
 

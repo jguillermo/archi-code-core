@@ -1,14 +1,18 @@
 export { default as validator } from './validators';
-export * from './primitives';
+export * from './canBe';
 export * from './convert';
 export * as sanitizer from './sanitizer';
 export { createValidator } from './createValidator';
+export { scorePassword } from './validators/isStrongPassword';
+export { ValidationConfigError } from './validators/util/errors';
 export type {
   ValidatorRegistry,
   IsEmailOptions,
   IsURLOptions,
   IsFQDNOptions,
   IsMACAddressOptions,
+  IsIBANOptions,
+  IsCreditCardOptions,
   IsIntOptions,
   IsFloatOptions,
   IsDecimalOptions,

@@ -1,22 +1,28 @@
 import type { IsDecimalOptions } from '../types';
+import { ValidationConfigError } from './util/errors';
+import hasOwn from './util/hasOwn';
 import merge from './util/merge';
 import tryToString from './util/tryToString';
+import escapeRegExp from './util/escapeRegExp';
+import BoundedCache from './util/boundedCache';
 import { decimal } from './alpha';
 
 // Cache the compiled regex keyed by the options that shape it, so repeated calls
-// with the same options skip recompilation.
-const decimalRegexCache = new Map<string, RegExp>();
+// with the same options skip recompilation. Bounded: options may vary per request.
+const decimalRegexCache = new BoundedCache<RegExp>();
+
+// decimal_digits is interpolated into a regex quantifier: only 'n', 'n,' or 'n,m' are allowed.
+const DECIMAL_DIGITS_FORMAT = /^\d+(,\d*)?$/;
 
 function decimalRegExp(options: Required<IsDecimalOptions>): RegExp {
-  const key = `${options.locale} ${options.decimal_digits} ${options.force_decimal}`;
-  let regExp = decimalRegexCache.get(key);
-  if (regExp === undefined) {
-    regExp = new RegExp(
-      `^[-+]?([0-9]+)?(\\${decimal[options.locale]}[0-9]{${options.decimal_digits}})${options.force_decimal ? '' : '?'}$`,
-    );
-    decimalRegexCache.set(key, regExp);
-  }
-  return regExp;
+  const key = JSON.stringify([options.locale, options.decimal_digits, options.force_decimal]);
+  return decimalRegexCache.getOrCreate(
+    key,
+    () =>
+      new RegExp(
+        `^[-+]?([0-9]+)?(${escapeRegExp(decimal[options.locale])}[0-9]{${options.decimal_digits}})${options.force_decimal ? '' : '?'}$`,
+      ),
+  );
 }
 
 const default_decimal_options = {
@@ -28,11 +34,16 @@ const default_decimal_options = {
 const blacklist = ['', '-', '+'];
 
 export default function isDecimal(str: unknown, options?: IsDecimalOptions): boolean {
+  const opts = merge(options, default_decimal_options) as Required<IsDecimalOptions>;
+  // Historic API also accepts `locale: ['xx-YY']`; normalise like the former `in` lookup did.
+  opts.locale = String(opts.locale);
+  if (!hasOwn(decimal, opts.locale)) {
+    throw new ValidationConfigError(`Invalid locale '${opts.locale}'`);
+  }
+  if (typeof opts.decimal_digits !== 'string' || !DECIMAL_DIGITS_FORMAT.test(opts.decimal_digits)) {
+    throw new ValidationConfigError(`Invalid decimal_digits '${String(opts.decimal_digits)}'`);
+  }
   const s = tryToString(str);
   if (s === false) return false;
-  options = merge(options, default_decimal_options);
-  if ((options.locale as string) in decimal) {
-    return !blacklist.includes(s.replace(/ /g, '')) && decimalRegExp(options).test(s);
-  }
-  throw new Error(`Invalid locale '${options.locale}'`);
+  return !blacklist.includes(s.replace(/ /g, '')) && decimalRegExp(opts).test(s);
 }

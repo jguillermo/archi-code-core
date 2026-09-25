@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
-import { canBeEnum } from '../../src/primitives';
+import { canBeEnum } from '../../src/canBe';
 
 const COLORS = ['red', 'green', 'blue'];
 

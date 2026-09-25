@@ -1,4 +1,5 @@
-import assertString from './util/assertString';
+import { ValidationConfigError } from './util/errors';
+import hasOwn from './util/hasOwn';
 import tryToString from './util/tryToString';
 import * as algorithms from './util/algorithms';
 
@@ -32,7 +33,7 @@ const CH = (str: string): boolean => {
   // @see {@link https://www.estv.admin.ch/estv/de/home/mehrwertsteuer/uid/mwst-uid-nummer.html}
   return (
     /^(CHE[- ]?)?(\d{9}|(\d{3}\.\d{3}\.\d{3})|(\d{3} \d{3} \d{3})) ?(TVA|MWST|IVA)?$/.test(str) &&
-    hasValidCheckNumber(str.match(/\d/g).map((el) => +el))
+    hasValidCheckNumber((str.match(/\d/g) as RegExpMatchArray).map((el) => +el))
   );
 };
 
@@ -139,7 +140,9 @@ export const vatMatchers = {
   HN: (str: string): boolean => /^(HN)?$/.test(str),
   MX: (str: string): boolean => /^(MX)?\w{3,4}\d{6}\w{3}$/.test(str),
   NI: (str: string): boolean => /^(NI)?\d{3}-\d{6}-\d{4}\w{1}$/.test(str),
-  PA: (str: string): boolean => /^(PA)?$/.test(str),
+  // Only a structural check (optional 'PA' prefix + at least one digit): the upstream rule was an
+  // empty placeholder that accepted ''. Replace with the official RUC format when available.
+  PA: (str: string): boolean => /^(PA)?[0-9A-Z-]*\d[0-9A-Z-]*$/.test(str),
   PY: (str: string): boolean => /^(PY)?\d{6,8}-\d{1}$/.test(str),
   PE: (str: string): boolean => /^(PE)?\d{11}$/.test(str),
   DO: (str: string): boolean =>
@@ -148,14 +151,15 @@ export const vatMatchers = {
   VE: (str: string): boolean => /^(VE)?[J,G,V,E]{1}-(\d{9}|(\d{8}-\d{1}))$/.test(str),
 };
 
-export default function isVAT(str: unknown, countryCode: string): boolean {
-  const s = tryToString(str);
+export default function isVAT(input: unknown, countryCode: string): boolean {
+  const s = tryToString(input);
   if (s === false) return false;
-  str = s;
-  assertString(countryCode);
+  const str: string = s;
+  if (typeof countryCode !== 'string')
+    throw new ValidationConfigError('countryCode must be a string');
 
-  if (countryCode in vatMatchers) {
+  if (hasOwn(vatMatchers, countryCode)) {
     return vatMatchers[countryCode](str);
   }
-  throw new Error(`Invalid country code: '${countryCode}'`);
+  throw new ValidationConfigError(`Invalid country code: '${countryCode}'`);
 }

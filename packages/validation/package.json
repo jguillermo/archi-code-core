@@ -52,7 +52,7 @@
     "roots": ["<rootDir>/test"],
     "testRegex": "\\.spec\\.ts$",
     "transform": {
-      "^.+\\.ts$": ["ts-jest", { "diagnostics": false, "tsconfig": { "esModuleInterop": true } }]
+      "^.+\\.ts$": ["ts-jest", { "tsconfig": "tsconfig.spec.json" }]
     },
     "collectCoverageFrom": [
       "src/**/*.(t|j)s"

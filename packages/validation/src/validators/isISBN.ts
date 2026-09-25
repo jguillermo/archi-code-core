@@ -5,18 +5,19 @@ const possibleIsbn13 = /^(?:[0-9]{13})$/;
 const factor = [1, 3];
 
 export default function isISBN(
-  isbn: unknown,
+  input: unknown,
   options?: '10' | '13' | 10 | 13 | { version?: '10' | '13' | 10 | 13 },
 ): boolean {
-  const s = tryToString(isbn);
+  const s = tryToString(input);
   if (s === false) return false;
-  isbn = s;
+  const isbn: string = s;
 
   // For backwards compatibility:
   // isISBN(str [, version]), i.e. `options` could be used as argument for the legacy `version`
-  const version = String(options?.version || options);
+  const rawVersion = typeof options === 'object' ? options.version : options;
+  const version = String(rawVersion);
 
-  if (!(options?.version || options)) {
+  if (!rawVersion) {
     return isISBN(isbn, { version: 10 }) || isISBN(isbn, { version: 13 });
   }
 
@@ -30,13 +31,13 @@ export default function isISBN(
     }
 
     for (let i = 0; i < Number(version) - 1; i++) {
-      checksum += (i + 1) * sanitizedIsbn.charAt(i);
+      checksum += (i + 1) * Number(sanitizedIsbn.charAt(i));
     }
 
     if (sanitizedIsbn.charAt(9) === 'X') {
       checksum += 10 * 10;
     } else {
-      checksum += 10 * sanitizedIsbn.charAt(9);
+      checksum += 10 * Number(sanitizedIsbn.charAt(9));
     }
 
     if (checksum % 11 === 0) {
@@ -48,10 +49,10 @@ export default function isISBN(
     }
 
     for (let i = 0; i < 12; i++) {
-      checksum += factor[i % 2] * sanitizedIsbn.charAt(i);
+      checksum += factor[i % 2] * Number(sanitizedIsbn.charAt(i));
     }
 
-    if (sanitizedIsbn.charAt(12) - ((10 - (checksum % 10)) % 10) === 0) {
+    if (Number(sanitizedIsbn.charAt(12)) - ((10 - (checksum % 10)) % 10) === 0) {
       return true;
     }
   }

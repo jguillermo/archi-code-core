@@ -1,8 +1,8 @@
 import tryToString from './util/tryToString';
 
-export default function isUppercase(str: unknown): boolean {
-  const s = tryToString(str);
+export default function isUppercase(input: unknown): boolean {
+  const s = tryToString(input);
   if (s === false) return false;
-  str = s;
+  const str: string = s;
   return str === str.toUpperCase();
 }

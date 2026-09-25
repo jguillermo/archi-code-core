@@ -29,18 +29,22 @@ export default function isInt(str: unknown, options?: IsIntOptions): boolean {
   if (s === false) return false;
   options = options || {};
   const regex = options.allow_leading_zeroes === false ? int : intLeadingZeroes;
+  if (!regex.test(s)) return false;
+
+  // Beyond Number.MAX_SAFE_INTEGER `Number(s)` rounds, so bounds are compared exactly with BigInt.
   const sNum = Number(s);
-  const minCheckPassed =
-    !Object.prototype.hasOwnProperty.call(options, 'min') ||
-    options.min == null ||
-    sNum >= options.min;
-  const maxCheckPassed =
-    !Object.prototype.hasOwnProperty.call(options, 'max') ||
-    options.max == null ||
-    sNum <= options.max;
-  const ltCheckPassed =
-    !Object.prototype.hasOwnProperty.call(options, 'lt') || options.lt == null || sNum < options.lt;
-  const gtCheckPassed =
-    !Object.prototype.hasOwnProperty.call(options, 'gt') || options.gt == null || sNum > options.gt;
-  return regex.test(s) && minCheckPassed && maxCheckPassed && ltCheckPassed && gtCheckPassed;
+  const sBig = Number.isSafeInteger(sNum) ? undefined : BigInt(s);
+  const compare = (bound: number): number => {
+    if (sBig !== undefined && Number.isInteger(bound)) {
+      const b = BigInt(bound);
+      return sBig < b ? -1 : sBig > b ? 1 : 0;
+    }
+    return sNum < bound ? -1 : sNum > bound ? 1 : 0;
+  };
+  return (
+    (options.min == null || compare(options.min) >= 0) &&
+    (options.max == null || compare(options.max) <= 0) &&
+    (options.lt == null || compare(options.lt) < 0) &&
+    (options.gt == null || compare(options.gt) > 0)
+  );
 }

@@ -4,9 +4,9 @@ import tryToString from './util/tryToString';
 const ascii = /^[\x00-\x7F]+$/;
 /* eslint-enable no-control-regex */
 
-export default function isAscii(str: unknown): boolean {
-  const s = tryToString(str);
+export default function isAscii(input: unknown): boolean {
+  const s = tryToString(input);
   if (s === false) return false;
-  str = s;
+  const str: string = s;
   return ascii.test(str);
 }

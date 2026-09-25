@@ -1,16 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
-import { toDate, ConvertError } from '../../src/convert';
-
-function expectConvertError(fn: () => void, expectedMessage: string): void {
-  let err: unknown;
-  try {
-    fn();
-  } catch (e) {
-    err = e;
-  }
-  expect(err).toBeInstanceOf(ConvertError);
-  expect((err as ConvertError).message).toBe(expectedMessage);
-}
+import { toDate, ConvertMessages } from '../../src/convert';
+import { converted, expectNotConvertible } from './helpers';
 
 describe('toDate', () => {
   // ─── valid conversions ────────────────────────────────────────────────────
@@ -18,169 +8,156 @@ describe('toDate', () => {
   describe('Date instance → same instance returned', () => {
     it('valid Date → same reference', () => {
       const d = new Date('2024-01-15');
-      expect(toDate(d)).toBe(d);
+      expect(converted(toDate(d))).toBe(d);
     });
     it('epoch (1970-01-01T00:00:00.000Z) → getTime() === 0', () =>
-      expect(toDate(new Date('1970-01-01T00:00:00.000Z')).getTime()).toBe(0));
+      expect(converted(toDate(new Date('1970-01-01T00:00:00.000Z'))).getTime()).toBe(0));
     it('subclass of Date → valid (instanceof passes)', () => {
       class MyDate extends Date {}
-      expect(toDate(new MyDate('2024-06-15'))).toBeInstanceOf(Date);
+      expect(converted(toDate(new MyDate('2024-06-15')))).toBeInstanceOf(Date);
     });
   });
 
   describe('valid ISO 8601 string → Date', () => {
     it('"2024-01-15" → Jan 15 2024 UTC', () => {
-      const d = toDate('2024-01-15');
+      const d = converted(toDate('2024-01-15'));
       expect(d.getUTCFullYear()).toBe(2024);
       expect(d.getUTCMonth()).toBe(0);
       expect(d.getUTCDate()).toBe(15);
     });
     it('"1970-01-01T00:00:00.000Z" → epoch', () =>
-      expect(toDate('1970-01-01T00:00:00.000Z').getTime()).toBe(0));
+      expect(converted(toDate('1970-01-01T00:00:00.000Z')).getTime()).toBe(0));
     it('"2024-06-15T12:30:00Z" → hours 12, minutes 30', () => {
-      const d = toDate('2024-06-15T12:30:00Z');
+      const d = converted(toDate('2024-06-15T12:30:00Z'));
       expect(d.getUTCHours()).toBe(12);
       expect(d.getUTCMinutes()).toBe(30);
     });
     it('"2024-02-29" → valid leap year', () => {
-      const d = toDate('2024-02-29');
+      const d = converted(toDate('2024-02-29'));
       expect(d.getUTCDate()).toBe(29);
     });
   });
 
-  describe('out-of-range date strings — throw even when V8 silently rolls over', () => {
+  describe('out-of-range date strings — rejected even when V8 silently rolls over', () => {
     // months with 30 days: April(4), June(6), September(9), November(11)
-    it('"2024-04-31" → ConvertError (April has 30 days)', () =>
-      expectConvertError(() => toDate('2024-04-31'), 'Cannot convert "2024-04-31" to date'));
-    it('"2024-06-31" → ConvertError (June has 30 days)', () =>
-      expectConvertError(() => toDate('2024-06-31'), 'Cannot convert "2024-06-31" to date'));
-    it('"2024-09-31" → ConvertError (September has 30 days)', () =>
-      expectConvertError(() => toDate('2024-09-31'), 'Cannot convert "2024-09-31" to date'));
-    it('"2024-11-31" → ConvertError (November has 30 days)', () =>
-      expectConvertError(() => toDate('2024-11-31'), 'Cannot convert "2024-11-31" to date'));
+    it('"2024-04-31" → { ok: false, error }', () =>
+      expectNotConvertible(toDate('2024-04-31'), ConvertMessages.DATE));
+    it('"2024-06-31" → { ok: false, error }', () =>
+      expectNotConvertible(toDate('2024-06-31'), ConvertMessages.DATE));
+    it('"2024-09-31" → { ok: false, error }', () =>
+      expectNotConvertible(toDate('2024-09-31'), ConvertMessages.DATE));
+    it('"2024-11-31" → { ok: false, error }', () =>
+      expectNotConvertible(toDate('2024-11-31'), ConvertMessages.DATE));
 
     // February edge cases
-    it('"2023-02-29" → ConvertError (2023 is not a leap year)', () =>
-      expectConvertError(() => toDate('2023-02-29'), 'Cannot convert "2023-02-29" to date'));
-    it('"2100-02-29" → ConvertError (2100 is not a leap year — divisible by 100, not 400)', () =>
-      expectConvertError(() => toDate('2100-02-29'), 'Cannot convert "2100-02-29" to date'));
-    it('"2024-02-30" → ConvertError (February never has 30 days)', () =>
-      expectConvertError(() => toDate('2024-02-30'), 'Cannot convert "2024-02-30" to date'));
+    it('"2023-02-29" → { ok: false, error }', () =>
+      expectNotConvertible(toDate('2023-02-29'), ConvertMessages.DATE));
+    it('"2100-02-29" → { ok: false, error }', () =>
+      expectNotConvertible(toDate('2100-02-29'), ConvertMessages.DATE));
+    it('"2024-02-30" → { ok: false, error }', () =>
+      expectNotConvertible(toDate('2024-02-30'), ConvertMessages.DATE));
     it('"2024-02-29" → valid (2024 IS a leap year)', () => {
-      const d = toDate('2024-02-29');
+      const d = converted(toDate('2024-02-29'));
       expect(d.getUTCDate()).toBe(29);
       expect(d.getUTCMonth()).toBe(1);
     });
 
     // time overflow
-    it('"2024-03-23T24:00:00" → ConvertError (hour 24 not valid)', () =>
-      expectConvertError(
-        () => toDate('2024-03-23T24:00:00'),
-        'Cannot convert "2024-03-23T24:00:00" to date',
-      ));
-    it('"2024-03-23T00:60:00" → ConvertError (minute 60)', () =>
-      expectConvertError(
-        () => toDate('2024-03-23T00:60:00'),
-        'Cannot convert "2024-03-23T00:60:00" to date',
-      ));
-    it('"2024-03-23T00:00:60" → ConvertError (second 60)', () =>
-      expectConvertError(
-        () => toDate('2024-03-23T00:00:60'),
-        'Cannot convert "2024-03-23T00:00:60" to date',
-      ));
+    it('"2024-03-23T24:00:00" → { ok: false, error }', () =>
+      expectNotConvertible(toDate('2024-03-23T24:00:00'), ConvertMessages.DATE));
+    it('"2024-03-23T00:60:00" → { ok: false, error }', () =>
+      expectNotConvertible(toDate('2024-03-23T00:60:00'), ConvertMessages.DATE));
+    it('"2024-03-23T00:00:60" → { ok: false, error }', () =>
+      expectNotConvertible(toDate('2024-03-23T00:00:60'), ConvertMessages.DATE));
 
     // day/month lower-bound overflow
-    it('"2024-01-00" → ConvertError (day 0)', () =>
-      expectConvertError(() => toDate('2024-01-00'), 'Cannot convert "2024-01-00" to date'));
-    it('"2024-00-15" → ConvertError (month 0)', () =>
-      expectConvertError(() => toDate('2024-00-15'), 'Cannot convert "2024-00-15" to date'));
+    it('"2024-01-00" → { ok: false, error }', () =>
+      expectNotConvertible(toDate('2024-01-00'), ConvertMessages.DATE));
+    it('"2024-00-15" → { ok: false, error }', () =>
+      expectNotConvertible(toDate('2024-00-15'), ConvertMessages.DATE));
   });
 
   // ─── error cases ──────────────────────────────────────────────────────────
 
-  describe('invalid Date instance — specific message that includes "Invalid Date"', () => {
-    // Current message "Invalid Date object" is acceptable — it identifies what was wrong.
-    // New consistent format: "Cannot convert Invalid Date to date"
-    it('new Date("invalid") → "Cannot convert Invalid Date to date"', () =>
-      expectConvertError(() => toDate(new Date('invalid')), 'Cannot convert Invalid Date to date'));
-    it('new Date("") → "Cannot convert Invalid Date to date"', () =>
-      expectConvertError(() => toDate(new Date('')), 'Cannot convert Invalid Date to date'));
+  describe('invalid Date instance → { ok: false, error }', () => {
+    it('new Date("invalid") → { ok: false, error }', () =>
+      expectNotConvertible(toDate(new Date('invalid')), ConvertMessages.DATE));
+    it('new Date("") → { ok: false, error }', () =>
+      expectNotConvertible(toDate(new Date('')), ConvertMessages.DATE));
   });
 
-  describe('invalid date strings — message quotes the ORIGINAL string', () => {
-    it('"not-a-date" → \'Cannot convert "not-a-date" to date\'', () =>
-      expectConvertError(() => toDate('not-a-date'), 'Cannot convert "not-a-date" to date'));
-    it('"" → \'Cannot convert "" to date\'', () =>
-      expectConvertError(() => toDate(''), 'Cannot convert "" to date'));
-    it('" " → \'Cannot convert " " to date\'', () =>
-      expectConvertError(() => toDate(' '), 'Cannot convert " " to date'));
-    it('"2024-13-01" → \'Cannot convert "2024-13-01" to date\' (invalid month)', () =>
-      expectConvertError(() => toDate('2024-13-01'), 'Cannot convert "2024-13-01" to date'));
-    it('"2024-00-01" → \'Cannot convert "2024-00-01" to date\' (month 0)', () =>
-      expectConvertError(() => toDate('2024-00-01'), 'Cannot convert "2024-00-01" to date'));
-    it('"2024-01-32" → \'Cannot convert "2024-01-32" to date\' (day 32)', () =>
-      expectConvertError(() => toDate('2024-01-32'), 'Cannot convert "2024-01-32" to date'));
-    it('"abc" → \'Cannot convert "abc" to date\'', () =>
-      expectConvertError(() => toDate('abc'), 'Cannot convert "abc" to date'));
-    it('"31/12/2024" → \'Cannot convert "31/12/2024" to date\'', () =>
-      expectConvertError(() => toDate('31/12/2024'), 'Cannot convert "31/12/2024" to date'));
+  describe('invalid date strings → { ok: false, error }', () => {
+    it('"not-a-date" → { ok: false, error }', () =>
+      expectNotConvertible(toDate('not-a-date'), ConvertMessages.DATE));
+    it('"" → { ok: false, error }', () => expectNotConvertible(toDate(''), ConvertMessages.DATE));
+    it('" " → { ok: false, error }', () => expectNotConvertible(toDate(' '), ConvertMessages.DATE));
+    it('"2024-13-01" → { ok: false, error }', () =>
+      expectNotConvertible(toDate('2024-13-01'), ConvertMessages.DATE));
+    it('"2024-00-01" → { ok: false, error }', () =>
+      expectNotConvertible(toDate('2024-00-01'), ConvertMessages.DATE));
+    it('"2024-01-32" → { ok: false, error }', () =>
+      expectNotConvertible(toDate('2024-01-32'), ConvertMessages.DATE));
+    it('"abc" → { ok: false, error }', () =>
+      expectNotConvertible(toDate('abc'), ConvertMessages.DATE));
+    it('"31/12/2024" → { ok: false, error }', () =>
+      expectNotConvertible(toDate('31/12/2024'), ConvertMessages.DATE));
   });
 
   describe('null and undefined', () => {
-    it('null → "Cannot convert null to date"  (NOT "object")', () =>
-      expectConvertError(() => toDate(null), 'Cannot convert null to date'));
-    it('undefined → "Cannot convert undefined to date"', () =>
-      expectConvertError(() => toDate(undefined), 'Cannot convert undefined to date'));
+    it('null → { ok: false, error }', () =>
+      expectNotConvertible(toDate(null), ConvertMessages.DATE));
+    it('undefined → { ok: false, error }', () =>
+      expectNotConvertible(toDate(undefined), ConvertMessages.DATE));
   });
 
-  describe('numbers — show the numeric value', () => {
-    it('0 → "Cannot convert 0 to date"  (NOT "number")', () =>
-      expectConvertError(() => toDate(0), 'Cannot convert 0 to date'));
-    it('1705276800000 → "Cannot convert 1705276800000 to date"', () =>
-      expectConvertError(() => toDate(1705276800000), 'Cannot convert 1705276800000 to date'));
+  describe('numbers → { ok: false, error }', () => {
+    it('0 → { ok: false, error }', () => expectNotConvertible(toDate(0), ConvertMessages.DATE));
+    it('1705276800000 → { ok: false, error }', () =>
+      expectNotConvertible(toDate(1705276800000), ConvertMessages.DATE));
   });
 
-  describe('booleans — show the value', () => {
-    it('true → "Cannot convert true to date"  (NOT "boolean")', () =>
-      expectConvertError(() => toDate(true), 'Cannot convert true to date'));
-    it('false → "Cannot convert false to date"', () =>
-      expectConvertError(() => toDate(false), 'Cannot convert false to date'));
+  describe('booleans → { ok: false, error }', () => {
+    it('true → { ok: false, error }', () =>
+      expectNotConvertible(toDate(true), ConvertMessages.DATE));
+    it('false → { ok: false, error }', () =>
+      expectNotConvertible(toDate(false), ConvertMessages.DATE));
   });
 
-  describe('plain objects and arrays — show JSON value', () => {
-    it('{} → "Cannot convert {} to date"', () =>
-      expectConvertError(() => toDate({}), 'Cannot convert {} to date'));
-    it('[] → "Cannot convert [] to date"', () =>
-      expectConvertError(() => toDate([]), 'Cannot convert [] to date'));
+  describe('plain objects and arrays → { ok: false, error }', () => {
+    it('{} → { ok: false, error }', () => expectNotConvertible(toDate({}), ConvertMessages.DATE));
+    it('[] → { ok: false, error }', () => expectNotConvertible(toDate([]), ConvertMessages.DATE));
   });
 
-  describe('functions — show [Function]', () => {
-    it('arrow fn → "Cannot convert [Function] to date"', () =>
-      expectConvertError(() => toDate(() => new Date()), 'Cannot convert [Function] to date'));
+  describe('functions → { ok: false, error }', () => {
+    it('arrow fn → { ok: false, error }', () =>
+      expectNotConvertible(
+        toDate(() => new Date()),
+        ConvertMessages.DATE,
+      ));
   });
 
-  describe('Symbol — show Symbol(description)', () => {
-    it('Symbol("date") → "Cannot convert Symbol(date) to date"  (NOT "symbol")', () =>
-      expectConvertError(() => toDate(Symbol('date')), 'Cannot convert Symbol(date) to date'));
-    it('Symbol() → "Cannot convert Symbol() to date"', () =>
-      expectConvertError(() => toDate(Symbol()), 'Cannot convert Symbol() to date'));
+  describe('Symbol → { ok: false, error }', () => {
+    it('Symbol("date") → { ok: false, error }', () =>
+      expectNotConvertible(toDate(Symbol('date')), ConvertMessages.DATE));
+    it('Symbol() → { ok: false, error }', () =>
+      expectNotConvertible(toDate(Symbol()), ConvertMessages.DATE));
   });
 
-  describe('BigInt — show BigInt(n)', () => {
-    it('BigInt(1) → "Cannot convert BigInt(1) to date"  (NOT "bigint")', () =>
-      expectConvertError(() => toDate(BigInt(1)), 'Cannot convert BigInt(1) to date'));
+  describe('BigInt → { ok: false, error }', () => {
+    it('BigInt(1) → { ok: false, error }', () =>
+      expectNotConvertible(toDate(BigInt(1)), ConvertMessages.DATE));
   });
 
-  describe('well-known objects — show type name in brackets', () => {
-    it('new Map() → "Cannot convert [Map] to date"  (NOT "object")', () =>
-      expectConvertError(() => toDate(new Map()), 'Cannot convert [Map] to date'));
-    it('new Set() → "Cannot convert [Set] to date"', () =>
-      expectConvertError(() => toDate(new Set()), 'Cannot convert [Set] to date'));
-    it('new Promise(() => {}) → "Cannot convert [Promise] to date"', () =>
-      expectConvertError(() => toDate(new Promise(() => {})), 'Cannot convert [Promise] to date'));
-    it('new Uint8Array() → "Cannot convert [Uint8Array] to date"', () =>
-      expectConvertError(() => toDate(new Uint8Array()), 'Cannot convert [Uint8Array] to date'));
-    it('new Error("x") → "Cannot convert [Error] to date"', () =>
-      expectConvertError(() => toDate(new Error('x')), 'Cannot convert [Error] to date'));
+  describe('well-known objects → { ok: false, error }', () => {
+    it('new Map() → { ok: false, error }', () =>
+      expectNotConvertible(toDate(new Map()), ConvertMessages.DATE));
+    it('new Set() → { ok: false, error }', () =>
+      expectNotConvertible(toDate(new Set()), ConvertMessages.DATE));
+    it('new Promise(() => {}) → { ok: false, error }', () =>
+      expectNotConvertible(toDate(new Promise(() => {})), ConvertMessages.DATE));
+    it('new Uint8Array() → { ok: false, error }', () =>
+      expectNotConvertible(toDate(new Uint8Array()), ConvertMessages.DATE));
+    it('new Error("x") → { ok: false, error }', () =>
+      expectNotConvertible(toDate(new Error('x')), ConvertMessages.DATE));
   });
 });

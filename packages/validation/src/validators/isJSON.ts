@@ -12,7 +12,7 @@ const default_json_options = {
  * Arrays (`[1,2,3]`) and primitive JSON (`"hello"`, `42`) are accepted by default.
  *
  * For domain object validation (plain records only, no arrays),
- * use `canBeJson()` from the primitives module instead.
+ * use `canBeJson()` from the canBe module instead.
  */
 export default function isJSON(str: unknown, options?: IsJSONOptions): boolean {
   const s = tryToString(str);

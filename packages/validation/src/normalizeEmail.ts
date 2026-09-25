@@ -166,9 +166,10 @@ export default function normalizeEmail(
   options = merge(options, default_normalize_email_options);
 
   const raw_parts = email.split('@');
-  const domain = raw_parts.pop();
+  // split() always yields at least one element, so pop() is never undefined here.
+  const domain = raw_parts.pop() as string;
   const user = raw_parts.join('@');
-  const parts = [user, domain];
+  const parts: [string, string] = [user, domain];
 
   // The domain is always lowercased, as it's case-insensitive per RFC 1035
   parts[1] = parts[1].toLowerCase();

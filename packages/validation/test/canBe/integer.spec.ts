@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
-import { canBeInteger } from '../../src/primitives';
+import { canBeInteger } from '../../src/canBe';
 
 describe('canBeInteger', () => {
   it.each([

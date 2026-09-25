@@ -1,3 +1,5 @@
+import type { IsIBANOptions } from '../types';
+import hasOwn from './util/hasOwn';
 import tryToString from './util/tryToString';
 
 /**
@@ -98,7 +100,7 @@ const ibanRegexThroughCountryCode = {
 
 function hasOnlyValidCountryCodes(countryCodeArray: string[]): boolean {
   const countryCodeArrayFilteredWithObjectIbanCode = countryCodeArray.filter(
-    (countryCode) => !(countryCode in ibanRegexThroughCountryCode),
+    (countryCode) => !hasOwn(ibanRegexThroughCountryCode, countryCode),
   );
 
   return countryCodeArrayFilteredWithObjectIbanCode.length === 0;
@@ -116,15 +118,12 @@ function hasOnlyValidCountryCodes(countryCodeArray: string[]): boolean {
  * @param {object} options - object to pass the countries to be either whitelisted or blacklisted
  * @return {boolean}
  */
-function hasValidIbanFormat(
-  str: string,
-  options: { allowedCountries?: string[]; prohibitedCountries?: string[] },
-): boolean {
+function hasValidIbanFormat(str: string, options: IsIBANOptions): boolean {
   // Strip white spaces and hyphens
   const strippedStr = str.replace(/[\s-]+/gi, '').toUpperCase();
   const isoCountryCode = strippedStr.slice(0, 2).toUpperCase();
 
-  const isoCountryCodeInIbanRegexCodeObject = isoCountryCode in ibanRegexThroughCountryCode;
+  const isoCountryCodeInIbanRegexCodeObject = hasOwn(ibanRegexThroughCountryCode, isoCountryCode);
 
   if (options.whitelist) {
     if (!hasOnlyValidCountryCodes(options.whitelist)) {
@@ -168,27 +167,26 @@ function hasValidIbanFormat(
 function hasValidIbanChecksum(str: string): boolean {
   const strippedStr = str.replace(/[^A-Z0-9]+/gi, '').toUpperCase(); // Keep only digits and A-Z latin alphabetic
   const rearranged = strippedStr.slice(4) + strippedStr.slice(0, 4);
-  const alphaCapsReplacedWithDigits = rearranged.replace(
-    /[A-Z]/g,
-    (char) => char.charCodeAt(0) - 55,
+  const alphaCapsReplacedWithDigits = rearranged.replace(/[A-Z]/g, (char) =>
+    String(char.charCodeAt(0) - 55),
   );
 
-  const remainder = alphaCapsReplacedWithDigits
-    .match(/\d{1,7}/g)
-    .reduce((acc, value) => Number(acc + value) % 97, '');
+  // Piecewise mod-97 so the running value never exceeds Number.MAX_SAFE_INTEGER.
+  // hasValidIbanFormat() already guaranteed at least one digit, so match() is non-null.
+  let remainder = 0;
+  for (const chunk of alphaCapsReplacedWithDigits.match(/\d{1,7}/g) as RegExpMatchArray) {
+    remainder = Number(`${remainder}${chunk}`) % 97;
+  }
 
   return remainder === 1;
 }
 
-export default function isIBAN(
-  str: unknown,
-  options: { allowedCountries?: string[]; prohibitedCountries?: string[] } = {},
-): boolean {
-  const s = tryToString(str);
+export default function isIBAN(input: unknown, options: IsIBANOptions = {}): boolean {
+  const s = tryToString(input);
   if (s === false) return false;
-  str = s;
+  const str: string = s;
 
   return hasValidIbanFormat(str, options) && hasValidIbanChecksum(str);
 }
 
-export const locales = Object.keys(ibanRegexThroughCountryCode);
+export const locales: readonly string[] = Object.freeze(Object.keys(ibanRegexThroughCountryCode));

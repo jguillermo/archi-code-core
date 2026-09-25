@@ -253,8 +253,10 @@ export default function isURL(urlInput: unknown, options?: IsURLOptions): boolea
     return false;
   }
 
-  if (options.host_whitelist) {
-    return checkHost(host, options.host_whitelist);
+  // A whitelisted host must still be a syntactically valid host (IP / FQDN) — the whitelist
+  // narrows the accepted hosts, it does not bypass host validation.
+  if (options.host_whitelist && !checkHost(host, options.host_whitelist)) {
+    return false;
   }
 
   if (host === '' && !options.require_host) {

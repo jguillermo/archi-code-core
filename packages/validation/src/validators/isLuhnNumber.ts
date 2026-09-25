@@ -1,9 +1,9 @@
 import tryToString from './util/tryToString';
 
-export default function isLuhnNumber(str: unknown): boolean {
-  const s = tryToString(str);
+export default function isLuhnNumber(input: unknown): boolean {
+  const s = tryToString(input);
   if (s === false) return false;
-  str = s;
+  const str: string = s;
   const sanitized = str.replace(/[- ]+/g, '');
   let sum = 0;
   let digit;

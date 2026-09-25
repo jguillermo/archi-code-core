@@ -484,8 +484,9 @@ describe('Validators', () => {
     test({
       validator: 'isVAT',
       args: ['PA'],
-      valid: ['PA'],
-      invalid: ['PA '],
+      // structural check only — see isVAT.ts
+      valid: ['PA8-123-4567', '8-123-4567', 'PA155596713-2-2015'],
+      invalid: ['', 'PA', 'PA ', 'PA-', 'PA8 123'],
     });
     test({
       validator: 'isVAT',

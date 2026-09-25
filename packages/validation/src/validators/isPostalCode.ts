@@ -1,4 +1,6 @@
 import tryToString from './util/tryToString';
+import { ValidationConfigError } from './util/errors';
+import hasOwn from './util/hasOwn';
 
 // common patterns
 const threeDigit = /^\d{3}$/;
@@ -80,13 +82,13 @@ const patterns = {
   ZM: fiveDigit,
 };
 
-export const locales = Object.keys(patterns);
+export const locales: readonly string[] = Object.freeze(Object.keys(patterns));
 
-export default function isPostalCode(str: unknown, locale: string): boolean {
-  const s = tryToString(str);
+export default function isPostalCode(input: unknown, locale: string): boolean {
+  const s = tryToString(input);
   if (s === false) return false;
-  str = s;
-  if (locale in patterns) {
+  const str: string = s;
+  if (hasOwn(patterns, locale)) {
     return patterns[locale].test(str);
   }
   if (locale === 'any') {
@@ -102,5 +104,5 @@ export default function isPostalCode(str: unknown, locale: string): boolean {
     }
     return false;
   }
-  throw new Error(`Invalid locale '${locale}'`);
+  throw new ValidationConfigError(`Invalid locale '${locale}'`);
 }

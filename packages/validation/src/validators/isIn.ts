@@ -1,21 +1,19 @@
 import tryToString from './util/tryToString';
-import { toString } from '../convert';
+import { asString } from '../core/coerce';
 
-export default function isIn(str: unknown, values: unknown[]): boolean {
-  const s = tryToString(str);
+export default function isIn(input: unknown, values: unknown[]): boolean {
+  const s = tryToString(input);
   if (s === false) return false;
-  str = s;
+  const str: string = s;
   let i;
   if (Object.prototype.toString.call(values) === '[object Array]') {
     const array: string[] = [];
     for (i in values) {
       // istanbul ignore else
       if ({}.hasOwnProperty.call(values, i)) {
-        try {
-          array[i] = toString((values as Record<string, unknown>)[i]);
-        } catch {
-          // non-convertible element: skip
-        }
+        // non-convertible elements are skipped
+        const item = asString((values as unknown as Record<string, unknown>)[i]);
+        if (item !== undefined) array[i] = item;
       }
     }
     return array.indexOf(str) >= 0;

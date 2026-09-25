@@ -1,6 +1,21 @@
 import type { IsLengthOptions } from '../types';
 import tryToString from './util/tryToString';
 
+/** Historic count: code points, with emoji presentation selectors (U+FE0E/U+FE0F) not counted. */
+function countCharacters(s: string): number {
+  const presentationSequences = s.match(/[^\uFE0F\uFE0E][\uFE0F\uFE0E]/g) || [];
+  const surrogatePairs = s.match(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g) || [];
+  return s.length - presentationSequences.length - surrogatePairs.length;
+}
+
+let segmenter: Intl.Segmenter | undefined;
+
+/** User-perceived characters (extended grapheme clusters): '👨‍👩‍👧' or 'é' (e + ◌́) count as 1. */
+function countGraphemes(s: string): number {
+  segmenter ??= new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+  return Array.from(segmenter.segment(s)).length;
+}
+
 export default function isLength(
   str: unknown,
   optionsOrMin?: IsLengthOptions | number,
@@ -20,9 +35,10 @@ export default function isLength(
     max = maxArg;
   }
 
-  const presentationSequences = s.match(/[^\uFE0F\uFE0E][\uFE0F\uFE0E]/g) || [];
-  const surrogatePairs = s.match(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g) || [];
-  const len = s.length - presentationSequences.length - surrogatePairs.length;
+  const len =
+    typeof optionsOrMin === 'object' && optionsOrMin.graphemes
+      ? countGraphemes(s)
+      : countCharacters(s);
   const isInsideRange = len >= min && (typeof max === 'undefined' || len <= max);
 
   if (

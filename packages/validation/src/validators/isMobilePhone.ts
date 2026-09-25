@@ -1,4 +1,6 @@
 import type { IsMobilePhoneOptions } from '../types';
+import { ValidationConfigError } from './util/errors';
+import hasOwn from './util/hasOwn';
 import tryToString from './util/tryToString';
 
 const phones = {
@@ -203,8 +205,8 @@ export default function isMobilePhone(
       return false;
     });
   }
-  if (locale && locale in phones) {
-    return phones[locale as string].test(s);
+  if (hasOwn(phones, locale)) {
+    return phones[locale].test(s);
     // alias falsey locale as 'any'
   }
   if (!locale || locale === 'any') {
@@ -219,7 +221,7 @@ export default function isMobilePhone(
     }
     return false;
   }
-  throw new Error(`Invalid locale '${locale}'`);
+  throw new ValidationConfigError(`Invalid locale '${locale}'`);
 }
 
-export const locales = Object.keys(phones);
+export const locales: readonly string[] = Object.freeze(Object.keys(phones));

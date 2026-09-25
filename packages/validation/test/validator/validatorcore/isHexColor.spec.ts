@@ -33,7 +33,9 @@ describe('Validators', () => {
       valid: ['#fff', '#000000', '123', 'abc'],
       invalid: ['gray', 'not-a-color'],
     });
-    const validColors = ['#ff0034', '#CCCCCC'].filter(validator.isHexColor);
+    const validColors = ['#ff0034', '#CCCCCC'].filter(
+      validator.isHexColor as (v: string) => boolean,
+    );
     assert.strictEqual(validColors.length, 2);
   });
 
