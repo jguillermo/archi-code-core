@@ -3,6 +3,7 @@ import { isCalendarDate } from '../convert/date';
 import { ValidationConfigError } from './util/errors';
 import { hasOwn } from './util/hasOwn';
 import { isInt } from './isInt';
+import { configText } from './util/config';
 
 const validators = {
   PL: (str) => {
@@ -505,5 +506,5 @@ export function isIdentityCard(input: unknown, locale: IdentityCardLocale = 'any
     }
     return false;
   }
-  throw new ValidationConfigError(`Invalid locale '${locale}'`);
+  throw new ValidationConfigError(`Invalid locale '${configText(locale)}'`);
 }

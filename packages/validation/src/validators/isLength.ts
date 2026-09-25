@@ -1,4 +1,5 @@
 import { toString } from '../convert/string';
+import { boundsOf } from './util/config';
 
 export interface IsLengthOptions {
   min?: number;
@@ -31,30 +32,13 @@ export function isLength(
   const stringResult = toString(str);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
-  let min: number;
-  let max: number | undefined;
+  const { options, min, max } = boundsOf(optionsOrMin, maxArg);
 
-  if (typeof optionsOrMin === 'object') {
-    min = optionsOrMin.min || 0;
-    max = optionsOrMin.max;
-  } else {
-    // backwards compatibility: isLength(str, min [, max])
-    min = optionsOrMin || 0;
-    max = maxArg;
-  }
-
-  const len =
-    typeof optionsOrMin === 'object' && optionsOrMin.graphemes
-      ? countGraphemes(s)
-      : countCharacters(s);
+  const len = options.graphemes ? countGraphemes(s) : countCharacters(s);
   const isInsideRange = len >= min && (typeof max === 'undefined' || len <= max);
 
-  if (
-    isInsideRange &&
-    typeof optionsOrMin === 'object' &&
-    Array.isArray(optionsOrMin?.discreteLengths)
-  ) {
-    return optionsOrMin.discreteLengths.some((discreteLen) => discreteLen === len);
+  if (isInsideRange && Array.isArray(options.discreteLengths)) {
+    return options.discreteLengths.some((discreteLen) => discreteLen === len);
   }
 
   return isInsideRange;

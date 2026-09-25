@@ -23,7 +23,7 @@ export function isRgbColor(input: unknown, options?: IsRgbColorOptions): boolean
   // default options to true for percent and false for spaces
   let allowSpaces = false;
   let includePercentValues = true;
-  if (typeof options === 'object') {
+  if (options !== null && typeof options === 'object') {
     allowSpaces = options.allowSpaces !== undefined ? options.allowSpaces : allowSpaces;
     includePercentValues =
       options.includePercentValues !== undefined

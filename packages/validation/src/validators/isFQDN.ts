@@ -22,12 +22,15 @@ const default_fqdn_options = {
 // Hoisted regexes — declaring them at module scope avoids reallocating a RegExp
 // object for every part on every call (the per-part checks run inside a hot loop).
 const tldRegex = /^([a-z¡-¨ª-퟿豈-﷏ﷰ-￯]{2,}|xn[a-z0-9-]{2,})$/i;
-const whitespaceRegex = /\s/;
 const numericRegex = /^\d+$/;
 const partCharsRegex = /^[a-z_¡-￿0-9-]+$/i;
 const fullWidthRegex = /[！-～]/;
 const hyphenEdgeRegex = /^-|-$/;
 const underscoreRegex = /_/;
+// Invisible / spoofing code points the label ranges above would otherwise let through: controls,
+// format characters (zero-width U+200B-U+200D, bidi overrides U+202A-U+202E, BOM, soft hyphen…),
+// Unicode separators and unpaired surrogates. `exa\u200Bmple.com` must not pass as a host.
+const invisibleRegex = /[\p{Cc}\p{Cf}\p{Cs}\p{Z}]/u;
 
 export function isFQDN(str: unknown, options?: IsFQDNOptions): boolean {
   const stringResult = toString(str);
@@ -46,6 +49,10 @@ export function isFQDN(str: unknown, options?: IsFQDNOptions): boolean {
     strVal = strVal.substring(2);
   }
 
+  if (invisibleRegex.test(strVal)) {
+    return false;
+  }
+
   const parts = strVal.split('.');
   const tld = parts[parts.length - 1];
 
@@ -56,11 +63,6 @@ export function isFQDN(str: unknown, options?: IsFQDNOptions): boolean {
     }
 
     if (!options.allow_numeric_tld && !tldRegex.test(tld)) {
-      return false;
-    }
-
-    // disallow spaces
-    if (whitespaceRegex.test(tld)) {
       return false;
     }
   }

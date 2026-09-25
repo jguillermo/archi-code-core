@@ -1,5 +1,7 @@
 import { toString } from '../convert/string';
-import { checkHost } from './util/checkHost';
+import { checkHost, hostList } from './util/checkHost';
+import { configText } from './util/config';
+import { ValidationConfigError } from './util/errors';
 import { isFQDN } from './isFQDN';
 import { isIP } from './isIP';
 import { merge } from './util/merge';
@@ -21,6 +23,12 @@ export interface IsURLOptions {
   max_allowed_length?: number;
   host_whitelist?: (string | RegExp)[];
   host_blacklist?: (string | RegExp)[];
+  /** Passed to isFQDN: accept a leading `*.` wildcard label. */
+  allow_wildcard?: boolean;
+  /** Passed to isFQDN: accept a numeric TLD. */
+  allow_numeric_tld?: boolean;
+  /** Passed to isFQDN: skip the 63-character label limit. */
+  ignore_max_length?: boolean;
 }
 
 /*
@@ -88,6 +96,25 @@ export function isURL(urlInput: unknown, options?: IsURLOptions): boolean {
     return false;
   }
   options = merge(options, default_url_options);
+  if (!Array.isArray(options.protocols) || !options.protocols.every((p) => typeof p === 'string')) {
+    // A string would be matched by substring ('http'.indexOf('ht') ≥ 0).
+    throw new ValidationConfigError(
+      `protocols must be an array of strings, got ${configText(options.protocols)}`,
+    );
+  }
+  if (options.validate_length && typeof options.max_allowed_length !== 'number') {
+    throw new ValidationConfigError(
+      `max_allowed_length must be a number, got ${configText(options.max_allowed_length)}`,
+    );
+  }
+  const host_whitelist =
+    options.host_whitelist === undefined
+      ? undefined
+      : hostList(options.host_whitelist, 'host_whitelist');
+  const host_blacklist =
+    options.host_blacklist === undefined
+      ? undefined
+      : hostList(options.host_blacklist, 'host_blacklist');
 
   if (options.validate_length && url.length > (options.max_allowed_length as number)) {
     return false;
@@ -225,6 +252,12 @@ export function isURL(urlInput: unknown, options?: IsURLOptions): boolean {
   split = url.split('/');
   url = split.shift() as string;
 
+  // WHATWG parsers (browsers, Node's URL) treat `\` as `/`: in `http://evil.com\@good.com` the host
+  // is evil.com, not good.com. A backslash in the authority would let the host checks be bypassed.
+  if (url.includes('\\')) {
+    return false;
+  }
+
   if (url === '' && !options.require_host) {
     return true;
   }
@@ -274,7 +307,7 @@ export function isURL(urlInput: unknown, options?: IsURLOptions): boolean {
 
   // A whitelisted host must still be a syntactically valid host (IP / FQDN) — the whitelist
   // narrows the accepted hosts, it does not bypass host validation.
-  if (options.host_whitelist && !checkHost(host, options.host_whitelist)) {
+  if (host_whitelist && !checkHost(host || ipv6 || '', host_whitelist)) {
     return false;
   }
 
@@ -288,7 +321,7 @@ export function isURL(urlInput: unknown, options?: IsURLOptions): boolean {
 
   host = host || ipv6;
 
-  if (options.host_blacklist && checkHost(host, options.host_blacklist)) {
+  if (host_blacklist && checkHost(host, host_blacklist)) {
     return false;
   }
 

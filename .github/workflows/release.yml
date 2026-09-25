@@ -34,6 +34,13 @@ jobs:
           git config user.name "github-actions[bot]"
           git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
 
+      # Never publish what CI would reject: a direct push to main/release skips the PR checks.
+      - name: Test all packages
+        run: npm run build && npm run test
+
+      - name: validation — full gate (check:all)
+        run: npm run check:validator
+
       - name: Release all packages
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

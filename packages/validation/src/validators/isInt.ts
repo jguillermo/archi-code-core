@@ -1,4 +1,5 @@
 import { toInteger } from '../convert/integer';
+import { ConvertMessages } from '../convert/result';
 import { toString } from '../convert/string';
 
 export interface IsIntOptions {
@@ -16,12 +17,13 @@ export interface IsIntOptions {
 export function isInt(str: unknown, options?: IsIntOptions): boolean {
   const opts = options || {};
   const r = toInteger(str, { syntax: 'validator', allowLeadingZeroes: opts.allow_leading_zeroes });
-  if (!r.ok) return false;
+  // INTEGER_OVERFLOW = valid integer text too large for a finite number: still an integer.
+  if (!r.ok && r.error !== ConvertMessages.INTEGER_OVERFLOW) return false;
 
-  // Beyond Number.MAX_SAFE_INTEGER the converted number is rounded, so bounds are compared
-  // exactly with BigInt on the original text.
-  const n = r.value;
+  // Beyond Number.MAX_SAFE_INTEGER the converted number is rounded (or ±Infinity), so bounds are
+  // compared exactly with BigInt on the original text.
   const text = typeof str === 'number' ? undefined : (toString(str).value as string);
+  const n = r.ok ? r.value : Number(text);
   const big = text !== undefined && !Number.isSafeInteger(n) ? BigInt(text) : undefined;
   const compare = (bound: number): number => {
     if (big !== undefined && Number.isInteger(bound)) {

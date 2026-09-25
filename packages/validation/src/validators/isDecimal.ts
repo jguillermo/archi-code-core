@@ -5,6 +5,7 @@ import { toString } from '../convert/string';
 import { escapeRegExp } from './util/escapeRegExp';
 import { BoundedCache } from './util/boundedCache';
 import { decimal } from './alpha';
+import { configText } from './util/config';
 
 export interface IsDecimalOptions {
   force_decimal?: boolean;
@@ -18,6 +19,16 @@ const decimalRegexCache = new BoundedCache<RegExp>();
 
 // decimal_digits is interpolated into a regex quantifier: only 'n', 'n,' or 'n,m' are allowed.
 const DECIMAL_DIGITS_FORMAT = /^\d+(,\d*)?$/;
+
+/** 'n', 'n,' or 'n,m' with n ≤ m, and small enough to be a RegExp quantifier ('5,2' is a SyntaxError). */
+function isValidDecimalDigits(digits: unknown): digits is string {
+  if (typeof digits !== 'string' || !DECIMAL_DIGITS_FORMAT.test(digits)) return false;
+  const [min, max = ''] = digits.split(',');
+  const LIMIT = 1_000_000;
+  return (
+    Number(min) <= LIMIT && (max === '' || (Number(min) <= Number(max) && Number(max) <= LIMIT))
+  );
+}
 
 function decimalRegExp(options: Required<IsDecimalOptions>): RegExp {
   const key = JSON.stringify([options.locale, options.decimal_digits, options.force_decimal]);
@@ -43,10 +54,10 @@ export function isDecimal(str: unknown, options?: IsDecimalOptions): boolean {
   // Historic API also accepts `locale: ['xx-YY']`; normalise like the former `in` lookup did.
   opts.locale = String(opts.locale);
   if (!hasOwn(decimal, opts.locale)) {
-    throw new ValidationConfigError(`Invalid locale '${opts.locale}'`);
+    throw new ValidationConfigError(`Invalid locale '${configText(opts.locale)}'`);
   }
-  if (typeof opts.decimal_digits !== 'string' || !DECIMAL_DIGITS_FORMAT.test(opts.decimal_digits)) {
-    throw new ValidationConfigError(`Invalid decimal_digits '${String(opts.decimal_digits)}'`);
+  if (!isValidDecimalDigits(opts.decimal_digits)) {
+    throw new ValidationConfigError(`Invalid decimal_digits '${configText(opts.decimal_digits)}'`);
   }
   const stringResult = toString(str);
   if (!stringResult.ok) return false;

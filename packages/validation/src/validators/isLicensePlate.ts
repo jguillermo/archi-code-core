@@ -1,6 +1,7 @@
 import { toString } from '../convert/string';
 import { ValidationConfigError } from './util/errors';
 import { hasOwn } from './util/hasOwn';
+import { configText } from './util/config';
 
 const validators = {
   'cs-CZ': (str) => /^(([ABCDEFHIJKLMNPRSTUVXYZ]|[0-9])-?){5,8}$/.test(str),
@@ -13,12 +14,12 @@ const validators = {
     /^[A-Z]{2}[ -]?[0-9]{1,2}(?:[ -]?[A-Z])(?:[ -]?[A-Z]*)?[ -]?[0-9]{4}$/.test(str),
   'en-SG': (str) => /^[A-Z]{3}[ -]?[\d]{4}[ -]?[A-Z]{1}$/.test(str),
   'es-AR': (str) => /^(([A-Z]{2} ?[0-9]{3} ?[A-Z]{2})|([A-Z]{3} ?[0-9]{3}))$/.test(str),
-  'fi-FI': (str) => /^(?=.{4,7})(([A-Z]{1,3}|[0-9]{1,3})[\s-]?([A-Z]{1,3}|[0-9]{1,5}))$/.test(str),
+  'fi-FI': (str) => /^(?=.{4,7}$)(([A-Z]{1,3}|[0-9]{1,3})[\s-]?([A-Z]{1,3}|[0-9]{1,5}))$/.test(str),
   'hu-HU': (str) =>
     /^((((?!AAA)(([A-NPRSTVZWXY]{1})([A-PR-Z]{1})([A-HJ-NPR-Z]))|(A[ABC]I)|A[ABC]O|A[A-W]Q|BPI|BPO|UCO|UDO|XAO)-(?!000)\d{3})|(M\d{6})|((CK|DT|CD|HC|H[ABEFIKLMNPRSTVX]|MA|OT|R[A-Z]) \d{2}-\d{2})|(CD \d{3}-\d{3})|(C-(C|X) \d{4})|(X-(A|B|C) \d{4})|(([EPVZ]-\d{5}))|(S A[A-Z]{2} \d{2})|(SP \d{2}-\d{2}))$/.test(
       str,
     ),
-  'pt-BR': (str) => /^[A-Z]{3}[ -]?[0-9][A-Z][0-9]{2}|[A-Z]{3}[ -]?[0-9]{4}$/.test(str),
+  'pt-BR': (str) => /^(?:[A-Z]{3}[ -]?[0-9][A-Z][0-9]{2}|[A-Z]{3}[ -]?[0-9]{4})$/.test(str),
   'pt-PT': (str) =>
     /^(([A-Z]{2}[ -·]?[0-9]{2}[ -·]?[0-9]{2})|([0-9]{2}[ -·]?[A-Z]{2}[ -·]?[0-9]{2})|([0-9]{2}[ -·]?[0-9]{2}[ -·]?[A-Z]{2})|([A-Z]{2}[ -·]?[0-9]{2}[ -·]?[A-Z]{2}))$/.test(
       str,
@@ -53,5 +54,5 @@ export function isLicensePlate(input: unknown, locale: LicensePlateLocale): bool
     }
     return false;
   }
-  throw new ValidationConfigError(`Invalid locale '${locale}'`);
+  throw new ValidationConfigError(`Invalid locale '${configText(locale)}'`);
 }

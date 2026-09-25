@@ -1,4 +1,5 @@
 import { toString } from '../convert/string';
+import { optionsOf } from './util/config';
 
 export interface IsISO8601Options {
   /** Also reject dates that do not exist in the calendar (e.g. 2024-02-30). */
@@ -34,8 +35,10 @@ const isValidDate = (str: string): boolean => {
   const monthString = month ? `0${month}`.slice(-2) : month;
   const dayString = day ? `0${day}`.slice(-2) : day;
 
-  // create a date object and compare
-  const d = new Date(`${year}-${monthString || '01'}-${dayString || '01'}`);
+  // create a date object and compare. The year is re-padded to 4 digits: `new Date('50-01-31')`
+  // would read year 50 as 1950/2050 and reject every valid date of years 0000-0099.
+  const yearString = `000${year}`.slice(-4);
+  const d = new Date(`${yearString}-${monthString || '01'}-${dayString || '01'}`);
   if (month && day) {
     return d.getUTCFullYear() === year && d.getUTCMonth() + 1 === month && d.getUTCDate() === day;
   }
@@ -47,12 +50,13 @@ const isValidDate = (str: string): boolean => {
  * which is the historic validator.js behaviour. Pass `{ strict: true }` to also reject dates
  * that do not exist in the calendar.
  */
-export function isISO8601(input: unknown, options: IsISO8601Options = {}): boolean {
+export function isISO8601(input: unknown, options?: IsISO8601Options): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   const str: string = s;
-  const check = options.strictSeparator ? iso8601StrictSeparator.test(str) : iso8601.test(str);
-  if (check && options.strict) return isValidDate(str);
+  const opts = optionsOf(options);
+  const check = opts.strictSeparator ? iso8601StrictSeparator.test(str) : iso8601.test(str);
+  if (check && opts.strict) return isValidDate(str);
   return check;
 }

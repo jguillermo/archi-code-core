@@ -1,4 +1,5 @@
 import { merge } from '../validators/util/merge';
+import { assertString } from '../validators/util/assertString';
 
 export interface NormalizeEmailOptions {
   all_lowercase?: boolean;
@@ -11,6 +12,7 @@ export interface NormalizeEmailOptions {
   yahoo_lowercase?: boolean;
   yahoo_remove_subaddress?: boolean;
   yandex_lowercase?: boolean;
+  yandex_convert_yandexru?: boolean;
   icloud_lowercase?: boolean;
   icloud_remove_subaddress?: boolean;
 }
@@ -174,10 +176,16 @@ function dotsReplacer(match: string): string {
   return '';
 }
 
-export function normalizeEmail(email: string, options?: Record<string, unknown>): string | false {
-  options = merge(options, default_normalize_email_options);
+export function normalizeEmail(email: string, options?: NormalizeEmailOptions): string | false {
+  // Same input contract as the other sanitizers: a clear TypeError for non-strings.
+  assertString(email);
+  const opts = merge(options, default_normalize_email_options);
 
   const raw_parts = email.split('@');
+  // Without '@' there is no address to normalize (it used to return '@<lowercased input>').
+  if (raw_parts.length < 2) {
+    return false;
+  }
   // split() always yields at least one element, so pop() is never undefined here.
   const domain = raw_parts.pop() as string;
   const user = raw_parts.join('@');
@@ -188,60 +196,60 @@ export function normalizeEmail(email: string, options?: Record<string, unknown>)
 
   if (parts[1] === 'gmail.com' || parts[1] === 'googlemail.com') {
     // Address is GMail
-    if (options.gmail_remove_subaddress) {
+    if (opts.gmail_remove_subaddress) {
       parts[0] = parts[0].split('+')[0];
     }
-    if (options.gmail_remove_dots) {
+    if (opts.gmail_remove_dots) {
       // this does not replace consecutive dots like example..email@gmail.com
       parts[0] = parts[0].replace(/\.+/g, dotsReplacer);
     }
     if (!parts[0].length) {
       return false;
     }
-    if (options.all_lowercase || options.gmail_lowercase) {
+    if (opts.all_lowercase || opts.gmail_lowercase) {
       parts[0] = parts[0].toLowerCase();
     }
-    parts[1] = options.gmail_convert_googlemaildotcom ? 'gmail.com' : parts[1];
+    parts[1] = opts.gmail_convert_googlemaildotcom ? 'gmail.com' : parts[1];
   } else if (icloud_domains.indexOf(parts[1]) >= 0) {
     // Address is iCloud
-    if (options.icloud_remove_subaddress) {
+    if (opts.icloud_remove_subaddress) {
       parts[0] = parts[0].split('+')[0];
     }
     if (!parts[0].length) {
       return false;
     }
-    if (options.all_lowercase || options.icloud_lowercase) {
+    if (opts.all_lowercase || opts.icloud_lowercase) {
       parts[0] = parts[0].toLowerCase();
     }
   } else if (outlookdotcom_domains.indexOf(parts[1]) >= 0) {
     // Address is Outlook.com
-    if (options.outlookdotcom_remove_subaddress) {
+    if (opts.outlookdotcom_remove_subaddress) {
       parts[0] = parts[0].split('+')[0];
     }
     if (!parts[0].length) {
       return false;
     }
-    if (options.all_lowercase || options.outlookdotcom_lowercase) {
+    if (opts.all_lowercase || opts.outlookdotcom_lowercase) {
       parts[0] = parts[0].toLowerCase();
     }
   } else if (yahoo_domains.indexOf(parts[1]) >= 0) {
     // Address is Yahoo
-    if (options.yahoo_remove_subaddress) {
+    if (opts.yahoo_remove_subaddress) {
       const components = parts[0].split('-');
       parts[0] = components.length > 1 ? components.slice(0, -1).join('-') : components[0];
     }
     if (!parts[0].length) {
       return false;
     }
-    if (options.all_lowercase || options.yahoo_lowercase) {
+    if (opts.all_lowercase || opts.yahoo_lowercase) {
       parts[0] = parts[0].toLowerCase();
     }
   } else if (yandex_domains.indexOf(parts[1]) >= 0) {
-    if (options.all_lowercase || options.yandex_lowercase) {
+    if (opts.all_lowercase || opts.yandex_lowercase) {
       parts[0] = parts[0].toLowerCase();
     }
-    parts[1] = options.yandex_convert_yandexru ? 'yandex.ru' : parts[1];
-  } else if (options.all_lowercase) {
+    parts[1] = opts.yandex_convert_yandexru ? 'yandex.ru' : parts[1];
+  } else if (opts.all_lowercase) {
     // Any other address
     parts[0] = parts[0].toLowerCase();
   }

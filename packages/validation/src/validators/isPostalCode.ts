@@ -1,6 +1,7 @@
 import { toString } from '../convert/string';
 import { ValidationConfigError } from './util/errors';
 import { hasOwn } from './util/hasOwn';
+import { configText } from './util/config';
 
 // common patterns
 const threeDigit = /^\d{3}$/;
@@ -108,5 +109,5 @@ export function isPostalCode(input: unknown, locale: PostalCodeLocale): boolean 
     }
     return false;
   }
-  throw new ValidationConfigError(`Invalid locale '${locale}'`);
+  throw new ValidationConfigError(`Invalid locale '${configText(locale)}'`);
 }

@@ -2,6 +2,7 @@ import { ValidationConfigError } from './util/errors';
 import { hasOwn } from './util/hasOwn';
 import { toString } from '../convert/string';
 import * as algorithms from './util/algorithms';
+import { configText } from './util/config';
 
 const AU = (str: string): boolean => {
   const match = str.match(/^(AU)?(\d{11})$/);
@@ -69,7 +70,7 @@ export const vatMatchers = {
   BE: (str: string): boolean => /^(BE)?\d{10}$/.test(str),
   BG: (str: string): boolean => /^(BG)?\d{9,10}$/.test(str),
   HR: (str: string): boolean => /^(HR)?\d{11}$/.test(str),
-  CY: (str: string): boolean => /^(CY)?\w{9}$/.test(str),
+  CY: (str: string): boolean => /^(CY)?[0-9A-Za-z]{9}$/.test(str),
   CZ: (str: string): boolean => /^(CZ)?\d{8,10}$/.test(str),
   DK: (str: string): boolean => /^(DK)?\d{8}$/.test(str),
   EE: (str: string): boolean => /^(EE)?\d{9}$/.test(str),
@@ -104,7 +105,8 @@ export const vatMatchers = {
   CA: (str: string): boolean => /^(CA)?\d{9}$/.test(str),
   IS: (str: string): boolean => /^(IS)?\d{5,6}$/.test(str),
   IN: (str: string): boolean => /^(IN)?\d{15}$/.test(str),
-  ID: (str: string): boolean => /^(ID)?(\d{15}|(\d{2}.\d{3}.\d{3}.\d{1}-\d{3}.\d{3}))$/.test(str),
+  ID: (str: string): boolean =>
+    /^(ID)?(\d{15}|(\d{2}\.\d{3}\.\d{3}\.\d{1}-\d{3}\.\d{3}))$/.test(str),
   IL: (str: string): boolean => /^(IL)?\d{9}$/.test(str),
   KZ: (str: string): boolean => /^(KZ)?\d{12}$/.test(str),
   NZ: (str: string): boolean => /^(NZ)?\d{9}$/.test(str),
@@ -130,14 +132,15 @@ export const vatMatchers = {
   AR: (str: string): boolean => /^(AR)?\d{11}$/.test(str),
   BO: (str: string): boolean => /^(BO)?\d{7}$/.test(str),
   BR: (str: string): boolean =>
-    /^(BR)?((\d{2}.\d{3}.\d{3}\/\d{4}-\d{2})|(\d{3}.\d{3}.\d{3}-\d{2}))$/.test(str),
+    /^(BR)?((\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2})|(\d{3}\.\d{3}\.\d{3}-\d{2}))$/.test(str),
   CL: (str: string): boolean => /^(CL)?\d{8}-\d{1}$/.test(str),
   CO: (str: string): boolean => /^(CO)?\d{10}$/.test(str),
   CR: (str: string): boolean => /^(CR)?\d{9,12}$/.test(str),
   EC: (str: string): boolean => /^(EC)?\d{13}$/.test(str),
   SV: (str: string): boolean => /^(SV)?\d{4}-\d{6}-\d{3}-\d{1}$/.test(str),
   GT: (str: string): boolean => /^(GT)?\d{7}-\d{1}$/.test(str),
-  HN: (str: string): boolean => /^(HN)?$/.test(str),
+  // Placeholder kept from upstream (no RTN format yet): only the bare prefix, never ''.
+  HN: (str: string): boolean => /^HN$/.test(str),
   MX: (str: string): boolean => /^(MX)?\w{3,4}\d{6}\w{3}$/.test(str),
   NI: (str: string): boolean => /^(NI)?\d{3}-\d{6}-\d{4}\w{1}$/.test(str),
   // Only a structural check (optional 'PA' prefix + at least one digit): the upstream rule was an
@@ -146,9 +149,9 @@ export const vatMatchers = {
   PY: (str: string): boolean => /^(PY)?\d{6,8}-\d{1}$/.test(str),
   PE: (str: string): boolean => /^(PE)?\d{11}$/.test(str),
   DO: (str: string): boolean =>
-    /^(DO)?(\d{11}|(\d{3}-\d{7}-\d{1})|[1,4,5]{1}\d{8}|([1,4,5]{1})-\d{2}-\d{5}-\d{1})$/.test(str),
+    /^(DO)?(\d{11}|(\d{3}-\d{7}-\d{1})|[145]{1}\d{8}|([145]{1})-\d{2}-\d{5}-\d{1})$/.test(str),
   UY: (str: string): boolean => /^(UY)?\d{12}$/.test(str),
-  VE: (str: string): boolean => /^(VE)?[J,G,V,E]{1}-(\d{9}|(\d{8}-\d{1}))$/.test(str),
+  VE: (str: string): boolean => /^(VE)?[JGVE]{1}-(\d{9}|(\d{8}-\d{1}))$/.test(str),
 };
 
 /** Known country codes (autocomplete); any string is accepted, unknown ones throw ValidationConfigError. */
@@ -165,5 +168,5 @@ export function isVAT(input: unknown, countryCode: VATCountryCode): boolean {
   if (hasOwn(vatMatchers, countryCode)) {
     return vatMatchers[countryCode](str);
   }
-  throw new ValidationConfigError(`Invalid country code: '${countryCode}'`);
+  throw new ValidationConfigError(`Invalid country code: '${configText(countryCode)}'`);
 }

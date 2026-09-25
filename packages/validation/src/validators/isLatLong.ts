@@ -21,8 +21,9 @@ export function isLatLong(str: unknown, options?: IsLatLongOptions): boolean {
   const s = stringResult.value;
   options = merge(options, defaultLatLongOptions);
 
-  if (!s.includes(',')) return false;
   const pair = s.split(',');
+  // Exactly "lat,long": anything after a second comma (`'1,2,<script>'`) used to be ignored.
+  if (pair.length !== 2) return false;
   if (
     (pair[0].startsWith('(') && !pair[1].endsWith(')')) ||
     (pair[1].endsWith(')') && !pair[0].startsWith('('))

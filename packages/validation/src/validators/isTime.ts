@@ -2,6 +2,7 @@ import { merge } from './util/merge';
 import { toString } from '../convert/string';
 import { ValidationConfigError } from './util/errors';
 import { hasOwn } from './util/hasOwn';
+import { configText } from './util/config';
 
 export interface IsTimeOptions {
   hourFormat?: 'hour12' | 'hour24';
@@ -29,9 +30,9 @@ const formats = {
 export function isTime(input: unknown, options?: IsTimeOptions | null): boolean {
   const { hourFormat, mode } = merge(options, default_time_options);
   if (!hasOwn(formats, hourFormat))
-    throw new ValidationConfigError(`Invalid hourFormat '${hourFormat}'`);
+    throw new ValidationConfigError(`Invalid hourFormat '${configText(hourFormat)}'`);
   const byMode = formats[hourFormat];
-  if (!hasOwn(byMode, mode)) throw new ValidationConfigError(`Invalid mode '${mode}'`);
+  if (!hasOwn(byMode, mode)) throw new ValidationConfigError(`Invalid mode '${configText(mode)}'`);
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

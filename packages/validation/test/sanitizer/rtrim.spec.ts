@@ -1,3 +1,5 @@
+import { loadWithoutNative, WHITESPACE_SAMPLES } from '../cross/support/withoutNative';
+import { rtrim } from '../../src/sanitizer/rtrim';
 import * as sanitizer from '../../src/sanitizer';
 import { test } from '../cross/support/sanitizerTest';
 
@@ -30,5 +32,41 @@ describe('Sanitizers', () => {
       args: ['\\S'],
       expect: { '01010020100001\\S': '01010020100001' },
     });
+  });
+});
+
+describe('rtrim is linear (no ReDoS)', () => {
+  it('long runs of chars not at the end', () => {
+    const input = `${'a'.repeat(100_000)}b`;
+    const t0 = performance.now();
+    expect(sanitizer.rtrim(input, 'a')).toBe(input);
+    expect(sanitizer.trim(input, 'a')).toBe('b');
+    expect(performance.now() - t0).toBeLessThan(150);
+  });
+  it('trims surrogate halves per code unit, like the former character class', () => {
+    expect(sanitizer.rtrim('x😀', '😀')).toBe('x');
+    expect(sanitizer.rtrim('x\uD83D', '😀')).toBe('x');
+  });
+});
+
+describe('rtrim — native String.prototype.trimEnd when available, programmed fallback otherwise', () => {
+  const fallback = loadWithoutNative<{ rtrim: typeof rtrim }>('../../../src/sanitizer/rtrim', [
+    'trimEnd',
+  ]).rtrim;
+
+  it('the fallback gives exactly the same result as the native path', () => {
+    for (const input of WHITESPACE_SAMPLES) {
+      expect(fallback(input)).toBe(rtrim(input));
+      expect(fallback(input)).toBe(input.trimEnd());
+    }
+  });
+
+  it('with chars both paths use the programmed rule', () => {
+    expect(fallback('--a--', '-')).toBe(rtrim('--a--', '-'));
+  });
+
+  it('both paths reject non-strings with a TypeError', () => {
+    expect(() => fallback(null as unknown as string)).toThrow(TypeError);
+    expect(() => rtrim(null as unknown as string)).toThrow(TypeError);
   });
 });

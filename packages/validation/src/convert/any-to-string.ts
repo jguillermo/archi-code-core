@@ -8,6 +8,16 @@ import { toString } from './string';
  * `'Date(…)'`, `'Map({…})'`, `'Function(name)'`…).
  */
 export function anyToString(value: any): string {
+  try {
+    return describe(value, new WeakSet<object>());
+  } catch {
+    // Hostile values: revoked proxies, throwing getters (`name`, `message`, `toString`)…
+    return '[Unrepresentable value]';
+  }
+}
+
+/** `seen` holds the Maps/Sets being described, so self-referencing collections cannot recurse forever. */
+function describe(value: any, seen: WeakSet<object>): string {
   const text = toString(value);
   if (text.ok) {
     return text.value;
@@ -18,13 +28,16 @@ export function anyToString(value: any): string {
   } else if (typeof value === 'number' && isNaN(value)) {
     return 'NaN';
   } else if (value instanceof Date) {
-    return `Date(${value.toISOString()})`;
-  } else if (value instanceof Map) {
-    const entries = Array.from(value, ([key, val]) => `${anyToString(key)}: ${anyToString(val)}`);
-    return `Map({${entries.join(', ')}})`;
-  } else if (value instanceof Set) {
-    const entries = Array.from(value, anyToString);
-    return `Set(${entries.join(', ')})`;
+    return isNaN(value.getTime()) ? 'Date(Invalid)' : `Date(${value.toISOString()})`;
+  } else if (value instanceof Map || value instanceof Set) {
+    if (seen.has(value)) return '[Circular]';
+    seen.add(value);
+    const described =
+      value instanceof Map
+        ? `Map({${Array.from(value, ([key, val]) => `${describe(key, seen)}: ${describe(val, seen)}`).join(', ')}})`
+        : `Set(${Array.from(value, (item) => describe(item, seen)).join(', ')})`;
+    seen.delete(value);
+    return described;
   } else if (value instanceof RegExp) {
     return `RegExp(${value.toString()})`;
   } else if (value instanceof Error) {

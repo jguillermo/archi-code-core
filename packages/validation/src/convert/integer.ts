@@ -14,7 +14,8 @@ export interface IntegerConvertOptions {
    *   duplicates the integer rule. It is NOT compatible with the default: a leading `+` is
    *   accepted, strings are not trimmed, booleans/finite numbers are read through `toString`,
    *   and there is NO safe-range limit (beyond ±Number.MAX_SAFE_INTEGER the returned value is
-   *   rounded — compare the original string when exactness matters).
+   *   rounded — compare the original string when exactness matters). Integers too large for a
+   *   finite number fail with `INTEGER_OVERFLOW`.
    */
   syntax?: 'default' | 'validator';
   /** Only for `syntax: 'validator'` (isInt's `allow_leading_zeroes`). Default: true. */
@@ -49,5 +50,7 @@ function toIntegerValidatorSyntax(v: unknown, options: IntegerConvertOptions): C
   const str = toString(v);
   if (!str.ok) return failure(ConvertMessages.INTEGER);
   const regex = options.allowLeadingZeroes === false ? VALIDATOR_INT : VALIDATOR_INT_LEADING_ZEROES;
-  return regex.test(str.value) ? success(Number(str.value)) : failure(ConvertMessages.INTEGER);
+  if (!regex.test(str.value)) return failure(ConvertMessages.INTEGER);
+  const n = Number(str.value);
+  return Number.isFinite(n) ? success(n) : failure(ConvertMessages.INTEGER_OVERFLOW);
 }
