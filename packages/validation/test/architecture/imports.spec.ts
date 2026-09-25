@@ -82,11 +82,17 @@ describe('architecture: import graph', () => {
   });
 
   const inDir = (dir: string): string[] => [...graph.keys()].filter((f) => f.startsWith(`${dir}/`));
+  // Files of convert/ that are not a type converter (no canBe counterpart).
+  const NON_TYPE_FILES = ['index.ts', 'result.ts', 'any-to-string.ts'];
   const typeFiles = (dir: string): string[] =>
     inDir(dir)
       .map((f) => f.slice(dir.length + 1))
-      .filter((f) => f !== 'index.ts' && f !== 'result.ts')
+      .filter((f) => !NON_TYPE_FILES.includes(f))
       .sort();
+
+  it('anyToString reuses the string rule of convert/string', () => {
+    expect(graph.get('convert/any-to-string.ts')).toContain('convert/string.ts');
+  });
 
   it('HARD RULE: convert/ depends only on convert/ (never on validators/ nor canBe/)', () => {
     const offenders = inDir('convert').flatMap((f) =>

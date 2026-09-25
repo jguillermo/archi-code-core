@@ -1,5 +1,5 @@
 import { CompareValue } from './compare-process/CompareValue';
-import { universalToString } from '@archi-code/common';
+import { anyToString } from '@archi-code/validation';
 
 type JsonValue = string | number | boolean | null | JsonObject | JsonArray;
 
@@ -34,7 +34,7 @@ export class JsonCompare {
   private compareArrays(data: JsonArray, reference: JsonArray, path: string): void {
     if (this._strictMode && data.length !== reference.length) {
       this._differences.push(
-        `${path}: length of ${universalToString(data)} is not equal to length of ${universalToString(reference)}`,
+        `${path}: length of ${anyToString(data)} is not equal to length of ${anyToString(reference)}`,
       );
       return;
     }
@@ -82,7 +82,7 @@ export class JsonCompare {
     if (Array.isArray(data)) {
       if (!Array.isArray(reference)) {
         this._differences.push(
-          `${path}: must not be an array; it must be ${universalToString(reference)}`,
+          `${path}: must not be an array; it must be ${anyToString(reference)}`,
         );
       } else {
         this.compareArrays(data, reference, path);
@@ -90,7 +90,7 @@ export class JsonCompare {
     } else if (this.isObject(data)) {
       if (!this.isObject(reference)) {
         this._differences.push(
-          `${path}: must not be an object; it must be ${universalToString(reference)}`,
+          `${path}: must not be an object; it must be ${anyToString(reference)}`,
         );
       } else {
         this.compareObjects(data as JsonObject, reference as JsonObject, path);
@@ -100,7 +100,7 @@ export class JsonCompare {
       if (!isEquals) {
         path = path === '' ? path : `${path}: `;
         this._differences.push(
-          `${path}${universalToString(data)} -> ${universalToString(reference)}`,
+          `${path}${anyToString(data)} -> ${anyToString(reference)}`,
         );
       }
     }

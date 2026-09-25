@@ -1,6 +1,6 @@
 import { DomainException } from './domain.exception';
 import { ExceptionCode } from '../exception-code';
-import { universalToString } from '@archi-code/common';
+import { anyToString } from '@archi-code/validation';
 
 export class TypePrimitiveException extends DomainException {
   constructor(expectedType: string, receivedValue: any, template = 'Expected a valid ') {
@@ -8,7 +8,7 @@ export class TypePrimitiveException extends DomainException {
       receivedValue = `"${receivedValue}"`;
     }
     super(
-      `Validation Error: ${template}${expectedType}, but received ${universalToString(receivedValue)}.`,
+      `Validation Error: ${template}${expectedType}, but received ${anyToString(receivedValue)}.`,
       [ExceptionCode.TypeFailed],
     );
   }
