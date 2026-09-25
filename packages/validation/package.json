@@ -49,10 +49,10 @@
     "check:dist": "node scripts/check-dist.js && node --experimental-vm-modules --no-warnings scripts/check-web.js",
     "check:all": "npm run check:prettier && npm run check:lint && npm run check:types && npm run test:coverage && npm run build && npm run check:dist",
     "benchmark": "ts-node --project benchmark/tsconfig.json benchmark/run.ts",
-    "check:lint": "eslint src test --ext .ts",
-    "check:prettier": "prettier --check \"{src,test,scripts}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\"",
-    "fix:lint": "eslint src test --ext .ts --fix",
-    "fix:prettier": "prettier --write \"{src,test,scripts}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\""
+    "check:lint": "eslint src test benchmark --ext .ts",
+    "check:prettier": "prettier --check \"{src,test,scripts}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\" \"benchmark/**/*.ts\" benchmark/tsconfig.json",
+    "fix:lint": "eslint src test benchmark --ext .ts --fix",
+    "fix:prettier": "prettier --write \"{src,test,scripts}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\" \"benchmark/**/*.ts\" benchmark/tsconfig.json"
   },
   "jest": {
     "moduleFileExtensions": [

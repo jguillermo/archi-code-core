@@ -1,6 +1,10 @@
 import { describe, expect, it } from '@jest/globals';
 import { toString, ConvertMessages } from '../../src/convert';
-import { converted, expectNotConvertible } from './helpers';
+import { converted, expectNotConvertible } from '../cross/support/convertHelpers';
+import type { Converted } from '../../src/convert';
+import assert from 'assert';
+
+const value = <T>(r: Converted<T>): T | null => r.value;
 
 describe('toString', () => {
   // ─── valid conversions ────────────────────────────────────────────────────
@@ -148,5 +152,118 @@ describe('toString', () => {
       obj.self = obj;
       expectNotConvertible(toString(obj), ConvertMessages.STRING);
     });
+  });
+});
+
+describe('convert/string — base string coercion (also used by the validators)', () => {
+  it('strings, booleans and finite numbers only', () => {
+    expect(toString('a').value).toBe('a');
+    expect(toString(true).value).toBe('true');
+    expect(toString(false).value).toBe('false');
+    expect(toString(1.5).value).toBe('1.5');
+    for (const v of [NaN, Infinity, null, {}]) expect(toString(v).ok).toBe(false);
+  });
+});
+
+describe('convert rules — { ok, value, error }', () => {
+  describe('toString', () => {
+    it('mirrors asString; failure is { ok: false, value: null, error }', () => {
+      expect(toString(null)).toEqual({ ok: false, value: null, error: ConvertMessages.STRING });
+      expect(value(toString(12))).toBe('12');
+      expect(toString(undefined)).toEqual({
+        ok: false,
+        value: null,
+        error: ConvertMessages.STRING,
+      });
+    });
+  });
+});
+
+describe('toString as the validators base string coercion', () => {
+  it('returns string for string input', () => {
+    assert.deepStrictEqual(toString('hello'), { ok: true, value: 'hello', error: null });
+    assert.deepStrictEqual(toString(''), { ok: true, value: '', error: null });
+  });
+
+  it('returns string for boolean input', () => {
+    assert.deepStrictEqual(toString(true), { ok: true, value: 'true', error: null });
+    assert.deepStrictEqual(toString(false), { ok: true, value: 'false', error: null });
+  });
+
+  it('returns string for finite number', () => {
+    assert.deepStrictEqual(toString(42), { ok: true, value: '42', error: null });
+    assert.deepStrictEqual(toString(0), { ok: true, value: '0', error: null });
+    assert.deepStrictEqual(toString(3.14), { ok: true, value: '3.14', error: null });
+  });
+
+  it('returns false for null', () =>
+    assert.deepStrictEqual(toString(null), {
+      ok: false,
+      value: null,
+      error: ConvertMessages.STRING,
+    }));
+  it('returns false for undefined', () =>
+    assert.deepStrictEqual(toString(undefined), {
+      ok: false,
+      value: null,
+      error: ConvertMessages.STRING,
+    }));
+  it('returns false for NaN', () =>
+    assert.deepStrictEqual(toString(NaN), {
+      ok: false,
+      value: null,
+      error: ConvertMessages.STRING,
+    }));
+  it('returns false for Infinity', () =>
+    assert.deepStrictEqual(toString(Infinity), {
+      ok: false,
+      value: null,
+      error: ConvertMessages.STRING,
+    }));
+  it('returns false for objects', () =>
+    assert.deepStrictEqual(toString({}), {
+      ok: false,
+      value: null,
+      error: ConvertMessages.STRING,
+    }));
+  it('returns false for arrays', () =>
+    assert.deepStrictEqual(toString([]), {
+      ok: false,
+      value: null,
+      error: ConvertMessages.STRING,
+    }));
+  it('returns false for Symbol', () =>
+    assert.deepStrictEqual(toString(Symbol('x')), {
+      ok: false,
+      value: null,
+      error: ConvertMessages.STRING,
+    }));
+
+  it('never throws', () => {
+    assert.doesNotThrow(() => toString(null));
+    assert.doesNotThrow(() => toString({}));
+    assert.doesNotThrow(() => toString(Symbol()));
+  });
+});
+
+describe('toString (convert module)', () => {
+  it('keeps strings as-is', () => {
+    assert.deepStrictEqual(toString('hello'), { ok: true, value: 'hello', error: null });
+    assert.deepStrictEqual(toString(''), { ok: true, value: '', error: null });
+  });
+
+  it('converts finite numbers to string', () => {
+    assert.deepStrictEqual(toString(42), { ok: true, value: '42', error: null });
+    assert.deepStrictEqual(toString(0), { ok: true, value: '0', error: null });
+    assert.deepStrictEqual(toString(3.14), { ok: true, value: '3.14', error: null });
+  });
+
+  it('converts booleans to string', () => {
+    assert.deepStrictEqual(toString(true), { ok: true, value: 'true', error: null });
+    assert.deepStrictEqual(toString(false), { ok: true, value: 'false', error: null });
+  });
+
+  it.each([[null], [undefined], [NaN], [{}]])('%p → { ok: false, error }', (v) => {
+    assert.deepStrictEqual(toString(v), { ok: false, value: null, error: ConvertMessages.STRING });
   });
 });

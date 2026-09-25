@@ -1,6 +1,11 @@
 import { describe, expect, it } from '@jest/globals';
 import { toInteger, ConvertMessages } from '../../src/convert';
-import { converted, expectNotConvertible } from './helpers';
+import { converted, expectNotConvertible } from '../cross/support/convertHelpers';
+import type { Converted } from '../../src/convert';
+
+const value = <T>(r: Converted<T>): T | null => r.value;
+
+const fail = (error: string): unknown => ({ ok: false, value: null, error });
 
 describe('toInteger', () => {
   // ─── valid conversions ────────────────────────────────────────────────────
@@ -132,5 +137,55 @@ describe('toInteger', () => {
       expectNotConvertible(toInteger(new Uint8Array()), ConvertMessages.INTEGER));
     it('new Error("x") → { ok: false, error }', () =>
       expectNotConvertible(toInteger(new Error('x')), ConvertMessages.INTEGER));
+  });
+});
+
+describe('convert rules — { ok, value, error }', () => {
+  describe('toInteger — safe integers only', () => {
+    it('accepts the safe range limits', () => {
+      expect(value(toInteger(Number.MAX_SAFE_INTEGER))).toBe(Number.MAX_SAFE_INTEGER);
+      expect(value(toInteger(String(Number.MIN_SAFE_INTEGER)))).toBe(Number.MIN_SAFE_INTEGER);
+      expect(value(toInteger(' 42 '))).toBe(42);
+    });
+    it('integers beyond ±MAX_SAFE_INTEGER → { ok: false, error: INTEGER_OVERFLOW } (no exception)', () => {
+      for (const v of [
+        '9007199254740993',
+        ' -9007199254740992 ',
+        '9'.repeat(100),
+        Number.MAX_SAFE_INTEGER + 1,
+        1e21,
+      ]) {
+        expect(toInteger(v)).toEqual({
+          ok: false,
+          value: null,
+          error: ConvertMessages.INTEGER_OVERFLOW,
+        });
+      }
+      expect(ConvertMessages.INTEGER_OVERFLOW).toBe(
+        'Integer exceeds the safe integer limits (-9007199254740991 to 9007199254740991)',
+      );
+    });
+    it('rejects non-integers', () => {
+      expect(toInteger('1.0')).toEqual({ ok: false, value: null, error: ConvertMessages.INTEGER });
+      expect(toInteger('+1')).toEqual({ ok: false, value: null, error: ConvertMessages.INTEGER });
+      expect(toInteger(1.5)).toEqual({ ok: false, value: null, error: ConvertMessages.INTEGER });
+      expect(toInteger(true)).toEqual({ ok: false, value: null, error: ConvertMessages.INTEGER });
+    });
+  });
+});
+
+describe('toInteger syntax: validator (ported from isInt)', () => {
+  it('accepts a leading +, does not trim, has no safe-range limit', () => {
+    expect(toInteger('+12', { syntax: 'validator' })).toEqual({ ok: true, value: 12, error: null });
+    expect(toInteger('+12')).toEqual(fail(ConvertMessages.INTEGER));
+    expect(toInteger(' 12', { syntax: 'validator' })).toEqual(fail(ConvertMessages.INTEGER));
+    expect(toInteger('9007199254740993', { syntax: 'validator' }).ok).toBe(true);
+    expect(toInteger(1e21, { syntax: 'validator' }).ok).toBe(true);
+    expect(toInteger(1.5, { syntax: 'validator' })).toEqual(fail(ConvertMessages.INTEGER));
+    expect(toInteger(null, { syntax: 'validator' })).toEqual(fail(ConvertMessages.INTEGER));
+  });
+  it('allowLeadingZeroes: false rejects "012"', () => {
+    expect(toInteger('012', { syntax: 'validator' }).ok).toBe(true);
+    expect(toInteger('012', { syntax: 'validator', allowLeadingZeroes: false }).ok).toBe(false);
   });
 });

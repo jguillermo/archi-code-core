@@ -7,7 +7,10 @@ import { join } from 'path';
  * real (ver `nextRef` en run.ts): baja en mejoras reales, se mantiene si no. Se usa para
  * marcar en rojo las regresiones y en verde las mejoras.
  */
-export type BaselineEntry = { okNs: number; errNs: number };
+export interface BaselineEntry {
+  okNs: number;
+  errNs: number;
+}
 export type Baseline = Record<string, BaselineEntry>;
 
 // Nombre distinto de `baseline.*` a propósito: si se llamara baseline.json, el import

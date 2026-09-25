@@ -34,18 +34,19 @@ BENCH_REPEATS=20 npm run benchmark -w ...                             # aún má
 
 ## De dónde salen los valores a testear
 
-Cada validador aporta sus propios valores **success** y **error** en un archivo colocado
-en el árbol de tests: `test/validator/samples/<validador>.samples.ts`. Cada uno exporta un
+Cada validador aporta sus propios valores **success** y **error** en un archivo dentro del
+propio benchmark: `benchmark/samples/<validador>.samples.ts`. Cada uno exporta un
 `ValidatorSample` con:
 
 - `name` — nombre del validador,
 - `run(input)` — cómo invocarlo (con sus args, p. ej. `isHash(v, 'md5')`),
 - `valid` / `invalid` — los valores a medir.
 
-El benchmark los lee desde `test/validator/samples/index.ts`. El spec-contrato
-`test/validator/samples.contract.spec.ts` (parte de `npm test`) verifica que todo `valid`
-retorne `true` y todo `invalid` retorne `false`, garantizando que las mediciones son
-correctas.
+El benchmark los lee desde `benchmark/samples/index.ts`. Los samples son solo datos de entrada: el
+benchmark no contiene tests, se limita a ejecutar las funciones de validation. Al arrancar,
+`run.ts` comprueba que cada `valid` devuelva `true` y cada `invalid` devuelva `false` (además de
+nombres únicos y `valid` sin duplicados); si algún sample no cuadra, lista los problemas y termina
+con código 1 sin medir.
 
 ## Referencia y colores
 

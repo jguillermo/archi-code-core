@@ -1,6 +1,17 @@
-import { describe, expect, it } from '@jest/globals';
+import { afterEach, describe, expect, it } from '@jest/globals';
 import { toDate, ConvertMessages } from '../../src/convert';
-import { converted, expectNotConvertible } from './helpers';
+import { converted, expectNotConvertible } from '../cross/support/convertHelpers';
+import type { Converted } from '../../src/convert';
+import timezone_mock from 'timezone-mock';
+
+const value = <T>(r: Converted<T>): T | null => r.value;
+
+const fail = (error: string): unknown => ({ ok: false, value: null, error });
+
+const parseDateLax = (v: unknown): Date | undefined => {
+  const r = toDate(v, { lax: true });
+  return r.ok ? r.value : undefined;
+};
 
 describe('toDate', () => {
   // ─── valid conversions ────────────────────────────────────────────────────
@@ -177,5 +188,149 @@ describe('toDate', () => {
       expectNotConvertible(toDate('2024-01-31', { strictMode: true }), ConvertMessages.DATE);
       expectNotConvertible(toDate(new Date(0), { strictMode: true }), ConvertMessages.DATE);
     });
+  });
+});
+
+describe('convert rules — { ok, value, error }', () => {
+  describe('toDate — real calendar dates, UTC when no zone is given', () => {
+    afterEach(() => timezone_mock.unregister());
+
+    it('date-only and zone-less date-time are both UTC, on any machine time zone', () => {
+      for (const tz of ['UTC', 'US/Pacific', 'Europe/London', 'Australia/Adelaide'] as const) {
+        timezone_mock.register(tz);
+        expect(value(toDate('2024-01-01'))?.getTime()).toBe(Date.UTC(2024, 0, 1));
+        expect(value(toDate('2024-01-01T10:30:00', { iso: true }))?.getTime()).toBe(
+          Date.UTC(2024, 0, 1, 10, 30),
+        );
+        expect(value(toDate('2024-01-01 10:30:00', { iso: true }))?.getTime()).toBe(
+          Date.UTC(2024, 0, 1, 10, 30),
+        );
+        timezone_mock.unregister();
+      }
+    });
+
+    it('explicit zones are honoured', () => {
+      expect(value(toDate('2024-01-01T10:00:00+02:00', { iso: true }))?.getTime()).toBe(
+        Date.UTC(2024, 0, 1, 8),
+      );
+      expect(value(toDate('2024-01-01T10:00:00.250Z', { iso: true }))?.getTime()).toBe(
+        Date.UTC(2024, 0, 1, 10, 0, 0, 250),
+      );
+    });
+
+    it('leap years follow the Gregorian rule, including year 0000', () => {
+      expect(toDate('2024-02-29').ok).toBe(true);
+      expect(toDate('2000-02-29').ok).toBe(true);
+      expect(toDate('0000-02-29').ok).toBe(true);
+      expect(toDate('1900-02-29')).toEqual({ ok: false, value: null, error: ConvertMessages.DATE });
+      expect(toDate('2023-02-29')).toEqual({ ok: false, value: null, error: ConvertMessages.DATE });
+    });
+
+    it.each([
+      ['2024-02-30'],
+      ['2024-13-01'],
+      ['2024-01-01T24:00:00'],
+      ['2024-01-01T00:00:00+24:00'],
+      ['2024-01-01T00:00:00+01:60'],
+      ['2018-03-23Z'],
+      ['01/02/2024'],
+      [42],
+      [new Date('x')],
+    ])('%p → { ok: false, error }', (input) =>
+      expect(toDate(input)).toEqual({ ok: false, value: null, error: ConvertMessages.DATE }),
+    );
+
+    it('valid Date instances are returned as-is', () => {
+      const d = new Date(0);
+      expect(value(toDate(d))).toBe(d);
+    });
+  });
+});
+
+describe('toDate format (ported from isDate)', () => {
+  it('parses by the given format and returns the UTC date', () => {
+    const r = toDate('31/01/2024', { format: 'DD/MM/YYYY' });
+    expect(r.ok && r.value.toISOString()).toBe('2024-01-31T00:00:00.000Z');
+    expect(toDate('31/01/2024')).toEqual(fail(ConvertMessages.DATE));
+  });
+  it('rejects impossible dates and honours strictMode', () => {
+    expect(toDate('2024/02/30', { format: 'YYYY/MM/DD' })).toEqual(fail(ConvertMessages.DATE));
+    expect(toDate('2024-01-31', { format: 'YYYY/MM/DD' }).ok).toBe(true);
+    expect(toDate('2024-01-31', { format: 'YYYY/MM/DD', strictMode: true }).ok).toBe(false);
+  });
+  it('Date instances are accepted unless strictMode', () => {
+    expect(toDate(new Date(0), { format: 'YYYY/MM/DD' }).ok).toBe(true);
+    expect(toDate(new Date(0), { format: 'YYYY/MM/DD', strictMode: true }).ok).toBe(false);
+  });
+});
+
+describe('toDate iso (the former default ISO rule)', () => {
+  it('reads date-times and zones; rejects impossible values', () => {
+    expect(toDate('2024-01-01T10:00:00+02:00', { iso: true }).ok).toBe(true);
+    for (const v of [
+      '2024-02-30',
+      '2024-01-01T24:00:00',
+      '2024-01-01T10:00:00+01:60',
+      '2024/01/01',
+      42,
+      new Date('x'),
+    ]) {
+      expect(toDate(v, { iso: true })).toEqual(fail(ConvertMessages.DATE));
+    }
+    const d = new Date(0);
+    expect(toDate(d, { iso: true })).toEqual({ ok: true, value: d, error: null });
+  });
+});
+
+describe('toDate lax mode (ported from isAfter / isBefore)', () => {
+  afterEach(() => timezone_mock.unregister());
+
+  it('accepts valid Date instances and rejects invalid ones', () => {
+    const d = new Date(0);
+    expect(parseDateLax(d)).toBe(d);
+    expect(parseDateLax(new Date('x'))).toBeUndefined();
+  });
+
+  it('accepts ISO 8601 reduced precision forms', () => {
+    expect(parseDateLax('2024')?.getTime()).toBe(Date.UTC(2024, 0, 1));
+    expect(parseDateLax('2024-03')?.getTime()).toBe(Date.UTC(2024, 2, 1));
+    expect(parseDateLax('2024-03-05')?.getTime()).toBe(Date.UTC(2024, 2, 5));
+    expect(parseDateLax('2024-03-05T10:20')?.getTime()).toBe(Date.UTC(2024, 2, 5, 10, 20));
+    expect(parseDateLax('2024-03-05T10:20:30.5+01:00')?.getTime()).toBe(
+      Date.UTC(2024, 2, 5, 9, 20, 30, 500),
+    );
+  });
+
+  it('zone-less date-times are UTC regardless of the machine time zone', () => {
+    timezone_mock.register('US/Pacific');
+    expect(parseDateLax('2024-03-05T10:20:30')?.getTime()).toBe(Date.UTC(2024, 2, 5, 10, 20, 30));
+  });
+
+  it('accepts Date#toString() and Date#toUTCString() output (explicit offset)', () => {
+    const d = new Date(Date.UTC(2011, 8, 10, 12));
+    expect(parseDateLax(d.toString())?.getTime()).toBe(d.getTime());
+    expect(parseDateLax(d.toUTCString())?.getTime()).toBe(d.getTime());
+  });
+
+  it.each([
+    ['01/02/2024'], // engine-dependent
+    ['March 7, 2024'],
+    ['2024-02-30'],
+    ['2023-02-29'],
+    ['2024-13'],
+    ['2024-00-10'],
+    ['2024-01-01T24:00'],
+    ['2024-01-01T10:60'],
+    ['2024-01-01T10:00:60'],
+    ['2024-01-01T10:00+24:00'],
+    ['2024-01-01T10:00+01:60'],
+    ['Sat Sep 10 2011 12:00:00 GMT+9999'],
+    [42],
+    [null],
+  ])('%p → undefined', (input) => expect(parseDateLax(input)).toBeUndefined());
+
+  it('leap day handling', () => {
+    expect(parseDateLax('2024-02-29')).toBeInstanceOf(Date);
+    expect(parseDateLax('1900-02-29')).toBeUndefined();
   });
 });

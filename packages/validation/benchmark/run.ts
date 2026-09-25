@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import { Bench } from 'tinybench';
-import { samples } from '../test/validator/samples';
+import { samples } from './samples';
 import { formatTable, writeMarkdown, compareNs, DEFAULT_TOLERANCE, type Row } from './report';
 import { readBaseline, writeBaseline, type Baseline } from './baseline';
 
@@ -70,6 +70,15 @@ function renderProgress(done: number, total: number): void {
   process.stdout.write(`\r\x1b[2K  [${bar}] ${Math.round(ratio * 100)}%`);
 }
 
+/** Resultado de una tarea: tinybench 2.x expone hz/mean/rme; 3.x+ los agrupa en throughput/latency. */
+interface BenchResult {
+  hz?: number;
+  mean?: number;
+  rme?: number;
+  throughput?: { mean?: number };
+  latency?: { mean?: number; rme?: number };
+}
+
 /**
  * Runs a tinybench y devuelve un mapa nombre -> resultado. `onCycle` se llama una vez por
  * validador al terminar de medirse (para avanzar la barra de progreso global).
@@ -93,11 +102,11 @@ async function runBench(
 
   const map = new Map<string, { hz: number; mean: number; rme: number }>();
   for (const task of bench.tasks) {
-    const r = task.result;
+    const r = task.result as BenchResult | undefined;
     if (!r) continue;
-    const hz = (r as any).throughput?.mean ?? (r as any).hz ?? 0;
-    const meanMs = (r as any).latency?.mean ?? (r as any).mean ?? 0;
-    const rme = (r as any).latency?.rme ?? (r as any).rme ?? 0;
+    const hz = r.throughput?.mean ?? r.hz ?? 0;
+    const meanMs = r.latency?.mean ?? r.mean ?? 0;
+    const rme = r.latency?.rme ?? r.rme ?? 0;
     map.set(task.name, { hz, mean: meanMs, rme });
   }
   return map;
@@ -116,7 +125,17 @@ function nextRef(prev: number | undefined, current: number, rme: number): number
 }
 
 /** Acumula las mediciones de cada repetición por validador, para promediarlas al final. */
-type Acc = { ns: number[]; hz: number[] };
+interface Acc {
+  ns: number[];
+  hz: number[];
+}
+
+/** Mediciones acumuladas de un validador; todos los samples se miden, así que siempre existen. */
+function accOf(acc: Map<string, Acc>, name: string): Acc {
+  const a = acc.get(name);
+  if (!a) throw new Error(`Sin mediciones para ${name}`);
+  return a;
+}
 
 function accumulate(
   dst: Map<string, Acc>,
@@ -130,7 +149,50 @@ function accumulate(
   }
 }
 
+/** Muestra un valor de sample de forma legible en los mensajes de error. */
+function show(v: unknown): string {
+  try {
+    return JSON.stringify(v) ?? String(v);
+  } catch {
+    return String(v);
+  }
+}
+
+/**
+ * Comprueba los samples ANTES de medir: si un `valid` no devuelve true (o un `invalid` no
+ * devuelve false) el benchmark mediría la ruta equivocada. Devuelve la lista de problemas
+ * (vacía si todo es correcto). Reglas: nombres únicos, ≥1 valid y ≥1 invalid, valid sin
+ * duplicados, run(valid) === true y run(invalid) === false.
+ */
+function checkSamples(): string[] {
+  const problems: string[] = [];
+  const seen = new Set<string>();
+  for (const s of samples) {
+    if (seen.has(s.name)) problems.push(`${s.name}: nombre duplicado`);
+    seen.add(s.name);
+    if (s.valid.length === 0) problems.push(`${s.name}: no tiene valores valid`);
+    if (s.invalid.length === 0) problems.push(`${s.name}: no tiene valores invalid`);
+    if (new Set(s.valid).size !== s.valid.length)
+      problems.push(`${s.name}: valores valid duplicados`);
+    for (const input of s.valid) {
+      if (s.run(input) !== true) problems.push(`${s.name}: valid ${show(input)} no devuelve true`);
+    }
+    for (const input of s.invalid) {
+      if (s.run(input) !== false)
+        problems.push(`${s.name}: invalid ${show(input)} no devuelve false`);
+    }
+  }
+  return problems;
+}
+
 async function main(): Promise<void> {
+  const problems = checkSamples();
+  if (problems.length > 0) {
+    console.error(`Samples incorrectos (${problems.length}) — el benchmark no se ejecuta:`);
+    for (const p of problems) console.error(`  - ${p}`);
+    process.exit(1);
+  }
+
   console.log(
     `Benchmark: ${samples.length} validadores × 2 rutas (éxito/error), ` +
       `${BENCH_REPEATS} repeticiones × ${BENCH_SAMPLES} muestras (promedio recortado).\n`,
@@ -180,8 +242,8 @@ async function main(): Promise<void> {
   const nextBaseline: Baseline = {};
 
   const rows: Row[] = samples.map((s) => {
-    const ok = okAcc.get(s.name)!;
-    const err = errAcc.get(s.name)!;
+    const ok = accOf(okAcc, s.name);
+    const err = accOf(errAcc, s.name);
     // Valor final en nanosegundos ENTEROS (promedio recortado convertido a ns).
     const okNs = toNs(trimmedMean(ok.ns));
     const okRme = cvPct(ok.ns); // ruido real = dispersión entre repeticiones (%)
