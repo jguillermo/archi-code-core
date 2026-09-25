@@ -13,7 +13,7 @@ npm install @archi-code/validation
 
 | Tool | Question it answers | Returns |
 |---|---|---|
-| `validator.isX(value, …)` | Is this value a valid X? (email, URL, IBAN, phone…) | `boolean` |
+| `isX(value, …)` (also `validator.isX`) | Is this value a valid X? (email, URL, IBAN, phone…) | `boolean` |
 | `toX(value, options?)` | Convert this value to type X. | `{ ok, value, error }` |
 | `canBeX(value)` | Can this value be converted to type X? | `boolean` (always `toX(value).ok`) |
 
@@ -21,11 +21,11 @@ npm install @archi-code/validation
 never duplicate it, so `canBeX(v) === toX(v).ok` holds by construction.
 
 ```ts
-import { validator, toInteger, canBeDate, sanitizer } from '@archi-code/validation';
+import { isEmail, isIBAN, isMobilePhone, toInteger, canBeDate, sanitizer } from '@archi-code/validation';
 
-validator.isEmail('ana@example.com'); // true
-validator.isIBAN('DE89 3704 0044 0532 0130 00'); // true
-validator.isMobilePhone('+34612345678', 'es-ES'); // true
+isEmail('ana@example.com'); // true
+isIBAN('DE89 3704 0044 0532 0130 00'); // true
+isMobilePhone('+34612345678', 'es-ES'); // true
 
 const n = toInteger(' 42 ');
 if (n.ok) n.value; // 42 (narrowed to number)
@@ -34,6 +34,20 @@ toInteger('abc'); // { ok: false, value: null, error: 'Value is not an integer' 
 canBeDate('2024-01-31'); // true
 sanitizer.escape('<a>'); // '&lt;a&gt;'
 ```
+
+## Tree-shaking: prefer named imports
+
+Every validator is also exported on its own and is the very same function as its registry
+member (`isEmail === validator.isEmail`). The package declares `"sideEffects": false`, so
+bundlers keep only what you import:
+
+```ts
+import { isEmail } from '@archi-code/validation'; // isEmail + its helpers (~16 KB of ESM source)
+import { validator } from '@archi-code/validation'; // every validator and locale table (~176 KB)
+```
+
+The sizes are unminified ESM source reachable from the import. Use `validator` when you need
+dynamic access (`validator[name]`) or `createValidator`, and named imports everywhere else.
 
 ## Contract
 

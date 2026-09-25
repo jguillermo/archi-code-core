@@ -3,6 +3,9 @@
  */
 import { describe, expect, it } from '@jest/globals';
 import { expectTypeOf } from 'expect-type';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as api from '../src';
 import {
   validator,
   createValidator,
@@ -117,5 +120,38 @@ describe('public types', () => {
       >();
       expectTypeOf(validator.isMobilePhone).toBeCallableWith('600000000', 'any-other-string');
     });
+  });
+});
+
+describe('tree-shakable named exports', () => {
+  const exported = api as unknown as Record<string, unknown>;
+
+  it('every member of the validator registry is exported by name, as the same function / list', () => {
+    for (const [name, member] of Object.entries(validator)) {
+      expect(exported[name]).toBe(member);
+    }
+    expect(api.isEmail('ana@example.com')).toBe(true);
+    expectTypeOf(api.isEmail).toEqualTypeOf<typeof validator.isEmail>();
+  });
+
+  it('named validator exports come straight from their own file (never through the registry barrel)', () => {
+    const index = fs.readFileSync(path.join(__dirname, '../src/index.ts'), 'utf8');
+    const fromBarrel = [...index.matchAll(/export \{([^}]*)\} from '\.\/validators';/g)].map((m) =>
+      m[1].trim(),
+    );
+    expect(fromBarrel).toEqual(['validator']);
+  });
+
+  it('no validator module imports the registry barrel (it would pull every validator into the bundle)', () => {
+    const dir = path.join(__dirname, '../src/validators');
+    const offenders = fs
+      .readdirSync(dir, { recursive: true, encoding: 'utf8' })
+      .filter((f) => f.endsWith('.ts') && f !== 'index.ts')
+      .filter((f) =>
+        /from '\.\.?\/(?:\.\.\/)?(?:validators\/?)?(?:index)?'/.test(
+          fs.readFileSync(path.join(dir, f), 'utf8'),
+        ),
+      );
+    expect(offenders).toEqual([]);
   });
 });
