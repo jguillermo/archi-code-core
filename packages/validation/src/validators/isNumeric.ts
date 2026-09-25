@@ -1,19 +1,37 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
+import { ValidationConfigError } from './util/errors';
+import hasOwn from './util/hasOwn';
 import { decimal } from './alpha';
 
 const numericNoSymbols = /^[0-9]+$/;
 
+// One compiled regex per decimal separator (instead of a new RegExp on every call).
+const numericRegexCache = new Map<string, RegExp>();
+
+function getNumericRegex(separator: string): RegExp {
+  let re = numericRegexCache.get(separator);
+  if (re === undefined) {
+    re = new RegExp(`^[+-]?([0-9]*[${separator}])?[0-9]+$`);
+    numericRegexCache.set(separator, re);
+  }
+  return re;
+}
+
 export default function isNumeric(
-  str: unknown,
+  input: unknown,
   options?: { no_symbols?: boolean; locale?: string },
 ): boolean {
-  const s = tryToString(str);
-  if (s === false) return false;
-  str = s;
-  if (options && options.no_symbols) {
-    return numericNoSymbols.test(str);
+  let separator = '.';
+  if (options?.locale) {
+    if (!hasOwn(decimal, options.locale))
+      throw new ValidationConfigError(`Invalid locale '${options.locale}'`);
+    separator = decimal[options.locale];
   }
-  return new RegExp(
-    `^[+-]?([0-9]*[${(options || {}).locale ? decimal[options.locale] : '.'}])?[0-9]+$`,
-  ).test(str);
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
+  if (options?.no_symbols) {
+    return numericNoSymbols.test(s);
+  }
+  return getNumericRegex(separator).test(s);
 }

@@ -1,14 +1,15 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 import isIP from './isIP';
 
 const subnetMaybe = /^\d{1,3}$/;
 const v4Subnet = 32;
 const v6Subnet = 128;
 
-export default function isIPRange(str: unknown, version: number | string = ''): boolean {
-  const s = tryToString(str);
-  if (s === false) return false;
-  str = s;
+export default function isIPRange(input: unknown, version: number | string = ''): boolean {
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
+  const str: string = s;
   const parts = str.split('/');
 
   // parts[0] -> ip, parts[1] -> subnet
@@ -45,5 +46,5 @@ export default function isIPRange(str: unknown, version: number | string = ''): 
       expectedSubnet = isIP(parts[0], '6') ? v6Subnet : v4Subnet;
   }
 
-  return parts[1] <= expectedSubnet && parts[1] >= 0;
+  return Number(parts[1]) <= expectedSubnet;
 }

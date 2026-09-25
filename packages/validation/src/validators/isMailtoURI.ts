@@ -1,6 +1,7 @@
 import { trim } from '../sanitizer';
 import isEmail from './isEmail';
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
+import type { IsEmailOptions } from '../types';
 
 function parseMailtoQueryString(queryString: string): { cc: string; bcc: string } | false {
   const allowedParams = new Set(['subject', 'body', 'cc', 'bcc']),
@@ -34,10 +35,11 @@ function parseMailtoQueryString(queryString: string): { cc: string; bcc: string 
   return isParseFailed ? false : query;
 }
 
-export default function isMailtoURI(url: unknown, options?: unknown): boolean {
-  const s = tryToString(url);
-  if (s === false) return false;
-  url = s;
+export default function isMailtoURI(input: unknown, options?: IsEmailOptions): boolean {
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
+  const url: string = s;
 
   if (url.indexOf('mailto:') !== 0) {
     return false;

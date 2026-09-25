@@ -1,19 +1,13 @@
-import tryToString from './util/tryToString';
+import { toBoolean } from '../convert/boolean';
 
-const defaultOptions = { loose: false };
-const strictBooleans = ['true', 'false', '1', '0'];
-const looseBooleans = [...strictBooleans, 'yes', 'no'];
-
-export default function isBoolean(str: unknown, options = defaultOptions): boolean {
-  // Fast path: native boolean — always valid
-  if (typeof str === 'boolean') return true;
-  // Fast path: number acting as boolean (1/0 only)
-  if (typeof str === 'number') return str === 1 || str === 0;
-  // Non-string: coerce if possible, otherwise reject
-  const s = tryToString(str);
-  if (s === false) return false;
-  if (options.loose) {
-    return looseBooleans.includes(s.toLowerCase());
-  }
-  return strictBooleans.includes(s);
+/**
+ * Boolean check. The rule lives in `convert/boolean` (`mode: 'strict'` / `'loose'`, ported from
+ * this validator): strict is case-sensitive `'true'|'false'|'1'|'0'`; loose also lower-cases and
+ * accepts `'yes'|'no'`. Native booleans and the numbers 1/0 are always valid.
+ */
+export default function isBoolean(
+  str: unknown,
+  options: { loose?: boolean } | null = null,
+): boolean {
+  return toBoolean(str, { mode: options?.loose ? 'loose' : 'strict' }).ok;
 }

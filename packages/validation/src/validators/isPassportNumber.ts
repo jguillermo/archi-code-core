@@ -1,4 +1,6 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
+import { ValidationConfigError } from './util/errors';
+import hasOwn from './util/hasOwn';
 
 /**
  * Reference:
@@ -69,7 +71,7 @@ const passportRegexByCountryCode = {
   ZA: /^[TAMD]\d{8}$/, // SOUTH AFRICA
 };
 
-export const locales = Object.keys(passportRegexByCountryCode);
+export const locales: readonly string[] = Object.freeze(Object.keys(passportRegexByCountryCode));
 
 /**
  * Check if str is a valid passport number
@@ -79,15 +81,19 @@ export const locales = Object.keys(passportRegexByCountryCode);
  * @param {string} countryCode
  * @return {boolean}
  */
-export default function isPassportNumber(str: unknown, countryCode: string): boolean {
-  const s = tryToString(str);
-  if (s === false) return false;
-  str = s;
+export default function isPassportNumber(input: unknown, countryCode: string): boolean {
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
+  const str: string = s;
   /** Remove All Whitespaces, Convert to UPPERCASE */
   const normalizedStr = str.replace(/\s/g, '').toUpperCase();
 
+  if (typeof countryCode !== 'string')
+    throw new ValidationConfigError('countryCode must be a string');
+  // Unknown country codes return false (historic behaviour); the lookup is case-insensitive.
+  const code = countryCode.toUpperCase();
   return (
-    countryCode.toUpperCase() in passportRegexByCountryCode &&
-    passportRegexByCountryCode[countryCode].test(normalizedStr)
+    hasOwn(passportRegexByCountryCode, code) && passportRegexByCountryCode[code].test(normalizedStr)
   );
 }

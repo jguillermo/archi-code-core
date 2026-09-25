@@ -1,8 +1,9 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 
-export default function equals(str: unknown, comparison: string): boolean {
-  const s = tryToString(str);
-  if (s === false) return false;
-  str = s;
+export default function equals(input: unknown, comparison: string): boolean {
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
+  const str: string = s;
   return str === comparison;
 }

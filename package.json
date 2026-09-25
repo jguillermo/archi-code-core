@@ -21,6 +21,7 @@
     "generate-tree": "node scripts/generate-packages-tree.js",
     "release:dry-run": "node scripts/release-all.js --dry-run",
     "benchmark": "npm run benchmark -w packages/validation",
+    "check:validator": "npm run check:all -w @archi-code/validation",
     "pr:ready": "npm run fix && npm run check && npm run test:coverage && git diff --exit-code"
   },
   "devDependencies": {

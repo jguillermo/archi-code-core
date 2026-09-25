@@ -1,8 +1,9 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 
-export default function isLowercase(str: unknown): boolean {
-  const s = tryToString(str);
-  if (s === false) return false;
-  str = s;
+export default function isLowercase(input: unknown): boolean {
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
+  const str: string = s;
   return str === str.toLowerCase();
 }

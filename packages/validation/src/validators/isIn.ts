@@ -1,24 +1,24 @@
-import tryToString from './util/tryToString';
-import { toString } from '../convert';
+import { toString } from '../convert/string';
+import { toEnum } from '../convert/enum';
 
-export default function isIn(str: unknown, values: unknown[]): boolean {
-  const s = tryToString(str);
-  if (s === false) return false;
-  str = s;
+export default function isIn(input: unknown, values: unknown[]): boolean {
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
+  const str: string = s;
   let i;
   if (Object.prototype.toString.call(values) === '[object Array]') {
     const array: string[] = [];
     for (i in values) {
       // istanbul ignore else
       if ({}.hasOwnProperty.call(values, i)) {
-        try {
-          array[i] = toString((values as Record<string, unknown>)[i]);
-        } catch {
-          // non-convertible element: skip
-        }
+        // non-convertible elements are skipped
+        const item = toString((values as unknown as Record<string, unknown>)[i]);
+        if (item.ok) array[i] = item.value;
       }
     }
-    return array.indexOf(str) >= 0;
+    // Membership in a list of options is the enum rule of convert.
+    return toEnum(str, array).ok;
   }
   if (typeof values === 'object') {
     return Object.prototype.hasOwnProperty.call(values, str);

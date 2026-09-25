@@ -1,4 +1,4 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 
 /*
   Checks if the provided string matches to a correct Media type format (MIME type)
@@ -37,9 +37,10 @@ const mimeTypeText =
 const mimeTypeMultipart =
   /^multipart\/[a-zA-Z0-9.\-+]{1,100}(;\s?(boundary|charset)=("[a-zA-Z0-9.\-+\s]{0,70}"|[a-zA-Z0-9.\-+]{0,70})(\s?\([a-zA-Z0-9.\-+\s]{1,20}\))?){0,2}$/i;
 
-export default function isMimeType(str: unknown): boolean {
-  const s = tryToString(str);
-  if (s === false) return false;
-  str = s;
+export default function isMimeType(input: unknown): boolean {
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
+  const str: string = s;
   return mimeTypeSimple.test(str) || mimeTypeText.test(str) || mimeTypeMultipart.test(str);
 }

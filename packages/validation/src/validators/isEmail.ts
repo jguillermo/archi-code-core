@@ -1,6 +1,7 @@
 import type { IsEmailOptions } from '../types';
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 import checkHost from './util/checkHost';
+import escapeRegExp from './util/escapeRegExp';
 
 import isByteLength from './isByteLength';
 import isFQDN from './isFQDN';
@@ -65,8 +66,9 @@ function validateDisplayName(display_name: string): boolean {
 }
 
 export default function isEmail(str: unknown, options?: IsEmailOptions): boolean {
-  const s = tryToString(str);
-  if (s === false) return false;
+  const stringResult = toString(str);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   let strVal = s;
   options = merge(options, default_email_options);
 
@@ -179,7 +181,8 @@ export default function isEmail(str: unknown, options?: IsEmailOptions): boolean
   }
 
   if (options.blacklisted_chars) {
-    if (user.search(new RegExp(`[${options.blacklisted_chars}]+`, 'g')) !== -1) return false;
+    // Characters are taken literally (escaped) — never interpreted as regex syntax.
+    if (new RegExp(`[${escapeRegExp(options.blacklisted_chars)}]`).test(user)) return false;
   }
 
   if (user[0] === '"' && user[user.length - 1] === '"') {

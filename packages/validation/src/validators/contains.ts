@@ -1,5 +1,4 @@
-import tryToString from './util/tryToString';
-import { toString } from '../convert';
+import { toString } from '../convert/string';
 import merge from './util/merge';
 
 const defaultContainsOptions = {
@@ -8,25 +7,23 @@ const defaultContainsOptions = {
 };
 
 export default function contains(
-  str: unknown,
+  input: unknown,
   elem: unknown,
   options?: { ignoreCase?: boolean; minOccurrences?: number },
 ): boolean {
-  const s = tryToString(str);
-  if (s === false) return false;
-  str = s;
-  options = merge(options, defaultContainsOptions);
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
+  const str: string = s;
+  const opts = merge(options, defaultContainsOptions) as typeof defaultContainsOptions;
 
-  let elemStr: string;
-  try {
-    elemStr = toString(elem);
-  } catch {
-    return false;
+  const elemResult = toString(elem);
+  if (!elemResult.ok) return false;
+  const elemStr = elemResult.value;
+
+  if (opts.ignoreCase) {
+    return str.toLowerCase().split(elemStr.toLowerCase()).length > opts.minOccurrences;
   }
 
-  if (options.ignoreCase) {
-    return str.toLowerCase().split(elemStr.toLowerCase()).length > options.minOccurrences;
-  }
-
-  return str.split(elemStr).length > options.minOccurrences;
+  return str.split(elemStr).length > opts.minOccurrences;
 }

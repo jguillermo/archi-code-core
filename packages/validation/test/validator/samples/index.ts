@@ -83,7 +83,6 @@ import { isVATSample } from './isVAT.samples';
 import { isMailtoURISample } from './isMailtoURI.samples';
 import { isMD5Sample } from './isMD5.samples';
 import { isIdentityCardSample } from './isIdentityCard.samples';
-import { isTaxIDSample } from './isTaxID.samples';
 import { isPassportNumberSample } from './isPassportNumber.samples';
 
 /** Todos los samples de validadores (fuente única para specs y benchmark). */
@@ -172,6 +171,5 @@ export const samples: ValidatorSample[] = [
   isMailtoURISample,
   isMD5Sample,
   isIdentityCardSample,
-  isTaxIDSample,
   isPassportNumberSample,
 ];

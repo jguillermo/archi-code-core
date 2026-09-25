@@ -1,4 +1,6 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
+import { ValidationConfigError } from './util/errors';
+import hasOwn from './util/hasOwn';
 import { alpha } from './alpha';
 
 export default function isAlpha(
@@ -6,11 +8,10 @@ export default function isAlpha(
   locale = 'en-US',
   options: { ignore?: string | RegExp } = {},
 ): boolean {
-  const s = tryToString(_str);
-  if (s === false) return false;
-  _str = s;
-
-  let str = _str;
+  const stringResult = toString(_str);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
+  let str: string = s;
   const { ignore } = options;
 
   if (ignore) {
@@ -22,14 +23,14 @@ export default function isAlpha(
         '',
       ); // escape regex for ignore
     } else {
-      throw new Error('ignore should be instance of a String or RegExp');
+      throw new ValidationConfigError('ignore should be instance of a String or RegExp');
     }
   }
 
-  if (locale in alpha) {
+  if (hasOwn(alpha, locale)) {
     return alpha[locale].test(str);
   }
-  throw new Error(`Invalid locale '${locale}'`);
+  throw new ValidationConfigError(`Invalid locale '${locale}'`);
 }
 
-export const locales = Object.keys(alpha);
+export const locales: readonly string[] = Object.freeze(Object.keys(alpha));

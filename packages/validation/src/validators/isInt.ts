@@ -1,46 +1,32 @@
 import type { IsIntOptions } from '../types';
-import tryToString from './util/tryToString';
+import { toInteger } from '../convert/integer';
+import { toString } from '../convert/string';
 
-const int = /^(?:[-+]?(?:0|[1-9][0-9]*))$/;
-const intLeadingZeroes = /^[-+]?[0-9]+$/;
-
+/**
+ * Integer check. The integer syntax lives in `convert/integer` (`syntax: 'validator'`, ported from
+ * this validator); this function only adds the bounds (`min`/`max`/`lt`/`gt`).
+ */
 export default function isInt(str: unknown, options?: IsIntOptions): boolean {
-  // Fast path: native integer — skip regex entirely
-  if (typeof str === 'number') {
-    if (!Number.isInteger(str)) return false;
-    options = options || {};
-    return (
-      (!Object.prototype.hasOwnProperty.call(options, 'min') ||
-        options.min == null ||
-        str >= options.min) &&
-      (!Object.prototype.hasOwnProperty.call(options, 'max') ||
-        options.max == null ||
-        str <= options.max) &&
-      (!Object.prototype.hasOwnProperty.call(options, 'lt') ||
-        options.lt == null ||
-        str < options.lt) &&
-      (!Object.prototype.hasOwnProperty.call(options, 'gt') ||
-        options.gt == null ||
-        str > options.gt)
-    );
-  }
-  // Non-string: coerce if possible, otherwise reject
-  const s = tryToString(str);
-  if (s === false) return false;
-  options = options || {};
-  const regex = options.allow_leading_zeroes === false ? int : intLeadingZeroes;
-  const sNum = Number(s);
-  const minCheckPassed =
-    !Object.prototype.hasOwnProperty.call(options, 'min') ||
-    options.min == null ||
-    sNum >= options.min;
-  const maxCheckPassed =
-    !Object.prototype.hasOwnProperty.call(options, 'max') ||
-    options.max == null ||
-    sNum <= options.max;
-  const ltCheckPassed =
-    !Object.prototype.hasOwnProperty.call(options, 'lt') || options.lt == null || sNum < options.lt;
-  const gtCheckPassed =
-    !Object.prototype.hasOwnProperty.call(options, 'gt') || options.gt == null || sNum > options.gt;
-  return regex.test(s) && minCheckPassed && maxCheckPassed && ltCheckPassed && gtCheckPassed;
+  const opts = options || {};
+  const r = toInteger(str, { syntax: 'validator', allowLeadingZeroes: opts.allow_leading_zeroes });
+  if (!r.ok) return false;
+
+  // Beyond Number.MAX_SAFE_INTEGER the converted number is rounded, so bounds are compared
+  // exactly with BigInt on the original text.
+  const n = r.value;
+  const text = typeof str === 'number' ? undefined : (toString(str).value as string);
+  const big = text !== undefined && !Number.isSafeInteger(n) ? BigInt(text) : undefined;
+  const compare = (bound: number): number => {
+    if (big !== undefined && Number.isInteger(bound)) {
+      const b = BigInt(bound);
+      return big < b ? -1 : big > b ? 1 : 0;
+    }
+    return n < bound ? -1 : n > bound ? 1 : 0;
+  };
+  return (
+    (opts.min == null || compare(opts.min) >= 0) &&
+    (opts.max == null || compare(opts.max) <= 0) &&
+    (opts.lt == null || compare(opts.lt) < 0) &&
+    (opts.gt == null || compare(opts.gt) > 0)
+  );
 }

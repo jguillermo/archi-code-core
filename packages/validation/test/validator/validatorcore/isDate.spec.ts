@@ -101,8 +101,11 @@ describe('Validators', () => {
     test({
       validator: 'isDate',
       args: [{ format: 'DD/MM/YY' }],
-      valid: ['15-07-02', '15/07/02'],
+      // '29/02/96' resolves to 1996 (leap year) via the 2-digit-year pivot → valid;
+      // '29/02/97' resolves to 1997 (non-leap) → invalid.
+      valid: ['15-07-02', '15/07/02', '29/02/96'],
       invalid: [
+        '29/02/97',
         '15/7/2002',
         '15-7-2002',
         '15/07-02',

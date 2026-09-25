@@ -1,11 +1,13 @@
 import type { IsStrongPasswordOptions } from '../types';
 import merge from './util/merge';
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 
-const upperCaseRegex = /^[A-Z]$/;
-const lowerCaseRegex = /^[a-z]$/;
-const numberRegex = /^[0-9]$/;
-const symbolRegex = /^[-#!$@£%^&*()_+|~=`{}[\]:";'<>?,./\\ ]$/;
+// Unicode-aware classes: 'Ñ'/'ñ' count as upper/lower case, '€'/'¿' as symbols, etc.
+// Every ASCII symbol of the historic set (including space) is in \p{P} ∪ \p{S} ∪ \p{Zs}.
+const upperCaseRegex = /^\p{Lu}$/u;
+const lowerCaseRegex = /^\p{Ll}$/u;
+const numberRegex = /^\p{Nd}$/u;
+const symbolRegex = /^[\p{P}\p{S}\p{Zs}]$/u;
 
 const defaultOptions = {
   minLength: 8,
@@ -22,19 +24,12 @@ const defaultOptions = {
   pointsForContainingSymbol: 10,
 };
 
-/* Counts number of occurrences of each char in a string
- * could be moved to util/ ?
- */
-function countChars(str: string): Record<string, number> {
-  const result: Record<string, number> = {};
-  Array.from(str).forEach((char) => {
-    const curVal = result[char];
-    if (curVal) {
-      result[char] += 1;
-    } else {
-      result[char] = 1;
-    }
-  });
+/* Counts occurrences of each character (code point, so emoji/astral chars count once). */
+function countChars(chars: string[]): Map<string, number> {
+  const result = new Map<string, number>();
+  for (const char of chars) {
+    result.set(char, (result.get(char) ?? 0) + 1);
+  }
   return result;
 }
 
@@ -47,31 +42,32 @@ function analyzePassword(password: string): {
   numberCount: number;
   symbolCount: number;
 } {
-  const charMap = countChars(password);
+  const chars = Array.from(password);
+  const charMap = countChars(chars);
   const analysis = {
-    length: password.length,
-    uniqueChars: Object.keys(charMap).length,
+    // Length in characters (code points), consistent with how unique characters are counted.
+    length: chars.length,
+    uniqueChars: charMap.size,
     uppercaseCount: 0,
     lowercaseCount: 0,
     numberCount: 0,
     symbolCount: 0,
   };
-  Object.keys(charMap).forEach((char) => {
-    /* istanbul ignore else */
+  charMap.forEach((count, char) => {
     if (upperCaseRegex.test(char)) {
-      analysis.uppercaseCount += charMap[char];
+      analysis.uppercaseCount += count;
     } else if (lowerCaseRegex.test(char)) {
-      analysis.lowercaseCount += charMap[char];
+      analysis.lowercaseCount += count;
     } else if (numberRegex.test(char)) {
-      analysis.numberCount += charMap[char];
+      analysis.numberCount += count;
     } else if (symbolRegex.test(char)) {
-      analysis.symbolCount += charMap[char];
+      analysis.symbolCount += count;
     }
   });
   return analysis;
 }
 
-function scorePassword(
+function scorePasswordAnalysis(
   analysis: {
     uniqueChars: number;
     length: number;
@@ -80,7 +76,7 @@ function scorePassword(
     numberCount: number;
     symbolCount: number;
   },
-  scoringOptions: Record<string, number>,
+  scoringOptions: typeof defaultOptions,
 ): number {
   let points = 0;
   points += analysis.uniqueChars * scoringOptions.pointsPerUnique;
@@ -100,16 +96,29 @@ function scorePassword(
   return points;
 }
 
+/**
+ * Numeric strength score of a password (see the `points*` options for the weights).
+ * Returns 0 for values that cannot be read as a string.
+ */
+export function scorePassword(str: unknown, options?: IsStrongPasswordOptions): number {
+  const stringResult = toString(str);
+  if (!stringResult.ok) return 0;
+  const s = stringResult.value;
+  const mergedOptions = merge(options || {}, defaultOptions) as typeof defaultOptions;
+  return scorePasswordAnalysis(analyzePassword(s), mergedOptions);
+}
+
 export default function isStrongPassword(
   str: unknown,
   options?: IsStrongPasswordOptions,
 ): boolean | number {
-  const s = tryToString(str);
-  if (s === false) return false;
+  const stringResult = toString(str);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   const analysis = analyzePassword(s);
   const mergedOptions = merge(options || {}, defaultOptions) as typeof defaultOptions;
   if (mergedOptions.returnScore) {
-    return scorePassword(analysis, mergedOptions);
+    return scorePasswordAnalysis(analysis, mergedOptions);
   }
   return (
     analysis.length >= mergedOptions.minLength &&

@@ -1,4 +1,4 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 
 // from http://goo.gl/0ejHHW
 const iso8601 =
@@ -20,7 +20,7 @@ const isValidDate = (str: string): boolean => {
     if ((oYear % 4 === 0 && oYear % 100 !== 0) || oYear % 400 === 0) return oDay <= 366;
     return oDay <= 365;
   }
-  const match = str.match(/(\d{4})-?(\d{0,2})-?(\d*)/).map(Number);
+  const match = (str.match(/(\d{4})-?(\d{0,2})-?(\d*)/) as RegExpMatchArray).map(Number);
   const year = match[1];
   const month = match[2];
   const day = match[3];
@@ -35,13 +35,19 @@ const isValidDate = (str: string): boolean => {
   return true;
 };
 
+/**
+ * ISO 8601 syntax check. By default only the SYNTAX is validated (e.g. `2024-02-30` passes),
+ * which is the historic validator.js behaviour. Pass `{ strict: true }` to also reject dates
+ * that do not exist in the calendar.
+ */
 export default function isISO8601(
-  str: unknown,
+  input: unknown,
   options: { strictSeparator?: boolean; strict?: boolean } = {},
 ): boolean {
-  const s = tryToString(str);
-  if (s === false) return false;
-  str = s;
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
+  const str: string = s;
   const check = options.strictSeparator ? iso8601StrictSeparator.test(str) : iso8601.test(str);
   if (check && options.strict) return isValidDate(str);
   return check;

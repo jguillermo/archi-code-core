@@ -1,16 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
-import { toArray, ConvertError } from '../../src/convert';
-
-function expectConvertError(fn: () => void, expectedMessage: string): void {
-  let err: unknown;
-  try {
-    fn();
-  } catch (e) {
-    err = e;
-  }
-  expect(err).toBeInstanceOf(ConvertError);
-  expect((err as ConvertError).message).toBe(expectedMessage);
-}
+import { toArray, ConvertMessages } from '../../src/convert';
+import { converted, expectNotConvertible } from './helpers';
 
 describe('toArray', () => {
   // ─── valid conversions ────────────────────────────────────────────────────
@@ -18,28 +8,31 @@ describe('toArray', () => {
   describe('array → same reference returned', () => {
     it('[1,2,3] → same reference', () => {
       const a = [1, 2, 3];
-      expect(toArray(a)).toBe(a);
+      expect(converted(toArray(a))).toBe(a);
     });
     it('[] → same reference', () => {
       const a: unknown[] = [];
-      expect(toArray(a)).toBe(a);
+      expect(converted(toArray(a))).toBe(a);
     });
     it('mixed-type array → same reference', () => {
       const a = [1, 'two', true, null];
-      expect(toArray(a)).toBe(a);
+      expect(converted(toArray(a))).toBe(a);
     });
   });
 
   describe('JSON array string → parsed', () => {
-    it('"[1,2,3]" → [1,2,3]', () => expect(toArray('[1,2,3]')).toEqual([1, 2, 3]));
-    it('"[]" → []', () => expect(toArray('[]')).toEqual([]));
-    it('\'["a","b"]\' → ["a","b"]', () => expect(toArray('["a","b"]')).toEqual(['a', 'b']));
+    it('"[1,2,3]" → [1,2,3]', () => expect(converted(toArray('[1,2,3]'))).toEqual([1, 2, 3]));
+    it('"[]" → []', () => expect(converted(toArray('[]'))).toEqual([]));
+    it('\'["a","b"]\' → ["a","b"]', () =>
+      expect(converted(toArray('["a","b"]'))).toEqual(['a', 'b']));
     it('"[true,false]" → [true,false]', () =>
-      expect(toArray('[true,false]')).toEqual([true, false]));
-    it('"[null,null]" → [null,null]', () => expect(toArray('[null,null]')).toEqual([null, null]));
-    it('\'[{"a":1}]\' → [{a:1}]', () => expect(toArray('[{"a":1}]')).toEqual([{ a: 1 }]));
+      expect(converted(toArray('[true,false]'))).toEqual([true, false]));
+    it('"[null,null]" → [null,null]', () =>
+      expect(converted(toArray('[null,null]'))).toEqual([null, null]));
+    it('\'[{"a":1}]\' → [{a:1}]', () =>
+      expect(converted(toArray('[{"a":1}]'))).toEqual([{ a: 1 }]));
     it('"[[1,2],[3,4]]" → nested', () =>
-      expect(toArray('[[1,2],[3,4]]')).toEqual([
+      expect(converted(toArray('[[1,2],[3,4]]'))).toEqual([
         [1, 2],
         [3, 4],
       ]));
@@ -47,102 +40,95 @@ describe('toArray', () => {
 
   // ─── error cases ──────────────────────────────────────────────────────────
 
-  describe('invalid strings — message quotes the ORIGINAL string', () => {
-    it('"hello" → \'Cannot convert "hello" to array\'', () =>
-      expectConvertError(() => toArray('hello'), 'Cannot convert "hello" to array'));
-    it('"" → \'Cannot convert "" to array\'', () =>
-      expectConvertError(() => toArray(''), 'Cannot convert "" to array'));
-    it('"null" → \'Cannot convert "null" to array\'', () =>
-      expectConvertError(() => toArray('null'), 'Cannot convert "null" to array'));
-    it('"true" → \'Cannot convert "true" to array\'', () =>
-      expectConvertError(() => toArray('true'), 'Cannot convert "true" to array'));
-    it('"42" → \'Cannot convert "42" to array\'', () =>
-      expectConvertError(() => toArray('42'), 'Cannot convert "42" to array'));
-    it('"{}" → \'Cannot convert "{}" to array\'', () =>
-      expectConvertError(() => toArray('{}'), 'Cannot convert "{}" to array'));
-    it('"[1,2,]" → \'Cannot convert "[1,2,]" to array\' (invalid JSON)', () =>
-      expectConvertError(() => toArray('[1,2,]'), 'Cannot convert "[1,2,]" to array'));
-    it('" hello " → spaces preserved in message', () =>
-      expectConvertError(() => toArray(' hello '), 'Cannot convert " hello " to array'));
+  describe('invalid strings → { ok: false, error }', () => {
+    it('"hello" → { ok: false, error }', () =>
+      expectNotConvertible(toArray('hello'), ConvertMessages.ARRAY));
+    it('"" → { ok: false, error }', () => expectNotConvertible(toArray(''), ConvertMessages.ARRAY));
+    it('"null" → { ok: false, error }', () =>
+      expectNotConvertible(toArray('null'), ConvertMessages.ARRAY));
+    it('"true" → { ok: false, error }', () =>
+      expectNotConvertible(toArray('true'), ConvertMessages.ARRAY));
+    it('"42" → { ok: false, error }', () =>
+      expectNotConvertible(toArray('42'), ConvertMessages.ARRAY));
+    it('"{}" → { ok: false, error }', () =>
+      expectNotConvertible(toArray('{}'), ConvertMessages.ARRAY));
+    it('"[1,2,]" → { ok: false, error }', () =>
+      expectNotConvertible(toArray('[1,2,]'), ConvertMessages.ARRAY));
+    it('" hello " → { ok: false, error }', () =>
+      expectNotConvertible(toArray(' hello '), ConvertMessages.ARRAY));
   });
 
   describe('null and undefined', () => {
-    it('null → "Cannot convert null to array"  (NOT "object")', () =>
-      expectConvertError(() => toArray(null), 'Cannot convert null to array'));
-    it('undefined → "Cannot convert undefined to array"', () =>
-      expectConvertError(() => toArray(undefined), 'Cannot convert undefined to array'));
+    it('null → { ok: false, error }', () =>
+      expectNotConvertible(toArray(null), ConvertMessages.ARRAY));
+    it('undefined → { ok: false, error }', () =>
+      expectNotConvertible(toArray(undefined), ConvertMessages.ARRAY));
   });
 
-  describe('numbers — show the value  (NOT "number")', () => {
-    it('42 → "Cannot convert 42 to array"', () =>
-      expectConvertError(() => toArray(42), 'Cannot convert 42 to array'));
-    it('0 → "Cannot convert 0 to array"', () =>
-      expectConvertError(() => toArray(0), 'Cannot convert 0 to array'));
-    it('NaN → "Cannot convert NaN to array"', () =>
-      expectConvertError(() => toArray(NaN), 'Cannot convert NaN to array'));
+  describe('numbers → { ok: false, error }', () => {
+    it('42 → { ok: false, error }', () => expectNotConvertible(toArray(42), ConvertMessages.ARRAY));
+    it('0 → { ok: false, error }', () => expectNotConvertible(toArray(0), ConvertMessages.ARRAY));
+    it('NaN → { ok: false, error }', () =>
+      expectNotConvertible(toArray(NaN), ConvertMessages.ARRAY));
   });
 
-  describe('booleans — show the value', () => {
-    it('true → "Cannot convert true to array"  (NOT "boolean")', () =>
-      expectConvertError(() => toArray(true), 'Cannot convert true to array'));
-    it('false → "Cannot convert false to array"', () =>
-      expectConvertError(() => toArray(false), 'Cannot convert false to array'));
+  describe('booleans → { ok: false, error }', () => {
+    it('true → { ok: false, error }', () =>
+      expectNotConvertible(toArray(true), ConvertMessages.ARRAY));
+    it('false → { ok: false, error }', () =>
+      expectNotConvertible(toArray(false), ConvertMessages.ARRAY));
   });
 
-  describe('plain objects — show JSON value', () => {
-    it('{} → "Cannot convert {} to array"', () =>
-      expectConvertError(() => toArray({}), 'Cannot convert {} to array'));
-    it('{ a: 1 } → \'Cannot convert {"a":1} to array\'', () =>
-      expectConvertError(() => toArray({ a: 1 }), 'Cannot convert {"a":1} to array'));
+  describe('plain objects → { ok: false, error }', () => {
+    it('{} → { ok: false, error }', () => expectNotConvertible(toArray({}), ConvertMessages.ARRAY));
+    it('{ a: 1 } → { ok: false, error }', () =>
+      expectNotConvertible(toArray({ a: 1 }), ConvertMessages.ARRAY));
   });
 
-  describe('functions — show [Function]', () => {
-    it('arrow fn → "Cannot convert [Function] to array"', () =>
-      expectConvertError(() => toArray(() => [1, 2]), 'Cannot convert [Function] to array'));
-    it('named fn → "Cannot convert [Function: getItems] to array"', () =>
-      expectConvertError(
-        () => toArray(function getItems() {}),
-        'Cannot convert [Function: getItems] to array',
+  describe('functions → { ok: false, error }', () => {
+    it('arrow fn → { ok: false, error }', () =>
+      expectNotConvertible(
+        toArray(() => [1, 2]),
+        ConvertMessages.ARRAY,
+      ));
+    it('named fn → { ok: false, error }', () =>
+      expectNotConvertible(
+        toArray(function getItems() {}),
+        ConvertMessages.ARRAY,
       ));
   });
 
-  describe('Symbol — show Symbol(description)', () => {
-    it('Symbol("x") → "Cannot convert Symbol(x) to array"  (NOT "symbol")', () =>
-      expectConvertError(() => toArray(Symbol('x')), 'Cannot convert Symbol(x) to array'));
-    it('Symbol() → "Cannot convert Symbol() to array"', () =>
-      expectConvertError(() => toArray(Symbol()), 'Cannot convert Symbol() to array'));
+  describe('Symbol → { ok: false, error }', () => {
+    it('Symbol("x") → { ok: false, error }', () =>
+      expectNotConvertible(toArray(Symbol('x')), ConvertMessages.ARRAY));
+    it('Symbol() → { ok: false, error }', () =>
+      expectNotConvertible(toArray(Symbol()), ConvertMessages.ARRAY));
   });
 
-  describe('BigInt — show BigInt(n)', () => {
-    it('BigInt(1) → "Cannot convert BigInt(1) to array"  (NOT "bigint")', () =>
-      expectConvertError(() => toArray(BigInt(1)), 'Cannot convert BigInt(1) to array'));
+  describe('BigInt → { ok: false, error }', () => {
+    it('BigInt(1) → { ok: false, error }', () =>
+      expectNotConvertible(toArray(BigInt(1)), ConvertMessages.ARRAY));
   });
 
-  describe('well-known objects — show type name  (NOT generic "object")', () => {
-    it('new Map() → "Cannot convert [Map] to array" (iterable but not Array)', () =>
-      expectConvertError(() => toArray(new Map()), 'Cannot convert [Map] to array'));
-    it('new Set([1,2]) → "Cannot convert [Set] to array" (iterable but not Array)', () =>
-      expectConvertError(() => toArray(new Set([1, 2])), 'Cannot convert [Set] to array'));
-    it('new Date() → "Cannot convert [Date] to array"', () =>
-      expectConvertError(() => toArray(new Date()), 'Cannot convert [Date] to array'));
-    it('new Error("x") → "Cannot convert [Error] to array"', () =>
-      expectConvertError(() => toArray(new Error('x')), 'Cannot convert [Error] to array'));
-    it('new Promise(() => {}) → "Cannot convert [Promise] to array"', () =>
-      expectConvertError(
-        () => toArray(new Promise(() => {})),
-        'Cannot convert [Promise] to array',
-      ));
-    it('new Uint8Array([1,2,3]) → "Cannot convert [Uint8Array] to array" (TypedArray ≠ Array)', () =>
-      expectConvertError(
-        () => toArray(new Uint8Array([1, 2, 3])),
-        'Cannot convert [Uint8Array] to array',
-      ));
-    it('generator object → "Cannot convert [Generator] to array" (iterable but not Array)', () => {
+  describe('well-known objects → { ok: false, error }', () => {
+    it('new Map() → { ok: false, error }', () =>
+      expectNotConvertible(toArray(new Map()), ConvertMessages.ARRAY));
+    it('new Set([1,2]) → { ok: false, error }', () =>
+      expectNotConvertible(toArray(new Set([1, 2])), ConvertMessages.ARRAY));
+    it('new Date() → { ok: false, error }', () =>
+      expectNotConvertible(toArray(new Date()), ConvertMessages.ARRAY));
+    it('new Error("x") → { ok: false, error }', () =>
+      expectNotConvertible(toArray(new Error('x')), ConvertMessages.ARRAY));
+    it('new Promise(() => {}) → { ok: false, error }', () =>
+      expectNotConvertible(toArray(new Promise(() => {})), ConvertMessages.ARRAY));
+    it('new Uint8Array([1,2,3]) → { ok: false, error }', () =>
+      expectNotConvertible(toArray(new Uint8Array([1, 2, 3])), ConvertMessages.ARRAY));
+    it('generator object → { ok: false, error }', () => {
       function* gen() {
         yield 1;
         yield 2;
       }
-      expectConvertError(() => toArray(gen()), 'Cannot convert [Generator] to array');
+      expectNotConvertible(toArray(gen()), ConvertMessages.ARRAY);
     });
   });
 });

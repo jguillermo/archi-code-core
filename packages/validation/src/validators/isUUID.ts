@@ -1,4 +1,5 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
+import hasOwn from './util/hasOwn';
 
 const uuid = {
   1: /^[0-9A-F]{8}-[0-9A-F]{4}-1[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i,
@@ -19,16 +20,19 @@ const uuid = {
 };
 
 export default function isUUID(
-  str: unknown,
-  version?: 'all' | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8,
+  input: unknown,
+  version?: 'all' | 'loose' | 'nil' | 'max' | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8,
 ): boolean {
-  const s = tryToString(str);
-  if (s === false) return false;
-  str = s;
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
+  const str: string = s;
 
   if (version === undefined || version === null) {
     version = 'all';
   }
 
-  return version in uuid ? uuid[version].test(str) : false;
+  return hasOwn(uuid, String(version))
+    ? uuid[String(version) as keyof typeof uuid].test(str)
+    : false;
 }

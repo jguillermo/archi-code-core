@@ -1,15 +1,11 @@
 import { describe, expect, it } from '@jest/globals';
-import { canBeDate } from '../../src/primitives';
+import { canBeDate } from '../../src/canBe';
 
 // All values accepted as valid dates
 const VALID_DATES = [
-  // ISO 8601 date strings
-  '2018-03-23T16:02:15.000Z',
+  // default toDate format YYYY/MM/DD (rule ported from isDate), delimiters '/' or '-'
   '2018-03-23',
-  '2018-03-23 16:02:15.000Z',
-  '2018-03-23T16:02:15',
-  '2018-03-23 16:02:15',
-  '2018-03-23 00:00:00',
+  '2018/03/23',
   // same strings as Date objects
   new Date('2018-03-23T16:02:15.000Z'),
   new Date('2018-03-23'),
@@ -111,7 +107,6 @@ const WRONG_FORMAT_DATE_STRINGS = [
   '218-03-23', // 3-digit year
   '2018-3-23', // single-digit month
   '2018-03-5', // single-digit day
-  '2018/03/23', // forward-slash separator
   '23/03/2018', // European DD/MM/YYYY
   '03-23-2018', // US-style MM-DD-YYYY
   '2018.03.23', // dot separator
@@ -125,7 +120,24 @@ const WRONG_FORMAT_DATE_STRINGS = [
   '2018-W12-3', // ISO week date
 ];
 
+// Date-time strings: the default rule (ported from isDate) reads the date part only.
+// They remain convertible with toDate(v, { iso: true }).
+const DATE_TIME_STRINGS = [
+  '2018-03-23T16:02:15.000Z',
+  '2018-03-23 16:02:15.000Z',
+  '2018-03-23T16:02:15',
+  '2018-03-23 16:02:15',
+  '2018-03-23 00:00:00',
+];
+
 describe('canBeDate', () => {
+  it.each(DATE_TIME_STRINGS.map((v) => [v]))(
+    'returns false for date-time string (date part only by default): %p',
+    (value) => {
+      expect(canBeDate(value)).toBe(false);
+    },
+  );
+
   it.each(VALID_DATES.map((v) => [v]))('returns true for valid date: %p', (value) => {
     expect(canBeDate(value)).toBe(true);
   });

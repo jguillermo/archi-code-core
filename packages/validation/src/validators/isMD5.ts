@@ -1,10 +1,11 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 
 const md5 = /^[a-f0-9]{32}$/;
 
-export default function isMD5(str: unknown): boolean {
-  const s = tryToString(str);
-  if (s === false) return false;
-  str = s;
+export default function isMD5(input: unknown): boolean {
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
+  const str: string = s;
   return md5.test(str);
 }

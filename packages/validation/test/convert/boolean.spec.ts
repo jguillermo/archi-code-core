@@ -1,146 +1,124 @@
 import { describe, expect, it } from '@jest/globals';
-import { toBoolean, ConvertError } from '../../src/convert';
-
-function expectConvertError(fn: () => void, expectedMessage: string): void {
-  let err: unknown;
-  try {
-    fn();
-  } catch (e) {
-    err = e;
-  }
-  expect(err).toBeInstanceOf(ConvertError);
-  expect((err as ConvertError).message).toBe(expectedMessage);
-}
+import { toBoolean, ConvertMessages } from '../../src/convert';
+import { converted, expectNotConvertible } from './helpers';
 
 describe('toBoolean', () => {
   // ─── valid conversions ────────────────────────────────────────────────────
 
   describe('boolean → same value', () => {
-    it('true → true', () => expect(toBoolean(true)).toBe(true));
-    it('false → false', () => expect(toBoolean(false)).toBe(false));
+    it('true → true', () => expect(converted(toBoolean(true))).toBe(true));
+    it('false → false', () => expect(converted(toBoolean(false))).toBe(false));
   });
 
   describe('number → boolean (only 1 and 0)', () => {
-    it('1 → true', () => expect(toBoolean(1)).toBe(true));
-    it('0 → false', () => expect(toBoolean(0)).toBe(false));
-    it('-0 → false (-0 === 0)', () => expect(toBoolean(-0)).toBe(false));
+    it('1 → true', () => expect(converted(toBoolean(1))).toBe(true));
+    it('0 → false', () => expect(converted(toBoolean(0))).toBe(false));
+    it('-0 → false (-0 === 0)', () => expect(converted(toBoolean(-0))).toBe(false));
   });
 
   describe('string → boolean (case-insensitive, trims whitespace)', () => {
     it.each(['true', 'TRUE', 'True', 'tRuE', '  true  ', '1', '  1  '])('"%s" → true', (s) =>
-      expect(toBoolean(s)).toBe(true),
+      expect(converted(toBoolean(s))).toBe(true),
     );
     it.each(['false', 'FALSE', 'False', 'fAlSe', '  false  ', '0', '  0  '])('"%s" → false', (s) =>
-      expect(toBoolean(s)).toBe(false),
+      expect(converted(toBoolean(s))).toBe(false),
     );
   });
 
   // ─── error cases ──────────────────────────────────────────────────────────
   //
-  // Rule: EVERY message must show the ACTUAL VALUE that was passed,
-  // never a lossy representation.
-  //
-  // Key fixes vs current implementation:
-  //   NaN      → "Cannot convert NaN to boolean"      (NOT "null" — JSON.stringify(NaN) = "null" is a bug)
-  //   Infinity → "Cannot convert Infinity to boolean" (NOT "null")
-  //  -Infinity → "Cannot convert -Infinity to boolean" (NOT "null")
-  //   fn()     → "Cannot convert [Function] to boolean" (NOT "undefined")
-  //   Symbol   → "Cannot convert Symbol(x) to boolean" (NOT "undefined")
-  //   BigInt   → "Cannot convert BigInt(n) to boolean"
-  //   null     → "Cannot convert null to boolean"      (NOT "null" from JSON.stringify — coincidentally same but via correct path)
 
-  describe('numbers that are not 0 or 1 — show the numeric value', () => {
-    it('2 → "Cannot convert 2 to boolean"', () =>
-      expectConvertError(() => toBoolean(2), 'Cannot convert 2 to boolean'));
-    it('-1 → "Cannot convert -1 to boolean"', () =>
-      expectConvertError(() => toBoolean(-1), 'Cannot convert -1 to boolean'));
-    it('0.5 → "Cannot convert 0.5 to boolean"', () =>
-      expectConvertError(() => toBoolean(0.5), 'Cannot convert 0.5 to boolean'));
+  describe('numbers that are not 0 or 1 → { ok: false, error }', () => {
+    it('2 → { ok: false, error }', () =>
+      expectNotConvertible(toBoolean(2), ConvertMessages.BOOLEAN));
+    it('-1 → { ok: false, error }', () =>
+      expectNotConvertible(toBoolean(-1), ConvertMessages.BOOLEAN));
+    it('0.5 → { ok: false, error }', () =>
+      expectNotConvertible(toBoolean(0.5), ConvertMessages.BOOLEAN));
 
-    // These are the critical fixes: current impl says "null" (JSON.stringify quirk)
-    it('NaN → "Cannot convert NaN to boolean"  ⚠ currently says "null"', () =>
-      expectConvertError(() => toBoolean(NaN), 'Cannot convert NaN to boolean'));
-    it('Infinity → "Cannot convert Infinity to boolean"  ⚠ currently says "null"', () =>
-      expectConvertError(() => toBoolean(Infinity), 'Cannot convert Infinity to boolean'));
-    it('-Infinity → "Cannot convert -Infinity to boolean"  ⚠ currently says "null"', () =>
-      expectConvertError(() => toBoolean(-Infinity), 'Cannot convert -Infinity to boolean'));
+    it('NaN → { ok: false, error }', () =>
+      expectNotConvertible(toBoolean(NaN), ConvertMessages.BOOLEAN));
+    it('Infinity → { ok: false, error }', () =>
+      expectNotConvertible(toBoolean(Infinity), ConvertMessages.BOOLEAN));
+    it('-Infinity → { ok: false, error }', () =>
+      expectNotConvertible(toBoolean(-Infinity), ConvertMessages.BOOLEAN));
   });
 
-  describe('strings that are not true/false/0/1 — show the string value (quoted)', () => {
-    it('"maybe" → \'Cannot convert "maybe" to boolean\'', () =>
-      expectConvertError(() => toBoolean('maybe'), 'Cannot convert "maybe" to boolean'));
-    it('"yes" → \'Cannot convert "yes" to boolean\'', () =>
-      expectConvertError(() => toBoolean('yes'), 'Cannot convert "yes" to boolean'));
-    it('"" → \'Cannot convert "" to boolean\'', () =>
-      expectConvertError(() => toBoolean(''), 'Cannot convert "" to boolean'));
-    it('" " → \'Cannot convert " " to boolean\'', () =>
-      expectConvertError(() => toBoolean(' '), 'Cannot convert " " to boolean'));
-    it('"2" → \'Cannot convert "2" to boolean\'', () =>
-      expectConvertError(() => toBoolean('2'), 'Cannot convert "2" to boolean'));
+  describe('strings that are not true/false/0/1 → { ok: false, error }', () => {
+    it('"maybe" → { ok: false, error }', () =>
+      expectNotConvertible(toBoolean('maybe'), ConvertMessages.BOOLEAN));
+    it('"yes" → { ok: false, error }', () =>
+      expectNotConvertible(toBoolean('yes'), ConvertMessages.BOOLEAN));
+    it('"" → { ok: false, error }', () =>
+      expectNotConvertible(toBoolean(''), ConvertMessages.BOOLEAN));
+    it('" " → { ok: false, error }', () =>
+      expectNotConvertible(toBoolean(' '), ConvertMessages.BOOLEAN));
+    it('"2" → { ok: false, error }', () =>
+      expectNotConvertible(toBoolean('2'), ConvertMessages.BOOLEAN));
   });
 
   describe('null and undefined', () => {
-    it('null → "Cannot convert null to boolean"', () =>
-      expectConvertError(() => toBoolean(null), 'Cannot convert null to boolean'));
-    it('undefined → "Cannot convert undefined to boolean"', () =>
-      expectConvertError(() => toBoolean(undefined), 'Cannot convert undefined to boolean'));
+    it('null → { ok: false, error }', () =>
+      expectNotConvertible(toBoolean(null), ConvertMessages.BOOLEAN));
+    it('undefined → { ok: false, error }', () =>
+      expectNotConvertible(toBoolean(undefined), ConvertMessages.BOOLEAN));
   });
 
-  describe('plain objects and arrays — show JSON value', () => {
-    it('{} → "Cannot convert {} to boolean"', () =>
-      expectConvertError(() => toBoolean({}), 'Cannot convert {} to boolean'));
-    it('{ a: 1 } → \'Cannot convert {"a":1} to boolean\'', () =>
-      expectConvertError(() => toBoolean({ a: 1 }), 'Cannot convert {"a":1} to boolean'));
-    it('[] → "Cannot convert [] to boolean"', () =>
-      expectConvertError(() => toBoolean([]), 'Cannot convert [] to boolean'));
-    it('[true] → "Cannot convert [true] to boolean"', () =>
-      expectConvertError(() => toBoolean([true]), 'Cannot convert [true] to boolean'));
+  describe('plain objects and arrays → { ok: false, error }', () => {
+    it('{} → { ok: false, error }', () =>
+      expectNotConvertible(toBoolean({}), ConvertMessages.BOOLEAN));
+    it('{ a: 1 } → { ok: false, error }', () =>
+      expectNotConvertible(toBoolean({ a: 1 }), ConvertMessages.BOOLEAN));
+    it('[] → { ok: false, error }', () =>
+      expectNotConvertible(toBoolean([]), ConvertMessages.BOOLEAN));
+    it('[true] → { ok: false, error }', () =>
+      expectNotConvertible(toBoolean([true]), ConvertMessages.BOOLEAN));
   });
 
-  describe('functions — show [Function]  ⚠ currently says "undefined" (JSON.stringify(fn) = undefined)', () => {
-    it('arrow fn → "Cannot convert [Function] to boolean"', () =>
-      expectConvertError(() => toBoolean(() => {}), 'Cannot convert [Function] to boolean'));
-    it('async fn → "Cannot convert [Function] to boolean"', () =>
-      expectConvertError(() => toBoolean(async () => {}), 'Cannot convert [Function] to boolean'));
-    it('named fn → "Cannot convert [Function: foo] to boolean"', () =>
-      expectConvertError(
-        () => toBoolean(function foo() {}),
-        'Cannot convert [Function: foo] to boolean',
+  describe('functions → { ok: false, error }', () => {
+    it('arrow fn → { ok: false, error }', () =>
+      expectNotConvertible(
+        toBoolean(() => {}),
+        ConvertMessages.BOOLEAN,
+      ));
+    it('async fn → { ok: false, error }', () =>
+      expectNotConvertible(
+        toBoolean(async () => {}),
+        ConvertMessages.BOOLEAN,
+      ));
+    it('named fn → { ok: false, error }', () =>
+      expectNotConvertible(
+        toBoolean(function foo() {}),
+        ConvertMessages.BOOLEAN,
       ));
   });
 
-  describe('Symbol — show Symbol(description)  ⚠ currently says "undefined"', () => {
-    it('Symbol("x") → "Cannot convert Symbol(x) to boolean"', () =>
-      expectConvertError(() => toBoolean(Symbol('x')), 'Cannot convert Symbol(x) to boolean'));
-    it('Symbol() → "Cannot convert Symbol() to boolean"', () =>
-      expectConvertError(() => toBoolean(Symbol()), 'Cannot convert Symbol() to boolean'));
+  describe('Symbol → { ok: false, error }', () => {
+    it('Symbol("x") → { ok: false, error }', () =>
+      expectNotConvertible(toBoolean(Symbol('x')), ConvertMessages.BOOLEAN));
+    it('Symbol() → { ok: false, error }', () =>
+      expectNotConvertible(toBoolean(Symbol()), ConvertMessages.BOOLEAN));
   });
 
-  describe('BigInt — show BigInt(n)', () => {
-    it('BigInt(0) → "Cannot convert BigInt(0) to boolean"', () =>
-      expectConvertError(() => toBoolean(BigInt(0)), 'Cannot convert BigInt(0) to boolean'));
-    it('BigInt(1) → "Cannot convert BigInt(1) to boolean"', () =>
-      expectConvertError(() => toBoolean(BigInt(1)), 'Cannot convert BigInt(1) to boolean'));
+  describe('BigInt → { ok: false, error }', () => {
+    it('BigInt(0) → { ok: false, error }', () =>
+      expectNotConvertible(toBoolean(BigInt(0)), ConvertMessages.BOOLEAN));
+    it('BigInt(1) → { ok: false, error }', () =>
+      expectNotConvertible(toBoolean(BigInt(1)), ConvertMessages.BOOLEAN));
   });
 
-  describe('well-known objects — show type name in brackets', () => {
-    it('new Map() → "Cannot convert [Map] to boolean"  (NOT "{}")', () =>
-      expectConvertError(() => toBoolean(new Map()), 'Cannot convert [Map] to boolean'));
-    it('new Set() → "Cannot convert [Set] to boolean"  (NOT "{}")', () =>
-      expectConvertError(() => toBoolean(new Set()), 'Cannot convert [Set] to boolean'));
-    it('new Promise(() => {}) → "Cannot convert [Promise] to boolean"  (NOT "{}")', () =>
-      expectConvertError(
-        () => toBoolean(new Promise(() => {})),
-        'Cannot convert [Promise] to boolean',
-      ));
-    it('/regex/ → "Cannot convert /regex/ to boolean"  (NOT "{}")', () =>
-      expectConvertError(() => toBoolean(/regex/), 'Cannot convert /regex/ to boolean'));
-    it('new Error("x") → "Cannot convert [Error] to boolean"', () =>
-      expectConvertError(() => toBoolean(new Error('x')), 'Cannot convert [Error] to boolean'));
-    it('new Date("2024-01-01") → "Cannot convert [Date] to boolean"', () =>
-      expectConvertError(
-        () => toBoolean(new Date('2024-01-01')),
-        'Cannot convert [Date] to boolean',
-      ));
+  describe('well-known objects → { ok: false, error }', () => {
+    it('new Map() → { ok: false, error }', () =>
+      expectNotConvertible(toBoolean(new Map()), ConvertMessages.BOOLEAN));
+    it('new Set() → { ok: false, error }', () =>
+      expectNotConvertible(toBoolean(new Set()), ConvertMessages.BOOLEAN));
+    it('new Promise(() => {}) → { ok: false, error }', () =>
+      expectNotConvertible(toBoolean(new Promise(() => {})), ConvertMessages.BOOLEAN));
+    it('/regex/ → { ok: false, error }', () =>
+      expectNotConvertible(toBoolean(/regex/), ConvertMessages.BOOLEAN));
+    it('new Error("x") → { ok: false, error }', () =>
+      expectNotConvertible(toBoolean(new Error('x')), ConvertMessages.BOOLEAN));
+    it('new Date("2024-01-01") → { ok: false, error }', () =>
+      expectNotConvertible(toBoolean(new Date('2024-01-01')), ConvertMessages.BOOLEAN));
   });
 });

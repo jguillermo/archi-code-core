@@ -1,10 +1,11 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 import isBase64 from './isBase64';
 
-export default function isJWT(str: unknown): boolean {
-  const s = tryToString(str);
-  if (s === false) return false;
-  str = s;
+export default function isJWT(input: unknown): boolean {
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
+  const str: string = s;
 
   const dotSplit = str.split('.');
   const len = dotSplit.length;
@@ -13,5 +14,12 @@ export default function isJWT(str: unknown): boolean {
     return false;
   }
 
-  return dotSplit.reduce((acc, currElem) => acc && isBase64(currElem, { urlSafe: true }), true);
+  const [header, payload, signature] = dotSplit;
+  // Header and payload are mandatory; the signature may be empty (unsecured JWT, `alg: none`).
+  if (header === '' || payload === '') return false;
+  return (
+    isBase64(header, { urlSafe: true }) &&
+    isBase64(payload, { urlSafe: true }) &&
+    isBase64(signature, { urlSafe: true })
+  );
 }

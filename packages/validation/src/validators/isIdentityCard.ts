@@ -1,4 +1,7 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
+import { isCalendarDate } from '../convert/date';
+import { ValidationConfigError } from './util/errors';
+import hasOwn from './util/hasOwn';
 import isInt from './isInt';
 
 const validators = {
@@ -330,14 +333,9 @@ const validators = {
       const yyyy = parseInt(birDayCode.substring(0, 4), 10);
       const mm = parseInt(birDayCode.substring(4, 6), 10);
       const dd = parseInt(birDayCode.substring(6), 10);
-      const xdata = new Date(yyyy, mm - 1, dd);
-      if (xdata > new Date()) {
-        return false;
-      }
-      if (xdata.getFullYear() === yyyy && xdata.getMonth() === mm - 1 && xdata.getDate() === dd) {
-        return true;
-      }
-      return false;
+      // Calendar validity is the date rule of convert; not-in-the-future is this ID's own rule.
+      if (!isCalendarDate(yyyy, mm, dd)) return false;
+      return new Date(yyyy, mm - 1, dd) <= new Date();
     };
 
     const getParityBit = (idCardNo: string): string => {
@@ -485,11 +483,12 @@ const validators = {
   },
 };
 
-export default function isIdentityCard(str: unknown, locale = 'any'): boolean {
-  const s = tryToString(str);
-  if (s === false) return false;
-  str = s;
-  if (locale in validators) {
+export default function isIdentityCard(input: unknown, locale = 'any'): boolean {
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
+  const str: string = s;
+  if (hasOwn(validators, locale)) {
     return validators[locale](str);
   }
   if (locale === 'any') {
@@ -503,5 +502,5 @@ export default function isIdentityCard(str: unknown, locale = 'any'): boolean {
     }
     return false;
   }
-  throw new Error(`Invalid locale '${locale}'`);
+  throw new ValidationConfigError(`Invalid locale '${locale}'`);
 }

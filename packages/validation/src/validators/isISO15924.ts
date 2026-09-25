@@ -1,4 +1,4 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 
 // from https://www.unicode.org/iso15924/iso15924-codes.html
 const validISO15924Codes = new Set([
@@ -275,10 +275,11 @@ const validISO15924Codes = new Set([
   'Zzzz',
 ]);
 
-export default function isISO15924(str: unknown): boolean {
-  const s = tryToString(str);
-  if (s === false) return false;
-  str = s;
+export default function isISO15924(input: unknown): boolean {
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
+  const str: string = s;
   return validISO15924Codes.has(str);
 }
 

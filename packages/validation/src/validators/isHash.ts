@@ -1,4 +1,6 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
+import { ValidationConfigError } from './util/errors';
+import hasOwn from './util/hasOwn';
 
 const lengths = {
   md5: 32,
@@ -16,10 +18,17 @@ const lengths = {
   crc32b: 8,
 };
 
-export default function isHash(str: unknown, algorithm: string): boolean {
-  const s = tryToString(str);
-  if (s === false) return false;
-  str = s;
-  const hash = new RegExp(`^[a-fA-F0-9]{${lengths[algorithm]}}$`);
-  return hash.test(str);
+// One precompiled regex per algorithm (instead of a new RegExp on every call).
+const hashRegex: Record<string, RegExp> = Object.fromEntries(
+  Object.entries(lengths).map(([name, len]) => [name, new RegExp(`^[a-fA-F0-9]{${len}}$`)]),
+);
+
+export default function isHash(input: unknown, algorithm: string): boolean {
+  if (!hasOwn(hashRegex, algorithm)) {
+    throw new ValidationConfigError(`Invalid hash algorithm '${String(algorithm)}'`);
+  }
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
+  return hashRegex[algorithm].test(s);
 }

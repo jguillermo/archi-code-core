@@ -1,5 +1,7 @@
 import type { IsMobilePhoneOptions } from '../types';
-import tryToString from './util/tryToString';
+import { ValidationConfigError } from './util/errors';
+import hasOwn from './util/hasOwn';
+import { toString } from '../convert/string';
 
 const phones = {
   'am-AM': /^(\+?374|0)(33|4[134]|55|77|88|9[13-689])\d{6}$/,
@@ -185,8 +187,9 @@ export default function isMobilePhone(
   locale?: string | string[],
   options?: IsMobilePhoneOptions,
 ): boolean {
-  const s = tryToString(str);
-  if (s === false) return false;
+  const stringResult = toString(str);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   if (options && options.strictMode && !s.startsWith('+')) {
     return false;
   }
@@ -203,8 +206,8 @@ export default function isMobilePhone(
       return false;
     });
   }
-  if (locale && locale in phones) {
-    return phones[locale as string].test(s);
+  if (hasOwn(phones, locale)) {
+    return phones[locale].test(s);
     // alias falsey locale as 'any'
   }
   if (!locale || locale === 'any') {
@@ -219,7 +222,7 @@ export default function isMobilePhone(
     }
     return false;
   }
-  throw new Error(`Invalid locale '${locale}'`);
+  throw new ValidationConfigError(`Invalid locale '${locale}'`);
 }
 
-export const locales = Object.keys(phones);
+export const locales: readonly string[] = Object.freeze(Object.keys(phones));

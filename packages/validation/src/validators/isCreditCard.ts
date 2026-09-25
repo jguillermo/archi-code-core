@@ -1,4 +1,6 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
+import { ValidationConfigError } from './util/errors';
+import hasOwn from './util/hasOwn';
 import isLuhnValid from './isLuhnNumber';
 
 const cards = {
@@ -22,20 +24,24 @@ const allCards = (() => {
   return tmpCardsArray;
 })();
 
-export default function isCreditCard(card: unknown, options: { provider?: string } = {}): boolean {
-  const s = tryToString(card);
-  if (s === false) return false;
-  card = s;
+export default function isCreditCard(input: unknown, options: { provider?: string } = {}): boolean {
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
+  const card: string = s;
   const { provider } = options;
   const sanitized = card.replace(/[- ]+/g, '');
-  if (provider && provider.toLowerCase() in cards) {
+  if (provider !== undefined && typeof provider !== 'string') {
+    throw new ValidationConfigError('provider must be a string');
+  }
+  if (provider && hasOwn(cards, provider.toLowerCase())) {
     // specific provider in the list
     if (!cards[provider.toLowerCase()].test(sanitized)) {
       return false;
     }
-  } else if (provider && !(provider.toLowerCase() in cards)) {
+  } else if (provider) {
     /* specific provider not in the list */
-    throw new Error(`${provider} is not a valid credit card provider.`);
+    throw new ValidationConfigError(`${provider} is not a valid credit card provider.`);
   } else if (!allCards.some((cardProvider) => cardProvider.test(sanitized))) {
     // no specific provider
     return false;

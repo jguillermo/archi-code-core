@@ -1,5 +1,5 @@
 import type { IsFQDNOptions } from '../types';
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 import merge from './util/merge';
 
 const default_fqdn_options = {
@@ -22,8 +22,9 @@ const hyphenEdgeRegex = /^-|-$/;
 const underscoreRegex = /_/;
 
 export default function isFQDN(str: unknown, options?: IsFQDNOptions): boolean {
-  const s = tryToString(str);
-  if (s === false) return false;
+  const stringResult = toString(str);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   let strVal = s;
   options = merge(options, default_fqdn_options);
 

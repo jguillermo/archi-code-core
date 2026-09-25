@@ -1,4 +1,6 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
+import { ValidationConfigError } from './util/errors';
+import hasOwn from './util/hasOwn';
 
 const validators = {
   'cs-CZ': (str) => /^(([ABCDEFHIJKLMNPRSTUVXYZ]|[0-9])-?){5,8}$/.test(str),
@@ -30,11 +32,12 @@ const validators = {
     ),
 };
 
-export default function isLicensePlate(str: unknown, locale: string): boolean {
-  const s = tryToString(str);
-  if (s === false) return false;
-  str = s;
-  if (locale in validators) {
+export default function isLicensePlate(input: unknown, locale: string): boolean {
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
+  const str: string = s;
+  if (hasOwn(validators, locale)) {
     return validators[locale](str);
   }
   if (locale === 'any') {
@@ -47,5 +50,5 @@ export default function isLicensePlate(str: unknown, locale: string): boolean {
     }
     return false;
   }
-  throw new Error(`Invalid locale '${locale}'`);
+  throw new ValidationConfigError(`Invalid locale '${locale}'`);
 }

@@ -1,13 +1,14 @@
 import type { IsByteLengthOptions } from '../types';
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 
 export default function isByteLength(
   str: unknown,
   optionsOrMin?: IsByteLengthOptions | number,
   maxArg?: number,
 ): boolean {
-  const s = tryToString(str);
-  if (s === false) return false;
+  const stringResult = toString(str);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   let min: number;
   let max: number | undefined;
   if (typeof optionsOrMin === 'object') {
