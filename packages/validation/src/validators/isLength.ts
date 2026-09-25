@@ -23,7 +23,7 @@ function countGraphemes(s: string): number {
   return Array.from(segmenter.segment(s)).length;
 }
 
-export default function isLength(
+export function isLength(
   str: unknown,
   optionsOrMin?: IsLengthOptions | number,
   maxArg?: number,

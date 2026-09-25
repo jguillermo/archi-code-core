@@ -1,5 +1,5 @@
 import { toString } from '../convert/string';
-import merge from './util/merge';
+import { merge } from './util/merge';
 
 export interface IsLatLongOptions {
   checkDMS?: boolean;
@@ -15,7 +15,7 @@ const defaultLatLongOptions = {
   checkDMS: false,
 };
 
-export default function isLatLong(str: unknown, options?: IsLatLongOptions): boolean {
+export function isLatLong(str: unknown, options?: IsLatLongOptions): boolean {
   const stringResult = toString(str);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

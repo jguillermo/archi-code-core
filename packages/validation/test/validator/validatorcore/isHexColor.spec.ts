@@ -1,5 +1,5 @@
 import assert from 'assert';
-import validator from '../../../src/validators';
+import { validator } from '../../../src/validators';
 import test from '../testFunctions';
 
 describe('Validators', () => {

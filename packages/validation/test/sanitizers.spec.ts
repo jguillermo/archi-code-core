@@ -1,5 +1,5 @@
 import { format } from 'util';
-import validatorObj from '../src/validators';
+import { validator as validatorObj } from '../src/validators';
 import * as sanitizer from '../src/sanitizer';
 
 const api = { ...sanitizer, isStrongPassword: validatorObj.isStrongPassword } as Record<

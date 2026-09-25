@@ -1,7 +1,7 @@
-import merge from './util/merge';
+import { merge } from './util/merge';
 import { toString } from '../convert/string';
-import escapeRegExp from './util/escapeRegExp';
-import BoundedCache from './util/boundedCache';
+import { escapeRegExp } from './util/escapeRegExp';
+import { BoundedCache } from './util/boundedCache';
 import { ValidationConfigError } from './util/errors';
 
 export interface IsCurrencyOptions {
@@ -141,7 +141,7 @@ function getCurrencyRegex(options: Required<IsCurrencyOptions>): RegExp {
   return currencyRegexCache.getOrCreate(key, () => currencyRegex(options));
 }
 
-export default function isCurrency(str: unknown, options?: IsCurrencyOptions): boolean {
+export function isCurrency(str: unknown, options?: IsCurrencyOptions): boolean {
   const stringResult = toString(str);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

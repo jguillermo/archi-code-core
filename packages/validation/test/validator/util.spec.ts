@@ -1,5 +1,5 @@
 import assert from 'assert';
-import assertString from '../../src/validators/util/assertString';
+import { assertString } from '../../src/validators/util/assertString';
 import { toString, ConvertMessages } from '../../src/convert';
 
 describe('toString (convert module)', () => {

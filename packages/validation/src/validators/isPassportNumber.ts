@@ -1,6 +1,6 @@
 import { toString } from '../convert/string';
 import { ValidationConfigError } from './util/errors';
-import hasOwn from './util/hasOwn';
+import { hasOwn } from './util/hasOwn';
 
 /**
  * Reference:
@@ -84,10 +84,7 @@ export const locales: readonly string[] = Object.freeze(Object.keys(passportRege
  * @param {string} countryCode
  * @return {boolean}
  */
-export default function isPassportNumber(
-  input: unknown,
-  countryCode: PassportCountryCode,
-): boolean {
+export function isPassportNumber(input: unknown, countryCode: PassportCountryCode): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

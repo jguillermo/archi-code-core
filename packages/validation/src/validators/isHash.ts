@@ -1,6 +1,6 @@
 import { toString } from '../convert/string';
 import { ValidationConfigError } from './util/errors';
-import hasOwn from './util/hasOwn';
+import { hasOwn } from './util/hasOwn';
 
 const lengths = {
   md5: 32,
@@ -26,7 +26,7 @@ const hashRegex: Record<string, RegExp> = Object.fromEntries(
   Object.entries(lengths).map(([name, len]) => [name, new RegExp(`^[a-fA-F0-9]{${len}}$`)]),
 );
 
-export default function isHash(input: unknown, algorithm: HashAlgorithm): boolean {
+export function isHash(input: unknown, algorithm: HashAlgorithm): boolean {
   if (!hasOwn(hashRegex, algorithm)) {
     throw new ValidationConfigError(`Invalid hash algorithm '${String(algorithm)}'`);
   }

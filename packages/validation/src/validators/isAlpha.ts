@@ -1,17 +1,13 @@
 import { toString } from '../convert/string';
 import { ValidationConfigError } from './util/errors';
-import hasOwn from './util/hasOwn';
+import { hasOwn } from './util/hasOwn';
 import { alpha } from './alpha';
 
 export interface IsAlphaOptions {
   ignore?: string | RegExp;
 }
 
-export default function isAlpha(
-  _str: unknown,
-  locale = 'en-US',
-  options: IsAlphaOptions = {},
-): boolean {
+export function isAlpha(_str: unknown, locale = 'en-US', options: IsAlphaOptions = {}): boolean {
   const stringResult = toString(_str);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

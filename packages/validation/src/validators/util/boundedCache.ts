@@ -2,7 +2,7 @@
  * Small LRU cache with a hard size limit. Used for regexes compiled from caller-supplied
  * options: an unbounded Map would grow forever if those options vary per request.
  */
-export default class BoundedCache<V> {
+export class BoundedCache<V> {
   private readonly map = new Map<string, V>();
 
   constructor(private readonly maxSize = 256) {}

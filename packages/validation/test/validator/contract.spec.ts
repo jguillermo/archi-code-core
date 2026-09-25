@@ -6,7 +6,7 @@
  *  3. Prototype keys (`'toString'`, `'__proto__'`…) used as locale/option never crash it.
  */
 import { describe, expect, it } from '@jest/globals';
-import validator from '../../src/validators';
+import { validator } from '../../src/validators';
 import { ValidationConfigError } from '../../src/validators/util/errors';
 
 const HOSTILE_VALUES: unknown[] = [

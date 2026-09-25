@@ -1,13 +1,13 @@
 import { toString } from '../convert/string';
 import { ValidationConfigError } from './util/errors';
-import hasOwn from './util/hasOwn';
+import { hasOwn } from './util/hasOwn';
 import { alphanumeric } from './alpha';
 
 export interface IsAlphanumericOptions {
   ignore?: string | RegExp;
 }
 
-export default function isAlphanumeric(
+export function isAlphanumeric(
   _str: unknown,
   locale = 'en-US',
   options: IsAlphanumericOptions = {},

@@ -1,6 +1,6 @@
 import { toString } from '../convert/string';
 import { ValidationConfigError } from './util/errors';
-import hasOwn from './util/hasOwn';
+import { hasOwn } from './util/hasOwn';
 import { decimal } from './alpha';
 
 export interface IsNumericOptions {
@@ -22,7 +22,7 @@ function getNumericRegex(separator: string): RegExp {
   return re;
 }
 
-export default function isNumeric(input: unknown, options?: IsNumericOptions): boolean {
+export function isNumeric(input: unknown, options?: IsNumericOptions): boolean {
   let separator = '.';
   if (options?.locale) {
     if (!hasOwn(decimal, options.locale))

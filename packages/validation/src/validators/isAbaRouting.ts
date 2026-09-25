@@ -6,7 +6,7 @@ import { toString } from '../convert/string';
 const isRoutingReg =
   /^(?!(1[3-9])|(20)|(3[3-9])|(4[0-9])|(5[0-9])|(60)|(7[3-9])|(8[1-9])|(9[0-2])|(9[3-9]))[0-9]{9}$/;
 
-export default function isAbaRouting(input: unknown): boolean {
+export function isAbaRouting(input: unknown): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

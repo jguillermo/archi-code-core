@@ -10,7 +10,7 @@ const possibleIsbn10 = /^(?:[0-9]{9}X|[0-9]{10})$/;
 const possibleIsbn13 = /^(?:[0-9]{13})$/;
 const factor = [1, 3];
 
-export default function isISBN(input: unknown, options?: IsISBNVersion | IsISBNOptions): boolean {
+export function isISBN(input: unknown, options?: IsISBNVersion | IsISBNOptions): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

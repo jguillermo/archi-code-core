@@ -1,5 +1,5 @@
-import assertString from '../validators/util/assertString';
-import escapeRegExp from '../validators/util/escapeRegExp';
+import { assertString } from '../validators/util/assertString';
+import { escapeRegExp } from '../validators/util/escapeRegExp';
 
 export function ltrim(str: string, chars?: string): string {
   assertString(str);

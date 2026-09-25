@@ -1,4 +1,4 @@
-import merge from '../validators/util/merge';
+import { merge } from '../validators/util/merge';
 
 export interface NormalizeEmailOptions {
   all_lowercase?: boolean;
@@ -174,10 +174,7 @@ function dotsReplacer(match: string): string {
   return '';
 }
 
-export default function normalizeEmail(
-  email: string,
-  options?: Record<string, unknown>,
-): string | false {
+export function normalizeEmail(email: string, options?: Record<string, unknown>): string | false {
   options = merge(options, default_normalize_email_options);
 
   const raw_parts = email.split('@');

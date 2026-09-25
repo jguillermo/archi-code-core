@@ -53,7 +53,7 @@ const IPv6AddressRegExp = new RegExp(
     ')(%[0-9a-zA-Z.]{1,})?$',
 );
 
-export default function isIP(ipAddress: unknown, options: IsIPOptions | IsIPVersion = {}): boolean {
+export function isIP(ipAddress: unknown, options: IsIPOptions | IsIPVersion = {}): boolean {
   const stringResult = toString(ipAddress);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

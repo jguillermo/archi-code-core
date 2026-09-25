@@ -2,7 +2,7 @@ import { toFloat } from '../convert/float';
 import { decimal } from './alpha';
 import { toString } from '../convert/string';
 import { ValidationConfigError } from './util/errors';
-import hasOwn from './util/hasOwn';
+import { hasOwn } from './util/hasOwn';
 
 export interface IsFloatOptions {
   min?: number;
@@ -16,7 +16,7 @@ export interface IsFloatOptions {
  * Float check. The float syntax lives in `convert/float` (`syntax: 'validator'`, ported from this
  * validator); this function resolves the locale's decimal separator and adds the bounds.
  */
-export default function isFloat(str: unknown, options?: IsFloatOptions): boolean {
+export function isFloat(str: unknown, options?: IsFloatOptions): boolean {
   const opts = options || {};
   if (typeof str !== 'number') {
     // Config errors are reported only for readable values (historic order of checks).

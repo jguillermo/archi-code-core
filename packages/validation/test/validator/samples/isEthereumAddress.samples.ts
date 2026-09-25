@@ -1,4 +1,4 @@
-import validator from '../../../src/validators';
+import { validator } from '../../../src/validators';
 import type { ValidatorSample } from './types';
 
 export const isEthereumAddressSample: ValidatorSample = {

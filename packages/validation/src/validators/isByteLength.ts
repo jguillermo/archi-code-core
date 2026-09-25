@@ -5,7 +5,7 @@ export interface IsByteLengthOptions {
   max?: number;
 }
 
-export default function isByteLength(
+export function isByteLength(
   str: unknown,
   optionsOrMin?: IsByteLengthOptions | number,
   maxArg?: number,

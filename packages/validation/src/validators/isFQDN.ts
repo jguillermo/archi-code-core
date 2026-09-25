@@ -1,5 +1,5 @@
 import { toString } from '../convert/string';
-import merge from './util/merge';
+import { merge } from './util/merge';
 
 export interface IsFQDNOptions {
   require_tld?: boolean;
@@ -29,7 +29,7 @@ const fullWidthRegex = /[！-～]/;
 const hyphenEdgeRegex = /^-|-$/;
 const underscoreRegex = /_/;
 
-export default function isFQDN(str: unknown, options?: IsFQDNOptions): boolean {
+export function isFQDN(str: unknown, options?: IsFQDNOptions): boolean {
   const stringResult = toString(str);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

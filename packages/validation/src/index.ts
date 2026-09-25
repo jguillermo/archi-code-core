@@ -1,4 +1,4 @@
-export { default as validator } from './validators';
+export { validator } from './validators';
 export * from './canBe';
 export * from './convert';
 export * as sanitizer from './sanitizer';

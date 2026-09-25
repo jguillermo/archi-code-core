@@ -3,13 +3,13 @@
  * Each block names the defect number it pins down.
  */
 import { describe, expect, it } from '@jest/globals';
-import validator from '../../src/validators';
+import { validator } from '../../src/validators';
 import * as sanitizer from '../../src/sanitizer';
 import { createValidator } from '../../src/createValidator';
 import { ValidationConfigError } from '../../src/validators/util/errors';
-import escapeRegExp from '../../src/validators/util/escapeRegExp';
-import BoundedCache from '../../src/validators/util/boundedCache';
-import checkHost from '../../src/validators/util/checkHost';
+import { escapeRegExp } from '../../src/validators/util/escapeRegExp';
+import { BoundedCache } from '../../src/validators/util/boundedCache';
+import { checkHost } from '../../src/validators/util/checkHost';
 import { scorePassword } from '../../src/validators/isStrongPassword';
 
 describe('#1 isEmail blacklisted_chars — taken literally, never as regex syntax', () => {

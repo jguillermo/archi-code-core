@@ -1,8 +1,8 @@
 import { toString } from '../convert/string';
-import checkHost from './util/checkHost';
-import isFQDN from './isFQDN';
-import isIP from './isIP';
-import merge from './util/merge';
+import { checkHost } from './util/checkHost';
+import { isFQDN } from './isFQDN';
+import { isIP } from './isIP';
+import { merge } from './util/merge';
 
 export interface IsURLOptions {
   protocols?: string[];
@@ -76,7 +76,7 @@ const encodedContentRegex = /%[0-9a-fA-F]{2}/;
 const leadingDigitRegex = /^[0-9]/;
 const digitsOnlyRegex = /^[0-9]+$/;
 
-export default function isURL(urlInput: unknown, options?: IsURLOptions): boolean {
+export function isURL(urlInput: unknown, options?: IsURLOptions): boolean {
   const stringResult = toString(urlInput);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

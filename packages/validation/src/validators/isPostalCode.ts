@@ -1,6 +1,6 @@
 import { toString } from '../convert/string';
 import { ValidationConfigError } from './util/errors';
-import hasOwn from './util/hasOwn';
+import { hasOwn } from './util/hasOwn';
 
 // common patterns
 const threeDigit = /^\d{3}$/;
@@ -87,7 +87,7 @@ export type PostalCodeLocale = keyof typeof patterns | 'any' | (string & {});
 
 export const locales: readonly string[] = Object.freeze(Object.keys(patterns));
 
-export default function isPostalCode(input: unknown, locale: PostalCodeLocale): boolean {
+export function isPostalCode(input: unknown, locale: PostalCodeLocale): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

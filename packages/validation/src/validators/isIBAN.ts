@@ -1,4 +1,4 @@
-import hasOwn from './util/hasOwn';
+import { hasOwn } from './util/hasOwn';
 import { toString } from '../convert/string';
 
 export interface IsIBANOptions {
@@ -187,7 +187,7 @@ function hasValidIbanChecksum(str: string): boolean {
   return remainder === 1;
 }
 
-export default function isIBAN(input: unknown, options: IsIBANOptions = {}): boolean {
+export function isIBAN(input: unknown, options: IsIBANOptions = {}): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

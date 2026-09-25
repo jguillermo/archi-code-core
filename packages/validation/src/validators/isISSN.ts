@@ -9,7 +9,7 @@ export interface IsISSNOptions {
 
 const issn = '^\\d{4}-?\\d{3}[\\dX]$';
 
-export default function isISSN(input: unknown, options: IsISSNOptions = {}): boolean {
+export function isISSN(input: unknown, options: IsISSNOptions = {}): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

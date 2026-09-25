@@ -1,4 +1,4 @@
-import validator from './validators';
+import { validator } from './validators';
 import type { ValidatorRegistry } from './validators';
 
 /**

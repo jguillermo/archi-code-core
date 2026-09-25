@@ -1,5 +1,5 @@
 import { ValidationConfigError } from './util/errors';
-import hasOwn from './util/hasOwn';
+import { hasOwn } from './util/hasOwn';
 import { toString } from '../convert/string';
 
 export interface IsMobilePhoneOptions {
@@ -188,7 +188,7 @@ phones['ga-IE'] = phones['en-IE'];
 phones['fr-CH'] = phones['de-CH'];
 phones['it-CH'] = phones['fr-CH'];
 
-export default function isMobilePhone(
+export function isMobilePhone(
   str: unknown,
   locale?: MobilePhoneLocale | MobilePhoneLocale[],
   options?: IsMobilePhoneOptions,

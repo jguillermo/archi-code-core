@@ -33,7 +33,7 @@ function loadSamples(useUpstream: boolean): ValidatorSample[] {
       jest.doMock('../../src/validators', () => {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
         const upstream = require('validator');
-        return { __esModule: true, default: upstream.default ?? upstream };
+        return { __esModule: true, validator: upstream.default ?? upstream };
       });
     }
     // eslint-disable-next-line @typescript-eslint/no-require-imports

@@ -1,6 +1,6 @@
 import { toString } from '../convert/string';
 import { ValidationConfigError } from './util/errors';
-import hasOwn from './util/hasOwn';
+import { hasOwn } from './util/hasOwn';
 
 const validators = {
   'cs-CZ': (str) => /^(([ABCDEFHIJKLMNPRSTUVXYZ]|[0-9])-?){5,8}$/.test(str),
@@ -35,7 +35,7 @@ const validators = {
 /** Known locales (autocomplete); any string is accepted, unknown ones throw ValidationConfigError. */
 export type LicensePlateLocale = keyof typeof validators | 'any' | (string & {});
 
-export default function isLicensePlate(input: unknown, locale: LicensePlateLocale): boolean {
+export function isLicensePlate(input: unknown, locale: LicensePlateLocale): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

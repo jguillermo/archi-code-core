@@ -1,5 +1,5 @@
 import { toString } from '../convert/string';
-import merge from './util/merge';
+import { merge } from './util/merge';
 
 export interface IsHexColorOptions {
   /** When true the leading `#` is mandatory. */
@@ -13,7 +13,7 @@ const default_is_hexcolor_options = {
   require_hashtag: false,
 };
 
-export default function isHexColor(input: unknown, options?: IsHexColorOptions): boolean {
+export function isHexColor(input: unknown, options?: IsHexColorOptions): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

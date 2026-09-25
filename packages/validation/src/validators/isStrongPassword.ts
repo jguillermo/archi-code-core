@@ -1,4 +1,4 @@
-import merge from './util/merge';
+import { merge } from './util/merge';
 import { toString } from '../convert/string';
 
 export interface IsStrongPasswordOptions {
@@ -123,15 +123,15 @@ export function scorePassword(str: unknown, options?: IsStrongPasswordOptions): 
 }
 
 /** @deprecated `returnScore: true` — use `scorePassword()` to get the numeric score. */
-export default function isStrongPassword(
+export function isStrongPassword(
   str: unknown,
   options: IsStrongPasswordOptions & { returnScore: true },
 ): number | false;
-export default function isStrongPassword(
+export function isStrongPassword(
   str: unknown,
   options?: IsStrongPasswordOptions & { returnScore?: false },
 ): boolean;
-export default function isStrongPassword(
+export function isStrongPassword(
   str: unknown,
   options?: IsStrongPasswordOptions,
 ): boolean | number {

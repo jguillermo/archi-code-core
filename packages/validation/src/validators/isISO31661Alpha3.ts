@@ -256,7 +256,7 @@ const validISO31661Alpha3CountriesCodes = new Set([
 
 const alpha3CountryCode = /^[a-zA-Z]{3}$/;
 
-export default function isISO31661Alpha3(input: unknown, options: IsISO31661Options = {}): boolean {
+export function isISO31661Alpha3(input: unknown, options: IsISO31661Options = {}): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

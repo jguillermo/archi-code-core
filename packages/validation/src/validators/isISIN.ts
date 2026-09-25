@@ -9,7 +9,7 @@ const isin = /^[A-Z]{2}[0-9A-Z]{9}[0-9]$/;
 // each alpha character is handled as 2 characters within
 // the loop.
 
-export default function isISIN(input: unknown): boolean {
+export function isISIN(input: unknown): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

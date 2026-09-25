@@ -13,7 +13,7 @@ export interface IsJSONOptions {
  * For domain object validation (plain records only, no arrays),
  * use `canBeJson()` from the canBe module instead.
  */
-export default function isJSON(str: unknown, options?: IsJSONOptions): boolean {
+export function isJSON(str: unknown, options?: IsJSONOptions): boolean {
   return toJsonValue(str, {
     allowPrimitives: options?.allow_primitives,
     allowAnyValue: options?.allow_any_value,

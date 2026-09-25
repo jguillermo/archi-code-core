@@ -1,4 +1,4 @@
-import assertString from '../validators/util/assertString';
+import { assertString } from '../validators/util/assertString';
 
 export function escape(str: string): string {
   assertString(str);

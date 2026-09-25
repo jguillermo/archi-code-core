@@ -1,7 +1,7 @@
 import { toString } from '../convert/string';
-import isBase64 from './isBase64';
+import { isBase64 } from './isBase64';
 
-export default function isJWT(input: unknown): boolean {
+export function isJWT(input: unknown): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

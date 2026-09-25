@@ -1,4 +1,4 @@
-export default function merge<T extends object, D extends object>(
+export function merge<T extends object, D extends object>(
   obj: T | null | undefined,
   defaults: D,
 ): T & D {

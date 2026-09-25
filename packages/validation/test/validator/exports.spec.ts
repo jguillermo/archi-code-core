@@ -1,5 +1,5 @@
 import assert from 'assert';
-import validator from '../../src/validators';
+import { validator } from '../../src/validators';
 import { locales as isPostalCodeLocales } from '../../src/validators/isPostalCode';
 import { locales as isAlphaLocales } from '../../src/validators/isAlpha';
 import { locales as isAlphanumericLocales } from '../../src/validators/isAlphanumeric';

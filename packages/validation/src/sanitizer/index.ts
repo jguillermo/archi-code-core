@@ -9,5 +9,5 @@ export { unescape } from './unescape';
 export { blacklist } from './blacklist';
 export { whitelist } from './whitelist';
 export { stripLow } from './stripLow';
-export { default as normalizeEmail } from './normalizeEmail';
+export { normalizeEmail } from './normalizeEmail';
 export type { NormalizeEmailOptions } from './normalizeEmail';

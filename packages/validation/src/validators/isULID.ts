@@ -1,6 +1,6 @@
 import { toString } from '../convert/string';
 
-export default function isULID(input: unknown): boolean {
+export function isULID(input: unknown): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

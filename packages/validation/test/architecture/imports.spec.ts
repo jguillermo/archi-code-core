@@ -77,6 +77,13 @@ describe('architecture: import graph', () => {
     );
   });
 
+  it('src has no default exports (named exports only)', () => {
+    const offenders = files
+      .filter((f) => /\bexport\s+default\b|\bdefault\s+as\b/.test(fs.readFileSync(f, 'utf8')))
+      .map(rel);
+    expect(offenders).toEqual([]);
+  });
+
   it('has no import cycles', () => {
     expect(findCycles().map((c) => c.join(' → '))).toEqual([]);
   });

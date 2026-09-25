@@ -47,7 +47,7 @@ const isValidDate = (str: string): boolean => {
  * which is the historic validator.js behaviour. Pass `{ strict: true }` to also reject dates
  * that do not exist in the calendar.
  */
-export default function isISO8601(input: unknown, options: IsISO8601Options = {}): boolean {
+export function isISO8601(input: unknown, options: IsISO8601Options = {}): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

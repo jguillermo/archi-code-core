@@ -1,7 +1,7 @@
 import { toString } from '../convert/string';
 import { ValidationConfigError } from './util/errors';
-import hasOwn from './util/hasOwn';
-import isLuhnValid from './isLuhnNumber';
+import { hasOwn } from './util/hasOwn';
+import { isLuhnNumber as isLuhnValid } from './isLuhnNumber';
 
 const cards = {
   amex: /^3[47][0-9]{13}$/,
@@ -32,7 +32,7 @@ const allCards = (() => {
   return tmpCardsArray;
 })();
 
-export default function isCreditCard(input: unknown, options: IsCreditCardOptions = {}): boolean {
+export function isCreditCard(input: unknown, options: IsCreditCardOptions = {}): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

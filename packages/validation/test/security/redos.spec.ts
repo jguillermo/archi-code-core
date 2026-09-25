@@ -4,7 +4,7 @@
  * regex takes seconds or minutes on these inputs, so the signal is unambiguous.
  */
 import { describe, expect, it } from '@jest/globals';
-import validator from '../../src/validators';
+import { validator } from '../../src/validators';
 
 const N = 30_000;
 const BUDGET_MS = 150;

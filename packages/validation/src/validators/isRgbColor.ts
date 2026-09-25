@@ -15,7 +15,7 @@ const rgbColorPercent = /^rgb\((([0-9]%|[1-9][0-9]%|100%),){2}([0-9]%|[1-9][0-9]
 const rgbaColorPercent = /^rgba\((([0-9]%|[1-9][0-9]%|100%),){3}(0?\.\d\d?|1(\.0)?|0(\.0)?)\)$/;
 const startsWithRgb = /^rgba?/;
 
-export default function isRgbColor(input: unknown, options?: IsRgbColorOptions): boolean {
+export function isRgbColor(input: unknown, options?: IsRgbColorOptions): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

@@ -3,7 +3,7 @@ import { toString } from '../convert/string';
 import { fullWidth } from './isFullWidth';
 import { halfWidth } from './isHalfWidth';
 
-export default function isVariableWidth(input: unknown): boolean {
+export function isVariableWidth(input: unknown): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

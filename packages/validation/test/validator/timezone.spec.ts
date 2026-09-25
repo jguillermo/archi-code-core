@@ -3,7 +3,7 @@
  */
 import { afterEach, describe, expect, it } from '@jest/globals';
 import timezone_mock from 'timezone-mock';
-import validator from '../../src/validators';
+import { validator } from '../../src/validators';
 
 const ZONES = [
   'UTC',

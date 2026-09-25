@@ -1,5 +1,5 @@
 import { toString } from '../convert/string';
-import merge from './util/merge';
+import { merge } from './util/merge';
 
 export interface ContainsOptions {
   ignoreCase?: boolean;
@@ -12,11 +12,7 @@ const defaultContainsOptions = {
   minOccurrences: 1,
 };
 
-export default function contains(
-  input: unknown,
-  elem: unknown,
-  options?: ContainsOptions,
-): boolean {
+export function contains(input: unknown, elem: unknown, options?: ContainsOptions): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

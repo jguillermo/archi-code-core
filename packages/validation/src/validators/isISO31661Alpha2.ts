@@ -260,7 +260,7 @@ const validISO31661Alpha2CountriesCodes = new Set([
 
 const alpha2CountryCode = /^[a-zA-Z]{2}$/;
 
-export default function isISO31661Alpha2(input: unknown, options: IsISO31661Options = {}): boolean {
+export function isISO31661Alpha2(input: unknown, options: IsISO31661Options = {}): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
