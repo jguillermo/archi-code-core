@@ -71,6 +71,9 @@ const passportRegexByCountryCode = {
   ZA: /^[TAMD]\d{8}$/, // SOUTH AFRICA
 };
 
+/** Known country codes (autocomplete); any string is accepted, unknown ones return false. */
+export type PassportCountryCode = keyof typeof passportRegexByCountryCode | (string & {});
+
 export const locales: readonly string[] = Object.freeze(Object.keys(passportRegexByCountryCode));
 
 /**
@@ -81,7 +84,10 @@ export const locales: readonly string[] = Object.freeze(Object.keys(passportRege
  * @param {string} countryCode
  * @return {boolean}
  */
-export default function isPassportNumber(input: unknown, countryCode: string): boolean {
+export default function isPassportNumber(
+  input: unknown,
+  countryCode: PassportCountryCode,
+): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

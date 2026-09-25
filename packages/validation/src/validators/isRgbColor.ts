@@ -1,5 +1,12 @@
 import { toString } from '../convert/string';
 
+export interface IsRgbColorOptions {
+  /** Accept percentages: `rgb(10%, 20%, 30%)`. */
+  includePercentValues?: boolean;
+  /** Accept spaces after the commas. */
+  allowSpaces?: boolean;
+}
+
 const rgbColor =
   /^rgb\((([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5]),){2}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\)$/;
 const rgbaColor =
@@ -8,10 +15,7 @@ const rgbColorPercent = /^rgb\((([0-9]%|[1-9][0-9]%|100%),){2}([0-9]%|[1-9][0-9]
 const rgbaColorPercent = /^rgba\((([0-9]%|[1-9][0-9]%|100%),){3}(0?\.\d\d?|1(\.0)?|0(\.0)?)\)$/;
 const startsWithRgb = /^rgba?/;
 
-export default function isRgbColor(
-  input: unknown,
-  options?: { allowSpaces?: boolean; includePercentValues?: boolean },
-): boolean {
+export default function isRgbColor(input: unknown, options?: IsRgbColorOptions): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

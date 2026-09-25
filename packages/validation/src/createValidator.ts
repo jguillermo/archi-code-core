@@ -1,5 +1,5 @@
 import validator from './validators';
-import type { ValidatorRegistry } from './types';
+import type { ValidatorRegistry } from './validators';
 
 /**
  * Creates a new object that combines the built-in validator registry with

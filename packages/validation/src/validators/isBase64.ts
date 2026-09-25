@@ -1,6 +1,10 @@
-import type { IsBase64Options } from '../types';
 import { toString } from '../convert/string';
 import merge from './util/merge';
+
+export interface IsBase64Options {
+  urlSafe?: boolean;
+  padding?: boolean;
+}
 
 const base64WithPadding = /^[A-Za-z0-9+/]+={0,2}$/;
 const base64WithoutPadding = /^[A-Za-z0-9+/]+$/;

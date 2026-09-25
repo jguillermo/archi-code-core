@@ -82,9 +82,12 @@ const patterns = {
   ZM: fiveDigit,
 };
 
+/** Known locales (autocomplete); any string is accepted, unknown ones throw ValidationConfigError. */
+export type PostalCodeLocale = keyof typeof patterns | 'any' | (string & {});
+
 export const locales: readonly string[] = Object.freeze(Object.keys(patterns));
 
-export default function isPostalCode(input: unknown, locale: string): boolean {
+export default function isPostalCode(input: unknown, locale: PostalCodeLocale): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

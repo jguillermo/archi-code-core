@@ -18,12 +18,15 @@ const lengths = {
   crc32b: 8,
 };
 
+/** Supported algorithms (autocomplete); any string is accepted, unknown ones throw ValidationConfigError. */
+export type HashAlgorithm = keyof typeof lengths | (string & {});
+
 // One precompiled regex per algorithm (instead of a new RegExp on every call).
 const hashRegex: Record<string, RegExp> = Object.fromEntries(
   Object.entries(lengths).map(([name, len]) => [name, new RegExp(`^[a-fA-F0-9]{${len}}$`)]),
 );
 
-export default function isHash(input: unknown, algorithm: string): boolean {
+export default function isHash(input: unknown, algorithm: HashAlgorithm): boolean {
   if (!hasOwn(hashRegex, algorithm)) {
     throw new ValidationConfigError(`Invalid hash algorithm '${String(algorithm)}'`);
   }

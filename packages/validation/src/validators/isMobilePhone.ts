@@ -1,7 +1,10 @@
-import type { IsMobilePhoneOptions } from '../types';
 import { ValidationConfigError } from './util/errors';
 import hasOwn from './util/hasOwn';
 import { toString } from '../convert/string';
+
+export interface IsMobilePhoneOptions {
+  strictMode?: boolean;
+}
 
 const phones = {
   'am-AM': /^(\+?374|0)(33|4[134]|55|77|88|9[13-689])\d{6}$/,
@@ -172,6 +175,9 @@ const phones = {
     /^(\+?389|0)?((?:2[2-9]\d{6}|(?:3[1-4]|4[2-8])\d{6}|500\d{5}|5[2-9]\d{6}|7[0-9][2-9]\d{5}|8[1-9]\d{6}|800\d{5}|8009\d{4}))$/,
 };
 
+/** Known locales (autocomplete); any string is accepted, unknown ones throw ValidationConfigError. */
+export type MobilePhoneLocale = keyof typeof phones | 'any' | (string & {});
+
 // aliases
 phones['en-CA'] = phones['en-US'];
 phones['fr-CA'] = phones['en-CA'];
@@ -184,7 +190,7 @@ phones['it-CH'] = phones['fr-CH'];
 
 export default function isMobilePhone(
   str: unknown,
-  locale?: string | string[],
+  locale?: MobilePhoneLocale | MobilePhoneLocale[],
   options?: IsMobilePhoneOptions,
 ): boolean {
   const stringResult = toString(str);

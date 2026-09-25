@@ -13,6 +13,14 @@ const cards = {
   visa: /^(?:4[0-9]{12})(?:[0-9]{3,6})?$/,
 };
 
+/** Supported providers (autocomplete); any string is accepted, unknown ones throw ValidationConfigError. */
+export type CreditCardProvider = keyof typeof cards | (string & {});
+
+export interface IsCreditCardOptions {
+  /** Restrict to one provider. */
+  provider?: CreditCardProvider;
+}
+
 const allCards = (() => {
   const tmpCardsArray: RegExp[] = [];
   for (const cardProvider in cards) {
@@ -24,7 +32,7 @@ const allCards = (() => {
   return tmpCardsArray;
 })();
 
-export default function isCreditCard(input: unknown, options: { provider?: string } = {}): boolean {
+export default function isCreditCard(input: unknown, options: IsCreditCardOptions = {}): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

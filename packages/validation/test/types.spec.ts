@@ -14,6 +14,17 @@ import {
   ValidationConfigError,
 } from '../src';
 import type { Converted, ConvertMessage } from '../src/convert';
+import type {
+  ValidatorRegistry,
+  IsEmailOptions,
+  IsRgbColorOptions,
+  IsISO31661Options,
+  MobilePhoneLocale,
+  HashAlgorithm,
+  VATCountryCode,
+  IsCreditCardOptions,
+  CreditCardProvider,
+} from '../src';
 
 describe('public types', () => {
   it('validators return boolean', () => {
@@ -71,5 +82,40 @@ describe('public types', () => {
 
   it('ValidationConfigError is exported and carries its name at runtime', () => {
     expect(new ValidationConfigError('x').name).toBe('ValidationConfigError');
+  });
+
+  describe('autocomplete of validator options', () => {
+    it('each validator exposes its named options type', () => {
+      expectTypeOf(validator.isEmail).parameter(1).toEqualTypeOf<IsEmailOptions | undefined>();
+      expectTypeOf(validator.isRgbColor)
+        .parameter(1)
+        .toEqualTypeOf<IsRgbColorOptions | undefined>();
+      expectTypeOf<ValidatorRegistry>().toEqualTypeOf<typeof validator>();
+    });
+
+    it('options the registry used to hide are now typed', () => {
+      expectTypeOf(validator.isRgbColor).toBeCallableWith('rgb(1, 2, 3)', { allowSpaces: true });
+      expectTypeOf<IsISO31661Options>().toHaveProperty('userAssignedCodes');
+    });
+
+    it('unknown options are compile errors (the editor flags them)', () => {
+      // @ts-expect-error — not an option of isEmail
+      validator.isEmail('a@b.com', { not_an_option: true });
+      // @ts-expect-error — typo of allow_display_name
+      validator.isEmail('a@b.com', { allow_display_nam: true });
+      expect(true).toBe(true);
+    });
+
+    it('known locales / countries / algorithms are suggested, any string still accepted', () => {
+      expectTypeOf<'es-ES'>().toMatchTypeOf<MobilePhoneLocale>();
+      expectTypeOf<Extract<MobilePhoneLocale, 'es-ES'>>().toEqualTypeOf<'es-ES'>();
+      expectTypeOf<Extract<HashAlgorithm, 'sha256'>>().toEqualTypeOf<'sha256'>();
+      expectTypeOf<Extract<VATCountryCode, 'ES'>>().toEqualTypeOf<'ES'>();
+      expectTypeOf<Extract<CreditCardProvider, 'visa'>>().toEqualTypeOf<'visa'>();
+      expectTypeOf<IsCreditCardOptions['provider']>().toEqualTypeOf<
+        CreditCardProvider | undefined
+      >();
+      expectTypeOf(validator.isMobilePhone).toBeCallableWith('600000000', 'any-other-string');
+    });
   });
 });

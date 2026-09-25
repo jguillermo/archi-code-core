@@ -1,6 +1,20 @@
-import type { IsStrongPasswordOptions } from '../types';
 import merge from './util/merge';
 import { toString } from '../convert/string';
+
+export interface IsStrongPasswordOptions {
+  minLength?: number;
+  minLowercase?: number;
+  minUppercase?: number;
+  minNumbers?: number;
+  minSymbols?: number;
+  returnScore?: boolean;
+  pointsPerUnique?: number;
+  pointsPerRepeat?: number;
+  pointsForContainingLower?: number;
+  pointsForContainingUpper?: number;
+  pointsForContainingNumber?: number;
+  pointsForContainingSymbol?: number;
+}
 
 // Unicode-aware classes: 'Ñ'/'ñ' count as upper/lower case, '€'/'¿' as symbols, etc.
 // Every ASCII symbol of the historic set (including space) is in \p{P} ∪ \p{S} ∪ \p{Zs}.
@@ -108,6 +122,15 @@ export function scorePassword(str: unknown, options?: IsStrongPasswordOptions): 
   return scorePasswordAnalysis(analyzePassword(s), mergedOptions);
 }
 
+/** @deprecated `returnScore: true` — use `scorePassword()` to get the numeric score. */
+export default function isStrongPassword(
+  str: unknown,
+  options: IsStrongPasswordOptions & { returnScore: true },
+): number | false;
+export default function isStrongPassword(
+  str: unknown,
+  options?: IsStrongPasswordOptions & { returnScore?: false },
+): boolean;
 export default function isStrongPassword(
   str: unknown,
   options?: IsStrongPasswordOptions,

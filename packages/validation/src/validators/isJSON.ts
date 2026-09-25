@@ -1,5 +1,9 @@
-import type { IsJSONOptions } from '../types';
 import { toJsonValue } from '../convert/json';
+
+export interface IsJSONOptions {
+  allow_primitives?: boolean;
+  allow_any_value?: boolean;
+}
 
 /**
  * Returns true if `str` is syntactically valid JSON text. Objects and arrays are accepted;

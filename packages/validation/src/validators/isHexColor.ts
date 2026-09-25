@@ -1,6 +1,10 @@
 import { toString } from '../convert/string';
 import merge from './util/merge';
-import type { IsHexColorOptions } from '../types';
+
+export interface IsHexColorOptions {
+  /** When true the leading `#` is mandatory. */
+  require_hashtag?: boolean;
+}
 
 const hexcolor = /^#?([0-9A-F]{3}|[0-9A-F]{4}|[0-9A-F]{6}|[0-9A-F]{8})$/i;
 const hexcolor_with_prefix = /^#([0-9A-F]{3}|[0-9A-F]{4}|[0-9A-F]{6}|[0-9A-F]{8})$/i;

@@ -115,10 +115,8 @@ import isStrongPassword from './isStrongPassword';
 
 import isVAT from './isVAT';
 
-import type { ValidatorRegistry } from '../types';
-
 // Frozen: no consumer can monkey-patch a validator globally (use createValidator() to extend).
-const validator: ValidatorRegistry = Object.freeze({
+const validator = Object.freeze({
   equals,
   contains,
   matches,
@@ -209,13 +207,63 @@ const validator: ValidatorRegistry = Object.freeze({
   isLatLong,
   isWhitelisted,
   isSlug,
-  // Overloaded in ValidatorRegistry (boolean, or score with the deprecated `returnScore`).
-  isStrongPassword: isStrongPassword as ValidatorRegistry['isStrongPassword'],
+  isStrongPassword,
   isDate,
   isTime,
   isLicensePlate,
   isVAT,
   ibanLocales,
 });
+
+/**
+ * Type of the `validator` object — derived from the implementations, so every validator exposes
+ * its exact signature and options (and TypeScript autocompletes them).
+ */
+export type ValidatorRegistry = typeof validator;
+
+// Option / parameter types of each validator (declared next to the validator that uses them).
+export type { ContainsOptions } from './contains';
+export type { IsAfterOptions } from './isAfter';
+export type { IsAlphaOptions } from './isAlpha';
+export type { IsAlphanumericOptions } from './isAlphanumeric';
+export type { IsBase32Options } from './isBase32';
+export type { IsBase64Options } from './isBase64';
+export type { IsBeforeOptions } from './isBefore';
+export type { IsBooleanOptions } from './isBoolean';
+export type { IsByteLengthOptions } from './isByteLength';
+export type { CreditCardProvider, IsCreditCardOptions } from './isCreditCard';
+export type { IsCurrencyOptions } from './isCurrency';
+export type { IsDateOptions } from './isDate';
+export type { IsDecimalOptions } from './isDecimal';
+export type { IsEmailOptions } from './isEmail';
+export type { IsEmptyOptions } from './isEmpty';
+export type { IsFQDNOptions } from './isFQDN';
+export type { IsFloatOptions } from './isFloat';
+export type { HashAlgorithm } from './isHash';
+export type { IsHexColorOptions } from './isHexColor';
+export type { IsIBANOptions } from './isIBAN';
+export type { IsIMEIOptions } from './isIMEI';
+export type { IsIPVersion, IsIPOptions } from './isIP';
+export type { IsISBNVersion, IsISBNOptions } from './isISBN';
+export type { IsISO31661Options } from './isISO31661Alpha2';
+export type { IsISO8601Options } from './isISO8601';
+export type { IsISSNOptions } from './isISSN';
+export type { IdentityCardLocale } from './isIdentityCard';
+export type { IsIntOptions } from './isInt';
+export type { IsJSONOptions } from './isJSON';
+export type { IsLatLongOptions } from './isLatLong';
+export type { IsLengthOptions } from './isLength';
+export type { LicensePlateLocale } from './isLicensePlate';
+export type { IsMACAddressOptions } from './isMACAddress';
+export type { IsMobilePhoneOptions, MobilePhoneLocale } from './isMobilePhone';
+export type { IsNumericOptions } from './isNumeric';
+export type { PassportCountryCode } from './isPassportNumber';
+export type { PostalCodeLocale } from './isPostalCode';
+export type { IsRgbColorOptions } from './isRgbColor';
+export type { IsStrongPasswordOptions } from './isStrongPassword';
+export type { IsTimeOptions } from './isTime';
+export type { IsURLOptions } from './isURL';
+export type { IsUUIDVersion } from './isUUID';
+export type { VATCountryCode } from './isVAT';
 
 export default validator;

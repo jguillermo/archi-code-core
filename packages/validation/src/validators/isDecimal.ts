@@ -1,4 +1,3 @@
-import type { IsDecimalOptions } from '../types';
 import { ValidationConfigError } from './util/errors';
 import hasOwn from './util/hasOwn';
 import merge from './util/merge';
@@ -6,6 +5,12 @@ import { toString } from '../convert/string';
 import escapeRegExp from './util/escapeRegExp';
 import BoundedCache from './util/boundedCache';
 import { decimal } from './alpha';
+
+export interface IsDecimalOptions {
+  force_decimal?: boolean;
+  decimal_digits?: string;
+  locale?: string;
+}
 
 // Cache the compiled regex keyed by the options that shape it, so repeated calls
 // with the same options skip recompilation. Bounded: options may vary per request.

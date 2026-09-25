@@ -1,13 +1,16 @@
 import { toString } from '../convert/string';
 
+export type IsISBNVersion = '10' | '13' | 10 | 13;
+
+export interface IsISBNOptions {
+  version?: IsISBNVersion;
+}
+
 const possibleIsbn10 = /^(?:[0-9]{9}X|[0-9]{10})$/;
 const possibleIsbn13 = /^(?:[0-9]{13})$/;
 const factor = [1, 3];
 
-export default function isISBN(
-  input: unknown,
-  options?: '10' | '13' | 10 | 13 | { version?: '10' | '13' | 10 | 13 },
-): boolean {
+export default function isISBN(input: unknown, options?: IsISBNVersion | IsISBNOptions): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

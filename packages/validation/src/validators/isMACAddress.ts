@@ -1,5 +1,11 @@
 import { toString } from '../convert/string';
-import type { IsMACAddressOptions } from '../types';
+
+export interface IsMACAddressOptions {
+  no_separators?: boolean;
+  /** @deprecated use `no_separators` */
+  no_colons?: boolean;
+  eui?: '48' | '64' | 48 | 64;
+}
 
 const macAddress48 = /^(?:[0-9a-fA-F]{2}([-:\s]))([0-9a-fA-F]{2}\1){4}([0-9a-fA-F]{2})$/;
 const macAddress48NoSeparators = /^([0-9a-fA-F]){12}$/;

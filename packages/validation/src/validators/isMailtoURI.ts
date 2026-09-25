@@ -1,7 +1,7 @@
-import { trim } from '../sanitizer';
+import { trim } from '../sanitizer/trim';
 import isEmail from './isEmail';
+import type { IsEmailOptions } from './isEmail';
 import { toString } from '../convert/string';
-import type { IsEmailOptions } from '../types';
 
 function parseMailtoQueryString(queryString: string): { cc: string; bcc: string } | false {
   const allowedParams = new Set(['subject', 'body', 'cc', 'bcc']),

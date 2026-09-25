@@ -1,6 +1,13 @@
-import type { IsIntOptions } from '../types';
 import { toInteger } from '../convert/integer';
 import { toString } from '../convert/string';
+
+export interface IsIntOptions {
+  min?: number;
+  max?: number;
+  lt?: number;
+  gt?: number;
+  allow_leading_zeroes?: boolean;
+}
 
 /**
  * Integer check. The integer syntax lives in `convert/integer` (`syntax: 'validator'`, ported from

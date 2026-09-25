@@ -32,7 +32,10 @@ const validators = {
     ),
 };
 
-export default function isLicensePlate(input: unknown, locale: string): boolean {
+/** Known locales (autocomplete); any string is accepted, unknown ones throw ValidationConfigError. */
+export type LicensePlateLocale = keyof typeof validators | 'any' | (string & {});
+
+export default function isLicensePlate(input: unknown, locale: LicensePlateLocale): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

@@ -1,8 +1,12 @@
-import type { IsTimeOptions } from '../types';
 import merge from './util/merge';
 import { toString } from '../convert/string';
 import { ValidationConfigError } from './util/errors';
 import hasOwn from './util/hasOwn';
+
+export interface IsTimeOptions {
+  hourFormat?: 'hour12' | 'hour24';
+  mode?: 'default' | 'withSeconds' | 'withOptionalSeconds';
+}
 
 const default_time_options = {
   hourFormat: 'hour24',

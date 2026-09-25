@@ -1,5 +1,12 @@
-import type { IsLengthOptions } from '../types';
 import { toString } from '../convert/string';
+
+export interface IsLengthOptions {
+  min?: number;
+  max?: number;
+  discreteLengths?: number[];
+  /** Count user-perceived characters (grapheme clusters, via `Intl.Segmenter`). Default: false. */
+  graphemes?: boolean;
+}
 
 /** Historic count: code points, with emoji presentation selectors (U+FE0E/U+FE0F) not counted. */
 function countCharacters(s: string): number {

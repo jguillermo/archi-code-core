@@ -1,11 +1,12 @@
 import { toString } from '../convert/string';
 import isIP from './isIP';
+import type { IsIPVersion } from './isIP';
 
 const subnetMaybe = /^\d{1,3}$/;
 const v4Subnet = 32;
 const v6Subnet = 128;
 
-export default function isIPRange(input: unknown, version: number | string = ''): boolean {
+export default function isIPRange(input: unknown, version: IsIPVersion = ''): boolean {
   const stringResult = toString(input);
   if (!stringResult.ok) return false;
   const s = stringResult.value;

@@ -3,6 +3,11 @@ import { ValidationConfigError } from './util/errors';
 import hasOwn from './util/hasOwn';
 import { decimal } from './alpha';
 
+export interface IsNumericOptions {
+  no_symbols?: boolean;
+  locale?: string;
+}
+
 const numericNoSymbols = /^[0-9]+$/;
 
 // One compiled regex per decimal separator (instead of a new RegExp on every call).
@@ -17,10 +22,7 @@ function getNumericRegex(separator: string): RegExp {
   return re;
 }
 
-export default function isNumeric(
-  input: unknown,
-  options?: { no_symbols?: boolean; locale?: string },
-): boolean {
+export default function isNumeric(input: unknown, options?: IsNumericOptions): boolean {
   let separator = '.';
   if (options?.locale) {
     if (!hasOwn(decimal, options.locale))
