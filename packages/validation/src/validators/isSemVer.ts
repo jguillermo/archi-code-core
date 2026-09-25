@@ -1,4 +1,4 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 
 // https://semver.org/
 const semanticVersioningRegex = new RegExp(
@@ -9,8 +9,9 @@ const semanticVersioningRegex = new RegExp(
 );
 
 export default function isSemVer(input: unknown): boolean {
-  const s = tryToString(input);
-  if (s === false) return false;
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   const str: string = s;
 
   return semanticVersioningRegex.test(str);

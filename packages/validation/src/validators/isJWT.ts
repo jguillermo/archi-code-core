@@ -1,9 +1,10 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 import isBase64 from './isBase64';
 
 export default function isJWT(input: unknown): boolean {
-  const s = tryToString(input);
-  if (s === false) return false;
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   const str: string = s;
 
   const dotSplit = str.split('.');

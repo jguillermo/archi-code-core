@@ -1,5 +1,5 @@
 import type { IsLengthOptions } from '../types';
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 
 /** Historic count: code points, with emoji presentation selectors (U+FE0E/U+FE0F) not counted. */
 function countCharacters(s: string): number {
@@ -21,8 +21,9 @@ export default function isLength(
   optionsOrMin?: IsLengthOptions | number,
   maxArg?: number,
 ): boolean {
-  const s = tryToString(str);
-  if (s === false) return false;
+  const stringResult = toString(str);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   let min: number;
   let max: number | undefined;
 

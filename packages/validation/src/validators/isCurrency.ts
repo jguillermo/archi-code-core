@@ -1,6 +1,6 @@
 import type { IsCurrencyOptions } from '../types';
 import merge from './util/merge';
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 import escapeRegExp from './util/escapeRegExp';
 import BoundedCache from './util/boundedCache';
 import { ValidationConfigError } from './util/errors';
@@ -125,8 +125,9 @@ function getCurrencyRegex(options: Required<IsCurrencyOptions>): RegExp {
 }
 
 export default function isCurrency(str: unknown, options?: IsCurrencyOptions): boolean {
-  const s = tryToString(str);
-  if (s === false) return false;
+  const stringResult = toString(str);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   const opts = merge(options, default_currency_options) as Required<IsCurrencyOptions>;
   return getCurrencyRegex(opts).test(s);
 }

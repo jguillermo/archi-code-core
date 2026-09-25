@@ -5,10 +5,11 @@
  *  1. the import graph has NO cycles;
  *  2. the layering rules between the three tools hold:
  *
- *     core/coerce.ts         ← imports nothing
- *     validators/**          ← never imports convert/ or canBe/
- *     convert/<type>.ts      ← the only place with type rules; never imports canBe/
- *     canBe/<type>.ts        ← built on convert/<type>.ts (canBeX(v) = toX(v)[0])
+ *     convert/**             ← HARD RULE: imports only convert/ files — never validators/ nor canBe/
+ *     canBe/<type>.ts        ← built on convert/<type>.ts only (canBeX(v) = toX(v).ok)
+ *     validators/**          ← consume convert/ (type rules), never canBe/
+ *     validators with a type rule (isBoolean, isInt, isFloat, isJSON, isDate, isAfter, isBefore,
+ *     isIn, …) delegate it to convert/; string coercion is convert/string used directly
  *     validators/index.ts    ← (the barrel) only imported by src/index.ts and createValidator.ts
  */
 import { describe, expect, it } from '@jest/globals';
@@ -80,10 +81,6 @@ describe('architecture: import graph', () => {
     expect(findCycles().map((c) => c.join(' → '))).toEqual([]);
   });
 
-  it('core/coerce.ts is a leaf (imports nothing)', () => {
-    expect(graph.get('core/coerce.ts')).toEqual([]);
-  });
-
   const inDir = (dir: string): string[] => [...graph.keys()].filter((f) => f.startsWith(`${dir}/`));
   const typeFiles = (dir: string): string[] =>
     inDir(dir)
@@ -91,11 +88,34 @@ describe('architecture: import graph', () => {
       .filter((f) => f !== 'index.ts' && f !== 'result.ts')
       .sort();
 
-  it('convert/ never depends on canBe/ (canBe is built on convert, not the reverse)', () => {
+  it('HARD RULE: convert/ depends only on convert/ (never on validators/ nor canBe/)', () => {
     const offenders = inDir('convert').flatMap((f) =>
-      (graph.get(f) ?? []).filter((d) => d.startsWith('canBe/')).map((d) => `${f} → ${d}`),
+      (graph.get(f) ?? []).filter((d) => !d.startsWith('convert/')).map((d) => `${f} → ${d}`),
     );
     expect(offenders).toEqual([]);
+  });
+
+  it('validators with a type rule delegate it to convert/ (no duplicated rule)', () => {
+    const delegations: [string, string][] = [
+      ['validators/contains.ts', 'convert/string.ts'],
+      ['validators/isIn.ts', 'convert/enum.ts'],
+      ['validators/isBoolean.ts', 'convert/boolean.ts'],
+      ['validators/isInt.ts', 'convert/integer.ts'],
+      ['validators/isFloat.ts', 'convert/float.ts'],
+      ['validators/isJSON.ts', 'convert/json.ts'],
+      ['validators/isDate.ts', 'convert/date.ts'],
+      ['validators/isAfter.ts', 'convert/date.ts'],
+      ['validators/isBefore.ts', 'convert/date.ts'],
+      ['validators/isRFC3339.ts', 'convert/date.ts'],
+      ['validators/isIdentityCard.ts', 'convert/date.ts'],
+      ['validators/isDivisibleBy.ts', 'convert/float.ts'],
+    ];
+    for (const [validatorFile, convertFile] of delegations) {
+      expect({ validatorFile, deps: graph.get(validatorFile) }).toEqual({
+        validatorFile,
+        deps: expect.arrayContaining([convertFile]),
+      });
+    }
   });
 
   it('one file per type: canBe/<type>.ts ↔ convert/<type>.ts, and each canBe delegates to its converter', () => {
@@ -115,14 +135,16 @@ describe('architecture: import graph', () => {
     }
   });
 
-  it('validators never import convert/ or canBe/', () => {
+  it('there is no validator-side string coercion helper: validators use convert/string directly', () => {
+    expect(graph.has('validators/util/tryToString.ts')).toBe(false);
+    const users = importersOf('convert/string.ts').filter((f) => f.startsWith('validators/'));
+    expect(users.length).toBeGreaterThan(70);
+  });
+
+  it('validators never import canBe/', () => {
     const offenders = [...graph.entries()]
       .filter(([f]) => f.startsWith('validators/'))
-      .flatMap(([f, deps]) =>
-        deps
-          .filter((d) => d.startsWith('convert/') || d.startsWith('canBe/'))
-          .map((d) => `${f} → ${d}`),
-      );
+      .flatMap(([f, deps]) => deps.filter((d) => d.startsWith('canBe/')).map((d) => `${f} → ${d}`));
     expect(offenders).toEqual([]);
   });
 

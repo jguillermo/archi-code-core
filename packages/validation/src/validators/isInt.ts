@@ -1,50 +1,32 @@
 import type { IsIntOptions } from '../types';
-import tryToString from './util/tryToString';
+import { toInteger } from '../convert/integer';
+import { toString } from '../convert/string';
 
-const int = /^(?:[-+]?(?:0|[1-9][0-9]*))$/;
-const intLeadingZeroes = /^[-+]?[0-9]+$/;
-
+/**
+ * Integer check. The integer syntax lives in `convert/integer` (`syntax: 'validator'`, ported from
+ * this validator); this function only adds the bounds (`min`/`max`/`lt`/`gt`).
+ */
 export default function isInt(str: unknown, options?: IsIntOptions): boolean {
-  // Fast path: native integer — skip regex entirely
-  if (typeof str === 'number') {
-    if (!Number.isInteger(str)) return false;
-    options = options || {};
-    return (
-      (!Object.prototype.hasOwnProperty.call(options, 'min') ||
-        options.min == null ||
-        str >= options.min) &&
-      (!Object.prototype.hasOwnProperty.call(options, 'max') ||
-        options.max == null ||
-        str <= options.max) &&
-      (!Object.prototype.hasOwnProperty.call(options, 'lt') ||
-        options.lt == null ||
-        str < options.lt) &&
-      (!Object.prototype.hasOwnProperty.call(options, 'gt') ||
-        options.gt == null ||
-        str > options.gt)
-    );
-  }
-  // Non-string: coerce if possible, otherwise reject
-  const s = tryToString(str);
-  if (s === false) return false;
-  options = options || {};
-  const regex = options.allow_leading_zeroes === false ? int : intLeadingZeroes;
-  if (!regex.test(s)) return false;
+  const opts = options || {};
+  const r = toInteger(str, { syntax: 'validator', allowLeadingZeroes: opts.allow_leading_zeroes });
+  if (!r.ok) return false;
 
-  // Beyond Number.MAX_SAFE_INTEGER `Number(s)` rounds, so bounds are compared exactly with BigInt.
-  const sNum = Number(s);
-  const sBig = Number.isSafeInteger(sNum) ? undefined : BigInt(s);
+  // Beyond Number.MAX_SAFE_INTEGER the converted number is rounded, so bounds are compared
+  // exactly with BigInt on the original text.
+  const n = r.value;
+  const text = typeof str === 'number' ? undefined : (toString(str).value as string);
+  const big = text !== undefined && !Number.isSafeInteger(n) ? BigInt(text) : undefined;
   const compare = (bound: number): number => {
-    if (sBig !== undefined && Number.isInteger(bound)) {
+    if (big !== undefined && Number.isInteger(bound)) {
       const b = BigInt(bound);
-      return sBig < b ? -1 : sBig > b ? 1 : 0;
+      return big < b ? -1 : big > b ? 1 : 0;
     }
-    return sNum < bound ? -1 : sNum > bound ? 1 : 0;
+    return n < bound ? -1 : n > bound ? 1 : 0;
   };
   return (
-    (options.min == null || compare(options.min) >= 0) &&
-    (options.max == null || compare(options.max) <= 0) &&
-    (options.lt == null || compare(options.lt) < 0) &&
-    (options.gt == null || compare(options.gt) > 0)
+    (opts.min == null || compare(opts.min) >= 0) &&
+    (opts.max == null || compare(opts.max) <= 0) &&
+    (opts.lt == null || compare(opts.lt) < 0) &&
+    (opts.gt == null || compare(opts.gt) > 0)
   );
 }

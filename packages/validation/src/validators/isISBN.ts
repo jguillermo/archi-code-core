@@ -1,4 +1,4 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 
 const possibleIsbn10 = /^(?:[0-9]{9}X|[0-9]{10})$/;
 const possibleIsbn13 = /^(?:[0-9]{13})$/;
@@ -8,8 +8,9 @@ export default function isISBN(
   input: unknown,
   options?: '10' | '13' | 10 | 13 | { version?: '10' | '13' | 10 | 13 },
 ): boolean {
-  const s = tryToString(input);
-  if (s === false) return false;
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   const isbn: string = s;
 
   // For backwards compatibility:

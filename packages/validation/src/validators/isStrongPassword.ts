@@ -1,6 +1,6 @@
 import type { IsStrongPasswordOptions } from '../types';
 import merge from './util/merge';
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 
 // Unicode-aware classes: 'Ñ'/'ñ' count as upper/lower case, '€'/'¿' as symbols, etc.
 // Every ASCII symbol of the historic set (including space) is in \p{P} ∪ \p{S} ∪ \p{Zs}.
@@ -101,8 +101,9 @@ function scorePasswordAnalysis(
  * Returns 0 for values that cannot be read as a string.
  */
 export function scorePassword(str: unknown, options?: IsStrongPasswordOptions): number {
-  const s = tryToString(str);
-  if (s === false) return 0;
+  const stringResult = toString(str);
+  if (!stringResult.ok) return 0;
+  const s = stringResult.value;
   const mergedOptions = merge(options || {}, defaultOptions) as typeof defaultOptions;
   return scorePasswordAnalysis(analyzePassword(s), mergedOptions);
 }
@@ -111,8 +112,9 @@ export default function isStrongPassword(
   str: unknown,
   options?: IsStrongPasswordOptions,
 ): boolean | number {
-  const s = tryToString(str);
-  if (s === false) return false;
+  const stringResult = toString(str);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   const analysis = analyzePassword(s);
   const mergedOptions = merge(options || {}, defaultOptions) as typeof defaultOptions;
   if (mergedOptions.returnScore) {

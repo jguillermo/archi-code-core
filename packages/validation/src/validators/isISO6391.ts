@@ -1,4 +1,4 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 
 const isISO6391Set = new Set([
   'aa',
@@ -189,8 +189,9 @@ const isISO6391Set = new Set([
 ]);
 
 export default function isISO6391(input: unknown): boolean {
-  const s = tryToString(input);
-  if (s === false) return false;
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   const str: string = s;
   return isISO6391Set.has(str);
 }

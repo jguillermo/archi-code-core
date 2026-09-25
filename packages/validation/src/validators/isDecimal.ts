@@ -2,7 +2,7 @@ import type { IsDecimalOptions } from '../types';
 import { ValidationConfigError } from './util/errors';
 import hasOwn from './util/hasOwn';
 import merge from './util/merge';
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 import escapeRegExp from './util/escapeRegExp';
 import BoundedCache from './util/boundedCache';
 import { decimal } from './alpha';
@@ -43,7 +43,8 @@ export default function isDecimal(str: unknown, options?: IsDecimalOptions): boo
   if (typeof opts.decimal_digits !== 'string' || !DECIMAL_DIGITS_FORMAT.test(opts.decimal_digits)) {
     throw new ValidationConfigError(`Invalid decimal_digits '${String(opts.decimal_digits)}'`);
   }
-  const s = tryToString(str);
-  if (s === false) return false;
+  const stringResult = toString(str);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   return !blacklist.includes(s.replace(/ /g, '')) && decimalRegExp(opts).test(s);
 }

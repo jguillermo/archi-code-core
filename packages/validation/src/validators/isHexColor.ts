@@ -1,4 +1,4 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 import merge from './util/merge';
 import type { IsHexColorOptions } from '../types';
 
@@ -10,8 +10,9 @@ const default_is_hexcolor_options = {
 };
 
 export default function isHexColor(input: unknown, options?: IsHexColorOptions): boolean {
-  const s = tryToString(input);
-  if (s === false) return false;
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   const str: string = s;
   options = merge(options, default_is_hexcolor_options);
 

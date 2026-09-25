@@ -1,4 +1,4 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 
 // from https://en.wikipedia.org/wiki/ISO_3166-1_numeric
 const validISO31661NumericCountriesCodes = new Set([
@@ -254,8 +254,9 @@ const validISO31661NumericCountriesCodes = new Set([
 ]);
 
 export default function isISO31661Numeric(input: unknown): boolean {
-  const s = tryToString(input);
-  if (s === false) return false;
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   const str: string = s;
   return validISO31661NumericCountriesCodes.has(str);
 }

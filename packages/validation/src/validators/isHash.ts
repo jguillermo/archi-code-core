@@ -1,4 +1,4 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 import { ValidationConfigError } from './util/errors';
 import hasOwn from './util/hasOwn';
 
@@ -27,7 +27,8 @@ export default function isHash(input: unknown, algorithm: string): boolean {
   if (!hasOwn(hashRegex, algorithm)) {
     throw new ValidationConfigError(`Invalid hash algorithm '${String(algorithm)}'`);
   }
-  const s = tryToString(input);
-  if (s === false) return false;
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   return hashRegex[algorithm].test(s);
 }

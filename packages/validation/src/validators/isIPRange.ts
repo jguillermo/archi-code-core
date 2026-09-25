@@ -1,4 +1,4 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 import isIP from './isIP';
 
 const subnetMaybe = /^\d{1,3}$/;
@@ -6,8 +6,9 @@ const v4Subnet = 32;
 const v6Subnet = 128;
 
 export default function isIPRange(input: unknown, version: number | string = ''): boolean {
-  const s = tryToString(input);
-  if (s === false) return false;
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   const str: string = s;
   const parts = str.split('/');
 

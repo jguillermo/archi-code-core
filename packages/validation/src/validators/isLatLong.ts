@@ -1,5 +1,5 @@
 import type { IsLatLongOptions } from '../types';
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 import merge from './util/merge';
 const lat = /^\(?[+-]?(90(\.0+)?|[1-8]?\d(\.\d+)?)$/;
 const long = /^\s?[+-]?(180(\.0+)?|1[0-7]\d(\.\d+)?|\d{1,2}(\.\d+)?)\)?$/;
@@ -13,8 +13,9 @@ const defaultLatLongOptions = {
 };
 
 export default function isLatLong(str: unknown, options?: IsLatLongOptions): boolean {
-  const s = tryToString(str);
-  if (s === false) return false;
+  const stringResult = toString(str);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   options = merge(options, defaultLatLongOptions);
 
   if (!s.includes(',')) return false;

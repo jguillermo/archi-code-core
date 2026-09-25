@@ -1,4 +1,4 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 /**
 11.3.  Examples
 
@@ -50,8 +50,9 @@ export default function isIP(
   ipAddress: unknown,
   options: { version?: number | string } | number | string = {},
 ): boolean {
-  const s = tryToString(ipAddress);
-  if (s === false) return false;
+  const stringResult = toString(ipAddress);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   const ip: string = s;
 
   // backwards compatibility: isIP(ipAddress, version) where version is a number or string

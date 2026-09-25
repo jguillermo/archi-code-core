@@ -1,7 +1,7 @@
 import type { IsMobilePhoneOptions } from '../types';
 import { ValidationConfigError } from './util/errors';
 import hasOwn from './util/hasOwn';
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 
 const phones = {
   'am-AM': /^(\+?374|0)(33|4[134]|55|77|88|9[13-689])\d{6}$/,
@@ -187,8 +187,9 @@ export default function isMobilePhone(
   locale?: string | string[],
   options?: IsMobilePhoneOptions,
 ): boolean {
-  const s = tryToString(str);
-  if (s === false) return false;
+  const stringResult = toString(str);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   if (options && options.strictMode && !s.startsWith('+')) {
     return false;
   }

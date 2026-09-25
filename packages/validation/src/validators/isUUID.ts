@@ -1,4 +1,4 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 import hasOwn from './util/hasOwn';
 
 const uuid = {
@@ -23,8 +23,9 @@ export default function isUUID(
   input: unknown,
   version?: 'all' | 'loose' | 'nil' | 'max' | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8,
 ): boolean {
-  const s = tryToString(input);
-  if (s === false) return false;
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   const str: string = s;
 
   if (version === undefined || version === null) {

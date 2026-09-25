@@ -12,7 +12,7 @@
  * Reference: https://www.gtin.info/
  */
 
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 
 /**
  * Define EAN Lengths; 8 for EAN-8; 13 for EAN-13; 14 for EAN-14
@@ -67,8 +67,9 @@ function calculateCheckDigit(ean: string): number {
  * @return {boolean}
  */
 export default function isEAN(input: unknown): boolean {
-  const s = tryToString(input);
-  if (s === false) return false;
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   const str: string = s;
   const actualCheckDigit = Number(str.slice(-1));
 

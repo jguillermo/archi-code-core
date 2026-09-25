@@ -1,6 +1,5 @@
 import assert from 'assert';
 import assertString from '../../src/validators/util/assertString';
-import tryToString from '../../src/validators/util/tryToString';
 import { toString, ConvertMessages } from '../../src/convert';
 
 describe('toString (convert module)', () => {
@@ -22,38 +21,6 @@ describe('toString (convert module)', () => {
 
   it.each([[null], [undefined], [NaN], [{}]])('%p → { ok: false, error }', (v) => {
     assert.deepStrictEqual(toString(v), { ok: false, value: null, error: ConvertMessages.STRING });
-  });
-});
-
-describe('tryToString', () => {
-  it('returns string for string input', () => {
-    assert.strictEqual(tryToString('hello'), 'hello');
-    assert.strictEqual(tryToString(''), '');
-  });
-
-  it('returns string for boolean input', () => {
-    assert.strictEqual(tryToString(true), 'true');
-    assert.strictEqual(tryToString(false), 'false');
-  });
-
-  it('returns string for finite number', () => {
-    assert.strictEqual(tryToString(42), '42');
-    assert.strictEqual(tryToString(0), '0');
-    assert.strictEqual(tryToString(3.14), '3.14');
-  });
-
-  it('returns false for null', () => assert.strictEqual(tryToString(null), false));
-  it('returns false for undefined', () => assert.strictEqual(tryToString(undefined), false));
-  it('returns false for NaN', () => assert.strictEqual(tryToString(NaN), false));
-  it('returns false for Infinity', () => assert.strictEqual(tryToString(Infinity), false));
-  it('returns false for objects', () => assert.strictEqual(tryToString({}), false));
-  it('returns false for arrays', () => assert.strictEqual(tryToString([]), false));
-  it('returns false for Symbol', () => assert.strictEqual(tryToString(Symbol('x')), false));
-
-  it('never throws', () => {
-    assert.doesNotThrow(() => tryToString(null));
-    assert.doesNotThrow(() => tryToString({}));
-    assert.doesNotThrow(() => tryToString(Symbol()));
   });
 });
 

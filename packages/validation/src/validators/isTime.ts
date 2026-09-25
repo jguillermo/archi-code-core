@@ -1,6 +1,6 @@
 import type { IsTimeOptions } from '../types';
 import merge from './util/merge';
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 import { ValidationConfigError } from './util/errors';
 import hasOwn from './util/hasOwn';
 
@@ -28,7 +28,8 @@ export default function isTime(input: unknown, options?: IsTimeOptions | null): 
     throw new ValidationConfigError(`Invalid hourFormat '${hourFormat}'`);
   const byMode = formats[hourFormat];
   if (!hasOwn(byMode, mode)) throw new ValidationConfigError(`Invalid mode '${mode}'`);
-  const s = tryToString(input);
-  if (s === false) return false;
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   return byMode[mode].test(s);
 }

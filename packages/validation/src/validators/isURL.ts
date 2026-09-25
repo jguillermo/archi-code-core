@@ -1,5 +1,5 @@
 import type { IsURLOptions } from '../types';
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 import checkHost from './util/checkHost';
 import isFQDN from './isFQDN';
 import isIP from './isIP';
@@ -59,8 +59,9 @@ const leadingDigitRegex = /^[0-9]/;
 const digitsOnlyRegex = /^[0-9]+$/;
 
 export default function isURL(urlInput: unknown, options?: IsURLOptions): boolean {
-  const s = tryToString(urlInput);
-  if (s === false) return false;
+  const stringResult = toString(urlInput);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   let url: string = s;
   if (!url || whitespaceAnglesRegex.test(url)) {
     return false;

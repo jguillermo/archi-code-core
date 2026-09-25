@@ -1,4 +1,4 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 import { ValidationConfigError } from './util/errors';
 import hasOwn from './util/hasOwn';
 import { decimal } from './alpha';
@@ -27,8 +27,9 @@ export default function isNumeric(
       throw new ValidationConfigError(`Invalid locale '${options.locale}'`);
     separator = decimal[options.locale];
   }
-  const s = tryToString(input);
-  if (s === false) return false;
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   if (options?.no_symbols) {
     return numericNoSymbols.test(s);
   }

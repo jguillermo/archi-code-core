@@ -1,5 +1,5 @@
 import type { IsEmailOptions } from '../types';
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 import checkHost from './util/checkHost';
 import escapeRegExp from './util/escapeRegExp';
 
@@ -66,8 +66,9 @@ function validateDisplayName(display_name: string): boolean {
 }
 
 export default function isEmail(str: unknown, options?: IsEmailOptions): boolean {
-  const s = tryToString(str);
-  if (s === false) return false;
+  const stringResult = toString(str);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   let strVal = s;
   options = merge(options, default_email_options);
 

@@ -1,4 +1,4 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 import type { IsMACAddressOptions } from '../types';
 
 const macAddress48 = /^(?:[0-9a-fA-F]{2}([-:\s]))([0-9a-fA-F]{2}\1){4}([0-9a-fA-F]{2})$/;
@@ -9,8 +9,9 @@ const macAddress64NoSeparators = /^([0-9a-fA-F]){16}$/;
 const macAddress64WithDots = /^([0-9a-fA-F]{4}\.){3}([0-9a-fA-F]{4})$/;
 
 export default function isMACAddress(input: unknown, options?: IsMACAddressOptions): boolean {
-  const s = tryToString(input);
-  if (s === false) return false;
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   const str: string = s;
   // Normalise locally — never mutate the caller's options object.
   const eui = options?.eui ? String(options.eui) : undefined;

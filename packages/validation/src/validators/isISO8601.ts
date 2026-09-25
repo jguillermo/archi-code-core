@@ -1,4 +1,4 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 
 // from http://goo.gl/0ejHHW
 const iso8601 =
@@ -44,8 +44,9 @@ export default function isISO8601(
   input: unknown,
   options: { strictSeparator?: boolean; strict?: boolean } = {},
 ): boolean {
-  const s = tryToString(input);
-  if (s === false) return false;
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   const str: string = s;
   const check = options.strictSeparator ? iso8601StrictSeparator.test(str) : iso8601.test(str);
   if (check && options.strict) return isValidDate(str);

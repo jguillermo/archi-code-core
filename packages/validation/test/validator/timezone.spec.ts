@@ -4,8 +4,6 @@
 import { afterEach, describe, expect, it } from '@jest/globals';
 import timezone_mock from 'timezone-mock';
 import validator from '../../src/validators';
-import { canBeDate } from '../../src/canBe';
-import { toDate } from '../../src/convert';
 
 const ZONES = [
   'UTC',
@@ -53,14 +51,5 @@ describe('time-zone independence', () => {
     ]);
     expect(allEqual(results)).toBe(true);
     expect(results[0]).toEqual([true, false, true, false, true]);
-  });
-
-  it('canBeDate / toDate', () => {
-    const results = inEveryZone(() => [
-      canBeDate('2024-03-10T02:30:00'),
-      toDate('2024-03-10T02:30:00').value?.toISOString(),
-    ]);
-    expect(allEqual(results)).toBe(true);
-    expect(results[0]).toEqual([true, '2024-03-10T02:30:00.000Z']);
   });
 });

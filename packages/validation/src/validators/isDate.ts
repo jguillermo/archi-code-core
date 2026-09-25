@@ -1,106 +1,11 @@
 import type { IsDateOptions } from '../types';
-import merge from './util/merge';
+import { toDate } from '../convert/date';
 
-const default_date_options = {
-  format: 'YYYY/MM/DD',
-  delimiters: ['/', '-'],
-  strictMode: false,
-};
-
-// Hoisted to module scope so the regex is compiled once rather than on every call.
-// The `g` flag is intentionally omitted: with a shared regex instance it would make
-// `.test()` stateful (advancing lastIndex) and produce wrong results across calls.
-const validFormatRegex =
-  /(^(y{4}|y{2})[./-](m{1,2})[./-](d{1,2})$)|(^(m{1,2})[./-](d{1,2})[./-]((y{4}|y{2})$))|(^(d{1,2})[./-](m{1,2})[./-]((y{4}|y{2})$))/i;
-
-function isValidFormat(format: string): boolean {
-  return validFormatRegex.test(format);
-}
-
-function zip(date: string[], format: string[]): [string, string][] {
-  const zippedArr: [string, string][] = [],
-    len = Math.max(date.length, format.length);
-
-  for (let i = 0; i < len; i++) {
-    zippedArr.push([date[i], format[i]]);
-  }
-
-  return zippedArr;
-}
-
+/**
+ * Date check by format (default `'YYYY/MM/DD'`, delimiters `/` and `-`). The rule lives in
+ * `convert/date` — it is `toDate`'s default rule (ported from this validator).
+ */
 export default function isDate(input: unknown, options?: IsDateOptions | string): boolean {
-  let mergedOptions: IsDateOptions & { format: string; delimiters: string[]; strictMode: boolean };
-  if (typeof options === 'string') {
-    // Allow backward compatibility for old format isDate(input [, format])
-    mergedOptions = merge({ format: options }, default_date_options);
-  } else {
-    mergedOptions = merge(options, default_date_options);
-  }
-  if (typeof input === 'string' && isValidFormat(mergedOptions.format)) {
-    if (mergedOptions.strictMode && input.length !== mergedOptions.format.length) return false;
-    const formatDelimiter = mergedOptions.delimiters.find(
-      (delimiter) => mergedOptions.format.indexOf(delimiter) !== -1,
-    );
-    const dateDelimiter = mergedOptions.strictMode
-      ? formatDelimiter
-      : mergedOptions.delimiters.find((delimiter) => input.indexOf(delimiter) !== -1);
-    const dateAndFormat = zip(
-      input.split(dateDelimiter as string),
-      mergedOptions.format.toLowerCase().split(formatDelimiter as string),
-    );
-    const dateObj: Record<string, string> = {};
-
-    for (const [dateWord, formatWord] of dateAndFormat) {
-      if (!dateWord || !formatWord || dateWord.length !== formatWord.length) {
-        return false;
-      }
-
-      dateObj[formatWord.charAt(0)] = dateWord;
-    }
-
-    let fullYear = dateObj.y;
-
-    // Check if the year starts with a hyphen
-    if (fullYear.startsWith('-')) {
-      return false; // Hyphen before year is not allowed
-    }
-
-    if (dateObj.y.length === 2) {
-      const parsedYear = parseInt(dateObj.y, 10);
-
-      if (isNaN(parsedYear)) {
-        return false;
-      }
-
-      // Two-digit years below the pivot are 20xx, the rest 19xx. The default pivot (current year's
-      // last two digits) makes results drift over time; pass `twoDigitYearPivot` for stable output.
-      const pivot = mergedOptions.twoDigitYearPivot ?? new Date().getFullYear() % 100;
-
-      if (parsedYear < pivot) {
-        fullYear = `20${dateObj.y}`;
-      } else {
-        fullYear = `19${dateObj.y}`;
-      }
-    }
-
-    let month = dateObj.m;
-
-    if (dateObj.m.length === 1) {
-      month = `0${dateObj.m}`;
-    }
-
-    let day = dateObj.d;
-
-    if (dateObj.d.length === 1) {
-      day = `0${dateObj.d}`;
-    }
-
-    return new Date(`${fullYear}-${month}-${day}T00:00:00.000Z`).getUTCDate() === +dateObj.d;
-  }
-
-  if (!mergedOptions.strictMode) {
-    return Object.prototype.toString.call(input) === '[object Date]' && isFinite(input as number);
-  }
-
-  return false;
+  // Allow backward compatibility for old format isDate(input [, format])
+  return toDate(input, typeof options === 'string' ? { format: options } : options).ok;
 }

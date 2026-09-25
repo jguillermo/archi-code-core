@@ -1,4 +1,4 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 import { ValidationConfigError } from './util/errors';
 import hasOwn from './util/hasOwn';
 
@@ -82,8 +82,9 @@ export const locales: readonly string[] = Object.freeze(Object.keys(passportRege
  * @return {boolean}
  */
 export default function isPassportNumber(input: unknown, countryCode: string): boolean {
-  const s = tryToString(input);
-  if (s === false) return false;
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   const str: string = s;
   /** Remove All Whitespaces, Convert to UPPERCASE */
   const normalizedStr = str.replace(/\s/g, '').toUpperCase();

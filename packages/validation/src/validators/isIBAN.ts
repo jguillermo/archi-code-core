@@ -1,6 +1,6 @@
 import type { IsIBANOptions } from '../types';
 import hasOwn from './util/hasOwn';
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 
 /**
  * List of country codes with
@@ -182,8 +182,9 @@ function hasValidIbanChecksum(str: string): boolean {
 }
 
 export default function isIBAN(input: unknown, options: IsIBANOptions = {}): boolean {
-  const s = tryToString(input);
-  if (s === false) return false;
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   const str: string = s;
 
   return hasValidIbanFormat(str, options) && hasValidIbanChecksum(str);

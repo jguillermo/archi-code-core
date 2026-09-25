@@ -1,4 +1,4 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 
 const issn = '^\\d{4}-?\\d{3}[\\dX]$';
 
@@ -6,8 +6,9 @@ export default function isISSN(
   input: unknown,
   options: { require_hyphen?: boolean; case_sensitive?: boolean } = {},
 ): boolean {
-  const s = tryToString(input);
-  if (s === false) return false;
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   const str: string = s;
   let testIssn: string | RegExp = issn;
   testIssn = options.require_hyphen ? (testIssn as string).replace('?', '') : testIssn;

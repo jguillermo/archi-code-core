@@ -1,4 +1,4 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 
 /*
   = 3ALPHA              ; selected ISO 639 codes
@@ -108,8 +108,9 @@ const langtag = `${language}(${delimiter}${script})?(${delimiter}${region})?(${d
 const languageTagRegex = new RegExp(`(^${privateuse}$)|(^${grandfathered}$)|(^${langtag}$)`);
 
 export default function isLocale(input: unknown): boolean {
-  const s = tryToString(input);
-  if (s === false) return false;
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   const str: string = s;
   return languageTagRegex.test(str);
 }

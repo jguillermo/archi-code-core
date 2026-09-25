@@ -1,4 +1,4 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 import { ValidationConfigError } from './util/errors';
 import hasOwn from './util/hasOwn';
 import { alphanumeric } from './alpha';
@@ -8,8 +8,9 @@ export default function isAlphanumeric(
   locale = 'en-US',
   options: { ignore?: string | RegExp } = {},
 ): boolean {
-  const s = tryToString(_str);
-  if (s === false) return false;
+  const stringResult = toString(_str);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   let str: string = s;
   const { ignore } = options;
 

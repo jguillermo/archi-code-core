@@ -1,4 +1,4 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 import { ValidationConfigError } from './util/errors';
 import hasOwn from './util/hasOwn';
 
@@ -85,8 +85,9 @@ const patterns = {
 export const locales: readonly string[] = Object.freeze(Object.keys(patterns));
 
 export default function isPostalCode(input: unknown, locale: string): boolean {
-  const s = tryToString(input);
-  if (s === false) return false;
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   const str: string = s;
   if (hasOwn(patterns, locale)) {
     return patterns[locale].test(str);

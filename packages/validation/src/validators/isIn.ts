@@ -1,9 +1,10 @@
-import tryToString from './util/tryToString';
-import { asString } from '../core/coerce';
+import { toString } from '../convert/string';
+import { toEnum } from '../convert/enum';
 
 export default function isIn(input: unknown, values: unknown[]): boolean {
-  const s = tryToString(input);
-  if (s === false) return false;
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   const str: string = s;
   let i;
   if (Object.prototype.toString.call(values) === '[object Array]') {
@@ -12,11 +13,12 @@ export default function isIn(input: unknown, values: unknown[]): boolean {
       // istanbul ignore else
       if ({}.hasOwnProperty.call(values, i)) {
         // non-convertible elements are skipped
-        const item = asString((values as unknown as Record<string, unknown>)[i]);
-        if (item !== undefined) array[i] = item;
+        const item = toString((values as unknown as Record<string, unknown>)[i]);
+        if (item.ok) array[i] = item.value;
       }
     }
-    return array.indexOf(str) >= 0;
+    // Membership in a list of options is the enum rule of convert.
+    return toEnum(str, array).ok;
   }
   if (typeof values === 'object') {
     return Object.prototype.hasOwnProperty.call(values, str);

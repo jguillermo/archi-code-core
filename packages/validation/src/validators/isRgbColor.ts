@@ -1,4 +1,4 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 
 const rgbColor =
   /^rgb\((([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5]),){2}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\)$/;
@@ -12,8 +12,9 @@ export default function isRgbColor(
   input: unknown,
   options?: { allowSpaces?: boolean; includePercentValues?: boolean },
 ): boolean {
-  const s = tryToString(input);
-  if (s === false) return false;
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   let str: string = s;
   // default options to true for percent and false for spaces
   let allowSpaces = false;

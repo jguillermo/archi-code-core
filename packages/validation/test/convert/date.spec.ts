@@ -18,7 +18,7 @@ describe('toDate', () => {
     });
   });
 
-  describe('valid ISO 8601 string → Date', () => {
+  describe('valid ISO 8601 string → Date ({ iso: true } for date-times)', () => {
     it('"2024-01-15" → Jan 15 2024 UTC', () => {
       const d = converted(toDate('2024-01-15'));
       expect(d.getUTCFullYear()).toBe(2024);
@@ -26,9 +26,9 @@ describe('toDate', () => {
       expect(d.getUTCDate()).toBe(15);
     });
     it('"1970-01-01T00:00:00.000Z" → epoch', () =>
-      expect(converted(toDate('1970-01-01T00:00:00.000Z')).getTime()).toBe(0));
+      expect(converted(toDate('1970-01-01T00:00:00.000Z', { iso: true })).getTime()).toBe(0));
     it('"2024-06-15T12:30:00Z" → hours 12, minutes 30', () => {
-      const d = converted(toDate('2024-06-15T12:30:00Z'));
+      const d = converted(toDate('2024-06-15T12:30:00Z', { iso: true }));
       expect(d.getUTCHours()).toBe(12);
       expect(d.getUTCMinutes()).toBe(30);
     });
@@ -159,5 +159,23 @@ describe('toDate', () => {
       expectNotConvertible(toDate(new Uint8Array()), ConvertMessages.DATE));
     it('new Error("x") → { ok: false, error }', () =>
       expectNotConvertible(toDate(new Error('x')), ConvertMessages.DATE));
+  });
+
+  describe('default rule = logic ported from isDate (format YYYY/MM/DD, delimiters / and -)', () => {
+    it('"2024/01/31" and "2024-01-31" → that day at 00:00 UTC', () => {
+      expect(converted(toDate('2024/01/31')).toISOString()).toBe('2024-01-31T00:00:00.000Z');
+      expect(converted(toDate('2024-01-31')).toISOString()).toBe('2024-01-31T00:00:00.000Z');
+    });
+    it('date-times need { iso: true }', () => {
+      expectNotConvertible(toDate('2024-01-31T10:00:00'), ConvertMessages.DATE);
+      expect(converted(toDate('2024-01-31T10:00:00', { iso: true })).toISOString()).toBe(
+        '2024-01-31T10:00:00.000Z',
+      );
+    });
+    it('custom format and strictMode', () => {
+      expect(converted(toDate('31-01-2024', { format: 'DD-MM-YYYY' })).getUTCDate()).toBe(31);
+      expectNotConvertible(toDate('2024-01-31', { strictMode: true }), ConvertMessages.DATE);
+      expectNotConvertible(toDate(new Date(0), { strictMode: true }), ConvertMessages.DATE);
+    });
   });
 });

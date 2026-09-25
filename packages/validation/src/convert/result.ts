@@ -12,6 +12,7 @@ export const ConvertMessages = Object.freeze({
   FLOAT: 'Value is not a finite decimal number',
   DATE: 'Value is not a valid date',
   JSON: 'Value is not a non-empty JSON object',
+  JSON_VALUE: 'Value is not an accepted JSON value',
   ARRAY: 'Value is not an array',
   ENUM: 'Value is not one of the enum options',
 } as const);

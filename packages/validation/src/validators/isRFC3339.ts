@@ -1,4 +1,5 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
+import { isCalendarDate } from '../convert/date';
 
 /* Based on https://tools.ietf.org/html/rfc3339#section-5.6 */
 
@@ -23,19 +24,14 @@ const fullTime = new RegExp(`${partialTime.source}${timeOffset.source}`);
 
 const rfc3339 = new RegExp(`^${fullDate.source}[ tT]${fullTime.source}$`);
 
-const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-
 /** Rejects dates that match the syntax but do not exist in the calendar (e.g. 2024-02-30). */
 function isRealCalendarDate(str: string): boolean {
-  const year = Number(str.slice(0, 4));
-  const month = Number(str.slice(5, 7));
-  const day = Number(str.slice(8, 10));
-  const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
-  return day <= (month === 2 && leap ? 29 : DAYS_IN_MONTH[month - 1]);
+  return isCalendarDate(Number(str.slice(0, 4)), Number(str.slice(5, 7)), Number(str.slice(8, 10)));
 }
 
 export default function isRFC3339(input: unknown): boolean {
-  const s = tryToString(input);
-  if (s === false) return false;
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   return rfc3339.test(s) && isRealCalendarDate(s);
 }

@@ -1,4 +1,4 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 
 const isin = /^[A-Z]{2}[0-9A-Z]{9}[0-9]$/;
 
@@ -10,8 +10,9 @@ const isin = /^[A-Z]{2}[0-9A-Z]{9}[0-9]$/;
 // the loop.
 
 export default function isISIN(input: unknown): boolean {
-  const s = tryToString(input);
-  if (s === false) return false;
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   const str: string = s;
   if (!isin.test(str)) {
     return false;

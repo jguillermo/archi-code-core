@@ -1,4 +1,4 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 
 // from https://en.wikipedia.org/wiki/ISO_4217
 const validISO4217CurrencyCodes = new Set([
@@ -184,8 +184,9 @@ const validISO4217CurrencyCodes = new Set([
 ]);
 
 export default function isISO4217(input: unknown): boolean {
-  const s = tryToString(input);
-  if (s === false) return false;
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   const str: string = s;
   return validISO4217CurrencyCodes.has(str.toUpperCase());
 }

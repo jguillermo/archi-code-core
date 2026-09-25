@@ -1,8 +1,13 @@
 import { afterEach, describe, expect, it } from '@jest/globals';
 import timezone_mock from 'timezone-mock';
-import parseDateLax from '../../../src/validators/util/parseDateLax';
+import { toDate } from '../../src/convert/date';
 
-describe('parseDateLax (isAfter / isBefore parser)', () => {
+const parseDateLax = (v: unknown): Date | undefined => {
+  const r = toDate(v, { lax: true });
+  return r.ok ? r.value : undefined;
+};
+
+describe('toDate lax mode (ported from isAfter / isBefore)', () => {
   afterEach(() => timezone_mock.unregister());
 
   it('accepts valid Date instances and rejects invalid ones', () => {

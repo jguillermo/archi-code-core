@@ -1,68 +1,32 @@
 import type { IsFloatOptions } from '../types';
+import { toFloat } from '../convert/float';
 import { decimal } from './alpha';
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 import { ValidationConfigError } from './util/errors';
 import hasOwn from './util/hasOwn';
 
-// The float regex only depends on the decimal separator (derived from locale).
-// Cache the compiled regex per separator to avoid recompiling on every call.
-const floatRegexCache = new Map<string, RegExp>();
-
-function getFloatRegex(separator: string): RegExp {
-  let re = floatRegexCache.get(separator);
-  if (re === undefined) {
-    re = new RegExp(`^(?:[-+])?(?:[0-9]+)?(?:\\${separator}[0-9]*)?(?:[eE][\\+\\-]?(?:[0-9]+))?$`);
-    floatRegexCache.set(separator, re);
-  }
-  return re;
-}
-
+/**
+ * Float check. The float syntax lives in `convert/float` (`syntax: 'validator'`, ported from this
+ * validator); this function resolves the locale's decimal separator and adds the bounds.
+ */
 export default function isFloat(str: unknown, options?: IsFloatOptions): boolean {
-  // Fast path: native number — skip regex entirely
-  if (typeof str === 'number') {
-    if (!isFinite(str)) return false;
-    options = options || {};
-    return (
-      (!Object.prototype.hasOwnProperty.call(options, 'min') ||
-        options.min == null ||
-        str >= options.min) &&
-      (!Object.prototype.hasOwnProperty.call(options, 'max') ||
-        options.max == null ||
-        str <= options.max) &&
-      (!Object.prototype.hasOwnProperty.call(options, 'lt') ||
-        options.lt == null ||
-        str < options.lt) &&
-      (!Object.prototype.hasOwnProperty.call(options, 'gt') ||
-        options.gt == null ||
-        str > options.gt)
-    );
+  const opts = options || {};
+  if (typeof str !== 'number') {
+    // Config errors are reported only for readable values (historic order of checks).
+    if (!toString(str).ok) return false;
+    if (opts.locale && !hasOwn(decimal, opts.locale)) {
+      throw new ValidationConfigError(`Invalid locale '${opts.locale}'`);
+    }
   }
-  // Non-string: coerce if possible, otherwise reject
-  const s = tryToString(str);
-  if (s === false) return false;
-  options = options || {};
-  if (options.locale && !hasOwn(decimal, options.locale)) {
-    throw new ValidationConfigError(`Invalid locale '${options.locale}'`);
-  }
-  const float = getFloatRegex(options.locale ? decimal[options.locale] : '.');
-  if (s === '' || s === '.' || s === ',' || s === '-' || s === '+') {
-    return false;
-  }
-  const value = parseFloat(s.replace(',', '.'));
+  const decimalSeparator = opts.locale ? decimal[opts.locale] : '.';
+  const r = toFloat(str, { syntax: 'validator', decimalSeparator });
+  if (!r.ok) return false;
+  const value = r.value;
   return (
-    float.test(s) &&
-    (!Object.prototype.hasOwnProperty.call(options, 'min') ||
-      options.min == null ||
-      value >= options.min) &&
-    (!Object.prototype.hasOwnProperty.call(options, 'max') ||
-      options.max == null ||
-      value <= options.max) &&
-    (!Object.prototype.hasOwnProperty.call(options, 'lt') ||
-      options.lt == null ||
-      value < options.lt) &&
-    (!Object.prototype.hasOwnProperty.call(options, 'gt') ||
-      options.gt == null ||
-      value > options.gt)
+    (opts.min == null || value >= opts.min) &&
+    (opts.max == null || value <= opts.max) &&
+    (opts.lt == null || value < opts.lt) &&
+    (opts.gt == null || value > opts.gt)
   );
 }
 

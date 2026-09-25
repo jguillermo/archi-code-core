@@ -12,20 +12,16 @@ import {
 } from '../../src/convert';
 import { ConvertMessages } from '../../src/convert';
 import type { Converted } from '../../src/convert';
-import { asString } from '../../src/core/coerce';
 
 const value = <T>(r: Converted<T>): T | null => r.value;
 
-describe('core/coerce', () => {
-  it('asString: strings, booleans and finite numbers only', () => {
-    expect(asString('a')).toBe('a');
-    expect(asString(true)).toBe('true');
-    expect(asString(false)).toBe('false');
-    expect(asString(1.5)).toBe('1.5');
-    expect(asString(NaN)).toBeUndefined();
-    expect(asString(Infinity)).toBeUndefined();
-    expect(asString(null)).toBeUndefined();
-    expect(asString({})).toBeUndefined();
+describe('convert/string — base string coercion (also used by the validators)', () => {
+  it('strings, booleans and finite numbers only', () => {
+    expect(toString('a').value).toBe('a');
+    expect(toString(true).value).toBe('true');
+    expect(toString(false).value).toBe('false');
+    expect(toString(1.5).value).toBe('1.5');
+    for (const v of [NaN, Infinity, null, {}]) expect(toString(v).ok).toBe(false);
   });
 });
 
@@ -129,15 +125,21 @@ describe('convert rules — { ok, value, error }', () => {
       for (const tz of ['UTC', 'US/Pacific', 'Europe/London', 'Australia/Adelaide'] as const) {
         timezone_mock.register(tz);
         expect(value(toDate('2024-01-01'))?.getTime()).toBe(Date.UTC(2024, 0, 1));
-        expect(value(toDate('2024-01-01T10:30:00'))?.getTime()).toBe(Date.UTC(2024, 0, 1, 10, 30));
-        expect(value(toDate('2024-01-01 10:30:00'))?.getTime()).toBe(Date.UTC(2024, 0, 1, 10, 30));
+        expect(value(toDate('2024-01-01T10:30:00', { iso: true }))?.getTime()).toBe(
+          Date.UTC(2024, 0, 1, 10, 30),
+        );
+        expect(value(toDate('2024-01-01 10:30:00', { iso: true }))?.getTime()).toBe(
+          Date.UTC(2024, 0, 1, 10, 30),
+        );
         timezone_mock.unregister();
       }
     });
 
     it('explicit zones are honoured', () => {
-      expect(value(toDate('2024-01-01T10:00:00+02:00'))?.getTime()).toBe(Date.UTC(2024, 0, 1, 8));
-      expect(value(toDate('2024-01-01T10:00:00.250Z'))?.getTime()).toBe(
+      expect(value(toDate('2024-01-01T10:00:00+02:00', { iso: true }))?.getTime()).toBe(
+        Date.UTC(2024, 0, 1, 8),
+      );
+      expect(value(toDate('2024-01-01T10:00:00.250Z', { iso: true }))?.getTime()).toBe(
         Date.UTC(2024, 0, 1, 10, 0, 0, 250),
       );
     });

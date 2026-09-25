@@ -1,4 +1,4 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 import { ValidationConfigError } from './util/errors';
 import hasOwn from './util/hasOwn';
 import isLuhnValid from './isLuhnNumber';
@@ -25,8 +25,9 @@ const allCards = (() => {
 })();
 
 export default function isCreditCard(input: unknown, options: { provider?: string } = {}): boolean {
-  const s = tryToString(input);
-  if (s === false) return false;
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   const card: string = s;
   const { provider } = options;
   const sanitized = card.replace(/[- ]+/g, '');

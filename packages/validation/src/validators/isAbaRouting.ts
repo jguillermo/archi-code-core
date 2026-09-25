@@ -1,4 +1,4 @@
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 
 // http://www.brainjar.com/js/validation/
 // https://www.aba.com/news-research/research-analysis/routing-number-policy-procedures
@@ -7,8 +7,9 @@ const isRoutingReg =
   /^(?!(1[3-9])|(20)|(3[3-9])|(4[0-9])|(5[0-9])|(60)|(7[3-9])|(8[1-9])|(9[0-2])|(9[3-9]))[0-9]{9}$/;
 
 export default function isAbaRouting(input: unknown): boolean {
-  const s = tryToString(input);
-  if (s === false) return false;
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   const str: string = s;
 
   if (!isRoutingReg.test(str)) return false;

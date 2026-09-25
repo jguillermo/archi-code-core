@@ -1,6 +1,6 @@
 import { ValidationConfigError } from './util/errors';
 import hasOwn from './util/hasOwn';
-import tryToString from './util/tryToString';
+import { toString } from '../convert/string';
 import * as algorithms from './util/algorithms';
 
 const AU = (str: string): boolean => {
@@ -152,8 +152,9 @@ export const vatMatchers = {
 };
 
 export default function isVAT(input: unknown, countryCode: string): boolean {
-  const s = tryToString(input);
-  if (s === false) return false;
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   const str: string = s;
   if (typeof countryCode !== 'string')
     throw new ValidationConfigError('countryCode must be a string');

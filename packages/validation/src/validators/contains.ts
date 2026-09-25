@@ -1,5 +1,4 @@
-import tryToString from './util/tryToString';
-import { asString } from '../core/coerce';
+import { toString } from '../convert/string';
 import merge from './util/merge';
 
 const defaultContainsOptions = {
@@ -12,13 +11,15 @@ export default function contains(
   elem: unknown,
   options?: { ignoreCase?: boolean; minOccurrences?: number },
 ): boolean {
-  const s = tryToString(input);
-  if (s === false) return false;
+  const stringResult = toString(input);
+  if (!stringResult.ok) return false;
+  const s = stringResult.value;
   const str: string = s;
   const opts = merge(options, defaultContainsOptions) as typeof defaultContainsOptions;
 
-  const elemStr = asString(elem);
-  if (elemStr === undefined) return false;
+  const elemResult = toString(elem);
+  if (!elemResult.ok) return false;
+  const elemStr = elemResult.value;
 
   if (opts.ignoreCase) {
     return str.toLowerCase().split(elemStr.toLowerCase()).length > opts.minOccurrences;
