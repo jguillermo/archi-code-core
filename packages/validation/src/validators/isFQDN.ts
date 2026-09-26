@@ -1,5 +1,5 @@
 import { toString } from '../convert/string';
-import { merge } from './util/merge';
+import { merge } from '../helpers/merge';
 
 export interface IsFQDNOptions {
   require_tld?: boolean;

@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from '@jest/globals';
 import { validator } from '../../src/validators';
-import { ValidationConfigError } from '../../src/validators/util/errors';
+import { ValidationConfigError } from '../../src/helpers/errors';
 
 describe('isURL — host checks cannot be bypassed', () => {
   it('rejects a backslash in the authority (browsers read it as "/")', () => {

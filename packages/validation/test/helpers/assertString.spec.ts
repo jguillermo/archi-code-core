@@ -1,5 +1,5 @@
 import assert from 'assert';
-import { assertString } from '../../../src/validators/util/assertString';
+import { assertString } from '../../src/helpers/assertString';
 
 describe('assertString', () => {
   it('Should throw an error if argument provided is an undefined', () => {

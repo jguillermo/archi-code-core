@@ -1,7 +1,7 @@
-import { ValidationConfigError } from './util/errors';
-import { hasOwn } from './util/hasOwn';
+import { ValidationConfigError } from '../helpers/errors';
+import { hasOwn } from '../helpers/hasOwn';
 import { toString } from '../convert/string';
-import { configText } from './util/config';
+import { configText } from '../helpers/config';
 
 export interface IsMobilePhoneOptions {
   strictMode?: boolean;

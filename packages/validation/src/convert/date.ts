@@ -60,7 +60,7 @@ export interface DateConvertOptions {
   iso?: boolean;
   /**
    * Lenient deterministic parsing — rule PORTED FROM `validator.isAfter` / `isBefore` (formerly
-   * `validators/util/parseDateLax`). NOT compatible with the default: also accepts reduced ISO
+   * `helpers/parseDateLax`). NOT compatible with the default: also accepts reduced ISO
    * precision (`'2024'`, `'2024-03'`, `'2024-03-05T10:20'`) and the output of `Date#toString()` /
    * `Date#toUTCString()`. Engine-dependent formats such as `'01/02/2024'` are still rejected.
    */

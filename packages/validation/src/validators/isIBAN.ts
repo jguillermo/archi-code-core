@@ -1,7 +1,7 @@
-import { hasOwn } from './util/hasOwn';
+import { hasOwn } from '../helpers/hasOwn';
 import { toString } from '../convert/string';
-import { configText, optionsOf } from './util/config';
-import { ValidationConfigError } from './util/errors';
+import { configText, optionsOf } from '../helpers/config';
+import { ValidationConfigError } from '../helpers/errors';
 
 export interface IsIBANOptions {
   /** Only accept IBANs from these ISO 3166-1 alpha-2 country codes. */

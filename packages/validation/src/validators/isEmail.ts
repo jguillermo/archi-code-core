@@ -1,13 +1,13 @@
 import { toString } from '../convert/string';
-import { checkHost, hostList } from './util/checkHost';
-import { configText } from './util/config';
-import { ValidationConfigError } from './util/errors';
-import { escapeRegExp } from './util/escapeRegExp';
+import { checkHost, hostList } from '../helpers/checkHost';
+import { configText } from '../helpers/config';
+import { ValidationConfigError } from '../helpers/errors';
+import { escapeRegExp } from '../helpers/escapeRegExp';
 
 import { isByteLength } from './isByteLength';
 import { isFQDN } from './isFQDN';
 import { isIP } from './isIP';
-import { merge } from './util/merge';
+import { merge } from '../helpers/merge';
 
 export interface IsEmailOptions {
   allow_display_name?: boolean;

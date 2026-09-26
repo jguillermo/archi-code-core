@@ -1,8 +1,8 @@
-import { merge } from './util/merge';
+import { merge } from '../helpers/merge';
 import { toString } from '../convert/string';
-import { escapeRegExp } from './util/escapeRegExp';
-import { BoundedCache } from './util/boundedCache';
-import { ValidationConfigError } from './util/errors';
+import { escapeRegExp } from '../helpers/escapeRegExp';
+import { BoundedCache } from '../helpers/boundedCache';
+import { ValidationConfigError } from '../helpers/errors';
 
 export interface IsCurrencyOptions {
   symbol?: string;

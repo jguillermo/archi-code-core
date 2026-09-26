@@ -1,6 +1,6 @@
 import test from '../cross/support/testFunctions';
 import { validator } from '../../src/validators';
-import { ValidationConfigError } from '../../src/validators/util/errors';
+import { ValidationConfigError } from '../../src/helpers/errors';
 
 describe('Validators', () => {
   it('should validate decimal numbers', () => {

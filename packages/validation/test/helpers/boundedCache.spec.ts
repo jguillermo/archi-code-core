@@ -1,4 +1,4 @@
-import { BoundedCache } from '../../../src/validators/util/boundedCache';
+import { BoundedCache } from '../../src/helpers/boundedCache';
 
 describe('B.3 hostile options', () => {
   it('BoundedCache evicts the least recently used entry at its limit', () => {

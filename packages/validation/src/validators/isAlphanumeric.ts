@@ -1,9 +1,9 @@
 import { toString } from '../convert/string';
-import { ValidationConfigError } from './util/errors';
-import { hasOwn } from './util/hasOwn';
-import { escapeRegExp } from './util/escapeRegExp';
+import { ValidationConfigError } from '../helpers/errors';
+import { hasOwn } from '../helpers/hasOwn';
+import { escapeRegExp } from '../helpers/escapeRegExp';
 import { alphanumeric } from './alpha';
-import { configText, optionsOf } from './util/config';
+import { configText, optionsOf } from '../helpers/config';
 
 export interface IsAlphanumericOptions {
   ignore?: string | RegExp;

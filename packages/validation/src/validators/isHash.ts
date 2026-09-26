@@ -1,7 +1,7 @@
 import { toString } from '../convert/string';
-import { ValidationConfigError } from './util/errors';
-import { hasOwn } from './util/hasOwn';
-import { configText } from './util/config';
+import { ValidationConfigError } from '../helpers/errors';
+import { hasOwn } from '../helpers/hasOwn';
+import { configText } from '../helpers/config';
 
 const lengths = {
   md5: 32,

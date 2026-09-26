@@ -1,6 +1,5 @@
 import test from '../cross/support/testFunctions';
 import { validator } from '../../src/validators';
-import { scorePassword } from '../../src/validators/isStrongPassword';
 import { test as sanitizerTest } from '../cross/support/sanitizerTest';
 
 describe('Validators', () => {
@@ -47,46 +46,17 @@ describe('#18 isStrongPassword — Unicode aware', () => {
     expect(validator.isStrongPassword('Aa1!😀bc')).toBe(false);
     expect(validator.isStrongPassword('Aa1!😀bcd')).toBe(true);
   });
-  it('characters outside every class (e.g. CJK) count for nothing', () => {
-    expect(validator.isStrongPassword('中中中中中中中中', { returnScore: true })).toBe(1 + 7 * 0.5);
-  });
 });
 
-describe('scorePassword — numeric score without overloading isStrongPassword', () => {
-  it('matches the deprecated returnScore path and handles non-strings', () => {
-    expect(scorePassword('Aa1!Aa1!')).toBe(
-      validator.isStrongPassword('Aa1!Aa1!', { returnScore: true }),
-    );
-    expect(scorePassword('abc', { pointsPerUnique: 2, pointsForContainingLower: 0 })).toBe(6);
-    expect(scorePassword(null)).toBe(0);
+describe('isStrongPassword — always a boolean', () => {
+  it('never returns a score, even with the removed returnScore option', () => {
+    const legacy = { returnScore: true } as Parameters<typeof validator.isStrongPassword>[1];
+    expect(validator.isStrongPassword('Aa1!Aa1!', legacy)).toBe(true);
+    expect(validator.isStrongPassword('中中中中中中中中', legacy)).toBe(false);
   });
 });
 
 describe('Sanitizers', () => {
-  it('should score passwords', () => {
-    sanitizerTest({
-      sanitizer: 'isStrongPassword',
-      args: [
-        {
-          returnScore: true,
-          pointsPerUnique: 1,
-          pointsPerRepeat: 0.5,
-          pointsForContainingLower: 10,
-          pointsForContainingUpper: 10,
-          pointsForContainingNumber: 10,
-          pointsForContainingSymbol: 10,
-        },
-      ],
-      expect: {
-        abc: 13,
-        abcc: 13.5,
-        aBc: 23,
-        'Abc123!': 47,
-        '!@#$%^&*()': 20,
-      },
-    });
-  });
-
   it('should score passwords with default options', () => {
     sanitizerTest({
       sanitizer: 'isStrongPassword',

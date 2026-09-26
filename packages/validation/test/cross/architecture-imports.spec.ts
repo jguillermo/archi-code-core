@@ -149,7 +149,7 @@ describe('architecture: import graph', () => {
   });
 
   it('there is no validator-side string coercion helper: validators use convert/string directly', () => {
-    expect(graph.has('validators/util/tryToString.ts')).toBe(false);
+    expect(graph.has('helpers/tryToString.ts')).toBe(false);
     const users = importersOf('convert/string.ts').filter((f) => f.startsWith('validators/'));
     expect(users.length).toBeGreaterThan(70);
   });

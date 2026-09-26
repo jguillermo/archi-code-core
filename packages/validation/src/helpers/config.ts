@@ -1,4 +1,4 @@
-import { anyToString } from '../../convert/any-to-string';
+import { anyToString } from '../convert/any-to-string';
 import { ValidationConfigError } from './errors';
 
 /**

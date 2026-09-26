@@ -1,6 +1,6 @@
 import { toString } from '../convert/string';
-import { ValidationConfigError } from './util/errors';
-import { hasOwn } from './util/hasOwn';
+import { ValidationConfigError } from '../helpers/errors';
+import { hasOwn } from '../helpers/hasOwn';
 
 /**
  * Reference:

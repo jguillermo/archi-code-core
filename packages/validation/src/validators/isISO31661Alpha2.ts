@@ -1,5 +1,5 @@
 import { toString } from '../convert/string';
-import { optionsOf } from './util/config';
+import { optionsOf } from '../helpers/config';
 
 export interface IsISO31661Options {
   /** Extra user-assigned codes to accept (e.g. `['XK']`). */

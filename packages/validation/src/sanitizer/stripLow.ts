@@ -1,4 +1,4 @@
-import { assertString } from '../validators/util/assertString';
+import { assertString } from '../helpers/assertString';
 
 /* eslint-disable no-control-regex */
 const lowChars = /[\x00-\x1F\x7F]+/g;

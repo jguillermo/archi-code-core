@@ -1,5 +1,5 @@
 import { toString } from '../convert/string';
-import { optionsOf } from './util/config';
+import { optionsOf } from '../helpers/config';
 
 export interface IsISO8601Options {
   /** Also reject dates that do not exist in the calendar (e.g. 2024-02-30). */

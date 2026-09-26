@@ -1,8 +1,8 @@
-import { ValidationConfigError } from './util/errors';
-import { hasOwn } from './util/hasOwn';
+import { ValidationConfigError } from '../helpers/errors';
+import { hasOwn } from '../helpers/hasOwn';
 import { toString } from '../convert/string';
-import * as algorithms from './util/algorithms';
-import { configText } from './util/config';
+import * as algorithms from '../helpers/algorithms';
+import { configText } from '../helpers/config';
 
 const AU = (str: string): boolean => {
   const match = str.match(/^(AU)?(\d{11})$/);

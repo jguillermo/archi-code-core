@@ -1,11 +1,11 @@
-import { ValidationConfigError } from './util/errors';
-import { hasOwn } from './util/hasOwn';
-import { merge } from './util/merge';
+import { ValidationConfigError } from '../helpers/errors';
+import { hasOwn } from '../helpers/hasOwn';
+import { merge } from '../helpers/merge';
 import { toString } from '../convert/string';
-import { escapeRegExp } from './util/escapeRegExp';
-import { BoundedCache } from './util/boundedCache';
+import { escapeRegExp } from '../helpers/escapeRegExp';
+import { BoundedCache } from '../helpers/boundedCache';
 import { decimal } from './alpha';
-import { configText } from './util/config';
+import { configText } from '../helpers/config';
 
 export interface IsDecimalOptions {
   force_decimal?: boolean;

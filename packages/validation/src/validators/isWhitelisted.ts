@@ -1,6 +1,6 @@
 import { toString } from '../convert/string';
-import { configText } from './util/config';
-import { ValidationConfigError } from './util/errors';
+import { configText } from '../helpers/config';
+import { ValidationConfigError } from '../helpers/errors';
 
 export function isWhitelisted(input: unknown, chars: string | string[]): boolean {
   const stringResult = toString(input);

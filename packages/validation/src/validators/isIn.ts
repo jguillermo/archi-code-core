@@ -1,7 +1,7 @@
 import { toString } from '../convert/string';
 import { toEnum } from '../convert/enum';
-import { configText } from './util/config';
-import { ValidationConfigError } from './util/errors';
+import { configText } from '../helpers/config';
+import { ValidationConfigError } from '../helpers/errors';
 
 export function isIn(
   input: unknown,

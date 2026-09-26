@@ -1,5 +1,5 @@
 import { toString } from '../convert/string';
-import { hasOwn } from './util/hasOwn';
+import { hasOwn } from '../helpers/hasOwn';
 
 export type IsUUIDVersion = 'all' | 'loose' | 'nil' | 'max' | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 

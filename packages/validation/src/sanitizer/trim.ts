@@ -1,4 +1,4 @@
-import { assertString } from '../validators/util/assertString';
+import { assertString } from '../helpers/assertString';
 import { ltrim } from './ltrim';
 import { rtrim } from './rtrim';
 

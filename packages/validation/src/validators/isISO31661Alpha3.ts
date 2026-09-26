@@ -1,6 +1,6 @@
 import type { IsISO31661Options } from './isISO31661Alpha2';
 import { toString } from '../convert/string';
-import { optionsOf } from './util/config';
+import { optionsOf } from '../helpers/config';
 
 // from https://en.wikipedia.org/wiki/ISO_3166-1_alpha-3
 const validISO31661Alpha3CountriesCodes = new Set([

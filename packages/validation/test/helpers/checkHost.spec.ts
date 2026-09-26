@@ -1,4 +1,4 @@
-import { checkHost } from '../../../src/validators/util/checkHost';
+import { checkHost } from '../../src/helpers/checkHost';
 
 describe('#16 checkHost — stateful (g/y) regexes give stable results', () => {
   it('same host matches on every call', () => {

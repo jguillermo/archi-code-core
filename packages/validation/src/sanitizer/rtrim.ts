@@ -1,4 +1,4 @@
-import { assertString } from '../validators/util/assertString';
+import { assertString } from '../helpers/assertString';
 
 // Native since ES2019 (same whitespace set as /\s/). Detected once: older engines use the scan.
 const hasNativeTrimEnd = typeof String.prototype.trimEnd === 'function';

@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from '@jest/globals';
 import { validator } from '../../src/validators';
-import { ValidationConfigError } from '../../src/validators/util/errors';
+import { ValidationConfigError } from '../../src/helpers/errors';
 
 const HOSTILE_VALUES: unknown[] = [
   null,

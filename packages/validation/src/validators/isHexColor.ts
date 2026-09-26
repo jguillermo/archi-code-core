@@ -1,5 +1,5 @@
 import { toString } from '../convert/string';
-import { merge } from './util/merge';
+import { merge } from '../helpers/merge';
 
 export interface IsHexColorOptions {
   /** When true the leading `#` is mandatory. */

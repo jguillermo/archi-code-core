@@ -1,8 +1,8 @@
-import { merge } from './util/merge';
+import { merge } from '../helpers/merge';
 import { toString } from '../convert/string';
-import { ValidationConfigError } from './util/errors';
-import { hasOwn } from './util/hasOwn';
-import { configText } from './util/config';
+import { ValidationConfigError } from '../helpers/errors';
+import { hasOwn } from '../helpers/hasOwn';
+import { configText } from '../helpers/config';
 
 export interface IsTimeOptions {
   hourFormat?: 'hour12' | 'hour24';

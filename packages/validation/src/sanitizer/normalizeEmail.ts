@@ -1,5 +1,5 @@
-import { merge } from '../validators/util/merge';
-import { assertString } from '../validators/util/assertString';
+import { merge } from '../helpers/merge';
+import { assertString } from '../helpers/assertString';
 
 export interface NormalizeEmailOptions {
   all_lowercase?: boolean;

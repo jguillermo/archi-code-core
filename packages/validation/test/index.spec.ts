@@ -33,10 +33,21 @@ describe('public types', () => {
   it('validators return boolean', () => {
     expectTypeOf(validator.isEmail).returns.toEqualTypeOf<boolean>();
     expectTypeOf(validator.isStrongPassword('x')).toEqualTypeOf<boolean>();
-    expectTypeOf(validator.isStrongPassword('x', { returnScore: true })).toEqualTypeOf<
-      number | false
-    >();
+    expectTypeOf(validator.isStrongPassword).returns.toEqualTypeOf<boolean>();
     expectTypeOf(scorePassword).returns.toEqualTypeOf<number>();
+  });
+
+  it('every function of the validator registry returns boolean (and only boolean)', () => {
+    type NonBooleanValidators = {
+      [K in keyof ValidatorRegistry]: ValidatorRegistry[K] extends (...args: never[]) => infer R
+        ? [R] extends [boolean]
+          ? [boolean] extends [R]
+            ? never
+            : K
+          : K
+        : never;
+    }[keyof ValidatorRegistry];
+    expectTypeOf<NonBooleanValidators>().toEqualTypeOf<never>();
   });
 
   it('options match the implementation', () => {

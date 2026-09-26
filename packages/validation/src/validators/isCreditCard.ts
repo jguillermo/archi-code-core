@@ -1,8 +1,8 @@
 import { toString } from '../convert/string';
-import { ValidationConfigError } from './util/errors';
-import { hasOwn } from './util/hasOwn';
+import { ValidationConfigError } from '../helpers/errors';
+import { hasOwn } from '../helpers/hasOwn';
 import { isLuhnNumber as isLuhnValid } from './isLuhnNumber';
-import { configText, optionsOf } from './util/config';
+import { configText, optionsOf } from '../helpers/config';
 
 const cards = {
   amex: /^3[47][0-9]{13}$/,

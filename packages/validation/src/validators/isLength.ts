@@ -1,5 +1,5 @@
 import { toString } from '../convert/string';
-import { boundsOf } from './util/config';
+import { boundsOf } from '../helpers/config';
 
 export interface IsLengthOptions {
   min?: number;

@@ -1,5 +1,5 @@
 import { toString } from '../convert/string';
-import { optionsOf } from './util/config';
+import { optionsOf } from '../helpers/config';
 
 export interface IsISSNOptions {
   /** Only accept the upper-case check digit `X`. */

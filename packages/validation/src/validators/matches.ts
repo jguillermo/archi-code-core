@@ -1,6 +1,6 @@
 import { toString } from '../convert/string';
-import { configText } from './util/config';
-import { ValidationConfigError } from './util/errors';
+import { configText } from '../helpers/config';
+import { ValidationConfigError } from '../helpers/errors';
 
 export function matches(input: unknown, pattern: RegExp | string, modifiers?: string): boolean {
   const stringResult = toString(input);
