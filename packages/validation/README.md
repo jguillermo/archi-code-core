@@ -97,7 +97,7 @@ never throws.
 
 Declare a class's validations with `@Validations`, read them with `getValidations` and run them
 with `validate`. Each built-in validation names its validator; `properties` is the validator's
-second argument and `options` its third. A custom validation brings its own `fn`.
+second argument (required when the validator requires it) and `options` its third. A custom validation brings its own `fn`.
 
 ```ts
 import { Validations, getValidations, validate } from '@archi-code/validation';
@@ -106,19 +106,20 @@ import { Validations, getValidations, validate } from '@archi-code/validation';
 class Quantity {}
 
 @Validations([
-  { validator: 'isInt', properties: { min: 5 } }, // ignored: the parent's isInt wins
+  { validator: 'isInt', properties: { min: 5 } }, // replaces the parent's isInt
   { validator: 'isEven', fn: (v) => Number(v) % 2 === 0, message: 'Must be even' },
 ])
 class Pairs extends Quantity {}
 
-getValidations(Pairs); // [isInt { min: 0 }, isEven] — parent first, in declaration order
-validate(getValidations(Pairs), '-3');
-// [{ validator: 'isInt', message: 'Value does not satisfy isInt ({"min":0})' },
+getValidations(Pairs); // [isInt { min: 5 }, isEven] — parent first, in declaration order
+validate(getValidations(Pairs), '3');
+// [{ validator: 'isInt', message: 'Value does not satisfy isInt' },
 //  { validator: 'isEven', message: 'Must be even' }]
 ```
 
 `validate` runs every validation, even after one fails, and returns an empty list when the value
-is valid. An unknown validator without `fn` throws `ValidationConfigError`.
+is valid. An unknown validator without `fn` throws `ValidationConfigError`, and so does declaring
+the same validator twice in one class.
 
 ## Differences from validator.js
 

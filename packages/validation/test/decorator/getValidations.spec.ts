@@ -19,27 +19,40 @@ describe('getValidations', () => {
     expect(getValidations(Child).map((v) => v.validator)).toEqual(['isInt', 'isPort', 'isEmail']);
   });
 
-  it('keeps the parent declaration when the child repeats a validator', () => {
-    @Validations([{ validator: 'isInt', properties: { min: 0 } }])
+  it('replaces the parent declaration when the child repeats a validator, keeping its place', () => {
+    @Validations([{ validator: 'isInt', properties: { min: 0 } }, { validator: 'isEmail' }])
     class GrandParent {}
     @Validations([{ validator: 'isInt', properties: { min: 5 } }, { validator: 'isPort' }])
     class Parent extends GrandParent {}
-    @Validations([{ validator: 'isPort', message: 'child' }, { validator: 'isEmail' }])
+    @Validations([{ validator: 'isPort', message: 'child' }, { validator: 'isIP' }])
     class Child extends Parent {}
     expect(getValidations(Child)).toEqual([
-      { validator: 'isInt', properties: { min: 0 } },
+      { validator: 'isInt', properties: { min: 5 } },
+      { validator: 'isEmail' },
+      { validator: 'isPort', message: 'child' },
+      { validator: 'isIP' },
+    ]);
+    expect(getValidations(Parent)).toEqual([
+      { validator: 'isInt', properties: { min: 5 } },
+      { validator: 'isEmail' },
       { validator: 'isPort' },
+    ]);
+    expect(getValidations(GrandParent)).toEqual([
+      { validator: 'isInt', properties: { min: 0 } },
       { validator: 'isEmail' },
     ]);
   });
 
-  it('keeps the first declaration of a validator repeated in the same class', () => {
-    @Validations([
-      { validator: 'isInt', properties: { min: 1 } },
-      { validator: 'isInt', properties: { min: 9 } },
-    ])
+  it('returns validations that cannot be changed to alter the class', () => {
+    @Validations([{ validator: 'isInt', properties: { min: 2 } }])
     class Target {}
-    expect(getValidations(Target)).toEqual([{ validator: 'isInt', properties: { min: 1 } }]);
+    const returned = getValidations(Target);
+    expect(() => {
+      ((returned[0] as { properties?: unknown }).properties as { min: number }).min = 100;
+    }).toThrow(TypeError);
+    returned.pop();
+    expect(getValidations(Target)).toEqual([{ validator: 'isInt', properties: { min: 2 } }]);
+    expect(validate(getValidations(Target), '5')).toEqual([]);
   });
 
   it('works for classes created with a null prototype chain', () => {

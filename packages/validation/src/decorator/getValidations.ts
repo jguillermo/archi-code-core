@@ -3,8 +3,8 @@ import type { Validation, ValidatedClass } from './validations';
 
 /**
  * Returns the validations of a class, inherited ones included, in validation order: the root
- * parent's first, then each subclass down to `target`. When a validator is declared more than
- * once, the parent's declaration wins.
+ * parent's first, then each subclass down to `target`. A subclass that declares a validator of its
+ * parent replaces the parent's declaration, which keeps its place in the order.
  */
 export function getValidations(target: ValidatedClass): Validation[] {
   const chain: ValidatedClass[] = [];
@@ -18,7 +18,7 @@ export function getValidations(target: ValidatedClass): Validation[] {
   const byName = new Map<string, Validation>();
   for (const cls of chain) {
     for (const validation of ownValidations.get(cls) ?? []) {
-      if (!byName.has(validation.validator)) byName.set(validation.validator, validation);
+      byName.set(validation.validator, validation);
     }
   }
   return [...byName.values()];

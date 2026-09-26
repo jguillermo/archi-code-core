@@ -98,6 +98,20 @@ describe('public types', () => {
     );
     // @ts-expect-error isInt has no "foo" option
     void (() => validate([{ validator: 'isInt', properties: { foo: 1 } }], '5'));
+    // @ts-expect-error isHash requires its algorithm
+    void (() => validate([{ validator: 'isHash' }], '5'));
+    // @ts-expect-error isEmail takes no third argument
+    void (() => validate([{ validator: 'isEmail', options: {} }], '5'));
+    // @ts-expect-error isPort takes no arguments
+    void (() => validate([{ validator: 'isPort', properties: 1 }], '5'));
+    validate(
+      [
+        { validator: 'isHash', properties: 'md5' },
+        { validator: 'isEmail' },
+        { validator: 'isPort' },
+      ],
+      '5',
+    );
     // @ts-expect-error unknown validator without fn
     void (() => validate([{ validator: 'isNothing' }], '5'));
     expectTypeOf(validate).returns.toEqualTypeOf<{ validator: string; message: string }[]>();

@@ -23,7 +23,7 @@ describe('validate', () => {
     );
     expect(calls).toEqual(['tracked']);
     expect(errors).toEqual([
-      { validator: 'isInt', message: 'Value does not satisfy isInt ({"min":2})' },
+      { validator: 'isInt', message: 'Value does not satisfy isInt' },
       { validator: 'isEmail', message: 'Value does not satisfy isEmail' },
       { validator: 'isEven', message: 'Must be even' },
     ]);
@@ -37,7 +37,7 @@ describe('validate', () => {
     expect(validate(list, '612345678')).toEqual([
       {
         validator: 'isMobilePhone',
-        message: 'Value does not satisfy isMobilePhone ("es-ES", {"strictMode":true})',
+        message: 'Value does not satisfy isMobilePhone',
       },
     ]);
   });

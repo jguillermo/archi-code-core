@@ -8,14 +8,6 @@ export interface ValidationError {
   message: string;
 }
 
-function describe(validation: Validation): string {
-  if ('fn' in validation) return `Value does not satisfy ${validation.validator}`;
-  const params = [validation.properties, validation.options]
-    .filter((p) => p !== undefined)
-    .map((p) => JSON.stringify(p));
-  return `Value does not satisfy ${validation.validator}${params.length ? ` (${params.join(', ')})` : ''}`;
-}
-
 /**
  * Runs every validation against the value — a failure does not stop the rest — and returns one
  * error per failed validation, in order. An empty list means the value is valid.
@@ -42,7 +34,7 @@ export function validate(validations: Validation[], value: unknown): ValidationE
     if (!passed)
       errors.push({
         validator: validation.validator,
-        message: validation.message ?? describe(validation),
+        message: validation.message ?? `Value does not satisfy ${validation.validator}`,
       });
   }
   return errors;
