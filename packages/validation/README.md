@@ -11,17 +11,24 @@ npm install @archi-code/validation
 
 ## Three tools
 
-| Tool | Question it answers | Returns |
-|---|---|---|
-| `isX(value, …)` (also `validator.isX`) | Is this value a valid X? (email, URL, IBAN, phone…) | `boolean` |
-| `toX(value, options?)` | Convert this value to type X. | `{ ok, value, error }` |
-| `canBeX(value)` | Can this value be converted to type X? | `boolean` (always `toX(value).ok`) |
+| Tool                                   | Question it answers                                 | Returns                            |
+| -------------------------------------- | --------------------------------------------------- | ---------------------------------- |
+| `isX(value, …)` (also `validator.isX`) | Is this value a valid X? (email, URL, IBAN, phone…) | `boolean`                          |
+| `toX(value, options?)`                 | Convert this value to type X.                       | `{ ok, value, error }`             |
+| `canBeX(value)`                        | Can this value be converted to type X?              | `boolean` (always `toX(value).ok`) |
 
 `convert/` is the only place where type rules live. `canBe` and the validators build on it and
 never duplicate it, so `canBeX(v) === toX(v).ok` holds by construction.
 
 ```ts
-import { isEmail, isIBAN, isMobilePhone, toInteger, canBeDate, sanitizer } from '@archi-code/validation';
+import {
+  isEmail,
+  isIBAN,
+  isMobilePhone,
+  toInteger,
+  canBeDate,
+  sanitizer,
+} from '@archi-code/validation';
 
 isEmail('ana@example.com'); // true
 isIBAN('DE89 3704 0044 0532 0130 00'); // true
@@ -47,7 +54,7 @@ import { validator } from '@archi-code/validation'; // every validator and local
 ```
 
 The sizes are unminified ESM source reachable from the import. Use `validator` when you need
-dynamic access (`validator[name]`) or `createValidator`, and named imports everywhere else.
+dynamic access (`validator[name]`), and named imports everywhere else.
 
 ## Contract
 
@@ -68,17 +75,17 @@ dynamic access (`validator[name]`) or `createValidator`, and named imports every
 
 ## Converters and their options
 
-| Function | Default rule | Notable options |
-|---|---|---|
-| `toString` | Strings, booleans and finite numbers | — |
-| `toBoolean` | `true`/`false`, `1`/`0`, and trimmed, case-insensitive `'true'`/`'false'`/`'1'`/`'0'` | `mode: 'strict' \| 'loose'` (`'loose'` also accepts `'yes'`/`'no'`) |
-| `toInteger` | Safe integers, as numbers or trimmed `-?\d+` strings (`INTEGER_OVERFLOW` beyond ±2^53) | `syntax: 'validator'` (the isInt rule) |
-| `toFloat` | Finite numbers, or trimmed strings in plain decimal notation (no `0x`/`0b`/`0o`) | `syntax: 'validator'`, `decimalSeparator` |
-| `toDate` | `YYYY/MM/DD` with `/` or `-` as delimiter; the result is that day at 00:00 UTC | `format`, `delimiters`, `strictMode`, `iso: true`, `lax: true` |
-| `toJson` | A non-empty plain JSON object, as JSON text or as an object that survives a JSON round trip (plain objects/arrays with string, boolean, finite number or null leaves — no functions, Dates, class instances…) | — |
-| `toJsonValue` | Any JSON text that parses to an object or array | `allowPrimitives`, `allowAnyValue` |
-| `toArray` | Arrays, or JSON text holding an array | — |
-| `toEnum` | A string, number or boolean whose text form is one of the options | — |
+| Function      | Default rule                                                                                                                                                                                                  | Notable options                                                     |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `toString`    | Strings, booleans and finite numbers                                                                                                                                                                          | —                                                                   |
+| `toBoolean`   | `true`/`false`, `1`/`0`, and trimmed, case-insensitive `'true'`/`'false'`/`'1'`/`'0'`                                                                                                                         | `mode: 'strict' \| 'loose'` (`'loose'` also accepts `'yes'`/`'no'`) |
+| `toInteger`   | Safe integers, as numbers or trimmed `-?\d+` strings (`INTEGER_OVERFLOW` beyond ±2^53)                                                                                                                        | `syntax: 'validator'` (the isInt rule)                              |
+| `toFloat`     | Finite numbers, or trimmed strings in plain decimal notation (no `0x`/`0b`/`0o`)                                                                                                                              | `syntax: 'validator'`, `decimalSeparator`                           |
+| `toDate`      | `YYYY/MM/DD` with `/` or `-` as delimiter; the result is that day at 00:00 UTC                                                                                                                                | `format`, `delimiters`, `strictMode`, `iso: true`, `lax: true`      |
+| `toJson`      | A non-empty plain JSON object, as JSON text or as an object that survives a JSON round trip (plain objects/arrays with string, boolean, finite number or null leaves — no functions, Dates, class instances…) | —                                                                   |
+| `toJsonValue` | Any JSON text that parses to an object or array                                                                                                                                                               | `allowPrimitives`, `allowAnyValue`                                  |
+| `toArray`     | Arrays, or JSON text holding an array                                                                                                                                                                         | —                                                                   |
+| `toEnum`      | A string, number or boolean whose text form is one of the options                                                                                                                                             | —                                                                   |
 
 > ISO date-times need the ISO rule: `canBeDate('2024-01-31T10:00:00Z')` is `false`, while
 > `toDate('2024-01-31T10:00:00Z', { iso: true })` is `ok`.
@@ -86,17 +93,32 @@ dynamic access (`validator[name]`) or `createValidator`, and named imports every
 `anyToString(value)` gives a readable description of any value, for logs and error messages. It
 never throws.
 
-## Extending the validators
+## Validations decorator
 
-`validator` is frozen. To add your own validators, build a new registry:
+Declare a class's validations with `@Validations`, read them with `getValidations` and run them
+with `validate`. Each built-in validation names its validator; `properties` is the validator's
+second argument and `options` its third. A custom validation brings its own `fn`.
 
 ```ts
-import { createValidator } from '@archi-code/validation';
+import { Validations, getValidations, validate } from '@archi-code/validation';
 
-const v = createValidator({ isEven: (x: unknown) => Number(x) % 2 === 0 });
-v.isEven(4); // true
-v.isEmail('a@b.co'); // true, and all built-ins remain available and typed
+@Validations([{ validator: 'isInt', properties: { min: 0 } }])
+class Quantity {}
+
+@Validations([
+  { validator: 'isInt', properties: { min: 5 } }, // ignored: the parent's isInt wins
+  { validator: 'isEven', fn: (v) => Number(v) % 2 === 0, message: 'Must be even' },
+])
+class Pairs extends Quantity {}
+
+getValidations(Pairs); // [isInt { min: 0 }, isEven] — parent first, in declaration order
+validate(getValidations(Pairs), '-3');
+// [{ validator: 'isInt', message: 'Value does not satisfy isInt ({"min":0})' },
+//  { validator: 'isEven', message: 'Must be even' }]
 ```
+
+`validate` runs every validation, even after one fails, and returns an empty list when the value
+is valid. An unknown validator without `fn` throws `ValidationConfigError`.
 
 ## Differences from validator.js
 

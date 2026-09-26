@@ -95,7 +95,16 @@ export { isVAT } from './validators/isVAT';
 export * from './canBe';
 export * from './convert';
 export * as sanitizer from './sanitizer';
-export { createValidator } from './createValidator';
+export { Validations } from './decorator/validations';
+export { getValidations } from './decorator/getValidations';
+export { validate } from './decorator/validate';
+export type {
+  Validation,
+  BuiltInValidation,
+  CustomValidation,
+  ValidatorName,
+} from './decorator/validations';
+export type { ValidationError } from './decorator/validate';
 export { scorePassword } from './helpers/scorePassword';
 export type { ScorePasswordOptions } from './helpers/scorePassword';
 export { ValidationConfigError } from './helpers/errors';

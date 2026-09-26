@@ -8,7 +8,7 @@ import * as path from 'path';
 import * as api from '../src';
 import {
   validator,
-  createValidator,
+  validate,
   toEnum,
   toInteger,
   toDate,
@@ -88,10 +88,19 @@ describe('public types', () => {
     expect(toInteger('x')).toEqual({ ok: false, value: null, error: 'Value is not an integer' });
   });
 
-  it('createValidator merges the registry with the extensions', () => {
-    const v = createValidator({ isAnswer: (x: unknown): boolean => x === 42 });
-    expectTypeOf(v.isAnswer).toEqualTypeOf<(x: unknown) => boolean>();
-    expectTypeOf(v.isEmail).returns.toEqualTypeOf<boolean>();
+  it('validate types each built-in validation with the options of its validator', () => {
+    validate(
+      [
+        { validator: 'isInt', properties: { min: 2 } },
+        { validator: 'isMobilePhone', properties: 'es-ES', options: { strictMode: true } },
+      ],
+      '5',
+    );
+    // @ts-expect-error isInt has no "foo" option
+    void (() => validate([{ validator: 'isInt', properties: { foo: 1 } }], '5'));
+    // @ts-expect-error unknown validator without fn
+    void (() => validate([{ validator: 'isNothing' }], '5'));
+    expectTypeOf(validate).returns.toEqualTypeOf<{ validator: string; message: string }[]>();
   });
 
   it('ValidationConfigError is exported and carries its name at runtime', () => {

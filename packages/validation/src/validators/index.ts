@@ -115,7 +115,7 @@ import { isStrongPassword } from './isStrongPassword';
 
 import { isVAT } from './isVAT';
 
-// Frozen: no consumer can monkey-patch a validator globally (use createValidator() to extend).
+// Frozen: no consumer can monkey-patch a validator globally (custom validations go through @Validations).
 export const validator = Object.freeze({
   equals,
   contains,

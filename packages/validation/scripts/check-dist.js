@@ -35,7 +35,10 @@ function smoke(label, m) {
     ],
     ['canBeDate', () => m.canBeDate('2024/01/31') === true],
     ['sanitizer.trim', () => m.sanitizer.trim('  a  ') === 'a'],
-    ['createValidator', () => typeof m.createValidator({}).isEmail === 'function'],
+    [
+      'validate',
+      () => m.validate([{ validator: 'isInt', properties: { min: 2 } }], '1').length === 1,
+    ],
   ];
   for (const [name, check] of checks) {
     let passed = false;
