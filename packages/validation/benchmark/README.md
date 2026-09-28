@@ -39,7 +39,7 @@ propio benchmark: `benchmark/samples/<validador>.samples.ts`. Cada uno exporta u
 `ValidatorSample` con:
 
 - `name` — nombre del validador,
-- `run(input)` — cómo invocarlo (con sus args, p. ej. `isHash(v, 'md5')`),
+- `run(input)` — cómo invocarlo (con sus args, p. ej. `isHash(v, { algorithm: 'md5' })`),
 - `valid` / `invalid` — los valores a medir.
 
 El benchmark los lee desde `benchmark/samples/index.ts`. Los samples son solo datos de entrada: el

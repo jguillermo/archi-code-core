@@ -6,8 +6,8 @@ const validAttribute = /^[a-z-]+=[a-z0-9-]+$/i;
 
 const validData = /^[a-z0-9!$&'()*+,;=\-._~:@/?%\s]*$/i;
 
-export function isDataURI(input: unknown): boolean {
-  const stringResult = toString(input);
+export function isDataURI(value: unknown): boolean {
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   const str: string = s;

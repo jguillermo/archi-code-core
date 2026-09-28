@@ -24,21 +24,17 @@ function countGraphemes(s: string): number {
   return Array.from(segmenter.segment(s)).length;
 }
 
-export function isLength(
-  str: unknown,
-  optionsOrMin?: IsLengthOptions | number,
-  maxArg?: number,
-): boolean {
-  const stringResult = toString(str);
+export function isLength(value: unknown, options?: IsLengthOptions): boolean {
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
-  const { options, min, max } = boundsOf(optionsOrMin, maxArg);
+  const { options: opts, min, max } = boundsOf(options);
 
-  const len = options.graphemes ? countGraphemes(s) : countCharacters(s);
+  const len = opts.graphemes ? countGraphemes(s) : countCharacters(s);
   const isInsideRange = len >= min && (typeof max === 'undefined' || len <= max);
 
-  if (isInsideRange && Array.isArray(options.discreteLengths)) {
-    return options.discreteLengths.some((discreteLen) => discreteLen === len);
+  if (isInsideRange && Array.isArray(opts.discreteLengths)) {
+    return opts.discreteLengths.some((discreteLen) => discreteLen === len);
   }
 
   return isInsideRange;

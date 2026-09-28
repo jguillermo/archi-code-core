@@ -1,6 +1,9 @@
 import { trim } from '../sanitizer/trim';
 import { isEmail } from './isEmail';
 import type { IsEmailOptions } from './isEmail';
+
+/** Options of the email addresses in the URI (the same as `isEmail`). */
+export interface IsMailtoURIOptions extends IsEmailOptions {}
 import { toString } from '../convert/string';
 
 function parseMailtoQueryString(queryString: string): { cc: string; bcc: string } | false {
@@ -35,8 +38,8 @@ function parseMailtoQueryString(queryString: string): { cc: string; bcc: string 
   return isParseFailed ? false : query;
 }
 
-export function isMailtoURI(input: unknown, options?: IsEmailOptions): boolean {
-  const stringResult = toString(input);
+export function isMailtoURI(value: unknown, options?: IsMailtoURIOptions): boolean {
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   const url: string = s;

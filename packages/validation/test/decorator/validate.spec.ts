@@ -29,7 +29,7 @@ describe('validate', () => {
     ]);
   });
 
-  it('turns properties into the arguments of the validator', () => {
+  it('passes properties to the validator as its options object', () => {
     const list: Validation[] = [
       { validator: 'isMobilePhone', properties: { locale: 'es-ES', strictMode: true } },
     ];

@@ -5,20 +5,22 @@ import { escapeRegExp } from '../helpers/escapeRegExp';
 import { alphanumeric } from './alpha';
 import { configText, optionsOf } from '../helpers/config';
 
+/** Known locales (autocomplete); any string is accepted, unknown ones throw ValidationConfigError. */
+export type AlphanumericLocale = keyof typeof alphanumeric | (string & {});
+
 export interface IsAlphanumericOptions {
+  /** Default: `'en-US'`. */
+  locale?: AlphanumericLocale;
+  /** Characters (every one literal) or pattern removed before the check. */
   ignore?: string | RegExp;
 }
 
-export function isAlphanumeric(
-  _str: unknown,
-  locale = 'en-US',
-  options?: IsAlphanumericOptions,
-): boolean {
-  const stringResult = toString(_str);
+export function isAlphanumeric(value: unknown, options?: IsAlphanumericOptions): boolean {
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   let str: string = s;
-  const { ignore } = optionsOf(options);
+  const { locale = 'en-US', ignore } = optionsOf(options);
 
   if (ignore) {
     if (ignore instanceof RegExp) {

@@ -27,13 +27,13 @@ const formats = {
   },
 };
 
-export function isTime(input: unknown, options?: IsTimeOptions | null): boolean {
+export function isTime(value: unknown, options?: IsTimeOptions): boolean {
   const { hourFormat, mode } = merge(options, default_time_options);
   if (!hasOwn(formats, hourFormat))
     throw new ValidationConfigError(`Invalid hourFormat '${configText(hourFormat)}'`);
   const byMode = formats[hourFormat];
   if (!hasOwn(byMode, mode)) throw new ValidationConfigError(`Invalid mode '${configText(mode)}'`);
-  const stringResult = toString(input);
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   return byMode[mode].test(s);

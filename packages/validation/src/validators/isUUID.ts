@@ -1,7 +1,13 @@
 import { toString } from '../convert/string';
 import { hasOwn } from '../helpers/hasOwn';
+import { optionsOf } from '../helpers/config';
 
 export type IsUUIDVersion = 'all' | 'loose' | 'nil' | 'max' | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+
+export interface IsUUIDOptions {
+  /** Default: `'all'`. */
+  version?: IsUUIDVersion;
+}
 
 const uuid = {
   1: /^[0-9A-F]{8}-[0-9A-F]{4}-1[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i,
@@ -21,15 +27,13 @@ const uuid = {
   all: /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$/i,
 };
 
-export function isUUID(input: unknown, version?: IsUUIDVersion): boolean {
-  const stringResult = toString(input);
+export function isUUID(value: unknown, options?: IsUUIDOptions): boolean {
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   const str: string = s;
 
-  if (version === undefined || version === null) {
-    version = 'all';
-  }
+  const version = optionsOf(options).version ?? 'all';
 
   return hasOwn(uuid, String(version))
     ? uuid[String(version) as keyof typeof uuid].test(str)

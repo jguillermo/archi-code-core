@@ -22,20 +22,18 @@ export function configText(value: unknown): string {
 }
 
 /**
- * Reads the `(optionsOrMin, max)` arguments of isLength / isByteLength: an options object, or the
- * legacy positional `min [, max]`. `null` means "no options". A bound that cannot be compared with
- * a number (Symbol, function, object) is a configuration error; falsy `min` means 0 (historic).
+ * Reads the `min`/`max` of the isLength / isByteLength options. `undefined` and `null` mean "no
+ * options". A bound that cannot be compared with a number (Symbol, function, object) is a
+ * configuration error; falsy `min` means 0 (historic).
  */
 export function boundsOf<T extends { min?: number; max?: number }>(
-  optionsOrMin: T | number | null | undefined,
-  maxArg: number | null | undefined,
+  options: T | null | undefined,
 ): { options: Partial<T>; min: number; max: number | undefined } {
-  const legacy = optionsOrMin === null || typeof optionsOrMin !== 'object';
-  const options: Partial<T> = legacy ? {} : optionsOrMin;
+  const opts = optionsOf(options);
   return {
-    options,
-    min: bound(legacy ? optionsOrMin : options.min, 'min') || 0,
-    max: bound(legacy ? maxArg : options.max, 'max'),
+    options: opts,
+    min: bound(opts.min, 'min') || 0,
+    max: bound(opts.max, 'max'),
   };
 }
 

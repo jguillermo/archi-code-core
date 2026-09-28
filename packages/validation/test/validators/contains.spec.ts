@@ -4,31 +4,21 @@ describe('Validators', () => {
   it('should validate strings contain another string', () => {
     test({
       validator: 'contains',
-      args: ['foo'],
+      args: [{ elem: 'foo' }],
       valid: ['foo', 'foobar', 'bazfoo'],
       invalid: ['bar', 'fobar'],
     });
 
     test({
       validator: 'contains',
-      args: [
-        'foo',
-        {
-          ignoreCase: true,
-        },
-      ],
+      args: [{ elem: 'foo', ignoreCase: true }],
       valid: ['Foo', 'FOObar', 'BAZfoo'],
       invalid: ['bar', 'fobar', 'baxoof'],
     });
 
     test({
       validator: 'contains',
-      args: [
-        'foo',
-        {
-          minOccurrences: 2,
-        },
-      ],
+      args: [{ elem: 'foo', minOccurrences: 2 }],
       valid: ['foofoofoo', '12foo124foo', 'fofooofoooofoooo', 'foo1foo'],
       invalid: ['foo', 'foobar', 'Fooofoo', 'foofo'],
     });
@@ -37,7 +27,7 @@ describe('Validators', () => {
   it('should return false for non-string inputs', () => {
     test({
       validator: 'contains',
-      args: ['x'],
+      args: [{ elem: 'x' }],
       invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
     });
   });
@@ -45,7 +35,7 @@ describe('Validators', () => {
   it('should return false when elem cannot be converted to string', () => {
     test({
       validator: 'contains',
-      args: [null],
+      args: [{ elem: null }],
       invalid: ['hello', 'foobar'],
     });
   });

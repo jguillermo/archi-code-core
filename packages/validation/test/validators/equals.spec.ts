@@ -4,7 +4,7 @@ describe('Validators', () => {
   it('should validate strings against an expected value', () => {
     test({
       validator: 'equals',
-      args: ['abc'],
+      args: [{ comparison: 'abc' }],
       valid: ['abc'],
       invalid: ['Abc', '123'],
     });
@@ -13,7 +13,7 @@ describe('Validators', () => {
   it('should return false for non-string inputs', () => {
     test({
       validator: 'equals',
-      args: ['x'],
+      args: [{ comparison: 'x' }],
       invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
     });
   });

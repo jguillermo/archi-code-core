@@ -207,8 +207,8 @@ function hasValidIbanChecksum(str: string): boolean {
   return remainder === 1;
 }
 
-export function isIBAN(input: unknown, options?: IsIBANOptions): boolean {
-  const stringResult = toString(input);
+export function isIBAN(value: unknown, options?: IsIBANOptions): boolean {
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   const str: string = s;

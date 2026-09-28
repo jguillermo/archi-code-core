@@ -49,7 +49,7 @@ const default_decimal_options = {
 
 const blacklist = ['', '-', '+'];
 
-export function isDecimal(str: unknown, options?: IsDecimalOptions): boolean {
+export function isDecimal(value: unknown, options?: IsDecimalOptions): boolean {
   const opts = merge(options, default_decimal_options) as Required<IsDecimalOptions>;
   // Historic API also accepts `locale: ['xx-YY']`; normalise like the former `in` lookup did.
   opts.locale = String(opts.locale);
@@ -59,7 +59,7 @@ export function isDecimal(str: unknown, options?: IsDecimalOptions): boolean {
   if (!isValidDecimalDigits(opts.decimal_digits)) {
     throw new ValidationConfigError(`Invalid decimal_digits '${configText(opts.decimal_digits)}'`);
   }
-  const stringResult = toString(str);
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   return !blacklist.includes(s.replace(/ /g, '')) && decimalRegExp(opts).test(s);

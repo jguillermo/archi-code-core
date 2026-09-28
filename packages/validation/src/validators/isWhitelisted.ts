@@ -1,9 +1,15 @@
 import { toString } from '../convert/string';
-import { configText } from '../helpers/config';
+import { configText, optionsOf } from '../helpers/config';
 import { ValidationConfigError } from '../helpers/errors';
 
-export function isWhitelisted(input: unknown, chars: string | string[]): boolean {
-  const stringResult = toString(input);
+export interface IsWhitelistedOptions {
+  /** Allowed characters. */
+  chars: string | string[];
+}
+
+export function isWhitelisted(value: unknown, options: IsWhitelistedOptions): boolean {
+  const { chars } = optionsOf(options);
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   const str: string = s;

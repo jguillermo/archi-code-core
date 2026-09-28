@@ -4,61 +4,61 @@ describe('Validators', () => {
   it('should validate VAT numbers', () => {
     test({
       validator: 'isVAT',
-      args: ['AT'],
+      args: [{ countryCode: 'AT' }],
       valid: ['ATU12345678', 'U12345678'],
       invalid: ['AT 12345678', '12345678'],
     });
     test({
       validator: 'isVAT',
-      args: ['BE'],
+      args: [{ countryCode: 'BE' }],
       valid: ['BE1234567890', '1234567890'],
       invalid: ['BE 1234567890', '123456789'],
     });
     test({
       validator: 'isVAT',
-      args: ['BG'],
+      args: [{ countryCode: 'BG' }],
       valid: ['BG1234567890', '1234567890', 'BG123456789', '123456789'],
       invalid: ['BG 1234567890', '12345678'],
     });
     test({
       validator: 'isVAT',
-      args: ['HR'],
+      args: [{ countryCode: 'HR' }],
       valid: ['HR12345678901', '12345678901'],
       invalid: ['HR 12345678901', '1234567890'],
     });
     test({
       validator: 'isVAT',
-      args: ['CY'],
+      args: [{ countryCode: 'CY' }],
       valid: ['CY123456789', '123456789'],
       invalid: ['CY 123456789', '12345678'],
     });
     test({
       validator: 'isVAT',
-      args: ['CZ'],
+      args: [{ countryCode: 'CZ' }],
       valid: ['CZ1234567890', 'CZ123456789', 'CZ12345678', '1234567890', '123456789', '12345678'],
       invalid: ['CZ 123456789', '1234567'],
     });
     test({
       validator: 'isVAT',
-      args: ['DK'],
+      args: [{ countryCode: 'DK' }],
       valid: ['DK12345678', '12345678'],
       invalid: ['DK 12345678', '1234567'],
     });
     test({
       validator: 'isVAT',
-      args: ['EE'],
+      args: [{ countryCode: 'EE' }],
       valid: ['EE123456789', '123456789'],
       invalid: ['EE 123456789', '12345678'],
     });
     test({
       validator: 'isVAT',
-      args: ['FI'],
+      args: [{ countryCode: 'FI' }],
       valid: ['FI12345678', '12345678'],
       invalid: ['FI 12345678', '1234567'],
     });
     test({
       validator: 'isVAT',
-      args: ['FR'],
+      args: [{ countryCode: 'FR' }],
       valid: ['FRAA123456789', 'FR83404833048', 'FR40123456789', 'FRA1123456789', 'FR1A123456789'],
       invalid: [
         'FR AA123456789',
@@ -71,31 +71,31 @@ describe('Validators', () => {
     });
     test({
       validator: 'isVAT',
-      args: ['DE'],
+      args: [{ countryCode: 'DE' }],
       valid: ['DE123456789', '123456789'],
       invalid: ['DE 123456789', '12345678'],
     });
     test({
       validator: 'isVAT',
-      args: ['EL'],
+      args: [{ countryCode: 'EL' }],
       valid: ['EL123456789', '123456789'],
       invalid: ['EL 123456789', '12345678'],
     });
     test({
       validator: 'isVAT',
-      args: ['HU'],
+      args: [{ countryCode: 'HU' }],
       valid: ['HU12345678', '12345678'],
       invalid: ['HU 12345678', '1234567'],
     });
     test({
       validator: 'isVAT',
-      args: ['IE'],
+      args: [{ countryCode: 'IE' }],
       valid: ['IE1234567AW', '1234567AW'],
       invalid: ['IE 1234567', '1234567'],
     });
     test({
       validator: 'isVAT',
-      args: ['IT'],
+      args: [{ countryCode: 'IT' }],
       valid: ['IT12345678910', '12345678910'],
       invalid: [
         'IT12345678 910',
@@ -107,13 +107,13 @@ describe('Validators', () => {
     });
     test({
       validator: 'isVAT',
-      args: ['LV'],
+      args: [{ countryCode: 'LV' }],
       valid: ['LV12345678901', '12345678901'],
       invalid: ['LV 12345678901', '1234567890'],
     });
     test({
       validator: 'isVAT',
-      args: ['LT'],
+      args: [{ countryCode: 'LT' }],
       valid: [
         'LT123456789012',
         '123456789012',
@@ -128,19 +128,19 @@ describe('Validators', () => {
     });
     test({
       validator: 'isVAT',
-      args: ['LU'],
+      args: [{ countryCode: 'LU' }],
       valid: ['LU12345678', '12345678'],
       invalid: ['LU 12345678', '1234567'],
     });
     test({
       validator: 'isVAT',
-      args: ['MT'],
+      args: [{ countryCode: 'MT' }],
       valid: ['MT12345678', '12345678'],
       invalid: ['MT 12345678', '1234567'],
     });
     test({
       validator: 'isVAT',
-      args: ['NL'],
+      args: [{ countryCode: 'NL' }],
       valid: ['NL123456789B10', '123456789B10'],
       invalid: [
         'NL12345678 910',
@@ -152,7 +152,7 @@ describe('Validators', () => {
     });
     test({
       validator: 'isVAT',
-      args: ['PL'],
+      args: [{ countryCode: 'PL' }],
       valid: [
         'PL1234567890',
         '1234567890',
@@ -165,55 +165,55 @@ describe('Validators', () => {
     });
     test({
       validator: 'isVAT',
-      args: ['PT'],
+      args: [{ countryCode: 'PT' }],
       valid: ['PT123456789', '123456789'],
       invalid: ['PT 123456789', '000000001'],
     });
     test({
       validator: 'isVAT',
-      args: ['RO'],
+      args: [{ countryCode: 'RO' }],
       valid: ['RO1234567890', '1234567890', 'RO12', '12'],
       invalid: ['RO 12', '1'],
     });
     test({
       validator: 'isVAT',
-      args: ['SK'],
+      args: [{ countryCode: 'SK' }],
       valid: ['SK1234567890', '1234567890'],
       invalid: ['SK 1234567890', '123456789'],
     });
     test({
       validator: 'isVAT',
-      args: ['SI'],
+      args: [{ countryCode: 'SI' }],
       valid: ['SI12345678', '12345678'],
       invalid: ['SI 12345678', '1234567'],
     });
     test({
       validator: 'isVAT',
-      args: ['ES'],
+      args: [{ countryCode: 'ES' }],
       valid: ['ESA1234567A', 'A1234567A'],
       invalid: ['ES 1234567A', '123456789'],
     });
     test({
       validator: 'isVAT',
-      args: ['SE'],
+      args: [{ countryCode: 'SE' }],
       valid: ['SE123456789012', '123456789012'],
       invalid: ['SE 123456789012', '12345678901'],
     });
     test({
       validator: 'isVAT',
-      args: ['AL'],
+      args: [{ countryCode: 'AL' }],
       valid: ['AL123456789A', '123456789A'],
       invalid: ['AL 123456789A', '123456789'],
     });
     test({
       validator: 'isVAT',
-      args: ['MK'],
+      args: [{ countryCode: 'MK' }],
       valid: ['MK1234567890123', '1234567890123'],
       invalid: ['MK 1234567890123', '123456789012'],
     });
     test({
       validator: 'isVAT',
-      args: ['AU'],
+      args: [{ countryCode: 'AU' }],
       valid: [
         'AU53004085616',
         '53004085616',
@@ -239,31 +239,31 @@ describe('Validators', () => {
     });
     test({
       validator: 'isVAT',
-      args: ['BY'],
+      args: [{ countryCode: 'BY' }],
       valid: ['УНП 123456789', '123456789'],
       invalid: ['BY 123456789', '12345678'],
     });
     test({
       validator: 'isVAT',
-      args: ['CA'],
+      args: [{ countryCode: 'CA' }],
       valid: ['CA123456789', '123456789'],
       invalid: ['CA 123456789', '12345678'],
     });
     test({
       validator: 'isVAT',
-      args: ['IS'],
+      args: [{ countryCode: 'IS' }],
       valid: ['IS123456', '12345'],
       invalid: ['IS 12345', '1234'],
     });
     test({
       validator: 'isVAT',
-      args: ['IN'],
+      args: [{ countryCode: 'IN' }],
       valid: ['IN123456789012345', '123456789012345'],
       invalid: ['IN 123456789012345', '12345678901234'],
     });
     test({
       validator: 'isVAT',
-      args: ['ID'],
+      args: [{ countryCode: 'ID' }],
       valid: [
         'ID123456789012345',
         '123456789012345',
@@ -274,67 +274,67 @@ describe('Validators', () => {
     });
     test({
       validator: 'isVAT',
-      args: ['IL'],
+      args: [{ countryCode: 'IL' }],
       valid: ['IL123456789', '123456789'],
       invalid: ['IL 123456789', '12345678'],
     });
     test({
       validator: 'isVAT',
-      args: ['KZ'],
+      args: [{ countryCode: 'KZ' }],
       valid: ['KZ123456789012', '123456789012'],
       invalid: ['KZ 123456789012', '12345678'],
     });
     test({
       validator: 'isVAT',
-      args: ['NZ'],
+      args: [{ countryCode: 'NZ' }],
       valid: ['NZ123456789', '123456789'],
       invalid: ['NZ 123456789', '12345678'],
     });
     test({
       validator: 'isVAT',
-      args: ['NG'],
+      args: [{ countryCode: 'NG' }],
       valid: ['NG123456789012', '123456789012', 'NG12345678-9012', '12345678-9012'],
       invalid: ['NG 123456789012', '12345678901'],
     });
     test({
       validator: 'isVAT',
-      args: ['NO'],
+      args: [{ countryCode: 'NO' }],
       valid: ['NO123456789MVA', '123456789MVA'],
       invalid: ['NO 123456789MVA', '123456789'],
     });
     test({
       validator: 'isVAT',
-      args: ['PH'],
+      args: [{ countryCode: 'PH' }],
       valid: ['PH123456789012', '123456789012', 'PH123 456 789 012', '123 456 789 012'],
       invalid: ['PH 123456789012', '12345678901'],
     });
     test({
       validator: 'isVAT',
-      args: ['RU'],
+      args: [{ countryCode: 'RU' }],
       valid: ['RU1234567890', '1234567890', 'RU123456789012', '123456789012'],
       invalid: ['RU 123456789012', '12345678901'],
     });
     test({
       validator: 'isVAT',
-      args: ['SM'],
+      args: [{ countryCode: 'SM' }],
       valid: ['SM12345', '12345'],
       invalid: ['SM 12345', '1234'],
     });
     test({
       validator: 'isVAT',
-      args: ['SA'],
+      args: [{ countryCode: 'SA' }],
       valid: ['SA123456789012345', '123456789012345'],
       invalid: ['SA 123456789012345', '12345678901234'],
     });
     test({
       validator: 'isVAT',
-      args: ['RS'],
+      args: [{ countryCode: 'RS' }],
       valid: ['RS123456789', '123456789'],
       invalid: ['RS 123456789', '12345678'],
     });
     test({
       validator: 'isVAT',
-      args: ['CH'],
+      args: [{ countryCode: 'CH' }],
       valid: [
         // strictly valid
         'CHE-116.281.710 MWST',
@@ -364,19 +364,19 @@ describe('Validators', () => {
     });
     test({
       validator: 'isVAT',
-      args: ['TR'],
+      args: [{ countryCode: 'TR' }],
       valid: ['TR1234567890', '1234567890'],
       invalid: ['TR 1234567890', '123456789'],
     });
     test({
       validator: 'isVAT',
-      args: ['UA'],
+      args: [{ countryCode: 'UA' }],
       valid: ['UA123456789012', '123456789012'],
       invalid: ['UA 123456789012', '12345678901'],
     });
     test({
       validator: 'isVAT',
-      args: ['GB'],
+      args: [{ countryCode: 'GB' }],
       valid: [
         'GB999 9999 00',
         'GB999 9999 96',
@@ -405,104 +405,104 @@ describe('Validators', () => {
     });
     test({
       validator: 'isVAT',
-      args: ['UZ'],
+      args: [{ countryCode: 'UZ' }],
       valid: ['UZ123456789', '123456789'],
       invalid: ['UZ 123456789', '12345678'],
     });
     test({
       validator: 'isVAT',
-      args: ['AR'],
+      args: [{ countryCode: 'AR' }],
       valid: ['AR12345678901', '12345678901'],
       invalid: ['AR 12345678901', '1234567890'],
     });
     test({
       validator: 'isVAT',
-      args: ['BO'],
+      args: [{ countryCode: 'BO' }],
       valid: ['BO1234567', '1234567'],
       invalid: ['BO 1234567', '123456'],
     });
     test({
       validator: 'isVAT',
-      args: ['BR'],
+      args: [{ countryCode: 'BR' }],
       valid: ['BR12.345.678/9012-34', '12.345.678/9012-34', 'BR123.456.789-01', '123.456.789-01'],
       invalid: ['BR 12.345.678/9012-34', '12345678901234'],
     });
     test({
       validator: 'isVAT',
-      args: ['CL'],
+      args: [{ countryCode: 'CL' }],
       valid: ['CL12345678-9', '12345678-9'],
       invalid: ['CL 12345678-9', '12345678'],
     });
     test({
       validator: 'isVAT',
-      args: ['CO'],
+      args: [{ countryCode: 'CO' }],
       valid: ['CO1234567890', '1234567890'],
       invalid: ['CO 1234567890', '123456789'],
     });
     test({
       validator: 'isVAT',
-      args: ['CR'],
+      args: [{ countryCode: 'CR' }],
       valid: ['CR123456789012', '123456789012', 'CR123456789', '123456789'],
       invalid: ['CR 123456789', '12345678'],
     });
     test({
       validator: 'isVAT',
-      args: ['EC'],
+      args: [{ countryCode: 'EC' }],
       valid: ['EC1234567890123', '1234567890123'],
       invalid: ['EC 1234567890123', '123456789012'],
     });
     test({
       validator: 'isVAT',
-      args: ['SV'],
+      args: [{ countryCode: 'SV' }],
       valid: ['SV1234-567890-123-1', '1234-567890-123-1'],
       invalid: ['SV 1234-567890-123-1', '1234567890123'],
     });
     test({
       validator: 'isVAT',
-      args: ['GT'],
+      args: [{ countryCode: 'GT' }],
       valid: ['GT1234567-8', '1234567-8'],
       invalid: ['GT 1234567-8', '1234567'],
     });
     test({
       validator: 'isVAT',
-      args: ['HN'],
+      args: [{ countryCode: 'HN' }],
       valid: ['HN'],
       invalid: ['HN '],
     });
     test({
       validator: 'isVAT',
-      args: ['MX'],
+      args: [{ countryCode: 'MX' }],
       valid: ['MXABCD123456EFG', 'ABCD123456EFG', 'MXABC123456DEF', 'ABC123456DEF'],
       invalid: ['MX ABC123456EFG', '123456'],
     });
     test({
       validator: 'isVAT',
-      args: ['NI'],
+      args: [{ countryCode: 'NI' }],
       valid: ['NI123-456789-0123A', '123-456789-0123A'],
       invalid: ['NI 123-456789-0123A', '1234567890123'],
     });
     test({
       validator: 'isVAT',
-      args: ['PA'],
+      args: [{ countryCode: 'PA' }],
       // structural check only — see isVAT.ts
       valid: ['PA8-123-4567', '8-123-4567', 'PA155596713-2-2015'],
       invalid: ['', 'PA', 'PA ', 'PA-', 'PA8 123'],
     });
     test({
       validator: 'isVAT',
-      args: ['PY'],
+      args: [{ countryCode: 'PY' }],
       valid: ['PY12345678-9', '12345678-9', 'PY123456-7', '123456-7'],
       invalid: ['PY 123456-7', '123456'],
     });
     test({
       validator: 'isVAT',
-      args: ['PE'],
+      args: [{ countryCode: 'PE' }],
       valid: ['PE12345678901', '12345678901'],
       invalid: ['PE 12345678901', '1234567890'],
     });
     test({
       validator: 'isVAT',
-      args: ['DO'],
+      args: [{ countryCode: 'DO' }],
       valid: [
         'DO12345678901',
         '12345678901',
@@ -517,19 +517,19 @@ describe('Validators', () => {
     });
     test({
       validator: 'isVAT',
-      args: ['UY'],
+      args: [{ countryCode: 'UY' }],
       valid: ['UY123456789012', '123456789012'],
       invalid: ['UY 123456789012', '12345678901'],
     });
     test({
       validator: 'isVAT',
-      args: ['VE'],
+      args: [{ countryCode: 'VE' }],
       valid: ['VEJ-123456789', 'J-123456789', 'VEJ-12345678-9', 'J-12345678-9'],
       invalid: ['VE J-123456789', '12345678'],
     });
     test({
       validator: 'isVAT',
-      args: ['invalidCountryCode'],
+      args: [{ countryCode: 'invalidCountryCode' }],
       error: ['GB999 9999 00'],
     });
   });
@@ -537,7 +537,7 @@ describe('Validators', () => {
   it('should return false for non-string inputs', () => {
     test({
       validator: 'isVAT',
-      args: ['AT'],
+      args: [{ countryCode: 'AT' }],
       invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
     });
   });

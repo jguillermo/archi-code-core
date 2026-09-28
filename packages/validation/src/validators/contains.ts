@@ -1,7 +1,10 @@
 import { toString } from '../convert/string';
 import { merge } from '../helpers/merge';
+import { optionsOf } from '../helpers/config';
 
 export interface ContainsOptions {
+  /** Text to look for. */
+  elem: unknown;
   ignoreCase?: boolean;
   /** Minimum number of occurrences. Default: 1. */
   minOccurrences?: number;
@@ -12,8 +15,9 @@ const defaultContainsOptions = {
   minOccurrences: 1,
 };
 
-export function contains(input: unknown, elem: unknown, options?: ContainsOptions): boolean {
-  const stringResult = toString(input);
+export function contains(value: unknown, options: ContainsOptions): boolean {
+  const { elem } = optionsOf(options);
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   const str: string = s;

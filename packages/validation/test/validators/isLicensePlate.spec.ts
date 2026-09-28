@@ -4,7 +4,7 @@ describe('Validators', () => {
   it('should be valid license plate', () => {
     test({
       validator: 'isLicensePlate',
-      args: ['es-AR'],
+      args: [{ locale: 'es-AR' }],
       valid: ['AB 123 CD', 'AB123CD', 'ABC 123', 'ABC123'],
       invalid: [
         '',
@@ -19,7 +19,7 @@ describe('Validators', () => {
     });
     test({
       validator: 'isLicensePlate',
-      args: ['pt-PT'],
+      args: [{ locale: 'pt-PT' }],
       valid: [
         'AA-12-34',
         '12-AA-34',
@@ -62,13 +62,13 @@ describe('Validators', () => {
     });
     test({
       validator: 'isLicensePlate',
-      args: ['de-LI'],
+      args: [{ locale: 'de-LI' }],
       valid: ['FL 1', 'FL 99999', 'FL 1337'],
       invalid: ['', 'FL 999999', 'AB 12345', 'FL -1'],
     });
     test({
       validator: 'isLicensePlate',
-      args: ['de-DE'],
+      args: [{ locale: 'de-DE' }],
       valid: [
         'M A 1',
         'M A 12',
@@ -121,7 +121,7 @@ describe('Validators', () => {
     });
     test({
       validator: 'isLicensePlate',
-      args: ['fi-FI'],
+      args: [{ locale: 'fi-FI' }],
       valid: [
         'ABC-123',
         'ABC 123',
@@ -146,13 +146,13 @@ describe('Validators', () => {
     });
     test({
       validator: 'isLicensePlate',
-      args: ['sq-AL'],
+      args: [{ locale: 'sq-AL' }],
       valid: ['AA 000 AA', 'ZZ 999 ZZ'],
       invalid: ['', 'AA 0 A', 'AAA 00 AAA'],
     });
     test({
       validator: 'isLicensePlate',
-      args: ['cs-CZ'],
+      args: [{ locale: 'cs-CZ' }],
       valid: ['ALA4011', '4A23000', 'DICTAT0R', 'VETERAN', 'AZKVIZ8', '2A45876', 'DIC-TAT0R'],
       invalid: [
         '',
@@ -169,7 +169,7 @@ describe('Validators', () => {
 
     test({
       validator: 'isLicensePlate',
-      args: ['pt-BR'],
+      args: [{ locale: 'pt-BR' }],
       valid: [
         'ABC1234',
         'ABC 1234',
@@ -184,7 +184,7 @@ describe('Validators', () => {
     });
     test({
       validator: 'isLicensePlate',
-      args: ['hu-HU'],
+      args: [{ locale: 'hu-HU' }],
       valid: [
         'AAB-001',
         'AVC-987',
@@ -254,18 +254,18 @@ describe('Validators', () => {
     });
     test({
       validator: 'isLicensePlate',
-      args: ['any'],
+      args: [{ locale: 'any' }],
       valid: ['FL 1', 'FS AB 123'],
       invalid: ['', 'FL 999999', 'FS AB 1234 A'],
     });
     test({
       validator: 'isLicensePlate',
-      args: ['asdfasdf'],
+      args: [{ locale: 'asdfasdf' }],
       error: ['FL 1', 'FS AB 123', 'FL 999999', 'FS AB 1234 A'],
     });
     test({
       validator: 'isLicensePlate',
-      args: ['sv-SE'],
+      args: [{ locale: 'sv-SE' }],
       valid: [
         'ABC 123',
         'ABC 12A',
@@ -303,7 +303,7 @@ describe('Validators', () => {
     });
     test({
       validator: 'isLicensePlate',
-      args: ['en-IN'],
+      args: [{ locale: 'en-IN' }],
       valid: [
         'MH 04 AD 0001',
         'HR26DQ0001',
@@ -317,7 +317,7 @@ describe('Validators', () => {
     });
     test({
       validator: 'isLicensePlate',
-      args: ['en-SG'],
+      args: [{ locale: 'en-SG' }],
       valid: ['SGX 1234 A', 'SGX-1234-A', 'SGB1234Z'],
       invalid: ['sg1234a', 'invalidlicenseplate', '4578', '', 'GJ054GH4785'],
     });
@@ -326,7 +326,7 @@ describe('Validators', () => {
   it('should return false for non-string inputs', () => {
     test({
       validator: 'isLicensePlate',
-      args: ['any'],
+      args: [{ locale: 'any' }],
       invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
     });
   });

@@ -1,4 +1,5 @@
 import { toString } from '../convert/string';
+import { optionsOf } from '../helpers/config';
 
 export type IsISBNVersion = '10' | '13' | 10 | 13;
 
@@ -10,15 +11,13 @@ const possibleIsbn10 = /^(?:[0-9]{9}X|[0-9]{10})$/;
 const possibleIsbn13 = /^(?:[0-9]{13})$/;
 const factor = [1, 3];
 
-export function isISBN(input: unknown, options?: IsISBNVersion | IsISBNOptions): boolean {
-  const stringResult = toString(input);
+export function isISBN(value: unknown, options?: IsISBNOptions): boolean {
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   const isbn: string = s;
 
-  // For backwards compatibility:
-  // isISBN(str [, version]), i.e. `options` could be used as argument for the legacy `version`
-  const rawVersion = options !== null && typeof options === 'object' ? options.version : options;
+  const rawVersion = optionsOf(options).version;
   const version = String(rawVersion);
 
   if (!rawVersion) {

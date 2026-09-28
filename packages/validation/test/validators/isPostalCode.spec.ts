@@ -310,7 +310,7 @@ describe('Validators', () => {
         validator: 'isPostalCode',
         valid: fixture.valid,
         invalid: fixture.invalid,
-        args: [fixture.locale],
+        args: [{ locale: fixture.locale }],
       });
     });
 
@@ -343,14 +343,14 @@ describe('Validators', () => {
         '4294924224',
         '13',
       ],
-      args: ['any'],
+      args: [{ locale: 'any' }],
     });
   });
 
   it('should error on invalid locale', () => {
     test({
       validator: 'isPostalCode',
-      args: ['is-NOT'],
+      args: [{ locale: 'is-NOT' }],
       error: ['293940', '1234'],
     });
   });
@@ -358,7 +358,7 @@ describe('Validators', () => {
   it('should return false for non-string inputs', () => {
     test({
       validator: 'isPostalCode',
-      args: ['any'],
+      args: [{ locale: 'any' }],
       invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
     });
   });

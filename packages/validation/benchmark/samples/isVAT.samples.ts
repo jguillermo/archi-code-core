@@ -3,7 +3,7 @@ import type { ValidatorSample } from './types';
 
 export const isVATSample: ValidatorSample = {
   name: 'isVAT',
-  run: (v) => validator.isVAT(v, 'GB'),
+  run: (v) => validator.isVAT(v, { countryCode: 'GB' }),
   valid: ['GBGD499', 'GBGD100', 'GBGD200', 'GBGD300'],
   invalid: ['not-vat', 'USABC1234567', 'INVALID', 'GBINVALID'],
 };

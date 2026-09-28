@@ -21,16 +21,16 @@ import type {
   ValidatorRegistry,
   IsEmailOptions,
   IsRgbColorOptions,
-  IsISO31661Options,
+  IsISO31661Alpha2Options,
   MobilePhoneLocale,
   HashAlgorithm,
   VATCountryCode,
   IsCreditCardOptions,
   CreditCardProvider,
   IsIntOptions,
+  IsHashOptions,
   ValidationProperties,
 } from '../src';
-import type { Unclassified } from '../src/decorator/properties';
 
 describe('public types', () => {
   it('validators return boolean', () => {
@@ -57,8 +57,9 @@ describe('public types', () => {
     expectTypeOf(validator.isAfter).toBeCallableWith('2024-01-01', {
       comparisonDate: '2023-01-01',
     });
+    // @ts-expect-error no shorthand: the second argument is always the options object
     expectTypeOf(validator.isAfter).toBeCallableWith('2024-01-01', '2023-01-01');
-    expectTypeOf(validator.isUUID).toBeCallableWith('x', 'loose');
+    expectTypeOf(validator.isUUID).toBeCallableWith('x', { version: 'loose' });
     expectTypeOf(validator.isHexColor).toBeCallableWith('#fff', { require_hashtag: true });
     expectTypeOf(validator.isIBAN).toBeCallableWith('x', { whitelist: ['ES'] });
     expectTypeOf(validator.isLength).toBeCallableWith('x', { max: 1, graphemes: true });
@@ -132,11 +133,26 @@ describe('public types', () => {
     >();
   });
 
-  it('every validator is classified: options object, translated properties or no properties', () => {
-    expectTypeOf<Unclassified>().toEqualTypeOf<never>();
+  it('every validator takes the value and, at most, one options object', () => {
+    type NonStandardValidators = {
+      [K in keyof ValidatorRegistry]: ValidatorRegistry[K] extends (...args: any[]) => boolean
+        ? Parameters<ValidatorRegistry[K]> extends
+            | [value: unknown]
+            | [value: unknown, options?: object]
+            | [value: unknown, options: object]
+          ? Parameters<ValidatorRegistry[K]>[0] extends unknown
+            ? unknown extends Parameters<ValidatorRegistry[K]>[0]
+              ? never
+              : K
+            : K
+          : K
+        : never;
+    }[keyof ValidatorRegistry];
+    expectTypeOf<NonStandardValidators>().toEqualTypeOf<never>();
     expectTypeOf<ValidationProperties<'isPort'>>().toEqualTypeOf<never>();
     expectTypeOf<ValidationProperties<'isInt'>>().toEqualTypeOf<IsIntOptions>();
-    expectTypeOf<ValidationProperties<'isHash'>>().toEqualTypeOf<{ algorithm: HashAlgorithm }>();
+    expectTypeOf<ValidationProperties<'isHash'>>().toEqualTypeOf<IsHashOptions>();
+    expectTypeOf<IsHashOptions>().toEqualTypeOf<{ algorithm: HashAlgorithm }>();
   });
 
   it('ValidationConfigError is exported and carries its name at runtime', () => {
@@ -154,7 +170,7 @@ describe('public types', () => {
 
     it('options the registry used to hide are now typed', () => {
       expectTypeOf(validator.isRgbColor).toBeCallableWith('rgb(1, 2, 3)', { allowSpaces: true });
-      expectTypeOf<IsISO31661Options>().toHaveProperty('userAssignedCodes');
+      expectTypeOf<IsISO31661Alpha2Options>().toHaveProperty('userAssignedCodes');
     });
 
     it('unknown options are compile errors (the editor flags them)', () => {
@@ -174,7 +190,9 @@ describe('public types', () => {
       expectTypeOf<IsCreditCardOptions['provider']>().toEqualTypeOf<
         CreditCardProvider | undefined
       >();
-      expectTypeOf(validator.isMobilePhone).toBeCallableWith('600000000', 'any-other-string');
+      expectTypeOf(validator.isMobilePhone).toBeCallableWith('600000000', {
+        locale: 'any-other-string',
+      });
     });
   });
 });

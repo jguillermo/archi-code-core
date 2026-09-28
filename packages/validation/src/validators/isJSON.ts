@@ -6,15 +6,15 @@ export interface IsJSONOptions {
 }
 
 /**
- * Returns true if `str` is syntactically valid JSON text. Objects and arrays are accepted;
+ * Returns true if `value` is syntactically valid JSON text. Objects and arrays are accepted;
  * primitives only with `allow_primitives` (null/true/false) or `allow_any_value` (anything).
  * The parsing rule lives in `convert/json` (`toJsonValue`, ported from this validator).
  *
  * For domain object validation (plain records only, no arrays),
  * use `canBeJson()` from the canBe module instead.
  */
-export function isJSON(str: unknown, options?: IsJSONOptions): boolean {
-  return toJsonValue(str, {
+export function isJSON(value: unknown, options?: IsJSONOptions): boolean {
+  return toJsonValue(value, {
     allowPrimitives: options?.allow_primitives,
     allowAnyValue: options?.allow_any_value,
   }).ok;

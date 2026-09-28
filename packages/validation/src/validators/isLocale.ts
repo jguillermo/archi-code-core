@@ -107,8 +107,8 @@ const langtag = `${language}(${delimiter}${script})?(${delimiter}${region})?(${d
  */
 const languageTagRegex = new RegExp(`(^${privateuse}$)|(^${grandfathered}$)|(^${langtag}$)`);
 
-export function isLocale(input: unknown): boolean {
-  const stringResult = toString(input);
+export function isLocale(value: unknown): boolean {
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   const str: string = s;

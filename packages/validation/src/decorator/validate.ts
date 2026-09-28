@@ -1,7 +1,6 @@
 import { validator } from '../validators';
 import { ValidationConfigError } from '../helpers/errors';
 import { hasOwn } from '../helpers/hasOwn';
-import { argumentsOf } from './properties';
 import { isCustom } from './validations';
 import type { Validation } from './validations';
 
@@ -29,8 +28,8 @@ export function validate(validations: Validation[], value: unknown): ValidationE
     if (!hasOwn(validator, name) || typeof validator[name] !== 'function') {
       throw new ValidationConfigError(`Unknown validator "${name}"`);
     }
-    const run = validator[name] as (value: unknown, ...args: unknown[]) => boolean;
-    if (!run(value, ...argumentsOf(name, validation.properties)))
+    const run = validator[name] as (value: unknown, options?: object) => boolean;
+    if (!run(value, validation.properties))
       errors.push({
         validator: name,
         message: validation.message ?? `Value does not satisfy ${name}`,

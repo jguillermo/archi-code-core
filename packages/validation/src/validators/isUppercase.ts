@@ -1,7 +1,7 @@
 import { toString } from '../convert/string';
 
-export function isUppercase(input: unknown): boolean {
-  const stringResult = toString(input);
+export function isUppercase(value: unknown): boolean {
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   const str: string = s;

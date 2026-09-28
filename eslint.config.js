@@ -38,6 +38,11 @@ module.exports = tseslint.config(
       // --- Library flexibility ---
       '@typescript-eslint/no-explicit-any': 'off', // DDD patterns use any intentionally
       '@typescript-eslint/no-unsafe-function-type': 'off', // Function type allowed
+      // An options interface may just reuse another one (e.g. IsMailtoURIOptions extends IsEmailOptions)
+      '@typescript-eslint/no-empty-object-type': [
+        'error',
+        { allowInterfaces: 'with-single-extends' },
+      ],
 
       // --- Strict correctness ---
       eqeqeq: ['error', 'always', { null: 'ignore' }], // allow == null to check both null and undefined

@@ -5,7 +5,7 @@ describe('Validators', () => {
     ['md5', 'md4', 'ripemd128', 'tiger128'].forEach((algorithm) => {
       test({
         validator: 'isHash',
-        args: [algorithm],
+        args: [{ algorithm: algorithm }],
         valid: [
           'd94f3f016ae679c3008de268209132f2',
           '751adbc511ccbe8edf23d486fa4581cd',
@@ -21,7 +21,7 @@ describe('Validators', () => {
     ['crc32', 'crc32b'].forEach((algorithm) => {
       test({
         validator: 'isHash',
-        args: [algorithm],
+        args: [{ algorithm: algorithm }],
         valid: ['d94f3f01', '751adbc5', '88dae00e', '0bf1c350', '88DAE00e', '751aDBc5'],
         invalid: [
           'KYT0bf1c35032a71a14c2f719e5a14c1',
@@ -36,7 +36,7 @@ describe('Validators', () => {
     ['sha1', 'tiger160', 'ripemd160'].forEach((algorithm) => {
       test({
         validator: 'isHash',
-        args: [algorithm],
+        args: [{ algorithm: algorithm }],
         valid: [
           '3ca25ae354e192b26879f651a51d92aa8a34d8d3',
           'aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d',
@@ -57,7 +57,7 @@ describe('Validators', () => {
 
     test({
       validator: 'isHash',
-      args: ['sha256'],
+      args: [{ algorithm: 'sha256' }],
       valid: [
         '2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824',
         '1d996e033d612d9af2b44b70061ee0e868bfd14c2dd90b129e1edeb7953e7985',
@@ -76,7 +76,7 @@ describe('Validators', () => {
     });
     test({
       validator: 'isHash',
-      args: ['sha384'],
+      args: [{ algorithm: 'sha384' }],
       valid: [
         '3fed1f814d28dc5d63e313f8a601ecc4836d1662a19365cbdcf6870f6b56388850b58043f7ebf2418abb8f39c3a42e31',
         'b330f4e575db6e73500bd3b805db1a84b5a034e5d21f0041d91eec85af1dfcb13e40bb1c4d36a72487e048ac6af74b58',
@@ -95,7 +95,7 @@ describe('Validators', () => {
     });
     test({
       validator: 'isHash',
-      args: ['sha512'],
+      args: [{ algorithm: 'sha512' }],
       valid: [
         '9b71d224bd62f3785d96d46ad3ea3d73319bfbc2890caadae2dff72519673ca72323c3d99ba5c11d7c7acc6e14b8c5da0c4663475c2e5c3adef46f73bcdec043',
         '83c586381bf5ba94c8d9ba8b6b92beb0997d76c257708742a6c26d1b7cbb9269af92d527419d5b8475f2bb6686d2f92a6649b7f174c1d8306eb335e585ab5049',
@@ -114,7 +114,7 @@ describe('Validators', () => {
     });
     test({
       validator: 'isHash',
-      args: ['tiger192'],
+      args: [{ algorithm: 'tiger192' }],
       valid: [
         '6281a1f098c5e7290927ed09150d43ff3990a0fe1a48267c',
         '56268f7bc269cf1bc83d3ce42e07a85632394737918f4760',
@@ -136,7 +136,7 @@ describe('Validators', () => {
   it('should return false for non-string inputs', () => {
     test({
       validator: 'isHash',
-      args: ['md5'],
+      args: [{ algorithm: 'md5' }],
       invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
     });
   });

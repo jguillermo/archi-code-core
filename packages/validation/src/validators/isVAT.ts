@@ -2,7 +2,7 @@ import { ValidationConfigError } from '../helpers/errors';
 import { hasOwn } from '../helpers/hasOwn';
 import { toString } from '../convert/string';
 import * as algorithms from '../helpers/algorithms';
-import { configText } from '../helpers/config';
+import { configText, optionsOf } from '../helpers/config';
 
 const AU = (str: string): boolean => {
   const match = str.match(/^(AU)?(\d{11})$/);
@@ -157,8 +157,13 @@ export const vatMatchers = {
 /** Known country codes (autocomplete); any string is accepted, unknown ones throw ValidationConfigError. */
 export type VATCountryCode = keyof typeof vatMatchers | (string & {});
 
-export function isVAT(input: unknown, countryCode: VATCountryCode): boolean {
-  const stringResult = toString(input);
+export interface IsVATOptions {
+  countryCode: VATCountryCode;
+}
+
+export function isVAT(value: unknown, options: IsVATOptions): boolean {
+  const { countryCode } = optionsOf(options);
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   const str: string = s;

@@ -32,8 +32,8 @@ const underscoreRegex = /_/;
 // Unicode separators and unpaired surrogates. `exa\u200Bmple.com` must not pass as a host.
 const invisibleRegex = /[\p{Cc}\p{Cf}\p{Cs}\p{Z}]/u;
 
-export function isFQDN(str: unknown, options?: IsFQDNOptions): boolean {
-  const stringResult = toString(str);
+export function isFQDN(value: unknown, options?: IsFQDNOptions): boolean {
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   let strVal = s;

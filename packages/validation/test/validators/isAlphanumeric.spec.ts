@@ -12,21 +12,21 @@ describe('Validators', () => {
   it('should validate alphanumeric string with ignored characters', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['en-US', { ignore: '@_- ' }], // ignore [@ space _ -]
+      args: [{ locale: 'en-US', ignore: '@_- ' }], // ignore [@ space _ -]
       valid: ['Hello@123', 'this is a valid alphaNumeric string', 'En-US @ alpha_numeric'],
       invalid: ['In*Valid', 'hello$123', '{invalid}'],
     });
 
     test({
       validator: 'isAlphanumeric',
-      args: ['en-US', { ignore: /[\s/-]/g }], // ignore [space -]
+      args: [{ locale: 'en-US', ignore: /[\s/-]/g }], // ignore [space -]
       valid: ['en-US', 'this is a valid alphaNumeric string'],
       invalid: ['INVALID$ AlphaNum Str', 'hello@123', 'abc*123'],
     });
 
     test({
       validator: 'isAlphanumeric',
-      args: ['en-US', { ignore: 1234 }], // invalid ignore matcher (ignore should be instance of a String or RegExp)
+      args: [{ locale: 'en-US', ignore: 1234 }], // invalid ignore matcher (ignore should be instance of a String or RegExp)
       error: ['alpha'],
     });
   });
@@ -34,7 +34,7 @@ describe('Validators', () => {
   it('should validate defined english aliases', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['en-GB'],
+      args: [{ locale: 'en-GB' }],
       valid: ['abc123', 'ABC11'],
       invalid: ['abc ', 'foo!!', 'ÄBC', 'FÜübar', 'Jön'],
     });
@@ -43,7 +43,7 @@ describe('Validators', () => {
   it('should validate Azerbaijani alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['az-AZ'],
+      args: [{ locale: 'az-AZ' }],
       valid: ['Azərbaycan', 'Bakı', 'abc1', 'abcç2', '3kərə4kərə'],
       invalid: ['  foo1  ', '', 'ab(cd)', 'simvol@', 'wəkil'],
     });
@@ -52,7 +52,7 @@ describe('Validators', () => {
   it('should validate bulgarian alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['bg-BG'],
+      args: [{ locale: 'bg-BG' }],
       valid: ['абв1', '4АБ5В6', 'жаба', 'яГоДа2', 'йЮя', '123'],
       invalid: [' ', '789  ', 'hello000'],
     });
@@ -61,7 +61,7 @@ describe('Validators', () => {
   it('should validate Bengali alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['bn-BD'],
+      args: [{ locale: 'bn-BD' }],
       valid: ['দ্গজ্ঞহ্রত্য১২৩', 'দ্গগফ৮৯০', 'চব৩৬৫ভবচ', '১২৩৪', '৩৪২৩৪দফজ্ঞদফ'],
       invalid: [' ', '১২৩  ', 'hel৩২0'],
     });
@@ -70,7 +70,7 @@ describe('Validators', () => {
   it('should validate czech alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['cs-CZ'],
+      args: [{ locale: 'cs-CZ' }],
       valid: ['řiť123', 'KŮŇ11'],
       invalid: ['řiď ', 'blé!!'],
     });
@@ -79,7 +79,7 @@ describe('Validators', () => {
   it('should validate slovak alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['sk-SK'],
+      args: [{ locale: 'sk-SK' }],
       valid: [
         '1môj',
         '2ľúbím',
@@ -99,7 +99,7 @@ describe('Validators', () => {
   it('should validate danish alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['da-DK'],
+      args: [{ locale: 'da-DK' }],
       valid: ['ÆØÅ123', 'Ære321', '321Øre', '123Åre'],
       invalid: ['äbc123', 'ÄBC11', ''],
     });
@@ -108,7 +108,7 @@ describe('Validators', () => {
   it('should validate dutch alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['nl-NL'],
+      args: [{ locale: 'nl-NL' }],
       valid: ['Kán123', 'één354', 'v4óór', 'nú234', 'hé54él'],
       invalid: ['1äca ', 'ab3cß', 'Øre'],
     });
@@ -117,7 +117,7 @@ describe('Validators', () => {
   it('should validate finnish alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['fi-FI'],
+      args: [{ locale: 'fi-FI' }],
       valid: ['äiti124', 'ÖLJY1234', '123Åke', '451åå23'],
       invalid: ['AİıÖöÇçŞşĞğÜüZ', 'foo!!', ''],
     });
@@ -126,7 +126,7 @@ describe('Validators', () => {
   it('should validate german alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['de-DE'],
+      args: [{ locale: 'de-DE' }],
       valid: ['äbc123', 'ÄBC11'],
       invalid: ['äca ', 'föö!!'],
     });
@@ -135,7 +135,7 @@ describe('Validators', () => {
   it('should validate hungarian alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['hu-HU'],
+      args: [{ locale: 'hu-HU' }],
       valid: ['0árvíztűrőtükörfúrógép123', '0ÁRVÍZTŰRŐTÜKÖRFÚRÓGÉP123'],
       invalid: ['1időúr!', 'äbc1', '  fäö  ', 'Heiß!', ''],
     });
@@ -144,7 +144,7 @@ describe('Validators', () => {
   it('should validate portuguese alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['pt-PT'],
+      args: [{ locale: 'pt-PT' }],
       valid: ['palíndromo', '2órgão', 'qwértyúão9', 'àäãcë4üïÄÏÜ'],
       invalid: ['!abc', 'Heiß', 'Øre', 'æøå', ''],
     });
@@ -153,7 +153,7 @@ describe('Validators', () => {
   it('should validate italian alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['it-IT'],
+      args: [{ locale: 'it-IT' }],
       valid: [
         '123àéèìîóòù',
         '123correnti',
@@ -171,7 +171,7 @@ describe('Validators', () => {
   it('should validate spanish alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['es-ES'],
+      args: [{ locale: 'es-ES' }],
       valid: ['ábcó123', 'ÁBCÓ11'],
       invalid: ['äca ', 'abcß', 'föö!!'],
     });
@@ -180,7 +180,7 @@ describe('Validators', () => {
   it('should validate Vietnamese alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['vi-VN'],
+      args: [{ locale: 'vi-VN' }],
       valid: ['Thầy3', '3Gà'],
       invalid: ['toang!', 'Cậu Vàng'],
     });
@@ -189,7 +189,7 @@ describe('Validators', () => {
   it('should validate arabic alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['ar'],
+      args: [{ locale: 'ar' }],
       valid: ['أبت123', 'أبتَُِ١٢٣'],
       invalid: ['äca ', 'abcß', 'föö!!'],
     });
@@ -198,7 +198,7 @@ describe('Validators', () => {
   it('should validate Hindi alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['hi-IN'],
+      args: [{ locale: 'hi-IN' }],
       valid: [
         'अतअपनाअपनीअपनेअभीअंदरआदिआपइत्यादिइनइनकाइन्हींइन्हेंइन्होंइसइसकाइसकीइसकेइसमेंइसीइसेउनउनकाउनकीउनकेउनकोउन्हींउन्हेंउन्होंउसउसकेउसीउसेएकएवंएसऐसेऔरकईकरकरताकरतेकरनाकरनेकरेंकहतेकहाकाकाफ़ीकिकितनाकिन्हेंकिन्होंकियाकिरकिसकिसीकिसेकीकुछकुलकेकोकोईकौनकौनसागयाघरजबजहाँजाजितनाजिनजिन्हेंजिन्होंजिसजिसेजीधरजैसाजैसेजोतकतबतरहतिनतिन्हेंतिन्होंतिसतिसेतोथाथीथेदबारादियादुसरादूसरेदोद्वाराननकेनहींनानिहायतनीचेनेपरपहलेपूरापेफिरबनीबहीबहुतबादबालाबिलकुलभीभीतरमगरमानोमेमेंयदियहयहाँयहीयायिहयेरखेंरहारहेऱ्वासालिएलियेलेकिनववग़ैरहवर्गवहवहाँवहींवालेवुहवेवोसकतासकतेसबसेसभीसाथसाबुतसाभसारासेसोसंगहीहुआहुईहुएहैहैंहोहोताहोतीहोतेहोनाहोने०२३४५६७८९',
         'इन्हें४५६७८९',
@@ -210,7 +210,7 @@ describe('Validators', () => {
   it('should validate farsi alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['fa-IR'],
+      args: [{ locale: 'fa-IR' }],
       valid: ['پارسی۱۲۳', '۱۴۵۶', 'مژگان9'],
       invalid: ['äca ', 'abcßة', 'föö!!', '٤٥٦'],
     });
@@ -219,7 +219,7 @@ describe('Validators', () => {
   it('should validate Japanese alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['ja-JP'],
+      args: [{ locale: 'ja-JP' }],
       valid: [
         'あいうえお123',
         '123がぎぐげご',
@@ -237,7 +237,7 @@ describe('Validators', () => {
   it('should validate kazakh alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['kk-KZ'],
+      args: [{ locale: 'kk-KZ' }],
       valid: ['Сәлем777', '123Бәсе', 'солай', 'Жиенсу', '90тоқсан', 'жалғыз', '570бердім'],
       invalid: [' кешіріңіз ', 'abcағылшынша', 'мүмкін!!'],
     });
@@ -246,7 +246,7 @@ describe('Validators', () => {
   it('should validate kurdish alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['ku-IQ'],
+      args: [{ locale: 'ku-IQ' }],
       valid: ['ئؤڤگێ١٢٣'],
       invalid: ['äca ', 'abcß', 'föö!!'],
     });
@@ -255,7 +255,7 @@ describe('Validators', () => {
   it('should validate defined arabic aliases', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['ar-SY'],
+      args: [{ locale: 'ar-SY' }],
       valid: ['أبت123', 'أبتَُِ١٢٣'],
       invalid: ['abc ', 'foo!!', 'ÄBC', 'FÜübar', 'Jön'],
     });
@@ -264,7 +264,7 @@ describe('Validators', () => {
   it('should validate norwegian alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['nb-NO'],
+      args: [{ locale: 'nb-NO' }],
       valid: ['ÆØÅ123', 'Ære321', '321Øre', '123Åre'],
       invalid: ['äbc123', 'ÄBC11', ''],
     });
@@ -273,7 +273,7 @@ describe('Validators', () => {
   it('should validate polish alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['pl-PL'],
+      args: [{ locale: 'pl-PL' }],
       valid: [
         'kre123ską',
         'zam21knięte',
@@ -290,7 +290,7 @@ describe('Validators', () => {
   it('should validate serbian cyrillic alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['sr-RS'],
+      args: [{ locale: 'sr-RS' }],
       valid: ['ШћжЂљЕ123', 'ЧПСТ132ЋЏ'],
       invalid: ['řiď ', 'blé!!', 'föö!!'],
     });
@@ -299,7 +299,7 @@ describe('Validators', () => {
   it('should validate serbian latin alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['sr-RS@latin'],
+      args: [{ locale: 'sr-RS@latin' }],
       valid: ['ŠAabčšđćž123', 'ŠATRO11Ćčđš'],
       invalid: ['řiď ', 'blé!!', 'föö!!'],
     });
@@ -308,7 +308,7 @@ describe('Validators', () => {
   it('should validate swedish alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['sv-SE'],
+      args: [{ locale: 'sv-SE' }],
       valid: ['religiös13', 'st23jäla', 'västgöte123', '123Åre'],
       invalid: ['AİıÖöÇçŞşĞğÜüZ', 'foo!!', ''],
     });
@@ -317,7 +317,7 @@ describe('Validators', () => {
   it('should validate turkish alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['tr-TR'],
+      args: [{ locale: 'tr-TR' }],
       valid: ['AİıÖöÇçŞşĞğÜüZ123'],
       invalid: ['AİıÖöÇçŞşĞğÜüZ ', 'foo!!', 'ÄBC'],
     });
@@ -326,7 +326,7 @@ describe('Validators', () => {
   it('should validate urkrainian alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['uk-UA'],
+      args: [{ locale: 'uk-UA' }],
       valid: ['АБВГҐДЕЄЖЗИIЇЙКЛМНОПРСТУФХЦШЩЬЮЯ123'],
       invalid: ['éeoc ', 'foo!!', 'ÄBC', 'ЫыЪъЭэ'],
     });
@@ -335,7 +335,7 @@ describe('Validators', () => {
   it('should validate greek alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['el-GR'],
+      args: [{ locale: 'el-GR' }],
       valid: ['αβγδεζηθικλμνξοπρςστυφχψω', 'ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ', '20θ', '1234568960'],
       invalid: ['0AİıÖöÇçŞşĞğÜüZ1', '  AİıÖöÇçŞşĞğÜüZ  ', 'ÄBC', 'Heiß', 'ЫыЪъЭэ', 'jαckγ'],
     });
@@ -344,7 +344,7 @@ describe('Validators', () => {
   it('should validate Hebrew alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['he'],
+      args: [{ locale: 'he' }],
       valid: ['אבג123', 'שלום11'],
       invalid: ['אבג ', 'לא!!', 'abc', '  foo  '],
     });
@@ -353,7 +353,7 @@ describe('Validators', () => {
   it('should validate Thai alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['th-TH'],
+      args: [{ locale: 'th-TH' }],
       valid: ['สวัสดี ๑๒๓', 'ยินดีต้อนรับทั้ง ๒ คน'],
       invalid: ['1.สวัสดี', 'ยินดีต้อนรับทั้ง 2 คน'],
     });
@@ -362,7 +362,7 @@ describe('Validators', () => {
   it('should validate Korea alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['ko-KR'],
+      args: [{ locale: 'ko-KR' }],
       valid: ['2002', '훈민정음', '1446년훈민정음반포'],
       invalid: ['2022!', '2019 코로나시작', '1.로렘입숨'],
     });
@@ -371,7 +371,7 @@ describe('Validators', () => {
   it('should validate Sinhala alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['si-LK'],
+      args: [{ locale: 'si-LK' }],
       valid: ['චතුර', 'කචට12', 'ඎඏදාෛපසුගො2', '1234'],
       invalid: ['ஆஐअतක', 'කචට 12', ' ඎ ', 'a1234', 'abc', ''],
     });
@@ -380,7 +380,7 @@ describe('Validators', () => {
   it('should validate Esperanto alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['eo'],
+      args: [{ locale: 'eo' }],
       valid: [
         'saluton',
         'eĥoŝanĝoĉiuĵaŭde0123456789',
@@ -395,7 +395,7 @@ describe('Validators', () => {
   it('should validate Tamil alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['ta-IN'],
+      args: [{ locale: 'ta-IN' }],
       valid: ['தமிழ்', 'தமிழ்123', 'அஆஇஈ123', 'தமிழ்123.45', '123.45', 'தமிழ்.'],
       invalid: ['தமிழ் ', 'abc', ''],
     });
@@ -404,7 +404,7 @@ describe('Validators', () => {
   it('should validate Telugu alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['te-IN'],
+      args: [{ locale: 'te-IN' }],
       valid: ['తెలుగు', 'తెలుగు123', 'అఆఇఈ123', 'తెలుగు123.45', '123.45', 'తెలుగు.'],
       invalid: ['abc', ''],
     });
@@ -413,7 +413,7 @@ describe('Validators', () => {
   it('should validate Kannada alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['kn-IN'],
+      args: [{ locale: 'kn-IN' }],
       valid: ['ಕನ್ನಡ', 'ಕನ್ನಡ123', 'ಅಆಇಈ123', 'ಕನ್ನಡ123.45', '123.45', 'ಕನ್ನಡ.'],
       invalid: ['abc', ''],
     });
@@ -422,7 +422,7 @@ describe('Validators', () => {
   it('should validate Malayalam alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['ml-IN'],
+      args: [{ locale: 'ml-IN' }],
       valid: ['മലയാളം', 'മലയാളം123', 'അആഇഈ123', 'മലയാളം123.45', '123.45', 'മലയാളം.'],
       invalid: ['abc', ''],
     });
@@ -431,7 +431,7 @@ describe('Validators', () => {
   it('should validate Gujarati alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['gu-IN'],
+      args: [{ locale: 'gu-IN' }],
       valid: ['ગુજરાતી', 'ગુજરાતી123', 'અઆઇઈ123', 'ગુજરાતી123.45', '123.45', 'ગુજરાતી.'],
       invalid: ['abc', ''],
     });
@@ -440,7 +440,7 @@ describe('Validators', () => {
   it('should validate Punjabi alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['pa-IN'],
+      args: [{ locale: 'pa-IN' }],
       valid: ['ਪੰਜਾਬੀ', 'ਪੰਜਾਬੀ123', 'ਅਆਇਈ123', 'ਪੰਜਾਬੀ123.45', '123.45', 'ਪੰਜਾਬੀ.'],
       invalid: ['abc', ''],
     });
@@ -449,7 +449,7 @@ describe('Validators', () => {
   it('should validate Odia alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['or-IN'],
+      args: [{ locale: 'or-IN' }],
       valid: ['ଓଡ଼ିଆ', 'ଓଡ଼ିଆ123', 'ଅଆଇଈ123', 'ଓଡ଼ିଆ123.45', '123.45', 'ଓଡ଼ିଆ.'],
       invalid: ['abc', ''],
     });
@@ -458,7 +458,7 @@ describe('Validators', () => {
   it('should validate Bengali alphanumeric strings', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['bn-IN'],
+      args: [{ locale: 'bn-IN' }],
       valid: ['বাংলা', 'বাংলা১২৩', 'অআইঈ১২৩', '১২৩৪৫৬৭৮৯০', 'বাংলা১২৩', '১২৩৪৫', 'বাংলা'],
       invalid: ['abc', 'বাংলা123', '123', 'বাংলা ১২৩', 'বাংলা,১২৩', '১২৩٫৪৫', ''],
     });
@@ -467,7 +467,7 @@ describe('Validators', () => {
   it('should error on invalid locale', () => {
     test({
       validator: 'isAlphanumeric',
-      args: ['is-NOT'],
+      args: [{ locale: 'is-NOT' }],
       error: ['1234568960', 'abc123'],
     });
   });

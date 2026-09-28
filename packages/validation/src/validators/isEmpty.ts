@@ -9,8 +9,8 @@ const default_is_empty_options = {
   ignore_whitespace: false,
 };
 
-export function isEmpty(input: unknown, options?: IsEmptyOptions): boolean {
-  const stringResult = toString(input);
+export function isEmpty(value: unknown, options?: IsEmptyOptions): boolean {
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   const str: string = s;

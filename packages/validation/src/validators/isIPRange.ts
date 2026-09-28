@@ -1,13 +1,20 @@
 import { toString } from '../convert/string';
+import { optionsOf } from '../helpers/config';
 import { isIP } from './isIP';
 import type { IsIPVersion } from './isIP';
+
+export interface IsIPRangeOptions {
+  /** IP version of the range (`4` or `6`). Default: either. */
+  version?: IsIPVersion;
+}
 
 const subnetMaybe = /^\d{1,3}$/;
 const v4Subnet = 32;
 const v6Subnet = 128;
 
-export function isIPRange(input: unknown, version: IsIPVersion = ''): boolean {
-  const stringResult = toString(input);
+export function isIPRange(value: unknown, options?: IsIPRangeOptions): boolean {
+  const { version = '' } = optionsOf(options);
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   const str: string = s;
@@ -27,7 +34,7 @@ export function isIPRange(input: unknown, version: IsIPVersion = ''): boolean {
     return false;
   }
 
-  const isValidIP = isIP(parts[0], version);
+  const isValidIP = isIP(parts[0], { version });
   if (!isValidIP) {
     return false;
   }
@@ -44,7 +51,7 @@ export function isIPRange(input: unknown, version: IsIPVersion = ''): boolean {
       break;
 
     default:
-      expectedSubnet = isIP(parts[0], '6') ? v6Subnet : v4Subnet;
+      expectedSubnet = isIP(parts[0], { version: '6' }) ? v6Subnet : v4Subnet;
   }
 
   return Number(parts[1]) <= expectedSubnet;

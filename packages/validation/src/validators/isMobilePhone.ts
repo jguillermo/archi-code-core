@@ -1,9 +1,12 @@
 import { ValidationConfigError } from '../helpers/errors';
 import { hasOwn } from '../helpers/hasOwn';
 import { toString } from '../convert/string';
-import { configText } from '../helpers/config';
+import { configText, optionsOf } from '../helpers/config';
 
 export interface IsMobilePhoneOptions {
+  /** One locale, a list (valid for any of them), or `'any'`. Default: any locale. */
+  locale?: MobilePhoneLocale | MobilePhoneLocale[];
+  /** Require the number to start with `+`. */
   strictMode?: boolean;
 }
 
@@ -189,15 +192,12 @@ phones['ga-IE'] = phones['en-IE'];
 phones['fr-CH'] = phones['de-CH'];
 phones['it-CH'] = phones['fr-CH'];
 
-export function isMobilePhone(
-  str: unknown,
-  locale?: MobilePhoneLocale | MobilePhoneLocale[],
-  options?: IsMobilePhoneOptions,
-): boolean {
-  const stringResult = toString(str);
+export function isMobilePhone(value: unknown, options?: IsMobilePhoneOptions): boolean {
+  const { locale, strictMode } = optionsOf(options);
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
-  if (options && options.strictMode && !s.startsWith('+')) {
+  if (strictMode && !s.startsWith('+')) {
     return false;
   }
   if (Array.isArray(locale)) {

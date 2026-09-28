@@ -90,8 +90,8 @@ const encodedContentRegex = /%[0-9a-fA-F]{2}/;
 const leadingDigitRegex = /^[0-9]/;
 const digitsOnlyRegex = /^[0-9]+$/;
 
-export function isURL(urlInput: unknown, options?: IsURLOptions): boolean {
-  const stringResult = toString(urlInput);
+export function isURL(value: unknown, options?: IsURLOptions): boolean {
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   let url: string = s;
@@ -329,7 +329,7 @@ export function isURL(urlInput: unknown, options?: IsURLOptions): boolean {
     return true;
   }
 
-  if (!isIP(host) && !isFQDN(host, options) && (!ipv6 || !isIP(ipv6, 6))) {
+  if (!isIP(host) && !isFQDN(host, options) && (!ipv6 || !isIP(ipv6, { version: 6 }))) {
     return false;
   }
 

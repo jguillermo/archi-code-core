@@ -33,8 +33,8 @@ const allCards = (() => {
   return tmpCardsArray;
 })();
 
-export function isCreditCard(input: unknown, options?: IsCreditCardOptions): boolean {
-  const stringResult = toString(input);
+export function isCreditCard(value: unknown, options?: IsCreditCardOptions): boolean {
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   const card: string = s;

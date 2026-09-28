@@ -1,4 +1,3 @@
-import type { IsISO31661Options } from './isISO31661Alpha2';
 import { toString } from '../convert/string';
 import { optionsOf } from '../helpers/config';
 
@@ -257,8 +256,13 @@ const validISO31661Alpha3CountriesCodes = new Set([
 
 const alpha3CountryCode = /^[a-zA-Z]{3}$/;
 
-export function isISO31661Alpha3(input: unknown, options?: IsISO31661Options): boolean {
-  const stringResult = toString(input);
+export interface IsISO31661Alpha3Options {
+  /** Extra user-assigned codes to accept (e.g. `['XK']`). */
+  userAssignedCodes?: string[];
+}
+
+export function isISO31661Alpha3(value: unknown, options?: IsISO31661Alpha3Options): boolean {
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   const str: string = s;

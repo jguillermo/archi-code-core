@@ -2,8 +2,8 @@ import { toString } from '../convert/string';
 
 const digitsOnly = /^[0-9]+$/;
 
-export function isLuhnNumber(input: unknown): boolean {
-  const stringResult = toString(input);
+export function isLuhnNumber(value: unknown): boolean {
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   const str: string = s;

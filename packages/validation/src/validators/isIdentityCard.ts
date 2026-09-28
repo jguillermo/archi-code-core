@@ -3,7 +3,7 @@ import { isCalendarDate } from '../convert/date';
 import { ValidationConfigError } from '../helpers/errors';
 import { hasOwn } from '../helpers/hasOwn';
 import { isInt } from './isInt';
-import { configText } from '../helpers/config';
+import { configText, optionsOf } from '../helpers/config';
 
 const validators = {
   PL: (str) => {
@@ -487,8 +487,14 @@ const validators = {
 /** Known locales (autocomplete); any string is accepted, unknown ones throw ValidationConfigError. */
 export type IdentityCardLocale = keyof typeof validators | 'any' | (string & {});
 
-export function isIdentityCard(input: unknown, locale: IdentityCardLocale = 'any'): boolean {
-  const stringResult = toString(input);
+export interface IsIdentityCardOptions {
+  /** Default: `'any'` (valid for at least one locale). */
+  locale?: IdentityCardLocale;
+}
+
+export function isIdentityCard(value: unknown, options?: IsIdentityCardOptions): boolean {
+  const { locale = 'any' } = optionsOf(options);
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   const str: string = s;

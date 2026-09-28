@@ -9,8 +9,8 @@ const isin = /^[A-Z]{2}[0-9A-Z]{9}[0-9]$/;
 // each alpha character is handled as 2 characters within
 // the loop.
 
-export function isISIN(input: unknown): boolean {
-  const stringResult = toString(input);
+export function isISIN(value: unknown): boolean {
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   const str: string = s;
@@ -23,9 +23,9 @@ export function isISIN(input: unknown): boolean {
   // convert values
   for (let i = str.length - 2; i >= 0; i--) {
     if (str[i] >= 'A' && str[i] <= 'Z') {
-      const value = str[i].charCodeAt(0) - 55;
-      const lo = value % 10;
-      const hi = Math.trunc(value / 10);
+      const code = str[i].charCodeAt(0) - 55;
+      const lo = code % 10;
+      const hi = Math.trunc(code / 10);
       // letters have two digits, so handle the low order
       // and high order digits separately.
       for (const digit of [lo, hi]) {

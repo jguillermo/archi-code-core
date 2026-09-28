@@ -6,8 +6,8 @@ import { toString } from '../convert/string';
 const isISO6346Str = /^[A-Z]{3}(?:U[0-9]{7}|[JZ][0-9]{6,7})$/;
 const isDigit = /^[0-9]$/;
 
-export function isISO6346(str: unknown): boolean {
-  const stringResult = toString(str);
+export function isISO6346(value: unknown): boolean {
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   let container = s;

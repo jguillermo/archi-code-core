@@ -11,8 +11,8 @@ const base64WithoutPadding = /^[A-Za-z0-9+/]+$/;
 const base64UrlWithPadding = /^[A-Za-z0-9_-]+={0,2}$/;
 const base64UrlWithoutPadding = /^[A-Za-z0-9_-]+$/;
 
-export function isBase64(str: unknown, options?: IsBase64Options): boolean {
-  const stringResult = toString(str);
+export function isBase64(value: unknown, options?: IsBase64Options): boolean {
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   options = merge(options, { urlSafe: false, padding: !options?.urlSafe });

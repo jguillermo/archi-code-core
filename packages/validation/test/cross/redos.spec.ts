@@ -30,18 +30,18 @@ const PAYLOADS: Record<string, (n: number) => string> = {
 };
 
 const CONFIG_ARGS: Record<string, unknown[]> = {
-  equals: ['a'],
-  contains: ['a'],
-  matches: [/a/],
-  isHash: ['sha1'],
-  isIn: [['a']],
-  isWhitelisted: ['abc'],
-  isDivisibleBy: [2],
-  isMobilePhone: ['any'],
-  isPostalCode: ['any'],
-  isLicensePlate: ['any'],
-  isVAT: ['GB'],
-  isPassportNumber: ['US'],
+  equals: [{ comparison: 'a' }],
+  contains: [{ elem: 'a' }],
+  matches: [{ pattern: /a/ }],
+  isHash: [{ algorithm: 'sha1' }],
+  isIn: [{ values: ['a'] }],
+  isWhitelisted: [{ chars: 'abc' }],
+  isDivisibleBy: [{ num: 2 }],
+  isMobilePhone: [{ locale: 'any' }],
+  isPostalCode: [{ locale: 'any' }],
+  isLicensePlate: [{ locale: 'any' }],
+  isVAT: [{ countryCode: 'GB' }],
+  isPassportNumber: [{ countryCode: 'US' }],
 };
 
 const fns = Object.entries(validator).filter(([, fn]) => typeof fn === 'function') as [

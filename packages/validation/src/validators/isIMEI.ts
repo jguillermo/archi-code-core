@@ -7,8 +7,8 @@ export interface IsIMEIOptions {
 const imeiRegexWithoutHyphens = /^[0-9]{15}$/;
 const imeiRegexWithHyphens = /^\d{2}-\d{6}-\d{6}-\d{1}$/;
 
-export function isIMEI(str: unknown, options?: IsIMEIOptions): boolean {
-  const stringResult = toString(str);
+export function isIMEI(value: unknown, options?: IsIMEIOptions): boolean {
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   let strVal = s;

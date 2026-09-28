@@ -42,17 +42,17 @@ const HOSTILE_VALUES: unknown[] = [
 
 /** Extra (valid) configuration arguments required by some validators. */
 const CONFIG_ARGS: Record<string, unknown[]> = {
-  equals: ['a'],
-  contains: ['a'],
-  matches: [/a/],
-  isHash: ['md5'],
-  isIn: [['a']],
-  isWhitelisted: ['abc'],
-  isDivisibleBy: [2],
-  isPostalCode: ['any'],
-  isLicensePlate: ['any'],
-  isVAT: ['GB'],
-  isPassportNumber: ['US'],
+  equals: [{ comparison: 'a' }],
+  contains: [{ elem: 'a' }],
+  matches: [{ pattern: /a/ }],
+  isHash: [{ algorithm: 'md5' }],
+  isIn: [{ values: ['a'] }],
+  isWhitelisted: [{ chars: 'abc' }],
+  isDivisibleBy: [{ num: 2 }],
+  isPostalCode: [{ locale: 'any' }],
+  isLicensePlate: [{ locale: 'any' }],
+  isVAT: [{ countryCode: 'GB' }],
+  isPassportNumber: [{ countryCode: 'US' }],
 };
 
 const validatorFns = Object.entries(validator).filter(([, fn]) => typeof fn === 'function') as [
@@ -87,38 +87,41 @@ describe('validator contract', () => {
 
   describe('2. invalid configuration → ValidationConfigError', () => {
     const cases: [string, () => unknown][] = [
-      ['isAlpha unknown locale', () => validator.isAlpha('a', 'xx-XX')],
-      ['isAlpha bad ignore', () => validator.isAlpha('a', 'en-US', { ignore: 5 as never })],
-      ['isAlphanumeric unknown locale', () => validator.isAlphanumeric('a', 'xx-XX')],
+      ['isAlpha unknown locale', () => validator.isAlpha('a', { locale: 'xx-XX' })],
+      ['isAlpha bad ignore', () => validator.isAlpha('a', { locale: 'en-US', ignore: 5 as never })],
+      ['isAlphanumeric unknown locale', () => validator.isAlphanumeric('a', { locale: 'xx-XX' })],
       [
         'isAlphanumeric bad ignore',
-        () => validator.isAlphanumeric('a', 'en-US', { ignore: 5 as never }),
+        () => validator.isAlphanumeric('a', { locale: 'en-US', ignore: 5 as never }),
       ],
       ['isDecimal unknown locale', () => validator.isDecimal('1', { locale: 'xx-XX' })],
       ['isFloat unknown locale', () => validator.isFloat('1', { locale: 'xx-XX' })],
       ['isNumeric unknown locale', () => validator.isNumeric('1', { locale: 'xx-XX' })],
-      ['isMobilePhone unknown locale', () => validator.isMobilePhone('1', 'xx-XX')],
-      ['isPostalCode unknown locale', () => validator.isPostalCode('1', 'xx-XX')],
-      ['isIdentityCard unknown locale', () => validator.isIdentityCard('1', 'xx-XX')],
-      ['isLicensePlate unknown locale', () => validator.isLicensePlate('1', 'xx-XX')],
-      ['isVAT unknown country', () => validator.isVAT('1', 'XX')],
-      ['isVAT non-string country', () => validator.isVAT('1', 5 as never)],
+      ['isMobilePhone unknown locale', () => validator.isMobilePhone('1', { locale: 'xx-XX' })],
+      ['isPostalCode unknown locale', () => validator.isPostalCode('1', { locale: 'xx-XX' })],
+      ['isIdentityCard unknown locale', () => validator.isIdentityCard('1', { locale: 'xx-XX' })],
+      ['isLicensePlate unknown locale', () => validator.isLicensePlate('1', { locale: 'xx-XX' })],
+      ['isVAT unknown country', () => validator.isVAT('1', { countryCode: 'XX' })],
+      ['isVAT non-string country', () => validator.isVAT('1', { countryCode: 5 as never })],
       ['isCreditCard unknown provider', () => validator.isCreditCard('1', { provider: 'foo' })],
       [
         'isCreditCard non-string provider',
         () => validator.isCreditCard('1', { provider: 5 as never }),
       ],
-      ['isHash unknown algorithm', () => validator.isHash('a', 'sha999')],
+      ['isHash unknown algorithm', () => validator.isHash('a', { algorithm: 'sha999' })],
       ['isTime unknown hourFormat', () => validator.isTime('1:00', { hourFormat: 'x' as never })],
       ['isTime unknown mode', () => validator.isTime('1:00', { mode: 'x' as never })],
-      ['isPassportNumber non-string country', () => validator.isPassportNumber('1', 5 as never)],
+      [
+        'isPassportNumber non-string country',
+        () => validator.isPassportNumber('1', { countryCode: 5 as never }),
+      ],
     ];
     it.each(cases)('%s', (_label, call) => {
       expect(call).toThrow(ValidationConfigError);
     });
 
     it('config errors are thrown even for values that would be rejected anyway', () => {
-      expect(() => validator.isHash(null, 'nope')).toThrow(ValidationConfigError);
+      expect(() => validator.isHash(null, { algorithm: 'nope' })).toThrow(ValidationConfigError);
       expect(() => validator.isNumeric(null, { locale: 'nope' })).toThrow(ValidationConfigError);
     });
 
@@ -134,18 +137,18 @@ describe('validator contract', () => {
 
     it.each(PROTO_KEYS)('%s', (key) => {
       const configFns: (() => unknown)[] = [
-        () => validator.isAlpha('a', key),
-        () => validator.isAlphanumeric('a', key),
+        () => validator.isAlpha('a', { locale: key }),
+        () => validator.isAlphanumeric('a', { locale: key }),
         () => validator.isDecimal('1', { locale: key }),
         () => validator.isFloat('1', { locale: key }),
         () => validator.isNumeric('1', { locale: key }),
-        () => validator.isMobilePhone('1', key),
-        () => validator.isPostalCode('1', key),
-        () => validator.isIdentityCard('1', key),
-        () => validator.isLicensePlate('1', key),
-        () => validator.isVAT('1', key),
+        () => validator.isMobilePhone('1', { locale: key }),
+        () => validator.isPostalCode('1', { locale: key }),
+        () => validator.isIdentityCard('1', { locale: key }),
+        () => validator.isLicensePlate('1', { locale: key }),
+        () => validator.isVAT('1', { countryCode: key }),
         () => validator.isCreditCard('4111111111111111', { provider: key }),
-        () => validator.isHash('a', key),
+        () => validator.isHash('a', { algorithm: key }),
       ];
       for (const call of configFns) {
         try {
@@ -155,16 +158,16 @@ describe('validator contract', () => {
         }
       }
       // These return false for unknown keys by design.
-      expect(validator.isUUID('a', key as never)).toBe(false);
-      expect(validator.isPassportNumber('790369937', key)).toBe(false);
+      expect(validator.isUUID('a', { version: key as never })).toBe(false);
+      expect(validator.isPassportNumber('790369937', { countryCode: key })).toBe(false);
       expect(validator.isIBAN('GB82WEST12345698765432', { whitelist: [key] })).toBe(false);
     });
   });
 
   describe('regressions', () => {
     it('isPassportNumber country code is case-insensitive (used to crash with lowercase)', () => {
-      expect(validator.isPassportNumber('790369937', 'us')).toBe(true);
-      expect(validator.isPassportNumber('790369937', 'US')).toBe(true);
+      expect(validator.isPassportNumber('790369937', { countryCode: 'us' })).toBe(true);
+      expect(validator.isPassportNumber('790369937', { countryCode: 'US' })).toBe(true);
     });
 
     it('isBoolean / isTime tolerate null options', () => {

@@ -2,8 +2,8 @@ import { toString } from '../convert/string';
 
 const md5 = /^[a-f0-9]{32}$/;
 
-export function isMD5(input: unknown): boolean {
-  const stringResult = toString(input);
+export function isMD5(value: unknown): boolean {
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   const str: string = s;

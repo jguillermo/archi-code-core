@@ -86,8 +86,8 @@ function validateDisplayName(display_name: string): boolean {
   return true;
 }
 
-export function isEmail(str: unknown, options?: IsEmailOptions): boolean {
-  const stringResult = toString(str);
+export function isEmail(value: unknown, options?: IsEmailOptions): boolean {
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   let strVal = s;

@@ -13,8 +13,8 @@ const default_is_hexcolor_options = {
   require_hashtag: false,
 };
 
-export function isHexColor(input: unknown, options?: IsHexColorOptions): boolean {
-  const stringResult = toString(input);
+export function isHexColor(value: unknown, options?: IsHexColorOptions): boolean {
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   const str: string = s;

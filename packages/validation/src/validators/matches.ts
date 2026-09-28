@@ -1,16 +1,24 @@
 import { toString } from '../convert/string';
-import { configText } from '../helpers/config';
+import { configText, optionsOf } from '../helpers/config';
 import { ValidationConfigError } from '../helpers/errors';
 
-export function matches(input: unknown, pattern: RegExp | string, modifiers?: string): boolean {
-  const stringResult = toString(input);
+export interface MatchesOptions {
+  /** Pattern the value must match (a string is compiled with `modifiers`). */
+  pattern: RegExp | string;
+  /** RegExp flags for a string `pattern`. */
+  modifiers?: string;
+}
+
+export function matches(value: unknown, options: MatchesOptions): boolean {
+  const { pattern, modifiers } = optionsOf(options);
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   const str: string = s;
   if (Object.prototype.toString.call(pattern) === '[object RegExp]') {
     // Sticky regexes start at lastIndex: reset it so the result does not depend on earlier calls.
     (pattern as RegExp).lastIndex = 0;
-    return !!str.match(pattern);
+    return !!str.match(pattern as RegExp);
   }
   if (typeof pattern !== 'string') {
     throw new ValidationConfigError(

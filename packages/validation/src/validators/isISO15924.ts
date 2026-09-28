@@ -275,8 +275,8 @@ const validISO15924Codes = new Set([
   'Zzzz',
 ]);
 
-export function isISO15924(input: unknown): boolean {
-  const stringResult = toString(input);
+export function isISO15924(value: unknown): boolean {
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   const str: string = s;

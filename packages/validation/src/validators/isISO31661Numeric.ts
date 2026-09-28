@@ -253,8 +253,8 @@ const validISO31661NumericCountriesCodes = new Set([
   '894',
 ]);
 
-export function isISO31661Numeric(input: unknown): boolean {
-  const stringResult = toString(input);
+export function isISO31661Numeric(value: unknown): boolean {
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   const str: string = s;

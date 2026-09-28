@@ -141,8 +141,8 @@ function getCurrencyRegex(options: Required<IsCurrencyOptions>): RegExp {
   return currencyRegexCache.getOrCreate(key, () => currencyRegex(options));
 }
 
-export function isCurrency(str: unknown, options?: IsCurrencyOptions): boolean {
-  const stringResult = toString(str);
+export function isCurrency(value: unknown, options?: IsCurrencyOptions): boolean {
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   const opts = merge(options, default_currency_options) as Required<IsCurrencyOptions>;

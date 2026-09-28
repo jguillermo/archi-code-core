@@ -3022,14 +3022,14 @@ describe('Validators', () => {
           validator: 'isMobilePhone',
           valid: fixture.valid,
           invalid: fixture.invalid,
-          args: [fixture.locale],
+          args: [{ locale: fixture.locale }],
         });
       } else {
         test({
           validator: 'isMobilePhone',
           valid: fixture.valid,
           invalid: fixture.invalid,
-          args: [fixture.locale],
+          args: [{ locale: fixture.locale }],
         });
       }
     });
@@ -3038,7 +3038,7 @@ describe('Validators', () => {
       validator: 'isMobilePhone',
       valid: allValid,
       invalid: ['', 'asdf', '1', 'ASDFGJKLmZXJtZtesting123', 'Vml2YW11cyBmZXJtZtesting123'],
-      args: ['any'],
+      args: [{ locale: 'any' }],
     });
 
     // strict mode
@@ -3046,7 +3046,7 @@ describe('Validators', () => {
       validator: 'isMobilePhone',
       valid: ['+254728530234', '+299 12 34 56', '+94766660206'],
       invalid: ['254728530234', '0728530234', '+728530234', '766667206', '0766670206'],
-      args: ['any', { strictMode: true }],
+      args: [{ locale: 'any', strictMode: true }],
     });
 
     // falsey locale defaults to 'any'
@@ -3061,7 +3061,7 @@ describe('Validators', () => {
   it('should error on invalid locale', () => {
     test({
       validator: 'isMobilePhone',
-      args: [{ locale: ['is-NOT'] }],
+      args: [{ locale: { locale: ['is-NOT'] } }],
       error: ['+123456789', '012345'],
     });
   });
@@ -3069,7 +3069,7 @@ describe('Validators', () => {
   it('should return false for non-string inputs', () => {
     test({
       validator: 'isMobilePhone',
-      args: ['any'],
+      args: [{ locale: 'any' }],
       invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
     });
   });

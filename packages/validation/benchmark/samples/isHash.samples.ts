@@ -3,7 +3,7 @@ import type { ValidatorSample } from './types';
 
 export const isHashSample: ValidatorSample = {
   name: 'isHash',
-  run: (v) => validator.isHash(v, 'md5'),
+  run: (v) => validator.isHash(v, { algorithm: 'md5' }),
   valid: [
     '900150983cd24fb0d6963f7d28e17f72',
     'd41d8cd98f00b204e9800998ecf8427e',

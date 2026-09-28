@@ -12,8 +12,8 @@ const defaultBase32Options = {
   crockford: false,
 };
 
-export function isBase32(str: unknown, options?: IsBase32Options): boolean {
-  const stringResult = toString(str);
+export function isBase32(value: unknown, options?: IsBase32Options): boolean {
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   options = merge(options, defaultBase32Options);

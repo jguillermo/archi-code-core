@@ -66,8 +66,8 @@ function calculateCheckDigit(ean: string): number {
  * @param {string} str
  * @return {boolean}
  */
-export function isEAN(input: unknown): boolean {
-  const stringResult = toString(input);
+export function isEAN(value: unknown): boolean {
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   const str: string = s;

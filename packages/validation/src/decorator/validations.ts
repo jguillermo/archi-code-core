@@ -11,9 +11,8 @@ type PropertiesField<P> = [P] extends [never]
     : { properties: P };
 
 /**
- * A built-in validator: `properties` is a single object turned into the validator's arguments, so
- * `{ validator: 'isInt', properties: { min: 2 } }` runs `isInt(value, { min: 2 })` and
- * `{ validator: 'isHash', properties: { algorithm: 'md5' } }` runs `isHash(value, 'md5')`.
+ * A built-in validator: `properties` is the validator's options object, so
+ * `{ validator: 'isHash', properties: { algorithm: 'md5' } }` runs `isHash(value, { algorithm: 'md5' })`.
  */
 export type BuiltInValidation = {
   [K in ValidatorName]: {

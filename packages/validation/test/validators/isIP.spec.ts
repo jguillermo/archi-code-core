@@ -222,7 +222,7 @@ describe('isIP', () => {
       });
       test({
         validator: 'isIP',
-        args: [4],
+        args: [{ version: 4 }],
         valid: ['127.0.0.1', '0.0.0.0', '255.255.255.255', '1.2.3.4', '255.0.0.1', '0.0.1.1'],
         invalid: [
           '::1',
@@ -235,7 +235,7 @@ describe('isIP', () => {
       });
       test({
         validator: 'isIP',
-        args: [6],
+        args: [{ version: 6 }],
         valid: [
           '::1',
           '2001:db8:0000:1:1:1:1:1',
@@ -259,7 +259,7 @@ describe('isIP', () => {
       });
       test({
         validator: 'isIP',
-        args: [10],
+        args: [{ version: 10 }],
         valid: [],
         invalid: [
           '127.0.0.1',

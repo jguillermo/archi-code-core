@@ -75,7 +75,7 @@ describe('isISBN', () => {
     it('should validate ISBNs', () => {
       test({
         validator: 'isISBN',
-        args: [10],
+        args: [{ version: 10 }],
         valid: [
           '3836221195',
           '3-8362-2119-5',
@@ -106,7 +106,7 @@ describe('isISBN', () => {
       });
       test({
         validator: 'isISBN',
-        args: [13],
+        args: [{ version: 13 }],
         valid: [
           '9783836221191',
           '978-3-8362-2119-1',
@@ -137,7 +137,7 @@ describe('isISBN', () => {
       });
       test({
         validator: 'isISBN',
-        args: ['foo'],
+        args: [{ version: 'foo' }],
         invalid: ['340101319X', '9784873113685'],
       });
     });

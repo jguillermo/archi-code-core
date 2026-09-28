@@ -6,16 +6,11 @@ export interface IsByteLengthOptions {
   max?: number;
 }
 
-export function isByteLength(
-  str: unknown,
-  optionsOrMin?: IsByteLengthOptions | number,
-  maxArg?: number,
-): boolean {
-  const stringResult = toString(str);
+export function isByteLength(value: unknown, options?: IsByteLengthOptions): boolean {
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
-  // backwards compatibility: isByteLength(str, min [, max])
-  const { min, max } = boundsOf(optionsOrMin, maxArg);
+  const { min, max } = boundsOf(options);
   const len = utf8ByteLength(s);
   return len >= min && (typeof max === 'undefined' || len <= max);
 }

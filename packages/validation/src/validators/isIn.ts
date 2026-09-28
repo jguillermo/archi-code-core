@@ -1,13 +1,16 @@
 import { toString } from '../convert/string';
 import { toEnum } from '../convert/enum';
-import { configText } from '../helpers/config';
+import { configText, optionsOf } from '../helpers/config';
 import { ValidationConfigError } from '../helpers/errors';
 
-export function isIn(
-  input: unknown,
-  values: unknown[] | Record<string, unknown> | string,
-): boolean {
-  const stringResult = toString(input);
+export interface IsInOptions {
+  /** Allowed values: a list, the keys of an object, or a string (substring check). */
+  values: unknown[] | Record<string, unknown> | string;
+}
+
+export function isIn(value: unknown, options: IsInOptions): boolean {
+  const { values } = optionsOf(options);
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   const str: string = s;

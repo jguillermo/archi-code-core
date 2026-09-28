@@ -154,24 +154,24 @@ describe('anchored alternations — no trailing / leading garbage', () => {
   });
 
   it('isLicensePlate pt-BR / fi-FI', () => {
-    expect(validator.isLicensePlate('ABC1D23<script>', 'pt-BR')).toBe(false);
-    expect(validator.isLicensePlate('<script>ABC1234', 'pt-BR')).toBe(false);
-    expect(validator.isLicensePlate('<script>ABC1234', 'any')).toBe(false);
-    expect(validator.isLicensePlate('ABC1D23', 'pt-BR')).toBe(true);
-    expect(validator.isLicensePlate('ABC-1234', 'pt-BR')).toBe(true);
-    expect(validator.isLicensePlate('ABC-12345', 'fi-FI')).toBe(false);
-    expect(validator.isLicensePlate('ABC-123', 'fi-FI')).toBe(true);
+    expect(validator.isLicensePlate('ABC1D23<script>', { locale: 'pt-BR' })).toBe(false);
+    expect(validator.isLicensePlate('<script>ABC1234', { locale: 'pt-BR' })).toBe(false);
+    expect(validator.isLicensePlate('<script>ABC1234', { locale: 'any' })).toBe(false);
+    expect(validator.isLicensePlate('ABC1D23', { locale: 'pt-BR' })).toBe(true);
+    expect(validator.isLicensePlate('ABC-1234', { locale: 'pt-BR' })).toBe(true);
+    expect(validator.isLicensePlate('ABC-12345', { locale: 'fi-FI' })).toBe(false);
+    expect(validator.isLicensePlate('ABC-123', { locale: 'fi-FI' })).toBe(true);
   });
 
   it('isPassportNumber MZ / PH', () => {
-    expect(validator.isPassportNumber('AB1234567XYZ!!', 'MZ')).toBe(false);
-    expect(validator.isPassportNumber('garbage12AB12345', 'MZ')).toBe(false);
-    expect(validator.isPassportNumber('AB1234567', 'MZ')).toBe(true);
-    expect(validator.isPassportNumber('12AB12345', 'MZ')).toBe(true);
-    expect(validator.isPassportNumber('A123456garbage', 'PH')).toBe(false);
-    expect(validator.isPassportNumber('A123456', 'PH')).toBe(true);
-    expect(validator.isPassportNumber('A1234567B', 'PH')).toBe(true);
-    expect(validator.isPassportNumber('AB1234567', 'PH')).toBe(true);
+    expect(validator.isPassportNumber('AB1234567XYZ!!', { countryCode: 'MZ' })).toBe(false);
+    expect(validator.isPassportNumber('garbage12AB12345', { countryCode: 'MZ' })).toBe(false);
+    expect(validator.isPassportNumber('AB1234567', { countryCode: 'MZ' })).toBe(true);
+    expect(validator.isPassportNumber('12AB12345', { countryCode: 'MZ' })).toBe(true);
+    expect(validator.isPassportNumber('A123456garbage', { countryCode: 'PH' })).toBe(false);
+    expect(validator.isPassportNumber('A123456', { countryCode: 'PH' })).toBe(true);
+    expect(validator.isPassportNumber('A1234567B', { countryCode: 'PH' })).toBe(true);
+    expect(validator.isPassportNumber('AB1234567', { countryCode: 'PH' })).toBe(true);
   });
 });
 
@@ -189,8 +189,8 @@ describe('configuration contract — only ValidationConfigError, null means "no 
   const configError = (fn: () => unknown): void => expect(fn).toThrow(ValidationConfigError);
 
   it('null options behave like undefined', () => {
-    expect(v.isAlpha('abc', 'en-US', null)).toBe(true);
-    expect(v.isAlphanumeric('abc1', 'en-US', null)).toBe(true);
+    expect(v.isAlpha('abc', { locale: 'en-US' })).toBe(true);
+    expect(v.isAlphanumeric('abc1', { locale: 'en-US' })).toBe(true);
     expect(v.isCreditCard('4111111111111111', null)).toBe(true);
     expect(v.isByteLength('abc', null)).toBe(true);
     expect(v.isLength('abc', null)).toBe(true);
@@ -202,33 +202,33 @@ describe('configuration contract — only ValidationConfigError, null means "no 
     expect(v.isISO31661Alpha2('ES', null)).toBe(true);
     expect(v.isISO31661Alpha3('ESP', null)).toBe(true);
     expect(v.isRgbColor('rgb(1,2,3)', null)).toBe(true);
-    expect(v.isIn('a', null)).toBe(false);
+    expect(v.isIn('a', { values: null })).toBe(false);
   });
 
   it('impossible configuration throws ValidationConfigError (never TypeError / SyntaxError)', () => {
-    configError(() => v.isAlpha('abc', Symbol('x')));
-    configError(() => v.isMobilePhone('123', Symbol('x')));
-    configError(() => v.isLicensePlate('123', Symbol('x')));
-    configError(() => v.isAlpha('abc', 'en-US', 'not-an-object'));
-    configError(() => v.isLength('abc', Symbol('x')));
-    configError(() => v.isLength('abc', 1, Symbol('x')));
+    configError(() => v.isAlpha('abc', { locale: Symbol('x') }));
+    configError(() => v.isMobilePhone('123', { locale: Symbol('x') }));
+    configError(() => v.isLicensePlate('123', { locale: Symbol('x') }));
+    configError(() => v.isAlpha('abc', 'not-an-object' as never));
+    configError(() => v.isLength('abc', { min: Symbol('x') }));
+    configError(() => v.isLength('abc', { min: 1, max: Symbol('x') }));
     configError(() => v.isByteLength('abc', { max: {} }));
-    configError(() => v.isIn('a', 5));
-    configError(() => v.isWhitelisted('a', null));
-    configError(() => v.isWhitelisted('a', 5));
-    configError(() => v.matches('a', '('));
-    configError(() => v.matches('a', 'a', 'zz'));
-    configError(() => v.matches('a', null));
+    configError(() => v.isIn('a', { values: 5 }));
+    configError(() => v.isWhitelisted('a', { chars: null }));
+    configError(() => v.isWhitelisted('a', { chars: 5 }));
+    configError(() => v.matches('a', { pattern: '(' }));
+    configError(() => v.matches('a', { pattern: 'a', modifiers: 'zz' }));
+    configError(() => v.matches('a', { pattern: null }));
     configError(() => v.isDecimal('1.23', { decimal_digits: '5,2' }));
     configError(() => v.isDecimal('1.23', { decimal_digits: '99999999' }));
     configError(() => v.isIBAN('DE89370400440532013000', { whitelist: 'DE' }));
     configError(() => v.isIBAN('DE89370400440532013000', { blacklist: 'XDEX' }));
     configError(() => v.isIBAN('DE89370400440532013000', { whitelist: [1] }));
-    configError(() => v.isMobilePhone('+34612345678', ['es-ES', 'xx-XX']));
+    configError(() => v.isMobilePhone('+34612345678', { locale: ['es-ES', 'xx-XX'] }));
   });
 
   it('error messages never throw while formatting the bad value', () => {
-    expect(() => v.isIdentityCard('1', Symbol('x'))).toThrow(/Symbol\(x\)/);
+    expect(() => v.isIdentityCard('1', { locale: Symbol('x') })).toThrow(/Symbol\(x\)/);
   });
 
   it('isEmail: host lists must be arrays, blacklisted_chars a string', () => {
@@ -261,11 +261,11 @@ describe('configuration contract — only ValidationConfigError, null means "no 
 
   it('matches: a sticky RegExp gives stable results', () => {
     const sticky = /a/y;
-    expect([v.matches('a', sticky), v.matches('a', sticky), v.matches('a', sticky)]).toEqual([
-      true,
-      true,
-      true,
-    ]);
+    expect([
+      v.matches('a', { pattern: sticky }),
+      v.matches('a', { pattern: sticky }),
+      v.matches('a', { pattern: sticky }),
+    ]).toEqual([true, true, true]);
   });
 });
 
@@ -288,18 +288,18 @@ describe('isEmail — length limits and display name', () => {
 
 describe('isAlpha / isAlphanumeric — ignore', () => {
   it('ignore characters are literal', () => {
-    expect(validator.isAlpha('Жs', 'ru-RU', { ignore: 's' })).toBe(true);
-    expect(validator.isAlpha('a b', 'en-US', { ignore: 's' })).toBe(false);
-    expect(validator.isAlpha('a-b^c]', 'en-US', { ignore: '-^]' })).toBe(true);
-    expect(validator.isAlphanumeric('a1 b', 'en-US', { ignore: 's' })).toBe(false);
-    expect(validator.isAlphanumeric('a1s', 'ru-RU', { ignore: 's' })).toBe(false);
+    expect(validator.isAlpha('Жs', { locale: 'ru-RU', ignore: 's' })).toBe(true);
+    expect(validator.isAlpha('a b', { locale: 'en-US', ignore: 's' })).toBe(false);
+    expect(validator.isAlpha('a-b^c]', { locale: 'en-US', ignore: '-^]' })).toBe(true);
+    expect(validator.isAlphanumeric('a1 b', { locale: 'en-US', ignore: 's' })).toBe(false);
+    expect(validator.isAlphanumeric('a1s', { locale: 'ru-RU', ignore: 's' })).toBe(false);
   });
 
   it('a sticky ignore RegExp gives stable results', () => {
-    const results = [0, 1, 2].map(() => validator.isAlpha('-a', 'en-US', { ignore: /-/y }));
+    const results = [0, 1, 2].map(() => validator.isAlpha('-a', { locale: 'en-US', ignore: /-/y }));
     expect(results).toEqual([true, true, true]);
     const results2 = [0, 1, 2].map(() =>
-      validator.isAlphanumeric('-a1', 'en-US', { ignore: /-/y }),
+      validator.isAlphanumeric('-a1', { locale: 'en-US', ignore: /-/y }),
     );
     expect(results2).toEqual([true, true, true]);
   });
@@ -313,12 +313,12 @@ describe('false positives', () => {
   });
 
   it('isVAT: escaped dots, no commas in classes, no empty HN, no underscores in CY', () => {
-    expect(validator.isVAT('', 'HN')).toBe(false);
-    expect(validator.isVAT('12a345b678/0001-90', 'BR')).toBe(false);
-    expect(validator.isVAT('12a345b678c9-012d345', 'ID')).toBe(false);
-    expect(validator.isVAT('VE,-123456789', 'VE')).toBe(false);
-    expect(validator.isVAT(',-23-45678-9', 'DO')).toBe(false);
-    expect(validator.isVAT('_________', 'CY')).toBe(false);
+    expect(validator.isVAT('', { countryCode: 'HN' })).toBe(false);
+    expect(validator.isVAT('12a345b678/0001-90', { countryCode: 'BR' })).toBe(false);
+    expect(validator.isVAT('12a345b678c9-012d345', { countryCode: 'ID' })).toBe(false);
+    expect(validator.isVAT('VE,-123456789', { countryCode: 'VE' })).toBe(false);
+    expect(validator.isVAT(',-23-45678-9', { countryCode: 'DO' })).toBe(false);
+    expect(validator.isVAT('_________', { countryCode: 'CY' })).toBe(false);
   });
 
   it('isISO8601 strict accepts years 0000-0099', () => {

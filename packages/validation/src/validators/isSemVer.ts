@@ -8,8 +8,8 @@ const semanticVersioningRegex = new RegExp(
   'i',
 );
 
-export function isSemVer(input: unknown): boolean {
-  const stringResult = toString(input);
+export function isSemVer(value: unknown): boolean {
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   const str: string = s;

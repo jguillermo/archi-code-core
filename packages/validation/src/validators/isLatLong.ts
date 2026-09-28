@@ -15,8 +15,8 @@ const defaultLatLongOptions = {
   checkDMS: false,
 };
 
-export function isLatLong(str: unknown, options?: IsLatLongOptions): boolean {
-  const stringResult = toString(str);
+export function isLatLong(value: unknown, options?: IsLatLongOptions): boolean {
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   options = merge(options, defaultLatLongOptions);

@@ -1,5 +1,5 @@
 import { isInt } from './isInt';
 
-export function isPort(str: unknown): boolean {
-  return isInt(str, { allow_leading_zeroes: false, min: 0, max: 65535 });
+export function isPort(value: unknown): boolean {
+  return isInt(value, { allow_leading_zeroes: false, min: 0, max: 65535 });
 }

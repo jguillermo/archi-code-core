@@ -4,7 +4,7 @@ describe('Validators', () => {
   it('should validate whitelisted characters', () => {
     test({
       validator: 'isWhitelisted',
-      args: ['abcdefghijklmnopqrstuvwxyz-'],
+      args: [{ chars: 'abcdefghijklmnopqrstuvwxyz-' }],
       valid: ['foo', 'foobar', 'baz-foo'],
       invalid: ['foo bar', 'fo.bar', 'türkçe'],
     });
@@ -20,7 +20,7 @@ describe('Validators', () => {
   it('should return false for non-string inputs', () => {
     test({
       validator: 'isWhitelisted',
-      args: ['abcdefghijklmnopqrstuvwxyz-'],
+      args: [{ chars: 'abcdefghijklmnopqrstuvwxyz-' }],
       invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
     });
   });

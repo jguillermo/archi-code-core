@@ -1,7 +1,7 @@
 import { toString } from '../convert/string';
 import { optionsOf } from '../helpers/config';
 
-export interface IsISO31661Options {
+export interface IsISO31661Alpha2Options {
   /** Extra user-assigned codes to accept (e.g. `['XK']`). */
   userAssignedCodes?: string[];
 }
@@ -261,8 +261,8 @@ const validISO31661Alpha2CountriesCodes = new Set([
 
 const alpha2CountryCode = /^[a-zA-Z]{2}$/;
 
-export function isISO31661Alpha2(input: unknown, options?: IsISO31661Options): boolean {
-  const stringResult = toString(input);
+export function isISO31661Alpha2(value: unknown, options?: IsISO31661Alpha2Options): boolean {
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   const str: string = s;

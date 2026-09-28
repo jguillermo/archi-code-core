@@ -23,14 +23,14 @@ function getNumericRegex(separator: string): RegExp {
   return re;
 }
 
-export function isNumeric(input: unknown, options?: IsNumericOptions): boolean {
+export function isNumeric(value: unknown, options?: IsNumericOptions): boolean {
   let separator = '.';
   if (options?.locale) {
     if (!hasOwn(decimal, options.locale))
       throw new ValidationConfigError(`Invalid locale '${configText(options.locale)}'`);
     separator = decimal[options.locale];
   }
-  const stringResult = toString(input);
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   if (options?.no_symbols) {

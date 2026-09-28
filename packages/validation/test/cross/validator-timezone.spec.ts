@@ -33,9 +33,9 @@ describe('time-zone independence', () => {
 
   it('isAfter / isBefore with zone-less date-times', () => {
     const results = inEveryZone(() => [
-      validator.isAfter('2024-01-01T10:00:00', '2024-01-01T09:59:59'),
-      validator.isBefore('2024-01-01T00:00:00', '2024-01-01'),
-      validator.isAfter('2024-01-01T00:00:01', '2024-01-01'),
+      validator.isAfter('2024-01-01T10:00:00', { comparisonDate: '2024-01-01T09:59:59' }),
+      validator.isBefore('2024-01-01T00:00:00', { comparisonDate: '2024-01-01' }),
+      validator.isAfter('2024-01-01T00:00:01', { comparisonDate: '2024-01-01' }),
     ]);
     expect(allEqual(results)).toBe(true);
     expect(results[0]).toEqual([true, false, true]);

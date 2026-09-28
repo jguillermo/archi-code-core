@@ -1,6 +1,7 @@
 import { toString } from '../convert/string';
 import { ValidationConfigError } from '../helpers/errors';
 import { hasOwn } from '../helpers/hasOwn';
+import { optionsOf } from '../helpers/config';
 
 /**
  * Reference:
@@ -76,16 +77,15 @@ export type PassportCountryCode = keyof typeof passportRegexByCountryCode | (str
 
 export const locales: readonly string[] = Object.freeze(Object.keys(passportRegexByCountryCode));
 
-/**
- * Check if str is a valid passport number
- * relative to provided ISO Country Code.
- *
- * @param {string} str
- * @param {string} countryCode
- * @return {boolean}
- */
-export function isPassportNumber(input: unknown, countryCode: PassportCountryCode): boolean {
-  const stringResult = toString(input);
+export interface IsPassportNumberOptions {
+  /** ISO country code (case-insensitive). */
+  countryCode: PassportCountryCode;
+}
+
+/** Checks that `value` is a valid passport number for the ISO country code `options.countryCode`. */
+export function isPassportNumber(value: unknown, options: IsPassportNumberOptions): boolean {
+  const { countryCode } = optionsOf(options);
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   const str: string = s;

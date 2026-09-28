@@ -47,7 +47,7 @@ describe('Validators', () => {
     });
     test({
       validator: 'isDate',
-      args: ['DD/MM/YYYY'], // old format for backward compatibility
+      args: [{ format: 'DD/MM/YYYY' }], // old format for backward compatibility
       valid: ['15-07-2002', '15/07/2002'],
       invalid: [
         '15/7/2002',

@@ -354,7 +354,7 @@ describe('Validators', () => {
         validator: 'isIdentityCard',
         valid: fixture.valid,
         invalid: fixture.invalid,
-        args: [fixture.locale],
+        args: [{ locale: fixture.locale }],
       });
     });
 
@@ -363,14 +363,14 @@ describe('Validators', () => {
       validator: 'isIdentityCard',
       valid: [...allValid],
       invalid: ['foo'],
-      args: ['any'],
+      args: [{ locale: 'any' }],
     });
   });
 
   it('should error on invalid locale', () => {
     test({
       validator: 'isIdentityCard',
-      args: ['is-NOT'],
+      args: [{ locale: 'is-NOT' }],
       error: ['99999999R', '12345678Z'],
     });
   });
@@ -378,7 +378,7 @@ describe('Validators', () => {
   it('should return false for non-string inputs', () => {
     test({
       validator: 'isIdentityCard',
-      args: ['any'],
+      args: [{ locale: 'any' }],
       invalid: [null, undefined, NaN, Infinity, -Infinity, {}, [], [1, 2, 3]],
     });
   });

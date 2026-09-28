@@ -37,7 +37,7 @@ describe('Validators', () => {
     });
     test({
       validator: 'isIPRange',
-      args: [4],
+      args: [{ version: 4 }],
       valid: [
         '127.0.0.1/1',
         '0.0.0.0/1',
@@ -58,7 +58,7 @@ describe('Validators', () => {
     });
     test({
       validator: 'isIPRange',
-      args: [6],
+      args: [{ version: 6 }],
       valid: ['::1/1', '2001:db8:0000:1:1:1:1:1/1', '::ffff:127.0.0.1/1'],
       invalid: [
         'abc',
@@ -76,7 +76,7 @@ describe('Validators', () => {
     });
     test({
       validator: 'isIPRange',
-      args: [10],
+      args: [{ version: 10 }],
       valid: [],
       invalid: [
         'abc',

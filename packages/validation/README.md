@@ -11,11 +11,11 @@ npm install @archi-code/validation
 
 ## Three tools
 
-| Tool                                   | Question it answers                                 | Returns                            |
-| -------------------------------------- | --------------------------------------------------- | ---------------------------------- |
-| `isX(value, …)` (also `validator.isX`) | Is this value a valid X? (email, URL, IBAN, phone…) | `boolean`                          |
-| `toX(value, options?)`                 | Convert this value to type X.                       | `{ ok, value, error }`             |
-| `canBeX(value)`                        | Can this value be converted to type X?              | `boolean` (always `toX(value).ok`) |
+| Tool                                          | Question it answers                                 | Returns                            |
+| --------------------------------------------- | --------------------------------------------------- | ---------------------------------- |
+| `isX(value, options?)` (also `validator.isX`) | Is this value a valid X? (email, URL, IBAN, phone…) | `boolean`                          |
+| `toX(value, options?)`                        | Convert this value to type X.                       | `{ ok, value, error }`             |
+| `canBeX(value)`                               | Can this value be converted to type X?              | `boolean` (always `toX(value).ok`) |
 
 `convert/` is the only place where type rules live. `canBe` and the validators build on it and
 never duplicate it, so `canBeX(v) === toX(v).ok` holds by construction.
@@ -32,7 +32,7 @@ import {
 
 isEmail('ana@example.com'); // true
 isIBAN('DE89 3704 0044 0532 0130 00'); // true
-isMobilePhone('+34612345678', 'es-ES'); // true
+isMobilePhone('+34612345678', { locale: 'es-ES' }); // true
 
 const n = toInteger(' 42 ');
 if (n.ok) n.value; // 42 (narrowed to number)
@@ -64,6 +64,11 @@ dynamic access (`validator[name]`), and named imports everywhere else.
   locales, country codes, algorithms or providers; a bad `decimal_digits`; a `host_blacklist`
   that is not an array; a pattern that is not a valid RegExp; and similar cases. The error is
   never a raw `TypeError` or `SyntaxError`.
+- **One options object.** Every validator takes the value and, at most, one options object
+  (`isVAT(v, { countryCode: 'ES' })`, `isLength(v, { min: 2, max: 10 })`), typed by the
+  `<Validator>Options` interface exported next to it (`IsVATOptions`, `IsLengthOptions`…).
+  There are no positional parameters or shorthand forms: a string or a number in place of the
+  object is a configuration error.
 - **`null` options mean "no options"**, exactly like `undefined`.
 - **Converters never throw.** They always return `{ ok: true, value, error: null }` or
   `{ ok: false, value: null, error }`. `error` is one of the fixed `ConvertMessages` and never
@@ -118,25 +123,8 @@ validate(getValidations(Pairs), '3');
 //  { custom: 'isEven', message: 'Must be even' }]
 ```
 
-For a validator that takes an options object, `properties` is that object (only its object form:
-`isLength` takes `{ min: 2, max: 10 }`, `isIP` takes `{ version: 4 }`). For the others each key is
-named after the parameter it fills, and the remaining keys are the validator's options:
-
-| Validator | `properties` | Runs |
-| --- | --- | --- |
-| `isMobilePhone` | `{ locale?, strictMode? }` | `isMobilePhone(v, locale, { strictMode })` |
-| `isAlpha`, `isAlphanumeric` | `{ locale?, ignore? }` | `isAlpha(v, locale, { ignore })` |
-| `contains` | `{ elem, ignoreCase?, minOccurrences? }` | `contains(v, elem, { ignoreCase, minOccurrences })` |
-| `matches` | `{ pattern, modifiers? }` | `matches(v, pattern, modifiers)` |
-| `isHash` | `{ algorithm }` | `isHash(v, algorithm)` |
-| `isIn` | `{ values }` | `isIn(v, values)` |
-| `equals` | `{ comparison }` | `equals(v, comparison)` |
-| `isDivisibleBy` | `{ num }` | `isDivisibleBy(v, num)` |
-| `isWhitelisted` | `{ chars }` | `isWhitelisted(v, chars)` |
-| `isPostalCode`, `isLicensePlate` | `{ locale }` | `isPostalCode(v, locale)` |
-| `isIdentityCard` | `{ locale? }` | `isIdentityCard(v, locale)` |
-| `isPassportNumber`, `isVAT` | `{ countryCode }` | `isVAT(v, countryCode)` |
-| `isUUID`, `isIPRange` | `{ version? }` | `isUUID(v, version)` |
+`properties` is the validator's options object, passed as is:
+`{ validator: 'isVAT', properties: { countryCode: 'ES' } }` runs `isVAT(value, { countryCode: 'ES' })`.
 
 A built-in and a custom with the same name are different validations: neither replaces the other.
 A subclass, or a later `@Validations` on the same class, replaces a matching validation in its
@@ -171,7 +159,7 @@ wrong input.
   `isPassportNumber` (`MZ`, `PH`), `isLatLong` and several `isVAT` rules now reject leading or
   trailing garbage.
 - `isMongoId` rejects a `0x`/`0h` prefix.
-- `isVAT('', 'HN')` is `false`.
+- `isVAT('', { countryCode: 'HN' })` is `false`.
 
 **Numbers**
 

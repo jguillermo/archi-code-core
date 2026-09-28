@@ -19,8 +19,8 @@ const defaultOptions = {
 };
 
 /** The numeric strength score lives in `scorePassword()` (src/helpers). */
-export function isStrongPassword(str: unknown, options?: IsStrongPasswordOptions): boolean {
-  const stringResult = toString(str);
+export function isStrongPassword(value: unknown, options?: IsStrongPasswordOptions): boolean {
+  const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const analysis = analyzePassword(stringResult.value);
   const mergedOptions = merge(options || {}, defaultOptions) as typeof defaultOptions;
