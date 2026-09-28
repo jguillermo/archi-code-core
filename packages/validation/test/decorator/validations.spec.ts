@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-extraneous-class -- the decorated classes are empty on purpose */
 import { describe, it, expect } from '@jest/globals';
-import { Validations, ownValidations } from '../../src/decorator/validations';
+import { Validations, ownValidations, keyOf } from '../../src/decorator/validations';
 import { ValidationConfigError } from '../../src/helpers/errors';
 import type { Validation } from '../../src/decorator/validations';
 
@@ -14,11 +14,23 @@ describe('Validations', () => {
     ]);
   });
 
-  it('appends when applied more than once', () => {
+  it('appends when applied more than once, a repeated validation replacing the earlier one in its place', () => {
+    const odd = () => false;
     class Target {}
-    Validations([{ validator: 'isInt' }])(Target);
-    Validations([{ validator: 'isEmail' }])(Target);
-    expect(ownValidations.get(Target)?.map((v) => v.validator)).toEqual(['isInt', 'isEmail']);
+    Validations([
+      { validator: 'isInt', properties: { min: 1 } },
+      { custom: 'rule', fn: () => true },
+    ])(Target);
+    Validations([
+      { validator: 'isEmail' },
+      { custom: 'rule', fn: odd },
+      { validator: 'isInt', properties: { min: 9 } },
+    ])(Target);
+    expect(ownValidations.get(Target)).toEqual([
+      { validator: 'isInt', properties: { min: 9 } },
+      { custom: 'rule', fn: odd },
+      { validator: 'isEmail' },
+    ]);
   });
 
   it('does not touch the parent', () => {
@@ -35,9 +47,9 @@ describe('Validations', () => {
     const range = { min: 2 };
     const pattern = /^a/g;
     const declared: Validation[] = [
-      { validator: 'isIn', properties: values },
+      { validator: 'isIn', properties: { values } },
       { validator: 'isInt', properties: range },
-      { validator: 'matches', properties: pattern },
+      { validator: 'matches', properties: { pattern } },
     ];
     @Validations(declared)
     class Target {}
@@ -47,17 +59,18 @@ describe('Validations', () => {
 
     const stored = ownValidations.get(Target) ?? [];
     expect(stored).toEqual([
-      { validator: 'isIn', properties: ['a', 'b'] },
+      { validator: 'isIn', properties: { values: ['a', 'b'] } },
       { validator: 'isInt', properties: { min: 2 } },
-      { validator: 'matches', properties: pattern },
+      { validator: 'matches', properties: { pattern } },
     ]);
     const [storedValues, storedRange, storedPattern] = stored.map(
       (v) => (v as { properties?: unknown }).properties,
     );
     expect(Object.isFrozen(stored[0])).toBe(true);
     expect(Object.isFrozen(storedValues)).toBe(true);
+    expect(Object.isFrozen((storedValues as { values: unknown }).values)).toBe(true);
     expect(Object.isFrozen(storedRange)).toBe(true);
-    expect(storedPattern).toBe(pattern);
+    expect((storedPattern as { pattern: RegExp }).pattern).toBe(pattern);
     expect(Object.isFrozen(pattern)).toBe(false);
     expect(Object.isFrozen(range)).toBe(false);
     expect(() => {
@@ -65,7 +78,7 @@ describe('Validations', () => {
     }).toThrow(TypeError);
   });
 
-  it('rejects a validator declared twice in the same class', () => {
+  it('rejects a validator or a custom declared twice in the same list', () => {
     expect(() =>
       Validations([
         { validator: 'isInt', properties: { min: 1 } },
@@ -73,11 +86,21 @@ describe('Validations', () => {
       ])(class {}),
     ).toThrow(new ValidationConfigError('Validator "isInt" is declared more than once'));
     class Target {}
-    Validations([{ validator: 'rule', fn: () => true }])(Target);
-    expect(() => Validations([{ validator: 'rule', fn: () => false }])(Target)).toThrow(
-      ValidationConfigError,
-    );
-    expect(ownValidations.get(Target)?.map((v) => v.validator)).toEqual(['rule']);
+    expect(() =>
+      Validations([
+        { custom: 'rule', fn: () => true },
+        { custom: 'rule', fn: () => false },
+      ])(Target),
+    ).toThrow(new ValidationConfigError('Custom "rule" is declared more than once'));
+    expect(ownValidations.get(Target)).toBeUndefined();
+  });
+
+  it('keeps a built-in and a custom with the same name apart', () => {
+    const fn = () => true;
+    @Validations([{ validator: 'isInt' }, { custom: 'isInt', fn }])
+    class Target {}
+    expect(ownValidations.get(Target)).toEqual([{ validator: 'isInt' }, { custom: 'isInt', fn }]);
+    expect(keyOf({ validator: 'isInt' })).not.toBe(keyOf({ custom: 'isInt', fn }));
   });
 
   it('only decorates classes', () => {

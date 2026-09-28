@@ -1,10 +1,11 @@
-import { ownValidations } from './validations';
+import { keyOf, ownValidations } from './validations';
 import type { Validation, ValidatedClass } from './validations';
 
 /**
  * Returns the validations of a class, inherited ones included, in validation order: the root
- * parent's first, then each subclass down to `target`. A subclass that declares a validator of its
- * parent replaces the parent's declaration, which keeps its place in the order.
+ * parent's first, then each subclass down to `target`. A subclass that declares a validation of its
+ * parent (same built-in validator, or same custom name) replaces the parent's declaration, which
+ * keeps its place in the order. A built-in and a custom with the same name are independent.
  */
 export function getValidations(target: ValidatedClass): Validation[] {
   const chain: ValidatedClass[] = [];
@@ -15,11 +16,11 @@ export function getValidations(target: ValidatedClass): Validation[] {
   ) {
     chain.unshift(current);
   }
-  const byName = new Map<string, Validation>();
+  const byKey = new Map<string, Validation>();
   for (const cls of chain) {
     for (const validation of ownValidations.get(cls) ?? []) {
-      byName.set(validation.validator, validation);
+      byKey.set(keyOf(validation), validation);
     }
   }
-  return [...byName.values()];
+  return [...byKey.values()];
 }

@@ -1,12 +1,14 @@
 import { validator } from '../validators';
 import { ValidationConfigError } from '../helpers/errors';
 import { hasOwn } from '../helpers/hasOwn';
+import { argumentsOf } from './properties';
+import { isCustom } from './validations';
 import type { Validation } from './validations';
 
-export interface ValidationError {
-  validator: string;
-  message: string;
-}
+/** A failed validation: `validator` for a built-in one, `custom` for a custom one. */
+export type ValidationError =
+  | { validator: string; message: string }
+  | { custom: string; message: string };
 
 /**
  * Runs every validation against the value — a failure does not stop the rest — and returns one
@@ -15,26 +17,23 @@ export interface ValidationError {
 export function validate(validations: Validation[], value: unknown): ValidationError[] {
   const errors: ValidationError[] = [];
   for (const validation of validations) {
-    let passed: boolean;
-    if ('fn' in validation) {
-      passed = validation.fn(value);
-    } else {
-      if (
-        !hasOwn(validator, validation.validator) ||
-        typeof validator[validation.validator] !== 'function'
-      ) {
-        throw new ValidationConfigError(`Unknown validator "${validation.validator}"`);
-      }
-      passed = (validator[validation.validator] as (...args: unknown[]) => boolean)(
-        value,
-        validation.properties,
-        validation.options,
-      );
+    if (isCustom(validation)) {
+      if (!validation.fn(value))
+        errors.push({
+          custom: validation.custom,
+          message: validation.message ?? `Value does not satisfy ${validation.custom}`,
+        });
+      continue;
     }
-    if (!passed)
+    const name = validation.validator;
+    if (!hasOwn(validator, name) || typeof validator[name] !== 'function') {
+      throw new ValidationConfigError(`Unknown validator "${name}"`);
+    }
+    const run = validator[name] as (value: unknown, ...args: unknown[]) => boolean;
+    if (!run(value, ...argumentsOf(name, validation.properties)))
       errors.push({
-        validator: validation.validator,
-        message: validation.message ?? `Value does not satisfy ${validation.validator}`,
+        validator: name,
+        message: validation.message ?? `Value does not satisfy ${name}`,
       });
   }
   return errors;

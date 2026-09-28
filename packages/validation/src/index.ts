@@ -103,6 +103,7 @@ export type {
   BuiltInValidation,
   CustomValidation,
   ValidatorName,
+  ValidationProperties,
 } from './decorator/validations';
 export type { ValidationError } from './decorator/validate';
 export { scorePassword } from './helpers/scorePassword';

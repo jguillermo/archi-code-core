@@ -43,6 +43,26 @@ describe('getValidations', () => {
     ]);
   });
 
+  it('matches by kind and name: a custom never replaces a built-in with the same name', () => {
+    const [f1, f2, f3] = [() => true, () => true, () => true];
+    @Validations([
+      { validator: 'isInt', properties: { min: 0 } },
+      { custom: 'isEven', fn: f1 },
+    ])
+    class A {}
+    @Validations([
+      { custom: 'isEven', fn: f2 },
+      { custom: 'isInt', fn: f3 },
+      { validator: 'isInt', properties: { min: 5 } },
+    ])
+    class B extends A {}
+    expect(getValidations(B)).toEqual([
+      { validator: 'isInt', properties: { min: 5 } },
+      { custom: 'isEven', fn: f2 },
+      { custom: 'isInt', fn: f3 },
+    ]);
+  });
+
   it('returns validations that cannot be changed to alter the class', () => {
     @Validations([{ validator: 'isInt', properties: { min: 2 } }])
     class Target {}
@@ -64,7 +84,7 @@ describe('getValidations', () => {
 
   it('validates the parent first, then each subclass in turn', () => {
     const order: string[] = [];
-    const track = (name: string) => ({ validator: name, fn: () => (order.push(name), true) });
+    const track = (name: string) => ({ custom: name, fn: () => (order.push(name), true) });
     @Validations([track('grandParent')])
     abstract class GrandParent {}
     @Validations([track('parent')])
@@ -74,6 +94,6 @@ describe('getValidations', () => {
     class Child extends Plain {}
     expect(validate(getValidations(Child), 'x')).toEqual([]);
     expect(order).toEqual(['grandParent', 'parent', 'child']);
-    expect(getValidations(Parent).map((v) => v.validator)).toEqual(['grandParent', 'parent']);
+    expect(getValidations(Parent).map((v) => v.custom)).toEqual(['grandParent', 'parent']);
   });
 });

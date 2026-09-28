@@ -16,8 +16,8 @@ describe('validate', () => {
       [
         { validator: 'isInt', properties: { min: 2 } },
         { validator: 'isEmail' },
-        { validator: 'tracked', fn: () => (calls.push('tracked'), true) },
-        { validator: 'isEven', fn: (v) => Number(v) % 2 === 0, message: 'Must be even' },
+        { custom: 'tracked', fn: () => (calls.push('tracked'), true) },
+        { custom: 'isEven', fn: (v) => Number(v) % 2 === 0, message: 'Must be even' },
       ],
       '1',
     );
@@ -25,30 +25,40 @@ describe('validate', () => {
     expect(errors).toEqual([
       { validator: 'isInt', message: 'Value does not satisfy isInt' },
       { validator: 'isEmail', message: 'Value does not satisfy isEmail' },
-      { validator: 'isEven', message: 'Must be even' },
+      { custom: 'isEven', message: 'Must be even' },
     ]);
   });
 
-  it('passes properties and options as the second and third arguments', () => {
+  it('turns properties into the arguments of the validator', () => {
     const list: Validation[] = [
-      { validator: 'isMobilePhone', properties: 'es-ES', options: { strictMode: true } },
+      { validator: 'isMobilePhone', properties: { locale: 'es-ES', strictMode: true } },
     ];
     expect(validate(list, '+34612345678')).toEqual([]);
     expect(validate(list, '612345678')).toEqual([
-      {
-        validator: 'isMobilePhone',
-        message: 'Value does not satisfy isMobilePhone',
-      },
+      { validator: 'isMobilePhone', message: 'Value does not satisfy isMobilePhone' },
     ]);
+    expect(
+      validate(
+        [{ validator: 'isHash', properties: { algorithm: 'md5' } }],
+        'd41d8cd98f00b204e9800998ecf8427e',
+      ),
+    ).toEqual([]);
   });
 
   it('uses a default message for a custom validation without message', () => {
-    expect(validate([{ validator: 'isAnswer', fn: (v) => v === 42 }], 1)).toEqual([
-      { validator: 'isAnswer', message: 'Value does not satisfy isAnswer' },
+    expect(validate([{ custom: 'isAnswer', fn: (v) => v === 42 }], 1)).toEqual([
+      { custom: 'isAnswer', message: 'Value does not satisfy isAnswer' },
     ]);
   });
 
-  it('throws ValidationConfigError for an unknown validator without fn', () => {
+  it('runs a built-in and a custom with the same name, each with its own error', () => {
+    expect(validate([{ validator: 'isInt' }, { custom: 'isInt', fn: () => false }], 'x')).toEqual([
+      { validator: 'isInt', message: 'Value does not satisfy isInt' },
+      { custom: 'isInt', message: 'Value does not satisfy isInt' },
+    ]);
+  });
+
+  it('throws ValidationConfigError for an unknown validator', () => {
     expect(() => validate([{ validator: 'isNothing' } as unknown as Validation], 'x')).toThrow(
       ValidationConfigError,
     );

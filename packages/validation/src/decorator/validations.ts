@@ -1,35 +1,35 @@
-import type { ValidatorRegistry } from '../validators';
 import { ValidationConfigError } from '../helpers/errors';
+import type { ValidatorName, ValidationProperties } from './properties';
 
-type Tail<F> = F extends (value: any, ...rest: infer R) => boolean ? R : never;
+export type { ValidatorName, ValidationProperties } from './properties';
 
-/** Names of the registry entries that are validators (the locale tables are left out). */
-export type ValidatorName = {
-  [K in keyof ValidatorRegistry]: ValidatorRegistry[K] extends (...args: any[]) => boolean
-    ? K
-    : never;
-}[keyof ValidatorRegistry];
-
-// `properties` is required when the validator's second parameter is.
-type Args<P extends unknown[]> = P extends []
-  ? { properties?: undefined; options?: undefined }
-  : [] extends P
-    ? { properties?: P[0]; options?: P[1] }
-    : { properties: P[0]; options?: P[1] };
+// `properties` is required when the validator needs something, forbidden when it takes nothing.
+type PropertiesField<P> = [P] extends [never]
+  ? { properties?: undefined }
+  : Record<never, never> extends P
+    ? { properties?: P }
+    : { properties: P };
 
 /**
- * A built-in validator: `properties` is its second argument and `options` its third, so
- * `{ validator: 'isInt', properties: { min: 2 } }` runs `isInt(value, { min: 2 })`.
+ * A built-in validator: `properties` is a single object turned into the validator's arguments, so
+ * `{ validator: 'isInt', properties: { min: 2 } }` runs `isInt(value, { min: 2 })` and
+ * `{ validator: 'isHash', properties: { algorithm: 'md5' } }` runs `isHash(value, 'md5')`.
  */
 export type BuiltInValidation = {
-  [K in ValidatorName]: { validator: K; message?: string } & Args<Tail<ValidatorRegistry[K]>>;
+  [K in ValidatorName]: {
+    validator: K;
+    message?: string;
+    custom?: undefined;
+    fn?: undefined;
+  } & PropertiesField<ValidationProperties<K>>;
 }[ValidatorName];
 
-/** A custom validation: `fn` decides, `validator` is the name shown in the errors. */
+/** A custom validation: `fn` decides, `custom` is the name shown in the errors. */
 export interface CustomValidation {
-  validator: string;
+  custom: string;
   fn: (value: unknown) => boolean;
   message?: string;
+  validator?: undefined;
 }
 
 export type Validation = BuiltInValidation | CustomValidation;
@@ -39,6 +39,15 @@ export type ValidatedClass = abstract new (...args: any[]) => unknown;
 
 /** Validations declared by each class, without the inherited ones. */
 export const ownValidations = new WeakMap<ValidatedClass, Validation[]>();
+
+export function isCustom(validation: Validation): validation is CustomValidation {
+  return validation.custom !== undefined;
+}
+
+/** Identity of a validation: a built-in and a custom with the same name are different ones. */
+export function keyOf(validation: Validation): string {
+  return isCustom(validation) ? `custom:${validation.custom}` : `validator:${validation.validator}`;
+}
 
 // Frozen copy of the plain objects and arrays in `value`, so neither the caller's objects nor
 // what getValidations returns can change a class's validations. Anything else (RegExp, functions…)
@@ -59,8 +68,9 @@ function snapshot<T>(value: T): T {
 
 /**
  * Class decorator (classes only) that declares the validations of a class, in order. A subclass
- * inherits them: its own validations are added after the parent's, and one naming a validator the
- * parent already declares replaces it. A validator can be declared only once per class.
+ * inherits them: its own validations are added after the parent's, and one matching a parent's
+ * (same built-in validator or same custom name) replaces it. Applying the decorator again to a
+ * class works the same way. A list cannot declare the same validation twice.
  *
  * @example
  * @Validations([{ validator: 'isInt', properties: { min: 2 } }])
@@ -70,13 +80,19 @@ export function Validations(validations: Validation[]) {
   return (target: ValidatedClass): void => {
     if (typeof target !== 'function')
       throw new ValidationConfigError('@Validations can only decorate a class');
-    const own = [...(ownValidations.get(target) ?? []), ...validations.map(snapshot)];
-    const names = new Set<string>();
-    for (const { validator } of own) {
-      if (names.has(validator))
-        throw new ValidationConfigError(`Validator "${validator}" is declared more than once`);
-      names.add(validator);
+    const declared = new Set<string>();
+    for (const validation of validations) {
+      const key = keyOf(validation);
+      if (declared.has(key))
+        throw new ValidationConfigError(
+          isCustom(validation)
+            ? `Custom "${validation.custom}" is declared more than once`
+            : `Validator "${validation.validator}" is declared more than once`,
+        );
+      declared.add(key);
     }
-    ownValidations.set(target, own);
+    const own = new Map((ownValidations.get(target) ?? []).map((v) => [keyOf(v), v]));
+    for (const validation of validations) own.set(keyOf(validation), snapshot(validation));
+    ownValidations.set(target, [...own.values()]);
   };
 }

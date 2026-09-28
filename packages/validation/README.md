@@ -96,8 +96,9 @@ never throws.
 ## Validations decorator
 
 Declare a class's validations with `@Validations`, read them with `getValidations` and run them
-with `validate`. Each built-in validation names its validator; `properties` is the validator's
-second argument (required when the validator requires it) and `options` its third. A custom validation brings its own `fn`.
+with `validate`. A built-in validation names its `validator` and gives its parameters as a single
+`properties` object (required when the validator needs something, not allowed when it takes
+nothing). A custom validation names itself with `custom` and brings its own `fn`.
 
 ```ts
 import { Validations, getValidations, validate } from '@archi-code/validation';
@@ -107,19 +108,41 @@ class Quantity {}
 
 @Validations([
   { validator: 'isInt', properties: { min: 5 } }, // replaces the parent's isInt
-  { validator: 'isEven', fn: (v) => Number(v) % 2 === 0, message: 'Must be even' },
+  { custom: 'isEven', fn: (v) => Number(v) % 2 === 0, message: 'Must be even' },
 ])
 class Pairs extends Quantity {}
 
 getValidations(Pairs); // [isInt { min: 5 }, isEven] — parent first, in declaration order
 validate(getValidations(Pairs), '3');
 // [{ validator: 'isInt', message: 'Value does not satisfy isInt' },
-//  { validator: 'isEven', message: 'Must be even' }]
+//  { custom: 'isEven', message: 'Must be even' }]
 ```
 
-`validate` runs every validation, even after one fails, and returns an empty list when the value
-is valid. An unknown validator without `fn` throws `ValidationConfigError`, and so does declaring
-the same validator twice in one class.
+For a validator that takes an options object, `properties` is that object (only its object form:
+`isLength` takes `{ min: 2, max: 10 }`, `isIP` takes `{ version: 4 }`). For the others each key is
+named after the parameter it fills, and the remaining keys are the validator's options:
+
+| Validator | `properties` | Runs |
+| --- | --- | --- |
+| `isMobilePhone` | `{ locale?, strictMode? }` | `isMobilePhone(v, locale, { strictMode })` |
+| `isAlpha`, `isAlphanumeric` | `{ locale?, ignore? }` | `isAlpha(v, locale, { ignore })` |
+| `contains` | `{ elem, ignoreCase?, minOccurrences? }` | `contains(v, elem, { ignoreCase, minOccurrences })` |
+| `matches` | `{ pattern, modifiers? }` | `matches(v, pattern, modifiers)` |
+| `isHash` | `{ algorithm }` | `isHash(v, algorithm)` |
+| `isIn` | `{ values }` | `isIn(v, values)` |
+| `equals` | `{ comparison }` | `equals(v, comparison)` |
+| `isDivisibleBy` | `{ num }` | `isDivisibleBy(v, num)` |
+| `isWhitelisted` | `{ chars }` | `isWhitelisted(v, chars)` |
+| `isPostalCode`, `isLicensePlate` | `{ locale }` | `isPostalCode(v, locale)` |
+| `isIdentityCard` | `{ locale? }` | `isIdentityCard(v, locale)` |
+| `isPassportNumber`, `isVAT` | `{ countryCode }` | `isVAT(v, countryCode)` |
+| `isUUID`, `isIPRange` | `{ version? }` | `isUUID(v, version)` |
+
+A built-in and a custom with the same name are different validations: neither replaces the other.
+A subclass, or a later `@Validations` on the same class, replaces a matching validation in its
+place. `validate` runs every validation, even after one fails, and returns an empty list when the
+value is valid. An unknown validator throws `ValidationConfigError`, and so does declaring the
+same validation twice in one list.
 
 ## Differences from validator.js
 
