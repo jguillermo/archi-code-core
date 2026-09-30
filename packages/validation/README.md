@@ -42,6 +42,109 @@ canBeDate('2024-01-31'); // true
 sanitizer.escape('<a>'); // '&lt;a&gt;'
 ```
 
+## Validator signatures
+
+Every validator takes the value and, at most, one options object. There are three forms:
+
+```ts
+isPort(value); // only the value
+isAlpha(value, options?); // every option is optional
+isVAT(value, options); // the options object has at least one required property
+```
+
+- `value` is always `unknown`: the validator reads it and returns `false` when it is not valid.
+- `options` is typed by the `<Validator>Options` interface exported next to the validator
+  (`IsVATOptions`, `IsAlphaOptions`, `MatchesOptions`…). A missing optional property takes the
+  validator's default.
+- There are no positional parameters or shorthand forms: `isLength(v, 2, 10)`,
+  `isIP(v, 4)` or `isAfter(v, '2024-01-01')` are configuration errors. Use
+  `isLength(v, { min: 2, max: 10 })`, `isIP(v, { version: 4 })` and
+  `isAfter(v, { comparisonDate: '2024-01-01' })`.
+
+```ts
+import { isAlpha, isHash, isVAT } from '@archi-code/validation';
+import type { IsAlphaOptions } from '@archi-code/validation';
+
+const spanish: IsAlphaOptions = { locale: 'es-ES', ignore: ' ' };
+isAlpha('año nuevo', spanish); // true
+isAlpha('abc'); // true (locale defaults to 'en-US')
+isHash('d41d8cd98f00b204e9800998ecf8427e', { algorithm: 'md5' }); // true
+isVAT('GB999 9999 00', { countryCode: 'GB' }); // true
+```
+
+### Validators with required options
+
+| Validator          | Options                   | Required      | Optional                                                       |
+| ------------------ | ------------------------- | ------------- | -------------------------------------------------------------- |
+| `contains`         | `ContainsOptions`         | `elem`        | `ignoreCase` (default `false`), `minOccurrences` (default `1`) |
+| `equals`           | `EqualsOptions`           | `comparison`  | —                                                              |
+| `isDivisibleBy`    | `IsDivisibleByOptions`    | `num`         | —                                                              |
+| `isHash`           | `IsHashOptions`           | `algorithm`   | —                                                              |
+| `isIn`             | `IsInOptions`             | `values`      | —                                                              |
+| `isLicensePlate`   | `IsLicensePlateOptions`   | `locale`      | —                                                              |
+| `isPassportNumber` | `IsPassportNumberOptions` | `countryCode` | —                                                              |
+| `isPostalCode`     | `IsPostalCodeOptions`     | `locale`      | —                                                              |
+| `isVAT`            | `IsVATOptions`            | `countryCode` | —                                                              |
+| `isWhitelisted`    | `IsWhitelistedOptions`    | `chars`       | —                                                              |
+| `matches`          | `MatchesOptions`          | `pattern`     | `modifiers`                                                    |
+
+### Validators with optional options
+
+| Validator          | Options                   | Properties                                                                                                           |
+| ------------------ | ------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `isAfter`          | `IsAfterOptions`          | `comparisonDate` (default: now)                                                                                      |
+| `isAlpha`          | `IsAlphaOptions`          | `locale` (default `'en-US'`), `ignore`                                                                               |
+| `isAlphanumeric`   | `IsAlphanumericOptions`   | `locale` (default `'en-US'`), `ignore`                                                                               |
+| `isBase32`         | `IsBase32Options`         | `crockford`                                                                                                          |
+| `isBase64`         | `IsBase64Options`         | `urlSafe`, `padding`                                                                                                 |
+| `isBefore`         | `IsBeforeOptions`         | `comparisonDate` (default: now)                                                                                      |
+| `isBoolean`        | `IsBooleanOptions`        | `loose` (default `false`)                                                                                            |
+| `isByteLength`     | `IsByteLengthOptions`     | `min` (default `0`), `max`                                                                                           |
+| `isCreditCard`     | `IsCreditCardOptions`     | `provider`                                                                                                           |
+| `isCurrency`       | `IsCurrencyOptions`       | `symbol`, `require_symbol`, `thousands_separator`, `decimal_separator`… (15 options)                                 |
+| `isDate`           | `IsDateOptions`           | `format` (default `'YYYY/MM/DD'`), `strictMode`, `delimiters`, `twoDigitYearPivot`                                   |
+| `isDecimal`        | `IsDecimalOptions`        | `force_decimal`, `decimal_digits`, `locale`                                                                          |
+| `isEmail`          | `IsEmailOptions`          | `allow_display_name`, `require_tld`, `host_whitelist`, `host_blacklist`… (11 options)                                |
+| `isEmpty`          | `IsEmptyOptions`          | `ignore_whitespace`                                                                                                  |
+| `isFQDN`           | `IsFQDNOptions`           | `require_tld`, `allow_underscores`, `allow_trailing_dot`, `allow_numeric_tld`, `allow_wildcard`, `ignore_max_length` |
+| `isFloat`          | `IsFloatOptions`          | `min`, `max`, `lt`, `gt`, `locale`                                                                                   |
+| `isHexColor`       | `IsHexColorOptions`       | `require_hashtag`                                                                                                    |
+| `isIBAN`           | `IsIBANOptions`           | `whitelist`, `blacklist`                                                                                             |
+| `isIdentityCard`   | `IsIdentityCardOptions`   | `locale` (default `'any'`)                                                                                           |
+| `isIMEI`           | `IsIMEIOptions`           | `allow_hyphens`                                                                                                      |
+| `isInt`            | `IsIntOptions`            | `min`, `max`, `lt`, `gt`, `allow_leading_zeroes`                                                                     |
+| `isIP`             | `IsIPOptions`             | `version` (default: 4 or 6)                                                                                          |
+| `isIPRange`        | `IsIPRangeOptions`        | `version` (default: 4 or 6)                                                                                          |
+| `isISBN`           | `IsISBNOptions`           | `version` (default: 10 or 13)                                                                                        |
+| `isISO31661Alpha2` | `IsISO31661Alpha2Options` | `userAssignedCodes`                                                                                                  |
+| `isISO31661Alpha3` | `IsISO31661Alpha3Options` | `userAssignedCodes`                                                                                                  |
+| `isISO8601`        | `IsISO8601Options`        | `strict`, `strictSeparator`                                                                                          |
+| `isISSN`           | `IsISSNOptions`           | `case_sensitive`, `require_hyphen`                                                                                   |
+| `isJSON`           | `IsJSONOptions`           | `allow_primitives`, `allow_any_value`                                                                                |
+| `isLatLong`        | `IsLatLongOptions`        | `checkDMS`                                                                                                           |
+| `isLength`         | `IsLengthOptions`         | `min` (default `0`), `max`, `discreteLengths`, `graphemes`                                                           |
+| `isMACAddress`     | `IsMACAddressOptions`     | `no_separators`, `no_colons`, `eui`                                                                                  |
+| `isMailtoURI`      | `IsMailtoURIOptions`      | the `isEmail` options, applied to every address                                                                      |
+| `isMobilePhone`    | `IsMobilePhoneOptions`    | `locale` (one, a list, or `'any'`; default: any), `strictMode`                                                       |
+| `isNumeric`        | `IsNumericOptions`        | `no_symbols`, `locale`                                                                                               |
+| `isRgbColor`       | `IsRgbColorOptions`       | `includePercentValues`, `allowSpaces`                                                                                |
+| `isStrongPassword` | `IsStrongPasswordOptions` | `minLength`, `minLowercase`, `minUppercase`, `minNumbers`, `minSymbols`                                              |
+| `isTime`           | `IsTimeOptions`           | `hourFormat`, `mode`                                                                                                 |
+| `isURL`            | `IsURLOptions`            | `protocols`, `require_tld`, `require_protocol`, `host_whitelist`… (19 options)                                       |
+| `isUUID`           | `IsUUIDOptions`           | `version` (default `'all'`)                                                                                          |
+
+The full list of each validator's options, with their documentation, is in its interface: the
+editor autocompletes them and flags unknown ones.
+
+### Validators that only take the value
+
+`isAbaRouting`, `isAscii`, `isBase58`, `isBIC`, `isBtcAddress`, `isDataURI`, `isEAN`,
+`isEthereumAddress`, `isFullWidth`, `isHalfWidth`, `isHexadecimal`, `isHSL`, `isISIN`,
+`isISO15924`, `isISO31661Numeric`, `isISO4217`, `isISO6346` (also `isFreightContainerID`),
+`isISO6391`, `isISRC`, `isJWT`, `isLocale`, `isLowercase`, `isLuhnNumber`, `isMagnetURI`, `isMD5`,
+`isMimeType`, `isMongoId`, `isMultibyte`, `isOctal`, `isPort`, `isRFC3339`, `isSemVer`, `isSlug`,
+`isSurrogatePair`, `isULID`, `isUppercase`, `isVariableWidth`.
+
 ## Tree-shaking: prefer named imports
 
 Every validator is also exported on its own and is the very same function as its registry
@@ -64,11 +167,9 @@ dynamic access (`validator[name]`), and named imports everywhere else.
   locales, country codes, algorithms or providers; a bad `decimal_digits`; a `host_blacklist`
   that is not an array; a pattern that is not a valid RegExp; and similar cases. The error is
   never a raw `TypeError` or `SyntaxError`.
-- **One options object.** Every validator takes the value and, at most, one options object
-  (`isVAT(v, { countryCode: 'ES' })`, `isLength(v, { min: 2, max: 10 })`), typed by the
-  `<Validator>Options` interface exported next to it (`IsVATOptions`, `IsLengthOptions`…).
-  There are no positional parameters or shorthand forms: a string or a number in place of the
-  object is a configuration error.
+- **One options object.** Every validator takes the value and, at most, one options object (see
+  [Validator signatures](#validator-signatures)). A string or a number in place of the object is
+  a configuration error.
 - **`null` options mean "no options"**, exactly like `undefined`.
 - **Converters never throw.** They always return `{ ok: true, value, error: null }` or
   `{ ok: false, value: null, error }`. `error` is one of the fixed `ConvertMessages` and never
@@ -136,6 +237,30 @@ same validation twice in one list.
 
 This package deliberately diverges from validator.js wherever the original accepted unsafe or
 wrong input.
+
+**Signatures**
+
+validator.js passes some parameters positionally and accepts shorthand forms. Here they are
+all properties of the options object:
+
+| validator.js                               | @archi-code/validation                                                      |
+| ------------------------------------------ | --------------------------------------------------------------------------- |
+| `isAlpha(v, locale, { ignore })`           | `isAlpha(v, { locale, ignore })` (same for `isAlphanumeric`)                |
+| `isMobilePhone(v, locale, { strictMode })` | `isMobilePhone(v, { locale, strictMode })`                                  |
+| `contains(v, elem, options)`               | `contains(v, { elem, ignoreCase, minOccurrences })`                         |
+| `matches(v, pattern, modifiers)`           | `matches(v, { pattern, modifiers })`                                        |
+| `equals(v, comparison)`                    | `equals(v, { comparison })`                                                 |
+| `isDivisibleBy(v, num)`                    | `isDivisibleBy(v, { num })`                                                 |
+| `isHash(v, algorithm)`                     | `isHash(v, { algorithm })`                                                  |
+| `isIn(v, values)`                          | `isIn(v, { values })`                                                       |
+| `isWhitelisted(v, chars)`                  | `isWhitelisted(v, { chars })`                                               |
+| `isPostalCode(v, locale)`                  | `isPostalCode(v, { locale })` (same for `isLicensePlate`, `isIdentityCard`) |
+| `isVAT(v, countryCode)`                    | `isVAT(v, { countryCode })` (same for `isPassportNumber`)                   |
+| `isUUID(v, version)`                       | `isUUID(v, { version })` (same for `isIPRange`)                             |
+| `isIP(v, version)`                         | `isIP(v, { version })` (same for `isISBN`)                                  |
+| `isLength(v, min, max)`                    | `isLength(v, { min, max })` (same for `isByteLength`)                       |
+| `isDate(v, format)`                        | `isDate(v, { format })`                                                     |
+| `isAfter(v, date)`                         | `isAfter(v, { comparisonDate })` (same for `isBefore`)                      |
 
 **Security**
 
