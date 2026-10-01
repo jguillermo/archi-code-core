@@ -41,7 +41,14 @@ function smoke(label, m) {
       () => {
         class Age {}
         m.Validations([{ validator: 'isInt', properties: { min: 2 } }])(Age);
-        return m.validate(Age, '1').length === 1 && m.validate(Age, '5').length === 0;
+        const invalid = m.validate(Age, '1');
+        const valid = m.validate(Age, '5');
+        return (
+          invalid.ok === false &&
+          invalid.errors.length === 1 &&
+          valid.ok === true &&
+          valid.errors.length === 0
+        );
       },
     ],
   ];
@@ -75,8 +82,8 @@ async function main() {
   class DecoratedWithEsm {}
   esm.Validations([{ validator: 'isEmail' }])(DecoratedWithEsm);
   if (
-    esm.validate(DecoratedWithCjs, 'x').length !== 1 ||
-    cjs.validate(DecoratedWithEsm, 'x').length !== 1
+    esm.validate(DecoratedWithCjs, 'x').errors.length !== 1 ||
+    cjs.validate(DecoratedWithEsm, 'x').errors.length !== 1
   ) {
     fail('the CJS and ESM builds do not share the @Validations registry');
   }

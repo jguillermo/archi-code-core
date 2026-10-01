@@ -103,8 +103,15 @@ export type {
   CustomValidation,
   ValidatorName,
   ValidationProperties,
+  ValidatedClass,
 } from './decorator/validations';
-export type { ValidationError } from './decorator/validate';
+export type {
+  ValidationError,
+  ValidationSuccess,
+  ValidationFailure,
+  ValidationResult,
+  Validatable,
+} from './decorator/validate';
 export { scorePassword } from './helpers/scorePassword';
 export type { ScorePasswordOptions } from './helpers/scorePassword';
 export { ValidationConfigError } from './helpers/errors';

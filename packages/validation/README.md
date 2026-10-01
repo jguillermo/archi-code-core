@@ -219,8 +219,9 @@ class Pairs extends Quantity {}
 
 // Pairs runs isInt { min: 5 }, then isEven — parent first, in declaration order
 validate(Pairs, '3');
-// [{ validator: 'isInt', message: 'Value does not satisfy isInt' },
-//  { custom: 'isEven', message: 'Must be even' }]
+// { ok: false, value: '3', errors: [
+//   { validator: 'isInt', message: 'Value does not satisfy isInt' },
+//   { custom: 'isEven', message: 'Must be even' } ] }
 ```
 
 `properties` is the validator's options object, passed as is:
@@ -228,8 +229,8 @@ validate(Pairs, '3');
 
 A built-in and a custom with the same name are different validations: neither replaces the other.
 A subclass, or a later `@Validations` on the same class, replaces a matching validation in its
-place. `validate` runs every validation, even after one fails, and returns an empty list when the
-value is valid. The declaration is checked when the class is decorated: an unknown validator, a
+place. `validate` runs every validation, even after one fails, and returns `{ ok, value, errors }`:
+`ok` is true when `errors` is empty. The declaration is checked when the class is decorated: an unknown validator, a
 custom without its `fn`, a validation with both `validator` and `custom`, or the same validation
 declared twice in one list throws `ValidationConfigError` right there, not on the first `validate`.
 

@@ -1,14 +1,20 @@
-import { anyToString } from '@archi-code/validation';
-import { validate } from '@archi-code/validation/src';
+import { anyToString, validate as runValidations } from '@archi-code/validation';
+import type { Validatable, ValidatedClass, ValidationResult } from '@archi-code/validation';
 
-export abstract class AbstractType<T, R extends null | undefined = undefined> {
-  protected _value: R extends null ? T | null : T;
+type TypeValue<T, R extends null | undefined> = R extends null ? T | null : T;
 
-  constructor(value: R extends null ? T | null : T) {
+export abstract class AbstractType<
+  T,
+  R extends null | undefined = undefined,
+> implements Validatable<TypeValue<T, R>> {
+  protected _value: TypeValue<T, R>;
+  private lastValidation: ValidationResult<TypeValue<T, R>> | null = null;
+
+  constructor(value: TypeValue<T, R>) {
     this._value = this.filter(value ?? null);
   }
 
-  get value(): R extends null ? T | null : T {
+  get value(): TypeValue<T, R> {
     return this._value;
   }
 
@@ -20,12 +26,11 @@ export abstract class AbstractType<T, R extends null | undefined = undefined> {
     return !this.isNull;
   }
 
-  isValid(): boolean {
-    return validate(this, this._value).length === 0;
-  }
-
-  isValidMessages(): string[] {
-    return [];
+  validate(): ValidationResult<TypeValue<T, R>> {
+    if (this.lastValidation === null || !Object.is(this.lastValidation.value, this._value)) {
+      this.lastValidation = runValidations(this.constructor as ValidatedClass, this._value);
+    }
+    return this.lastValidation;
   }
 
   get toString(): string {

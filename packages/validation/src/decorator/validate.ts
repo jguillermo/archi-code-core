@@ -8,6 +8,24 @@ export type ValidationError =
   | { validator: string; message: string }
   | { custom: string; message: string };
 
+export interface ValidationSuccess<T> {
+  readonly ok: true;
+  readonly value: T;
+  readonly errors: readonly [];
+}
+
+export interface ValidationFailure<T> {
+  readonly ok: false;
+  readonly value: T;
+  readonly errors: readonly ValidationError[];
+}
+
+export type ValidationResult<T> = ValidationSuccess<T> | ValidationFailure<T>;
+
+export interface Validatable<T> {
+  validate(): ValidationResult<T>;
+}
+
 // The validations of a class, inherited ones included, in validation order: the root parent's
 // first, then each subclass down to `target`. A subclass that declares a validation of its parent
 // (same built-in validator, or same custom name) replaces the parent's declaration, which keeps its
@@ -32,15 +50,15 @@ function validationsOf(target: ValidatedClass): Validation[] {
 
 /**
  * Runs the validations declared with `@Validations` on `target` and its parents against the value
- * — a failure does not stop the rest — and returns one error per failed validation, in order. An
- * empty list means the value is valid.
+ * — a failure does not stop the rest — and returns a frozen result with the validated value and
+ * one error per failed validation, in order: `ok` is true when there is none.
  *
  * @example
  * @Validations([{ validator: 'isInt', properties: { min: 2 } }])
  * class Age {}
- * validate(Age, '1'); // [{ validator: 'isInt', message: 'Value does not satisfy isInt' }]
+ * validate(Age, '1'); // { ok: false, value: '1', errors: [{ validator: 'isInt', message: 'Value does not satisfy isInt' }] }
  */
-export function validate(target: ValidatedClass, value: unknown): ValidationError[] {
+export function validate<T>(target: ValidatedClass, value: T): ValidationResult<T> {
   if (typeof target !== 'function')
     throw new ValidationConfigError('validate expects a class, not an instance or a value');
   const errors: ValidationError[] = [];
@@ -66,5 +84,9 @@ export function validate(target: ValidatedClass, value: unknown): ValidationErro
         message: validation.message ?? `Value does not satisfy ${name}`,
       });
   }
-  return errors;
+  return Object.freeze(
+    errors.length === 0
+      ? { ok: true, value, errors: Object.freeze([]) as readonly [] }
+      : { ok: false, value, errors: Object.freeze(errors.map((error) => Object.freeze(error))) },
+  );
 }

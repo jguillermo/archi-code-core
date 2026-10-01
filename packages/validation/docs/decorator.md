@@ -10,7 +10,7 @@ import { Validations, validate } from '@archi-code/validation';
 class Quantity {}
 
 validate(Quantity, '-3');
-// [{ validator: 'isInt', message: 'Value does not satisfy isInt' }]
+// { ok: false, value: '-3', errors: [{ validator: 'isInt', message: 'Value does not satisfy isInt' }] }
 ```
 
 The decorator is metadata only. It does not change the class, does not wrap its constructor and
@@ -29,16 +29,21 @@ does not validate anything by itself: validation happens only when you call `val
 
 ## Public API
 
-| Export                    | Kind     | Purpose                                                                                    |
-| ------------------------- | -------- | ------------------------------------------------------------------------------------------ |
-| `Validations(list)`       | function | Class decorator that declares the class's validations                                      |
-| `validate(Class, value)`  | function | Runs the class's validations, inherited ones included, against `value`, returns the errors |
-| `Validation`              | type     | `BuiltInValidation \| CustomValidation`                                                    |
-| `BuiltInValidation`       | type     | `{ validator, properties?, message? }`                                                     |
-| `CustomValidation`        | type     | `{ custom, fn, message? }`                                                                 |
-| `ValidatorName`           | type     | Names of the registry's validators (`'isInt'`, `'isEmail'`, …)                             |
-| `ValidationProperties<K>` | type     | The options object of validator `K`                                                        |
-| `ValidationError`         | type     | `{ validator, message } \| { custom, message }`                                            |
+| Export                    | Kind     | Purpose                                                                                              |
+| ------------------------- | -------- | ---------------------------------------------------------------------------------------------------- |
+| `Validations(list)`       | function | Class decorator that declares the class's validations                                                |
+| `validate(Class, value)`  | function | Runs the class's validations, inherited ones included, against `value`, returns a `ValidationResult` |
+| `Validation`              | type     | `BuiltInValidation \| CustomValidation`                                                              |
+| `BuiltInValidation`       | type     | `{ validator, properties?, message? }`                                                               |
+| `CustomValidation`        | type     | `{ custom, fn, message? }`                                                                           |
+| `ValidatorName`           | type     | Names of the registry's validators (`'isInt'`, `'isEmail'`, …)                                       |
+| `ValidationProperties<K>` | type     | The options object of validator `K`                                                                  |
+| `ValidationResult<T>`     | type     | `ValidationSuccess<T> \| ValidationFailure<T>`                                                       |
+| `ValidationSuccess<T>`    | type     | `{ ok: true, value, errors: [] }`                                                                    |
+| `ValidationFailure<T>`    | type     | `{ ok: false, value, errors: ValidationError[] }`                                                    |
+| `ValidationError`         | type     | `{ validator, message } \| { custom, message }`                                                      |
+| `Validatable<T>`          | type     | An object that validates itself: `validate(): ValidationResult<T>`                                   |
+| `ValidationError`         | type     | `{ validator, message } \| { custom, message }`                                                      |
 
 ## Declaring validations
 
@@ -165,15 +170,18 @@ A wrong value passed from JavaScript surfaces in `validate`, as described below.
 ## Running validations
 
 ```ts
-const errors = validate(Even, 3);
-if (errors.length > 0) {
-  // [{ custom: 'isEven', message: 'Must be even' }]
+const result = validate(Even, 3);
+if (!result.ok) {
+  // result.value: 3
+  // result.errors: [{ custom: 'isEven', message: 'Must be even' }]
 }
 ```
 
 - **Every validation runs.** A failure does not stop the rest; you get one error per failed
   validation, in the same order.
-- **Empty list = valid.**
+- **`ok` = valid.** `ok` is `true` exactly when `errors` is empty.
+- **`value` is the validated value**, as passed: not copied, not converted.
+- **The result is frozen**, its errors included, and a new one is returned on each call.
 - **Errors tell the kind apart.** A built-in error has `validator`, a custom one has `custom`:
   use `'validator' in error` to tell them apart.
 - **Which values a validator accepts** follows its own rules (see _Contract_ in the README). A
@@ -189,7 +197,7 @@ if (errors.length > 0) {
   - Anything your own `fn` throws. It is not caught: it propagates and stops the remaining
     validations. If a custom rule can fail on odd input, make `fn` return `false` instead.
 
-A class without validations, or whose parents have none, is always valid: `validate` returns `[]`.
+A class without validations, or whose parents have none, is always valid: `validate` returns `{ ok: true, value, errors: [] }`.
 
 ## Immutability
 

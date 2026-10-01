@@ -31,6 +31,11 @@ import type {
   IsIntOptions,
   IsHashOptions,
   ValidationProperties,
+  ValidationError,
+  ValidationResult,
+  ValidationSuccess,
+  ValidationFailure,
+  Validatable,
 } from '../src';
 
 describe('public types', () => {
@@ -125,18 +130,33 @@ describe('public types', () => {
     void (() => Validations([{ validator: 'isNothing' }]));
   });
 
-  it('validate takes a class and the value, and returns the errors', () => {
+  it('validate takes a class and the value, and returns the result', () => {
     abstract class Base {
       abstract id: string;
     }
-    expect(validate(Base, '5')).toEqual([]);
+    expect(validate(Base, '5')).toEqual({ ok: true, value: '5', errors: [] });
     // @ts-expect-error an instance is not a class
     void (() => validate({}, '5'));
     // @ts-expect-error the list form no longer exists
     void (() => validate([{ validator: 'isInt' }], '5'));
-    expectTypeOf(validate).returns.toEqualTypeOf<
-      ({ validator: string; message: string } | { custom: string; message: string })[]
+    expectTypeOf(validate(Base, '5')).toEqualTypeOf<ValidationResult<string>>();
+    expectTypeOf<ValidationResult<number>>().toEqualTypeOf<
+      ValidationSuccess<number> | ValidationFailure<number>
     >();
+    expectTypeOf<ValidationSuccess<number>>().toEqualTypeOf<{
+      readonly ok: true;
+      readonly value: number;
+      readonly errors: readonly [];
+    }>();
+    expectTypeOf<ValidationFailure<number>>().toEqualTypeOf<{
+      readonly ok: false;
+      readonly value: number;
+      readonly errors: readonly ValidationError[];
+    }>();
+    expectTypeOf<ValidationError>().toEqualTypeOf<
+      { validator: string; message: string } | { custom: string; message: string }
+    >();
+    expectTypeOf<Validatable<number>>().toEqualTypeOf<{ validate(): ValidationResult<number> }>();
   });
 
   it('every validator takes the value and, at most, one options object', () => {

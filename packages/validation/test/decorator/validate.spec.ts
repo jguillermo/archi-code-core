@@ -12,15 +12,56 @@ const tracked = (order: string[], name: string, result = true): Validation => ({
 });
 
 describe('validate', () => {
+  it('returns ok true, the validated value and no errors when the value is valid', () => {
+    @Validations([{ validator: 'isInt', properties: { min: 2 } }])
+    class Age {}
+    expect(validate(Age, '5')).toEqual({ ok: true, value: '5', errors: [] });
+  });
+
+  it('returns ok false, the validated value and the errors when the value is invalid', () => {
+    @Validations([{ validator: 'isInt', properties: { min: 2 } }])
+    class Age {}
+    expect(validate(Age, '1')).toEqual({
+      ok: false,
+      value: '1',
+      errors: [{ validator: 'isInt', message: 'Value does not satisfy isInt' }],
+    });
+  });
+
+  it('keeps the validated value as is, without copying or converting it', () => {
+    @Validations([{ custom: 'any', fn: () => false }])
+    class Target {}
+    const value = { nested: [1, 2] };
+    expect(validate(Target, value).value).toBe(value);
+    expect(Object.isFrozen(value)).toBe(false);
+    expect(validate(Target, null).value).toBeNull();
+  });
+
+  it('returns a frozen result, errors included', () => {
+    @Validations([{ validator: 'isEmail' }])
+    class Email {}
+    for (const result of [validate(Email, 'user@example.com'), validate(Email, 'x')]) {
+      expect(Object.isFrozen(result)).toBe(true);
+      expect(Object.isFrozen(result.errors)).toBe(true);
+      for (const error of result.errors) expect(Object.isFrozen(error)).toBe(true);
+    }
+  });
+
+  it('returns a new result on every call', () => {
+    @Validations([{ validator: 'isEmail' }])
+    class Email {}
+    expect(validate(Email, 'x')).not.toBe(validate(Email, 'x'));
+  });
+
   it('returns an empty list for a class without validations', () => {
     class Plain {}
-    expect(validate(Plain, 'anything')).toEqual([]);
+    expect(validate(Plain, 'anything').errors).toEqual([]);
   });
 
   it('returns an empty list when every validation passes', () => {
     @Validations([{ validator: 'isInt', properties: { min: 2 } }, { validator: 'isPort' }])
     class Port {}
-    expect(validate(Port, '80')).toEqual([]);
+    expect(validate(Port, '80').errors).toEqual([]);
   });
 
   it('runs every validation even after one fails and reports each failure', () => {
@@ -32,7 +73,7 @@ describe('validate', () => {
       { custom: 'isEven', fn: (v) => Number(v) % 2 === 0, message: 'Must be even' },
     ])
     class Target {}
-    expect(validate(Target, '1')).toEqual([
+    expect(validate(Target, '1').errors).toEqual([
       { validator: 'isInt', message: 'Value does not satisfy isInt' },
       { validator: 'isEmail', message: 'Value does not satisfy isEmail' },
       { custom: 'isEven', message: 'Must be even' },
@@ -45,19 +86,19 @@ describe('validate', () => {
       { validator: 'isMobilePhone', properties: { locale: 'es-ES', strictMode: true } },
     ])
     class Phone {}
-    expect(validate(Phone, '+34612345678')).toEqual([]);
-    expect(validate(Phone, '612345678')).toEqual([
+    expect(validate(Phone, '+34612345678').errors).toEqual([]);
+    expect(validate(Phone, '612345678').errors).toEqual([
       { validator: 'isMobilePhone', message: 'Value does not satisfy isMobilePhone' },
     ]);
     @Validations([{ validator: 'isHash', properties: { algorithm: 'md5' } }])
     class Md5 {}
-    expect(validate(Md5, 'd41d8cd98f00b204e9800998ecf8427e')).toEqual([]);
+    expect(validate(Md5, 'd41d8cd98f00b204e9800998ecf8427e').errors).toEqual([]);
   });
 
   it('uses a default message for a custom validation without message', () => {
     @Validations([{ custom: 'isAnswer', fn: (v) => v === 42 }])
     class Answer {}
-    expect(validate(Answer, 1)).toEqual([
+    expect(validate(Answer, 1).errors).toEqual([
       { custom: 'isAnswer', message: 'Value does not satisfy isAnswer' },
     ]);
   });
@@ -65,7 +106,7 @@ describe('validate', () => {
   it('runs a built-in and a custom with the same name, each with its own error', () => {
     @Validations([{ validator: 'isInt' }, { custom: 'isInt', fn: () => false }])
     class Target {}
-    expect(validate(Target, 'x')).toEqual([
+    expect(validate(Target, 'x').errors).toEqual([
       { validator: 'isInt', message: 'Value does not satisfy isInt' },
       { custom: 'isInt', message: 'Value does not satisfy isInt' },
     ]);
@@ -80,10 +121,10 @@ describe('validate', () => {
     class Plain extends Parent {}
     @Validations([tracked(order, 'child')])
     class Child extends Plain {}
-    expect(validate(Child, 'x')).toEqual([]);
+    expect(validate(Child, 'x').errors).toEqual([]);
     expect(order).toEqual(['grandParent', 'parent', 'child']);
     order.length = 0;
-    expect(validate(Parent, 'x')).toEqual([]);
+    expect(validate(Parent, 'x').errors).toEqual([]);
     expect(order).toEqual(['grandParent', 'parent']);
   });
 
@@ -105,21 +146,23 @@ describe('validate', () => {
     class Child extends Parent {}
 
     // '3' fails isInt only with min 5, and isPort passes: override visible through the errors.
-    expect(validate(Child, '3')).toEqual([
+    expect(validate(Child, '3').errors).toEqual([
       { validator: 'isInt', message: 'Value does not satisfy isInt' },
       { custom: 'rule', message: 'grandParent rule' },
       { custom: 'last', message: 'Value does not satisfy last' },
     ]);
-    expect(validate(Child, '70000')).toEqual([
+    expect(validate(Child, '70000').errors).toEqual([
       { custom: 'rule', message: 'grandParent rule' },
       { validator: 'isPort', message: 'child port' },
       { custom: 'last', message: 'Value does not satisfy last' },
     ]);
-    expect(validate(Parent, '70000')).toEqual([
+    expect(validate(Parent, '70000').errors).toEqual([
       { custom: 'rule', message: 'grandParent rule' },
       { validator: 'isPort', message: 'parent port' },
     ]);
-    expect(validate(GrandParent, '3')).toEqual([{ custom: 'rule', message: 'grandParent rule' }]);
+    expect(validate(GrandParent, '3').errors).toEqual([
+      { custom: 'rule', message: 'grandParent rule' },
+    ]);
   });
 
   it('matches by kind and name: a custom never replaces a built-in with the same name', () => {
@@ -134,7 +177,7 @@ describe('validate', () => {
       { validator: 'isInt', properties: { min: 5 } },
     ])
     class B extends A {}
-    expect(validate(B, '3')).toEqual([
+    expect(validate(B, '3').errors).toEqual([
       { validator: 'isInt', message: 'Value does not satisfy isInt' },
       { custom: 'isEven', message: 'child even' },
       { custom: 'isInt', message: 'Value does not satisfy isInt' },
@@ -146,17 +189,16 @@ describe('validate', () => {
     @Validations([{ validator: 'isEmail' }])
     class Child extends Parent {}
     Validations([{ validator: 'isInt' }])(Parent);
-    expect(validate(Child, 'x').map((e) => ('validator' in e ? e.validator : e.custom))).toEqual([
-      'isInt',
-      'isEmail',
-    ]);
+    expect(
+      validate(Child, 'x').errors.map((e) => ('validator' in e ? e.validator : e.custom)),
+    ).toEqual(['isInt', 'isEmail']);
   });
 
   it('works for classes created with a null prototype chain', () => {
     const Target = function () {} as unknown as ValidatedClass;
     Object.setPrototypeOf(Target, null);
     Validations([{ validator: 'isInt' }])(Target);
-    expect(validate(Target, 'x')).toEqual([
+    expect(validate(Target, 'x').errors).toEqual([
       { validator: 'isInt', message: 'Value does not satisfy isInt' },
     ]);
   });

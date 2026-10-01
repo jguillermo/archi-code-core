@@ -182,13 +182,13 @@ describe('Validations', () => {
 
     class DecoratedHere {}
     Validations([{ validator: 'isInt' }])(DecoratedHere);
-    expect(other.validate.validate(DecoratedHere, 'x')).toEqual([
+    expect(other.validate.validate(DecoratedHere, 'x').errors).toEqual([
       { validator: 'isInt', message: 'Value does not satisfy isInt' },
     ]);
 
     class DecoratedThere {}
     other.validations.Validations([{ validator: 'isEmail' }])(DecoratedThere);
-    expect(validate(DecoratedThere, 'x')).toEqual([
+    expect(validate(DecoratedThere, 'x').errors).toEqual([
       { validator: 'isEmail', message: 'Value does not satisfy isEmail' },
     ]);
   });

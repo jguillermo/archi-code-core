@@ -90,6 +90,7 @@ tsconfig.json  (extends ../../tsconfig.base.json)
 - **Prettier**: single quotes, trailing commas, print width 180, 2-space indent, semicolons.
 - **ESLint**: TypeScript strict + Prettier enforced. `any` and `Function` types are allowed.
 - Test files: `*.spec.ts` convention.
+- **No comments**: code must describe itself through names (variables, functions, classes, tests) and structure. Do not add comments, docblocks or section banners. A comment is the exception, only when it is truly necessary to explain a non-obvious *why* that the code cannot express.
 
 ### Testing
 
