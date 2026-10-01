@@ -1,11 +1,7 @@
 import { anyToString } from '@archi-code/validation';
-import { TypeValidatorInterface } from '../validator';
-import { validateSync } from 'class-validator';
+import { validate } from '@archi-code/validation/src';
 
-export abstract class AbstractType<
-  T,
-  R extends null | undefined = undefined,
-> implements TypeValidatorInterface {
+export abstract class AbstractType<T, R extends null | undefined = undefined> {
   protected _value: R extends null ? T | null : T;
 
   constructor(value: R extends null ? T | null : T) {
@@ -25,28 +21,11 @@ export abstract class AbstractType<
   }
 
   isValid(): boolean {
-    return validateSync(this).length === 0;
+    return validate(this, this._value).length === 0;
   }
 
-  validatorMessageObj(customReplacement = ''): object {
-    const errors = validateSync(this);
-    const data = errors.map((error) => {
-      if (error.constraints) {
-        return Object.entries(error.constraints)
-          .map(([key, message]) => {
-            return {
-              [key]: message.replace('_value ', customReplacement ? `${customReplacement} ` : ''),
-            };
-          })
-          .reduce((acc, curr) => ({ ...acc, ...curr }), {});
-      }
-      return {};
-    });
-    return data.length > 0 ? data[0] : {};
-  }
-
-  validatorMessageStr(separator = ',', customReplacement = ''): string {
-    return Object.values(this.validatorMessageObj(customReplacement)).join(`${separator} `);
+  isValidMessages(): string[] {
+    return [];
   }
 
   get toString(): string {
