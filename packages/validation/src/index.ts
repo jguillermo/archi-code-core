@@ -96,7 +96,6 @@ export * from './canBe';
 export * from './convert';
 export * as sanitizer from './sanitizer';
 export { Validations } from './decorator/validations';
-export { getValidations } from './decorator/getValidations';
 export { validate } from './decorator/validate';
 export type {
   Validation,

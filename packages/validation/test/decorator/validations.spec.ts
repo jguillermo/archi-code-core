@@ -1,8 +1,29 @@
 /* eslint-disable @typescript-eslint/no-extraneous-class -- the decorated classes are empty on purpose */
-import { describe, it, expect } from '@jest/globals';
+import { describe, it, expect, jest } from '@jest/globals';
 import { Validations, ownValidations, keyOf } from '../../src/decorator/validations';
 import { ValidationConfigError } from '../../src/helpers/errors';
 import type { Validation } from '../../src/decorator/validations';
+import { validate } from '../../src/decorator/validate';
+
+interface DecoratorModules {
+  validations: typeof import('../../src/decorator/validations');
+  validate: typeof import('../../src/decorator/validate');
+}
+
+// A second, independent copy of the decorator modules, as when an app loads both the CommonJS and
+// the ES module build, or two installed copies of the package.
+function loadAnotherCopy(): DecoratorModules {
+  let loaded: DecoratorModules | undefined;
+  jest.isolateModules(() => {
+    loaded = {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      validations: require('../../src/decorator/validations'),
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      validate: require('../../src/decorator/validate'),
+    };
+  });
+  return loaded as DecoratorModules;
+}
 
 describe('Validations', () => {
   it('stores the validations of the class in declaration order', () => {
@@ -103,6 +124,42 @@ describe('Validations', () => {
     expect(keyOf({ validator: 'isInt' })).not.toBe(keyOf({ custom: 'isInt', fn }));
   });
 
+  it('rejects a malformed declaration when the class is decorated, storing nothing', () => {
+    const decorate = (validations: unknown) => () => {
+      class Target {}
+      try {
+        Validations(validations as Validation[])(Target);
+      } finally {
+        expect(ownValidations.get(Target)).toBeUndefined();
+      }
+    };
+    const fn = () => true;
+    const cases: [unknown, string][] = [
+      [undefined, '@Validations expects an array of validations'],
+      [{ validator: 'isInt' }, '@Validations expects an array of validations'],
+      [[null], 'A validation must be an object'],
+      [['isInt'], 'A validation must be an object'],
+      [[{}], 'A validation needs "validator" or "custom"'],
+      [[{ message: 'x' }], 'A validation needs "validator" or "custom"'],
+      [
+        [{ validator: 'isInt', custom: 'rule', fn }],
+        'A validation cannot have both "validator" and "custom"',
+      ],
+      [[{ custom: 'rule' }], 'Custom "rule" needs a "fn" function'],
+      [[{ custom: 'rule', fn: 'nope' }], 'Custom "rule" needs a "fn" function'],
+      [[{ custom: '', fn }], '"custom" must be a non-empty string'],
+      [[{ custom: 42, fn }], '"custom" must be a non-empty string'],
+      [[{ validator: 'isNope' }], 'Unknown validator "isNope"'],
+      [[{ validator: 'isAlphaLocales' }], 'Unknown validator "isAlphaLocales"'],
+      [[{ validator: 'toString' }], 'Unknown validator "toString"'],
+      [[{ validator: 7 }], 'Unknown validator "7"'],
+      [[{ validator: 'isInt' }, { validator: 'isNope' }], 'Unknown validator "isNope"'],
+    ];
+    for (const [validations, message] of cases) {
+      expect(decorate(validations)).toThrow(new ValidationConfigError(message));
+    }
+  });
+
   it('only decorates classes', () => {
     expect(() => {
       class Target {
@@ -114,5 +171,25 @@ describe('Validations', () => {
     }).toThrow('@Validations can only decorate a class');
     // @ts-expect-error not a class
     expect(() => Validations([{ validator: 'isInt' }])({})).toThrow(ValidationConfigError);
+  });
+
+  it('shares one registry between every copy of the module', () => {
+    const other = loadAnotherCopy();
+    expect(other.validations.ownValidations).toBe(ownValidations);
+    expect(
+      (globalThis as Record<symbol, unknown>)[Symbol.for('@archi-code/validation/decorator.v1')],
+    ).toBe(ownValidations);
+
+    class DecoratedHere {}
+    Validations([{ validator: 'isInt' }])(DecoratedHere);
+    expect(other.validate.validate(DecoratedHere, 'x')).toEqual([
+      { validator: 'isInt', message: 'Value does not satisfy isInt' },
+    ]);
+
+    class DecoratedThere {}
+    other.validations.Validations([{ validator: 'isEmail' }])(DecoratedThere);
+    expect(validate(DecoratedThere, 'x')).toEqual([
+      { validator: 'isEmail', message: 'Value does not satisfy isEmail' },
+    ]);
   });
 });

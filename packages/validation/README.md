@@ -201,13 +201,12 @@ never throws.
 
 ## Validations decorator
 
-Declare a class's validations with `@Validations`, read them with `getValidations` and run them
-with `validate`. A built-in validation names its `validator` and gives its parameters as a single
-`properties` object (required when the validator needs something, not allowed when it takes
-nothing). A custom validation names itself with `custom` and brings its own `fn`.
+Declare a class's validations with `@Validations` and run them with `validate(Class, value)`.
+A built-in validation names its `validator` and gives its parameters as a single `properties`
+object (required when the validator needs something, not allowed when it takes nothing). A custom validation names itself with `custom` and brings its own `fn`.
 
 ```ts
-import { Validations, getValidations, validate } from '@archi-code/validation';
+import { Validations, validate } from '@archi-code/validation';
 
 @Validations([{ validator: 'isInt', properties: { min: 0 } }])
 class Quantity {}
@@ -218,8 +217,8 @@ class Quantity {}
 ])
 class Pairs extends Quantity {}
 
-getValidations(Pairs); // [isInt { min: 5 }, isEven] — parent first, in declaration order
-validate(getValidations(Pairs), '3');
+// Pairs runs isInt { min: 5 }, then isEven — parent first, in declaration order
+validate(Pairs, '3');
 // [{ validator: 'isInt', message: 'Value does not satisfy isInt' },
 //  { custom: 'isEven', message: 'Must be even' }]
 ```
@@ -230,8 +229,12 @@ validate(getValidations(Pairs), '3');
 A built-in and a custom with the same name are different validations: neither replaces the other.
 A subclass, or a later `@Validations` on the same class, replaces a matching validation in its
 place. `validate` runs every validation, even after one fails, and returns an empty list when the
-value is valid. An unknown validator throws `ValidationConfigError`, and so does declaring the
-same validation twice in one list.
+value is valid. The declaration is checked when the class is decorated: an unknown validator, a
+custom without its `fn`, a validation with both `validator` and `custom`, or the same validation
+declared twice in one list throws `ValidationConfigError` right there, not on the first `validate`.
+
+Full guide — when each part runs, inheritance, every check and pitfalls:
+[docs/decorator.md](docs/decorator.md).
 
 ## Differences from validator.js
 

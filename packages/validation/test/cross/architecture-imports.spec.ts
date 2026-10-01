@@ -10,7 +10,7 @@
  *     validators/**          ← consume convert/ (type rules), never canBe/
  *     validators with a type rule (isBoolean, isInt, isFloat, isJSON, isDate, isAfter, isBefore,
  *     isIn, …) delegate it to convert/; string coercion is convert/string used directly
- *     validators/index.ts    ← (the barrel) only imported by src/index.ts and decorator/ (validate.ts; validations.ts for types)
+ *     validators/index.ts    ← (the barrel) only imported by src/index.ts and decorator/ (validate.ts, validations.ts)
  */
 import { describe, expect, it } from '@jest/globals';
 import * as fs from 'fs';

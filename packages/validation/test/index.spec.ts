@@ -9,6 +9,7 @@ import * as api from '../src';
 import {
   validator,
   validate,
+  Validations,
   toEnum,
   toInteger,
   toDate,
@@ -92,42 +93,47 @@ describe('public types', () => {
     expect(toInteger('x')).toEqual({ ok: false, value: null, error: 'Value is not an integer' });
   });
 
-  it('validate types each built-in validation with the properties of its validator', () => {
-    validate(
-      [
-        { validator: 'isInt', properties: { min: 2 } },
-        { validator: 'isMobilePhone', properties: { locale: 'es-ES', strictMode: true } },
-        { validator: 'isLength', properties: { min: 2, max: 10 } },
-        { custom: 'isEven', fn: (v) => Number(v) % 2 === 0 },
-      ],
-      '5',
-    );
+  it('Validations types each built-in validation with the properties of its validator', () => {
+    Validations([
+      { validator: 'isInt', properties: { min: 2 } },
+      { validator: 'isMobilePhone', properties: { locale: 'es-ES', strictMode: true } },
+      { validator: 'isLength', properties: { min: 2, max: 10 } },
+      { custom: 'isEven', fn: (v) => Number(v) % 2 === 0 },
+    ]);
     // @ts-expect-error isInt has no "foo" option
-    void (() => validate([{ validator: 'isInt', properties: { foo: 1 } }], '5'));
+    void (() => Validations([{ validator: 'isInt', properties: { foo: 1 } }]));
     // @ts-expect-error isHash requires its algorithm
-    void (() => validate([{ validator: 'isHash' }], '5'));
+    void (() => Validations([{ validator: 'isHash' }]));
     // @ts-expect-error properties is always an object, never a shorthand
-    void (() => validate([{ validator: 'isHash', properties: 'md5' }], '5'));
+    void (() => Validations([{ validator: 'isHash', properties: 'md5' }]));
     // @ts-expect-error nor the shorthand forms of an options parameter
-    void (() => validate([{ validator: 'isLength', properties: 2 }], '5'));
+    void (() => Validations([{ validator: 'isLength', properties: 2 }]));
     // @ts-expect-error "options" no longer exists
-    void (() => validate([{ validator: 'isEmail', options: {} }], '5'));
+    void (() => Validations([{ validator: 'isEmail', options: {} }]));
     // @ts-expect-error isPort takes no properties
-    void (() => validate([{ validator: 'isPort', properties: {} }], '5'));
+    void (() => Validations([{ validator: 'isPort', properties: {} }]));
     // @ts-expect-error a custom validation is named with "custom", not "validator"
-    void (() => validate([{ validator: 'isEven', fn: () => true }], '5'));
+    void (() => Validations([{ validator: 'isEven', fn: () => true }]));
     // @ts-expect-error a validation has "validator" or "custom", never both
-    void (() => validate([{ validator: 'isInt', custom: 'isEven', fn: () => true }], '5'));
-    validate(
-      [
-        { validator: 'isHash', properties: { algorithm: 'md5' } },
-        { validator: 'isEmail' },
-        { validator: 'isPort' },
-      ],
-      '5',
-    );
+    void (() => Validations([{ validator: 'isInt', custom: 'isEven', fn: () => true }]));
+    Validations([
+      { validator: 'isHash', properties: { algorithm: 'md5' } },
+      { validator: 'isEmail' },
+      { validator: 'isPort' },
+    ]);
     // @ts-expect-error unknown validator
-    void (() => validate([{ validator: 'isNothing' }], '5'));
+    void (() => Validations([{ validator: 'isNothing' }]));
+  });
+
+  it('validate takes a class and the value, and returns the errors', () => {
+    abstract class Base {
+      abstract id: string;
+    }
+    expect(validate(Base, '5')).toEqual([]);
+    // @ts-expect-error an instance is not a class
+    void (() => validate({}, '5'));
+    // @ts-expect-error the list form no longer exists
+    void (() => validate([{ validator: 'isInt' }], '5'));
     expectTypeOf(validate).returns.toEqualTypeOf<
       ({ validator: string; message: string } | { custom: string; message: string })[]
     >();

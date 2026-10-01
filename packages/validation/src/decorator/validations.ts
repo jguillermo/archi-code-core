@@ -1,5 +1,7 @@
-import { ValidationConfigError } from '../helpers/errors';
+import { validator } from '../validators';
 import type { ValidatorRegistry } from '../validators';
+import { ValidationConfigError } from '../helpers/errors';
+import { hasOwn } from '../helpers/hasOwn';
 
 /** Names of the registry entries that are validators (the locale tables are left out). */
 export type ValidatorName = {
@@ -56,11 +58,44 @@ export type Validation = BuiltInValidation | CustomValidation;
 /** Any class, abstract ones included. */
 export type ValidatedClass = abstract new (...args: any[]) => unknown;
 
+// Registry key, in the global symbol registry so every copy of this module shares one registry:
+// the CommonJS and ES module builds, or two installed copies of the package. `v1` is the shape of
+// what is stored; a version that stores something else must use a new key.
+const REGISTRY = Symbol.for('@archi-code/validation/decorator.v1');
+
 /** Validations declared by each class, without the inherited ones. */
-export const ownValidations = new WeakMap<ValidatedClass, Validation[]>();
+export const ownValidations: WeakMap<ValidatedClass, Validation[]> = ((
+  globalThis as { [REGISTRY]?: WeakMap<ValidatedClass, Validation[]> }
+)[REGISTRY] ??= new WeakMap());
 
 export function isCustom(validation: Validation): validation is CustomValidation {
   return validation.custom !== undefined;
+}
+
+/** Whether `name` is a validator of the registry (the locale tables are not). */
+export function isValidatorName(name: unknown): name is ValidatorName {
+  return hasOwn(validator, name) && typeof validator[name] === 'function';
+}
+
+// Rejects what the types forbid but plain JavaScript (or a cast) can still pass, so a wrong
+// declaration fails when the class is decorated instead of on the first `validate`.
+function assertShape(validation: unknown): asserts validation is Validation {
+  if (validation === null || typeof validation !== 'object')
+    throw new ValidationConfigError('A validation must be an object');
+  const { validator: name, custom, fn } = validation as Record<string, unknown>;
+  if (name !== undefined && custom !== undefined)
+    throw new ValidationConfigError('A validation cannot have both "validator" and "custom"');
+  if (custom !== undefined) {
+    if (typeof custom !== 'string' || custom === '')
+      throw new ValidationConfigError('"custom" must be a non-empty string');
+    if (typeof fn !== 'function')
+      throw new ValidationConfigError(`Custom "${custom}" needs a "fn" function`);
+    return;
+  }
+  if (name === undefined)
+    throw new ValidationConfigError('A validation needs "validator" or "custom"');
+  if (!isValidatorName(name))
+    throw new ValidationConfigError(`Unknown validator "${String(name)}"`);
 }
 
 /** Identity of a validation: a built-in and a custom with the same name are different ones. */
@@ -69,7 +104,7 @@ export function keyOf(validation: Validation): string {
 }
 
 // Frozen copy of the plain objects and arrays in `value`, so neither the caller's objects nor
-// what getValidations returns can change a class's validations. Anything else (RegExp, functions…)
+// what validate reads can change a class's validations. Anything else (RegExp, functions…)
 // is kept as is: freezing a RegExp would break its `lastIndex`.
 function snapshot<T>(value: T): T {
   if (Array.isArray(value)) return Object.freeze(value.map(snapshot)) as T;
@@ -89,7 +124,9 @@ function snapshot<T>(value: T): T {
  * Class decorator (classes only) that declares the validations of a class, in order. A subclass
  * inherits them: its own validations are added after the parent's, and one matching a parent's
  * (same built-in validator or same custom name) replaces it. Applying the decorator again to a
- * class works the same way. A list cannot declare the same validation twice.
+ * class works the same way. A list cannot declare the same validation twice. The declaration is
+ * checked when the class is decorated: a malformed validation or an unknown validator throws
+ * `ValidationConfigError` there.
  *
  * @example
  * @Validations([{ validator: 'isInt', properties: { min: 2 } }])
@@ -99,8 +136,11 @@ export function Validations(validations: Validation[]) {
   return (target: ValidatedClass): void => {
     if (typeof target !== 'function')
       throw new ValidationConfigError('@Validations can only decorate a class');
+    if (!Array.isArray(validations))
+      throw new ValidationConfigError('@Validations expects an array of validations');
     const declared = new Set<string>();
     for (const validation of validations) {
+      assertShape(validation);
       const key = keyOf(validation);
       if (declared.has(key))
         throw new ValidationConfigError(

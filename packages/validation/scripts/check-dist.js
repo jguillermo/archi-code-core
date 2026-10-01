@@ -6,7 +6,8 @@
  *   - the files referenced by package.json (main/module/types) exist;
  *   - the CommonJS build loads with `require`;
  *   - the ES module build loads with Node's native `import`;
- *   - both builds expose exactly the same exports and behave the same on a few calls.
+ *   - both builds expose exactly the same exports and behave the same on a few calls;
+ *   - both builds share one @Validations registry.
  * Exits with code 1 on the first problem.
  */
 const fs = require('fs');
@@ -37,7 +38,11 @@ function smoke(label, m) {
     ['sanitizer.trim', () => m.sanitizer.trim('  a  ') === 'a'],
     [
       'validate',
-      () => m.validate([{ validator: 'isInt', properties: { min: 2 } }], '1').length === 1,
+      () => {
+        class Age {}
+        m.Validations([{ validator: 'isInt', properties: { min: 2 } }])(Age);
+        return m.validate(Age, '1').length === 1 && m.validate(Age, '5').length === 0;
+      },
     ],
   ];
   for (const [name, check] of checks) {
@@ -63,6 +68,18 @@ async function main() {
 
   smoke('CJS', cjs);
   smoke('ESM', esm);
+
+  // Both builds share one decorator registry: a class decorated through one is seen by the other.
+  class DecoratedWithCjs {}
+  cjs.Validations([{ validator: 'isInt' }])(DecoratedWithCjs);
+  class DecoratedWithEsm {}
+  esm.Validations([{ validator: 'isEmail' }])(DecoratedWithEsm);
+  if (
+    esm.validate(DecoratedWithCjs, 'x').length !== 1 ||
+    cjs.validate(DecoratedWithEsm, 'x').length !== 1
+  ) {
+    fail('the CJS and ESM builds do not share the @Validations registry');
+  }
 
   const cjsKeys = Object.keys(cjs)
     .filter((k) => k !== '__esModule' && k !== 'default')
