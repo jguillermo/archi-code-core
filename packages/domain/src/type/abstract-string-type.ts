@@ -1,26 +1,16 @@
+import { toString as convertToString } from '@archi-code/validation';
 import { AbstractType } from './abstract-type';
-import { AddValidate } from '../validator/decorator/type-validator';
-import { CanBeStringValidator } from '../validator/decorator/custom/can-be-string';
-
 import { TypePrimitiveException } from '../exceptions/domain/type-primitive.exception';
-import { StringValidator } from '../validator';
 
-@AddValidate([{ validator: CanBeStringValidator }])
-export class AbstractStringType<R extends null | undefined = undefined> extends AbstractType<
-  string,
-  R
-> {
-  protected filter(value: any): any {
+export class AbstractStringType extends AbstractType<string> {
+  protected filter(value: unknown): string | null {
     if (value === null) {
       return null;
     }
-
-    if (!StringValidator.canBeString(value)) {
+    const converted = convertToString(value);
+    if (!converted.ok) {
       throw new TypePrimitiveException('String', value);
     }
-    if (typeof value === 'boolean') {
-      return value ? 'true' : 'false';
-    }
-    return `${value}`;
+    return converted.value.trim() === '' ? null : converted.value;
   }
 }

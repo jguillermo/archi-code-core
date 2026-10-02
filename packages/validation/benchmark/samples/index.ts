@@ -25,6 +25,7 @@ import { isHashSample } from './isHash.samples';
 import { isJWTSample } from './isJWT.samples';
 import { isJSONSample } from './isJSON.samples';
 import { isEmptySample } from './isEmpty.samples';
+import { isNotEmptySample } from './isNotEmpty.samples';
 import { isUUIDSample } from './isUUID.samples';
 import { isMongoIdSample } from './isMongoId.samples';
 import { isCreditCardSample } from './isCreditCard.samples';
@@ -113,6 +114,7 @@ export const samples: ValidatorSample[] = [
   isJWTSample,
   isJSONSample,
   isEmptySample,
+  isNotEmptySample,
   isUUIDSample,
   isMongoIdSample,
   isCreditCardSample,

@@ -46,6 +46,7 @@ export { isHash } from './validators/isHash';
 export { isJWT } from './validators/isJWT';
 export { isJSON } from './validators/isJSON';
 export { isEmpty } from './validators/isEmpty';
+export { isNotEmpty } from './validators/isNotEmpty';
 export { isLength } from './validators/isLength';
 export { isLocale } from './validators/isLocale';
 export { isByteLength } from './validators/isByteLength';

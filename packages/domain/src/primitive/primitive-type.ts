@@ -37,12 +37,7 @@ type NumberType<T> =
       ? Nullable<number>
       : never;
 
-type StringType<T> =
-  T extends AbstractStringType<undefined>
-    ? string
-    : T extends AbstractStringType<null>
-      ? Nullable<string>
-      : never;
+type StringType<T> = T extends AbstractStringType ? T['value'] : never;
 
 type UuidType<T> =
   T extends AbstractUuidType<undefined>

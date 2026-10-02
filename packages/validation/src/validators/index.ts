@@ -55,6 +55,7 @@ import { isJWT } from './isJWT';
 
 import { isJSON } from './isJSON';
 import { isEmpty } from './isEmpty';
+import { isNotEmpty } from './isNotEmpty';
 
 import { isLength } from './isLength';
 import { isByteLength } from './isByteLength';
@@ -164,6 +165,7 @@ export const validator = Object.freeze({
   isJWT,
   isJSON,
   isEmpty,
+  isNotEmpty,
   isLength,
   isLocale,
   isByteLength,

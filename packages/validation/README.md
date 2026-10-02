@@ -142,7 +142,7 @@ editor autocompletes them and flags unknown ones.
 `isEthereumAddress`, `isFullWidth`, `isHalfWidth`, `isHexadecimal`, `isHSL`, `isISIN`,
 `isISO15924`, `isISO31661Numeric`, `isISO4217`, `isISO6346` (also `isFreightContainerID`),
 `isISO6391`, `isISRC`, `isJWT`, `isLocale`, `isLowercase`, `isLuhnNumber`, `isMagnetURI`, `isMD5`,
-`isMimeType`, `isMongoId`, `isMultibyte`, `isOctal`, `isPort`, `isRFC3339`, `isSemVer`, `isSlug`,
+`isMimeType`, `isMongoId`, `isMultibyte`, `isNotEmpty`, `isOctal`, `isPort`, `isRFC3339`, `isSemVer`, `isSlug`,
 `isSurrogatePair`, `isULID`, `isUppercase`, `isVariableWidth`.
 
 ## Tree-shaking: prefer named imports
@@ -312,6 +312,9 @@ all properties of the options object:
 - `isJWT` rejects an empty header or payload.
 - Unknown locales inside an `isMobilePhone` array throw instead of being skipped.
 - `isTaxID` is not included.
+- `isNotEmpty` is new: `true` for a string with at least one non-whitespace character or a
+  finite number; `false` for `''`, whitespace only (spaces, tabs, line breaks, Unicode spaces),
+  `null`, `undefined`, `NaN`, `Infinity`, booleans and any other value.
 
 ## License
 

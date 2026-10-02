@@ -2,7 +2,9 @@ import { describe, it } from '@jest/globals';
 import { PrimitiveTypes } from './primitive-types';
 import { expectTypeOf } from 'expect-type';
 import { AggregateRoot } from '../aggregate/aggregate-root';
-import { IdType, NumberTypeOptional, StringTypeRequired } from '../type';
+import { AbstractStringType, IdType, NumberTypeOptional, Required } from '../type';
+
+class Name extends Required(AbstractStringType) {}
 
 describe('Primitive aggregate', () => {
   it('id readonly', () => {
@@ -41,7 +43,7 @@ describe('Primitive aggregate', () => {
     class Aggregate extends AggregateRoot {
       constructor(
         private readonly _id: IdType,
-        private _name: StringTypeRequired,
+        private _name: Name,
         private _age: NumberTypeOptional,
       ) {
         super();
@@ -51,7 +53,7 @@ describe('Primitive aggregate', () => {
         return this._id;
       }
 
-      get name(): StringTypeRequired {
+      get name(): Name {
         return this._name;
       }
 
@@ -73,7 +75,7 @@ describe('Primitive aggregate', () => {
     class Aggregate extends AggregateRoot {
       constructor(
         private readonly _id: IdType,
-        private _tags: StringTypeRequired[],
+        private _tags: Name[],
       ) {
         super();
       }
@@ -82,7 +84,7 @@ describe('Primitive aggregate', () => {
         return this._id;
       }
 
-      get tags(): StringTypeRequired[] {
+      get tags(): Name[] {
         return this._tags;
       }
     }

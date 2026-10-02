@@ -5,6 +5,7 @@ import { AddValidate } from '../validator/decorator/type-validator';
 import { AbstractJsonType } from '../type/abstract-json-type';
 import {
   AbstractEnumType,
+  AbstractStringType,
   BooleanTypeOptional,
   BooleanTypeRequired,
   DateTypeOptional,
@@ -12,12 +13,14 @@ import {
   IdType,
   NumberTypeOptional,
   NumberTypeRequired,
-  StringTypeOptional,
-  StringTypeRequired,
   UuidTypeOptional,
   UuidTypeRequired,
+  Required,
 } from '../type';
 import { AbstractArrayType } from '../type/abstract-array-type';
+
+class RequiredString extends Required(AbstractStringType) {}
+class OptionalString extends AbstractStringType {}
 
 describe('Primitive Types', () => {
   it('booleanType', () => {
@@ -42,11 +45,11 @@ describe('Primitive Types', () => {
     expectTypeOf<PrimitiveType<NumberTypeOptional[]>>().toEqualTypeOf<(number | null)[]>();
   });
   it('stringType', () => {
-    expectTypeOf<PrimitiveType<StringTypeRequired>>().toEqualTypeOf<string>();
-    expectTypeOf<PrimitiveType<StringTypeOptional>>().toEqualTypeOf<string | null>();
+    expectTypeOf<PrimitiveType<RequiredString>>().toEqualTypeOf<string>();
+    expectTypeOf<PrimitiveType<OptionalString>>().toEqualTypeOf<string | null>();
 
-    expectTypeOf<PrimitiveType<StringTypeRequired[]>>().toEqualTypeOf<string[]>();
-    expectTypeOf<PrimitiveType<StringTypeOptional[]>>().toEqualTypeOf<(string | null)[]>();
+    expectTypeOf<PrimitiveType<RequiredString[]>>().toEqualTypeOf<string[]>();
+    expectTypeOf<PrimitiveType<OptionalString[]>>().toEqualTypeOf<(string | null)[]>();
   });
   it('uuidType', () => {
     expectTypeOf<PrimitiveType<UuidTypeRequired>>().toEqualTypeOf<string>();

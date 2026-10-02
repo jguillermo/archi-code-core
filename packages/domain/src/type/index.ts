@@ -1,8 +1,6 @@
 import { AddValidate } from '../validator/decorator/type-validator';
 import { AbstractBooleanType } from './abstract-boolean-type';
 import { AbstractDateType } from './abstract-date-type';
-import { AbstractNumberType } from './abstract-number-type';
-import { AbstractStringType } from './abstract-string-type';
 import { AbstractUuidType } from './abstract-uuid-type';
 
 export { AbstractArrayType } from './abstract-array-type';
@@ -10,8 +8,10 @@ export { AbstractBooleanType } from './abstract-boolean-type';
 export { AbstractDateType } from './abstract-date-type';
 export { AbstractEnumType } from './abstract-enum-type';
 export { AbstractJsonType } from './abstract-json-type';
-export { AbstractNumberType } from './abstract-number-type';
+export { AbstractNumberType, NumberTypeOptional, NumberTypeRequired } from './abstract-number-type';
 export { AbstractStringType } from './abstract-string-type';
+export { Required } from './abstract-type';
+export type { RequiredType } from './abstract-type';
 export { AbstractUuidType } from './abstract-uuid-type';
 export { AddValidate } from '../validator/decorator/type-validator';
 
@@ -68,25 +68,3 @@ export class UuidTypeRequired extends AbstractUuidType {}
 
 @AddValidate([{ validator: 'IsNotEmpty' }])
 export class IdType extends AbstractUuidType {}
-
-//AbstractNumberType
-@AddValidate([{ validator: 'IsOptional' }])
-export class NumberTypeOptional extends AbstractNumberType<null> {
-  constructor(value: number | null = null) {
-    super(value);
-  }
-}
-
-@AddValidate([{ validator: 'IsNotEmpty' }])
-export class NumberTypeRequired extends AbstractNumberType {}
-
-//AbstractStringType
-@AddValidate([{ validator: 'IsOptional' }])
-export class StringTypeOptional extends AbstractStringType<null> {
-  constructor(value: string | null = null) {
-    super(value);
-  }
-}
-
-@AddValidate([{ validator: 'IsNotEmpty' }])
-export class StringTypeRequired extends AbstractStringType {}
