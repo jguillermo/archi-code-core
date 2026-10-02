@@ -11,6 +11,6 @@ export class StringType extends AbstractType<string> {
     if (!converted.ok) {
       throw new TypePrimitiveException('String', value);
     }
-    return converted.value.trim() === '' ? null : converted.value;
+    return converted.value;
   }
 }

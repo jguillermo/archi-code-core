@@ -1,16 +1,11 @@
 import { v4 as uuidv4, v5 as uuidv5 } from 'uuid';
-import { AbstractType } from './abstract-type';
-import { AddValidate } from '../validator/decorator/type-validator';
-import { isUUID } from 'class-validator';
+import { isUUID } from '@archi-code/validation';
+import { AbstractType, Required } from './abstract-type';
 import { TypePrimitiveException } from '../exceptions/domain/type-primitive.exception';
 
 const DNS_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
 
-@AddValidate([{ validator: 'IsUUID' }])
-export class AbstractUuidType<R extends null | undefined = undefined> extends AbstractType<
-  string,
-  R
-> {
+export class UuidType extends AbstractType<string> {
   static random(): string {
     return uuidv4();
   }
@@ -19,15 +14,15 @@ export class AbstractUuidType<R extends null | undefined = undefined> extends Ab
     return uuidv5(value, namespace);
   }
 
-  protected filter(value: any): any {
+  protected filter(value: unknown): string | null {
     if (value === null) {
       return null;
     }
-
-    if (!isUUID(value)) {
+    if (typeof value !== 'string' || !isUUID(value)) {
       throw new TypePrimitiveException('UUID', value);
     }
-
     return value;
   }
 }
+
+export class IdType extends Required(UuidType) {}

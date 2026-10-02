@@ -1,186 +1,109 @@
 import { describe, it } from '@jest/globals';
 import { expectTypeOf } from 'expect-type';
 import { PrimitiveType } from './primitive-type';
-import { AddValidate } from '../validator/decorator/type-validator';
-import { AbstractJsonType } from '../type/abstract-json-type';
 import {
-  AbstractEnumType,
-  StringType,
-  BooleanTypeOptional,
-  BooleanTypeRequired,
-  DateTypeOptional,
-  DateTypeRequired,
+  ArrayType,
+  BooleanType,
+  CreatedAt,
+  DateType,
+  EnumType,
   IdType,
-  NumberTypeOptional,
-  NumberTypeRequired,
-  UuidTypeOptional,
-  UuidTypeRequired,
+  JsonType,
+  NumberType,
   Required,
+  StringType,
+  UpdatedAt,
+  UuidType,
 } from '../type';
-import { AbstractArrayType } from '../type/abstract-array-type';
 
+class RequiredBoolean extends Required(BooleanType) {}
+class RequiredDate extends Required(DateType) {}
+class RequiredNumber extends Required(NumberType) {}
 class RequiredString extends Required(StringType) {}
-class OptionalString extends StringType {}
+class RequiredUuid extends Required(UuidType) {}
 
-describe('Primitive Types', () => {
-  it('booleanType', () => {
-    expectTypeOf<PrimitiveType<BooleanTypeRequired>>().toEqualTypeOf<boolean>();
-    expectTypeOf<PrimitiveType<BooleanTypeOptional>>().toEqualTypeOf<boolean | null>();
-
-    expectTypeOf<PrimitiveType<BooleanTypeRequired[]>>().toEqualTypeOf<boolean[]>();
-    expectTypeOf<PrimitiveType<BooleanTypeOptional[]>>().toEqualTypeOf<(boolean | null)[]>();
-  });
-  it('dateType', () => {
-    expectTypeOf<PrimitiveType<DateTypeRequired>>().toEqualTypeOf<Date>();
-    expectTypeOf<PrimitiveType<DateTypeOptional>>().toEqualTypeOf<Date | null>();
-
-    expectTypeOf<PrimitiveType<DateTypeRequired[]>>().toEqualTypeOf<Date[]>();
-    expectTypeOf<PrimitiveType<DateTypeOptional[]>>().toEqualTypeOf<(Date | null)[]>();
-  });
-  it('numberType', () => {
-    expectTypeOf<PrimitiveType<NumberTypeRequired>>().toEqualTypeOf<number>();
-    expectTypeOf<PrimitiveType<NumberTypeOptional>>().toEqualTypeOf<number | null>();
-
-    expectTypeOf<PrimitiveType<NumberTypeRequired[]>>().toEqualTypeOf<number[]>();
-    expectTypeOf<PrimitiveType<NumberTypeOptional[]>>().toEqualTypeOf<(number | null)[]>();
-  });
-  it('stringType', () => {
+describe('PrimitiveType', () => {
+  it('a scalar type is its value, T when required and T | null when optional', () => {
+    expectTypeOf<PrimitiveType<RequiredBoolean>>().toEqualTypeOf<boolean>();
+    expectTypeOf<PrimitiveType<BooleanType>>().toEqualTypeOf<boolean | null>();
+    expectTypeOf<PrimitiveType<RequiredDate>>().toEqualTypeOf<Date>();
+    expectTypeOf<PrimitiveType<DateType>>().toEqualTypeOf<Date | null>();
+    expectTypeOf<PrimitiveType<RequiredNumber>>().toEqualTypeOf<number>();
+    expectTypeOf<PrimitiveType<NumberType>>().toEqualTypeOf<number | null>();
     expectTypeOf<PrimitiveType<RequiredString>>().toEqualTypeOf<string>();
-    expectTypeOf<PrimitiveType<OptionalString>>().toEqualTypeOf<string | null>();
+    expectTypeOf<PrimitiveType<StringType>>().toEqualTypeOf<string | null>();
+    expectTypeOf<PrimitiveType<RequiredUuid>>().toEqualTypeOf<string>();
+    expectTypeOf<PrimitiveType<UuidType>>().toEqualTypeOf<string | null>();
+  });
 
+  it('an array of types is the array of their primitives', () => {
     expectTypeOf<PrimitiveType<RequiredString[]>>().toEqualTypeOf<string[]>();
-    expectTypeOf<PrimitiveType<OptionalString[]>>().toEqualTypeOf<(string | null)[]>();
+    expectTypeOf<PrimitiveType<StringType[]>>().toEqualTypeOf<(string | null)[]>();
   });
-  it('uuidType', () => {
-    expectTypeOf<PrimitiveType<UuidTypeRequired>>().toEqualTypeOf<string>();
-    expectTypeOf<PrimitiveType<UuidTypeOptional>>().toEqualTypeOf<string | null>();
 
-    expectTypeOf<PrimitiveType<UuidTypeRequired[]>>().toEqualTypeOf<string[]>();
-    expectTypeOf<PrimitiveType<UuidTypeOptional[]>>().toEqualTypeOf<(string | null)[]>();
-  });
-  it('idType', () => {
+  it('IdType, CreatedAt and UpdatedAt are required', () => {
     expectTypeOf<PrimitiveType<IdType>>().toEqualTypeOf<string>();
-
     expectTypeOf<PrimitiveType<IdType[]>>().toEqualTypeOf<string[]>();
+    expectTypeOf<PrimitiveType<CreatedAt>>().toEqualTypeOf<Date>();
+    expectTypeOf<PrimitiveType<UpdatedAt>>().toEqualTypeOf<Date>();
   });
-  it('enum string', () => {
-    enum StatusString {
+
+  it('an enum type is widened to string or number', () => {
+    enum Status {
       UP = 'up',
       DOWN = 'down',
     }
-
-    @AddValidate([{ validator: 'IsEnum', value: StatusString }, { validator: 'IsNotEmpty' }])
-    class EnumTypeRequired extends AbstractEnumType<StatusString> {
-      protected getEnum(): Record<string, StatusString> {
-        return StatusString;
+    enum Level {
+      LOW = 1,
+      HIGH = 2,
+    }
+    class StatusType extends EnumType<Status> {
+      protected getEnum(): typeof Status {
+        return Status;
       }
     }
+    class LevelType extends EnumType<Level> {
+      protected getEnum(): typeof Level {
+        return Level;
+      }
+    }
+    class RequiredStatus extends Required(StatusType) {}
+    class RequiredLevel extends Required(LevelType) {}
 
-    // @AddValidate([{ validator: 'IsEnum', value: StatusString }, { validator: 'IsOptional' }])
-    // class EnumTypeOptional extends AbstractEnumType<StatusString, null> {
-    //   protected getEnum(): Record<string, StatusString> {
-    //     return StatusString;
-    //   }
-    // }
-
-    expectTypeOf<PrimitiveType<EnumTypeRequired>>().toEqualTypeOf<string>();
-    //todo, queda pendiente mostar el tipo corectamente, cuando sea enum optional
-    // al parecer hay un bug en typescrit, cuando quitamos protected getEnum(): funciona bien
-    // expectTypeOf<PrimitiveType<EnumTypeOptional>>().toEqualTypeOf<string | null>();
-
-    expectTypeOf<PrimitiveType<EnumTypeRequired[]>>().toEqualTypeOf<string[]>();
-    // expectTypeOf<PrimitiveType<EnumTypeOptional[]>>().toEqualTypeOf<Array<string | null>>();
+    expectTypeOf<PrimitiveType<RequiredStatus>>().toEqualTypeOf<string>();
+    expectTypeOf<PrimitiveType<StatusType>>().toEqualTypeOf<string | null>();
+    expectTypeOf<PrimitiveType<RequiredLevel>>().toEqualTypeOf<number>();
+    expectTypeOf<PrimitiveType<LevelType>>().toEqualTypeOf<number | null>();
+    expectTypeOf<PrimitiveType<RequiredStatus[]>>().toEqualTypeOf<string[]>();
   });
 
-  it('enum number', () => {
-    enum StatusNumber {
-      UP = 1,
-      DOWN = 2,
+  it('a json type is its object', () => {
+    interface Settings {
+      theme: string;
     }
+    class SettingsType extends JsonType<Settings> {}
+    class RequiredSettings extends Required(SettingsType) {}
 
-    @AddValidate([{ validator: 'IsEnum', value: StatusNumber }, { validator: 'IsNotEmpty' }])
-    class EnumTypeRequired extends AbstractEnumType<StatusNumber> {
-      protected getEnum(): any {
-        return StatusNumber;
-      }
-    }
-
-    // @AddValidate([{ validator: 'IsEnum', value: StatusNumber }, { validator: 'IsOptional' }])
-    // class EnumTypeOptional extends AbstractEnumType<StatusNumber, null> {
-    //   protected getEnum(): any {
-    //     return StatusNumber;
-    //   }
-    // }
-
-    expectTypeOf<PrimitiveType<EnumTypeRequired>>().toEqualTypeOf<number>();
-    // expectTypeOf<PrimitiveType<EnumTypeOptional>>().toEqualTypeOf<number | null>();
-
-    expectTypeOf<PrimitiveType<EnumTypeRequired[]>>().toEqualTypeOf<number[]>();
-    // expectTypeOf<PrimitiveType<EnumTypeOptional[]>>().toEqualTypeOf<Array<number | null>>();
+    expectTypeOf<PrimitiveType<RequiredSettings>>().toEqualTypeOf<Settings>();
+    expectTypeOf<PrimitiveType<SettingsType>>().toEqualTypeOf<Settings | null>();
+    expectTypeOf<PrimitiveType<RequiredSettings[]>>().toEqualTypeOf<Settings[]>();
   });
 
-  it('object', () => {
-    interface JsonValuesTest {
-      a: number;
+  it('an array type is the array of its item values', () => {
+    class Ages extends ArrayType<RequiredNumber> {
+      protected createItem(value: unknown): RequiredNumber {
+        return new RequiredNumber(value as number);
+      }
     }
-
-    @AddValidate([{ validator: 'IsOptional' }])
-    class JsonTypeOptional extends AbstractJsonType<JsonValuesTest, null> {
-      constructor(value: JsonValuesTest | null = null) {
-        super(value);
+    class RequiredAges extends Required(Ages) {}
+    class Nicknames extends ArrayType<StringType> {
+      protected createItem(value: unknown): StringType {
+        return new StringType(value as string);
       }
     }
 
-    @AddValidate([{ validator: 'IsNotEmpty' }])
-    class JsonTypeRequired extends AbstractJsonType<JsonValuesTest> {}
-
-    expectTypeOf<PrimitiveType<JsonTypeRequired>>().toEqualTypeOf<JsonValuesTest>();
-    expectTypeOf<PrimitiveType<JsonTypeOptional>>().toEqualTypeOf<JsonValuesTest | null>();
-
-    expectTypeOf<PrimitiveType<JsonTypeRequired[]>>().toEqualTypeOf<JsonValuesTest[]>();
-    expectTypeOf<PrimitiveType<JsonTypeOptional[]>>().toEqualTypeOf<(JsonValuesTest | null)[]>();
-  });
-
-  it('json', () => {
-    interface AuthDet {
-      password?: string;
-      userName?: string;
-
-      [key: string]: string | undefined;
-    }
-
-    class DataAuthDet extends AbstractJsonType<AuthDet> {
-      get password(): string | null {
-        return this.value?.password ?? null;
-      }
-    }
-
-    expectTypeOf<PrimitiveType<DataAuthDet>>().toEqualTypeOf<AuthDet>();
-  });
-
-  it('array number', () => {
-    @AddValidate([{ validator: 'Max', value: 100 }])
-    class Age extends NumberTypeRequired {}
-
-    @AddValidate([{ validator: 'IsOptional' }, { validator: 'ArrayMinSize', value: 1 }])
-    class ArrayTypeOptional extends AbstractArrayType<Age, null> {
-      constructor(value: number[] | null = null) {
-        super(value);
-      }
-
-      getItemClass(value: PrimitiveType<Age>): Age {
-        return new Age(value);
-      }
-    }
-
-    @AddValidate([{ validator: 'IsNotEmpty' }, { validator: 'ArrayMinSize', value: 1 }])
-    class ArrayTypeRequired extends AbstractArrayType<Age> {
-      getItemClass(value: PrimitiveType<Age>): Age {
-        return new Age(value);
-      }
-    }
-
-    expectTypeOf<PrimitiveType<ArrayTypeRequired>>().toEqualTypeOf<number[]>();
-    expectTypeOf<PrimitiveType<ArrayTypeOptional>>().toEqualTypeOf<number[] | null>();
+    expectTypeOf<PrimitiveType<RequiredAges>>().toEqualTypeOf<number[]>();
+    expectTypeOf<PrimitiveType<Ages>>().toEqualTypeOf<number[] | null>();
+    expectTypeOf<PrimitiveType<Nicknames>>().toEqualTypeOf<(string | null)[] | null>();
   });
 });

@@ -31,6 +31,12 @@ class TrimmedString extends AbstractType<string> {
   }
 }
 
+class NoneAsNull extends AbstractType<string> {
+  protected filter(value: string | null): string | null {
+    return value === 'none' ? null : value;
+  }
+}
+
 function typeWithSpiedFilter() {
   const filterSpy = jest.fn((value: unknown) => value);
   class SpiedType extends AbstractType<string> {
@@ -103,6 +109,8 @@ describe('AbstractType', () => {
       ['no value', []],
       ['null', [null]],
       ['undefined', [undefined]],
+      ['an empty string', ['']],
+      ['a blank string', [' \t\n ']],
     ])('passes %s to filter as null', (_, args) => {
       const { SpiedType, filterSpy } = typeWithSpiedFilter();
       const instance = new SpiedType(...(args as [string | null]));
@@ -112,7 +120,6 @@ describe('AbstractType', () => {
 
     it.each([
       ['0', 0],
-      ['empty string', ''],
       ['false', false],
       ['NaN', NaN],
     ])('keeps the falsy value %s', (_, input) => {
@@ -120,9 +127,15 @@ describe('AbstractType', () => {
       expect(new SpiedType(input as unknown as string).value).toBe(input);
     });
 
+    it('passes a string with content to filter as it is', () => {
+      const { SpiedType, filterSpy } = typeWithSpiedFilter();
+      new SpiedType(' a ');
+      expect(filterSpy).toHaveBeenCalledWith(' a ');
+    });
+
     it('stores what filter returns, not the raw input', () => {
       expect(new TrimmedString('  abc  ').value).toBe('abc');
-      expect(new TrimmedString('   ').value).toBeNull();
+      expect(new NoneAsNull('none').value).toBeNull();
     });
 
     it('propagates an error thrown by filter', () => {
@@ -140,7 +153,7 @@ describe('AbstractType', () => {
       ['null', new NullableString(null), true],
       ['a value', new NullableString('abc'), false],
       ['a falsy value', new PlainNumber(0), false],
-      ['a value filtered to null', new TrimmedString('   '), true],
+      ['a value filtered to null', new NoneAsNull('none'), true],
     ])('%s → isNull %s', (_, instance, expected) => {
       expect(instance.isNull).toBe(expected);
       expect(instance.isNotNull).toBe(!expected);
@@ -336,10 +349,13 @@ describe('AbstractType', () => {
       ]);
     });
 
-    it('throws when filter turns the value into null, reporting the raw input', () => {
-      class RequiredTrimmed extends Required(TrimmedString) {}
+    it.each([
+      ['a blank string', '   ', '"   "'],
+      ['a value that filter turns into null', 'none', '"none"'],
+    ])('throws for %s, reporting the raw input', (_, input, received) => {
+      class RequiredNone extends Required(NoneAsNull) {}
 
-      expect(() => new RequiredTrimmed('   ')).toThrow(requiredError('RequiredTrimmed', '"   "'));
+      expect(() => new RequiredNone(input)).toThrow(requiredError('RequiredNone', received));
     });
 
     it('a subclass is required too', () => {

@@ -16,13 +16,19 @@ const nullIsValid: ValidationResult<null> = Object.freeze({
   errors: Object.freeze([]) as readonly [],
 });
 
+function isMissing(value: unknown): boolean {
+  return (
+    value === null || value === undefined || (typeof value === 'string' && value.trim() === '')
+  );
+}
+
 export abstract class AbstractType<T> implements Validatable<T | null> {
   declare readonly [REQUIRED]?: true;
   protected _value: T | null;
   private lastValidation: ValidationResult<T | null> | null = null;
 
   constructor(value: T | null = null) {
-    this._value = this.filter(value ?? null);
+    this._value = this.filter(isMissing(value) ? null : value);
     if (this._value === null && this[REQUIRED] === true) {
       throw new RequiredValueException(this.constructor.name, value);
     }
@@ -42,10 +48,7 @@ export abstract class AbstractType<T> implements Validatable<T | null> {
 
   validate(): ValidationResult<ValueOf<T, this>> {
     if (this.lastValidation === null || !Object.is(this.lastValidation.value, this._value)) {
-      this.lastValidation =
-        this._value === null
-          ? nullIsValid
-          : runValidations(this.constructor as ValidatedClass, this._value);
+      this.lastValidation = this._value === null ? nullIsValid : this.validateValue(this._value);
     }
     return this.lastValidation as ValidationResult<ValueOf<T, this>>;
   }
@@ -54,12 +57,16 @@ export abstract class AbstractType<T> implements Validatable<T | null> {
     return this.isNull ? '' : anyToString(this._value);
   }
 
+  protected validateValue(value: T): ValidationResult<T> {
+    return runValidations(this.constructor as ValidatedClass, value);
+  }
+
   protected abstract filter(value: any | null): any | null;
 }
 
 type TypeClass = abstract new (value?: any) => AbstractType<any>;
 
-type RequiredValueOf<C extends TypeClass> = NonNullable<InstanceType<C>['value']>;
+type RequiredValueOf<C extends TypeClass> = Exclude<InstanceType<C>['value'], null>;
 
 export type RequiredType<C extends TypeClass> = Omit<C, 'prototype'> &
   (abstract new (value: RequiredValueOf<C>) => InstanceType<C> & RequiredMark);

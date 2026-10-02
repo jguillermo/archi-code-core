@@ -1,70 +1,11 @@
-import { AddValidate } from '../validator/decorator/type-validator';
-import { AbstractBooleanType } from './abstract-boolean-type';
-import { AbstractDateType } from './abstract-date-type';
-import { AbstractUuidType } from './abstract-uuid-type';
-
-export { AbstractArrayType } from './abstract-array-type';
-export { AbstractBooleanType } from './abstract-boolean-type';
-export { AbstractDateType } from './abstract-date-type';
-export { AbstractEnumType } from './abstract-enum-type';
-export { AbstractJsonType } from './abstract-json-type';
-export { AbstractNumberType, NumberTypeOptional, NumberTypeRequired } from './abstract-number-type';
-export { StringType } from './string-type';
-export { Required } from './abstract-type';
+export { AbstractType, Required } from './abstract-type';
 export type { RequiredType } from './abstract-type';
-export { AbstractUuidType } from './abstract-uuid-type';
-export { AddValidate } from '../validator/decorator/type-validator';
-
-//AbstractBooleanType
-@AddValidate([{ validator: 'IsOptional' }])
-export class BooleanTypeOptional extends AbstractBooleanType<null> {
-  constructor(value: boolean | null = null) {
-    super(value);
-  }
-}
-
-@AddValidate([{ validator: 'IsNotEmpty' }])
-export class BooleanTypeRequired extends AbstractBooleanType {}
-
-//AbstractDateType
-
-@AddValidate([{ validator: 'IsOptional' }])
-export class DateTypeOptional extends AbstractDateType<null> {
-  constructor(value: Date | null = null) {
-    super(value);
-  }
-}
-
-@AddValidate([{ validator: 'IsNotEmpty' }])
-export class DateTypeRequired extends AbstractDateType {}
-
-export class CreatedAt extends DateTypeRequired {
-  static now(): CreatedAt {
-    return new CreatedAt(new Date());
-  }
-}
-
-export class UpdatedAt extends DateTypeRequired {
-  static now(): UpdatedAt {
-    return new UpdatedAt(new Date());
-  }
-
-  setNow(): void {
-    this._value = new Date();
-  }
-}
-
-//AbstractUuidType
-
-@AddValidate([{ validator: 'IsOptional' }])
-export class UuidTypeOptional extends AbstractUuidType<null> {
-  constructor(value: string | null = null) {
-    super(value);
-  }
-}
-
-@AddValidate([{ validator: 'IsNotEmpty' }])
-export class UuidTypeRequired extends AbstractUuidType {}
-
-@AddValidate([{ validator: 'IsNotEmpty' }])
-export class IdType extends AbstractUuidType {}
+export { ArrayType } from './array-type';
+export { BooleanType } from './boolean-type';
+export { CreatedAt, DateType, UpdatedAt } from './date-type';
+export { EnumType } from './enum-type';
+export { JsonType } from './json-type';
+export type { JsonTypeValue } from './json-type';
+export { NumberType } from './number-type';
+export { StringType } from './string-type';
+export { IdType, UuidType } from './uuid-type';
