@@ -1,5 +1,6 @@
 import { toDate } from '@archi-code/validation';
-import { AbstractType, Required } from './abstract-type';
+import { AbstractType } from './abstract-type';
+import { Required } from './required/required';
 import { TypePrimitiveException } from '../exceptions/domain/type-primitive.exception';
 
 export class DateType extends AbstractType<Date> {

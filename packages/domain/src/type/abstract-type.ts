@@ -1,37 +1,18 @@
 import { anyToString, validate as runValidations } from '@archi-code/validation';
 import type { Validatable, ValidatedClass, ValidationResult } from '@archi-code/validation';
-import { RequiredValueException } from '../exceptions/domain/required-value.exception';
+import { acceptValue } from './input/accept-value';
+import type { ValueOf } from './required/required-mark';
+import { TypeValidation } from './validation/type-validation';
 
-const REQUIRED: unique symbol = Symbol.for('@archi-code/domain/required.v1');
-
-interface RequiredMark {
-  readonly [REQUIRED]: true;
-}
-
-type ValueOf<T, I> = I extends RequiredMark ? T : T | null;
-
-const nullIsValid: ValidationResult<null> = Object.freeze({
-  ok: true,
-  value: null,
-  errors: Object.freeze([]) as readonly [],
-});
-
-function isMissing(value: unknown): boolean {
-  return (
-    value === null || value === undefined || (typeof value === 'string' && value.trim() === '')
-  );
-}
+export { Required } from './required/required';
+export type { RequiredType } from './required/required';
 
 export abstract class AbstractType<T> implements Validatable<T | null> {
-  declare readonly [REQUIRED]?: true;
   protected _value: T | null;
-  private lastValidation: ValidationResult<T | null> | null = null;
+  private validation: TypeValidation<T> | null = null;
 
   constructor(value: T | null = null) {
-    this._value = isMissing(value) ? null : this.filter(value);
-    if (this._value === null && this[REQUIRED] === true) {
-      throw new RequiredValueException(this.constructor.name, value);
-    }
+    this._value = acceptValue(this, value, (input) => this.filter(input));
   }
 
   get value(): ValueOf<T, this> {
@@ -46,15 +27,13 @@ export abstract class AbstractType<T> implements Validatable<T | null> {
     return !this.isNull;
   }
 
-  validate(): ValidationResult<ValueOf<T, this>> {
-    if (this.lastValidation === null || !Object.is(this.lastValidation.value, this._value)) {
-      this.lastValidation = this._value === null ? nullIsValid : this.validateValue(this._value);
-    }
-    return this.lastValidation as ValidationResult<ValueOf<T, this>>;
-  }
-
   get toString(): string {
     return this.isNull ? '' : anyToString(this._value);
+  }
+
+  validate(): ValidationResult<ValueOf<T, this>> {
+    this.validation ??= new TypeValidation<T>((value) => this.validateValue(value));
+    return this.validation.of(this._value) as ValidationResult<ValueOf<T, this>>;
   }
 
   protected validateValue(value: T): ValidationResult<T> {
@@ -62,19 +41,4 @@ export abstract class AbstractType<T> implements Validatable<T | null> {
   }
 
   protected abstract filter(value: unknown): T | null;
-}
-
-type TypeClass = abstract new (value?: any) => AbstractType<any>;
-
-type RequiredValueOf<C extends TypeClass> = Exclude<InstanceType<C>['value'], null>;
-
-export type RequiredType<C extends TypeClass> = Omit<C, 'prototype'> &
-  (abstract new (value: RequiredValueOf<C>) => InstanceType<C> & RequiredMark);
-
-export function Required<C extends TypeClass>(Base: C): RequiredType<C> {
-  abstract class RequiredValue extends (Base as unknown as abstract new (
-    ...args: any[]
-  ) => AbstractType<unknown>) {}
-  Object.defineProperty(RequiredValue.prototype, REQUIRED, { value: true });
-  return RequiredValue as unknown as RequiredType<C>;
 }
