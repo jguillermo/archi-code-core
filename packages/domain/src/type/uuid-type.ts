@@ -14,10 +14,7 @@ export class UuidType extends AbstractType<string> {
     return uuidv5(value, namespace);
   }
 
-  protected filter(value: unknown): string | null {
-    if (value === null) {
-      return null;
-    }
+  protected filter(value: unknown): string {
     if (typeof value !== 'string' || !isUUID(value)) {
       throw new TypePrimitiveException('UUID', value);
     }

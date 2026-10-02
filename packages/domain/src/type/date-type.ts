@@ -3,10 +3,7 @@ import { AbstractType, Required } from './abstract-type';
 import { TypePrimitiveException } from '../exceptions/domain/type-primitive.exception';
 
 export class DateType extends AbstractType<Date> {
-  protected filter(value: unknown): Date | null {
-    if (value === null) {
-      return null;
-    }
+  protected filter(value: unknown): Date {
     const converted = toDate(value, { iso: true });
     if (!converted.ok) {
       throw new TypePrimitiveException('Date', value);

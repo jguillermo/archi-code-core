@@ -41,10 +41,7 @@ export abstract class ArrayType<Item extends AbstractType<any>> extends Abstract
     this._value = this._value.filter((current) => !Object.is(current, itemValue));
   }
 
-  protected filter(value: unknown): ItemValue<Item>[] | null {
-    if (value === null) {
-      return null;
-    }
+  protected filter(value: unknown): ItemValue<Item>[] {
     const converted = toArray(value);
     if (!converted.ok) {
       throw new TypePrimitiveException('Array', value);

@@ -6,7 +6,7 @@ import { AbstractType, Required } from './abstract-type';
 import { RequiredValueException } from '../exceptions/domain/required-value.exception';
 
 class NullableString extends AbstractType<string> {
-  protected filter(value: string | null): string | null {
+  protected filter(value: string): string {
     return value;
   }
 }
@@ -16,7 +16,7 @@ class PlainNumber extends AbstractType<number> {
     return new PlainNumber(0);
   }
 
-  protected filter(value: number | null): number | null {
+  protected filter(value: number): number {
     return value;
   }
 }
@@ -24,15 +24,13 @@ class PlainNumber extends AbstractType<number> {
 class RequiredNumber extends Required(PlainNumber) {}
 
 class TrimmedString extends AbstractType<string> {
-  protected filter(value: string | null): string | null {
-    if (value === null) return null;
-    const trimmed = value.trim();
-    return trimmed === '' ? null : trimmed;
+  protected filter(value: string): string {
+    return value.trim();
   }
 }
 
 class NoneAsNull extends AbstractType<string> {
-  protected filter(value: string | null): string | null {
+  protected filter(value: string): string | null {
     return value === 'none' ? null : value;
   }
 }
@@ -40,8 +38,8 @@ class NoneAsNull extends AbstractType<string> {
 function typeWithSpiedFilter() {
   const filterSpy = jest.fn((value: unknown) => value);
   class SpiedType extends AbstractType<string> {
-    protected filter(value: unknown): unknown {
-      return filterSpy(value);
+    protected filter(value: unknown): string {
+      return filterSpy(value) as string;
     }
   }
   return { SpiedType, filterSpy };
@@ -111,10 +109,10 @@ describe('AbstractType', () => {
       ['undefined', [undefined]],
       ['an empty string', ['']],
       ['a blank string', [' \t\n ']],
-    ])('passes %s to filter as null', (_, args) => {
+    ])('does not call filter for %s and stores null', (_, args) => {
       const { SpiedType, filterSpy } = typeWithSpiedFilter();
       const instance = new SpiedType(...(args as [string | null]));
-      expect(filterSpy).toHaveBeenCalledWith(null);
+      expect(filterSpy).not.toHaveBeenCalled();
       expect(instance.value).toBeNull();
     });
 
@@ -240,7 +238,7 @@ describe('AbstractType', () => {
 
         @Validations([{ custom: 'nonNegative', fn: isNonNegative }])
         class Counter extends AbstractType<number | number[]> {
-          protected filter(value: number | number[] | null): number | number[] | null {
+          protected filter(value: number | number[]): number | number[] {
             return value;
           }
 
@@ -322,6 +320,17 @@ describe('AbstractType', () => {
   });
 
   describe('Required', () => {
+    it.each([
+      ['null', null],
+      ['a blank string', '   '],
+    ])('does not call filter when the value is %s', (_, input) => {
+      const { SpiedType, filterSpy } = typeWithSpiedFilter();
+      class RequiredSpied extends Required(SpiedType) {}
+
+      expect(() => new RequiredSpied(input as string)).toThrow(RequiredValueException);
+      expect(filterSpy).not.toHaveBeenCalled();
+    });
+
     it('throws RequiredValueException with the type name on construction, before any validation runs', () => {
       const rule = jest.fn(() => false);
 

@@ -28,7 +28,7 @@ export abstract class AbstractType<T> implements Validatable<T | null> {
   private lastValidation: ValidationResult<T | null> | null = null;
 
   constructor(value: T | null = null) {
-    this._value = this.filter(isMissing(value) ? null : value);
+    this._value = isMissing(value) ? null : this.filter(value);
     if (this._value === null && this[REQUIRED] === true) {
       throw new RequiredValueException(this.constructor.name, value);
     }
@@ -61,7 +61,7 @@ export abstract class AbstractType<T> implements Validatable<T | null> {
     return runValidations(this.constructor as ValidatedClass, value);
   }
 
-  protected abstract filter(value: any | null): any | null;
+  protected abstract filter(value: unknown): T | null;
 }
 
 type TypeClass = abstract new (value?: any) => AbstractType<any>;
