@@ -21,17 +21,3 @@ export type PrimitiveTypes<T> = {
 };
 
 export type DataTypes<T> = Partial<PrimitiveTypes<T>>;
-
-// export type PrimitiveType<T> = T extends PrimitiveTypes
-//   ? T
-//   : T extends { value: infer U }
-//     ? PrimitiveType<U>
-//     : T extends Array<{ value: infer U }>
-//       ? U[]
-//       : T extends Array<infer U>
-//         ? Array<PrimitiveType<U>>
-//         : T extends { [K in keyof Properties<T>]: infer U }
-//           ? { [K in keyof Properties<T>]: PrimitiveType<U> }
-//           : never;
-
-// Helper type to remove underscore from the beginning of a key

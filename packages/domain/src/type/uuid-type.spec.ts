@@ -2,7 +2,7 @@ import { describe, expect, it, jest } from '@jest/globals';
 import { expectTypeOf } from 'expect-type';
 import { Validations, isUUID } from '@archi-code/validation';
 import type { ValidationResult } from '@archi-code/validation';
-import { IdType, UuidType } from './uuid-type';
+import { UuidType } from './uuid-type';
 import { AbstractType, Required } from './abstract-type';
 import { TypePrimitiveException } from '../exceptions/domain/type-primitive.exception';
 import { RequiredValueException } from '../exceptions/domain/required-value.exception';
@@ -209,21 +209,5 @@ describe('Required(UuidType)', () => {
     it('does not make UuidType required', () => {
       expect(new UuidType(null).validate()).toEqual({ ok: true, value: null, errors: [] });
     });
-  });
-});
-
-describe('IdType', () => {
-  it('is a required UUID', () => {
-    expectTypeOf<ConstructorParameters<typeof IdType>>().toEqualTypeOf<[value: string]>();
-    expectTypeOf<IdType['value']>().toEqualTypeOf<string>();
-    expect(new IdType(V4).value).toBe(V4);
-    expect(() => new IdType(null as unknown as string)).toThrow(
-      'Validation Error: IdType is required, but received null.',
-    );
-    expect(() => new IdType('abc')).toThrow(TypePrimitiveException);
-  });
-
-  it('is a UuidType', () => {
-    expect(new IdType(IdType.random())).toBeInstanceOf(UuidType);
   });
 });

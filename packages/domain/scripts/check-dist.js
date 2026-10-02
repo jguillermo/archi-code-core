@@ -35,7 +35,7 @@ function smoke(label, m) {
     ],
     [
       'NumberType rejects text',
-      () => throwsInstanceOf(() => new m.NumberType('abc'), m.DomainException),
+      () => throwsInstanceOf(() => new m.NumberType('abc'), m.TypePrimitiveException),
     ],
     [
       'DateType reads ISO',

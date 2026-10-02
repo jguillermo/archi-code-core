@@ -9,4 +9,5 @@ export { JsonType } from './json-type';
 export type { JsonTypeValue } from './json-type';
 export { NumberType } from './number-type';
 export { StringType } from './string-type';
-export { IdType, UuidType } from './uuid-type';
+export { IdType } from './id-type';
+export { UuidType } from './uuid-type';

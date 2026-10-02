@@ -56,7 +56,7 @@ Lerna monorepo publishing independent npm packages implementing DDD patterns. Al
 ```
 @archi-code/common  (zero dependencies — true foundation)
     ↑
-    ├── @archi-code/domain   (runtime: ajv, class-validator, reflect-metadata, uuid)
+    ├── @archi-code/domain   (runtime: @archi-code/validation, uuid)
     └── @archi-code/test
 
 @archi-code/criteria    (standalone — no runtime deps)
@@ -69,12 +69,11 @@ Lerna monorepo publishing independent npm packages implementing DDD patterns. Al
 The core DDD package. Key concepts:
 
 - **`AggregateRoot`** (`aggregate/aggregate-root.ts`) — Base for aggregates; event sourcing via `record()` / `pullDomainEvents()`.
-- **`AbstractType<T>`** (`type/abstract-type.ts`) — Base for all value objects. Uses `class-validator` decorators. Nullable variants via generics. Methods: `isValid()`, `validatorMessageObj()`, `validatorMessageStr()`.
-- **Primitive types** — `AbstractStringType`, `AbstractNumberType`, `AbstractBooleanType`, `AbstractDateType`, `AbstractUuidType`, `AbstractEnumType`, `AbstractArrayType`, `AbstractJsonType`.
-- **`DomainValidator`** (`validator/`) — Custom `class-validator` constraint that validates nested `AbstractType` instances. Supports level-based validation skipping.
-- **Exceptions** — `AbstractException` → `DomainException` / `ApplicationException` / `InfrastructureException`. Specifics: `ValidationException`, `AggregateNotFoundException`, `TypePrimitiveException`.
-- **Builder** (`builder/builder.ts`) — Proxy-based fluent builder for type-safe object construction.
+- **`AbstractType<T>`** (`type/abstract-type.ts`) — Base for all value objects. Only exposes the value (`value`, `isNull`, `isNotNull`, `toString`, `validate()`) and delegates by composition to `type/input/` (empty input → null, `filter`, required check), `type/validation/` (`TypeValidation`, cached `validate()` result) and `type/required/`.
+- **Value objects** — `StringType`, `NumberType`, `BooleanType`, `DateType`, `UuidType`, `EnumType`, `JsonType`, `ArrayType` (`type/<name>-type.ts`). Optional by default (`T | null`); `Required(XType)` makes the constructor ask for `T` and throws `RequiredValueException` when empty. Conversions come from `@archi-code/validation`; validations are declared with its `@Validations`. Values are immutable (`type/immutable/`). `CreatedAt`, `UpdatedAt` and `IdType` are required types.
+- **Exceptions** — `AbstractException` → `DomainException` / `ApplicationException` / `InfrastructureException`. Specifics: `ValidationException`, `AggregateNotFoundException`, `TypePrimitiveException`, `RequiredValueException`.
 - **`EventBase`** (`event/event-base.ts`) — Abstract base for domain events; must implement `eventName()`.
+- **Gate** — `npm run check:domain` (root): prettier → eslint → tsc → jest at 100% coverage → build (CJS + ESM with `scripts/fix-esm.js`) → `scripts/check-dist.js`.
 
 ### TypeScript config hierarchy (per package)
 

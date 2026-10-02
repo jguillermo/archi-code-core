@@ -14,15 +14,15 @@ export abstract class AbstractException extends Error {
         ? exceptionCodes[exceptionCodes.length - 1]
         : ExceptionCode.ErrorException;
     this.timestamp = new Date();
-    Error.captureStackTrace(this, this.constructor);
+    Error.captureStackTrace?.(this, this.constructor);
   }
 
   static readonly ExceptionCodeStrings: Record<ExceptionCode, string> = Object.keys(ExceptionCode)
-    .filter((key) => isNaN(Number(key))) // Filtrar las claves no numéricas
+    .filter((key) => isNaN(Number(key)))
     .reduce(
       (acc, key) => {
         const value = ExceptionCode[key as keyof typeof ExceptionCode];
-        acc[value as ExceptionCode] = key.replace(/([A-Z])/g, ' $1').trim(); // Convertir a mensaje de error legible
+        acc[value as ExceptionCode] = key.replace(/([A-Z])/g, ' $1').trim();
         return acc;
       },
       {} as Record<ExceptionCode, string>,

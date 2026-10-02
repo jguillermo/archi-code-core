@@ -23,9 +23,11 @@
   "types": "./dist/esm/index.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js",
       "require": "./dist/cjs/index.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist/"
@@ -65,21 +67,16 @@
     "injectGlobals": false,
     "coverageThreshold": {
       "global": {
-        "branches": 60,
-        "functions": 60,
-        "lines": 60,
-        "statements": 60
+        "branches": 100,
+        "functions": 100,
+        "lines": 100,
+        "statements": 100
       }
     }
   },
   "gitHead": "ec24f58d7c943a184f815076751029df7294f689",
   "dependencies": {
     "@archi-code/validation": "0.0.1",
-    "ajv": "^8.18.0",
-    "reflect-metadata": "^0.2.2",
     "uuid": "^9.0.1"
-  },
-  "devDependencies": {
-    "@archi-code/test": "1.0.0-alpha.3"
   }
 }
