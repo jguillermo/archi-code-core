@@ -37,6 +37,8 @@
     "build": "npm run build:cjs && npm run build:esm",
     "test": "jest",
     "test:coverage": "jest --coverage",
+    "check:types": "tsc -p tsconfig.json --noEmit --incremental false",
+    "check:all": "npm run check:prettier && npm run check:lint && npm run check:types && npm run test:coverage && npm run build",
     "check:lint": "eslint src --ext .ts",
     "fix:lint": "eslint src --ext .ts --fix",
     "check:prettier": "prettier --check \"{src,test}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\"",

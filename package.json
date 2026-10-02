@@ -22,6 +22,7 @@
     "release:dry-run": "node scripts/release-all.js --dry-run",
     "benchmark": "npm run benchmark -w packages/validation",
     "check:validator": "npm run check:all -w @archi-code/validation",
+    "check:domain": "npm run check:all -w @archi-code/domain",
     "pr:ready": "npm run fix && npm run check && npm run test:coverage && git diff --exit-code"
   },
   "devDependencies": {
