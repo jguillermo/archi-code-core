@@ -1,5 +1,6 @@
 import { anyToString, validate as runValidations } from '@archi-code/validation';
 import type { Validatable, ValidatedClass, ValidationResult } from '@archi-code/validation';
+import { RequiredValueException } from '../exceptions/domain/required-value.exception';
 
 const REQUIRED: unique symbol = Symbol.for('@archi-code/domain/required.v1');
 
@@ -15,14 +16,6 @@ const nullIsValid: ValidationResult<null> = Object.freeze({
   errors: Object.freeze([]) as readonly [],
 });
 
-const nullIsMissing: ValidationResult<null> = Object.freeze({
-  ok: false,
-  value: null,
-  errors: Object.freeze([
-    Object.freeze({ validator: 'isNotEmpty', message: 'Value should not be empty' }),
-  ]),
-});
-
 export abstract class AbstractType<T> implements Validatable<T | null> {
   declare readonly [REQUIRED]?: true;
   protected _value: T | null;
@@ -30,6 +23,9 @@ export abstract class AbstractType<T> implements Validatable<T | null> {
 
   constructor(value: T | null = null) {
     this._value = this.filter(value ?? null);
+    if (this._value === null && this[REQUIRED] === true) {
+      throw new RequiredValueException(this.constructor.name, value);
+    }
   }
 
   get value(): ValueOf<T, this> {
@@ -46,7 +42,10 @@ export abstract class AbstractType<T> implements Validatable<T | null> {
 
   validate(): ValidationResult<ValueOf<T, this>> {
     if (this.lastValidation === null || !Object.is(this.lastValidation.value, this._value)) {
-      this.lastValidation = this.runValidations();
+      this.lastValidation =
+        this._value === null
+          ? nullIsValid
+          : runValidations(this.constructor as ValidatedClass, this._value);
     }
     return this.lastValidation as ValidationResult<ValueOf<T, this>>;
   }
@@ -56,13 +55,6 @@ export abstract class AbstractType<T> implements Validatable<T | null> {
   }
 
   protected abstract filter(value: any | null): any | null;
-
-  private runValidations(): ValidationResult<T | null> {
-    if (this._value !== null) {
-      return runValidations(this.constructor as ValidatedClass, this._value);
-    }
-    return this[REQUIRED] === true ? nullIsMissing : nullIsValid;
-  }
 }
 
 type TypeClass = abstract new (value?: any) => AbstractType<any>;

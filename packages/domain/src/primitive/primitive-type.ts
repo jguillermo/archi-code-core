@@ -37,7 +37,7 @@ type NumberType<T> =
       ? Nullable<number>
       : never;
 
-type StringType<T> = T extends StringType ? T['value'] : never;
+type StringPrimitive<T> = T extends StringType ? T['value'] : never;
 
 type UuidType<T> =
   T extends AbstractUuidType<undefined>
@@ -72,7 +72,7 @@ export type PrimitiveType<T> = T extends (infer U)[]
           | BooleanType<T>
           | DateType<T>
           | NumberType<T>
-          | StringType<T>
+          | StringPrimitive<T>
           | UuidType<T>
           | EnumType<T>
           | JsonType<T>

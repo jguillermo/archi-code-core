@@ -1,15 +1,13 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it, jest } from '@jest/globals';
 import { expectTypeOf } from 'expect-type';
 import { Validations } from '@archi-code/validation';
 import type { ValidationResult } from '@archi-code/validation';
 import { StringType } from './string-type';
 import { AbstractType, Required } from './abstract-type';
 import { TypePrimitiveException } from '../exceptions/domain/type-primitive.exception';
+import { RequiredValueException } from '../exceptions/domain/required-value.exception';
 
-class Name extends Required(StringType) {}
-class Nick extends StringType {}
-
-const notEmptyError = { validator: 'isNotEmpty', message: 'Value should not be empty' };
+class RequiredString extends Required(StringType) {}
 
 const convertibleInputs: [unknown, string][] = [
   ['random', 'random'],
@@ -58,107 +56,67 @@ function primitiveError(received: string): string {
   return `Validation Error: Expected a valid String, but received ${received}.`;
 }
 
-describe('StringType', () => {
+function requiredError(received: string): string {
+  return `Validation Error: RequiredString is required, but received ${received}.`;
+}
+
+function lengthCodes() {
+  const isShortCode = jest.fn(
+    (value: unknown) => typeof value === 'string' && value.length >= 2 && value.length <= 5,
+  );
+
+  @Validations([{ custom: 'isShortCode', fn: isShortCode }])
+  class OptionalCode extends StringType {}
+
+  @Validations([{ custom: 'isShortCode', fn: isShortCode }])
+  class RequiredCode extends Required(StringType) {}
+
+  return { OptionalCode, RequiredCode, isShortCode };
+}
+
+const shortCodeError = { custom: 'isShortCode', message: 'Value does not satisfy isShortCode' };
+
+describe('StringType (optional)', () => {
   describe('typing', () => {
-    it('is an AbstractType of string', () => {
+    it('is an AbstractType of string that takes a string, null or nothing and holds string | null', () => {
       expectTypeOf<StringType>().toMatchTypeOf<AbstractType<string>>();
-    });
-
-    it('value is string when required and string | null when optional', () => {
-      expectTypeOf<Name['value']>().toEqualTypeOf<string>();
-      expectTypeOf<Nick['value']>().toEqualTypeOf<string | null>();
+      expectTypeOf<ConstructorParameters<typeof StringType>>().toEqualTypeOf<
+        [value?: string | null]
+      >();
       expectTypeOf<StringType['value']>().toEqualTypeOf<string | null>();
+      expectTypeOf<StringType['validate']>().toEqualTypeOf<() => ValidationResult<string | null>>();
     });
 
-    it('validate returns a result of its value type', () => {
-      expectTypeOf<Name['validate']>().toEqualTypeOf<() => ValidationResult<string>>();
-      expectTypeOf<Nick['validate']>().toEqualTypeOf<() => ValidationResult<string | null>>();
-    });
-
-    it('the required constructor asks for a string and the optional one accepts null or nothing', () => {
-      expectTypeOf<ConstructorParameters<typeof Name>>().toEqualTypeOf<[value: string]>();
-      expectTypeOf<ConstructorParameters<typeof Nick>>().toEqualTypeOf<[value?: string | null]>();
-    });
-  });
-
-  describe('required or optional construction', () => {
-    it('a required string is a type error without a value, with null or with undefined', () => {
-      // @ts-expect-error a required string needs a value
-      expect(new Name().validate().errors).toEqual([notEmptyError]);
-      // @ts-expect-error a required string does not accept null
-      expect(new Name(null).validate().errors).toEqual([notEmptyError]);
-      // @ts-expect-error a required string does not accept undefined
-      expect(new Name(undefined).validate().errors).toEqual([notEmptyError]);
-    });
-
-    it('a required string with a value is typed as string', () => {
-      const value: string = new Name('Ana').value;
-      expect(value).toBe('Ana');
-    });
-
-    it('an optional string can be created without a value, with null or with undefined', () => {
-      expect(new Nick().value).toBeNull();
-      expect(new Nick(null).value).toBeNull();
-      expect(new Nick(undefined).value).toBeNull();
-    });
-
-    it('an optional string is typed as string | null', () => {
-      // @ts-expect-error an optional value may be null, so it is not a plain string
-      const value: string = new Nick('Ana').value;
-      expect(value).toBe('Ana');
+    it('its value cannot be used as a plain string', () => {
+      // @ts-expect-error an optional value may be null
+      const text: string = new StringType('Ana').value;
+      expect(text).toBe('Ana');
     });
   });
 
   describe('conversion', () => {
     it.each(convertibleInputs)('%p → %p', (input, expected) => {
-      expect(new Nick(input as string).value).toBe(expected);
+      expect(new StringType(input as string).value).toBe(expected);
     });
 
     it.each(emptyInputs)('%s → null', (_, input) => {
-      expect(new Nick(input as string).value).toBeNull();
+      expect(new StringType(input as string).value).toBeNull();
+    });
+
+    it('no value → null', () => {
+      expect(new StringType().value).toBeNull();
     });
 
     it.each(notConvertibleInputs)('%p throws TypePrimitiveException', (input, received) => {
-      const create = () => new Nick(input as string);
+      const create = () => new StringType(input as string);
       expect(create).toThrow(TypePrimitiveException);
       expect(create).toThrow(primitiveError(received));
     });
-
-    it('a required type converts the same way', () => {
-      expect(new Name(1 as unknown as string).value).toBe('1');
-      expect(new Name('   ').value).toBeNull();
-      expect(() => new Name({} as unknown as string)).toThrow(TypePrimitiveException);
-    });
   });
 
-  describe('required', () => {
-    it.each(convertibleInputs)('%p is valid and converted to %p', (input, expected) => {
-      expect(new Name(input as string).validate()).toEqual({
-        ok: true,
-        value: expected,
-        errors: [],
-      });
-    });
-
-    it.each(emptyInputs)('%s is not valid', (_, input) => {
-      expect(new Name(input as string).validate()).toEqual({
-        ok: false,
-        value: null,
-        errors: [notEmptyError],
-      });
-    });
-
-    it('exposes value, isNull and toString of the converted value', () => {
-      const name = new Name('áéíóú');
-      expect(name.value).toBe('áéíóú');
-      expect(name.isNull).toBe(false);
-      expect(name.toString).toBe('áéíóú');
-    });
-  });
-
-  describe('optional', () => {
-    it.each(convertibleInputs)('%p is valid and converted to %p', (input, expected) => {
-      expect(new Nick(input as string).validate()).toEqual({
+  describe('validate', () => {
+    it.each(convertibleInputs)('%p is valid as %p', (input, expected) => {
+      expect(new StringType(input as string).validate()).toEqual({
         ok: true,
         value: expected,
         errors: [],
@@ -166,46 +124,95 @@ describe('StringType', () => {
     });
 
     it.each(emptyInputs)('%s is valid as null', (_, input) => {
-      expect(new Nick(input as string).validate()).toEqual({ ok: true, value: null, errors: [] });
+      expect(new StringType(input as string).validate()).toEqual({
+        ok: true,
+        value: null,
+        errors: [],
+      });
     });
 
-    it('defaults to null', () => {
-      const empty = new Nick();
-      expect(empty.value).toBeNull();
-      expect(empty.isNull).toBe(true);
-      expect(empty.toString).toBe('');
-    });
-  });
-
-  describe('with its own validations', () => {
-    const lengthError = { validator: 'isLength', message: 'Value does not satisfy isLength' };
-
-    @Validations([{ validator: 'isLength', properties: { min: 2, max: 5 } }])
-    class Code extends Required(StringType) {}
-
-    @Validations([{ validator: 'isLength', properties: { min: 2, max: 5 } }])
-    class OptionalCode extends StringType {}
-
-    it.each([['ab'], ['abc'], ['áéíóú'], [12], [true]])('%p is valid', (input) => {
-      expect(new Code(input as string).validate().ok).toBe(true);
-      expect(new OptionalCode(input as string).validate().ok).toBe(true);
+    it('runs its validations on a value', () => {
+      const { OptionalCode } = lengthCodes();
+      expect(new OptionalCode('abc').validate()).toEqual({ ok: true, value: 'abc', errors: [] });
+      expect(new OptionalCode('123456').validate().errors).toEqual([shortCodeError]);
     });
 
-    it.each([['1'], ['123456'], [123456]])('%p fails the length', (input) => {
-      expect(new Code(input as string).validate().errors).toEqual([lengthError]);
-      expect(new OptionalCode(input as string).validate().errors).toEqual([lengthError]);
-    });
-
-    it.each(emptyInputs)('%s only reports the missing value when required', (_, input) => {
-      expect(new Code(input as string).validate().errors).toEqual([notEmptyError]);
-    });
-
-    it.each(emptyInputs)('%s does not run the validations when optional', (_, input) => {
+    it.each(emptyInputs)('%s is valid without running its validations', (_, input) => {
+      const { OptionalCode, isShortCode } = lengthCodes();
       expect(new OptionalCode(input as string).validate()).toEqual({
         ok: true,
         value: null,
         errors: [],
       });
+      expect(isShortCode).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('isNull / toString', () => {
+    it.each([
+      ['a value', new StringType('Ana'), false, 'Ana'],
+      ['an empty value', new StringType('  '), true, ''],
+    ])('%s → isNull %s, toString %p', (_, instance, isNull, text) => {
+      expect(instance.isNull).toBe(isNull);
+      expect(instance.toString).toBe(text);
+    });
+  });
+});
+
+describe('Required(StringType)', () => {
+  describe('typing', () => {
+    it('takes only a string and holds a string', () => {
+      expectTypeOf<ConstructorParameters<typeof RequiredString>>().toEqualTypeOf<[value: string]>();
+      expectTypeOf<RequiredString['value']>().toEqualTypeOf<string>();
+      expectTypeOf<RequiredString['validate']>().toEqualTypeOf<() => ValidationResult<string>>();
+    });
+
+    it('does not accept a missing value or a value of another type', () => {
+      // @ts-expect-error a required string needs a value
+      expect(() => new RequiredString()).toThrow(RequiredValueException);
+      // @ts-expect-error a required string does not accept null
+      expect(() => new RequiredString(null)).toThrow(RequiredValueException);
+      // @ts-expect-error a required string does not accept undefined
+      expect(() => new RequiredString(undefined)).toThrow(RequiredValueException);
+      // @ts-expect-error a required string does not accept a number
+      expect(new RequiredString(1).value).toBe('1');
+    });
+  });
+
+  describe('construction', () => {
+    it.each(convertibleInputs)('%p → %p', (input, expected) => {
+      expect(new RequiredString(input as string).value).toBe(expected);
+    });
+
+    it.each(emptyInputs)('%s throws RequiredValueException', (_, input) => {
+      const received = typeof input === 'string' ? `"${input}"` : 'null';
+      const create = () => new RequiredString(input as string);
+      expect(create).toThrow(RequiredValueException);
+      expect(create).toThrow(requiredError(received));
+    });
+
+    it('throws TypePrimitiveException for a value that cannot be converted', () => {
+      expect(() => new RequiredString({} as unknown as string)).toThrow(primitiveError('{}'));
+    });
+  });
+
+  describe('validate', () => {
+    it.each(convertibleInputs)('%p is valid as %p', (input, expected) => {
+      expect(new RequiredString(input as string).validate()).toEqual({
+        ok: true,
+        value: expected,
+        errors: [],
+      });
+    });
+
+    it('runs its validations on a value', () => {
+      const { RequiredCode } = lengthCodes();
+      expect(new RequiredCode('abc').validate()).toEqual({ ok: true, value: 'abc', errors: [] });
+      expect(new RequiredCode('123456').validate().errors).toEqual([shortCodeError]);
+    });
+
+    it('does not make StringType required', () => {
+      expect(new StringType(null).validate()).toEqual({ ok: true, value: null, errors: [] });
     });
   });
 });

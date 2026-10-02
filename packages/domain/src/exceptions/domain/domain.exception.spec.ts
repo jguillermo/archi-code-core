@@ -4,6 +4,7 @@ import { AggregateNotFoundException } from './aggregate-not-found.exception';
 import { DomainException } from './domain.exception';
 import { ValidationException } from './validation.exception';
 import { TypePrimitiveException } from './type-primitive.exception';
+import { RequiredValueException } from './required-value.exception';
 
 describe('DomainException', () => {
   describe('AggregateNotFoundException', () => {
@@ -32,6 +33,21 @@ describe('DomainException', () => {
       expect(exception.message).toBe(message);
       expect(exception.code).toEqual(ExceptionCode.TypeFailed);
       expect(exception.description).toEqual('Domain Exception (DOM000), Type Failed (DOM003)');
+      expect(exception.timestamp).toBeInstanceOf(Date);
+    });
+  });
+
+  describe('RequiredValueException', () => {
+    it.each([
+      [null, 'Validation Error: Name is required, but received null.'],
+      ['   ', 'Validation Error: Name is required, but received "   ".'],
+    ])('reports the type and the received value %p', (received, message) => {
+      const exception = new RequiredValueException('Name', received);
+
+      expect(exception).toBeInstanceOf(RequiredValueException);
+      expect(exception.message).toBe(message);
+      expect(exception.code).toEqual(ExceptionCode.RequiredValue);
+      expect(exception.description).toEqual('Domain Exception (DOM000), Required Value (DOM004)');
       expect(exception.timestamp).toBeInstanceOf(Date);
     });
   });

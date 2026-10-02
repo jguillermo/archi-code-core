@@ -5,6 +5,7 @@ export enum ExceptionCode {
   ValidationFailed = 'DOM001',
   AggregateNotFound = 'DOM002',
   TypeFailed = 'DOM003',
+  RequiredValue = 'DOM004',
   // BusinessRuleViolation = "DOM003",
   // EntityAlreadyExists = "DOM004",
   // OperationNotAllowed = "DOM005",

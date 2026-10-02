@@ -5,3 +5,4 @@ export * from './infrastructure/infrastructure.exception';
 export * from './infrastructure/internal-error.exception';
 export * from './domain/validation.exception';
 export * from './domain/domain.exception';
+export * from './domain/required-value.exception';

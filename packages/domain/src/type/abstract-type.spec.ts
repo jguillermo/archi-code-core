@@ -3,6 +3,7 @@ import { expectTypeOf } from 'expect-type';
 import { Validations } from '@archi-code/validation';
 import type { Validatable, ValidationResult } from '@archi-code/validation';
 import { AbstractType, Required } from './abstract-type';
+import { RequiredValueException } from '../exceptions/domain/required-value.exception';
 
 class NullableString extends AbstractType<string> {
   protected filter(value: string | null): string | null {
@@ -42,11 +43,9 @@ function typeWithSpiedFilter() {
 
 const valid = <T>(value: T) => ({ ok: true, value, errors: [] });
 
-const missing = {
-  ok: false,
-  value: null,
-  errors: [{ validator: 'isNotEmpty', message: 'Value should not be empty' }],
-};
+function requiredError(typeName: string, received: string): string {
+  return `Validation Error: ${typeName} is required, but received ${received}.`;
+}
 
 describe('AbstractType', () => {
   describe('typing', () => {
@@ -69,17 +68,14 @@ describe('AbstractType', () => {
     });
 
     it('a required type does not accept a missing value or a value of another type', () => {
-      const create = () => {
-        // @ts-expect-error a required type needs a value
-        new RequiredNumber();
-        // @ts-expect-error a required type does not accept null
-        new RequiredNumber(null);
-        // @ts-expect-error a required type does not accept undefined
-        new RequiredNumber(undefined);
-        // @ts-expect-error a required number does not accept a string
-        new RequiredNumber('1');
-      };
-      expect(create).not.toThrow();
+      // @ts-expect-error a required type needs a value
+      expect(() => new RequiredNumber()).toThrow(RequiredValueException);
+      // @ts-expect-error a required type does not accept null
+      expect(() => new RequiredNumber(null)).toThrow(RequiredValueException);
+      // @ts-expect-error a required type does not accept undefined
+      expect(() => new RequiredNumber(undefined)).toThrow(RequiredValueException);
+      // @ts-expect-error a required number does not accept a string
+      expect(() => new RequiredNumber('1')).not.toThrow();
     });
 
     it('the value of an optional type cannot be used as a plain T', () => {
@@ -206,10 +202,6 @@ describe('AbstractType', () => {
 
     it.each([
       ['with a value', () => new Email('x').validate()],
-      [
-        'of a missing required value',
-        () => new RequiredNumber(null as unknown as number).validate(),
-      ],
       ['of an optional null', () => new NullableString(null).validate()],
     ])('the result %s is frozen', (_, run) => {
       const result = run();
@@ -225,16 +217,6 @@ describe('AbstractType', () => {
         class Optional extends NullableString {}
 
         expect(new Optional(null).validate()).toEqual(valid(null));
-        expect(rule).not.toHaveBeenCalled();
-      });
-
-      it('a required type only reports the missing value, without running its validations', () => {
-        const rule = jest.fn(() => false);
-
-        @Validations([{ custom: 'rule', fn: rule }])
-        class Mandatory extends RequiredNumber {}
-
-        expect(new Mandatory(null as unknown as number).validate()).toEqual(missing);
         expect(rule).not.toHaveBeenCalled();
       });
     });
@@ -327,6 +309,18 @@ describe('AbstractType', () => {
   });
 
   describe('Required', () => {
+    it('throws RequiredValueException with the type name on construction, before any validation runs', () => {
+      const rule = jest.fn(() => false);
+
+      @Validations([{ custom: 'rule', fn: rule }])
+      class Mandatory extends RequiredNumber {}
+
+      expect(() => new Mandatory(null as unknown as number)).toThrow(
+        requiredError('Mandatory', 'null'),
+      );
+      expect(rule).not.toHaveBeenCalled();
+    });
+
     it('a value is valid, falsy ones included', () => {
       expect(new RequiredNumber(1).validate()).toEqual(valid(1));
       expect(new RequiredNumber(0).validate()).toEqual(valid(0));
@@ -342,10 +336,10 @@ describe('AbstractType', () => {
       ]);
     });
 
-    it('a value that filter turns into null is missing', () => {
+    it('throws when filter turns the value into null, reporting the raw input', () => {
       class RequiredTrimmed extends Required(TrimmedString) {}
 
-      expect(new RequiredTrimmed('   ').validate()).toEqual(missing);
+      expect(() => new RequiredTrimmed('   ')).toThrow(requiredError('RequiredTrimmed', '"   "'));
     });
 
     it('a subclass is required too', () => {
@@ -353,7 +347,7 @@ describe('AbstractType', () => {
 
       expectTypeOf<ConstructorParameters<typeof Child>>().toEqualTypeOf<[value: number]>();
       expectTypeOf<Child['value']>().toEqualTypeOf<number>();
-      expect(new Child(null as unknown as number).validate()).toEqual(missing);
+      expect(() => new Child(null as unknown as number)).toThrow(requiredError('Child', 'null'));
     });
 
     it('asks for a value even when the wrapped type has a default', () => {
