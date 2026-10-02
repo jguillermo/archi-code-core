@@ -1,11 +1,17 @@
-export const REQUIRED: unique symbol = Symbol.for('@archi-code/domain/required.v1');
+export class RequiredMark {
+  static readonly symbol: unique symbol = Symbol.for('@archi-code/domain/required.v1');
 
-export interface RequiredMark {
-  readonly [REQUIRED]: true;
+  static isMarked(instance: object): boolean {
+    return (instance as Partial<RequiredMarked>)[RequiredMark.symbol] === true;
+  }
+
+  static mark(prototype: object): void {
+    Object.defineProperty(prototype, RequiredMark.symbol, { value: true });
+  }
 }
 
-export type ValueOf<T, I> = I extends RequiredMark ? T : T | null;
-
-export function isRequiredInstance(instance: object): boolean {
-  return (instance as Partial<RequiredMark>)[REQUIRED] === true;
+export interface RequiredMarked {
+  readonly [RequiredMark.symbol]: true;
 }
+
+export type ValueOf<T, I> = I extends RequiredMarked ? T : T | null;

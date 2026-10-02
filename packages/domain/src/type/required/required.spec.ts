@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 import { expectTypeOf } from 'expect-type';
 import { Required } from './required';
-import { REQUIRED, isRequiredInstance } from './required-mark';
+import { RequiredMark } from './required-mark';
 import { AbstractType } from '../abstract-type';
 
 class Amount extends AbstractType<number> {
@@ -45,12 +45,12 @@ describe('Required', () => {
     it('marks the subclass as required, and its own subclasses too', () => {
       class Child extends RequiredAmount {}
 
-      expect(isRequiredInstance(new RequiredAmount(1))).toBe(true);
-      expect(isRequiredInstance(new Child(1))).toBe(true);
+      expect(RequiredMark.isMarked(new RequiredAmount(1))).toBe(true);
+      expect(RequiredMark.isMarked(new Child(1))).toBe(true);
     });
 
     it('does not mark the wrapped type', () => {
-      expect(isRequiredInstance(new Amount(1))).toBe(false);
+      expect(RequiredMark.isMarked(new Amount(1))).toBe(false);
     });
 
     it('creates a new class on each call', () => {
@@ -60,7 +60,7 @@ describe('Required', () => {
     it('puts the mark on the prototype as a read-only, hidden property', () => {
       const descriptor = Object.getOwnPropertyDescriptor(
         Object.getPrototypeOf(RequiredAmount.prototype),
-        REQUIRED,
+        RequiredMark.symbol,
       );
 
       expect(descriptor).toEqual({
@@ -69,7 +69,7 @@ describe('Required', () => {
         enumerable: false,
         configurable: false,
       });
-      expect(Object.keys(new RequiredAmount(1))).not.toContain(REQUIRED);
+      expect(Object.keys(new RequiredAmount(1))).not.toContain(RequiredMark.symbol);
       expect(JSON.stringify(new RequiredAmount(1))).not.toContain('required');
     });
   });

@@ -1,6 +1,6 @@
 import { anyToString, validate as runValidations } from '@archi-code/validation';
 import type { Validatable, ValidatedClass, ValidationResult } from '@archi-code/validation';
-import { acceptValue } from './input/accept-value';
+import { TypeInput } from './input/type-input';
 import type { ValueOf } from './required/required-mark';
 import { TypeValidation } from './validation/type-validation';
 
@@ -12,7 +12,7 @@ export abstract class AbstractType<T> implements Validatable<T | null> {
   private validation: TypeValidation<T> | null = null;
 
   constructor(value: T | null = null) {
-    this._value = acceptValue(this, value, (input) => this.filter(input));
+    this._value = TypeInput.accept(this, value, (input) => this.filter(input));
   }
 
   get value(): ValueOf<T, this> {
