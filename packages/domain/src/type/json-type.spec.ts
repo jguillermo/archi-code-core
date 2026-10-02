@@ -96,9 +96,13 @@ describe('JsonType (optional)', () => {
       expect(new SettingsType(input as Settings).value).toEqual(expected);
     });
 
-    it('keeps the given object by reference', () => {
-      const settings = { theme: 'dark' };
-      expect(new SettingsType(settings).value).toBe(settings);
+    it('holds a copy, so later changes to the given object do not reach it', () => {
+      const settings = { theme: 'dark', size: 2 };
+      const vo = new SettingsType(settings);
+      settings.theme = 'light';
+      expect(vo.value).not.toBe(settings);
+      expect(vo.value).toEqual({ theme: 'dark', size: 2 });
+      expect(Object.isFrozen(settings)).toBe(false);
     });
 
     it.each(emptyInputs)('%s → null', (_, input) => {
@@ -113,6 +117,40 @@ describe('JsonType (optional)', () => {
       const create = () => new SettingsType(input as Settings);
       expect(create).toThrow(TypePrimitiveException);
       expect(create).toThrow(primitiveError(received));
+    });
+  });
+
+  describe('immutability', () => {
+    interface Nested {
+      user: { name: string; tags: string[] };
+    }
+    class NestedType extends JsonType<Nested> {}
+
+    it('its value is frozen all the way down', () => {
+      const value = new NestedType({ user: { name: 'Ana', tags: ['a'] } }).value as Nested;
+      expect(Object.isFrozen(value)).toBe(true);
+      expect(Object.isFrozen(value.user)).toBe(true);
+      expect(Object.isFrozen(value.user.tags)).toBe(true);
+    });
+
+    it('cannot be changed from outside', () => {
+      const vo = new NestedType({ user: { name: 'Ana', tags: ['a'] } });
+      const value = vo.value as Nested;
+      expect(() => {
+        value.user.name = 'Eva';
+      }).toThrow(TypeError);
+      expect(() => value.user.tags.push('b')).toThrow(TypeError);
+      expect(vo.value).toEqual({ user: { name: 'Ana', tags: ['a'] } });
+    });
+
+    it('keeps validate in sync, since the value cannot change', () => {
+      const { OptionalDark } = darkSettings();
+      const vo = new OptionalDark({ theme: 'dark' });
+      expect(vo.validate().ok).toBe(true);
+      expect(() => {
+        (vo.value as Settings).theme = 'light';
+      }).toThrow(TypeError);
+      expect(vo.validate().ok).toBe(true);
     });
   });
 

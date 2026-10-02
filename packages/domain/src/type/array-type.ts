@@ -1,6 +1,7 @@
 import { toArray } from '@archi-code/validation';
 import type { ValidationError, ValidationResult } from '@archi-code/validation';
 import { AbstractType } from './abstract-type';
+import { deepFreeze } from './immutable/deep-freeze';
 import { TypePrimitiveException } from '../exceptions/domain/type-primitive.exception';
 
 type ItemValue<Item extends AbstractType<any>> = Item['value'];
@@ -24,7 +25,7 @@ export abstract class ArrayType<Item extends AbstractType<any>> extends Abstract
   }
 
   addItem(value: ItemValue<Item>): void {
-    this._value = [...(this._value ?? []), this.createItem(value).value];
+    this._value = deepFreeze([...(this._value ?? []), this.createItem(value).value]);
   }
 
   setItem(value: ItemValue<Item>): void {
@@ -38,7 +39,7 @@ export abstract class ArrayType<Item extends AbstractType<any>> extends Abstract
       return;
     }
     const itemValue = this.createItem(value).value;
-    this._value = this._value.filter((current) => !Object.is(current, itemValue));
+    this._value = deepFreeze(this._value.filter((current) => !Object.is(current, itemValue)));
   }
 
   protected filter(value: unknown): ItemValue<Item>[] {
@@ -46,7 +47,7 @@ export abstract class ArrayType<Item extends AbstractType<any>> extends Abstract
     if (!converted.ok) {
       throw new TypePrimitiveException('Array', value);
     }
-    return converted.value.map((item) => this.createItem(item).value);
+    return deepFreeze(converted.value.map((item) => this.createItem(item).value));
   }
 
   protected validateValue(value: ItemValue<Item>[]): ValidationResult<ItemValue<Item>[]> {

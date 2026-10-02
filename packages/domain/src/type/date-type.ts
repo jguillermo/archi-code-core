@@ -1,5 +1,6 @@
 import { toDate } from '@archi-code/validation';
 import { AbstractType } from './abstract-type';
+import { ImmutableDate } from './immutable/immutable-date';
 import { Required } from './required/required';
 import { TypePrimitiveException } from '../exceptions/domain/type-primitive.exception';
 
@@ -9,7 +10,7 @@ export class DateType extends AbstractType<Date> {
     if (!converted.ok) {
       throw new TypePrimitiveException('Date', value);
     }
-    return converted.value;
+    return new ImmutableDate(converted.value);
   }
 
   get toString(): string {
@@ -29,6 +30,6 @@ export class UpdatedAt extends Required(DateType) {
   }
 
   setNow(): void {
-    this._value = new Date();
+    this._value = new ImmutableDate(new Date());
   }
 }

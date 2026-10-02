@@ -196,6 +196,37 @@ describe('ArrayType (optional)', () => {
     });
   });
 
+  describe('immutability', () => {
+    it('holds a copy, so later changes to the given array do not reach it', () => {
+      const input = [18, 30];
+      const ages = new Ages(input);
+      input.push(40);
+      expect(ages.value).not.toBe(input);
+      expect(ages.value).toEqual([18, 30]);
+    });
+
+    it('its value cannot be changed from outside', () => {
+      const ages = new Ages([18]);
+      const value = ages.value as number[];
+      expect(Object.isFrozen(value)).toBe(true);
+      expect(() => value.push(10)).toThrow(TypeError);
+      expect(() => {
+        value[0] = 10;
+      }).toThrow(TypeError);
+      expect(ages.validate().ok).toBe(true);
+    });
+
+    it.each([
+      ['addItem', (ages: Ages) => ages.addItem(30)],
+      ['setItem', (ages: Ages) => ages.setItem(30)],
+      ['removeItem', (ages: Ages) => ages.removeItem(18)],
+    ])('%s leaves a frozen array', (_, change) => {
+      const ages = new Ages([18]);
+      change(ages);
+      expect(Object.isFrozen(ages.value)).toBe(true);
+    });
+  });
+
   describe('items', () => {
     it('are the item instances of the values', () => {
       const items = new Ages([18, 30]).items;

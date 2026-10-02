@@ -96,6 +96,36 @@ describe('DateType (optional)', () => {
     });
   });
 
+  describe('immutability', () => {
+    it('holds a copy, so later changes to the given Date do not reach it', () => {
+      const input = new Date('2018-03-23T00:00:00.000Z');
+      const vo = new DateType(input);
+      input.setUTCFullYear(2020);
+      expect(vo.value).not.toBe(input);
+      expect(vo.toString).toBe('2018-03-23T00:00:00.000Z');
+    });
+
+    it('its value is still a Date', () => {
+      const value = new DateType(new Date(0)).value;
+      expect(value).toBeInstanceOf(Date);
+      expect(value?.getTime()).toBe(0);
+    });
+
+    it('cannot be changed from outside', () => {
+      const vo = new DateType(new Date('2018-03-23T00:00:00.000Z'));
+      expect(() => vo.value?.setUTCFullYear(2020)).toThrow(TypeError);
+      expect(vo.toString).toBe('2018-03-23T00:00:00.000Z');
+    });
+
+    it('keeps validate in sync, since the value cannot change', () => {
+      const { OptionalIn2018 } = datesIn2018();
+      const vo = new OptionalIn2018(new Date('2018-03-23'));
+      expect(vo.validate().ok).toBe(true);
+      expect(() => vo.value?.setUTCFullYear(2020)).toThrow(TypeError);
+      expect(vo.validate().ok).toBe(true);
+    });
+  });
+
   describe('validate', () => {
     it.each(convertibleInputs)('%p is valid', (input) => {
       const instance = new DateType(input as Date);
@@ -238,5 +268,6 @@ describe('UpdatedAt', () => {
 
     expect(updatedAt.toString).toBe('2024-05-01T10:00:00.000Z');
     expect(updatedAt.validate()).not.toBe(before);
+    expect(() => updatedAt.value.setUTCFullYear(2000)).toThrow(TypeError);
   });
 });

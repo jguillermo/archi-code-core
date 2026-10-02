@@ -1,5 +1,6 @@
 import { toJson } from '@archi-code/validation';
 import { AbstractType } from './abstract-type';
+import { deepFreeze } from './immutable/deep-freeze';
 import { TypePrimitiveException } from '../exceptions/domain/type-primitive.exception';
 
 export type JsonTypeValue = Record<string, any>;
@@ -10,6 +11,6 @@ export class JsonType<T extends JsonTypeValue = JsonTypeValue> extends AbstractT
     if (!converted.ok) {
       throw new TypePrimitiveException('Json', value);
     }
-    return converted.value as T;
+    return deepFreeze(JSON.parse(JSON.stringify(converted.value))) as T;
   }
 }
