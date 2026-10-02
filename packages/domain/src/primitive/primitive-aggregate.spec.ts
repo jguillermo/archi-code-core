@@ -2,9 +2,9 @@ import { describe, it } from '@jest/globals';
 import { PrimitiveTypes } from './primitive-types';
 import { expectTypeOf } from 'expect-type';
 import { AggregateRoot } from '../aggregate/aggregate-root';
-import { AbstractStringType, IdType, NumberTypeOptional, Required } from '../type';
+import { StringType, IdType, NumberTypeOptional, Required } from '../type';
 
-class Name extends Required(AbstractStringType) {}
+class Name extends Required(StringType) {}
 
 describe('Primitive aggregate', () => {
   it('id readonly', () => {

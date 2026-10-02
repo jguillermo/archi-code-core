@@ -2,7 +2,7 @@ import { toString as convertToString } from '@archi-code/validation';
 import { AbstractType } from './abstract-type';
 import { TypePrimitiveException } from '../exceptions/domain/type-primitive.exception';
 
-export class AbstractStringType extends AbstractType<string> {
+export class StringType extends AbstractType<string> {
   protected filter(value: unknown): string | null {
     if (value === null) {
       return null;

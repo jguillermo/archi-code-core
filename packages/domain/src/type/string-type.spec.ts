@@ -2,12 +2,12 @@ import { describe, expect, it } from '@jest/globals';
 import { expectTypeOf } from 'expect-type';
 import { Validations } from '@archi-code/validation';
 import type { ValidationResult } from '@archi-code/validation';
-import { AbstractStringType } from './abstract-string-type';
+import { StringType } from './string-type';
 import { AbstractType, Required } from './abstract-type';
 import { TypePrimitiveException } from '../exceptions/domain/type-primitive.exception';
 
-class Name extends Required(AbstractStringType) {}
-class Nick extends AbstractStringType {}
+class Name extends Required(StringType) {}
+class Nick extends StringType {}
 
 const notEmptyError = { validator: 'isNotEmpty', message: 'Value should not be empty' };
 
@@ -58,16 +58,16 @@ function primitiveError(received: string): string {
   return `Validation Error: Expected a valid String, but received ${received}.`;
 }
 
-describe('AbstractStringType', () => {
+describe('StringType', () => {
   describe('typing', () => {
     it('is an AbstractType of string', () => {
-      expectTypeOf<AbstractStringType>().toMatchTypeOf<AbstractType<string>>();
+      expectTypeOf<StringType>().toMatchTypeOf<AbstractType<string>>();
     });
 
     it('value is string when required and string | null when optional', () => {
       expectTypeOf<Name['value']>().toEqualTypeOf<string>();
       expectTypeOf<Nick['value']>().toEqualTypeOf<string | null>();
-      expectTypeOf<AbstractStringType['value']>().toEqualTypeOf<string | null>();
+      expectTypeOf<StringType['value']>().toEqualTypeOf<string | null>();
     });
 
     it('validate returns a result of its value type', () => {
@@ -181,10 +181,10 @@ describe('AbstractStringType', () => {
     const lengthError = { validator: 'isLength', message: 'Value does not satisfy isLength' };
 
     @Validations([{ validator: 'isLength', properties: { min: 2, max: 5 } }])
-    class Code extends Required(AbstractStringType) {}
+    class Code extends Required(StringType) {}
 
     @Validations([{ validator: 'isLength', properties: { min: 2, max: 5 } }])
-    class OptionalCode extends AbstractStringType {}
+    class OptionalCode extends StringType {}
 
     it.each([['ab'], ['abc'], ['áéíóú'], [12], [true]])('%p is valid', (input) => {
       expect(new Code(input as string).validate().ok).toBe(true);

@@ -5,7 +5,7 @@ import { AddValidate } from '../validator/decorator/type-validator';
 import { AbstractJsonType } from '../type/abstract-json-type';
 import {
   AbstractEnumType,
-  AbstractStringType,
+  StringType,
   BooleanTypeOptional,
   BooleanTypeRequired,
   DateTypeOptional,
@@ -19,8 +19,8 @@ import {
 } from '../type';
 import { AbstractArrayType } from '../type/abstract-array-type';
 
-class RequiredString extends Required(AbstractStringType) {}
-class OptionalString extends AbstractStringType {}
+class RequiredString extends Required(StringType) {}
+class OptionalString extends StringType {}
 
 describe('Primitive Types', () => {
   it('booleanType', () => {

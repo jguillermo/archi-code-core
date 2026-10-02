@@ -9,7 +9,7 @@ export { AbstractDateType } from './abstract-date-type';
 export { AbstractEnumType } from './abstract-enum-type';
 export { AbstractJsonType } from './abstract-json-type';
 export { AbstractNumberType, NumberTypeOptional, NumberTypeRequired } from './abstract-number-type';
-export { AbstractStringType } from './abstract-string-type';
+export { StringType } from './string-type';
 export { Required } from './abstract-type';
 export type { RequiredType } from './abstract-type';
 export { AbstractUuidType } from './abstract-uuid-type';

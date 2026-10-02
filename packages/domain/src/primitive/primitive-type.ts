@@ -5,7 +5,7 @@ import {
   AbstractDateType,
   AbstractEnumType,
   AbstractNumberType,
-  AbstractStringType,
+  StringType,
   AbstractUuidType,
   IdType,
 } from '../type';
@@ -37,7 +37,7 @@ type NumberType<T> =
       ? Nullable<number>
       : never;
 
-type StringType<T> = T extends AbstractStringType ? T['value'] : never;
+type StringType<T> = T extends StringType ? T['value'] : never;
 
 type UuidType<T> =
   T extends AbstractUuidType<undefined>
