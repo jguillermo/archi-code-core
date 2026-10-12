@@ -36,7 +36,7 @@ function run(command, args, options = {}) {
 }
 
 function quiet(command, args) {
-  return spawnSync(command, args, { cwd: ROOT, encoding: 'utf8' });
+  return spawnSync(command, args, { cwd: ROOT, encoding: 'utf8', timeout: 60000 });
 }
 
 // Reads the version document (only metadata, nothing is downloaded). Right after a publish npm can
@@ -188,12 +188,12 @@ function packVerified(pkg, destination, commit) {
 // A version that npm already has but does not serve yet (a previous run published it moments ago)
 // is not recorded here: the release stops and the next run records it from npm.
 function publishTarball(plan, pkg, tarball) {
-  console.log(`$ npm publish ${tarball} --tag ${plan.distTag} --access public`);
-  const result = spawnSync(
-    'npm',
-    ['publish', tarball, '--tag', plan.distTag, '--access', 'public'],
-    { cwd: ROOT, encoding: 'utf8' },
-  );
+  const [tag] = plan.distTags;
+  console.log(`$ npm publish ${tarball} --tag ${tag} --access public`);
+  const result = spawnSync('npm', ['publish', tarball, '--tag', tag, '--access', 'public'], {
+    cwd: ROOT,
+    encoding: 'utf8',
+  });
   process.stdout.write(result.stdout ?? '');
   process.stderr.write(result.stderr ?? '');
   if (result.status === 0) return;
@@ -231,6 +231,28 @@ function saveRecord(branch, state, message) {
 
 function versionsLabel(entries) {
   return entries.map((entry) => `${entry.name}@${entry.version}`).join(', ');
+}
+
+// Points every dist-tag of the channel (main: latest and main) at the version releases.json records,
+// for the packages published in this run and for any earlier one whose tags fell behind. It only
+// warns: the versions are already published, a tag can be fixed by the next run.
+function syncDistTags(plan, state) {
+  for (const [name, channels] of Object.entries(state.packages)) {
+    const version = channels[plan.branch];
+    if (!version) continue;
+    const view = quiet('npm', ['view', name, 'dist-tags', '--json']);
+    let tags = {};
+    try {
+      tags = JSON.parse(view.stdout || '{}');
+    } catch {
+      tags = {};
+    }
+    for (const tag of plan.distTags.filter((item) => tags[item] !== version)) {
+      const result = quiet('npm', ['dist-tag', 'add', `${name}@${version}`, tag]);
+      if (result.status === 0) console.log(`🏷  ${name}: ${tag} → ${version}`);
+      else console.error(`⚠ no se pudo poner ${tag} → ${name}@${version}: ${result.stderr.trim()}`);
+    }
+  }
 }
 
 function abort(problems) {
@@ -310,6 +332,7 @@ function main() {
   }
 
   if (PACK_ONLY) return;
+  syncDistTags(plan, state);
   const recorded = [...reconciled, ...published];
   if (!recorded.length) {
     summary(['', 'Nada que publicar.']);

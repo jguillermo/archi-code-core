@@ -46,7 +46,9 @@ GitHub Actions writes it; never edit it by hand.
 `scripts/lib/release-plan.js` computes the next release from it; `npm run version` (dry-run, local, no
 network) and `npm run release` (deploy) use the same plan:
 
-- Branch `main` → `X.Y.Z-alpha.N` (dist-tag `main`); `release` → stable (dist-tag `latest`); the first
+- Branch `main` → `X.Y.Z-alpha.N` (dist-tags `latest` and `main`, so a plain `npm i` gets it); `release` →
+  stable (dist-tag `latest`). Every run also moves any channel dist-tag that fell behind the version
+  `releases.json` records (it only warns if npm refuses). The first
   stable promotes the open alpha (`1.0.0-alpha.4` → `1.0.0`). Other branches do not publish.
 - Commits since the recorded commit touching `packages/<dir>`: breaking → major, `feat` → minor,
   `fix`/`perf` → patch, `chore|docs|test|style|ci|build|refactor|revert` → none, non conventional → patch

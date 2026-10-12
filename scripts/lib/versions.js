@@ -1,8 +1,8 @@
 'use strict';
 
 const CHANNELS = {
-  main: { branch: 'main', prerelease: 'alpha', distTag: 'main' },
-  release: { branch: 'release', prerelease: null, distTag: 'latest' },
+  main: { branch: 'main', prerelease: 'alpha', distTags: ['latest', 'main'] },
+  release: { branch: 'release', prerelease: null, distTags: ['latest'] },
 };
 
 const VERSION_RE = /^(\d+)\.(\d+)\.(\d+)(?:-([a-z]+)\.(\d+))?$/;

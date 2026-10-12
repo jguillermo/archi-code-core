@@ -76,14 +76,18 @@ function plan({ branch = 'main', packages, published = {}, commits = {} }) {
 
 describe('channelFor', () => {
   test('main publishes alpha prereleases under the main dist-tag', () => {
-    assert.deepEqual(channelFor('main'), { branch: 'main', prerelease: 'alpha', distTag: 'main' });
+    assert.deepEqual(channelFor('main'), {
+      branch: 'main',
+      prerelease: 'alpha',
+      distTags: ['latest', 'main'],
+    });
   });
 
   test('release publishes stable versions under latest', () => {
     assert.deepEqual(channelFor('release'), {
       branch: 'release',
       prerelease: null,
-      distTag: 'latest',
+      distTags: ['latest'],
     });
   });
 
@@ -476,8 +480,8 @@ describe('buildPlan', () => {
   test('carries the channel of the branch', () => {
     const { result } = plan({ branch: 'release', packages: [] });
     assert.deepEqual(
-      { branch: result.branch, distTag: result.distTag, prerelease: result.prerelease },
-      { branch: 'release', distTag: 'latest', prerelease: null },
+      { branch: result.branch, distTags: result.distTags, prerelease: result.prerelease },
+      { branch: 'release', distTags: ['latest'], prerelease: null },
     );
   });
 });

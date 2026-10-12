@@ -17,33 +17,5 @@
     }
   },
   "deploys": [
-    {
-      "date": "2026-10-12T20:03:48.596Z",
-      "commit": "0f91c505cb7942162e3b3f0bbfeb39fd4a76494e",
-      "channel": "main",
-      "reset": "2.0.0-alpha.1",
-      "packages": [
-        {
-          "name": "@archi-code/criteria",
-          "previous": "1.0.0-alpha.1",
-          "version": "2.0.0-alpha.1",
-          "bump": "major",
-          "reasons": [
-            "breaking: releases.json sin deploys, nueva major del conjunto (2.0.0-alpha.1)"
-          ],
-          "dependencies": {}
-        },
-        {
-          "name": "@archi-code/crypto-tools",
-          "previous": "1.0.0-alpha.1",
-          "version": "2.0.0-alpha.1",
-          "bump": "major",
-          "reasons": [
-            "breaking: releases.json sin deploys, nueva major del conjunto (2.0.0-alpha.1)"
-          ],
-          "dependencies": {}
-        }
-      ]
-    }
   ]
 }

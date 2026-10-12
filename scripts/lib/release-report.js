@@ -60,7 +60,7 @@ function renderLastDeploy(deploy) {
 }
 
 function renderPlan(plan) {
-  const lines = [`canal: ${plan.branch}  |  dist-tag npm: ${plan.distTag}`, ''];
+  const lines = [`canal: ${plan.branch}  |  dist-tags npm: ${plan.distTags.join(', ')}`, ''];
   lines.push(...table([HEADER, ...summaryRows(plan)]));
   for (const pkg of releasing(plan)) {
     lines.push('', `${pkg.name}  ${pkg.current ?? '—'} → ${pkg.next}`);
@@ -76,7 +76,7 @@ function escapeCell(text) {
 
 function planMarkdown(plan) {
   const lines = [
-    `### Plan de release — canal \`${plan.branch}\`, dist-tag \`${plan.distTag}\``,
+    `### Plan de release — canal \`${plan.branch}\`, dist-tags \`${plan.distTags.join(', ')}\``,
     '',
     `| ${HEADER.join(' | ')} |`,
     `|${HEADER.map(() => ' --- ').join('|')}|`,

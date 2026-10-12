@@ -151,7 +151,7 @@ function buildPlan({ branch, packages, state, readCommits }) {
 
   return {
     branch: channel.branch,
-    distTag: channel.distTag,
+    distTags: channel.distTags,
     reset: resetUsed,
     prerelease: channel.prerelease,
     packages: ordered.map((pkg) => byName[pkg.name]),

@@ -26,7 +26,12 @@ const criteria = {
   warnings: [],
 };
 
-const plan = { branch: 'main', distTag: 'main', packages: [criteria, domain], errors: [] };
+const plan = {
+  branch: 'main',
+  distTags: ['latest', 'main'],
+  packages: [criteria, domain],
+  errors: [],
+};
 
 describe('release report', () => {
   test('dates are shown as DD/MM/AAAA HH:MM in UTC', () => {
