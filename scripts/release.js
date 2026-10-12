@@ -20,8 +20,9 @@ const { findVersionErrors } = require('./check-versions');
 
 const ROOT = path.join(__dirname, '..');
 const PACK_ONLY = process.argv.includes('--pack');
-const NPM_VIEW_RETRIES = 10;
-const NPM_VIEW_DELAY_MS = 3000;
+const REGISTRY = 'https://registry.npmjs.org';
+const NPM_WAIT_RETRIES = 60;
+const NPM_WAIT_DELAY_MS = 5000;
 
 function run(command, args, options = {}) {
   console.log(`$ ${command} ${args.join(' ')}`);
@@ -42,11 +43,23 @@ function sleep(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
+// Asks for the version document: the full packument that `npm view` reads is cached by the
+// registry CDN for minutes after a publish, the version document is up to date at once.
 function publishedOnNpm(name, version) {
-  const result = quiet('npm', ['view', `${name}@${version}`, 'version']);
-  if (result.status === 0) return result.stdout.trim() === version;
-  if (/E404/.test(result.stderr)) return false;
-  throw new Error(`npm view ${name}@${version} falló:\n${result.stderr.trim()}`);
+  const url = `${REGISTRY}/${name.replace('/', '%2F')}/${version}`;
+  const result = quiet('curl', [
+    '-s',
+    '-o',
+    '/dev/null',
+    '-w',
+    '%{http_code}',
+    '-H',
+    'Cache-Control: no-cache',
+    url,
+  ]);
+  if (result.stdout === '200') return true;
+  if (result.stdout === '404') return false;
+  throw new Error(`no se pudo consultar ${url} (HTTP ${result.stdout || result.stderr.trim()})`);
 }
 
 function localTagExists(tag) {
@@ -99,8 +112,9 @@ function checkTargets(plan) {
     if (remoteTagExists(tag)) problems.push(`el tag ${tag} ya existe en origin`);
     if (publishedOnNpm(pkg.name, pkg.next)) {
       problems.push(
-        `${pkg.name}@${pkg.next} ya está en npm pero falta su tag: créalo con ` +
-          `git tag -a ${tag} -m ${tag} <commit publicado> && git push origin ${tag}`,
+        `${pkg.name}@${pkg.next} ya está en npm pero falta su tag: créalo en el commit desde el ` +
+          `que se publicó (el de la run que falló) con git tag -a ${tag} -m ${tag} <commit> && ` +
+          `git push origin refs/tags/${tag}`,
       );
     }
     for (const [dep, version] of Object.entries(pkg.dependencies)) {
@@ -142,18 +156,22 @@ function packVerified(pkg, destination) {
 }
 
 function waitForNpm(pkg) {
-  for (let attempt = 1; attempt <= NPM_VIEW_RETRIES; attempt += 1) {
+  for (let attempt = 1; attempt <= NPM_WAIT_RETRIES; attempt += 1) {
     if (publishedOnNpm(pkg.name, pkg.next)) return;
-    sleep(NPM_VIEW_DELAY_MS);
+    sleep(NPM_WAIT_DELAY_MS);
   }
-  throw new Error(`${pkg.name}@${pkg.next} no aparece en npm tras publicarlo`);
+  throw new Error(
+    `${pkg.name}@${pkg.next} se publicó y tiene tag, pero no aparece en npm tras ` +
+      `${(NPM_WAIT_RETRIES * NPM_WAIT_DELAY_MS) / 1000} s`,
+  );
 }
 
+// Once npm publish succeeds the version exists for good, so the tag and the GitHub release are
+// created right away; waiting for the registry comes last and never leaves a version untagged.
 function publish(plan, pkg, tarball) {
   run('npm', ['publish', tarball, '--tag', plan.distTag, '--access', 'public'], {
     stdio: ['ignore', 'inherit', 'inherit'],
   });
-  waitForNpm(pkg);
   const tag = tagName(pkg);
   run('git', ['tag', '-a', tag, '-m', tag]);
   run('git', ['push', 'origin', `refs/tags/${tag}`]);
@@ -168,6 +186,7 @@ function publish(plan, pkg, tarball) {
     releaseNotes(pkg),
     ...(plan.prerelease ? ['--prerelease'] : []),
   ]);
+  waitForNpm(pkg);
 }
 
 function abort(problems) {

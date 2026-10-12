@@ -51,7 +51,8 @@ and `npm run release` (deploy) use the same plan:
   branch, `check:versions` passes, npm and gh are authenticated, no target tag or npm version exists and
   every pinned dependency is on npm. Per package, in dependency order: writes the exact versions into
   `package.json`, builds, packs, verifies the packed `package.json`, restores the file, publishes that
-  tarball, waits for npm, pushes the annotated tag and creates the GitHub release. It never commits.
+  tarball, pushes the annotated tag, creates the GitHub release and then waits until npm serves the
+  version (it reads the version document: the full packument is cached for minutes). It never commits.
 - `npm run release -- --pack` runs the same steps up to the verified tarball without publishing.
 
 ### Single package
