@@ -7,7 +7,7 @@
       "main": "3.0.0-alpha.1"
     },
     "@archi-code/domain": {
-      "main": "1.0.0-alpha.1"
+      "main": "3.0.0-alpha.1"
     },
     "@archi-code/ephemeradb": {
       "main": "1.0.0-alpha.1"
@@ -55,6 +55,18 @@
             "breaking: releases.json sin deploys, nueva major del conjunto (3.0.0-alpha.1)"
           ],
           "dependencies": {}
+        },
+        {
+          "name": "@archi-code/domain",
+          "previous": "1.0.0-alpha.1",
+          "version": "3.0.0-alpha.1",
+          "bump": "major",
+          "reasons": [
+            "breaking: releases.json sin deploys, nueva major del conjunto (3.0.0-alpha.1)"
+          ],
+          "dependencies": {
+            "@archi-code/validation": "3.0.0-alpha.1"
+          }
         }
       ]
     }
