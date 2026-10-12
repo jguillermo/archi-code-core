@@ -23,7 +23,6 @@ const ROOT = path.join(__dirname, '..');
 const PACK_ONLY = process.argv.includes('--pack');
 const REGISTRY = 'https://registry.npmjs.org';
 const MAX_RECONCILE_ROUNDS = 10;
-const RECORD_MESSAGE = 'chore(release): record published versions [skip ci]';
 
 function run(command, args, options = {}) {
   console.log(`$ ${command} ${args.join(' ')}`);
@@ -207,15 +206,31 @@ function publishTarball(plan, pkg, tarball) {
   throw new Error(`npm publish de ${pkg.name}@${pkg.next} falló (código ${result.status})`);
 }
 
-function pushRecord(branch) {
-  run('git', ['add', STATE_FILE]);
-  run('git', ['commit', '-m', RECORD_MESSAGE]);
+// Saves releases.json in the branch right away, so a run that is killed later (cancelled, timed
+// out) never leaves a published version out of the file. Returns false instead of throwing: the
+// change stays committed locally and the next save (or the final one) pushes it.
+function saveRecord(branch, state, message) {
+  writeState(ROOT, state);
   try {
-    run('git', ['push', 'origin', `HEAD:refs/heads/${branch}`]);
-  } catch {
-    run('git', ['pull', '--rebase', 'origin', branch]);
-    run('git', ['push', 'origin', `HEAD:refs/heads/${branch}`]);
+    run('git', ['add', STATE_FILE]);
+    if (quiet('git', ['diff', '--cached', '--quiet']).status !== 0) {
+      run('git', ['commit', '-m', `${message} [skip ci]`]);
+    }
+    try {
+      run('git', ['push', 'origin', `HEAD:refs/heads/${branch}`]);
+    } catch {
+      run('git', ['pull', '--rebase', 'origin', branch]);
+      run('git', ['push', 'origin', `HEAD:refs/heads/${branch}`]);
+    }
+    return true;
+  } catch (error) {
+    console.error(`⚠ no se pudo guardar ${STATE_FILE} en ${branch}: ${error.message}`);
+    return false;
   }
+}
+
+function versionsLabel(entries) {
+  return entries.map((entry) => `${entry.name}@${entry.version}`).join(', ');
 }
 
 function abort(problems) {
@@ -257,6 +272,9 @@ function main() {
     } catch (error) {
       abort([error.message]);
     }
+    if (reconciled.length) {
+      saveRecord(branch, state, `chore(release): record ${versionsLabel(reconciled)} from npm`);
+    }
     const pinned = checkPinnedDependencies(plan);
     if (pinned.length) abort(pinned);
   }
@@ -280,9 +298,9 @@ function main() {
       publishTarball(plan, pkg, tarball);
       const entry = deployEntry(pkg);
       state = record(state, entry, plan.reset);
-      writeState(ROOT, state);
       published.push(entry);
       console.log(`✔ ${pkg.name}@${pkg.next} publicado`);
+      saveRecord(branch, state, `chore(release): record ${versionsLabel([entry])}`);
     }
   } catch (error) {
     console.error(`\nrelease: se detiene en error: ${error.message}`);
@@ -298,13 +316,10 @@ function main() {
     return;
   }
 
-  writeState(ROOT, state);
-  try {
-    pushRecord(branch);
-  } catch (error) {
+  if (!saveRecord(branch, state, `chore(release): record ${versionsLabel(recorded)}`)) {
     console.error(
-      `\nrelease: no se pudo guardar ${STATE_FILE} en ${branch}: ${error.message}\n` +
-        'Las versiones ya están en npm; la próxima run las reconciliará desde su releaseCommit.',
+      `\nrelease: ${STATE_FILE} no quedó guardado en ${branch}. Las versiones ya están en npm; ` +
+        'la próxima run las reconciliará desde su releaseCommit.',
     );
     process.exitCode = 1;
   }

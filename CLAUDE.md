@@ -66,11 +66,13 @@ network) and `npm run release` (deploy) use the same plan:
   `package.json` and the plan is computed again; a version on npm without a `releaseCommit` from this
   history stops the release.
 - Per package, in dependency order: writes the exact versions and `releaseCommit` into `package.json`,
-  builds, packs, verifies the packed `package.json`, restores the file, publishes that tarball and
-  records it in `releases.json`. It never waits for npm to serve a version (that can take minutes):
-  `npm publish` succeeding is enough. If npm answers that the version already exists, the release stops
-  without recording it and the next run reconciles it. At the end, even after a failure, it commits
-  `releases.json` with `[skip ci]` and pushes it to the branch. No git tags nor GitHub releases.
+  builds, packs, verifies the packed `package.json`, restores the file and publishes that tarball.
+  Right after each successful publish it records the version in `releases.json` and commits and pushes
+  it to the branch (`chore(release): record <name>@<version> [skip ci]`), so a run that fails or is
+  killed later never leaves a published version out of the file; a push that fails is retried by the
+  next save and once more at the end. It never waits for npm to serve a version (that can take
+  minutes): `npm publish` succeeding is enough. If npm answers that the version already exists, the
+  release stops without recording it and the next run reconciles it. No git tags nor GitHub releases.
 - `npm run release -- --pack` runs the same steps up to the verified tarball without publishing.
 
 ### Single package
