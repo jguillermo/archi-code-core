@@ -337,6 +337,36 @@ describe('buildPlan', () => {
     assert.deepEqual(result.errors, []);
   });
 
+  test('a reset cut half way is finished by the next run for the packages no deploy records', () => {
+    const result = buildPlan({
+      branch: 'main',
+      packages: [pkg(APP, { [BASE]: '0.0.0-development' }), pkg(BASE), pkg(MID)],
+      state: {
+        packages: { [BASE]: { main: '2.0.0-alpha.1' }, [APP]: { main: '1.0.0-alpha.1' } },
+        deploys: [
+          {
+            date: '2026-10-12T00:00:00Z',
+            commit: 'reset',
+            channel: 'main',
+            reset: '2.0.0-alpha.1',
+            packages: [{ name: BASE, previous: '1.0.0-alpha.1', version: '2.0.0-alpha.1' }],
+          },
+        ],
+      },
+      readCommits: () => [],
+    });
+    assert.deepEqual(
+      result.packages.map((p) => [p.name, p.next, p.reasons]),
+      [
+        [BASE, null, []],
+        [APP, '2.0.0-alpha.1', ['completa el reinicio del conjunto (2.0.0-alpha.1)']],
+        [MID, '2.0.0-alpha.1', ['completa el reinicio del conjunto (2.0.0-alpha.1)']],
+      ],
+    );
+    assert.deepEqual(result.packages[1].dependencies, { [BASE]: '2.0.0-alpha.1' });
+    assert.equal(result.reset, '2.0.0-alpha.1');
+  });
+
   test('the reset takes the highest major of any channel and is stable on release', () => {
     const result = buildPlan({
       branch: 'release',

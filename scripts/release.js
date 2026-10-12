@@ -22,8 +22,6 @@ const { findVersionErrors } = require('./check-versions');
 const ROOT = path.join(__dirname, '..');
 const PACK_ONLY = process.argv.includes('--pack');
 const REGISTRY = 'https://registry.npmjs.org';
-const NPM_WAIT_RETRIES = 60;
-const NPM_WAIT_DELAY_MS = 5000;
 const MAX_RECONCILE_ROUNDS = 10;
 const RECORD_MESSAGE = 'chore(release): record published versions [skip ci]';
 
@@ -42,16 +40,14 @@ function quiet(command, args) {
   return spawnSync(command, args, { cwd: ROOT, encoding: 'utf8' });
 }
 
-function sleep(ms) {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
-}
-
-// Reads the version document: the full packument is cached by the registry CDN for minutes after
-// a publish, the version document is up to date at once. Only metadata, nothing is downloaded.
+// Reads the version document (only metadata, nothing is downloaded). Right after a publish npm can
+// take minutes to serve it, so the release never waits for it: `npm publish` succeeding is enough.
 function npmVersionDocument(name, version) {
   const url = `${REGISTRY}/${name.replace('/', '%2F')}/${version}`;
   const result = quiet('curl', [
     '-s',
+    '--max-time',
+    '20',
     '-H',
     'Cache-Control: no-cache',
     '-w',
@@ -115,10 +111,10 @@ function deployEntry(pkg, extra = {}) {
 // Every publication of this run goes into one deploy entry, opened with the first of them.
 function recorder(branch, head) {
   let opened = false;
-  return (state, entry) => {
+  return (state, entry, reset) => {
     const base = opened
       ? state
-      : openDeploy(state, { date: new Date().toISOString(), commit: head, channel: branch });
+      : openDeploy(state, { date: new Date().toISOString(), commit: head, channel: branch, reset });
     opened = true;
     return recordPublication(base, { channel: branch, entry });
   };
@@ -151,7 +147,7 @@ function reconcileWithNpm(branch, loaded, record) {
         reconciled: true,
         commit,
       });
-      state = record(state, entry);
+      state = record(state, entry, plan.reset);
       reconciled.push(entry);
     }
     const reloaded = loadPlan(ROOT, branch, state);
@@ -190,15 +186,25 @@ function packVerified(pkg, destination, commit) {
   }
 }
 
-function waitForNpm(pkg) {
-  for (let attempt = 1; attempt <= NPM_WAIT_RETRIES; attempt += 1) {
-    if (npmVersionDocument(pkg.name, pkg.next)) return;
-    sleep(NPM_WAIT_DELAY_MS);
-  }
-  throw new Error(
-    `${pkg.name}@${pkg.next} se publicó pero no aparece en npm tras ` +
-      `${(NPM_WAIT_RETRIES * NPM_WAIT_DELAY_MS) / 1000} s`,
+// A version that npm already has but does not serve yet (a previous run published it moments ago)
+// is not recorded here: the release stops and the next run records it from npm.
+function publishTarball(plan, pkg, tarball) {
+  console.log(`$ npm publish ${tarball} --tag ${plan.distTag} --access public`);
+  const result = spawnSync(
+    'npm',
+    ['publish', tarball, '--tag', plan.distTag, '--access', 'public'],
+    { cwd: ROOT, encoding: 'utf8' },
   );
+  process.stdout.write(result.stdout ?? '');
+  process.stderr.write(result.stderr ?? '');
+  if (result.status === 0) return;
+  if (/EPUBLISHCONFLICT|cannot publish over|previously published/i.test(result.stderr ?? '')) {
+    throw new Error(
+      `${pkg.name}@${pkg.next} ya existe en npm aunque todavía no lo muestra (lo publicó otra ` +
+        'run hace poco); no se pisa: la próxima run lo registrará desde npm',
+    );
+  }
+  throw new Error(`npm publish de ${pkg.name}@${pkg.next} falló (código ${result.status})`);
 }
 
 function pushRecord(branch) {
@@ -271,15 +277,12 @@ function main() {
         console.log(`✔ ${pkg.name}@${pkg.next} empaquetado y verificado`);
         continue;
       }
-      run('npm', ['publish', tarball, '--tag', plan.distTag, '--access', 'public'], {
-        stdio: ['ignore', 'inherit', 'inherit'],
-      });
+      publishTarball(plan, pkg, tarball);
       const entry = deployEntry(pkg);
-      state = record(state, entry);
+      state = record(state, entry, plan.reset);
       writeState(ROOT, state);
       published.push(entry);
       console.log(`✔ ${pkg.name}@${pkg.next} publicado`);
-      waitForNpm(pkg);
     }
   } catch (error) {
     console.error(`\nrelease: se detiene en error: ${error.message}`);

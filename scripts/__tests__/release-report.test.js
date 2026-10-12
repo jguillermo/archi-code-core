@@ -58,7 +58,9 @@ describe('release report', () => {
   test('a reset says the whole set starts a new major', () => {
     const lines = renderPlan({ ...plan, packages: [{ ...domain, reset: true, commits: [] }] });
     assert.ok(
-      lines.includes('  sin deploys previos: nueva major para todo el conjunto, sin mirar commits'),
+      lines.includes(
+        '  reinicio del conjunto: nueva major para todos los paquetes, sin mirar commits',
+      ),
     );
   });
 

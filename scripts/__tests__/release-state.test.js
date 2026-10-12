@@ -134,6 +134,42 @@ describe('stateErrors', () => {
     );
   });
 
+  test('while a reset is unfinished, versions no deploy records are allowed', () => {
+    const pending = {
+      packages: {
+        '@archi-code/x': { main: '2.0.0-alpha.1' },
+        '@archi-code/y': { main: '1.0.0-alpha.1' },
+      },
+      deploys: [
+        {
+          ...deploy(A, 'main', [
+            { name: '@archi-code/x', previous: null, version: '2.0.0-alpha.1' },
+          ]),
+          reset: '2.0.0-alpha.1',
+        },
+      ],
+    };
+    assert.deepEqual(stateErrors(pending), []);
+    assert.deepEqual(
+      stateErrors({ ...pending, deploys: [{ ...pending.deploys[0], reset: 'x' }] }),
+      ['deploys[0]: reset no válido "x"'],
+    );
+  });
+
+  test('a deploy opened for a reset keeps its target version', () => {
+    const opened = openDeploy(emptyState(), {
+      date: DATE,
+      commit: A,
+      channel: 'main',
+      reset: '2.0.0-alpha.1',
+    });
+    assert.equal(lastDeploy(opened).reset, '2.0.0-alpha.1');
+    assert.equal(
+      'reset' in lastDeploy(openDeploy(emptyState(), { date: DATE, commit: A, channel: 'main' })),
+      false,
+    );
+  });
+
   test('rejects a file without packages or deploys', () => {
     assert.deepEqual(stateErrors({}), [
       `${STATE_FILE} debe tener "packages" (objeto) y "deploys" (lista)`,

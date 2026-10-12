@@ -53,9 +53,18 @@ function resetVersion(state, channel) {
   return channel.prerelease ? `${major}.0.0-${channel.prerelease}.1` : `${major}.0.0`;
 }
 
+// A reset that stopped half way (some packages published, the run failed) is finished by the next
+// runs: every package that no deploy records yet joins the reset version of that deploy.
+function pendingReset(state, branch) {
+  const deploy = [...state.deploys].reverse().find((item) => item.reset);
+  return deploy && deploy.channel === branch ? deploy.reset : null;
+}
+
 function buildPlan({ branch, packages, state, readCommits }) {
   const channel = channelFor(branch);
-  const reset = state.deploys.length === 0 ? resetVersion(state, channel) : null;
+  const fullReset = state.deploys.length === 0 ? resetVersion(state, channel) : null;
+  const pending = fullReset ? null : pendingReset(state, branch);
+  let resetUsed = fullReset;
   const errors = [];
   const known = new Set(packages.map((pkg) => pkg.name));
   const ordered = topoSort(
@@ -70,6 +79,8 @@ function buildPlan({ branch, packages, state, readCommits }) {
       commit: baseCommit,
       dependencies: pinned,
     } = baselineFor(state, pkg.name, branch);
+    const reset = fullReset ?? (pending && !baseCommit ? pending : null);
+    if (reset) resetUsed = reset;
     const commits = (reset ? [] : readCommits(pkg, baseCommit)).map((commit) => ({
       ...commit,
       ...classifyCommit(commit),
@@ -82,7 +93,11 @@ function buildPlan({ branch, packages, state, readCommits }) {
     if (bump) reasons.push(`commits (${bump})`);
     if (reset) {
       bump = 'major';
-      reasons.push(`breaking: releases.json sin deploys, nueva major del conjunto (${reset})`);
+      reasons.push(
+        fullReset
+          ? `breaking: releases.json sin deploys, nueva major del conjunto (${reset})`
+          : `completa el reinicio del conjunto (${reset})`,
+      );
     }
 
     for (const dep of pkg.internalDeps) {
@@ -137,6 +152,7 @@ function buildPlan({ branch, packages, state, readCommits }) {
   return {
     branch: channel.branch,
     distTag: channel.distTag,
+    reset: resetUsed,
     prerelease: channel.prerelease,
     packages: ordered.map((pkg) => byName[pkg.name]),
     errors,

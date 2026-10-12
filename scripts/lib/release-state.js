@@ -48,6 +48,9 @@ function deployErrors(index, deploy) {
   if (!COMMIT_RE.test(deploy?.commit ?? '')) errors.push(`${where}: commit no válido`);
   if (Number.isNaN(Date.parse(deploy?.date))) errors.push(`${where}: fecha no válida`);
   if (!CHANNELS[deploy?.channel]) errors.push(`${where}: canal no válido "${deploy?.channel}"`);
+  if (deploy?.reset !== undefined && !parseVersionSafe(deploy.reset)) {
+    errors.push(`${where}: reset no válido "${deploy.reset}"`);
+  }
   if (!Array.isArray(deploy?.packages) || !deploy.packages.length) {
     errors.push(`${where}: "packages" debe ser una lista no vacía`);
     return errors;
@@ -70,6 +73,7 @@ function stateErrors(state) {
   const errors = [];
   state.deploys.forEach((deploy, index) => errors.push(...deployErrors(index, deploy)));
   if (errors.length) return errors;
+  const unregisteredAllowed = !state.deploys.length || state.deploys.some((deploy) => deploy.reset);
   for (const [name, channels] of Object.entries(state.packages)) {
     for (const [channel, version] of Object.entries(channels)) {
       const where = `${name} (${channel})`;
@@ -87,7 +91,7 @@ function stateErrors(state) {
       }
       if (channel === 'release' && parsed.pre)
         errors.push(`${where}: ${version} debería ser estable`);
-      if (state.deploys.length && !findPublication(state, name, version)) {
+      if (!unregisteredAllowed && !findPublication(state, name, version)) {
         errors.push(`${where}: ningún deploy registra la publicación de ${version}`);
       }
     }
@@ -110,8 +114,9 @@ function baselineFor(state, name, channel) {
   };
 }
 
-function openDeploy(state, { date, commit, channel }) {
-  return { ...state, deploys: [...state.deploys, { date, commit, channel, packages: [] }] };
+function openDeploy(state, { date, commit, channel, reset }) {
+  const deploy = { date, commit, channel, ...(reset ? { reset } : {}), packages: [] };
+  return { ...state, deploys: [...state.deploys, deploy] };
 }
 
 function recordPublication(state, { channel, entry }) {

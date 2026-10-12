@@ -54,7 +54,9 @@ network) and `npm run release` (deploy) use the same plan:
 - Empty `deploys` (with or without `packages`): the whole set starts a new major, aligned: every package
   is released at the major after the highest current version (`2.0.0-alpha.1` on `main`, `2.0.0` on
   `release`; `1.0.0…` when `packages` is empty too), without looking at commits. That deploy is recorded
-  and from then on the normal flow applies. Emptying `deploys` is the only manual edit of the file.
+  and from then on the normal flow applies. Emptying `deploys` is the only manual edit of the file. The
+  reset deploy stores its target (`"reset": "2.0.0-alpha.1"`); if the run stops half way, the next runs
+  release every package that no deploy records yet at that same version.
 - Cascade: a dependent releases at least a patch when an internal runtime/peer dependency releases now
   or is already at a version different from the one its last publication pins.
 - `scripts/release.js` aborts before publishing anything unless: clean tree, HEAD equals the remote
@@ -64,10 +66,11 @@ network) and `npm run release` (deploy) use the same plan:
   `package.json` and the plan is computed again; a version on npm without a `releaseCommit` from this
   history stops the release.
 - Per package, in dependency order: writes the exact versions and `releaseCommit` into `package.json`,
-  builds, packs, verifies the packed `package.json`, restores the file, publishes that tarball, records it
-  in `releases.json` and waits until npm serves the version (it reads the version document: the full
-  packument is cached for minutes). At the end, even after a failure, it commits `releases.json` with
-  `[skip ci]` and pushes it to the branch. No git tags nor GitHub releases.
+  builds, packs, verifies the packed `package.json`, restores the file, publishes that tarball and
+  records it in `releases.json`. It never waits for npm to serve a version (that can take minutes):
+  `npm publish` succeeding is enough. If npm answers that the version already exists, the release stops
+  without recording it and the next run reconciles it. At the end, even after a failure, it commits
+  `releases.json` with `[skip ci]` and pushes it to the branch. No git tags nor GitHub releases.
 - `npm run release -- --pack` runs the same steps up to the verified tarball without publishing.
 
 ### Single package

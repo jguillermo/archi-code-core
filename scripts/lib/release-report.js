@@ -38,7 +38,7 @@ function table(rows) {
 function packageDetail(pkg) {
   return [
     pkg.reset
-      ? 'sin deploys previos: nueva major para todo el conjunto, sin mirar commits'
+      ? 'reinicio del conjunto: nueva major para todos los paquetes, sin mirar commits'
       : `desde ${pkg.baseCommit ? pkg.baseCommit.slice(0, 7) : 'el inicio de la historia'}`,
     ...Object.entries(pkg.dependencies).map(
       ([dep, version]) => `dep  ${dep}: ${version ?? '(sin versión publicada)'}`,

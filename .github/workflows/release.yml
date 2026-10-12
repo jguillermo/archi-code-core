@@ -16,6 +16,8 @@ jobs:
     name: Release changed packages and their dependents
     runs-on: ubuntu-latest
     environment: deploy
+    # A healthy release takes 2-3 minutes; a stuck step is cut instead of waiting for GitHub's 6 h.
+    timeout-minutes: 15
     permissions:
       contents: write
 
