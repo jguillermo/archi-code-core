@@ -88,9 +88,8 @@ describe('AbstractType', () => {
       expect(text).toBe('abc');
     });
 
-    it('isNull, isNotNull and toString are typed', () => {
+    it('isNull and toString are typed', () => {
       expectTypeOf<PlainNumber['isNull']>().toEqualTypeOf<boolean>();
-      expectTypeOf<PlainNumber['isNotNull']>().toEqualTypeOf<boolean>();
       expectTypeOf<PlainNumber['toString']>().toEqualTypeOf<string>();
     });
   });
@@ -146,7 +145,7 @@ describe('AbstractType', () => {
     });
   });
 
-  describe('isNull / isNotNull', () => {
+  describe('isNull', () => {
     it.each([
       ['null', new NullableString(null), true],
       ['a value', new NullableString('abc'), false],
@@ -154,7 +153,6 @@ describe('AbstractType', () => {
       ['a value filtered to null', new NoneAsNull('none'), true],
     ])('%s → isNull %s', (_, instance, expected) => {
       expect(instance.isNull).toBe(expected);
-      expect(instance.isNotNull).toBe(!expected);
     });
   });
 
@@ -232,17 +230,17 @@ describe('AbstractType', () => {
       });
     });
 
-    describe('reuse of the last result', () => {
+    describe('keeps nothing between calls', () => {
       function counterWithSpiedRule() {
         const isNonNegative = jest.fn((value: unknown) => typeof value === 'number' && value >= 0);
 
         @Validations([{ custom: 'nonNegative', fn: isNonNegative }])
-        class Counter extends AbstractType<number | number[]> {
-          protected filter(value: number | number[]): number | number[] {
+        class Counter extends AbstractType<number> {
+          protected filter(value: number): number {
             return value;
           }
 
-          change(value: number | number[] | null): void {
+          change(value: number | null): void {
             this._value = value;
           }
         }
@@ -256,65 +254,37 @@ describe('AbstractType', () => {
         expect(isNonNegative).not.toHaveBeenCalled();
       });
 
-      it('returns the same result while the value does not change', () => {
+      it('runs the validations on every call and returns a new result', () => {
         const { Counter, isNonNegative } = counterWithSpiedRule();
         const counter = new Counter(1);
-        const result = counter.validate();
-        expect(counter.validate()).toBe(result);
-        counter.change(1);
-        expect(counter.validate()).toBe(result);
-        expect(isNonNegative).toHaveBeenCalledTimes(1);
+        const first = counter.validate();
+        const second = counter.validate();
+        expect(second).not.toBe(first);
+        expect(second).toEqual(first);
+        expect(isNonNegative).toHaveBeenCalledTimes(2);
       });
 
-      it('validates again when the value changes, even back to a previous one', () => {
-        const { Counter, isNonNegative } = counterWithSpiedRule();
+      it('validates the current value after it changes', () => {
+        const { Counter } = counterWithSpiedRule();
         const counter = new Counter(1);
-        const withOne = counter.validate();
+        expect(counter.validate().ok).toBe(true);
         counter.change(-1);
         expect(counter.validate()).toEqual({
           ok: false,
           value: -1,
           errors: [{ custom: 'nonNegative', message: 'Value does not satisfy nonNegative' }],
         });
-        counter.change(1);
-        const withOneAgain = counter.validate();
-        expect(withOneAgain).not.toBe(withOne);
-        expect(withOneAgain).toEqual(withOne);
-        expect(isNonNegative).toHaveBeenCalledTimes(3);
-      });
-
-      it('validates again when the value changes to null and back', () => {
-        const { Counter, isNonNegative } = counterWithSpiedRule();
-        const counter = new Counter(-1);
-        expect(counter.validate().ok).toBe(false);
         counter.change(null);
         expect(counter.validate()).toEqual(valid(null));
-        counter.change(-1);
-        expect(counter.validate().ok).toBe(false);
-        expect(isNonNegative).toHaveBeenCalledTimes(2);
       });
 
-      it('compares by identity: NaN is the same value, -0 and 0 are not, nor two equal arrays', () => {
-        const { Counter, isNonNegative } = counterWithSpiedRule();
-        const counter = new Counter(NaN);
-        const withNaN = counter.validate();
-        counter.change(NaN);
-        expect(counter.validate()).toBe(withNaN);
-        counter.change(0);
-        const withZero = counter.validate();
-        counter.change(-0);
-        expect(counter.validate()).not.toBe(withZero);
-        counter.change([1]);
-        const withArray = counter.validate();
-        counter.change([1]);
-        expect(counter.validate()).not.toBe(withArray);
-        expect(isNonNegative).toHaveBeenCalledTimes(5);
-      });
-
-      it('keeps one result per instance', () => {
-        const { Counter, isNonNegative } = counterWithSpiedRule();
-        expect(new Counter(1).validate()).not.toBe(new Counter(1).validate());
-        expect(isNonNegative).toHaveBeenCalledTimes(2);
+      it('stores no validation state in the instance', () => {
+        const { Counter } = counterWithSpiedRule();
+        const counter = new Counter(1);
+        counter.validate();
+        counter.change(null);
+        counter.validate();
+        expect(Object.keys(counter)).toEqual(['_value']);
       });
     });
   });
