@@ -86,11 +86,30 @@ packages/<folder>/
 
 ## Allowed per-package extensions
 
-Only when the package needs them, and documented in its README: extra `compilerOptions` in
-`tsconfig.json` (e.g. `lib`), `tsconfig.spec.json`, extra Prettier/ESLint paths for extra folders
-(`benchmark/`, `docs/`), extra `.gitignore` lines, `.prettierignore`, `sideEffects`, and a web
-build (`browser` field + `browser` export condition + `check-web.js` in `check:dist` +
-`web` in `dist.check.js`).
+Only when the package needs them, and documented in its README:
+
+- Extra `compilerOptions` in `tsconfig.json` (e.g. `lib`) and a `tsconfig.spec.json` for ts-jest.
+- Extra folders (`benchmark/`, `docs/`): their paths in `check:prettier`/`fix:prettier` and
+  `check:lint`/`fix:lint`, their own tsconfig type-checked in `check:types`, and one script to
+  run them (e.g. `benchmark`).
+- Extra `.gitignore` lines, `.prettierignore`, `sideEffects`.
+- A web build: `browser` field + `browser` export condition + `check-web.js` in `check:dist` +
+  `web` in `dist.check.js`. Its `exports["."]` may add a `node` condition (nested `import` /
+  `require`, each with its own `types`, so Node never takes the `browser` entry) and a last
+  `default` pointing to the ESM build for resolvers that match no condition:
+
+  ```json
+  ".": {
+    "browser": "./dist/esm/index.js",
+    "node": { "import": { "types": …, "default": … }, "require": { "types": …, "default": … } },
+    "import": { "types": "./dist/esm/index.d.ts", "default": "./dist/esm/index.js" },
+    "require": { "types": "./dist/cjs/index.d.ts", "default": "./dist/cjs/index.js" },
+    "default": "./dist/esm/index.js"
+  }
+  ```
+
+- `jest.injectGlobals` `true`, only for a spec suite that cannot be edited and relies on Jest
+  globals (e.g. one ported from another project). New specs still import from `@jest/globals`.
 
 ## When adding a package
 

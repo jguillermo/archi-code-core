@@ -8,8 +8,6 @@ const value = <T>(r: Converted<T>): T | null => r.value;
 const fail = (error: string): unknown => ({ ok: false, value: null, error });
 
 describe('toInteger', () => {
-  // ─── valid conversions ────────────────────────────────────────────────────
-
   describe('integer number → same value', () => {
     it('0 → 0', () => expect(converted(toInteger(0))).toBe(0));
     it('42 → 42', () => expect(converted(toInteger(42))).toBe(42));
@@ -30,8 +28,6 @@ describe('toInteger', () => {
     it('"-0" → -0 (parseInt preserves -0)', () =>
       expect(Object.is(converted(toInteger('-0')), -0)).toBe(true));
   });
-
-  // ─── error cases ──────────────────────────────────────────────────────────
 
   describe('non-finite / non-integer numbers → { ok: false, error }', () => {
     it('NaN → { ok: false, error }', () =>

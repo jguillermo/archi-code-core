@@ -1,6 +1,5 @@
 import { toString } from '../convert/string';
 
-// from https://en.wikipedia.org/wiki/ISO_3166-1_numeric
 const validISO31661NumericCountriesCodes = new Set([
   '004',
   '008',

@@ -2,12 +2,11 @@ import { trim } from '../sanitizer/trim';
 import { isEmail } from './isEmail';
 import type { IsEmailOptions } from './isEmail';
 
-/** Options of the email addresses in the URI (the same as `isEmail`). */
 export interface IsMailtoURIOptions extends IsEmailOptions {}
 import { toString } from '../convert/string';
 
 function parseMailtoQueryString(queryString: string): { cc: string; bcc: string } | false {
-  const allowedParams = new Set(['subject', 'body', 'cc', 'bcc']),
+  const unusedAllowedParams = new Set(['subject', 'body', 'cc', 'bcc']),
     query = { cc: '', bcc: '' };
   let isParseFailed = false;
 
@@ -20,8 +19,7 @@ function parseMailtoQueryString(queryString: string): { cc: string; bcc: string 
   for (const q of queryParams) {
     const [key, value] = q.split('=');
 
-    // checked for invalid and duplicated query params
-    if (key && !allowedParams.has(key)) {
+    if (key && !unusedAllowedParams.has(key)) {
       isParseFailed = true;
       break;
     }
@@ -31,7 +29,7 @@ function parseMailtoQueryString(queryString: string): { cc: string; bcc: string 
     }
 
     if (key) {
-      allowedParams.delete(key);
+      unusedAllowedParams.delete(key);
     }
   }
 

@@ -115,7 +115,6 @@ for (let locale, i = 0; i < englishLocales.length; i++) {
   decimal[locale] = decimal['en-US'];
 }
 
-// Source: http://www.localeplanet.com/java/
 export const arabicLocales = [
   'AE',
   'BH',
@@ -160,7 +159,6 @@ for (let locale, i = 0; i < bengaliLocales.length; i++) {
   decimal[locale] = decimal['en-US'];
 }
 
-// Source: https://en.wikipedia.org/wiki/Decimal_mark
 export const dotDecimal = ['ar-EG', 'ar-LB', 'ar-LY'];
 export const commaDecimal = [
   'bg-BG',
@@ -217,10 +215,10 @@ alpha['pt-BR'] = alpha['pt-PT'];
 alphanumeric['pt-BR'] = alphanumeric['pt-PT'];
 decimal['pt-BR'] = decimal['pt-PT'];
 
-// see #862
+// Mis-cased alias kept for compatibility (validator.js #862).
 alpha['pl-Pl'] = alpha['pl-PL'];
 alphanumeric['pl-Pl'] = alphanumeric['pl-PL'];
 decimal['pl-Pl'] = decimal['pl-PL'];
 
-// see #1455
+// validator.js #1455: Dari (fa-AF) reuses the Persian alphabet.
 alpha['fa-AF'] = alpha.fa;

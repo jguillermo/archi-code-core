@@ -60,11 +60,9 @@ describe('canBeJson', () => {
     [new Error('data error')],
     [Promise.resolve('data promise')],
     [BigInt(42)],
-    // JSON arrays and primitives are NOT valid — must be a non-empty object
     ['[1,2,3]'],
     ['42'],
     ['"hello"'],
-    // empty object string
     ['{}'],
   ])('returns false for invalid JSON: %p', (value) => {
     expect(canBeJson(value)).toBe(false);

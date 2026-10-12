@@ -53,7 +53,6 @@ it('universalToString', () => {
     [NaN, 'NaN'],
     [BigInt(10), '10'],
     [() => 1, 'Function(anonymous)'],
-    // JSON.stringify returns undefined → falls back to the object's own toString
     [{ toJSON: () => undefined }, '[object Object]'],
   ].forEach(([input, expected]) => {
     expect(anyToString(input)).toEqual(expected);
@@ -76,7 +75,6 @@ it('never throws: invalid dates, self-referencing collections and hostile values
   const set = new Set<unknown>();
   set.add(set);
   expect(anyToString(set)).toBe('Set([Circular])');
-  // The same collection twice (not a cycle) is described both times.
   const shared = new Set([1]);
   expect(
     anyToString(

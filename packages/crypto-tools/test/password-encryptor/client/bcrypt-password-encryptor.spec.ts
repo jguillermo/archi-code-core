@@ -7,7 +7,7 @@ describe('BcryptPasswordEncryptor', () => {
   let encryptor: PasswordEncryptor;
 
   beforeEach(() => {
-    encryptor = PasswordEncryptorFactory.create(BcryptPasswordEncryptor.name, 12); // Setting up with 12 salt rounds.
+    encryptor = PasswordEncryptorFactory.create(BcryptPasswordEncryptor.name, 12);
   });
 
   describe('hashPassword', () => {

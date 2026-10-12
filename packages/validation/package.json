@@ -78,7 +78,7 @@
       "<rootDir>/src",
       "<rootDir>/test"
     ],
-    "testRegex": "\\.spec\\.ts$",
+    "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.ts$": [
         "ts-jest",

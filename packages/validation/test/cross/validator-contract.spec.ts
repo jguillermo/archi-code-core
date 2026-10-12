@@ -1,10 +1,3 @@
-/**
- * Cross-cutting contract of the validator tool:
- *
- *  1. It NEVER throws because of the value: any input yields a boolean.
- *  2. It throws ONLY for invalid configuration, always as `ValidationConfigError`.
- *  3. Prototype keys (`'toString'`, `'__proto__'`…) used as locale/option never crash it.
- */
 import { describe, expect, it } from '@jest/globals';
 import { validator } from '../../src/validators';
 import { ValidationConfigError } from '../../src/helpers/errors';
@@ -40,7 +33,6 @@ const HOSTILE_VALUES: unknown[] = [
   'x'.repeat(10_000),
 ];
 
-/** Extra (valid) configuration arguments required by some validators. */
 const CONFIG_ARGS: Record<string, unknown[]> = {
   equals: [{ comparison: 'a' }],
   contains: [{ elem: 'a' }],
@@ -157,7 +149,6 @@ describe('validator contract', () => {
           expect(e).toBeInstanceOf(ValidationConfigError);
         }
       }
-      // These return false for unknown keys by design.
       expect(validator.isUUID('a', { version: key as never })).toBe(false);
       expect(validator.isPassportNumber('790369937', { countryCode: key })).toBe(false);
       expect(validator.isIBAN('GB82WEST12345698765432', { whitelist: [key] })).toBe(false);

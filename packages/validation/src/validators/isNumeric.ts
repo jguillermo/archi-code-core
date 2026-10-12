@@ -11,7 +11,6 @@ export interface IsNumericOptions {
 
 const numericNoSymbols = /^[0-9]+$/;
 
-// One compiled regex per decimal separator (instead of a new RegExp on every call).
 const numericRegexCache = new Map<string, RegExp>();
 
 function getNumericRegex(separator: string): RegExp {

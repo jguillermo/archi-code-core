@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 import * as api from '../src/index';
 import { DtoObjectMother } from '../src/dto.object-mother';
-import { JsonCompare } from '../src/json-commpare';
+import { JsonCompare } from '../src/json-compare';
 
 const PUBLIC_API = ['DtoObjectMother', 'JsonCompare'];
 

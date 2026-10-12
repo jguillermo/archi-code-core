@@ -1,7 +1,6 @@
 import { toString } from '../convert/string';
 import { optionsOf } from '../helpers/config';
 
-// from https://en.wikipedia.org/wiki/ISO_3166-1_alpha-3
 const validISO31661Alpha3CountriesCodes = new Set([
   'AFG',
   'ALA',
@@ -257,7 +256,6 @@ const validISO31661Alpha3CountriesCodes = new Set([
 const alpha3CountryCode = /^[a-zA-Z]{3}$/;
 
 export interface IsISO31661Alpha3Options {
-  /** Extra user-assigned codes to accept (e.g. `['XK']`). */
   userAssignedCodes?: string[];
 }
 

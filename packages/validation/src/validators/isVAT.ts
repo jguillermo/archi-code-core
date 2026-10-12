@@ -9,7 +9,7 @@ const AU = (str: string): boolean => {
   if (!match) {
     return false;
   }
-  // @see {@link https://abr.business.gov.au/Help/AbnFormat}
+  // ABN checksum: https://abr.business.gov.au/Help/AbnFormat
   const weights = [10, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19];
   str = str.replace(/^AU/, '');
   const ABN = (parseInt(str.slice(0, 1), 10) - 1).toString() + str.slice(1);
@@ -21,17 +21,16 @@ const AU = (str: string): boolean => {
 };
 
 const CH = (str: string): boolean => {
-  // @see {@link https://www.ech.ch/de/ech/ech-0097/5.2.0}
+  // UID check digit: eCH-0097 https://www.ech.ch/de/ech/ech-0097/5.2.0
   const hasValidCheckNumber = (digits: number[]): boolean => {
-    const lastDigit = digits.pop(); // used as check number
+    const checkDigit = digits.pop();
     const weights = [5, 4, 3, 2, 7, 6, 5, 4];
     const calculatedCheckNumber =
       (11 - (digits.reduce((acc, el, idx) => acc + el * weights[idx], 0) % 11)) % 11;
 
-    return lastDigit === calculatedCheckNumber;
+    return checkDigit === calculatedCheckNumber;
   };
 
-  // @see {@link https://www.estv.admin.ch/estv/de/home/mehrwertsteuer/uid/mwst-uid-nummer.html}
   return (
     /^(CHE[- ]?)?(\d{9}|(\d{3}\.\d{3}\.\d{3})|(\d{3} \d{3} \d{3})) ?(TVA|MWST|IVA)?$/.test(str) &&
     hasValidCheckNumber((str.match(/\d/g) as RegExpMatchArray).map((el) => +el))
@@ -63,9 +62,6 @@ const PT = (str: string): boolean => {
 };
 
 export const vatMatchers = {
-  /**
-   * European Union VAT identification numbers
-   */
   AT: (str: string): boolean => /^(AT)?U\d{8}$/.test(str),
   BE: (str: string): boolean => /^(BE)?\d{10}$/.test(str),
   BG: (str: string): boolean => /^(BG)?\d{9,10}$/.test(str),
@@ -95,9 +91,6 @@ export const vatMatchers = {
   ES: (str: string): boolean => /^(ES)?\w\d{7}[A-Z]$/.test(str),
   SE: (str: string): boolean => /^(SE)?\d{12}$/.test(str),
 
-  /**
-   * VAT numbers of non-EU countries
-   */
   AL: (str: string): boolean => /^(AL)?\w{9}[A-Z]$/.test(str),
   MK: (str: string): boolean => /^(MK)?\d{13}$/.test(str),
   AU,
@@ -126,9 +119,6 @@ export const vatMatchers = {
     ),
   UZ: (str: string): boolean => /^(UZ)?\d{9}$/.test(str),
 
-  /**
-   * VAT numbers of Latin American countries
-   */
   AR: (str: string): boolean => /^(AR)?\d{11}$/.test(str),
   BO: (str: string): boolean => /^(BO)?\d{7}$/.test(str),
   BR: (str: string): boolean =>
@@ -139,12 +129,11 @@ export const vatMatchers = {
   EC: (str: string): boolean => /^(EC)?\d{13}$/.test(str),
   SV: (str: string): boolean => /^(SV)?\d{4}-\d{6}-\d{3}-\d{1}$/.test(str),
   GT: (str: string): boolean => /^(GT)?\d{7}-\d{1}$/.test(str),
-  // Placeholder kept from upstream (no RTN format yet): only the bare prefix, never ''.
+  // Upstream placeholder (no RTN format yet): only the bare prefix, never ''.
   HN: (str: string): boolean => /^HN$/.test(str),
   MX: (str: string): boolean => /^(MX)?\w{3,4}\d{6}\w{3}$/.test(str),
   NI: (str: string): boolean => /^(NI)?\d{3}-\d{6}-\d{4}\w{1}$/.test(str),
-  // Only a structural check (optional 'PA' prefix + at least one digit): the upstream rule was an
-  // empty placeholder that accepted ''. Replace with the official RUC format when available.
+  // Structural check only until the official RUC format is known: upstream accepted ''.
   PA: (str: string): boolean => /^(PA)?[0-9A-Z-]*\d[0-9A-Z-]*$/.test(str),
   PY: (str: string): boolean => /^(PY)?\d{6,8}-\d{1}$/.test(str),
   PE: (str: string): boolean => /^(PE)?\d{11}$/.test(str),
@@ -154,7 +143,6 @@ export const vatMatchers = {
   VE: (str: string): boolean => /^(VE)?[JGVE]{1}-(\d{9}|(\d{8}-\d{1}))$/.test(str),
 };
 
-/** Known country codes (autocomplete); any string is accepted, unknown ones throw ValidationConfigError. */
 export type VATCountryCode = keyof typeof vatMatchers | (string & {});
 
 export interface IsVATOptions {

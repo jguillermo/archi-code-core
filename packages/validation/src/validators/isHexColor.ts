@@ -2,7 +2,6 @@ import { toString } from '../convert/string';
 import { merge } from '../helpers/merge';
 
 export interface IsHexColorOptions {
-  /** When true the leading `#` is mandatory. */
   require_hashtag?: boolean;
 }
 

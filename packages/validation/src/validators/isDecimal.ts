@@ -13,20 +13,18 @@ export interface IsDecimalOptions {
   locale?: string;
 }
 
-// Cache the compiled regex keyed by the options that shape it, so repeated calls
-// with the same options skip recompilation. Bounded: options may vary per request.
 const decimalRegexCache = new BoundedCache<RegExp>();
 
-// decimal_digits is interpolated into a regex quantifier: only 'n', 'n,' or 'n,m' are allowed.
+// decimal_digits is interpolated into a RegExp quantifier, so only 'n', 'n,' or 'n,m' may pass.
 const DECIMAL_DIGITS_FORMAT = /^\d+(,\d*)?$/;
 
-/** 'n', 'n,' or 'n,m' with n ≤ m, and small enough to be a RegExp quantifier ('5,2' is a SyntaxError). */
 function isValidDecimalDigits(digits: unknown): digits is string {
   if (typeof digits !== 'string' || !DECIMAL_DIGITS_FORMAT.test(digits)) return false;
   const [min, max = ''] = digits.split(',');
-  const LIMIT = 1_000_000;
+  const LARGEST_QUANTIFIER = 1_000_000;
   return (
-    Number(min) <= LIMIT && (max === '' || (Number(min) <= Number(max) && Number(max) <= LIMIT))
+    Number(min) <= LARGEST_QUANTIFIER &&
+    (max === '' || (Number(min) <= Number(max) && Number(max) <= LARGEST_QUANTIFIER))
   );
 }
 
@@ -51,7 +49,7 @@ const blacklist = ['', '-', '+'];
 
 export function isDecimal(value: unknown, options?: IsDecimalOptions): boolean {
   const opts = merge(options, default_decimal_options) as Required<IsDecimalOptions>;
-  // Historic API also accepts `locale: ['xx-YY']`; normalise like the former `in` lookup did.
+  // The historic API also accepts `locale: ['xx-YY']`, which String() normalises.
   opts.locale = String(opts.locale);
   if (!hasOwn(decimal, opts.locale)) {
     throw new ValidationConfigError(`Invalid locale '${configText(opts.locale)}'`);

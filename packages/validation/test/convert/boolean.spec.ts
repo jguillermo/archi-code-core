@@ -8,8 +8,6 @@ const value = <T>(r: Converted<T>): T | null => r.value;
 const fail = (error: string): unknown => ({ ok: false, value: null, error });
 
 describe('toBoolean', () => {
-  // ─── valid conversions ────────────────────────────────────────────────────
-
   describe('boolean → same value', () => {
     it('true → true', () => expect(converted(toBoolean(true))).toBe(true));
     it('false → false', () => expect(converted(toBoolean(false))).toBe(false));
@@ -29,9 +27,6 @@ describe('toBoolean', () => {
       expect(converted(toBoolean(s))).toBe(false),
     );
   });
-
-  // ─── error cases ──────────────────────────────────────────────────────────
-  //
 
   describe('numbers that are not 0 or 1 → { ok: false, error }', () => {
     it('2 → { ok: false, error }', () =>

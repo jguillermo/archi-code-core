@@ -1,6 +1,5 @@
 import { toString } from '../convert/string';
 
-// from https://en.wikipedia.org/wiki/ISO_4217
 const validISO4217CurrencyCodes = new Set([
   'AED',
   'AFN',

@@ -116,7 +116,7 @@ import { isStrongPassword } from './isStrongPassword';
 
 import { isVAT } from './isVAT';
 
-// Frozen: no consumer can monkey-patch a validator globally (custom validations go through @Validations).
+// Frozen so no consumer can monkey-patch a validator globally; custom rules go through @Validations.
 export const validator = Object.freeze({
   equals,
   contains,
@@ -217,13 +217,8 @@ export const validator = Object.freeze({
   ibanLocales,
 });
 
-/**
- * Type of the `validator` object — derived from the implementations, so every validator exposes
- * its exact signature and options (and TypeScript autocompletes them).
- */
 export type ValidatorRegistry = typeof validator;
 
-// Option / parameter types of each validator (declared next to the validator that uses them).
 export type { ContainsOptions } from './contains';
 export type { EqualsOptions } from './equals';
 export type { MatchesOptions } from './matches';

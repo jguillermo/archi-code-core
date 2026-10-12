@@ -41,7 +41,6 @@ describe('SimpleFilterDto', () => {
     });
 
     it('should throw an error if the operator is invalid', () => {
-      // Cast an invalid string to FilterOperator to simulate an invalid operator.
       expect(
         () => new SimpleFilterDto('name', 'invalid_operator' as FilterOperator, 'Alice'),
       ).toThrow('SimpleFilterDto: Invalid operator "invalid_operator"');

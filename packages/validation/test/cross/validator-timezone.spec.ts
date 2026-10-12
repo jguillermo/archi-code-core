@@ -1,6 +1,3 @@
-/**
- * Determinism: date validators must answer identically whatever the machine time zone is.
- */
 import { afterEach, describe, expect, it } from '@jest/globals';
 import timezone_mock from 'timezone-mock';
 import { validator } from '../../src/validators';
@@ -42,12 +39,13 @@ describe('time-zone independence', () => {
   });
 
   it('isDate / isISO8601 / isRFC3339', () => {
+    const europeDstGapAsUtcInstant = '2024-03-31T02:30:00Z';
     const results = inEveryZone(() => [
       validator.isDate('2024-02-29', { format: 'YYYY-MM-DD' }),
       validator.isDate('2024-02-30', { format: 'YYYY-MM-DD' }),
       validator.isISO8601('2024-02-29', { strict: true }),
       validator.isISO8601('2023-02-29', { strict: true }),
-      validator.isRFC3339('2024-03-31T02:30:00Z'), // DST gap in Europe — still a valid UTC instant
+      validator.isRFC3339(europeDstGapAsUtcInstant),
     ]);
     expect(allEqual(results)).toBe(true);
     expect(results[0]).toEqual([true, false, true, false, true]);

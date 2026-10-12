@@ -4,7 +4,6 @@ import { isIP } from './isIP';
 import type { IsIPVersion } from './isIP';
 
 export interface IsIPRangeOptions {
-  /** IP version of the range (`4` or `6`). Default: either. */
   version?: IsIPVersion;
 }
 
@@ -20,7 +19,6 @@ export function isIPRange(value: unknown, options?: IsIPRangeOptions): boolean {
   const str: string = s;
   const parts = str.split('/');
 
-  // parts[0] -> ip, parts[1] -> subnet
   if (parts.length !== 2) {
     return false;
   }
@@ -29,7 +27,6 @@ export function isIPRange(value: unknown, options?: IsIPRangeOptions): boolean {
     return false;
   }
 
-  // Disallow preceding 0 i.e. 01, 02, ...
   if (parts[1].length > 1 && parts[1].startsWith('0')) {
     return false;
   }
@@ -39,7 +36,6 @@ export function isIPRange(value: unknown, options?: IsIPRangeOptions): boolean {
     return false;
   }
 
-  // Define valid subnet according to IP's version
   let expectedSubnet: number | null = null;
   switch (String(version)) {
     case '4':

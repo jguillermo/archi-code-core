@@ -3,98 +3,88 @@ import { ValidationConfigError } from '../helpers/errors';
 import { hasOwn } from '../helpers/hasOwn';
 import { optionsOf } from '../helpers/config';
 
-/**
- * Reference:
- * https://en.wikipedia.org/ -- Wikipedia
- * https://docs.microsoft.com/en-us/microsoft-365/compliance/eu-passport-number -- EU Passport Number
- * https://countrycode.org/ -- Country Codes
- */
 const passportRegexByCountryCode = {
-  AM: /^[A-Z]{2}\d{7}$/, // ARMENIA
-  AR: /^[A-Z]{3}\d{6}$/, // ARGENTINA
-  AT: /^[A-Z]\d{7}$/, // AUSTRIA
-  AU: /^[A-Z]\d{7}$/, // AUSTRALIA
-  AZ: /^[A-Z]{1}\d{8}$/, // AZERBAIJAN
-  BE: /^[A-Z]{2}\d{6}$/, // BELGIUM
-  BG: /^\d{9}$/, // BULGARIA
-  BR: /^[A-Z]{2}\d{6}$/, // BRAZIL
-  BY: /^[A-Z]{2}\d{7}$/, // BELARUS
-  CA: /^[A-Z]{2}\d{6}$|^[A-Z]\d{6}[A-Z]{2}$/, // CANADA
-  CH: /^[A-Z]\d{7}$/, // SWITZERLAND
-  CN: /^G\d{8}$|^E(?![IO])[A-Z0-9]\d{7}$/, // CHINA [G=Ordinary, E=Electronic] followed by 8-digits, or E followed by any UPPERCASE letter (except I and O) followed by 7 digits
-  CY: /^[A-Z](\d{6}|\d{8})$/, // CYPRUS
-  CZ: /^\d{8}$/, // CZECH REPUBLIC
-  DE: /^[CFGHJKLMNPRTVWXYZ0-9]{9}$/, // GERMANY
-  DK: /^\d{9}$/, // DENMARK
-  DZ: /^\d{9}$/, // ALGERIA
-  EE: /^([A-Z]\d{7}|[A-Z]{2}\d{7})$/, // ESTONIA (K followed by 7-digits), e-passports have 2 UPPERCASE followed by 7 digits
-  ES: /^[A-Z0-9]{2}([A-Z0-9]?)\d{6}$/, // SPAIN
-  FI: /^[A-Z]{2}\d{7}$/, // FINLAND
-  FR: /^\d{2}[A-Z]{2}\d{5}$/, // FRANCE
-  GB: /^\d{9}$/, // UNITED KINGDOM
-  GR: /^[A-Z]{2}\d{7}$/, // GREECE
-  HR: /^\d{9}$/, // CROATIA
-  HU: /^[A-Z]{2}(\d{6}|\d{7})$/, // HUNGARY
-  IE: /^[A-Z0-9]{2}\d{7}$/, // IRELAND
-  IN: /^[A-Z]{1}-?\d{7}$/, // INDIA
-  ID: /^[A-C]\d{7}$/, // INDONESIA
-  IR: /^[A-Z]\d{8}$/, // IRAN
-  IS: /^(A)\d{7}$/, // ICELAND
-  IT: /^[A-Z0-9]{2}\d{7}$/, // ITALY
-  JM: /^[Aa]\d{7}$/, // JAMAICA
-  JP: /^[A-Z]{2}\d{7}$/, // JAPAN
-  KR: /^[MS]\d{8}$/, // SOUTH KOREA, REPUBLIC OF KOREA, [S=PS Passports, M=PM Passports]
-  KZ: /^[a-zA-Z]\d{7}$/, // KAZAKHSTAN
-  LI: /^[a-zA-Z]\d{5}$/, // LIECHTENSTEIN
-  LT: /^[A-Z0-9]{8}$/, // LITHUANIA
-  LU: /^[A-Z0-9]{8}$/, // LUXEMBURG
-  LV: /^[A-Z0-9]{2}\d{7}$/, // LATVIA
-  LY: /^[A-Z0-9]{8}$/, // LIBYA
-  MT: /^\d{7}$/, // MALTA
-  MZ: /^(?:[A-Z]{2}\d{7}|\d{2}[A-Z]{2}\d{5})$/, // MOZAMBIQUE
-  MY: /^[AHK]\d{8}$/, // MALAYSIA
-  MX: /^[A-Z]\d{8}$/, // MEXICO
-  NL: /^[A-Z]{2}[A-Z0-9]{6}\d$/, // NETHERLANDS
-  NZ: /^([Ll]([Aa]|[Dd]|[Ff]|[Hh])|[Ee]([Aa]|[Pp])|[Nn])\d{6}$/, // NEW ZEALAND
-  PH: /^(?:[A-Z](?:\d{6}|\d{7}[A-Z])|[A-Z]{2}(?:\d{6}|\d{7}))$/, // PHILIPPINES
-  PK: /^[A-Z]{2}\d{7}$/, // PAKISTAN
-  PL: /^[A-Z]{2}\d{7}$/, // POLAND
-  PT: /^[A-Z]\d{6}$/, // PORTUGAL
-  RO: /^\d{8,9}$/, // ROMANIA
-  RU: /^\d{9}$/, // RUSSIAN FEDERATION
-  SE: /^\d{8}$/, // SWEDEN
-  SL: /^(P)[A-Z]\d{7}$/, // SLOVENIA
-  SK: /^[0-9A-Z]\d{7}$/, // SLOVAKIA
-  TH: /^[A-Z]{1,2}\d{6,7}$/, // THAILAND
-  TR: /^[A-Z]\d{8}$/, // TURKEY
-  UA: /^[A-Z]{2}\d{6}$/, // UKRAINE
-  US: /^\d{9}$|^[A-Z]\d{8}$/, // UNITED STATES
-  ZA: /^[TAMD]\d{8}$/, // SOUTH AFRICA
+  AM: /^[A-Z]{2}\d{7}$/,
+  AR: /^[A-Z]{3}\d{6}$/,
+  AT: /^[A-Z]\d{7}$/,
+  AU: /^[A-Z]\d{7}$/,
+  AZ: /^[A-Z]{1}\d{8}$/,
+  BE: /^[A-Z]{2}\d{6}$/,
+  BG: /^\d{9}$/,
+  BR: /^[A-Z]{2}\d{6}$/,
+  BY: /^[A-Z]{2}\d{7}$/,
+  CA: /^[A-Z]{2}\d{6}$|^[A-Z]\d{6}[A-Z]{2}$/,
+  CH: /^[A-Z]\d{7}$/,
+  CN: /^G\d{8}$|^E(?![IO])[A-Z0-9]\d{7}$/,
+  CY: /^[A-Z](\d{6}|\d{8})$/,
+  CZ: /^\d{8}$/,
+  DE: /^[CFGHJKLMNPRTVWXYZ0-9]{9}$/,
+  DK: /^\d{9}$/,
+  DZ: /^\d{9}$/,
+  EE: /^([A-Z]\d{7}|[A-Z]{2}\d{7})$/,
+  ES: /^[A-Z0-9]{2}([A-Z0-9]?)\d{6}$/,
+  FI: /^[A-Z]{2}\d{7}$/,
+  FR: /^\d{2}[A-Z]{2}\d{5}$/,
+  GB: /^\d{9}$/,
+  GR: /^[A-Z]{2}\d{7}$/,
+  HR: /^\d{9}$/,
+  HU: /^[A-Z]{2}(\d{6}|\d{7})$/,
+  IE: /^[A-Z0-9]{2}\d{7}$/,
+  IN: /^[A-Z]{1}-?\d{7}$/,
+  ID: /^[A-C]\d{7}$/,
+  IR: /^[A-Z]\d{8}$/,
+  IS: /^(A)\d{7}$/,
+  IT: /^[A-Z0-9]{2}\d{7}$/,
+  JM: /^[Aa]\d{7}$/,
+  JP: /^[A-Z]{2}\d{7}$/,
+  KR: /^[MS]\d{8}$/,
+  KZ: /^[a-zA-Z]\d{7}$/,
+  LI: /^[a-zA-Z]\d{5}$/,
+  LT: /^[A-Z0-9]{8}$/,
+  LU: /^[A-Z0-9]{8}$/,
+  LV: /^[A-Z0-9]{2}\d{7}$/,
+  LY: /^[A-Z0-9]{8}$/,
+  MT: /^\d{7}$/,
+  MZ: /^(?:[A-Z]{2}\d{7}|\d{2}[A-Z]{2}\d{5})$/,
+  MY: /^[AHK]\d{8}$/,
+  MX: /^[A-Z]\d{8}$/,
+  NL: /^[A-Z]{2}[A-Z0-9]{6}\d$/,
+  NZ: /^([Ll]([Aa]|[Dd]|[Ff]|[Hh])|[Ee]([Aa]|[Pp])|[Nn])\d{6}$/,
+  PH: /^(?:[A-Z](?:\d{6}|\d{7}[A-Z])|[A-Z]{2}(?:\d{6}|\d{7}))$/,
+  PK: /^[A-Z]{2}\d{7}$/,
+  PL: /^[A-Z]{2}\d{7}$/,
+  PT: /^[A-Z]\d{6}$/,
+  RO: /^\d{8,9}$/,
+  RU: /^\d{9}$/,
+  SE: /^\d{8}$/,
+  SL: /^(P)[A-Z]\d{7}$/,
+  SK: /^[0-9A-Z]\d{7}$/,
+  TH: /^[A-Z]{1,2}\d{6,7}$/,
+  TR: /^[A-Z]\d{8}$/,
+  UA: /^[A-Z]{2}\d{6}$/,
+  US: /^\d{9}$|^[A-Z]\d{8}$/,
+  ZA: /^[TAMD]\d{8}$/,
 };
 
-/** Known country codes (autocomplete); any string is accepted, unknown ones return false. */
 export type PassportCountryCode = keyof typeof passportRegexByCountryCode | (string & {});
 
 export const locales: readonly string[] = Object.freeze(Object.keys(passportRegexByCountryCode));
 
 export interface IsPassportNumberOptions {
-  /** ISO country code (case-insensitive). */
   countryCode: PassportCountryCode;
 }
 
-/** Checks that `value` is a valid passport number for the ISO country code `options.countryCode`. */
 export function isPassportNumber(value: unknown, options: IsPassportNumberOptions): boolean {
   const { countryCode } = optionsOf(options);
   const stringResult = toString(value);
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   const str: string = s;
-  /** Remove All Whitespaces, Convert to UPPERCASE */
   const normalizedStr = str.replace(/\s/g, '').toUpperCase();
 
   if (typeof countryCode !== 'string')
     throw new ValidationConfigError('countryCode must be a string');
-  // Unknown country codes return false (historic behaviour); the lookup is case-insensitive.
+  // Unknown country codes return false instead of throwing ValidationConfigError (historic).
   const code = countryCode.toUpperCase();
   return (
     hasOwn(passportRegexByCountryCode, code) && passportRegexByCountryCode[code].test(normalizedStr)

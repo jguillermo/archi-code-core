@@ -19,17 +19,13 @@ const default_fqdn_options = {
   ignore_max_length: false,
 };
 
-// Hoisted regexes — declaring them at module scope avoids reallocating a RegExp
-// object for every part on every call (the per-part checks run inside a hot loop).
 const tldRegex = /^([a-z¡-¨ª-퟿豈-﷏ﷰ-￯]{2,}|xn[a-z0-9-]{2,})$/i;
 const numericRegex = /^\d+$/;
 const partCharsRegex = /^[a-z_¡-￿0-9-]+$/i;
 const fullWidthRegex = /[！-～]/;
 const hyphenEdgeRegex = /^-|-$/;
 const underscoreRegex = /_/;
-// Invisible / spoofing code points the label ranges above would otherwise let through: controls,
-// format characters (zero-width U+200B-U+200D, bidi overrides U+202A-U+202E, BOM, soft hyphen…),
-// Unicode separators and unpaired surrogates. `exa\u200Bmple.com` must not pass as a host.
+// Spoofing code points the label ranges above would let through: `exa\u200Bmple.com` must fail.
 const invisibleRegex = /[\p{Cc}\p{Cf}\p{Cs}\p{Z}]/u;
 
 export function isFQDN(value: unknown, options?: IsFQDNOptions): boolean {
@@ -39,12 +35,10 @@ export function isFQDN(value: unknown, options?: IsFQDNOptions): boolean {
   let strVal = s;
   options = merge(options, default_fqdn_options);
 
-  /* Remove the optional trailing dot before checking validity */
   if (options.allow_trailing_dot && strVal[strVal.length - 1] === '.') {
     strVal = strVal.substring(0, strVal.length - 1);
   }
 
-  /* Remove the optional wildcard before checking validity */
   if (options.allow_wildcard === true && strVal.indexOf('*.') === 0) {
     strVal = strVal.substring(2);
   }
@@ -57,7 +51,6 @@ export function isFQDN(value: unknown, options?: IsFQDNOptions): boolean {
   const tld = parts[parts.length - 1];
 
   if (options.require_tld) {
-    // disallow fqdns without tld
     if (parts.length < 2) {
       return false;
     }
@@ -67,7 +60,6 @@ export function isFQDN(value: unknown, options?: IsFQDNOptions): boolean {
     }
   }
 
-  // reject numeric TLDs
   if (!options.allow_numeric_tld && numericRegex.test(tld)) {
     return false;
   }
@@ -81,12 +73,10 @@ export function isFQDN(value: unknown, options?: IsFQDNOptions): boolean {
       return false;
     }
 
-    // disallow full-width chars
     if (fullWidthRegex.test(part)) {
       return false;
     }
 
-    // disallow parts starting or ending with hyphen
     if (hyphenEdgeRegex.test(part)) {
       return false;
     }

@@ -2,11 +2,9 @@ import { toString } from '../convert/string';
 import { optionsOf } from '../helpers/config';
 
 export interface IsISO31661Alpha2Options {
-  /** Extra user-assigned codes to accept (e.g. `['XK']`). */
   userAssignedCodes?: string[];
 }
 
-// from https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2
 const validISO31661Alpha2CountriesCodes = new Set([
   'AD',
   'AE',

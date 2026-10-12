@@ -4,17 +4,10 @@ import { configText, optionsOf } from '../helpers/config';
 import { ValidationConfigError } from '../helpers/errors';
 
 export interface IsIBANOptions {
-  /** Only accept IBANs from these ISO 3166-1 alpha-2 country codes. */
   whitelist?: string[];
-  /** Reject IBANs from these ISO 3166-1 alpha-2 country codes. */
   blacklist?: string[];
 }
 
-/**
- * List of country codes with
- * corresponding IBAN regular expression
- * Reference: https://en.wikipedia.org/wiki/International_Bank_Account_Number
- */
 const ibanRegexThroughCountryCode = {
   AD: /^(AD[0-9]{2})\d{8}[A-Z0-9]{12}$/,
   AE: /^(AE[0-9]{2})\d{3}\d{16}$/,
@@ -98,14 +91,6 @@ const ibanRegexThroughCountryCode = {
   XK: /^(XK[0-9]{2})\d{16}$/,
 };
 
-/**
- * Check if the country codes passed are valid using the
- * ibanRegexThroughCountryCode as a reference
- *
- * @param {array} countryCodeArray
- * @return {boolean}
- */
-
 function hasOnlyValidCountryCodes(countryCodeArray: string[]): boolean {
   const countryCodeArrayFilteredWithObjectIbanCode = countryCodeArray.filter(
     (countryCode) => !hasOwn(ibanRegexThroughCountryCode, countryCode),
@@ -114,11 +99,7 @@ function hasOnlyValidCountryCodes(countryCodeArray: string[]): boolean {
   return countryCodeArrayFilteredWithObjectIbanCode.length === 0;
 }
 
-/**
- * Reads `whitelist` / `blacklist`: an array of country codes compared case-insensitively. A string
- * would otherwise be matched by substring (`'XDEX'` "contains" DE), so anything that is not an array
- * of strings is a configuration error.
- */
+// A string would be matched by substring ('XDEX' includes 'DE'), so only arrays are accepted.
 function countryCodeList(list: unknown, name: string): string[] | undefined {
   if (list === undefined || list === null) return undefined;
   if (!Array.isArray(list) || !list.every((code) => typeof code === 'string')) {
@@ -129,20 +110,7 @@ function countryCodeList(list: unknown, name: string): string[] | undefined {
   return list.map((code) => code.toUpperCase());
 }
 
-/**
- * Check whether string has correct universal IBAN format
- * The IBAN consists of up to 34 alphanumeric characters, as follows:
- * Country Code using ISO 3166-1 alpha-2, two letters
- * check digits, two digits and
- * Basic Bank Account Number (BBAN), up to 30 alphanumeric characters.
- * NOTE: Permitted IBAN characters are: digits [0-9] and the 26 latin alphabetic [A-Z]
- *
- * @param {string} str - string under validation
- * @param {object} options - object to pass the countries to be either whitelisted or blacklisted
- * @return {boolean}
- */
 function hasValidIbanFormat(str: string, options: IsIBANOptions): boolean {
-  // Strip white spaces and hyphens
   const strippedStr = str.replace(/[\s-]+/gi, '').toUpperCase();
   const isoCountryCode = strippedStr.slice(0, 2).toUpperCase();
 
@@ -177,28 +145,15 @@ function hasValidIbanFormat(str: string, options: IsIBANOptions): boolean {
   );
 }
 
-/**
- * Check whether string has valid IBAN Checksum
- * by performing basic mod-97 operation and
- * the remainder should equal 1
- * -- Start by rearranging the IBAN by moving the four initial characters to the end of the string
- * -- Replace each letter in the string with two digits, A -> 10, B = 11, Z = 35
- * -- Interpret the string as a decimal integer and
- * -- compute the remainder on division by 97 (mod 97)
- * Reference: https://en.wikipedia.org/wiki/International_Bank_Account_Number
- *
- * @param {string} str
- * @return {boolean}
- */
+// ISO 13616 mod-97 check: https://en.wikipedia.org/wiki/International_Bank_Account_Number
 function hasValidIbanChecksum(str: string): boolean {
-  const strippedStr = str.replace(/[^A-Z0-9]+/gi, '').toUpperCase(); // Keep only digits and A-Z latin alphabetic
+  const strippedStr = str.replace(/[^A-Z0-9]+/gi, '').toUpperCase();
   const rearranged = strippedStr.slice(4) + strippedStr.slice(0, 4);
   const alphaCapsReplacedWithDigits = rearranged.replace(/[A-Z]/g, (char) =>
     String(char.charCodeAt(0) - 55),
   );
 
-  // Piecewise mod-97 so the running value never exceeds Number.MAX_SAFE_INTEGER.
-  // hasValidIbanFormat() already guaranteed at least one digit, so match() is non-null.
+  // Piecewise mod-97 keeps the running value below Number.MAX_SAFE_INTEGER.
   let remainder = 0;
   for (const chunk of alphaCapsReplacedWithDigits.match(/\d{1,7}/g) as RegExpMatchArray) {
     remainder = Number(`${remainder}${chunk}`) % 97;

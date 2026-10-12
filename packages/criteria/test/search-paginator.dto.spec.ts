@@ -10,7 +10,6 @@ describe('SearchPaginatorDto', () => {
     });
 
     it('should accept numeric strings convertible to integers', () => {
-      // Force the type with "as any" to simulate receiving a string.
       const paginator = new SearchPaginatorDto('5' as any, '10' as any);
       expect(paginator.page).toBe(5);
       expect(paginator.perPage).toBe(10);

@@ -1,6 +1,3 @@
-/**
- * Sanitizers — string transformers (one file per sanitizer).
- */
 export { ltrim } from './ltrim';
 export { rtrim } from './rtrim';
 export { trim } from './trim';

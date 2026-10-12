@@ -2,7 +2,6 @@ import { toString } from '../convert/string';
 
 export interface IsMACAddressOptions {
   no_separators?: boolean;
-  /** @deprecated use `no_separators` */
   no_colons?: boolean;
   eui?: '48' | '64' | 48 | 64;
 }
@@ -19,11 +18,7 @@ export function isMACAddress(value: unknown, options?: IsMACAddressOptions): boo
   if (!stringResult.ok) return false;
   const s = stringResult.value;
   const str: string = s;
-  // Normalise locally — never mutate the caller's options object.
   const eui = options?.eui ? String(options.eui) : undefined;
-  /**
-   * @deprecated `no_colons` TODO: remove it in the next major
-   */
   if (options?.no_colons || options?.no_separators) {
     if (eui === '48') {
       return macAddress48NoSeparators.test(str);

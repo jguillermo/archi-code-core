@@ -20,10 +20,6 @@ const defaultOptions = {
   pointsForContainingSymbol: 10,
 };
 
-/**
- * Numeric strength score of a password (see the `points*` options for the weights).
- * Returns 0 for values that cannot be read as a string.
- */
 export function scorePassword(str: unknown, options?: ScorePasswordOptions): number {
   const stringResult = toString(str);
   if (!stringResult.ok) return 0;

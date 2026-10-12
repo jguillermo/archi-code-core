@@ -8,8 +8,6 @@ const value = <T>(r: Converted<T>): T | null => r.value;
 const fail = (error: string): unknown => ({ ok: false, value: null, error });
 
 describe('toFloat', () => {
-  // ─── valid conversions ────────────────────────────────────────────────────
-
   describe('finite number → same value', () => {
     it('0 → 0', () => expect(converted(toFloat(0))).toBe(0));
     it('-0 → -0', () => expect(Object.is(converted(toFloat(-0)), -0)).toBe(true));
@@ -30,8 +28,6 @@ describe('toFloat', () => {
     it('"+3.14" → 3.14', () => expect(converted(toFloat('+3.14'))).toBe(3.14));
     it('"1e5" → 100000', () => expect(converted(toFloat('1e5'))).toBe(100000));
   });
-
-  // ─── error cases ──────────────────────────────────────────────────────────
 
   describe('non-finite numbers → { ok: false, error }', () => {
     it('NaN → { ok: false, error }', () =>

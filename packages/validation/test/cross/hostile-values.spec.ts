@@ -1,8 +1,3 @@
-/**
- * Hostile values must never make a public function throw: validators return false, converters
- * return { ok: false }, canBe returns false. Only sanitizers may throw — and only their documented
- * TypeError for non-string input. Covers values where even `instanceof` / `Array.isArray` throw.
- */
 import { describe, expect, it } from '@jest/globals';
 import * as api from '../../src';
 
@@ -45,9 +40,8 @@ describe('hostile values never make a public function throw', () => {
       try {
         fn(...args);
       } catch (e) {
-        // Missing required configuration (e.g. isHash without an algorithm) is not the value's fault.
-        if (!(e instanceof api.ValidationConfigError))
-          threw.push(`${name}: ${(e as Error).message}`);
+        const isMissingConfigurationNotValueFault = e instanceof api.ValidationConfigError;
+        if (!isMissingConfigurationNotValueFault) threw.push(`${name}: ${(e as Error).message}`);
       }
     }
     expect(threw).toEqual([]);

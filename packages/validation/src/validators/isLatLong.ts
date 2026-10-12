@@ -22,7 +22,7 @@ export function isLatLong(value: unknown, options?: IsLatLongOptions): boolean {
   options = merge(options, defaultLatLongOptions);
 
   const pair = s.split(',');
-  // Exactly "lat,long": anything after a second comma (`'1,2,<script>'`) used to be ignored.
+  // validator.js ignored anything after a second comma (`'1,2,<script>'`).
   if (pair.length !== 2) return false;
   if (
     (pair[0].startsWith('(') && !pair[1].endsWith(')')) ||

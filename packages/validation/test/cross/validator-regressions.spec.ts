@@ -1,8 +1,3 @@
-/**
- * Regression guard for the production-readiness blockers found in the 2026-09-25 review (security
- * false positives and values that made a validator throw). It lives in cross/ because the mirror
- * specs in test/validators are frozen.
- */
 import { describe, expect, it } from '@jest/globals';
 import { validator } from '../../src/validators';
 import { ValidationConfigError } from '../../src/helpers/errors';
@@ -35,10 +30,9 @@ describe('isURL — host checks cannot be bypassed', () => {
     );
   });
 
-  it('checks bracketed IPv6 hosts against the whitelist by their address', () => {
+  it('checks bracketed IPv6 hosts by their address and a missing host as an empty one', () => {
     expect(validator.isURL('http://[::1]', { host_whitelist: ['::1'] })).toBe(true);
     expect(validator.isURL('http://[::1]', { host_whitelist: [''] })).toBe(false);
-    // An empty host (only allowed with require_host: false) is checked as ''.
     expect(
       validator.isURL('http://user@', { require_host: false, host_whitelist: ['good.com'] }),
     ).toBe(false);
@@ -329,12 +323,11 @@ describe('false positives', () => {
 });
 
 describe('isURL — userinfo, dangerous schemes and control characters', () => {
-  it('a code-executing scheme before "@" is a scheme, never a user name', () => {
+  it('a code-executing scheme before "@" is a scheme, not a user name, unless protocol checks are off', () => {
     expect(validator.isURL('javascript:foo@example.com')).toBe(false);
     expect(validator.isURL('JavaScript:foo@example.com')).toBe(false);
     expect(validator.isURL('vbscript:foo@example.com')).toBe(false);
     expect(validator.isURL('data:foo@example.com')).toBe(false);
-    // Only when protocol validation is explicitly disabled (frozen upstream behaviour).
     expect(validator.isURL('javascript:foo@example.com', { require_valid_protocol: false })).toBe(
       true,
     );

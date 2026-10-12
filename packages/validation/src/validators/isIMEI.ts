@@ -14,8 +14,6 @@ export function isIMEI(value: unknown, options?: IsIMEIOptions): boolean {
   let strVal = s;
   options = options || {};
 
-  // default regex for checking imei is the one without hyphens
-
   let imeiRegex = imeiRegexWithoutHyphens;
 
   if (options.allow_hyphens) {

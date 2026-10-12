@@ -3,14 +3,12 @@ import type { ValidatorRegistry } from '../validators';
 import { ValidationConfigError } from '../helpers/errors';
 import { hasOwn } from '../helpers/hasOwn';
 
-/** Names of the registry entries that are validators (the locale tables are left out). */
 export type ValidatorName = {
   [K in keyof ValidatorRegistry]: ValidatorRegistry[K] extends (...args: any[]) => boolean
     ? K
     : never;
 }[keyof ValidatorRegistry];
 
-/** The parameters of a validator after the value. */
 type Params<K extends ValidatorName> = ValidatorRegistry[K] extends (
   value: any,
   ...rest: infer R
@@ -18,24 +16,15 @@ type Params<K extends ValidatorName> = ValidatorRegistry[K] extends (
   ? R
   : never;
 
-/**
- * The `properties` of a built-in validation: the validator's options object (its second argument),
- * or nothing (never) for the validators that only take the value.
- */
 export type ValidationProperties<K extends ValidatorName> =
   Params<K> extends [] ? never : NonNullable<Params<K>[0]>;
 
-// `properties` is required when the validator needs something, forbidden when it takes nothing.
 type PropertiesField<P> = [P] extends [never]
   ? { properties?: undefined }
   : Record<never, never> extends P
     ? { properties?: P }
     : { properties: P };
 
-/**
- * A built-in validator: `properties` is the validator's options object, so
- * `{ validator: 'isHash', properties: { algorithm: 'md5' } }` runs `isHash(value, { algorithm: 'md5' })`.
- */
 export type BuiltInValidation = {
   [K in ValidatorName]: {
     validator: K;
@@ -45,7 +34,6 @@ export type BuiltInValidation = {
   } & PropertiesField<ValidationProperties<K>>;
 }[ValidatorName];
 
-/** A custom validation: `fn` decides, `custom` is the name shown in the errors. */
 export interface CustomValidation {
   custom: string;
   fn: (value: unknown) => boolean;
@@ -55,15 +43,12 @@ export interface CustomValidation {
 
 export type Validation = BuiltInValidation | CustomValidation;
 
-/** Any class, abstract ones included. */
 export type ValidatedClass = abstract new (...args: any[]) => unknown;
 
-// Registry key, in the global symbol registry so every copy of this module shares one registry:
-// the CommonJS and ES module builds, or two installed copies of the package. `v1` is the shape of
-// what is stored; a version that stores something else must use a new key.
+// Symbol.for so the CJS and ESM builds, and installed copies, share one registry. Bump `v1` when
+// the stored shape changes.
 const REGISTRY = Symbol.for('@archi-code/validation/decorator.v1');
 
-/** Validations declared by each class, without the inherited ones. */
 export const ownValidations: WeakMap<ValidatedClass, Validation[]> = ((
   globalThis as { [REGISTRY]?: WeakMap<ValidatedClass, Validation[]> }
 )[REGISTRY] ??= new WeakMap());
@@ -72,13 +57,10 @@ export function isCustom(validation: Validation): validation is CustomValidation
   return validation.custom !== undefined;
 }
 
-/** Whether `name` is a validator of the registry (the locale tables are not). */
 export function isValidatorName(name: unknown): name is ValidatorName {
   return hasOwn(validator, name) && typeof validator[name] === 'function';
 }
 
-// Rejects what the types forbid but plain JavaScript (or a cast) can still pass, so a wrong
-// declaration fails when the class is decorated instead of on the first `validate`.
 function assertShape(validation: unknown): asserts validation is Validation {
   if (validation === null || typeof validation !== 'object')
     throw new ValidationConfigError('A validation must be an object');
@@ -98,14 +80,11 @@ function assertShape(validation: unknown): asserts validation is Validation {
     throw new ValidationConfigError(`Unknown validator "${String(name)}"`);
 }
 
-/** Identity of a validation: a built-in and a custom with the same name are different ones. */
 export function keyOf(validation: Validation): string {
   return isCustom(validation) ? `custom:${validation.custom}` : `validator:${validation.validator}`;
 }
 
-// Frozen copy of the plain objects and arrays in `value`, so neither the caller's objects nor
-// what validate reads can change a class's validations. Anything else (RegExp, functions…)
-// is kept as is: freezing a RegExp would break its `lastIndex`.
+// Only plain objects and arrays are copied and frozen: freezing a RegExp would break `lastIndex`.
 function snapshot<T>(value: T): T {
   if (Array.isArray(value)) return Object.freeze(value.map(snapshot)) as T;
   if (
@@ -120,18 +99,6 @@ function snapshot<T>(value: T): T {
   return value;
 }
 
-/**
- * Class decorator (classes only) that declares the validations of a class, in order. A subclass
- * inherits them: its own validations are added after the parent's, and one matching a parent's
- * (same built-in validator or same custom name) replaces it. Applying the decorator again to a
- * class works the same way. A list cannot declare the same validation twice. The declaration is
- * checked when the class is decorated: a malformed validation or an unknown validator throws
- * `ValidationConfigError` there.
- *
- * @example
- * @Validations([{ validator: 'isInt', properties: { min: 2 } }])
- * class Age {}
- */
 export function Validations(validations: Validation[]) {
   return (target: ValidatedClass): void => {
     if (typeof target !== 'function')

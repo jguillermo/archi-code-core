@@ -9,8 +9,9 @@ describe('#2 sanitizer blacklist / whitelist / ltrim / rtrim — chars are liter
 });
 
 describe('Sanitizers', () => {
+  const keepNewLines = true;
+
   it('should remove control characters (<32 and 127)', () => {
-    // Check basic functionality
     test({
       sanitizer: 'stripLow',
       expect: {
@@ -21,7 +22,6 @@ describe('Sanitizers', () => {
       },
     });
 
-    // Unicode safety
     test({
       sanitizer: 'stripLow',
       expect: {
@@ -32,10 +32,9 @@ describe('Sanitizers', () => {
       },
     });
 
-    // Preserve newlines
     test({
       sanitizer: 'stripLow',
-      args: [true], // keep_new_lines
+      args: [keepNewLines],
       expect: {
         'foo\x0A\x0D': 'foo\x0A\x0D',
         '\x03foo\x0A\x0D': 'foo\x0A\x0D',

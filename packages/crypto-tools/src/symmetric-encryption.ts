@@ -51,7 +51,7 @@ export class SymmetricEncryption {
 
   encrypt(text: string): string {
     try {
-      const iv = randomBytes(this.ivLength); // Generar IV
+      const iv = randomBytes(this.ivLength);
       const cipher = createCipheriv(this.algorithm, this.key, iv);
 
       const encrypted = Buffer.concat([cipher.update(text, 'utf-8'), cipher.final()]);
@@ -70,7 +70,6 @@ export class SymmetricEncryption {
         throw new Error('Invalid encrypted format.');
       }
 
-      // Verificar integridad con HMAC
       const encryptedData = `${iv}|${encrypted}`;
       if (this.generateHmac(encryptedData) !== hmac) {
         throw new Error('Invalid HMAC. Data may have been tampered with.');

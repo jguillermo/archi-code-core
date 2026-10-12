@@ -1,7 +1,7 @@
 import { toString } from '../convert/string';
 import { isCalendarDate } from '../convert/date';
 
-/* Based on https://tools.ietf.org/html/rfc3339#section-5.6 */
+// RFC 3339 section 5.6 (ABNF of date-time).
 
 const dateFullYear = /[0-9]{4}/;
 const dateMonth = /(0[1-9]|1[0-2])/;
@@ -24,7 +24,6 @@ const fullTime = new RegExp(`${partialTime.source}${timeOffset.source}`);
 
 const rfc3339 = new RegExp(`^${fullDate.source}[ tT]${fullTime.source}$`);
 
-/** Rejects dates that match the syntax but do not exist in the calendar (e.g. 2024-02-30). */
 function isRealCalendarDate(str: string): boolean {
   return isCalendarDate(Number(str.slice(0, 4)), Number(str.slice(5, 7)), Number(str.slice(8, 10)));
 }

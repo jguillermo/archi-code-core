@@ -2,11 +2,6 @@ import { jest } from '@jest/globals';
 
 type StringMethod = 'trim' | 'trimStart' | 'trimEnd';
 
-/**
- * Loads `modulePath` in an isolated module registry while the given String.prototype methods are
- * missing, as on an engine without them, so the programmed fallback of a sanitizer can be tested.
- * The methods are restored before returning.
- */
 export function loadWithoutNative<T>(modulePath: string, methods: StringMethod[]): T {
   const proto = String.prototype as unknown as Record<string, unknown>;
   const saved = methods.map((m) => [m, proto[m]] as const);
@@ -23,7 +18,6 @@ export function loadWithoutNative<T>(modulePath: string, methods: StringMethod[]
   return loaded as T;
 }
 
-/** Inputs covering every whitespace code unit plus non-whitespace edges. */
 export const WHITESPACE_SAMPLES: string[] = (() => {
   const ws: string[] = [];
   for (let c = 0; c <= 0xffff; c++) {

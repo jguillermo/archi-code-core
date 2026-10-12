@@ -5,13 +5,10 @@ import { escapeRegExp } from '../helpers/escapeRegExp';
 import { alphanumeric } from './alpha';
 import { configText, optionsOf } from '../helpers/config';
 
-/** Known locales (autocomplete); any string is accepted, unknown ones throw ValidationConfigError. */
 export type AlphanumericLocale = keyof typeof alphanumeric | (string & {});
 
 export interface IsAlphanumericOptions {
-  /** Default: `'en-US'`. */
   locale?: AlphanumericLocale;
-  /** Characters (every one literal) or pattern removed before the check. */
   ignore?: string | RegExp;
 }
 
@@ -24,11 +21,10 @@ export function isAlphanumeric(value: unknown, options?: IsAlphanumericOptions):
 
   if (ignore) {
     if (ignore instanceof RegExp) {
-      // Sticky/global regexes start at lastIndex: reset it so results do not depend on earlier calls.
+      // A global/sticky regex resumes at lastIndex; reset it so earlier calls do not leak in.
       ignore.lastIndex = 0;
       str = str.replace(ignore, '');
     } else if (typeof ignore === 'string') {
-      // Every character of `ignore` is literal (the former escaping turned 's' into '\s').
       str = str.replace(new RegExp(`[${escapeRegExp(ignore)}]`, 'g'), '');
     } else {
       throw new ValidationConfigError('ignore should be instance of a String or RegExp');

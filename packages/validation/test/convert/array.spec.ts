@@ -6,8 +6,6 @@ import type { Converted } from '../../src/convert';
 const value = <T>(r: Converted<T>): T | null => r.value;
 
 describe('toArray', () => {
-  // ─── valid conversions ────────────────────────────────────────────────────
-
   describe('array → same reference returned', () => {
     it('[1,2,3] → same reference', () => {
       const a = [1, 2, 3];
@@ -40,8 +38,6 @@ describe('toArray', () => {
         [3, 4],
       ]));
   });
-
-  // ─── error cases ──────────────────────────────────────────────────────────
 
   describe('invalid strings → { ok: false, error }', () => {
     it('"hello" → { ok: false, error }', () =>

@@ -10,8 +10,6 @@ const NUMS = ['0', '1', '2', '-1'];
 const BOOLS = ['true', 'false'];
 
 describe('toEnum', () => {
-  // ─── valid conversions ────────────────────────────────────────────────────
-
   describe('string in options → same string returned', () => {
     it('"red" in COLORS → "red"', () => expect(converted(toEnum('red', COLORS))).toBe('red'));
     it('"blue" in COLORS → "blue"', () => expect(converted(toEnum('blue', COLORS))).toBe('blue'));
@@ -40,8 +38,6 @@ describe('toEnum', () => {
       expect(r).toBe('a');
     });
   });
-
-  // ─── error cases ──────────────────────────────────────────────────────────
 
   describe('null / undefined → { ok: false, error }', () => {
     it('null → { ok: false, error }', () =>

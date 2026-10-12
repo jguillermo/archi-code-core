@@ -5,12 +5,10 @@ export interface IsLengthOptions {
   min?: number;
   max?: number;
   discreteLengths?: number[];
-  /** Count user-perceived characters (grapheme clusters, via `Intl.Segmenter`). Default: false. */
   graphemes?: boolean;
 }
 
-/** Historic count: code points, with emoji presentation selectors (U+FE0E/U+FE0F) not counted. */
-function countCharacters(s: string): number {
+function countCodePointsWithoutPresentationSelectors(s: string): number {
   const presentationSequences = s.match(/[^\uFE0F\uFE0E][\uFE0F\uFE0E]/g) || [];
   const surrogatePairs = s.match(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g) || [];
   return s.length - presentationSequences.length - surrogatePairs.length;
@@ -18,7 +16,6 @@ function countCharacters(s: string): number {
 
 let segmenter: Intl.Segmenter | undefined;
 
-/** User-perceived characters (extended grapheme clusters): '👨‍👩‍👧' or 'é' (e + ◌́) count as 1. */
 function countGraphemes(s: string): number {
   segmenter ??= new Intl.Segmenter(undefined, { granularity: 'grapheme' });
   return Array.from(segmenter.segment(s)).length;
@@ -30,7 +27,7 @@ export function isLength(value: unknown, options?: IsLengthOptions): boolean {
   const s = stringResult.value;
   const { options: opts, min, max } = boundsOf(options);
 
-  const len = opts.graphemes ? countGraphemes(s) : countCharacters(s);
+  const len = opts.graphemes ? countGraphemes(s) : countCodePointsWithoutPresentationSelectors(s);
   const isInsideRange = len >= min && (typeof max === 'undefined' || len <= max);
 
   if (isInsideRange && Array.isArray(opts.discreteLengths)) {

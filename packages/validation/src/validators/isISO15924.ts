@@ -1,6 +1,6 @@
 import { toString } from '../convert/string';
 
-// from https://www.unicode.org/iso15924/iso15924-codes.html
+// https://www.unicode.org/iso15924/iso15924-codes.html
 const validISO15924Codes = new Set([
   'Adlm',
   'Afak',

@@ -3,47 +3,24 @@ import { samples } from './samples';
 import { formatTable, writeMarkdown, compareNs, DEFAULT_TOLERANCE, type Row } from './report';
 import { readBaseline, writeBaseline, type Baseline } from './baseline';
 
-// ── Muestras por validador y repeticiones de la medición. ────────────────────
-// Se mide un número FIJO de muestras (no por tiempo): tinybench guarda cada muestra en
-// memoria, así que medir "por tiempo" sobre funciones de nanosegundos genera millones de
-// muestras y agota la RAM. Un número fijo mantiene la memoria acotada.
-//
-// Además, la medición completa se repite BENCH_REPEATS veces y el valor final de cada
-// validador es el PROMEDIO RECORTADO de esas repeticiones (se descarta la más lenta —y la más
-// rápida si hay ≥4—), para que una corrida con mala suerte (GC, throttling) no defina el
-// resultado. Más muestras y más repeticiones = más estable pero más lento.
-//
-//   BENCH_SAMPLES=10000 BENCH_REPEATS=10  → estable (por defecto, ~10 s)
-//   BENCH_REPEATS=3 BENCH_SAMPLES=5000    → rápido para iterar
 const BENCH_SAMPLES = parseInt(process.env['BENCH_SAMPLES'] ?? '10000', 10);
 const BENCH_REPEATS = Math.max(1, parseInt(process.env['BENCH_REPEATS'] ?? '10', 10));
 const WARMUP_SAMPLES = Math.max(200, Math.floor(BENCH_SAMPLES / 10));
-// ─────────────────────────────────────────────────────────────────────────────
 
-/** Promedio simple de un arreglo (0 si está vacío). */
 function mean(values: number[]): number {
   if (values.length === 0) return 0;
   return values.reduce((a, b) => a + b, 0) / values.length;
 }
 
-/**
- * Promedio recortado: descarta el valor más alto (y el más bajo si hay ≥4) y promedia el
- * resto. Con ≤2 valores promedia todos. Evita que una repetición atípica sesgue el resultado.
- */
 function trimmedMean(values: number[]): number {
   if (values.length <= 2) return mean(values);
   const sorted = [...values].sort((a, b) => a - b);
-  sorted.pop(); // descarta el más lento (mayor)
-  if (sorted.length >= 3) sorted.shift(); // y el más rápido (menor) si quedaban ≥4
+  sorted.pop();
+  if (sorted.length >= 3) sorted.shift();
   return mean(sorted);
 }
 
-/**
- * Coeficiente de variación (%) entre las repeticiones: desviación estándar / media × 100.
- * Es el ruido REAL medido de ese validador (cuánto varía su tiempo de corrida a corrida). Se
- * usa como banda: un cambio menor que este ruido no se marca como mejora/regresión.
- */
-function cvPct(values: number[]): number {
+function coefficientOfVariationPct(values: number[]): number {
   if (values.length < 2) return 0;
   const m = mean(values);
   if (m <= 0) return 0;
@@ -51,25 +28,22 @@ function cvPct(values: number[]): number {
   return (Math.sqrt(variance) / m) * 100;
 }
 
-/** Convierte milisegundos (media de tinybench) a nanosegundos ENTEROS. */
 function toNs(ms: number): number {
   return Math.round(ms * 1_000_000);
 }
 
-/** ¿Renderizar barra de progreso animada? Solo si la salida es una terminal. */
 const SHOW_PROGRESS = Boolean(process.stdout.isTTY);
+const RETURN_AND_CLEAR_LINE = '\r\x1b[2K';
 
-/** Dibuja UNA sola barra de progreso corta (0-100% del trabajo total) en la misma línea. */
 function renderProgress(done: number, total: number): void {
   const width = 30;
   const ratio = total > 0 ? done / total : 0;
   const filled = Math.round(ratio * width);
   const bar = '█'.repeat(filled) + '░'.repeat(width - filled);
-  // \x1b[2K limpia toda la línea; \r vuelve al inicio. Línea corta → nunca se envuelve.
-  process.stdout.write(`\r\x1b[2K  [${bar}] ${Math.round(ratio * 100)}%`);
+  process.stdout.write(`${RETURN_AND_CLEAR_LINE}  [${bar}] ${Math.round(ratio * 100)}%`);
 }
 
-/** Resultado de una tarea: tinybench 2.x expone hz/mean/rme; 3.x+ los agrupa en throughput/latency. */
+// tinybench 2.x exposes hz/mean/rme; 3.x+ groups them under throughput/latency.
 interface BenchResult {
   hz?: number;
   mean?: number;
@@ -78,16 +52,13 @@ interface BenchResult {
   latency?: { mean?: number; rme?: number };
 }
 
-/**
- * Runs a tinybench y devuelve un mapa nombre -> resultado. `onCycle` se llama una vez por
- * validador al terminar de medirse (para avanzar la barra de progreso global).
- */
 async function runBench(
   register: (bench: Bench) => void,
   onCycle: () => void,
 ): Promise<Map<string, { hz: number; mean: number; rme: number }>> {
   const bench = new Bench({
-    time: 0, // desactiva el modo por tiempo — se usa un número fijo de iteraciones (memoria acotada)
+    // tinybench keeps every sample: timing nanosecond functions by duration exhausts memory.
+    time: 0,
     warmupTime: 0,
     iterations: BENCH_SAMPLES,
     warmupIterations: WARMUP_SAMPLES,
@@ -111,33 +82,25 @@ async function runBench(
   return map;
 }
 
-/**
- * Nueva referencia para un validador. La referencia SOLO se mueve ante un cambio real:
- * - primera vez → guarda el actual;
- * - mejora real (más rápido más allá del ruido) → baja la referencia al actual;
- * - regresión o ruido → mantiene la referencia previa (así el rojo persiste hasta que
- *   realmente mejores, y el ruido no arrastra la referencia hacia un mínimo "con suerte").
- */
+// Only a real improvement lowers the reference, so noise never drags it to a lucky minimum.
 function nextRef(prev: number | undefined, current: number, rme: number): number {
   if (prev === undefined) return current;
   return compareNs(current, prev, DEFAULT_TOLERANCE, rme) === 'improved' ? current : prev;
 }
 
-/** Acumula las mediciones de cada repetición por validador, para promediarlas al final. */
-interface Acc {
+interface RepeatMeasurements {
   ns: number[];
   hz: number[];
 }
 
-/** Mediciones acumuladas de un validador; todos los samples se miden, así que siempre existen. */
-function accOf(acc: Map<string, Acc>, name: string): Acc {
+function accOf(acc: Map<string, RepeatMeasurements>, name: string): RepeatMeasurements {
   const a = acc.get(name);
   if (!a) throw new Error(`Sin mediciones para ${name}`);
   return a;
 }
 
 function accumulate(
-  dst: Map<string, Acc>,
+  dst: Map<string, RepeatMeasurements>,
   src: Map<string, { hz: number; mean: number; rme: number }>,
 ): void {
   for (const [name, r] of src) {
@@ -148,7 +111,6 @@ function accumulate(
   }
 }
 
-/** Muestra un valor de sample de forma legible en los mensajes de error. */
 function show(v: unknown): string {
   try {
     return JSON.stringify(v) ?? String(v);
@@ -157,12 +119,6 @@ function show(v: unknown): string {
   }
 }
 
-/**
- * Comprueba los samples ANTES de medir: si un `valid` no devuelve true (o un `invalid` no
- * devuelve false) el benchmark mediría la ruta equivocada. Devuelve la lista de problemas
- * (vacía si todo es correcto). Reglas: nombres únicos, ≥1 valid y ≥1 invalid, valid sin
- * duplicados, run(valid) === true y run(invalid) === false.
- */
 function checkSamples(): string[] {
   const problems: string[] = [];
   const seen = new Set<string>();
@@ -197,10 +153,9 @@ async function main(): Promise<void> {
       `${BENCH_REPEATS} repeticiones × ${BENCH_SAMPLES} muestras (promedio recortado).\n`,
   );
 
-  const okAcc = new Map<string, Acc>();
-  const errAcc = new Map<string, Acc>();
+  const okAcc = new Map<string, RepeatMeasurements>();
+  const errAcc = new Map<string, RepeatMeasurements>();
 
-  // UNA sola barra de progreso para TODO el trabajo: reps × 2 rutas × validadores.
   const totalUnits = BENCH_REPEATS * 2 * samples.length;
   let doneUnits = 0;
   const tick = (): void => {
@@ -211,7 +166,6 @@ async function main(): Promise<void> {
   if (SHOW_PROGRESS) renderProgress(0, totalUnits);
 
   for (let r = 1; r <= BENCH_REPEATS; r++) {
-    // Ruta ✓ éxito: se rota sobre los valores válidos.
     accumulate(
       okAcc,
       await runBench((b) => {
@@ -222,7 +176,6 @@ async function main(): Promise<void> {
       }, tick),
     );
 
-    // Ruta ✗ error: se rota sobre los valores inválidos.
     accumulate(
       errAcc,
       await runBench((b) => {
@@ -235,19 +188,16 @@ async function main(): Promise<void> {
   }
   if (SHOW_PROGRESS) process.stdout.write('\n');
 
-  // Valor final por validador = promedio recortado de las repeticiones. Se lee la referencia
-  // previa (para mostrar/colorear) y se recalcula (vía nextRef) para guardarla.
   const prevBaseline = readBaseline();
   const nextBaseline: Baseline = {};
 
   const rows: Row[] = samples.map((s) => {
     const ok = accOf(okAcc, s.name);
     const err = accOf(errAcc, s.name);
-    // Valor final en nanosegundos ENTEROS (promedio recortado convertido a ns).
     const okNs = toNs(trimmedMean(ok.ns));
-    const okRme = cvPct(ok.ns); // ruido real = dispersión entre repeticiones (%)
+    const okRme = coefficientOfVariationPct(ok.ns);
     const errNs = toNs(trimmedMean(err.ns));
-    const errRme = cvPct(err.ns);
+    const errRme = coefficientOfVariationPct(err.ns);
     const prev = prevBaseline[s.name];
     nextBaseline[s.name] = {
       okNs: nextRef(prev?.okNs, okNs, okRme),

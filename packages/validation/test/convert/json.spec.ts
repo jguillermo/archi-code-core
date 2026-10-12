@@ -9,8 +9,6 @@ const value = <T>(r: Converted<T>): T | null => r.value;
 const fail = (error: string): unknown => ({ ok: false, value: null, error });
 
 describe('toJson', () => {
-  // ─── valid conversions ────────────────────────────────────────────────────
-
   describe('object with at least one key → same reference', () => {
     it('{ name, age } → same reference', () => {
       const o = { name: 'Alice', age: 30 };
@@ -82,8 +80,6 @@ describe('toJson', () => {
     it('nested JSON string → parsed', () =>
       expect(converted(toJson('{"a":{"b":1}}'))).toEqual({ a: { b: 1 } }));
   });
-
-  // ─── error cases ──────────────────────────────────────────────────────────
 
   describe('non-object string input → { ok: false, error }', () => {
     it('"hello" → { ok: false, error }', () =>

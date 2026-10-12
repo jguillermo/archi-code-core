@@ -2,9 +2,7 @@ import { toString } from '../convert/string';
 import { optionsOf } from '../helpers/config';
 
 export interface IsISSNOptions {
-  /** Only accept the upper-case check digit `X`. */
   case_sensitive?: boolean;
-  /** The hyphen (`1234-5678`) is mandatory. */
   require_hyphen?: boolean;
 }
 

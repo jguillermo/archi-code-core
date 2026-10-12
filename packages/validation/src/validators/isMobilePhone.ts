@@ -4,9 +4,7 @@ import { toString } from '../convert/string';
 import { configText, optionsOf } from '../helpers/config';
 
 export interface IsMobilePhoneOptions {
-  /** One locale, a list (valid for any of them), or `'any'`. Default: any locale. */
   locale?: MobilePhoneLocale | MobilePhoneLocale[];
-  /** Require the number to start with `+`. */
   strictMode?: boolean;
 }
 
@@ -179,10 +177,8 @@ const phones = {
     /^(\+?389|0)?((?:2[2-9]\d{6}|(?:3[1-4]|4[2-8])\d{6}|500\d{5}|5[2-9]\d{6}|7[0-9][2-9]\d{5}|8[1-9]\d{6}|800\d{5}|8009\d{4}))$/,
 };
 
-/** Known locales (autocomplete); any string is accepted, unknown ones throw ValidationConfigError. */
 export type MobilePhoneLocale = keyof typeof phones | 'any' | (string & {});
 
-// aliases
 phones['en-CA'] = phones['en-US'];
 phones['fr-CA'] = phones['en-CA'];
 phones['fr-BE'] = phones['nl-BE'];
@@ -201,7 +197,6 @@ export function isMobilePhone(value: unknown, options?: IsMobilePhoneOptions): b
     return false;
   }
   if (Array.isArray(locale)) {
-    // Same contract as a single locale: an unknown one is a configuration error, not silently skipped.
     const unknown = locale.find((key) => !hasOwn(phones, key));
     if (unknown !== undefined) {
       throw new ValidationConfigError(`Invalid locale '${configText(unknown)}'`);
@@ -210,7 +205,6 @@ export function isMobilePhone(value: unknown, options?: IsMobilePhoneOptions): b
   }
   if (hasOwn(phones, locale)) {
     return phones[locale].test(s);
-    // alias falsey locale as 'any'
   }
   if (!locale || locale === 'any') {
     for (const key in phones) {

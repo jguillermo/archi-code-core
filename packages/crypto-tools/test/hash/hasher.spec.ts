@@ -3,11 +3,6 @@ import { Hasher } from '../../src/hash/hasher';
 import { HasherFactory } from '../../src/hash/hasher-factory';
 import { SodiumHasher } from '../../src/hash/client/sodium-hasher';
 
-/*
-joya
-private static readonly validAlgorithms = ['sha256', 'sha512', 'blake2b'] as const;
-  private readonly algorithm: (typeof Hasher.validAlgorithms)[number],
-* */
 describe('Hasher', () => {
   describe('Constructor', () => {
     it('should initialize correctly with valid algorithm and salt length', () => {
@@ -42,7 +37,7 @@ describe('Hasher', () => {
       const text = 'TestPassword123!';
       const hash = await hasher.sha256(text);
       expect(hash).toBeDefined();
-      expect(hash).toMatch(/^[a-f0-9]+$/); // Hexadecimal output
+      expect(hash).toMatch(/^[a-f0-9]+$/);
     });
 
     it('should generate different hashes for different texts', async () => {

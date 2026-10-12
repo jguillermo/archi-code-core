@@ -5,7 +5,6 @@ import { optionsOf } from '../helpers/config';
 export type IsUUIDVersion = 'all' | 'loose' | 'nil' | 'max' | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
 export interface IsUUIDOptions {
-  /** Default: `'all'`. */
   version?: IsUUIDVersion;
 }
 
@@ -23,7 +22,6 @@ const uuid = {
   max: /^ffffffff-ffff-ffff-ffff-ffffffffffff$/i,
   loose: /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i,
 
-  // From https://github.com/uuidjs/uuid/blob/main/src/regex.js
   all: /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$/i,
 };
 

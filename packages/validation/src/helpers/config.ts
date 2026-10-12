@@ -1,10 +1,6 @@
 import { anyToString } from '../convert/any-to-string';
 import { ValidationConfigError } from './errors';
 
-/**
- * Reads an optional options argument. `undefined` and `null` both mean "no options" (the same as
- * `merge`); any other non-object (a string, a number, a Symbol…) is a configuration error.
- */
 export function optionsOf<T extends object>(
   options: T | null | undefined,
   name = 'options',
@@ -16,16 +12,10 @@ export function optionsOf<T extends object>(
   return options;
 }
 
-/** Text of a configuration value for an error message. Never throws (Symbols, hostile objects…). */
 export function configText(value: unknown): string {
   return anyToString(value);
 }
 
-/**
- * Reads the `min`/`max` of the isLength / isByteLength options. `undefined` and `null` mean "no
- * options". A bound that cannot be compared with a number (Symbol, function, object) is a
- * configuration error; falsy `min` means 0 (historic).
- */
 export function boundsOf<T extends { min?: number; max?: number }>(
   options: T | null | undefined,
 ): { options: Partial<T>; min: number; max: number | undefined } {

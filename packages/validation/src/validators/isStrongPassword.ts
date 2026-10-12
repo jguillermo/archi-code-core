@@ -18,7 +18,6 @@ const defaultOptions = {
   minSymbols: 1,
 };
 
-/** The numeric strength score lives in `scorePassword()` (src/helpers). */
 export function isStrongPassword(value: unknown, options?: IsStrongPasswordOptions): boolean {
   const stringResult = toString(value);
   if (!stringResult.ok) return false;

@@ -14,11 +14,9 @@ const cards = {
   visa: /^(?:4[0-9]{12})(?:[0-9]{3,6})?$/,
 };
 
-/** Supported providers (autocomplete); any string is accepted, unknown ones throw ValidationConfigError. */
 export type CreditCardProvider = keyof typeof cards | (string & {});
 
 export interface IsCreditCardOptions {
-  /** Restrict to one provider. */
   provider?: CreditCardProvider;
 }
 
@@ -44,15 +42,12 @@ export function isCreditCard(value: unknown, options?: IsCreditCardOptions): boo
     throw new ValidationConfigError('provider must be a string');
   }
   if (provider && hasOwn(cards, provider.toLowerCase())) {
-    // specific provider in the list
     if (!cards[provider.toLowerCase()].test(sanitized)) {
       return false;
     }
   } else if (provider) {
-    /* specific provider not in the list */
     throw new ValidationConfigError(`${configText(provider)} is not a valid credit card provider.`);
   } else if (!allCards.some((cardProvider) => cardProvider.test(sanitized))) {
-    // no specific provider
     return false;
   }
   return isLuhnValid(card);

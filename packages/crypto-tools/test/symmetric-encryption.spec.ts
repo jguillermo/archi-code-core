@@ -48,7 +48,7 @@ describe('SymmetricEncryption', () => {
     const instance = new SymmetricEncryption(algorithm, validKey);
     const encrypted1 = instance.encrypt(textToEncrypt);
     const encrypted2 = instance.encrypt(textToEncrypt);
-    expect(encrypted1).not.toBe(encrypted2); // IV ensures uniqueness
+    expect(encrypted1).not.toBe(encrypted2);
   });
 
   it('should throw an error if the encrypted string format is invalid', () => {
@@ -60,7 +60,7 @@ describe('SymmetricEncryption', () => {
     const instance = new SymmetricEncryption(algorithm, validKey);
     const encrypted = instance.encrypt(textToEncrypt);
     const lastChar = encrypted[encrypted.length - 1];
-    const tamperedEncrypted = encrypted.slice(0, -1) + (lastChar === '0' ? '1' : '0'); // Modify the last character ensuring it actually changes
+    const tamperedEncrypted = encrypted.slice(0, -1) + (lastChar === '0' ? '1' : '0');
     expect(() => instance.decrypt(tamperedEncrypted)).toThrow(
       'Invalid HMAC. Data may have been tampered with.',
     );
@@ -90,7 +90,7 @@ describe('SymmetricEncryption', () => {
 
   it('should handle non-ASCII text correctly', () => {
     const instance = new SymmetricEncryption(algorithm, validKey);
-    const nonAsciiText = 'こんにちは、世界！'; // "Hello, World!" in Japanese
+    const nonAsciiText = 'こんにちは、世界！';
     const encrypted = instance.encrypt(nonAsciiText);
     const decrypted = instance.decrypt(encrypted);
     expect(decrypted).toBe(nonAsciiText);
@@ -111,7 +111,7 @@ describe('SymmetricEncryption', () => {
   });
 
   it('should encrypt large texts correctly', () => {
-    const largeText = 'A'.repeat(10000); // 10,000 characters
+    const largeText = 'A'.repeat(10000);
     const instance = new SymmetricEncryption(algorithm, validKey);
     const encrypted = instance.encrypt(largeText);
     const decrypted = instance.decrypt(encrypted);

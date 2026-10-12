@@ -3,9 +3,7 @@ import { configText, optionsOf } from '../helpers/config';
 import { ValidationConfigError } from '../helpers/errors';
 
 export interface MatchesOptions {
-  /** Pattern the value must match (a string is compiled with `modifiers`). */
   pattern: RegExp | string;
-  /** RegExp flags for a string `pattern`. */
   modifiers?: string;
 }
 

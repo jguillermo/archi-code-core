@@ -1,9 +1,7 @@
 import { toString } from '../convert/string';
 
-// http://www.brainjar.com/js/validation/
-// https://www.aba.com/news-research/research-analysis/routing-number-policy-procedures
-// series reserved for future use are excluded
-const isRoutingReg =
+// Prefixes reserved by the ABA: https://www.aba.com/news-research/research-analysis/routing-number-policy-procedures
+const nineDigitsOutsideReservedSeries =
   /^(?!(1[3-9])|(20)|(3[3-9])|(4[0-9])|(5[0-9])|(60)|(7[3-9])|(8[1-9])|(9[0-2])|(9[3-9]))[0-9]{9}$/;
 
 export function isAbaRouting(value: unknown): boolean {
@@ -12,7 +10,7 @@ export function isAbaRouting(value: unknown): boolean {
   const s = stringResult.value;
   const str: string = s;
 
-  if (!isRoutingReg.test(str)) return false;
+  if (!nineDigitsOutsideReservedSeries.test(str)) return false;
 
   let checkSumVal = 0;
   for (let i = 0; i < str.length; i++) {

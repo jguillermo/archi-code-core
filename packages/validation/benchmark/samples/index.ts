@@ -86,7 +86,6 @@ import { isMD5Sample } from './isMD5.samples';
 import { isIdentityCardSample } from './isIdentityCard.samples';
 import { isPassportNumberSample } from './isPassportNumber.samples';
 
-/** Todos los samples de validadores (fuente única para specs y benchmark). */
 export const samples: ValidatorSample[] = [
   isEmailSample,
   isURLSample,

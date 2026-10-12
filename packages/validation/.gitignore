@@ -55,13 +55,6 @@ pids
 *.seed
 *.pid.lock
 
-# Rust build artifacts
-/rust/target
-
-# Generated WASM packages (run `npm run build:wasm` to regenerate)
-/src/wasm/pkg-node/
-/src/wasm/pkg-bundler/
-
 # TypeScript incremental build cache
 *.tsbuildinfo
 

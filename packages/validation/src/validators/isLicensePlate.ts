@@ -33,11 +33,9 @@ const validators = {
     ),
 };
 
-/** Known locales (autocomplete); any string is accepted, unknown ones throw ValidationConfigError. */
 export type LicensePlateLocale = keyof typeof validators | 'any' | (string & {});
 
 export interface IsLicensePlateOptions {
-  /** Locale, or `'any'` (valid for at least one locale). */
   locale: LicensePlateLocale;
 }
 

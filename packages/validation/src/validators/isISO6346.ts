@@ -1,8 +1,6 @@
 import { toString } from '../convert/string';
 
-// https://en.wikipedia.org/wiki/ISO_6346
-// according to ISO6346 standard, checksum digit is mandatory for freight container but recommended
-// for other container types (J and Z)
+// ISO 6346: the check digit is mandatory for freight containers (U), optional for J and Z.
 const isISO6346Str = /^[A-Z]{3}(?:U[0-9]{7}|[JZ][0-9]{6,7})$/;
 const isDigit = /^[0-9]$/;
 

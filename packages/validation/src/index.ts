@@ -1,8 +1,6 @@
 export { validator } from './validators';
 
-// Each validator is also exported on its own, straight from its file, so bundlers can tree-shake:
-// `import { isEmail }` keeps isEmail and its dependencies only, while `validator` (the frozen
-// registry) pulls every validator and locale table. Same functions: validator.isEmail === isEmail.
+// Exported one by one so bundlers can tree-shake; `validator` pulls in every validator and table.
 export { equals } from './validators/equals';
 export { contains } from './validators/contains';
 export { matches } from './validators/matches';
@@ -116,6 +114,5 @@ export type {
 export { scorePassword } from './helpers/scorePassword';
 export type { ScorePasswordOptions } from './helpers/scorePassword';
 export { ValidationConfigError } from './helpers/errors';
-// Every validator option / parameter type (IsEmailOptions, MobilePhoneLocale, …) and ValidatorRegistry.
 export type * from './validators';
 export type { NormalizeEmailOptions } from './sanitizer/normalizeEmail';

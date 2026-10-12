@@ -1,5 +1,4 @@
 import { describe, expect, it } from '@jest/globals';
-// packages/criteria/src/search-query-serializer.spec.ts
 import { SearchQuerySerializer } from '../src/search-query-serializer';
 import { SearchCriteriaDto } from '../src/search-criteria.dto';
 import { SimpleFilterDto } from '../src/simple-filter.dto';
@@ -11,13 +10,11 @@ import { SearchGroupByDto } from '../src/search-group-by.dto';
 import { SearchOrderItemDto } from '../src/search-order-item.dto';
 
 describe('SearchQuerySerializer', () => {
-  // Casos básicos
   describe('Casos básicos', () => {
     it('debería serializar y deserializar una SearchCriteriaDto vacía', () => {
       const criteria = new SearchCriteriaDto();
       const serialized = SearchQuerySerializer.serialize(criteria);
 
-      // Al no haber filtros, orders, paginator ni groupBy se serializa como null
       expect(serialized).toBe(
         JSON.stringify({
           filters: null,
@@ -35,14 +32,12 @@ describe('SearchQuerySerializer', () => {
     });
   });
 
-  // Tests para filtros simples
   describe('Filtros simples', () => {
     it('debería serializar y deserializar un filtro simple', () => {
       const simpleFilter = new SimpleFilterDto('age', FilterOperator.GT, 18);
       const criteria = new SearchCriteriaDto(simpleFilter);
       const serialized = SearchQuerySerializer.serialize(criteria);
 
-      // Se espera que el filtro simple se serialice con la propiedad "type" = "simple"
       const expectedFilterObj = {
         type: 'simple',
         field: 'age',
@@ -61,7 +56,6 @@ describe('SearchQuerySerializer', () => {
     });
   });
 
-  // Tests para filtros compuestos
   describe('Filtros compuestos', () => {
     it('debería serializar y deserializar un filtro compuesto con filtros simples', () => {
       const simpleFilter1 = new SimpleFilterDto('age', FilterOperator.GTE, 21);
@@ -105,7 +99,6 @@ describe('SearchQuerySerializer', () => {
     });
   });
 
-  // Tests para ordenamiento
   describe('Ordenamiento', () => {
     it('debería serializar y deserializar órdenes de búsqueda', () => {
       const orders: SearchOrderItemDto[] = [
@@ -124,14 +117,13 @@ describe('SearchQuerySerializer', () => {
     });
 
     it('debería lanzar error si el orden tiene dirección inválida', () => {
-      const orders = [{ field: 'name', direction: 'ascending' }]; // dirección inválida
+      const orders = [{ field: 'name', direction: 'ascending' }];
       expect(() => new SearchOrderDto(orders as any)).toThrowError(
         'SearchOrderDto: Each order must have direction "asc" or "desc"',
       );
     });
   });
 
-  // Tests para paginador
   describe('Paginador', () => {
     it('debería serializar y deserializar un paginador válido', () => {
       const paginator = new SearchPaginatorDto(2, 10);
@@ -159,7 +151,6 @@ describe('SearchQuerySerializer', () => {
     });
   });
 
-  // Tests para groupBy
   describe('Group By', () => {
     it('debería serializar y deserializar un groupBy con un string', () => {
       const groupBy = new SearchGroupByDto('country');
@@ -192,54 +183,43 @@ describe('SearchQuerySerializer', () => {
     });
   });
 
-  // Tests combinados: utilizando filtros, órdenes, paginador y groupBy
   describe('Casos combinados', () => {
     it('debería serializar y deserializar un SearchCriteriaDto completo', () => {
-      // Crear filtros compuestos con filtros simples
       const simpleFilter1 = new SimpleFilterDto('status', FilterOperator.EQ, 'active');
       const simpleFilter2 = new SimpleFilterDto('score', FilterOperator.GTE, 50);
       const compositeFilter = new CompositeFilterDto('or', [simpleFilter1, simpleFilter2]);
 
-      // Definir órdenes de búsqueda
       const orders: SearchOrderItemDto[] = [
         { field: 'createdAt', direction: 'desc' },
         { field: 'score', direction: 'asc' },
       ];
       const orderDto = new SearchOrderDto(orders);
 
-      // Crear un paginador
       const paginator = new SearchPaginatorDto(1, 20);
 
-      // Crear groupBy
       const groupBy = new SearchGroupByDto(['status', 'category']);
 
-      // Construir la criteria completa
       const criteria = new SearchCriteriaDto(compositeFilter, orderDto, paginator, groupBy);
       const serialized = SearchQuerySerializer.serialize(criteria);
       const deserialized = SearchQuerySerializer.deserialize(serialized);
 
-      // Verificar filtros
       expect(deserialized.filters).toBeInstanceOf(CompositeFilterDto);
       const dsComposite = deserialized.filters as CompositeFilterDto;
       expect(dsComposite.logicalOperator).toBe('or');
       expect(dsComposite.filters).toHaveLength(2);
 
-      // Verificar órdenes
       expect(deserialized.orders).toBeInstanceOf(SearchOrderDto);
       expect(deserialized.orders?.orders).toEqual(orders);
 
-      // Verificar paginador
       expect(deserialized.paginator).toBeInstanceOf(SearchPaginatorDto);
       expect(deserialized.paginator?.page).toBe(1);
       expect(deserialized.paginator?.perPage).toBe(20);
 
-      // Verificar groupBy
       expect(deserialized.groupBy).toBeInstanceOf(SearchGroupByDto);
       expect(deserialized.groupBy?.fields).toEqual(['status', 'category']);
     });
   });
 
-  // Casos de error en la deserialización
   describe('Casos de error', () => {
     it('debería lanzar error al deserializar un JSON inválido', () => {
       expect(() => SearchQuerySerializer.deserialize('invalid json')).toThrowError(

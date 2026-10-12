@@ -7,18 +7,6 @@ import { SimpleFilterDto } from './simple-filter.dto';
 import { SearchGroupByDto } from './search-group-by.dto';
 import { SearchOrderItemDto } from './search-order-item.dto';
 
-/**
- * Class responsible for serializing and deserializing SearchCriteriaDto instances
- * into a custom JSON object.
- *
- * The JSON format:
- * {
- *   "filters": <custom filters object>,
- *   "orders": <array of orders>,
- *   "paginator": <paginator object>,
- *   "groupBy": <array of groupBy fields>
- * }
- */
 export class SearchQuerySerializer {
   public static serialize(query: SearchCriteriaDto): string {
     const obj: any = {};

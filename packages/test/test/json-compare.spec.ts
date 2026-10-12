@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
-import { JsonCompare } from '../src/json-commpare';
+import { JsonCompare } from '../src/json-compare';
 import { anyToString } from '@archi-code/validation';
 
 function s(data: any, reference: any, errors: string[] = []) {
@@ -70,11 +70,11 @@ describe('JsonCompare', () => {
         s({ a: '1' }, { a: '1', b: 1 }, ['b: key not found']);
         s({ a: 1 }, { a: 1, b: 1 }, ['b: key not found']);
 
-        s({ a: 1 }, { a: 1, b: 1 }, ['b: key not found']); //key not found
+        s({ a: 1 }, { a: 1, b: 1 }, ['b: key not found']);
         s({ a: 1, c: { cb: 1 } }, { a: 1, b: 1, c: { ca: 1, cb: 1 } }, [
           'b: key not found',
           'c.ca: key not found',
-        ]); //'c.ca: key not found', 'b: key not found'
+        ]);
       });
     });
     describe('include', () => {

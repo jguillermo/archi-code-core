@@ -14,8 +14,6 @@ const parseDateLax = (v: unknown): Date | undefined => {
 };
 
 describe('toDate', () => {
-  // ─── valid conversions ────────────────────────────────────────────────────
-
   describe('Date instance → same instance returned', () => {
     it('valid Date → same reference', () => {
       const d = new Date('2024-01-15');
@@ -50,7 +48,6 @@ describe('toDate', () => {
   });
 
   describe('out-of-range date strings — rejected even when V8 silently rolls over', () => {
-    // months with 30 days: April(4), June(6), September(9), November(11)
     it('"2024-04-31" → { ok: false, error }', () =>
       expectNotConvertible(toDate('2024-04-31'), ConvertMessages.DATE));
     it('"2024-06-31" → { ok: false, error }', () =>
@@ -60,7 +57,6 @@ describe('toDate', () => {
     it('"2024-11-31" → { ok: false, error }', () =>
       expectNotConvertible(toDate('2024-11-31'), ConvertMessages.DATE));
 
-    // February edge cases
     it('"2023-02-29" → { ok: false, error }', () =>
       expectNotConvertible(toDate('2023-02-29'), ConvertMessages.DATE));
     it('"2100-02-29" → { ok: false, error }', () =>
@@ -73,7 +69,6 @@ describe('toDate', () => {
       expect(d.getUTCMonth()).toBe(1);
     });
 
-    // time overflow
     it('"2024-03-23T24:00:00" → { ok: false, error }', () =>
       expectNotConvertible(toDate('2024-03-23T24:00:00'), ConvertMessages.DATE));
     it('"2024-03-23T00:60:00" → { ok: false, error }', () =>
@@ -81,14 +76,11 @@ describe('toDate', () => {
     it('"2024-03-23T00:00:60" → { ok: false, error }', () =>
       expectNotConvertible(toDate('2024-03-23T00:00:60'), ConvertMessages.DATE));
 
-    // day/month lower-bound overflow
     it('"2024-01-00" → { ok: false, error }', () =>
       expectNotConvertible(toDate('2024-01-00'), ConvertMessages.DATE));
     it('"2024-00-15" → { ok: false, error }', () =>
       expectNotConvertible(toDate('2024-00-15'), ConvertMessages.DATE));
   });
-
-  // ─── error cases ──────────────────────────────────────────────────────────
 
   describe('invalid Date instance → { ok: false, error }', () => {
     it('new Date("invalid") → { ok: false, error }', () =>

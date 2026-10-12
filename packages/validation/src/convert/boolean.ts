@@ -2,13 +2,6 @@ import { ConvertMessages, failure, success } from './result';
 import type { Converted } from './result';
 
 export interface BooleanConvertOptions {
-  /**
-   * - `'default'`: trimmed, case-insensitive `'true'`/`'1'` → true, `'false'`/`'0'` → false.
-   * - `'strict'` / `'loose'`: rules PORTED FROM `validator.isBoolean`. They were moved here so the
-   *   validator no longer duplicates the boolean rule, but they are NOT compatible with the
-   *   default: `'strict'` is case-sensitive and does not trim (`'TRUE'`, `' true'` fail);
-   *   `'loose'` lower-cases without trimming and also accepts `'yes'`/`'no'`.
-   */
   mode?: 'default' | 'strict' | 'loose';
 }
 
@@ -27,7 +20,6 @@ export function toBoolean(v: unknown, options?: BooleanConvertOptions): Converte
     return failure(ConvertMessages.BOOLEAN);
   }
   if (typeof v === 'string') {
-    // Unknown modes fall back to 'default' (converters never throw).
     const mode = options?.mode === 'strict' || options?.mode === 'loose' ? options.mode : 'default';
     const s = mode === 'strict' ? v : mode === 'loose' ? v.toLowerCase() : v.trim().toLowerCase();
     if (TRUE_VALUES[mode].includes(s)) return success(true);

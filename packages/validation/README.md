@@ -316,6 +316,30 @@ all properties of the options object:
   finite number; `false` for `''`, whitespace only (spaces, tabs, line breaks, Unicode spaces),
   `null`, `undefined`, `NaN`, `Infinity`, booleans and any other value.
 
+## Package setup
+
+This package follows the monorepo package standard (`.claude/rules/packages.md`) with these
+allowed extensions:
+
+- **Web build.** `browser` field and `browser` export condition point to the ESM build, and
+  `check:dist` also runs `check-web.js` (no bare imports, no Node-only globals, the build runs in a
+  realm without Node APIs) plus the `web` checks of `test/dist/dist.check.js`. `exports["."]` adds
+  a `node` condition, so Node always takes the `import`/`require` entries with their own types and
+  never the `browser` one, and a last `default` to the ESM build for resolvers that match no
+  condition.
+- **`sideEffects: false`**, so bundlers can drop unused validators (see Tree-shaking above).
+- **`tsconfig.json`** sets `target` `ES2020` and adds `ES2022.Intl` to `lib` for `Intl.Segmenter`
+  (grapheme counting in `isLength`).
+- **`tsconfig.spec.json`** (used by ts-jest) enables `esModuleInterop` for the default imports of
+  the ported specs (`assert`, `timezone-mock`) and turns off incremental builds.
+- **`jest.injectGlobals: true`**, because the specs ported from validator.js (`test/validators`,
+  `test/sanitizer`, `test/helpers`) use Jest globals and are not edited. New specs import from
+  `@jest/globals`.
+- **`benchmark/`** (tinybench, see `benchmark/README.md`): Prettier and ESLint cover it,
+  `check:types` type-checks `benchmark/tsconfig.json` and `npm run benchmark` runs it. Its local
+  best scores (`benchmark/best-scores.json`) are ignored in `.gitignore`.
+- **`docs/`**: Prettier covers its Markdown.
+
 ## License
 
 MIT

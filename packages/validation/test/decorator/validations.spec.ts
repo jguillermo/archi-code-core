@@ -9,8 +9,6 @@ interface DecoratorModules {
   validate: typeof import('../../src/decorator/validate');
 }
 
-// A second, independent copy of the decorator modules, as when an app loads both the CommonJS and
-// the ES module build, or two installed copies of the package.
 function loadAnotherCopy(): DecoratorModules {
   let loaded: DecoratorModules | undefined;
   jest.isolateModules(() => {

@@ -4,8 +4,7 @@ import { Validations, ownValidations } from '../../src/decorator/validations';
 import type { Validation, ValidatedClass } from '../../src/decorator/validations';
 import { ValidationConfigError } from '../../src/helpers/errors';
 
-// A custom validation that records its name when it runs, to observe the run order.
-const tracked = (order: string[], name: string, result = true): Validation => ({
+const recordingRunOrder = (order: string[], name: string, result = true): Validation => ({
   custom: name,
   fn: () => (order.push(name), result),
 });
@@ -68,7 +67,7 @@ describe('validate', () => {
     @Validations([
       { validator: 'isInt', properties: { min: 2 } },
       { validator: 'isEmail' },
-      tracked(order, 'tracked'),
+      recordingRunOrder(order, 'tracked'),
       { custom: 'isEven', fn: (v) => Number(v) % 2 === 0, message: 'Must be even' },
     ])
     class Target {}
@@ -113,12 +112,12 @@ describe('validate', () => {
 
   it('runs the parent validations first, then each subclass in turn', () => {
     const order: string[] = [];
-    @Validations([tracked(order, 'grandParent')])
+    @Validations([recordingRunOrder(order, 'grandParent')])
     abstract class GrandParent {}
-    @Validations([tracked(order, 'parent')])
+    @Validations([recordingRunOrder(order, 'parent')])
     class Parent extends GrandParent {}
     class Plain extends Parent {}
-    @Validations([tracked(order, 'child')])
+    @Validations([recordingRunOrder(order, 'child')])
     class Child extends Plain {}
     expect(validate(Child, 'x').errors).toEqual([]);
     expect(order).toEqual(['grandParent', 'parent', 'child']);
@@ -144,8 +143,8 @@ describe('validate', () => {
     ])
     class Child extends Parent {}
 
-    // '3' fails isInt only with min 5, and isPort passes: override visible through the errors.
-    expect(validate(Child, '3').errors).toEqual([
+    const belowParentMinButValidPort = '3';
+    expect(validate(Child, belowParentMinButValidPort).errors).toEqual([
       { validator: 'isInt', message: 'Value does not satisfy isInt' },
       { custom: 'rule', message: 'grandParent rule' },
       { custom: 'last', message: 'Value does not satisfy last' },
@@ -213,8 +212,7 @@ describe('validate', () => {
     }
   });
 
-  it('throws ValidationConfigError for a stored validator this copy does not have', () => {
-    // As when another copy of the package, of a newer version, decorated the class.
+  it('throws ValidationConfigError for a validator stored by a newer copy of the package', () => {
     class Target {}
     ownValidations.set(Target, [{ validator: 'isFromTheFuture' } as unknown as Validation]);
     expect(() => validate(Target, 'x')).toThrow(

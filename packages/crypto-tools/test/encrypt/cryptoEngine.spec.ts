@@ -71,7 +71,7 @@ describe('CryptoEngine', () => {
 
   it('should encode and decode a message entirely in Base64 format', () => {
     const machine = new CryptoEngine(baseHash);
-    const message = 'VGhpcyBpcyBhIEJhc2U2NCB0ZXN0Lg=='; // "This is a Base64 test."
+    const message = 'VGhpcyBpcyBhIEJhc2U2NCB0ZXN0Lg==';
 
     const encoded = machine.encode(message);
     const decoded = machine.decode(encoded);
@@ -122,7 +122,7 @@ describe('CryptoEngine', () => {
 
   it('should maintain correct functionality when processing a very long message', () => {
     const machine = new CryptoEngine(baseHash);
-    const message = 'A!@#$%^&*()1234567890'.repeat(100); // Very long string
+    const message = 'A!@#$%^&*()1234567890'.repeat(100);
 
     const encoded = machine.encode(message);
     const decoded = machine.decode(encoded);

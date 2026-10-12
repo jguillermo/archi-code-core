@@ -16,7 +16,6 @@ describe('MongoCriteriaConverter', () => {
       const criteria = new SearchCriteriaDto(filter);
       const mongoQuery = new MongoCriteriaConverter().convert(criteria);
 
-      // Se espera que el filtro se convierta en: { name: 'Alice' }
       expect(mongoQuery.filter).toEqual({ name: 'Alice' });
     });
 
@@ -25,7 +24,6 @@ describe('MongoCriteriaConverter', () => {
       const criteria = new SearchCriteriaDto(filter);
       const mongoQuery = new MongoCriteriaConverter().convert(criteria);
 
-      // Se espera: { age: { $gt: 30 } }
       expect(mongoQuery.filter).toEqual({ age: { $gt: 30 } });
     });
 
@@ -34,7 +32,6 @@ describe('MongoCriteriaConverter', () => {
       const criteria = new SearchCriteriaDto(filter);
       const mongoQuery = new MongoCriteriaConverter().convert(criteria);
 
-      // Se espera: { price: { $gte: 10, $lte: 20 } }
       expect(mongoQuery.filter).toEqual({ price: { $gte: 10, $lte: 20 } });
     });
 
@@ -43,7 +40,6 @@ describe('MongoCriteriaConverter', () => {
       const criteria = new SearchCriteriaDto(filter);
       const mongoQuery = new MongoCriteriaConverter().convert(criteria);
 
-      // Se espera que se utilice $regex para búsquedas LIKE
       expect(mongoQuery.filter).toEqual({ description: { $regex: 'book' } });
     });
 
@@ -52,7 +48,6 @@ describe('MongoCriteriaConverter', () => {
       const criteria = new SearchCriteriaDto(filter);
       const mongoQuery = new MongoCriteriaConverter().convert(criteria);
 
-      // Se espera: regex con opción "i" para insensibilidad a mayúsculas/minúsculas
       expect(mongoQuery.filter).toEqual({ description: { $regex: 'BOOK', $options: 'i' } });
     });
   });
@@ -65,7 +60,6 @@ describe('MongoCriteriaConverter', () => {
       const criteria = new SearchCriteriaDto(compositeFilter);
       const mongoQuery = new MongoCriteriaConverter().convert(criteria);
 
-      // Se espera que el filtro compuesto se convierta en un $and con cada subfiltro
       expect(mongoQuery.filter).toEqual({
         $and: [{ status: 'active' }, { score: { $gte: 50 } }],
       });
@@ -78,7 +72,6 @@ describe('MongoCriteriaConverter', () => {
       const criteria = new SearchCriteriaDto(compositeFilter);
       const mongoQuery = new MongoCriteriaConverter().convert(criteria);
 
-      // Se espera: { $or: [ { category: 'books' }, { category: 'electronics' } ] }
       expect(mongoQuery.filter).toEqual({
         $or: [{ category: 'books' }, { category: 'electronics' }],
       });
@@ -91,8 +84,6 @@ describe('MongoCriteriaConverter', () => {
       const criteria = new SearchCriteriaDto(outerComposite);
       const mongoQuery = new MongoCriteriaConverter().convert(criteria);
 
-      // Se espera que se respeten los anidados:
-      // { $and: [ { $or: [ { price: { $lt: 100 } } ] } ] }
       expect(mongoQuery.filter).toEqual({
         $and: [
           {
@@ -113,70 +104,46 @@ describe('MongoCriteriaConverter', () => {
       const criteria = new SearchCriteriaDto(undefined, orderDto);
       const mongoQuery = new MongoCriteriaConverter().convert(criteria);
 
-      // Se espera: sort: { name: 1, age: -1 }
       expect(mongoQuery.sort).toEqual({ name: 1, age: -1 });
     });
   });
 
   describe('Paginación', () => {
     it('debe convertir el paginador a skip y limit', () => {
-      const paginator = new SearchPaginatorDto(3, 10); // page 3, 10 elementos por página
+      const paginator = new SearchPaginatorDto(3, 10);
       const criteria = new SearchCriteriaDto(undefined, undefined, paginator);
       const mongoQuery = new MongoCriteriaConverter().convert(criteria);
 
-      // Se espera que skip sea (3-1)*10 = 20 y limit 10
       expect(mongoQuery.skip).toBe(20);
       expect(mongoQuery.limit).toBe(10);
     });
   });
 
-  // Todo: group by no es posible implemnetar en un search, seberia ser un pipe, pero se deja por si se implementa en el futuro
-  // describe('Group By', () => {
-  //   it('debe convertir el groupBy a un arreglo de campos', () => {
-  //     const groupBy = new SearchGroupByDto(['department', 'role']);
-  //     const criteria = new SearchCriteriaDto(undefined, undefined, undefined, groupBy);
-  //     const mongoQuery = new MongoCriteriaConverter().convert(criteria);
-  //
-  //     // Se espera que group sea igual al array de campos
-  //     expect(mongoQuery.group).toEqual(['department', 'role']);
-  //   });
-  // });
-
   describe('Conversión completa', () => {
     it('debe convertir una SearchCriteriaDto completa', () => {
-      // Filtros compuestos
       const filter1 = new SimpleFilterDto('status', FilterOperator.EQ, 'active');
       const filter2 = new SimpleFilterDto('score', FilterOperator.GTE, 50);
       const compositeFilter = new CompositeFilterDto('or', [filter1, filter2]);
 
-      // Ordenamiento
       const orders: SearchOrderItemDto[] = [
         { field: 'createdAt', direction: 'desc' },
         { field: 'score', direction: 'asc' },
       ];
       const orderDto = new SearchOrderDto(orders);
 
-      // Paginador
-      const paginator = new SearchPaginatorDto(2, 20); // page 2, 20 elementos por página
+      const paginator = new SearchPaginatorDto(2, 20);
 
-      // GroupBy
       const groupBy = new SearchGroupByDto('category');
 
       const criteria = new SearchCriteriaDto(compositeFilter, orderDto, paginator, groupBy);
       const mongoQuery = new MongoCriteriaConverter().convert(criteria);
 
-      // Validamos el filtro
       expect(mongoQuery.filter).toEqual({
         $or: [{ status: 'active' }, { score: { $gte: 50 } }],
       });
-      // Validamos el sort
       expect(mongoQuery.sort).toEqual({ createdAt: -1, score: 1 });
-      // Validamos la paginación: page 2 => skip = 20, limit = 20
       expect(mongoQuery.skip).toBe(20);
       expect(mongoQuery.limit).toBe(20);
-      // Validamos el groupBy
-      // todo: implementar en el futuro
-      // expect(mongoQuery.group).toEqual(['category']);
     });
   });
 
@@ -185,13 +152,11 @@ describe('MongoCriteriaConverter', () => {
       const criteria = new SearchCriteriaDto();
       const mongoQuery = new MongoCriteriaConverter().convert(criteria);
 
-      // Suponiendo que al no haber criterios se retorna un objeto con propiedades vacías o nulas.
       expect(mongoQuery).toEqual({
         filter: {},
         sort: {},
         skip: 0,
         limit: 0,
-        // group: [],
       });
     });
   });

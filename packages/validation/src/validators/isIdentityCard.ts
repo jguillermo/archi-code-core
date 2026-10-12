@@ -73,15 +73,12 @@ const validators = {
       'E',
     ];
 
-    // sanitize user input
     const sanitized = str.trim().toUpperCase();
 
-    // validate the data structure
     if (!DNI.test(sanitized)) {
       return false;
     }
 
-    // validate the control digit
     const number = sanitized.slice(0, -1).replace(/[X,Y,Z]/g, (char) => charsValue[char]);
 
     return sanitized.endsWith(controlDigits[number % 23]);
@@ -107,8 +104,7 @@ const validators = {
   IN: (str) => {
     const DNI = /^[1-9]\d{3}\s?\d{4}\s?\d{4}$/;
 
-    // multiplication table
-    const d = [
+    const verhoeffMultiplication = [
       [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
       [1, 2, 3, 4, 0, 6, 7, 8, 9, 5],
       [2, 3, 4, 0, 1, 7, 8, 9, 5, 6],
@@ -121,8 +117,7 @@ const validators = {
       [9, 8, 7, 6, 5, 4, 3, 2, 1, 0],
     ];
 
-    // permutation table
-    const p = [
+    const verhoeffPermutation = [
       [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
       [1, 5, 7, 6, 2, 8, 3, 0, 9, 4],
       [5, 8, 0, 3, 7, 9, 6, 1, 4, 2],
@@ -133,21 +128,19 @@ const validators = {
       [7, 0, 4, 6, 9, 1, 3, 2, 5, 8],
     ];
 
-    // sanitize user input
     const sanitized = str.trim();
 
-    // validate the data structure
     if (!DNI.test(sanitized)) {
       return false;
     }
-    let c = 0;
+    let checksum = 0;
     const invertedArray = sanitized.replace(/\s/g, '').split('').map(Number).reverse();
 
     invertedArray.forEach((val, i) => {
-      c = d[c][p[i % 8][val]];
+      checksum = verhoeffMultiplication[checksum][verhoeffPermutation[i % 8][val]];
     });
 
-    return c === 0;
+    return checksum === 0;
   },
   IR: (str) => {
     if (!str.match(/^\d{10}$/)) return false;
@@ -213,7 +206,6 @@ const validators = {
   TH: (str) => {
     if (!str.match(/^[1-8]\d{12}$/)) return false;
 
-    // validate check digit
     let sum = 0;
     for (let i = 0; i < 12; i++) {
       sum += parseInt(str[i], 10) * (13 - i);
@@ -231,10 +223,8 @@ const validators = {
   'he-IL': (str) => {
     const DNI = /^\d{9}$/;
 
-    // sanitize user input
     const sanitized = str.trim();
 
-    // validate the data structure
     if (!DNI.test(sanitized)) {
       return false;
     }
@@ -244,16 +234,14 @@ const validators = {
     let sum = 0,
       incNum;
     for (let i = 0; i < id.length; i++) {
-      incNum = Number(id[i]) * ((i % 2) + 1); // Multiply number by 1 or 2
-      sum += incNum > 9 ? incNum - 9 : incNum; // Sum the digits up and add to total
+      incNum = Number(id[i]) * ((i % 2) + 1);
+      sum += incNum > 9 ? incNum - 9 : incNum;
     }
     return sum % 10 === 0;
   },
   'ar-LY': (str) => {
-    // Libya National Identity Number NIN is 12 digits, the first digit is either 1 or 2
     const NIN = /^(1|2)\d{11}$/;
 
-    // sanitize user input
     const sanitized = str.trim();
 
     return NIN.test(sanitized);
@@ -261,48 +249,47 @@ const validators = {
   'ar-TN': (str) => {
     const DNI = /^\d{8}$/;
 
-    // sanitize user input
     const sanitized = str.trim();
 
     return DNI.test(sanitized);
   },
   'zh-CN': (str) => {
     const provincesAndCities = [
-      '11', // 北京
-      '12', // 天津
-      '13', // 河北
-      '14', // 山西
-      '15', // 内蒙古
-      '21', // 辽宁
-      '22', // 吉林
-      '23', // 黑龙江
-      '31', // 上海
-      '32', // 江苏
-      '33', // 浙江
-      '34', // 安徽
-      '35', // 福建
-      '36', // 江西
-      '37', // 山东
-      '41', // 河南
-      '42', // 湖北
-      '43', // 湖南
-      '44', // 广东
-      '45', // 广西
-      '46', // 海南
-      '50', // 重庆
-      '51', // 四川
-      '52', // 贵州
-      '53', // 云南
-      '54', // 西藏
-      '61', // 陕西
-      '62', // 甘肃
-      '63', // 青海
-      '64', // 宁夏
-      '65', // 新疆
-      '71', // 台湾
-      '81', // 香港
-      '82', // 澳门
-      '91', // 国外
+      '11',
+      '12',
+      '13',
+      '14',
+      '15',
+      '21',
+      '22',
+      '23',
+      '31',
+      '32',
+      '33',
+      '34',
+      '35',
+      '36',
+      '37',
+      '41',
+      '42',
+      '43',
+      '44',
+      '45',
+      '46',
+      '50',
+      '51',
+      '52',
+      '53',
+      '54',
+      '61',
+      '62',
+      '63',
+      '64',
+      '65',
+      '71',
+      '81',
+      '82',
+      '91',
     ];
 
     const powers = [
@@ -334,7 +321,6 @@ const validators = {
       const yyyy = parseInt(birDayCode.substring(0, 4), 10);
       const mm = parseInt(birDayCode.substring(4, 6), 10);
       const dd = parseInt(birDayCode.substring(6), 10);
-      // Calendar validity is the date rule of convert; not-in-the-future is this ID's own rule.
       if (!isCalendarDate(yyyy, mm, dd)) return false;
       return new Date(yyyy, mm - 1, dd) <= new Date();
     };
@@ -394,15 +380,11 @@ const validators = {
     return checkIdCardNo(str);
   },
   'zh-HK': (str) => {
-    // sanitize user input
     str = str.trim();
 
-    // HKID number starts with 1 or 2 letters, followed by 6 digits,
-    // then a checksum contained in square / round brackets or nothing
     const regexHKID = /^[A-Z]{1,2}[0-9]{6}((\([0-9A]\))|(\[[0-9A]\])|([0-9A]))$/;
     const regexIsDigit = /^[0-9]$/;
 
-    // convert the user input to all uppercase and apply regex
     str = str.toUpperCase();
     if (!regexHKID.test(str)) return false;
     str = str.replace(/\[|\]|\(|\)/g, '');
@@ -473,22 +455,17 @@ const validators = {
     }, 0);
   },
   PK: (str) => {
-    // Pakistani National Identity Number CNIC is 13 digits
     const CNIC = /^[1-7][0-9]{4}-[0-9]{7}-[1-9]$/;
 
-    // sanitize user input
     const sanitized = str.trim();
 
-    // validate the data structure
     return CNIC.test(sanitized);
   },
 };
 
-/** Known locales (autocomplete); any string is accepted, unknown ones throw ValidationConfigError. */
 export type IdentityCardLocale = keyof typeof validators | 'any' | (string & {});
 
 export interface IsIdentityCardOptions {
-  /** Default: `'any'` (valid for at least one locale). */
   locale?: IdentityCardLocale;
 }
 

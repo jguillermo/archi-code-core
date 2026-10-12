@@ -4,7 +4,6 @@ import { configText, optionsOf } from '../helpers/config';
 import { ValidationConfigError } from '../helpers/errors';
 
 export interface IsInOptions {
-  /** Allowed values: a list, the keys of an object, or a string (substring check). */
   values: unknown[] | Record<string, unknown> | string;
 }
 
@@ -20,21 +19,18 @@ export function isIn(value: unknown, options: IsInOptions): boolean {
     for (i in values as unknown[]) {
       // istanbul ignore else
       if ({}.hasOwnProperty.call(values, i)) {
-        // non-convertible elements are skipped
         const item = toString((values as unknown as Record<string, unknown>)[i]);
         if (item.ok) array[i] = item.value;
       }
     }
-    // Membership in a list of options is the enum rule of convert.
     return toEnum(str, array).ok;
   }
   if (values !== null && typeof values === 'object') {
     return Object.prototype.hasOwnProperty.call(values, str);
   }
-  // No list (undefined / null) → nothing is in it (historic behaviour).
   if (values === undefined || values === null) return false;
   if (typeof values === 'string') {
-    // Historic behaviour: "in another string" is a substring check.
+    // Historic validator.js behaviour: a string list means a substring check.
     return (values as string).indexOf(str) >= 0;
   }
   throw new ValidationConfigError(

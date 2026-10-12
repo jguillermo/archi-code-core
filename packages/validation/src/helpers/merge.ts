@@ -2,7 +2,6 @@ export function merge<T extends object, D extends object>(
   obj: T | null | undefined,
   defaults: D,
 ): T & D {
-  // Fast path: no caller-supplied object — the result is just a copy of the defaults.
   if (obj === null || typeof obj !== 'object') {
     return { ...defaults } as T & D;
   }

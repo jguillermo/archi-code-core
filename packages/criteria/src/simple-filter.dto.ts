@@ -8,7 +8,6 @@ export class SimpleFilterDto {
     public readonly operator: FilterOperator,
     value: string | number | (string | number)[],
   ) {
-    // Convert numeric values for comparison operators.
     const numericOperators = [
       FilterOperator.LT,
       FilterOperator.LTE,

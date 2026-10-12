@@ -34,16 +34,14 @@ describe('Sanitizers', () => {
       },
     });
 
-    // Testing all_lowercase switch, should apply to domains not known to be case-insensitive
     test({
       sanitizer: 'normalizeEmail',
       args: [{ all_lowercase: false }],
       expect: {
         'test@foo.com': 'test@foo.com',
         'hans@m端ller.com': 'hans@m端ller.com',
-        'test@FOO.COM': 'test@foo.com', // Hostname is always lowercased
+        'test@FOO.COM': 'test@foo.com',
         'blAH@x.com': 'blAH@x.com',
-        // In case of domains that are known to be case-insensitive, there's a separate switch
         'TEST@me.com': 'test@me.com',
         'TEST@ME.COM': 'test@me.com',
         'SOME.name@GMAIL.com': 'somename@gmail.com',
@@ -57,7 +55,6 @@ describe('Sanitizers', () => {
       },
     });
 
-    // Testing *_lowercase
     test({
       sanitizer: 'normalizeEmail',
       args: [
@@ -71,42 +68,39 @@ describe('Sanitizers', () => {
         },
       ],
       expect: {
-        'TEST@FOO.COM': 'TEST@foo.com', // all_lowercase
-        'ME@gMAil.com': 'ME@gmail.com', // gmail_lowercase
-        'ME@me.COM': 'ME@me.com', // icloud_lowercase
-        'ME@icloud.COM': 'ME@icloud.com', // icloud_lowercase
-        'ME@outlook.COM': 'ME@outlook.com', // outlookdotcom_lowercase
-        'JOHN@live.CA': 'JOHN@live.ca', // outlookdotcom_lowercase
-        'ME@ymail.COM': 'ME@ymail.com', // yahoo_lowercase
-        'ME@yandex.RU': 'ME@yandex.ru', // yandex_lowercase
+        'TEST@FOO.COM': 'TEST@foo.com',
+        'ME@gMAil.com': 'ME@gmail.com',
+        'ME@me.COM': 'ME@me.com',
+        'ME@icloud.COM': 'ME@icloud.com',
+        'ME@outlook.COM': 'ME@outlook.com',
+        'JOHN@live.CA': 'JOHN@live.ca',
+        'ME@ymail.COM': 'ME@ymail.com',
+        'ME@yandex.RU': 'ME@yandex.ru',
       },
     });
 
-    // Testing all_lowercase
-    // Should overwrite all the *_lowercase options
     test({
       sanitizer: 'normalizeEmail',
       args: [
         {
           all_lowercase: true,
-          gmail_lowercase: false, // Overruled
-          icloud_lowercase: false, // Overruled
-          outlookdotcom_lowercase: false, // Overruled
-          yahoo_lowercase: false, // Overruled
+          gmail_lowercase: false,
+          icloud_lowercase: false,
+          outlookdotcom_lowercase: false,
+          yahoo_lowercase: false,
         },
       ],
       expect: {
-        'TEST@FOO.COM': 'test@foo.com', // all_lowercase
-        'ME@gMAil.com': 'me@gmail.com', // gmail_lowercase
-        'ME@me.COM': 'me@me.com', // icloud_lowercase
-        'ME@icloud.COM': 'me@icloud.com', // icloud_lowercase
-        'ME@outlook.COM': 'me@outlook.com', // outlookdotcom_lowercase
-        'JOHN@live.CA': 'john@live.ca', // outlookdotcom_lowercase
-        'ME@ymail.COM': 'me@ymail.com', // yahoo_lowercase
+        'TEST@FOO.COM': 'test@foo.com',
+        'ME@gMAil.com': 'me@gmail.com',
+        'ME@me.COM': 'me@me.com',
+        'ME@icloud.COM': 'me@icloud.com',
+        'ME@outlook.COM': 'me@outlook.com',
+        'JOHN@live.CA': 'john@live.ca',
+        'ME@ymail.COM': 'me@ymail.com',
       },
     });
 
-    // Testing *_remove_dots
     test({
       sanitizer: 'normalizeEmail',
       args: [
@@ -136,7 +130,6 @@ describe('Sanitizers', () => {
       },
     });
 
-    // Testing *_remove_subaddress
     test({
       sanitizer: 'normalizeEmail',
       args: [
@@ -144,18 +137,18 @@ describe('Sanitizers', () => {
           gmail_remove_subaddress: false,
           icloud_remove_subaddress: false,
           outlookdotcom_remove_subaddress: false,
-          yahoo_remove_subaddress: false, // Note Yahoo uses "-"
+          yahoo_remove_subaddress: false,
         },
       ],
       expect: {
         'foo+bar@unknown.com': 'foo+bar@unknown.com',
-        'foo+bar@gmail.com': 'foo+bar@gmail.com', // gmail_remove_subaddress
-        'foo+bar@me.com': 'foo+bar@me.com', // icloud_remove_subaddress
-        'foo+bar@icloud.com': 'foo+bar@icloud.com', // icloud_remove_subaddress
-        'foo+bar@live.fr': 'foo+bar@live.fr', // outlookdotcom_remove_subaddress
-        'foo+bar@hotmail.co.uk': 'foo+bar@hotmail.co.uk', // outlookdotcom_remove_subaddress
-        'foo-bar@yahoo.com': 'foo-bar@yahoo.com', // yahoo_remove_subaddress
-        'foo+bar@yahoo.com': 'foo+bar@yahoo.com', // yahoo_remove_subaddress
+        'foo+bar@gmail.com': 'foo+bar@gmail.com',
+        'foo+bar@me.com': 'foo+bar@me.com',
+        'foo+bar@icloud.com': 'foo+bar@icloud.com',
+        'foo+bar@live.fr': 'foo+bar@live.fr',
+        'foo+bar@hotmail.co.uk': 'foo+bar@hotmail.co.uk',
+        'foo-bar@yahoo.com': 'foo-bar@yahoo.com',
+        'foo+bar@yahoo.com': 'foo+bar@yahoo.com',
       },
     });
 
@@ -166,22 +159,21 @@ describe('Sanitizers', () => {
           gmail_remove_subaddress: true,
           icloud_remove_subaddress: true,
           outlookdotcom_remove_subaddress: true,
-          yahoo_remove_subaddress: true, // Note Yahoo uses "-"
+          yahoo_remove_subaddress: true,
         },
       ],
       expect: {
         'foo+bar@unknown.com': 'foo+bar@unknown.com',
-        'foo+bar@gmail.com': 'foo@gmail.com', // gmail_remove_subaddress
-        'foo+bar@me.com': 'foo@me.com', // icloud_remove_subaddress
-        'foo+bar@icloud.com': 'foo@icloud.com', // icloud_remove_subaddress
-        'foo+bar@live.fr': 'foo@live.fr', // outlookdotcom_remove_subaddress
-        'foo+bar@hotmail.co.uk': 'foo@hotmail.co.uk', // outlookdotcom_remove_subaddress
-        'foo-bar@yahoo.com': 'foo@yahoo.com', // yahoo_remove_subaddress
-        'foo+bar@yahoo.com': 'foo+bar@yahoo.com', // yahoo_remove_subaddress
+        'foo+bar@gmail.com': 'foo@gmail.com',
+        'foo+bar@me.com': 'foo@me.com',
+        'foo+bar@icloud.com': 'foo@icloud.com',
+        'foo+bar@live.fr': 'foo@live.fr',
+        'foo+bar@hotmail.co.uk': 'foo@hotmail.co.uk',
+        'foo-bar@yahoo.com': 'foo@yahoo.com',
+        'foo+bar@yahoo.com': 'foo+bar@yahoo.com',
       },
     });
 
-    // Testing gmail_convert_googlemaildotcom
     test({
       sanitizer: 'normalizeEmail',
       args: [
@@ -216,7 +208,6 @@ describe('Sanitizers', () => {
       },
     });
 
-    // Testing yandex_convert_yandexru
     test({
       sanitizer: 'normalizeEmail',
       args: [

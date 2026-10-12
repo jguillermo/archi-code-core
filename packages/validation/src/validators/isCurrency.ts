@@ -42,7 +42,6 @@ function currencyRegex(options: Required<IsCurrencyOptions>): RegExp {
   let pattern =
     whole_dollar_amount + (options.allow_decimal || options.require_decimal ? decimal_amount : '');
 
-  // default is negative sign before symbol, but there are two other options (besides parens)
   if (options.allow_negatives && !options.parens_for_negatives) {
     if (options.negative_sign_after_digits) {
       pattern += negative;
@@ -51,7 +50,6 @@ function currencyRegex(options: Required<IsCurrencyOptions>): RegExp {
     }
   }
 
-  // South African Rand, for example, uses R 123 (space) and R-123 (no space)
   if (options.allow_negative_sign_placeholder) {
     pattern = `( (?!\\-))?${pattern}`;
   } else if (options.allow_space_after_symbol) {
@@ -74,9 +72,9 @@ function currencyRegex(options: Required<IsCurrencyOptions>): RegExp {
     }
   }
 
-  // ensure there's a dollar and/or decimal amount, and that
-  // it doesn't start with a space or a negative sign followed by a space
-  return new RegExp(`^(?!-? )(?=.*\\d)${pattern}$`);
+  const notStartingWithSpaceOrSignedSpace = '(?!-? )';
+  const containingADigit = '(?=.*\\d)';
+  return new RegExp(`^${notStartingWithSpaceOrSignedSpace}${containingADigit}${pattern}$`);
 }
 
 const default_currency_options = {
@@ -97,8 +95,6 @@ const default_currency_options = {
   allow_space_after_digits: false,
 };
 
-// Compiling the currency regex is expensive; cache it keyed by the option values
-// that influence the pattern so repeated calls with the same options reuse it.
 const currencyRegexCache = new BoundedCache<RegExp>();
 
 function assertValidOptions(options: Required<IsCurrencyOptions>): void {
@@ -120,7 +116,6 @@ function assertValidOptions(options: Required<IsCurrencyOptions>): void {
 
 function getCurrencyRegex(options: Required<IsCurrencyOptions>): RegExp {
   assertValidOptions(options);
-  // JSON keeps the key unambiguous whatever characters symbol/separators contain.
   const key = JSON.stringify([
     options.symbol,
     options.require_symbol,

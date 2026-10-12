@@ -1,17 +1,3 @@
-/**
- * Architecture guard — "break cycles by structure, not by discipline".
- *
- * Parses every `import … from '…'` / `export … from '…'` in `src/**` and asserts:
- *  1. the import graph has NO cycles;
- *  2. the layering rules between the three tools hold:
- *
- *     convert/**             ← HARD RULE: imports only convert/ files — never validators/ nor canBe/
- *     canBe/<type>.ts        ← built on convert/<type>.ts only (canBeX(v) = toX(v).ok)
- *     validators/**          ← consume convert/ (type rules), never canBe/
- *     validators with a type rule (isBoolean, isInt, isFloat, isJSON, isDate, isAfter, isBefore,
- *     isIn, …) delegate it to convert/; string coercion is convert/string used directly
- *     validators/index.ts    ← (the barrel) only imported by src/index.ts and decorator/ (validate.ts, validations.ts)
- */
 import { describe, expect, it } from '@jest/globals';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -89,12 +75,11 @@ describe('architecture: import graph', () => {
   });
 
   const inDir = (dir: string): string[] => [...graph.keys()].filter((f) => f.startsWith(`${dir}/`));
-  // Files of convert/ that are not a type converter (no canBe counterpart).
-  const NON_TYPE_FILES = ['index.ts', 'result.ts', 'any-to-string.ts'];
+  const NON_CONVERTER_FILES = ['index.ts', 'result.ts', 'any-to-string.ts'];
   const typeFiles = (dir: string): string[] =>
     inDir(dir)
       .map((f) => f.slice(dir.length + 1))
-      .filter((f) => !NON_TYPE_FILES.includes(f))
+      .filter((f) => !NON_CONVERTER_FILES.includes(f))
       .sort();
 
   it('anyToString reuses the string rule of convert/string', () => {

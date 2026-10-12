@@ -1,5 +1,4 @@
-// Unicode-aware classes: 'Ñ'/'ñ' count as upper/lower case, '€'/'¿' as symbols, etc.
-// Every ASCII symbol of the historic set (including space) is in \p{P} ∪ \p{S} ∪ \p{Zs}.
+// Every ASCII symbol of the validator.js historic set (space included) is in \p{P} ∪ \p{S} ∪ \p{Zs}.
 const upperCaseRegex = /^\p{Lu}$/u;
 const lowerCaseRegex = /^\p{Ll}$/u;
 const numberRegex = /^\p{Nd}$/u;
@@ -14,22 +13,19 @@ export interface PasswordAnalysis {
   symbolCount: number;
 }
 
-/* Counts occurrences of each character (code point, so emoji/astral chars count once). */
-function countChars(chars: string[]): Map<string, number> {
+function countCodePoints(codePoints: string[]): Map<string, number> {
   const result = new Map<string, number>();
-  for (const char of chars) {
+  for (const char of codePoints) {
     result.set(char, (result.get(char) ?? 0) + 1);
   }
   return result;
 }
 
-/* Return information about a password */
 export function analyzePassword(password: string): PasswordAnalysis {
-  const chars = Array.from(password);
-  const charMap = countChars(chars);
+  const codePoints = Array.from(password);
+  const charMap = countCodePoints(codePoints);
   const analysis = {
-    // Length in characters (code points), consistent with how unique characters are counted.
-    length: chars.length,
+    length: codePoints.length,
     uniqueChars: charMap.size,
     uppercaseCount: 0,
     lowercaseCount: 0,

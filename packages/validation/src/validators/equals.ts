@@ -2,7 +2,6 @@ import { toString } from '../convert/string';
 import { optionsOf } from '../helpers/config';
 
 export interface EqualsOptions {
-  /** String the value must be equal to. */
   comparison: string;
 }
 

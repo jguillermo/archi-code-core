@@ -3,7 +3,6 @@ import { configText, optionsOf } from '../helpers/config';
 import { ValidationConfigError } from '../helpers/errors';
 
 export interface IsWhitelistedOptions {
-  /** Allowed characters. */
   chars: string | string[];
 }
 

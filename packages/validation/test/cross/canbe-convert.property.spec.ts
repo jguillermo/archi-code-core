@@ -1,14 +1,3 @@
-/**
- * Property: for every type X and ANY input v
- *   toX(v) never throws and always returns { ok, value, error }: { ok: true, value, error: null } or
- *   { ok: false, value: null, error }, where `error`
- *   is one of the FIXED ConvertMessages of that type (integer overflow has its own message)
- *   canBeX(v) === toX(v).ok
- *   when ok, the converted value is itself convertible (round trip)
- *
- * Uses a seeded PRNG (no extra dependencies) so failures are reproducible: the seed and the
- * offending input are printed in the assertion message.
- */
 import { describe, expect, it } from '@jest/globals';
 import type { Converted, ConvertMessage } from '../../src/convert';
 import {
@@ -33,8 +22,7 @@ import {
   ConvertMessages,
 } from '../../src/convert';
 
-// mulberry32 — tiny deterministic PRNG
-function prng(seed: number): () => number {
+function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
     a = (a + 0x6d2b79f5) >>> 0;
@@ -49,7 +37,6 @@ const SEED = 20260925;
 const RUNS = 4000;
 const ENUM_OPTIONS = ['red', 'green', '1', '0', 'true', ''] as const;
 
-// Building blocks chosen to hit the interesting edges of every rule.
 const FRAGMENTS = [
   '0',
   '1',
@@ -192,7 +179,7 @@ const show = (v: unknown): string => {
 };
 
 describe('property: canBeX(v) === toX(v).ok; failures are { ok: false, value: null, fixed error }', () => {
-  const rand = prng(SEED);
+  const rand = mulberry32(SEED);
   const inputs = [...LITERALS, ...Array.from({ length: RUNS }, () => randomValue(rand))];
 
   it.each(PAIRS.map((p) => [p.name, p] as const))('%s', (_name, pair) => {
@@ -205,19 +192,15 @@ describe('property: canBeX(v) === toX(v).ok; failures are { ok: false, value: nu
       } catch (e) {
         error = e;
       }
-      // converters never throw
       expect({ context, error }).toEqual({ context, error: undefined });
       const r = result as Converted<unknown>;
-      // always exactly the three keys
       expect({ context, keys: Object.keys(r).sort() }).toEqual({
         context,
         keys: ['error', 'ok', 'value'],
       });
-      // canBe is exactly the first value of the converter
       expect({ context, canBe: pair.canBe(v) }).toEqual({ context, canBe: r.ok });
       if (r.ok) {
         expect({ context, error: r.error }).toEqual({ context, error: null });
-        // Round trip: the converted value is itself convertible to the same type.
         expect({ context, roundTrip: pair.canBe(r.value) }).toEqual({ context, roundTrip: true });
       } else {
         expect({ context, value: r.value, known: pair.messages.includes(r.error) }).toEqual({

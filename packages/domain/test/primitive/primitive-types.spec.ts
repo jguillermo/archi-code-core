@@ -6,7 +6,7 @@ import { IdType, NumberType, Required, StringType } from '../../src/type';
 
 class Name extends Required(StringType) {}
 
-describe('Primitive aggregate', () => {
+describe('PrimitiveTypes', () => {
   it('id readonly', () => {
     class Aggregate extends AggregateRoot {
       constructor(public id: IdType) {

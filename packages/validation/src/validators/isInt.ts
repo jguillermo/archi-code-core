@@ -10,21 +10,16 @@ export interface IsIntOptions {
   allow_leading_zeroes?: boolean;
 }
 
-/**
- * Integer check. The integer syntax lives in `convert/integer` (`syntax: 'validator'`, ported from
- * this validator); this function only adds the bounds (`min`/`max`/`lt`/`gt`).
- */
 export function isInt(value: unknown, options?: IsIntOptions): boolean {
   const opts = options || {};
   const r = toInteger(value, {
     syntax: 'validator',
     allowLeadingZeroes: opts.allow_leading_zeroes,
   });
-  // INTEGER_OVERFLOW = valid integer text too large for a finite number: still an integer.
+  // INTEGER_OVERFLOW means integer text too large for a finite number: still an integer.
   if (!r.ok && r.error !== ConvertMessages.INTEGER_OVERFLOW) return false;
 
-  // Beyond Number.MAX_SAFE_INTEGER the converted number is rounded (or ±Infinity), so bounds are
-  // compared exactly with BigInt on the original text.
+  // Beyond Number.MAX_SAFE_INTEGER the number is rounded, so bounds compare the text as BigInt.
   const text = typeof value === 'number' ? undefined : (toString(value).value as string);
   const n = r.ok ? r.value : Number(text);
   const big = text !== undefined && !Number.isSafeInteger(n) ? BigInt(text) : undefined;

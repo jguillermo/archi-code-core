@@ -41,7 +41,6 @@ describe('rtrim is linear (no ReDoS)', () => {
     const input = `${'a'.repeat(100_000)}b`;
     expect(sanitizer.rtrim(input, 'a')).toBe(input);
     expect(sanitizer.trim(input, 'a')).toBe('b');
-    // Growth, not absolute time: the former regex was ×16 for ×4 input.
     const inputs = new Map<number, string>();
     const growth = measureGrowth((n) => {
       let s = inputs.get(n);

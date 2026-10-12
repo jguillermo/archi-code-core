@@ -1,22 +1,14 @@
 import { toString } from './string';
 
-/**
- * Human-readable text for ANY value (diagnostics, error messages, logs). Never fails.
- *
- * Strings, booleans and finite numbers are read with `toString` (convert/string), the single
- * string rule of the package; every other value gets a descriptive form (`'null'`, `'NaN'`,
- * `'Date(…)'`, `'Map({…})'`, `'Function(name)'`…).
- */
 export function anyToString(value: any): string {
   try {
     return describe(value, new WeakSet<object>());
   } catch {
-    // Hostile values: revoked proxies, throwing getters (`name`, `message`, `toString`)…
+    // Hostile values (revoked proxies, throwing getters) make the description throw.
     return '[Unrepresentable value]';
   }
 }
 
-/** `seen` holds the Maps/Sets being described, so self-referencing collections cannot recurse forever. */
 function describe(value: any, seen: WeakSet<object>): string {
   const text = toString(value);
   if (text.ok) {

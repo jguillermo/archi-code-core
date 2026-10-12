@@ -3,7 +3,6 @@ import { ValidationConfigError } from '../helpers/errors';
 import { hasOwn } from '../helpers/hasOwn';
 import { configText, optionsOf } from '../helpers/config';
 
-// common patterns
 const threeDigit = /^\d{3}$/;
 const fourDigit = /^\d{4}$/;
 const fiveDigit = /^\d{5}$/;
@@ -62,7 +61,6 @@ const patterns = {
   NO: fourDigit,
   NP: /^(10|21|22|32|33|34|44|45|56|57)\d{3}$|^(977)$/i,
   NZ: fourDigit,
-  // https://www.pakpost.gov.pk/postcodes.php
   PK: fiveDigit,
   PL: /^\d{2}-\d{3}$/,
   PR: /^00[679]\d{2}([ -]\d{4})?$/,
@@ -83,13 +81,11 @@ const patterns = {
   ZM: fiveDigit,
 };
 
-/** Known locales (autocomplete); any string is accepted, unknown ones throw ValidationConfigError. */
 export type PostalCodeLocale = keyof typeof patterns | 'any' | (string & {});
 
 export const locales: readonly string[] = Object.freeze(Object.keys(patterns));
 
 export interface IsPostalCodeOptions {
-  /** Locale, or `'any'` (valid for at least one locale). */
   locale: PostalCodeLocale;
 }
 
@@ -104,7 +100,6 @@ export function isPostalCode(value: unknown, options: IsPostalCodeOptions): bool
   }
   if (locale === 'any') {
     for (const key in patterns) {
-      // https://github.com/gotwarlost/istanbul/blob/master/ignoring-code-for-coverage.md#ignoring-code-for-coverage-purposes
       // istanbul ignore else
       if (Object.prototype.hasOwnProperty.call(patterns, key)) {
         const pattern = patterns[key];

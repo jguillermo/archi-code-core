@@ -3,10 +3,8 @@ import { merge } from '../helpers/merge';
 import { optionsOf } from '../helpers/config';
 
 export interface ContainsOptions {
-  /** Text to look for. */
   elem: unknown;
   ignoreCase?: boolean;
-  /** Minimum number of occurrences. Default: 1. */
   minOccurrences?: number;
 }
 

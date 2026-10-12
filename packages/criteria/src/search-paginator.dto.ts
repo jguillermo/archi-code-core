@@ -3,7 +3,6 @@ export class SearchPaginatorDto {
   public readonly perPage: number;
 
   constructor(page: number, perPage: number) {
-    // Convert numeric strings to numbers.
     this.page = typeof page === 'string' ? Number(page) : page;
     this.perPage = typeof perPage === 'string' ? Number(perPage) : perPage;
     this.validate();

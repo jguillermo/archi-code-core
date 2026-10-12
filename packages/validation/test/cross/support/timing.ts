@@ -1,18 +1,7 @@
-/**
- * Machine-independent complexity checks. Absolute budgets ("≤ 150 ms") fail on slow or busy CI
- * runners; instead the input size is quadrupled and the GROWTH of the time is checked:
- *   - linear      → ~4×   (passes)
- *   - quadratic   → ~16×  (fails)
- *   - catastrophic backtracking → orders of magnitude (fails)
- * Each size is timed RUNS times, INTERLEAVED (small, large, small, …) so CPU contention hits both
- * sizes alike, and the best time of each is kept, so a GC pause or scheduler hiccup does not count.
- * A call that stays under FLOOR_MS even at the large size passes outright: under heavy load a
- * millisecond-long call can be inflated ×10+, while anything quadratic on these sizes takes far
- * longer (the former quadratic rtrim needed 720 ms at 40k characters).
- */
+// Growth, not absolute time: fixed budgets fail on busy CI; interleaved best-of-RUNS absorbs GC.
 const RUNS = 5;
-const FLOOR_MS = 100;
-const MAX_RATIO = 8;
+const FAST_ENOUGH_MS = 100;
+const MAX_LINEAR_RATIO = 8;
 const SCALE = 4;
 
 export interface Growth {
@@ -27,7 +16,6 @@ function time(fn: () => void): number {
   return performance.now() - t0;
 }
 
-/** Times `run(n)` and `run(4n)`, interleaved, keeping the best of RUNS for each. */
 export function measureGrowth(run: (n: number) => void, n: number): Growth {
   let smallMs = Infinity;
   let largeMs = Infinity;
@@ -45,7 +33,7 @@ export function measureGrowth(run: (n: number) => void, n: number): Growth {
 }
 
 export function isLinear(g: Growth): boolean {
-  return g.largeMs < FLOOR_MS || g.ratio < MAX_RATIO;
+  return g.largeMs < FAST_ENOUGH_MS || g.ratio < MAX_LINEAR_RATIO;
 }
 
 export function describeGrowth(g: Growth): string {

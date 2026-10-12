@@ -7,20 +7,17 @@ export class SodiumHasher extends Hasher {
   }
 
   private async hash(text: string, algorithm: 'sha256' | 'sha512' | 'blake2b'): Promise<string> {
-    const sodium = await SodiumInitializer.getSodium(); // Obtener Libsodium inicializado
+    const sodium = await SodiumInitializer.getSodium();
 
-    // Generar sal si aún no existe
     if (this.saltToUse.every((byte) => byte === 0)) {
       this.saltToUse = sodium.randombytes_buf(this.saltToUse.length);
     }
 
-    // Convertir texto y sal a Uint8Array
     const textBytes = sodium.from_string(text);
     const combined = new Uint8Array(textBytes.length + this.saltToUse.length);
     combined.set(textBytes);
     combined.set(this.saltToUse, textBytes.length);
 
-    // Aplicar el algoritmo seleccionado
     let hash: Uint8Array;
     switch (algorithm) {
       case 'sha256':

@@ -13,10 +13,6 @@ export interface IsFloatOptions {
   locale?: string;
 }
 
-/**
- * Float check. The float syntax lives in `convert/float` (`syntax: 'validator'`, ported from this
- * validator); this function resolves the locale's decimal separator and adds the bounds.
- */
 export function isFloat(value: unknown, options?: IsFloatOptions): boolean {
   const opts = options || {};
   if (typeof value !== 'number') {

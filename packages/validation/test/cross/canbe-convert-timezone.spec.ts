@@ -1,7 +1,3 @@
-/**
- * Determinism of canBe/convert dates whatever the machine time zone is
- * (cross: it checks canBe and convert together).
- */
 import { afterEach, describe, expect, it } from '@jest/globals';
 import timezone_mock from 'timezone-mock';
 import { canBeDate } from '../../src/canBe';

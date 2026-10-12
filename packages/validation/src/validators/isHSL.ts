@@ -11,7 +11,7 @@ export function isHSL(value: unknown): boolean {
   const s = stringResult.value;
   const str: string = s;
 
-  // Strip duplicate spaces before calling the validation regex (See  #1598 for more info)
+  // Whitespace is normalised here rather than in the regexes (validator.js #1598).
   const strippedStr = str.replace(/\s+/g, ' ').replace(/\s?(hsla?\(|\)|,)\s?/gi, '$1');
 
   if (strippedStr.indexOf(',') !== -1) {

@@ -8,7 +8,6 @@ export function isLuhnNumber(value: unknown): boolean {
   const s = stringResult.value;
   const str: string = s;
   const sanitized = str.replace(/[- ]+/g, '');
-  // Any non-digit made the sum NaN (→ false) only after walking the whole string; reject it upfront.
   if (!digitsOnly.test(sanitized)) return false;
   let sum = 0;
   let digit;

@@ -39,15 +39,15 @@ cd packages/<name> && npx jest test/path.spec.ts  # Run a single test file
 ### Build output structure (each package)
 ```
 dist/
-├── cjs/    # CommonJS (require)
-└── esm/    # ES Modules (import) — also contains .d.ts declarations
+├── cjs/    # CommonJS (require) with its .d.ts declarations
+└── esm/    # ES Modules (import) with its .d.ts declarations
 ```
 
 Each package's `package.json` entry points:
 - `main`: `./dist/cjs/index.js`
 - `module`: `./dist/esm/index.js`
-- `types`: `./dist/esm/index.d.ts`
-- `exports`: dual CJS/ESM support via `import`/`require` conditions
+- `types`: `./dist/cjs/index.d.ts`
+- `exports`: dual CJS/ESM support via `import`/`require` conditions, each with its own `types` (`import` → `./dist/esm/index.d.ts`, `require` → `./dist/cjs/index.d.ts`)
 
 ## Package standard
 

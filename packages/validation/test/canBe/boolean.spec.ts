@@ -1,12 +1,9 @@
 import { describe, expect, it } from '@jest/globals';
 import { canBeBoolean } from '../../src/canBe';
 
-// All values that should be coercible to boolean
 const VALID = [
-  // native booleans
   true,
   false,
-  // case-insensitive string booleans
   'True',
   'False',
   'TRUE',
@@ -19,19 +16,15 @@ const VALID = [
   '  FALSE ',
   ' true ',
   ' false ',
-  // numeric strings accepted as boolean (1=true, 0=false)
   '1',
   ' 1',
   '0',
   ' 0',
-  // numbers accepted as boolean (1=true, 0=false)
   0,
   1,
 ];
 
-// All values that are NOT boolean-coercible
 const INVALID = [
-  // strings
   'random',
   '',
   '   ',
@@ -41,25 +34,18 @@ const INVALID = [
   'no',
   'on',
   'off',
-  // numbers that are not 0 or 1
   -1,
   1.1,
   -1.1,
-  // objects
   { a: 123 },
   {},
-  // arrays
   [],
   [1, 2, 3],
-  // uuid string
   'df9ef000-21fc-4e06-b8f7-103c3a133d10',
-  // functions
   () => 123,
   new Function('return 123'),
-  // nullable
   undefined,
   null,
-  // exotic types
   Symbol(),
   Symbol('123'),
   new Date(),

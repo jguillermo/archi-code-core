@@ -3,11 +3,12 @@
 
 const fs = require('fs');
 const path = require('path');
+const ts = require('typescript');
 
 const ESM_DIR = path.resolve(process.cwd(), 'dist/esm');
 
-const SPECIFIER_RE = /(\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)(['"])(\.{1,2}\/[^'"]*)\2/g;
-const REQUIRE_CALL_RE = /(^|[^.\w$])require\s*\(/m;
+const RELATIVE_RE = /^\.\.?(\/|$)/;
+const DIRECTORY_RE = /(^|\/)\.{0,2}$/;
 const REQUIRE_SHIM =
   "import { createRequire } from 'node:module';\nconst require = createRequire(import.meta.url);\n";
 
@@ -22,19 +23,56 @@ function listFiles(dir) {
 function resolveSpecifier(fromFile, specifier) {
   if (/\.(js|mjs|cjs|json)$/.test(specifier)) return specifier;
   const base = path.resolve(path.dirname(fromFile), specifier);
-  if (fs.existsSync(`${base}.js`)) return `${specifier}.js`;
+  if (!DIRECTORY_RE.test(specifier) && fs.existsSync(`${base}.js`)) return `${specifier}.js`;
   if (fs.existsSync(path.join(base, 'index.js'))) return `${specifier.replace(/\/$/, '')}/index.js`;
   throw new Error(
     `fix-esm: cannot resolve "${specifier}" imported from ${path.relative(ESM_DIR, fromFile)}`,
   );
 }
 
-function withoutComments(code) {
-  return code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+function specifierOf(node) {
+  if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) return node.moduleSpecifier;
+  if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument))
+    return node.argument.literal;
+  if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword)
+    return node.arguments[0];
+  return undefined;
 }
 
-function withRequireShim(file, code) {
-  if (!file.endsWith('.js') || !REQUIRE_CALL_RE.test(withoutComments(code))) return code;
+function isRequireCall(node) {
+  return (
+    ts.isCallExpression(node) &&
+    ts.isIdentifier(node.expression) &&
+    node.expression.text === 'require'
+  );
+}
+
+function analyze(file, code) {
+  const kind = file.endsWith('.d.ts') ? ts.ScriptKind.TS : ts.ScriptKind.JS;
+  const source = ts.createSourceFile(file, code, ts.ScriptTarget.Latest, false, kind);
+  const relativeSpecifiers = [];
+  let callsRequire = false;
+  const visit = (node) => {
+    const specifier = specifierOf(node);
+    if (specifier && ts.isStringLiteral(specifier) && RELATIVE_RE.test(specifier.text)) {
+      relativeSpecifiers.push({ text: specifier.text, start: specifier.getStart(source) + 1 });
+    }
+    if (isRequireCall(node)) callsRequire = true;
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return { relativeSpecifiers, callsRequire };
+}
+
+function relink(file, code, relativeSpecifiers) {
+  return relativeSpecifiers.reduceRight((next, { text, start }) => {
+    const resolved = resolveSpecifier(file, text);
+    return next.slice(0, start) + resolved + next.slice(start + text.length);
+  }, code);
+}
+
+function withRequireShim(file, code, callsRequire) {
+  if (!file.endsWith('.js') || !callsRequire || code.startsWith(REQUIRE_SHIM)) return code;
   return REQUIRE_SHIM + code;
 }
 
@@ -45,10 +83,9 @@ function main() {
   let shimmed = 0;
   for (const file of listFiles(ESM_DIR)) {
     const code = fs.readFileSync(file, 'utf8');
-    const relinked = code.replace(SPECIFIER_RE, (_match, prefix, quote, specifier) => {
-      return `${prefix}${quote}${resolveSpecifier(file, specifier)}${quote}`;
-    });
-    const next = withRequireShim(file, relinked);
+    const { relativeSpecifiers, callsRequire } = analyze(file, code);
+    const relinked = relink(file, code, relativeSpecifiers);
+    const next = withRequireShim(file, relinked, callsRequire);
     if (next !== relinked) shimmed++;
     if (next !== code) {
       fs.writeFileSync(file, next);

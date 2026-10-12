@@ -9,7 +9,6 @@ class TestDto {
 
 export class TestDtoObjectMother extends DtoObjectMother<TestDto> {
   getNewDto(): TestDto {
-    // Pass empty arguments since properties are readonly and optional
     return new TestDto();
   }
 
@@ -38,7 +37,6 @@ class TestDtoWithLevelValidation {
 
 export class TestDtoObjectMotherWithLevelValidation extends DtoObjectMother<TestDtoWithLevelValidation> {
   getNewDto(): TestDtoWithLevelValidation {
-    // Pass empty arguments since properties are readonly and optional
     return new TestDtoWithLevelValidation();
   }
 

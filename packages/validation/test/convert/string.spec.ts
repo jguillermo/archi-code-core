@@ -7,8 +7,6 @@ import assert from 'assert';
 const value = <T>(r: Converted<T>): T | null => r.value;
 
 describe('toString', () => {
-  // ─── valid conversions ────────────────────────────────────────────────────
-
   describe('string → string (identity)', () => {
     it('empty string "" → ""', () => expect(converted(toString(''))).toBe(''));
     it('"hello" → "hello"', () => expect(converted(toString('hello'))).toBe('hello'));
@@ -36,19 +34,6 @@ describe('toString', () => {
     it('Number.MAX_SAFE_INTEGER → "9007199254740991"', () =>
       expect(converted(toString(Number.MAX_SAFE_INTEGER))).toBe('9007199254740991'));
   });
-
-  // ─── error cases ──────────────────────────────────────────────────────────
-  //
-  //
-  //   null          → "null"              (not "object" — typeof null === "object" is misleading)
-  //   NaN/Infinity  → their own name
-  //   Symbol('x')   → "Symbol(x)"        (not "symbol")
-  //   BigInt(n)     → "BigInt(n)"         (not "bigint")
-  //   functions     → "[Function]" or "[Function: name]" (not "function")
-  //   Map/Set/etc.  → "[Map]", "[Set]", "[Promise]"…  (not generic "object")
-  //   RegExp        → "/pattern/"         (not "object")
-  //   arrays        → "[1,2,3]"           (JSON)
-  //   plain objects → '{"a":1}'           (JSON)
 
   describe('non-finite numbers', () => {
     it('NaN → { ok: false, error }', () =>

@@ -1,8 +1,3 @@
-/**
- * ReDoS regression guard: every validator must scale LINEARLY on adversarial inputs (10k → 40k
- * characters). The check measures growth, not absolute time, so it does not depend on the machine
- * (see support/timing.ts); quadratic regexes and catastrophic backtracking both fail it.
- */
 import { describe, expect, it } from '@jest/globals';
 import { validator } from '../../src/validators';
 import * as sanitizer from '../../src/sanitizer';
@@ -73,7 +68,6 @@ describe(`ReDoS guard (linear growth, ${N} → ${N * 4} chars)`, () => {
   });
 });
 
-// Sanitizers too: the quadratic `rtrim` regex (fixed 2026-09-25) slipped past a validators-only guard.
 const SANITIZER_ARGS: Record<string, unknown[][]> = {
   ltrim: [[], ['a'], ['a-']],
   rtrim: [[], ['a'], ['a-']],

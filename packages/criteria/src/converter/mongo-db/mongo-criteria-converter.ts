@@ -8,7 +8,6 @@ import { SearchPaginatorDto } from '../../search-paginator.dto';
 import { MongoFilter, MongoFilterOperator, MongoQuery, MongoSort } from './mongo-query';
 
 export class MongoCriteriaConverter {
-  // Map our FilterOperator to MongoDB operator strings
   private operatorMap: Partial<Record<FilterOperator, MongoFilterOperator>> = {
     [FilterOperator.EQ]: '$eq',
     [FilterOperator.NE]: '$ne',
@@ -18,15 +17,12 @@ export class MongoCriteriaConverter {
     [FilterOperator.LTE]: '$lte',
     [FilterOperator.LIKE]: '$regex',
     [FilterOperator.ILIKE]: '$regex',
-    // For IN, NIN and BETWEEN, we'll handle them specially
   };
 
   public convert(criteria: SearchCriteriaDto): MongoQuery {
     const filter = criteria.filters ? this.generateFilter(criteria.filters) : {};
     const sort = criteria.orders ? this.generateSort(criteria.orders) : {};
     const { skip, limit } = this.generatePagination(criteria.paginator);
-    // GroupBy is not directly applied to a MongoDB query (it would be used in an aggregation pipeline),
-    // so we ignore it here.
     return { filter, sort, skip, limit };
   }
 
@@ -34,9 +30,7 @@ export class MongoCriteriaConverter {
     if (filterDto instanceof SimpleFilterDto) {
       return this.generateSimpleFilter(filterDto);
     } else if (filterDto instanceof CompositeFilterDto) {
-      // Recursively convert each nested filter
       const nestedFilters = filterDto.filters.map((f) => this.generateFilter(f));
-      // Combine using $and or $or depending on the logical operator.
       if (filterDto.logicalOperator === 'or') {
         return { $or: nestedFilters };
       } else {
@@ -50,14 +44,12 @@ export class MongoCriteriaConverter {
     const field = filter.field;
     const value = filter.value;
 
-    // Si el operador es EQ, devolvemos directamente el valor
     if (filter.operator === FilterOperator.EQ) {
       return { [field]: value } as unknown as MongoFilter;
     }
 
     const op: MongoFilterOperator | undefined = this.operatorMap[filter.operator];
 
-    // Handle special operators:
     if (filter.operator === FilterOperator.IN) {
       return { [field]: { $in: Array.isArray(value) ? value : [value] } };
     }
@@ -86,7 +78,6 @@ export class MongoCriteriaConverter {
   private generateSort(orders: SearchOrderDto): MongoSort {
     const sort: MongoSort = {};
     orders.orders.forEach((orderItem) => {
-      // If ordering by "id", we assume Mongo's _id field.
       const field = orderItem.field === 'id' ? '_id' : orderItem.field;
       sort[field] = orderItem.direction === 'asc' ? 1 : -1;
     });

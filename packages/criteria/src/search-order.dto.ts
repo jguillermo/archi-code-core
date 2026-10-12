@@ -1,8 +1,5 @@
 import { SearchOrderItemDto } from './search-order-item.dto';
 
-/**
- * DTO for managing multiple order criteria.
- */
 export class SearchOrderDto {
   public readonly orders: SearchOrderItemDto[];
 

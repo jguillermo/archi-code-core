@@ -15,10 +15,7 @@ export function isByteLength(value: unknown, options?: IsByteLengthOptions): boo
   return len >= min && (typeof max === 'undefined' || len <= max);
 }
 
-/**
- * UTF-8 byte length. Unlike `encodeURI` it never throws: an unpaired surrogate counts as the
- * 3 bytes of the U+FFFD replacement character (what `TextEncoder` writes for it).
- */
+// Unlike encodeURI it never throws: an unpaired surrogate counts as the 3 bytes of U+FFFD.
 function utf8ByteLength(s: string): number {
   let bytes = 0;
   for (let i = 0; i < s.length; i++) {
