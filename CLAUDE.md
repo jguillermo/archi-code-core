@@ -111,6 +111,7 @@ tsconfig.json  (extends ../../tsconfig.base.json, includes src/ and test/)
 - **Prettier**: single quotes, trailing commas, print width 100, 2-space indent, semicolons.
 - **ESLint**: TypeScript strict + Prettier enforced. `any` and `Function` types are allowed.
 - Test files: `*.spec.ts` convention. In every package `src/` holds only code and specs live in the package's `test/` folder, mirroring `src/`.
+- **Imports**: inside `src/`, import each symbol from the file that declares it, never through a re-exporting `index.ts` (see `.claude/rules/packages.md`).
 - **No comments**: code must describe itself through names (variables, functions, classes, tests) and structure. Do not add comments, docblocks or section banners. A comment is the exception, only when it is truly necessary to explain a non-obvious _why_ that the code cannot express.
 
 ### Testing

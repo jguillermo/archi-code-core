@@ -73,6 +73,16 @@ packages/<folder>/
   `src/**/*` and excludes `test`. `tsconfig.cjs.json` / `tsconfig.esm.json` only set
   `module`, `target ES2020` and `outDir` (`./dist/cjs` / `./dist/esm`).
 
+## Imports
+
+- Inside `src/`, import each symbol from the file that declares it
+  (`'../exceptions/domain/type-primitive.exception'`), never through an `index.ts` that only
+  re-exports it (`'../exceptions'`). Barrels inside a package hide dependencies and create import
+  cycles; `index.ts` files exist to expose the public API. Specs in `test/` may import from the
+  `src` barrels.
+- WebStorm's "Import can be shortened" inspection suggests the opposite: disable it, and the
+  directory (`index`) import option in Code Style › TypeScript › Imports (`.idea/` is not shared).
+
 ## Tests and build checks
 
 - Specs import from `../src/...` and use `@jest/globals`. No comments in code (see CLAUDE.md).
@@ -125,6 +135,7 @@ Only when the package needs them, and documented in its README:
 ## Checklist (validate every package against it)
 
 - [ ] No specs in `src/`, no `scripts/` folder; `test/` mirrors `src/`.
+- [ ] `src/` imports each symbol from its declaring file, never through a re-exporting `index.ts`.
 - [ ] `test/index.spec.ts` pins the public API; `test/dist/dist.check.js` exercises it.
 - [ ] `package.json` entry points, `exports`, `files`, `engines`, `scripts` and `jest` as above.
 - [ ] The four tsconfig files as above.
