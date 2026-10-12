@@ -9,9 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 npm run build           # Build all packages (CJS + ESM) in dependency order
 npm run test            # Run all tests
 npm run test:coverage   # Run tests with coverage
-npm run check           # Prettier + ESLint in every package, editorconfig over the repo
-npm run check:lint      # ESLint in every package
-npm run check:format    # Prettier in every package
+npm run check           # Root scripts (Prettier + node --test), editorconfig over the repo, then check:all in every package
 npm run fix             # Auto-fix lint and formatting
 npm run clean           # Remove all node_modules
 npm run check:packages  # Full gate (check:all) in every package
