@@ -287,6 +287,203 @@ describe('AbstractType', () => {
         expect(Object.keys(counter)).toEqual(['_value']);
       });
     });
+
+    describe('optional and required', () => {
+      const positiveError = { custom: 'positive', message: 'Value does not satisfy positive' };
+      const evenError = { custom: 'even', message: 'Must be even' };
+      const isRequiredError = {
+        validator: 'isRequired',
+        message: 'Value does not satisfy isRequired',
+      };
+
+      function ratingTypes() {
+        const isPositive = jest.fn((value: unknown) => typeof value === 'number' && value > 0);
+        const isEven = jest.fn((value: unknown) => typeof value === 'number' && value % 2 === 0);
+
+        @Validations([
+          { custom: 'positive', fn: isPositive },
+          { custom: 'even', fn: isEven, message: 'Must be even' },
+        ])
+        class Rating extends AbstractType<number> {
+          protected filter(value: number): number | null {
+            return value === -999 ? null : value;
+          }
+
+          change(value: number | null): void {
+            this._value = value;
+          }
+        }
+
+        class RequiredRating extends Required(Rating) {}
+
+        return { Rating, RequiredRating, isPositive, isEven };
+      }
+
+      describe('optional type', () => {
+        it.each([
+          ['no value', []],
+          ['null', [null]],
+          ['undefined', [undefined]],
+          ['an empty string', ['']],
+          ['a blank string', ['   ']],
+        ])('is ok with %s, without running its validations', (_, args) => {
+          const { Rating, isPositive, isEven } = ratingTypes();
+          const rating = new Rating(...(args as unknown as [number]));
+          expect(rating.validate()).toEqual(valid(null));
+          expect(isPositive).not.toHaveBeenCalled();
+          expect(isEven).not.toHaveBeenCalled();
+        });
+
+        it('is ok without running its validations when filter turns the value into null', () => {
+          const { Rating, isPositive } = ratingTypes();
+          expect(new Rating(-999).validate()).toEqual(valid(null));
+          expect(isPositive).not.toHaveBeenCalled();
+        });
+
+        it('is ok without running its validations when the value becomes null', () => {
+          const { Rating, isPositive } = ratingTypes();
+          const rating = new Rating(-1);
+          rating.change(null);
+          expect(rating.validate()).toEqual(valid(null));
+          expect(isPositive).not.toHaveBeenCalled();
+        });
+
+        it('is ok with a value that satisfies every validation', () => {
+          const { Rating, isPositive, isEven } = ratingTypes();
+          expect(new Rating(4).validate()).toEqual(valid(4));
+          expect(isPositive).toHaveBeenCalledWith(4);
+          expect(isEven).toHaveBeenCalledWith(4);
+        });
+
+        it('runs every validation on a value and reports each failure in order', () => {
+          const { Rating } = ratingTypes();
+          expect(new Rating(-3).validate()).toEqual({
+            ok: false,
+            value: -3,
+            errors: [positiveError, evenError],
+          });
+          expect(new Rating(3).validate().errors).toEqual([evenError]);
+        });
+
+        it('runs its validations on a falsy value', () => {
+          const { Rating, isPositive } = ratingTypes();
+          expect(new Rating(0).validate().errors).toEqual([positiveError]);
+          expect(isPositive).toHaveBeenCalledWith(0);
+        });
+      });
+
+      describe('required type', () => {
+        it('is ok with a value that satisfies every validation, without reporting isRequired', () => {
+          const { RequiredRating } = ratingTypes();
+          expect(new RequiredRating(4).validate()).toEqual(valid(4));
+        });
+
+        it('runs every validation of the wrapped type on a value and reports each failure', () => {
+          const { RequiredRating, isPositive, isEven } = ratingTypes();
+          expect(new RequiredRating(-3).validate()).toEqual({
+            ok: false,
+            value: -3,
+            errors: [positiveError, evenError],
+          });
+          expect(isPositive).toHaveBeenCalledWith(-3);
+          expect(isEven).toHaveBeenCalledWith(-3);
+        });
+
+        it('a falsy value is present: it passes isRequired and runs the other validations', () => {
+          const { RequiredRating } = ratingTypes();
+          expect(new RequiredRating(0).validate().errors).toEqual([positiveError]);
+        });
+
+        it('fails only isRequired when the value becomes null, running no other validation', () => {
+          const { RequiredRating, isPositive, isEven } = ratingTypes();
+          const rating = new RequiredRating(4);
+          rating.change(null);
+          expect(rating.validate()).toEqual({ ok: false, value: null, errors: [isRequiredError] });
+          expect(isPositive).not.toHaveBeenCalled();
+          expect(isEven).not.toHaveBeenCalled();
+        });
+
+        it('is valid again once the value is set back', () => {
+          const { RequiredRating } = ratingTypes();
+          const rating = new RequiredRating(4);
+          rating.change(null);
+          expect(rating.validate().ok).toBe(false);
+          rating.change(6);
+          expect(rating.validate()).toEqual(valid(6));
+        });
+
+        it('returns a frozen result when it fails isRequired', () => {
+          const { RequiredRating } = ratingTypes();
+          const rating = new RequiredRating(4);
+          rating.change(null);
+          const result = rating.validate();
+          expect(Object.isFrozen(result)).toBe(true);
+          expect(Object.isFrozen(result.errors)).toBe(true);
+          expect(Object.isFrozen(result.errors[0])).toBe(true);
+        });
+
+        it('runs the validations of the wrapped type first, then its own', () => {
+          const { RequiredRating } = ratingTypes();
+
+          @Validations([
+            { custom: 'small', fn: (value) => typeof value === 'number' && value < 10 },
+          ])
+          class SmallRating extends RequiredRating {}
+
+          expect(new SmallRating(11).validate().errors).toEqual([
+            evenError,
+            { custom: 'small', message: 'Value does not satisfy small' },
+          ]);
+        });
+
+        it('reports the isRequired message redeclared by a subclass', () => {
+          const { RequiredRating } = ratingTypes();
+
+          @Validations([{ validator: 'isRequired', message: 'Rating is required' }])
+          class NamedRating extends RequiredRating {}
+
+          const rating = new NamedRating(4);
+          rating.change(null);
+          expect(rating.validate().errors).toEqual([
+            { validator: 'isRequired', message: 'Rating is required' },
+          ]);
+        });
+
+        it('a subclass of a required type is required in validate too', () => {
+          const { RequiredRating } = ratingTypes();
+          class ChildRating extends RequiredRating {}
+          const rating = new ChildRating(4);
+          rating.change(null);
+          expect(rating.validate().errors).toEqual([isRequiredError]);
+        });
+      });
+
+      describe('the same value in both', () => {
+        it.each([
+          ['a valid value', 4, true, true],
+          ['an invalid value', -3, false, false],
+        ])('%s gives the same result', (_, value, optionalOk, requiredOk) => {
+          const { Rating, RequiredRating } = ratingTypes();
+          expect(new Rating(value).validate().ok).toBe(optionalOk);
+          expect(new RequiredRating(value).validate().ok).toBe(requiredOk);
+          expect(new RequiredRating(value).validate()).toEqual(new Rating(value).validate());
+        });
+
+        it('null is ok when optional and fails isRequired when required', () => {
+          const { Rating, RequiredRating } = ratingTypes();
+          const optional = new Rating(4);
+          const required = new RequiredRating(4);
+          optional.change(null);
+          required.change(null);
+          expect(optional.validate()).toEqual(valid(null));
+          expect(required.validate()).toEqual({
+            ok: false,
+            value: null,
+            errors: [isRequiredError],
+          });
+        });
+      });
+    });
   });
 
   describe('Required', () => {
