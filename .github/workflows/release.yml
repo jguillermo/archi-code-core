@@ -1,7 +1,8 @@
 name: Release
 
-# Runs on every push: the plan only releases packages with commits since their last tag (and
-# their dependents); when nothing changed it ends with "Nada que publicar".
+# Runs on every push: releases.json (the source of truth) says what is published and from which
+# commit; only packages with releasing commits since then (and their dependents) are published,
+# and the record commit pushed back by the release carries [skip ci] so it does not loop.
 on:
   push:
     branches: [main, release]
@@ -31,7 +32,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Configure git for release tags
+      - name: Configure git for the releases.json record commit
         run: |
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
@@ -43,10 +44,9 @@ jobs:
       - name: Release plan
         run: npm run version
 
-      # Publishes only the packages in the plan, in dependency order: exact versions are written
-      # into the packed package.json only, then npm publish, tag <name>-vX.Y.Z and a GitHub release.
+      # Publishes the plan in dependency order (exact versions only in the packed package.json),
+      # records every publication in releases.json and pushes it to the branch.
       - name: Publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run release

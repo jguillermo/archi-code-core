@@ -2,14 +2,8 @@
 
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
-const {
-  CHANNELS,
-  buildPlan,
-  channelFor,
-  classifyCommit,
-  compareVersions,
-  nextVersion,
-} = require('../lib/release-plan');
+const { buildPlan, classifyCommit } = require('../lib/release-plan');
+const { CHANNELS, channelFor, compareVersions, nextVersion } = require('../lib/versions');
 
 const MAIN = CHANNELS.main;
 const RELEASE = CHANNELS.release;
@@ -24,12 +18,54 @@ function pkg(name, dependencies = {}, extra = {}) {
   return { name, dir: `packages/${name}`, packageJson: { name, dependencies, ...extra } };
 }
 
-function plan({ branch = 'main', packages, versions = {}, commits = {} }) {
+function stateWith(published) {
+  const packages = {};
+  const deploys = [
+    {
+      date: '2026-10-01T00:00:00Z',
+      commit: 'start',
+      channel: 'main',
+      packages: [{ name: '@archi-code/unrelated', previous: null, version: '1.0.0-alpha.1' }],
+    },
+  ];
+  for (const [name, channels] of Object.entries(published)) {
+    packages[name] = {};
+    for (const [channel, version] of Object.entries(channels)) {
+      packages[name][channel] = version;
+      deploys.push({
+        date: '2026-10-12T00:00:00Z',
+        commit: `${name}@${version}`,
+        channel,
+        packages: [{ name, previous: null, version }],
+      });
+    }
+  }
+  return { packages, deploys };
+}
+
+function pinnedState(pinned) {
+  return {
+    packages: { [BASE]: { main: '1.0.0-alpha.3' }, [APP]: { main: '1.0.0-alpha.1' } },
+    deploys: [
+      {
+        date: '2026-10-12T00:00:00Z',
+        commit: 'deploy',
+        channel: 'main',
+        packages: [
+          { name: BASE, previous: null, version: '1.0.0-alpha.3' },
+          { name: APP, previous: null, version: '1.0.0-alpha.1', dependencies: { [BASE]: pinned } },
+        ],
+      },
+    ],
+  };
+}
+
+function plan({ branch = 'main', packages, published = {}, commits = {} }) {
   const calls = [];
   const result = buildPlan({
     branch,
     packages,
-    versionsByPackage: versions,
+    state: stateWith(published),
     readCommits: (item, since) => {
       calls.push([item.name, since]);
       return (commits[item.name] ?? []).map((subject, index) => ({ hash: `h${index}`, subject }));
@@ -199,7 +235,7 @@ describe('buildPlan', () => {
   test('only packages with releasing commits get a new version', () => {
     const { byName } = plan({
       packages: [pkg('a'), pkg('b')],
-      versions: { a: ['1.0.0-alpha.1'], b: ['1.0.0-alpha.1'] },
+      published: { a: { main: '1.0.0-alpha.1' }, b: { main: '1.0.0-alpha.1' } },
       commits: { a: ['fix: x'], b: ['chore: y', 'docs: z'] },
     });
     assert.equal(byName.a.next, '1.0.0-alpha.2');
@@ -215,7 +251,11 @@ describe('buildPlan', () => {
         pkg(MID, { [BASE]: '0.0.0-development' }),
         pkg(BASE),
       ],
-      versions: { [APP]: ['1.0.0-alpha.1'], [MID]: ['1.0.0-alpha.1'], [BASE]: ['1.0.0-alpha.1'] },
+      published: {
+        [APP]: { main: '1.0.0-alpha.1' },
+        [MID]: { main: '1.0.0-alpha.1' },
+        [BASE]: { main: '1.0.0-alpha.1' },
+      },
       commits: { [BASE]: ['feat: x'] },
     });
     assert.deepEqual(
@@ -233,11 +273,88 @@ describe('buildPlan', () => {
   test('a dependent that releases on its own pins unchanged dependencies to their current version', () => {
     const { byName } = plan({
       packages: [pkg(APP, { [BASE]: '0.0.0-development' }), pkg(BASE)],
-      versions: { [APP]: ['1.0.0-alpha.1'], [BASE]: ['1.0.0-alpha.5'] },
+      published: { [APP]: { main: '1.0.0-alpha.1' }, [BASE]: { main: '1.0.0-alpha.5' } },
       commits: { [APP]: ['feat: x'] },
     });
     assert.equal(byName[BASE].next, null);
     assert.deepEqual(byName[APP].dependencies, { [BASE]: '1.0.0-alpha.5' });
+  });
+
+  test('a dependency published after the dependent was cascades even if it is not in this plan', () => {
+    const state = pinnedState('1.0.0-alpha.2');
+    const result = buildPlan({
+      branch: 'main',
+      packages: [pkg(APP, { [BASE]: '0.0.0-development' }), pkg(BASE)],
+      state,
+      readCommits: () => [],
+    });
+    const app = result.packages.find((p) => p.name === APP);
+    assert.equal(app.next, '1.0.0-alpha.2');
+    assert.deepEqual(app.reasons, [
+      `cascada: ${BASE} está en 1.0.0-alpha.3 y la versión publicada fija 1.0.0-alpha.2`,
+    ]);
+    assert.deepEqual(app.dependencies, { [BASE]: '1.0.0-alpha.3' });
+  });
+
+  test('a dependent already pinned to the current dependency does not release', () => {
+    const state = pinnedState('1.0.0-alpha.3');
+    const result = buildPlan({
+      branch: 'main',
+      packages: [pkg(APP, { [BASE]: '0.0.0-development' }), pkg(BASE)],
+      state,
+      readCommits: () => [],
+    });
+    assert.equal(result.packages.find((p) => p.name === APP).next, null);
+  });
+
+  test('without deploys the whole set is released at the next major, aligned', () => {
+    const calls = [];
+    const result = buildPlan({
+      branch: 'main',
+      packages: [pkg(APP, { [BASE]: '0.0.0-development' }), pkg(BASE), pkg(MID)],
+      state: {
+        packages: { [BASE]: { main: '1.0.0-alpha.3' }, [APP]: { main: '1.0.0-alpha.1' } },
+        deploys: [],
+      },
+      readCommits: (item) => {
+        calls.push(item.name);
+        return [];
+      },
+    });
+    assert.deepEqual(
+      result.packages.map((p) => [p.name, p.current, p.next, p.bump]),
+      [
+        [BASE, '1.0.0-alpha.3', '2.0.0-alpha.1', 'major'],
+        [APP, '1.0.0-alpha.1', '2.0.0-alpha.1', 'major'],
+        [MID, null, '2.0.0-alpha.1', 'major'],
+      ],
+    );
+    assert.deepEqual(result.packages[1].reasons, [
+      'breaking: releases.json sin deploys, nueva major del conjunto (2.0.0-alpha.1)',
+    ]);
+    assert.deepEqual(result.packages[1].dependencies, { [BASE]: '2.0.0-alpha.1' });
+    assert.deepEqual(calls, []);
+    assert.deepEqual(result.errors, []);
+  });
+
+  test('the reset takes the highest major of any channel and is stable on release', () => {
+    const result = buildPlan({
+      branch: 'release',
+      packages: [pkg(BASE)],
+      state: { packages: { [BASE]: { release: '3.1.0', main: '3.2.0-alpha.1' } }, deploys: [] },
+      readCommits: () => [],
+    });
+    assert.equal(result.packages[0].next, '4.0.0');
+  });
+
+  test('an empty releases.json starts every package at 1.0.0', () => {
+    const result = buildPlan({
+      branch: 'main',
+      packages: [pkg(BASE)],
+      state: { packages: {}, deploys: [] },
+      readCommits: () => [],
+    });
+    assert.equal(result.packages[0].next, '1.0.0-alpha.1');
   });
 
   test('peer dependencies cascade too, dev dependencies do not', () => {
@@ -247,7 +364,11 @@ describe('buildPlan', () => {
         pkg(DEV_USER, {}, { devDependencies: { [BASE]: '0.0.0-development' } }),
         pkg(BASE),
       ],
-      versions: { [PEER_USER]: ['1.0.0'], [DEV_USER]: ['1.0.0'], [BASE]: ['1.0.0'] },
+      published: {
+        [PEER_USER]: { release: '1.0.0' },
+        [DEV_USER]: { release: '1.0.0' },
+        [BASE]: { release: '1.0.0' },
+      },
       commits: { [BASE]: ['fix: x'] },
     });
     assert.equal(byName[PEER_USER].next, '1.0.1-alpha.1');
@@ -257,7 +378,7 @@ describe('buildPlan', () => {
   test('non conventional commits produce a patch and a warning', () => {
     const { byName } = plan({
       packages: [pkg('a')],
-      versions: { a: ['1.0.0-alpha.1'] },
+      published: { a: { main: '1.0.0-alpha.1' } },
       commits: { a: ['Remove commom (#9)'] },
     });
     assert.equal(byName.a.next, '1.0.0-alpha.2');
@@ -266,13 +387,18 @@ describe('buildPlan', () => {
     ]);
   });
 
-  test('commits are read since the highest tag on main and since the last stable on release', () => {
-    const versions = { a: ['1.0.0', '1.1.0-alpha.2', '1.1.0-alpha.10'] };
-    assert.deepEqual(plan({ packages: [pkg('a')], versions }).calls, [['a', '1.1.0-alpha.10']]);
-    assert.deepEqual(plan({ branch: 'release', packages: [pkg('a')], versions }).calls, [
-      ['a', '1.0.0'],
+  test('commits are read since the newest publication on main and the last stable on release', () => {
+    const published = { a: { release: '1.0.0', main: '1.1.0-alpha.10' } };
+    assert.deepEqual(plan({ packages: [pkg('a')], published }).calls, [['a', 'a@1.1.0-alpha.10']]);
+    assert.deepEqual(plan({ branch: 'release', packages: [pkg('a')], published }).calls, [
+      ['a', 'a@1.0.0'],
     ]);
     assert.deepEqual(plan({ packages: [pkg('a')] }).calls, [['a', null]]);
+  });
+
+  test('records the commit each package starts from', () => {
+    const { byName } = plan({ packages: [pkg('a')], published: { a: { main: '1.0.0-alpha.1' } } });
+    assert.equal(byName.a.baseCommit, 'a@1.0.0-alpha.1');
   });
 
   test('reports a dependency that is not a monorepo package', () => {
@@ -297,7 +423,7 @@ describe('buildPlan', () => {
     const { result } = plan({
       branch: 'main',
       packages: [pkg('a')],
-      versions: { a: ['2.0.0-beta.1'] },
+      published: { a: { main: '2.0.0-beta.1' } },
       commits: { a: ['fix: x'] },
     });
     assert.deepEqual(result.errors, [
@@ -305,9 +431,14 @@ describe('buildPlan', () => {
     ]);
   });
 
-  test('a malformed version tag aborts the plan', () => {
+  test('a malformed published version aborts the plan when it has to bump', () => {
     assert.throws(
-      () => plan({ packages: [pkg('a')], versions: { a: ['v1'] } }),
+      () =>
+        plan({
+          packages: [pkg('a')],
+          published: { a: { main: 'v1' } },
+          commits: { a: ['fix: x'] },
+        }),
       /Versión no válida: "v1"/,
     );
   });

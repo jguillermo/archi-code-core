@@ -1,11 +1,12 @@
 'use strict';
 
-const { SCOPE, parseVersion } = require('./release-plan');
+const { SCOPE } = require('./release-plan');
+const { parseVersion } = require('./versions');
 
 const PUBLISHED_FIELDS = ['dependencies', 'peerDependencies'];
 
-function publishManifest(packageJson, release) {
-  const manifest = { ...packageJson, version: release.next };
+function publishManifest(packageJson, release, commit) {
+  const manifest = { ...packageJson, version: release.next, releaseCommit: commit };
   for (const field of PUBLISHED_FIELDS) {
     if (!packageJson[field]) continue;
     manifest[field] = { ...packageJson[field] };
@@ -27,13 +28,16 @@ function isExactVersion(text) {
   }
 }
 
-function manifestErrors(manifest, release) {
+function manifestErrors(manifest, release, commit) {
   const errors = [];
   if (manifest.name !== release.name) {
     errors.push(`name "${manifest.name}" en vez de "${release.name}"`);
   }
   if (manifest.version !== release.next) {
     errors.push(`version "${manifest.version}" en vez de "${release.next}"`);
+  }
+  if (manifest.releaseCommit !== commit) {
+    errors.push(`releaseCommit "${manifest.releaseCommit}" en vez de "${commit}"`);
   }
   for (const field of PUBLISHED_FIELDS) {
     for (const [dep, range] of Object.entries(manifest[field] ?? {})) {

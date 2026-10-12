@@ -17,7 +17,7 @@ npm run check:packages  # Full gate (check:all) in every package
 npm run check:<name>    # Full gate in one package: validator, domain, criteria, crypto-tools, ephemeradb, test
 npm run check:versions  # Every package version and internal dep is 0.0.0-development
 npm run version         # Dry-run of the release: current and next version of each package, writes release-plan.json
-npm run release         # Deploy (CI): publish the planned packages, tags and GitHub releases
+npm run release         # Deploy (CI): publish the planned packages and record them in releases.json
 ```
 
 Every package's `check:all` runs the same gate: editorconfig-checker → prettier (`src`, `test` and the package's own `*.json`/`*.md`) → eslint → tsc (src + test) → jest with coverage → build (CJS + ESM) → dist check. CI on pull requests runs `npm run check`; the release workflow (push to `main`/`release`, GitHub environment `deploy` with the `NPM_TOKEN` secret) only builds and publishes; the husky `pre-push` hook runs `npm run check:packages`.
@@ -37,22 +37,37 @@ Checks specific to one package's build live in that package, in `test/dist/dist.
 ### Versions and release
 
 In the repo every package `version` and every internal `@archi-code/*` dependency is `0.0.0-development`
-(`npm run check:versions`, part of `npm run check`). Real versions live only in git tags (`<name>-vX.Y.Z`)
-and npm. `scripts/lib/release-plan.js` computes the next release from them; `npm run version` (dry-run)
-and `npm run release` (deploy) use the same plan:
+(`npm run check:versions`, part of `npm run check`). `releases.json` (root) is the source of truth
+of what is published: `packages` holds only the current version of each package per channel; `deploys`
+is the history, one entry per deploy (date, commit, channel) listing every package it published with its
+previous version, new version, bump, reasons and the internal dependencies it pins. The commit a package
+was published from is the one of the deploy that published its current version. Only the release in
+GitHub Actions writes it; never edit it by hand.
+`scripts/lib/release-plan.js` computes the next release from it; `npm run version` (dry-run, local, no
+network) and `npm run release` (deploy) use the same plan:
 
 - Branch `main` → `X.Y.Z-alpha.N` (dist-tag `main`); `release` → stable (dist-tag `latest`); the first
   stable promotes the open alpha (`1.0.0-alpha.4` → `1.0.0`). Other branches do not publish.
-- Commits since the last tag touching `packages/<dir>`: breaking → major, `feat` → minor, `fix`/`perf` →
-  patch, `chore|docs|test|style|ci|build|refactor|revert` → none, non conventional → patch with a warning.
-- Cascade: if an internal runtime/peer dependency is released, its dependents release at least a patch,
-  pinned to the exact versions.
+- Commits since the recorded commit touching `packages/<dir>`: breaking → major, `feat` → minor,
+  `fix`/`perf` → patch, `chore|docs|test|style|ci|build|refactor|revert` → none, non conventional → patch
+  with a warning.
+- Empty `deploys` (with or without `packages`): the whole set starts a new major, aligned: every package
+  is released at the major after the highest current version (`2.0.0-alpha.1` on `main`, `2.0.0` on
+  `release`; `1.0.0…` when `packages` is empty too), without looking at commits. That deploy is recorded
+  and from then on the normal flow applies. Emptying `deploys` is the only manual edit of the file.
+- Cascade: a dependent releases at least a patch when an internal runtime/peer dependency releases now
+  or is already at a version different from the one its last publication pins.
 - `scripts/release.js` aborts before publishing anything unless: clean tree, HEAD equals the remote
-  branch, `check:versions` passes, npm and gh are authenticated, no target tag or npm version exists and
-  every pinned dependency is on npm. Per package, in dependency order: writes the exact versions into
-  `package.json`, builds, packs, verifies the packed `package.json`, restores the file, publishes that
-  tarball, pushes the annotated tag, creates the GitHub release and then waits until npm serves the
-  version (it reads the version document: the full packument is cached for minutes). It never commits.
+  branch, `releases.json` is valid and its commits are in the history of HEAD, `check:versions` passes,
+  npm is authenticated and every pinned dependency is on npm. A planned version already on npm (a run
+  that published but could not push `releases.json`) is recorded from the `releaseCommit` of its published
+  `package.json` and the plan is computed again; a version on npm without a `releaseCommit` from this
+  history stops the release.
+- Per package, in dependency order: writes the exact versions and `releaseCommit` into `package.json`,
+  builds, packs, verifies the packed `package.json`, restores the file, publishes that tarball, records it
+  in `releases.json` and waits until npm serves the version (it reads the version document: the full
+  packument is cached for minutes). At the end, even after a failure, it commits `releases.json` with
+  `[skip ci]` and pushes it to the branch. No git tags nor GitHub releases.
 - `npm run release -- --pack` runs the same steps up to the verified tarball without publishing.
 
 ### Single package

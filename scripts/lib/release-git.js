@@ -1,6 +1,6 @@
 'use strict';
 
-const { execFileSync } = require('child_process');
+const { execFileSync, spawnSync } = require('child_process');
 
 const FIELD = '\x1f';
 const RECORD = '\x1e';
@@ -9,25 +9,23 @@ function git(root, args) {
   return execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
 }
 
-function tagPrefix(name) {
-  return `${name}-v`;
-}
-
 function currentBranch(root) {
   const branch = git(root, ['rev-parse', '--abbrev-ref', 'HEAD']);
   return branch === 'HEAD' && process.env.GITHUB_REF_NAME ? process.env.GITHUB_REF_NAME : branch;
 }
 
-function releasedVersionsFromTags(root, name) {
-  const prefix = tagPrefix(name);
-  return git(root, ['tag', '--merged', 'HEAD', '--list', `${prefix}*`])
-    .split('\n')
-    .filter(Boolean)
-    .map((tag) => tag.slice(prefix.length));
+function headCommit(root) {
+  return git(root, ['rev-parse', 'HEAD']);
 }
 
-function commitsSince(root, pkg, version) {
-  const range = version ? `${tagPrefix(pkg.name)}${version}..HEAD` : 'HEAD';
+function isAncestorOfHead(root, commit) {
+  return (
+    spawnSync('git', ['merge-base', '--is-ancestor', commit, 'HEAD'], { cwd: root }).status === 0
+  );
+}
+
+function commitsSince(root, pkg, commit) {
+  const range = commit ? `${commit}..HEAD` : 'HEAD';
   const log = git(root, [
     'log',
     '--no-merges',
@@ -46,4 +44,4 @@ function commitsSince(root, pkg, version) {
     });
 }
 
-module.exports = { commitsSince, currentBranch, releasedVersionsFromTags, tagPrefix };
+module.exports = { commitsSince, currentBranch, headCommit, isAncestorOfHead };
