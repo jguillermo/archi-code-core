@@ -72,7 +72,7 @@ describe('topoSort', () => {
     assert.throws(() => topoSort(pkgs), /Circular dependency detected/);
   });
 
-  test('matches the real packages.tree.json order (common before domain)', () => {
+  test('a dependency shared by two packages is built before both', () => {
     const pkgs = [
       { name: '@archi-code/criteria', internalDeps: [] },
       { name: '@archi-code/crypto-tools', internalDeps: [] },

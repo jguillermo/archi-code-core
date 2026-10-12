@@ -27,7 +27,9 @@ function findVersionErrors(packages) {
 if (require.main === module) {
   const errors = findVersionErrors(readWorkspacePackages(path.join(__dirname, '..')));
   if (errors.length) {
-    console.error('check-versions: en local las versiones viven en los tags, no en package.json');
+    console.error(
+      'check-versions: las versiones reales viven en releases.json, no en package.json',
+    );
     errors.forEach((error) => console.error(`  ✘ ${error}`));
     process.exit(1);
   }

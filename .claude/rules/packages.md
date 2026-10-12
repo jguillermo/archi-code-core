@@ -34,8 +34,9 @@ packages/<folder>/
 ## package.json
 
 - `version` always `0.0.0-development`, and every internal `@archi-code/*` dependency (any field)
-  too: the real versions live only in the git tags (`<name>-vX.Y.Z`) and in what is published. The
-  release writes them into the published `package.json`; `npm run check:versions` fails otherwise.
+  too: the real versions live only in `releases.json` (written by the release in GitHub Actions) and in
+  what is published. The release writes them into the published `package.json`;
+  `npm run check:versions` fails otherwise.
 - `name` `@archi-code/<folder>`, `author` `Jose Guillermo`, `license` `MIT`, `repository` the
   monorepo, `engines.node` `>=22`, `publishConfig.access` `public`, `files` `["dist/"]`.
 - Entry points: `main` `./dist/cjs/index.js`, `module` `./dist/esm/index.js`, `types`

@@ -1,14 +1,11 @@
 'use strict';
 
 const { topoSort } = require('./topo-sort');
+const { channelFor, compareVersions, nextVersion, parseVersion } = require('./versions');
+const { baselineFor } = require('./release-state');
 
 const DEV_VERSION = '0.0.0-development';
 const SCOPE = '@archi-code/';
-
-const CHANNELS = {
-  main: { branch: 'main', prerelease: 'alpha', distTag: 'main' },
-  release: { branch: 'release', prerelease: null, distTag: 'latest' },
-};
 
 const BUMP_RANK = { patch: 1, minor: 2, major: 3 };
 const RELEASE_TYPES = { feat: 'minor', fix: 'patch', perf: 'patch' };
@@ -23,59 +20,6 @@ const NO_RELEASE_TYPES = new Set([
   'revert',
 ]);
 const HEADER_RE = /^([a-z]+)(\([^)]*\))?(!)?: \S/;
-const VERSION_RE = /^(\d+)\.(\d+)\.(\d+)(?:-([a-z]+)\.(\d+))?$/;
-
-function channelFor(branch) {
-  const channel = CHANNELS[branch];
-  if (!channel) {
-    throw new Error(`Rama "${branch}" no publica: solo ${Object.keys(CHANNELS).join(' y ')}`);
-  }
-  return channel;
-}
-
-function parseVersion(text) {
-  const match = VERSION_RE.exec(text);
-  if (!match) throw new Error(`Versión no válida: "${text}"`);
-  return {
-    major: Number(match[1]),
-    minor: Number(match[2]),
-    patch: Number(match[3]),
-    pre: match[4] ?? null,
-    preNumber: match[5] === undefined ? null : Number(match[5]),
-  };
-}
-
-function formatVersion({ major, minor, patch, pre, preNumber }) {
-  const base = `${major}.${minor}.${patch}`;
-  return pre ? `${base}-${pre}.${preNumber}` : base;
-}
-
-function compareBase(a, b) {
-  return a.major - b.major || a.minor - b.minor || a.patch - b.patch;
-}
-
-function compareVersions(left, right) {
-  const a = parseVersion(left);
-  const b = parseVersion(right);
-  const byBase = compareBase(a, b);
-  if (byBase !== 0) return byBase;
-  if (!a.pre && !b.pre) return 0;
-  if (!a.pre) return 1;
-  if (!b.pre) return -1;
-  if (a.pre !== b.pre) return a.pre < b.pre ? -1 : 1;
-  return a.preNumber - b.preNumber;
-}
-
-function highest(versions) {
-  return versions.length ? [...versions].sort(compareVersions).at(-1) : null;
-}
-
-function increment(version, bump) {
-  const { major, minor, patch } = version ?? { major: 0, minor: 0, patch: 0 };
-  if (bump === 'major') return { major: major + 1, minor: 0, patch: 0 };
-  if (bump === 'minor') return { major, minor: minor + 1, patch: 0 };
-  return { major, minor, patch: patch + 1 };
-}
 
 function higherBump(a, b) {
   if (!a) return b;
@@ -93,56 +37,25 @@ function classifyCommit({ subject, body = '' }) {
   return { bump: RELEASE_TYPES[match[1]] ?? null, conventional: true };
 }
 
-function releasedVersions(versions) {
-  versions.forEach(parseVersion);
-  return {
-    current: highest(versions),
-    lastStable: highest(versions.filter((version) => !parseVersion(version).pre)),
-  };
-}
-
-function baseVersionFor(versions, channel) {
-  const { current, lastStable } = releasedVersions(versions);
-  return channel.prerelease ? current : lastStable;
-}
-
-function nextVersion({ current, lastStable, bump, channel }) {
-  const stable = lastStable ? parseVersion(lastStable) : null;
-  const latest = current ? parseVersion(current) : null;
-  const floor = increment(stable, bump);
-  const pendingBase = latest?.pre && (!stable || compareBase(latest, stable) > 0) ? latest : null;
-
-  if (!channel.prerelease) {
-    if (!stable && !pendingBase) return '1.0.0';
-    if (pendingBase && compareBase(pendingBase, floor) >= 0) {
-      return formatVersion({ ...pendingBase, pre: null });
-    }
-    return formatVersion({ ...floor, pre: null });
-  }
-
-  if (!latest) return formatVersion({ major: 1, minor: 0, patch: 0, ...prerelease(channel, 1) });
-  if (
-    pendingBase &&
-    pendingBase.pre === channel.prerelease &&
-    compareBase(pendingBase, floor) >= 0
-  ) {
-    return formatVersion({ ...pendingBase, preNumber: pendingBase.preNumber + 1 });
-  }
-  return formatVersion({ ...floor, ...prerelease(channel, 1) });
-}
-
-function prerelease(channel, preNumber) {
-  return { pre: channel.prerelease, preNumber };
-}
-
 function runtimeInternalDeps(packageJson) {
   return Object.keys({ ...packageJson.dependencies, ...packageJson.peerDependencies }).filter(
     (name) => name.startsWith(SCOPE),
   );
 }
 
-function buildPlan({ branch, packages, versionsByPackage, readCommits }) {
+// An empty "deploys" in releases.json starts a new major for the whole set: every package is
+// released at the major after the highest current one, aligned, whatever its commits say.
+function resetVersion(state, channel) {
+  const majors = Object.values(state.packages).flatMap((channels) =>
+    Object.values(channels).map((version) => parseVersion(version).major),
+  );
+  const major = majors.length ? Math.max(...majors) + 1 : 1;
+  return channel.prerelease ? `${major}.0.0-${channel.prerelease}.1` : `${major}.0.0`;
+}
+
+function buildPlan({ branch, packages, state, readCommits }) {
   const channel = channelFor(branch);
+  const reset = state.deploys.length === 0 ? resetVersion(state, channel) : null;
   const errors = [];
   const known = new Set(packages.map((pkg) => pkg.name));
   const ordered = topoSort(
@@ -151,10 +64,13 @@ function buildPlan({ branch, packages, versionsByPackage, readCommits }) {
   const byName = {};
 
   for (const pkg of ordered) {
-    const versions = versionsByPackage[pkg.name] ?? [];
-    const { current, lastStable } = releasedVersions(versions);
-    const baseVersion = baseVersionFor(versions, channel);
-    const commits = readCommits(pkg, baseVersion).map((commit) => ({
+    const {
+      current,
+      lastStable,
+      commit: baseCommit,
+      dependencies: pinned,
+    } = baselineFor(state, pkg.name, branch);
+    const commits = (reset ? [] : readCommits(pkg, baseCommit)).map((commit) => ({
       ...commit,
       ...classifyCommit(commit),
     }));
@@ -164,19 +80,30 @@ function buildPlan({ branch, packages, versionsByPackage, readCommits }) {
     const reasons = [];
     let bump = commits.reduce((acc, commit) => higherBump(acc, commit.bump), null);
     if (bump) reasons.push(`commits (${bump})`);
+    if (reset) {
+      bump = 'major';
+      reasons.push(`breaking: releases.json sin deploys, nueva major del conjunto (${reset})`);
+    }
 
     for (const dep of pkg.internalDeps) {
       if (!known.has(dep)) {
         errors.push(`${pkg.name} depende de ${dep}, que no es un paquete del monorepo`);
         continue;
       }
+      if (reset) continue;
       if (byName[dep].next) {
         bump = higherBump(bump, 'patch');
         reasons.push(`cascada: ${dep} → ${byName[dep].next}`);
+      } else if (byName[dep].current && pinned?.[dep] !== byName[dep].current) {
+        bump = higherBump(bump, 'patch');
+        reasons.push(
+          `cascada: ${dep} está en ${byName[dep].current} y la versión publicada fija ` +
+            `${pinned?.[dep] ?? 'otra'}`,
+        );
       }
     }
 
-    const next = bump ? nextVersion({ current, lastStable, bump, channel }) : null;
+    const next = reset ?? (bump ? nextVersion({ current, lastStable, bump, channel }) : null);
     if (next && current && compareVersions(next, current) <= 0) {
       errors.push(`${pkg.name}: la versión calculada ${next} no es mayor que ${current}`);
     }
@@ -193,6 +120,8 @@ function buildPlan({ branch, packages, versionsByPackage, readCommits }) {
       current,
       next,
       bump,
+      baseCommit,
+      reset: Boolean(reset),
       reasons,
       dependencies,
       commits: commits.map(({ hash, subject, bump: commitBump, conventional }) => ({
@@ -214,16 +143,4 @@ function buildPlan({ branch, packages, versionsByPackage, readCommits }) {
   };
 }
 
-module.exports = {
-  CHANNELS,
-  DEV_VERSION,
-  SCOPE,
-  baseVersionFor,
-  buildPlan,
-  channelFor,
-  classifyCommit,
-  compareVersions,
-  nextVersion,
-  parseVersion,
-  runtimeInternalDeps,
-};
+module.exports = { DEV_VERSION, SCOPE, buildPlan, classifyCommit, runtimeInternalDeps };

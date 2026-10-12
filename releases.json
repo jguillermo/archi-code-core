@@ -1,0 +1,21 @@
+{
+  "packages": {
+    "@archi-code/criteria": {
+      "main": "1.0.0-alpha.1"
+    },
+    "@archi-code/crypto-tools": {
+      "main": "1.0.0-alpha.1"
+    },
+    "@archi-code/domain": {
+      "main": "1.0.0-alpha.1"
+    },
+    "@archi-code/ephemeradb": {
+      "main": "1.0.0-alpha.1"
+    },
+    "@archi-code/test": {
+      "main": "1.0.0-alpha.1"
+    }
+  },
+  "deploys": [
+  ]
+}

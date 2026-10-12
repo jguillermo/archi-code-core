@@ -2,19 +2,30 @@
 
 const { buildPlan } = require('./release-plan');
 const { readWorkspacePackages } = require('./workspace-packages');
-const { commitsSince, releasedVersionsFromTags } = require('./release-git');
+const { commitsSince, isAncestorOfHead } = require('./release-git');
+const { STATE_FILE, commitsInState, readState, stateErrors } = require('./release-state');
 
-function loadPlan(root, branch) {
+function unreachableCommits(root, state) {
+  return commitsInState(state)
+    .filter((commit) => !isAncestorOfHead(root, commit))
+    .map((commit) => `${STATE_FILE}: el commit ${commit} no está en la historia de HEAD`);
+}
+
+function loadPlan(root, branch, state = readState(root)) {
   const packages = readWorkspacePackages(root);
+  const invalid = stateErrors(state);
+  if (invalid.length) {
+    return { packages, state, plan: null, errors: invalid };
+  }
+  const unreachable = unreachableCommits(root, state);
+  if (unreachable.length) return { packages, state, plan: null, errors: unreachable };
   const plan = buildPlan({
     branch,
     packages,
-    versionsByPackage: Object.fromEntries(
-      packages.map((pkg) => [pkg.name, releasedVersionsFromTags(root, pkg.name)]),
-    ),
-    readCommits: (pkg, version) => commitsSince(root, pkg, version),
+    state,
+    readCommits: (pkg, commit) => commitsSince(root, pkg, commit),
   });
-  return { packages, plan };
+  return { packages, state, plan, errors: plan.errors };
 }
 
 module.exports = { loadPlan };

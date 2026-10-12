@@ -1,13 +1,18 @@
 'use strict';
 
-const { tagPrefix } = require('./release-git');
+const HEADER = ['PAQUETE', 'ACTUAL', 'NUEVA', 'COMMITS', 'MOTIVO'];
 
 function releasing(plan) {
   return plan.packages.filter((pkg) => pkg.next);
 }
 
-function tagName(pkg) {
-  return `${tagPrefix(pkg.name)}${pkg.next}`;
+function formatDate(iso) {
+  const date = new Date(iso);
+  const pad = (value) => String(value).padStart(2, '0');
+  return (
+    `${pad(date.getUTCDate())}/${pad(date.getUTCMonth() + 1)}/${date.getUTCFullYear()} ` +
+    `${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())} UTC`
+  );
 }
 
 function summaryRows(plan) {
@@ -19,8 +24,6 @@ function summaryRows(plan) {
     pkg.reasons.join(', ') || '—',
   ]);
 }
-
-const HEADER = ['PAQUETE', 'ACTUAL', 'NUEVA', 'COMMITS', 'MOTIVO'];
 
 function table(rows) {
   const widths = rows[0].map((_, column) => Math.max(...rows.map((row) => row[column].length)));
@@ -34,6 +37,9 @@ function table(rows) {
 
 function packageDetail(pkg) {
   return [
+    pkg.reset
+      ? 'sin deploys previos: nueva major para todo el conjunto, sin mirar commits'
+      : `desde ${pkg.baseCommit ? pkg.baseCommit.slice(0, 7) : 'el inicio de la historia'}`,
     ...Object.entries(pkg.dependencies).map(
       ([dep, version]) => `dep  ${dep}: ${version ?? '(sin versión publicada)'}`,
     ),
@@ -44,11 +50,20 @@ function packageDetail(pkg) {
   ];
 }
 
+function renderLastDeploy(deploy) {
+  if (!deploy) return ['Último deploy: ninguno registrado'];
+  return [
+    `Último deploy: ${formatDate(deploy.date)}  |  canal ${deploy.channel}  |  ` +
+      `commit ${deploy.commit.slice(0, 7)}`,
+    ...deploy.packages.map((pkg) => `  ${pkg.name}  ${pkg.previous ?? '—'} → ${pkg.version}`),
+  ];
+}
+
 function renderPlan(plan) {
   const lines = [`canal: ${plan.branch}  |  dist-tag npm: ${plan.distTag}`, ''];
   lines.push(...table([HEADER, ...summaryRows(plan)]));
   for (const pkg of releasing(plan)) {
-    lines.push('', `${pkg.name}  ${pkg.current ?? '—'} → ${pkg.next}  (tag ${tagName(pkg)})`);
+    lines.push('', `${pkg.name}  ${pkg.current ?? '—'} → ${pkg.next}`);
     lines.push(...packageDetail(pkg).map((line) => `  ${line}`));
   }
   lines.push('', `${releasing(plan).length} paquete(s) subirían de versión.`);
@@ -73,17 +88,4 @@ function planMarkdown(plan) {
   return `${lines.join('\n')}\n`;
 }
 
-function releaseNotes(pkg) {
-  const lines = [];
-  if (pkg.reasons.length) lines.push(`Motivo: ${pkg.reasons.join(', ')}`, '');
-  const dependencies = Object.entries(pkg.dependencies);
-  if (dependencies.length) {
-    lines.push('Dependencias internas:', ...dependencies.map(([dep, v]) => `- ${dep}@${v}`), '');
-  }
-  if (pkg.commits.length) {
-    lines.push('Commits:', ...pkg.commits.map((commit) => `- ${commit.hash} ${commit.subject}`));
-  }
-  return lines.join('\n');
-}
-
-module.exports = { planMarkdown, releaseNotes, releasing, renderPlan, tagName };
+module.exports = { formatDate, planMarkdown, releasing, renderLastDeploy, renderPlan };
