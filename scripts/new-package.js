@@ -25,7 +25,7 @@ function packageJson(folder) {
   const files = '{src,test}/**/*.{js,jsx,ts,tsx,json,css,scss,md}';
   return {
     name: `${SCOPE}/${folder}`,
-    version: '0.0.1',
+    version: '0.0.0-development',
     keywords: ['DDD', 'node'],
     author: AUTHOR,
     license: 'MIT',
@@ -46,8 +46,7 @@ function packageJson(folder) {
       'test:coverage': 'jest --coverage',
       'check:types': 'tsc -p tsconfig.json --noEmit --incremental false',
       'check:dist': 'node ../../scripts/check-dist.js && node ../../scripts/check-types.js',
-      'check:editorconfig':
-        "editorconfig-checker --exclude node_modules --exclude dist --exclude '.git'",
+      'check:editorconfig': 'node ../../scripts/editorconfig.js',
       'check:all':
         'npm run check:editorconfig && npm run check:prettier && npm run check:lint && npm run check:types && npm run test:coverage && npm run build && npm run check:dist',
       'check:lint': 'eslint src test --ext .ts',
@@ -94,15 +93,6 @@ function templates(folder, description) {
     'tsconfig.esm.json': json({
       extends: './tsconfig.build.json',
       compilerOptions: { module: 'ES2020', target: 'ES2020', outDir: './dist/esm' },
-    }),
-    '.releaserc.json': json({
-      branches: ['release', { name: 'main', prerelease: 'alpha' }],
-      plugins: [
-        '@semantic-release/commit-analyzer',
-        '@semantic-release/release-notes-generator',
-        '@semantic-release/npm',
-        '@semantic-release/github',
-      ],
     }),
     '.gitignore': [
       '/dist',

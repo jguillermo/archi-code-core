@@ -24,7 +24,7 @@ packages/<folder>/
 │   └── dist/dist.check.js   # build checks specific to this package
 ├── package.json
 ├── tsconfig.json  tsconfig.build.json  tsconfig.cjs.json  tsconfig.esm.json
-├── .gitignore  .releaserc.json  LICENSE  README.md
+├── .gitignore  LICENSE  README.md
 ```
 
 - No `scripts/` folder inside a package: build and check tools live only in the root `scripts/`.
@@ -33,6 +33,9 @@ packages/<folder>/
 
 ## package.json
 
+- `version` always `0.0.0-development`, and every internal `@archi-code/*` dependency (any field)
+  too: the real versions live only in the git tags (`<name>-vX.Y.Z`) and in what is published. The
+  release writes them into the published `package.json`; `npm run check:versions` fails otherwise.
 - `name` `@archi-code/<folder>`, `author` `Jose Guillermo`, `license` `MIT`, `repository` the
   monorepo, `engines.node` `>=22`, `publishConfig.access` `public`, `files` `["dist/"]`.
 - Entry points: `main` `./dist/cjs/index.js`, `module` `./dist/esm/index.js`, `types`
@@ -50,7 +53,7 @@ packages/<folder>/
 - `scripts` — exactly these, with these values: `prebuild`, `build:cjs`, `build:esm`
   (`tsc -p tsconfig.esm.json && node ../../scripts/fix-esm.js`), `build`, `test`, `test:coverage`,
   `check:types`, `check:dist` (`node ../../scripts/check-dist.js && node ../../scripts/check-types.js`),
-  `check:editorconfig`, `check:lint` / `fix:lint` (`eslint src test --ext .ts`), `check:prettier` /
+  `check:editorconfig` (`node ../../scripts/editorconfig.js`), `check:lint` / `fix:lint` (`eslint src test --ext .ts`), `check:prettier` /
   `fix:prettier` (`"{src,test}/**/*.{js,jsx,ts,tsx,json,css,scss,md}" "*.{json,md}"`) and
   `check:all`:
 
@@ -138,7 +141,8 @@ Only when the package needs them, and documented in its README:
 - [ ] `src/` imports each symbol from its declaring file, never through a re-exporting `index.ts`.
 - [ ] `test/index.spec.ts` pins the public API; `test/dist/dist.check.js` exercises it.
 - [ ] `package.json` entry points, `exports`, `files`, `engines`, `scripts` and `jest` as above.
+- [ ] `version` and internal `@archi-code/*` deps are `0.0.0-development`.
 - [ ] The four tsconfig files as above.
-- [ ] `README.md`, `LICENSE`, `.releaserc.json`, `.gitignore` present.
+- [ ] `README.md`, `LICENSE`, `.gitignore` present.
 - [ ] Root `package.json` has `check:<folder>`; `CLAUDE.md` lists the package.
 - [ ] `npm run check:<folder>` passes.

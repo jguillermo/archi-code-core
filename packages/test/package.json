@@ -1,6 +1,6 @@
 {
   "name": "@archi-code/test",
-  "version": "1.0.0-alpha.3",
+  "version": "0.0.0-development",
   "keywords": [
     "DDD",
     "node",
@@ -46,7 +46,7 @@
     "test:coverage": "jest --coverage",
     "check:types": "tsc -p tsconfig.json --noEmit --incremental false",
     "check:dist": "node ../../scripts/check-dist.js && node ../../scripts/check-types.js",
-    "check:editorconfig": "editorconfig-checker --exclude node_modules --exclude dist --exclude '.git'",
+    "check:editorconfig": "node ../../scripts/editorconfig.js",
     "check:all": "npm run check:editorconfig && npm run check:prettier && npm run check:lint && npm run check:types && npm run test:coverage && npm run build && npm run check:dist",
     "check:lint": "eslint src test --ext .ts",
     "fix:lint": "eslint src test --ext .ts --fix",
@@ -86,6 +86,6 @@
   },
   "gitHead": "ec24f58d7c943a184f815076751029df7294f689",
   "dependencies": {
-    "@archi-code/validation": "0.0.1"
+    "@archi-code/validation": "0.0.0-development"
   }
 }

@@ -15,6 +15,9 @@ npm run fix             # Auto-fix lint and formatting
 npm run clean           # Remove all node_modules
 npm run check:packages  # Full gate (check:all) in every package
 npm run check:<name>    # Full gate in one package: validator, domain, criteria, crypto-tools, ephemeradb, test
+npm run check:versions  # Every package version and internal dep is 0.0.0-development
+npm run version         # Dry-run of the release: current and next version of each package, writes release-plan.json
+npm run release         # Deploy (CI): publish the planned packages, tags and GitHub releases
 ```
 
 Every package's `check:all` runs the same gate: editorconfig-checker → prettier (`src`, `test` and the package's own `*.json`/`*.md`) → eslint → tsc (src + test) → jest with coverage → build (CJS + ESM) → dist check. CI (pull requests and release, before publishing) runs `npm run check`; the husky `pre-push` hook runs `npm run check:packages`.
@@ -24,11 +27,32 @@ The root `scripts/` holds only the general tools (packages have no `scripts/` fo
 - `scripts/fix-esm.js` — adds `.js` to relative imports in `dist/esm`, gives files that call `require()` a `createRequire` shim (so optional deps loaded with `require` also work in ESM) and writes `dist/esm/package.json` (`type: module`).
 - `scripts/check-dist.js` — `main`/`module`/`types` exist, CJS and ESM load and expose the same exports.
 - `scripts/check-types.js` — a throwaway TypeScript consumer imports the package by name from an ESM (`.mts`) and a CJS (`.cts`) file under `node16`, `nodenext` and `bundler` resolution. Each `exports` condition must carry its own `types` (`import` → `dist/esm`, `require` → `dist/cjs`).
+- `scripts/editorconfig.js` — runs editorconfig-checker with the shared excludes and the binary version pinned (`EC_VERSION`); the npm wrapper downloads the binary from GitHub, so `latest` would break when upstream renames its assets. Change the version only there.
 - `scripts/check-web.js` — `browser` field points to the ESM build, `dist/esm` has no bare imports nor Node-only globals, and the build loads in a realm without Node APIs.
 
 Checks specific to one package's build live in that package, in `test/dist/dist.check.js` (every package has one; jest ignores it because it is not a `.spec.ts`). They must exercise the real API, not just load it. It may export `smoke(m)` (run on CJS and ESM), `crossBuild(cjs, esm)` (check-dist) and `web(webModule, nodeModule)` (check-web); each returns `[name, check]` pairs where `check()` returns (or resolves to) `true` or an error message. `scripts/lib/package-checks.js` loads and runs them.
 
 - Root `npm run check:scripts` / `fix:scripts` run Prettier over `scripts/`, the root `*.md` and `.claude/**/*.md`.
+
+### Versions and release
+
+In the repo every package `version` and every internal `@archi-code/*` dependency is `0.0.0-development`
+(`npm run check:versions`, part of `npm run check`). Real versions live only in git tags (`<name>-vX.Y.Z`)
+and npm. `scripts/lib/release-plan.js` computes the next release from them; `npm run version` (dry-run)
+and `npm run release` (deploy) use the same plan:
+
+- Branch `main` → `X.Y.Z-alpha.N` (dist-tag `main`); `release` → stable (dist-tag `latest`); the first
+  stable promotes the open alpha (`1.0.0-alpha.4` → `1.0.0`). Other branches do not publish.
+- Commits since the last tag touching `packages/<dir>`: breaking → major, `feat` → minor, `fix`/`perf` →
+  patch, `chore|docs|test|style|ci|build|refactor|revert` → none, non conventional → patch with a warning.
+- Cascade: if an internal runtime/peer dependency is released, its dependents release at least a patch,
+  pinned to the exact versions.
+- `scripts/release.js` aborts before publishing anything unless: clean tree, HEAD equals the remote
+  branch, `check:versions` passes, npm and gh are authenticated, no target tag or npm version exists and
+  every pinned dependency is on npm. Per package, in dependency order: writes the exact versions into
+  `package.json`, builds, packs, verifies the packed `package.json`, restores the file, publishes that
+  tarball, waits for npm, pushes the annotated tag and creates the GitHub release. It never commits.
+- `npm run release -- --pack` runs the same steps up to the verified tarball without publishing.
 
 ### Single package
 
@@ -59,18 +83,18 @@ Every package follows `.claude/rules/packages.md` (layout, `package.json`, tscon
 
 ## Architecture
 
-npm workspaces monorepo publishing independent npm packages implementing DDD patterns (released with semantic-release, `scripts/build-all.js` builds them in dependency order). All packages compile to both CJS and ESM targeting ES2020.
+npm workspaces monorepo publishing independent npm packages implementing DDD patterns (released with `scripts/release.js`, see Versions and release; `scripts/build-all.js` builds them in dependency order). All packages compile to both CJS and ESM targeting ES2020.
 
 ### Packages and npm names
 
-| Directory      | npm name                   | Version       | Purpose                                                                                            |
-| -------------- | -------------------------- | ------------- | -------------------------------------------------------------------------------------------------- |
-| `validation`   | `@archi-code/validation`   | 0.0.1         | Validators (TypeScript port of validator.js), `canBe*`/`to*` conversions, `@Validations` decorator |
-| `domain`       | `@archi-code/domain`       | 1.0.0-alpha.3 | DDD framework — aggregates, value objects, exceptions, domain events                               |
-| `criteria`     | `@archi-code/criteria`     | 1.0.0-alpha.1 | Search/filter/order/paginate query builders + MongoDB converter                                    |
-| `crypto-tools` | `@archi-code/crypto-tools` | 1.0.0-alpha.1 | Encryption, password hashing, JWT signing                                                          |
-| `ephemeraDB`   | `@archi-code/ephemeradb`   | 1.0.0-alpha.3 | Async in-memory key-value store                                                                    |
-| `test`         | `@archi-code/test`         | 1.0.0-alpha.3 | Test helpers: `DtoObjectMother`, `JsonCompare`, type assertions (`Expect`, `Equal`, `IsAny`…)      |
+| Directory      | npm name                   | Purpose                                                                                            |
+| -------------- | -------------------------- | -------------------------------------------------------------------------------------------------- |
+| `validation`   | `@archi-code/validation`   | Validators (TypeScript port of validator.js), `canBe*`/`to*` conversions, `@Validations` decorator |
+| `domain`       | `@archi-code/domain`       | DDD framework — aggregates, value objects, exceptions, domain events                               |
+| `criteria`     | `@archi-code/criteria`     | Search/filter/order/paginate query builders + MongoDB converter                                    |
+| `crypto-tools` | `@archi-code/crypto-tools` | Encryption, password hashing, JWT signing                                                          |
+| `ephemeraDB`   | `@archi-code/ephemeradb`   | Async in-memory key-value store                                                                    |
+| `test`         | `@archi-code/test`         | Test helpers: `DtoObjectMother`, `JsonCompare`, type assertions (`Expect`, `Equal`, `IsAny`…)      |
 
 ### Dependency graph
 
@@ -121,11 +145,6 @@ tsconfig.json  (extends ../../tsconfig.base.json, includes src/ and test/)
 
 ## Known issues
 
-### 1. Version inconsistency
-
-Package versions are not synchronized: `validation` is at `0.0.1`; `criteria` and `crypto-tools` at `1.0.0-alpha.1`; `domain`, `ephemeraDB` and `test` at `1.0.0-alpha.3`.
-`domain` and `test` pin `@archi-code/validation` to exactly `0.0.1`.
-
-### 2. ESLint does not lint `scripts/*.js`
+### 1. ESLint does not lint `scripts/*.js`
 
 `eslint.config.js` ignores every `**/*.js`, so the shared `scripts/` are only covered by Prettier (`check:scripts`) and editorconfig.

@@ -1,46 +1,53 @@
 name: Release
 
+# Runs on every push: the plan only releases packages with commits since their last tag (and
+# their dependents); when nothing changed it ends with "Nada que publicar".
 on:
   push:
     branches: [main, release]
-    paths:
-      - 'packages/**'
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
   release:
-    name: Release packages in dependency order
+    name: Release changed packages and their dependents
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      issues: write
-      pull-requests: write
 
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Configure git
+      - name: Configure git for release tags
         run: |
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
-          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
 
       # Never publish what CI would reject: a direct push to main/release skips the PR checks.
       - name: Root checks and full gate of every package
-        run: npm run build && npm run check
-
-      - name: Release all packages
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          HUSKY: 0
-        run: node scripts/release-all.js
+        run: npm run build && npm run check
+
+      - name: Release plan
+        run: npm run version
+
+      # Publishes only the packages in the plan, in dependency order: exact versions are written
+      # into the packed package.json only, then npm publish, tag <name>-vX.Y.Z and a GitHub release.
+      - name: Publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run release
