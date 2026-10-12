@@ -49,6 +49,10 @@ Each package's `package.json` entry points:
 - `types`: `./dist/esm/index.d.ts`
 - `exports`: dual CJS/ESM support via `import`/`require` conditions
 
+## Package standard
+
+Every package follows `.claude/rules/packages.md` (layout, `package.json`, tsconfig, Jest, tests, build checks, allowed extensions and a checklist). Create new packages with `node scripts/new-package.js <folder> "<description>"` or the `/new-package` skill; the result passes `check:all` from the start.
+
 ## Architecture
 
 npm workspaces monorepo publishing independent npm packages implementing DDD patterns (released with semantic-release, `scripts/build-all.js` builds them in dependency order). All packages compile to both CJS and ESM targeting ES2020.
@@ -107,7 +111,7 @@ tsconfig.json  (extends ../../tsconfig.base.json, includes src/ and test/)
 
 ### Testing
 
-- Jest + ts-jest. Coverage thresholds per package: 100% in `domain`, `validation` and `ephemeraDB`; the others are pinned to their current coverage so it can only go up.
+- Jest + ts-jest. Coverage thresholds per package: 100% in `domain`, `validation`, `ephemeraDB` and new packages; the others are pinned to their current coverage so it can only go up. Each package's `test/index.spec.ts` pins its public API.
 - Use `ObjectMother` from `@archi-code/test` to build test fixtures.
 - Use `EphemeraDb` for in-memory repository stubs in tests.
 
