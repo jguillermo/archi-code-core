@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-extraneous-class -- the decorated classes are empty on purpose */
 import { describe, it, expect, jest } from '@jest/globals';
 import { Validations, ownValidations, keyOf } from '../../src/decorator/validations';
 import { ValidationConfigError } from '../../src/helpers/errors';

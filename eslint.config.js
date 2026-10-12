@@ -103,13 +103,26 @@ module.exports = tseslint.config(
 
   // Test files — relaxed rules (no need for explicit types in tests)
   {
-    files: ['packages/*/src/**/*.spec.ts', 'packages/*/src/**/*.test.ts', 'packages/*/test/**/*.ts'],
+    files: [
+      'packages/*/src/**/*.spec.ts',
+      'packages/*/src/**/*.test.ts',
+      'packages/*/test/**/*.ts',
+    ],
     rules: {
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/explicit-module-boundary-types': 'off',
       '@typescript-eslint/no-empty-function': 'off',
       '@typescript-eslint/no-useless-constructor': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-extraneous-class': 'off',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+          destructuredArrayIgnorePattern: '^_',
+        },
+      ],
       'no-console': 'off',
     },
   },

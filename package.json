@@ -23,6 +23,11 @@
     "benchmark": "npm run benchmark -w packages/validation",
     "check:validator": "npm run check:all -w @archi-code/validation",
     "check:domain": "npm run check:all -w @archi-code/domain",
+    "check:criteria": "npm run check:all -w @archi-code/criteria",
+    "check:crypto-tools": "npm run check:all -w @archi-code/crypto-tools",
+    "check:ephemeradb": "npm run check:all -w @archi-code/ephemeradb",
+    "check:test": "npm run check:all -w @archi-code/test",
+    "check:packages": "npm run check:all -ws",
     "pr:ready": "npm run fix && npm run check && npm run test:coverage && git diff --exit-code"
   },
   "devDependencies": {

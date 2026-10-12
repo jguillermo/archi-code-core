@@ -1,4 +1,3 @@
-import 'reflect-metadata';
 import { Bench } from 'tinybench';
 import { samples } from './samples';
 import { formatTable, writeMarkdown, compareNs, DEFAULT_TOLERANCE, type Row } from './report';

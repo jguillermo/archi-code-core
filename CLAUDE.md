@@ -4,23 +4,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
-### Root (all packages via Lerna)
+### Root (all packages via npm workspaces)
 ```bash
-npm run build        # Build all packages (CJS + ESM)
-npm run test         # Run all tests
-npm run coverage     # Run tests with coverage
-npm run lint         # Lint all packages
-npm run lint:fix     # Auto-fix lint issues
-npm run format       # Check formatting
-npm run format:fix   # Auto-fix formatting
-npm run clean        # Remove all node_modules
+npm run build           # Build all packages (CJS + ESM) in dependency order
+npm run test            # Run all tests
+npm run test:coverage   # Run tests with coverage
+npm run check           # Prettier + ESLint in every package, editorconfig over the repo
+npm run check:lint      # ESLint in every package
+npm run check:format    # Prettier in every package
+npm run fix             # Auto-fix lint and formatting
+npm run clean           # Remove all node_modules
+npm run check:packages  # Full gate (check:all) in every package
+npm run check:<name>    # Full gate in one package: validator, domain, criteria, crypto-tools, ephemeradb, test
 ```
+
+Every package's `check:all` runs the same gate: editorconfig-checker → prettier (`src`, `test`, `scripts` and the package's own `*.json`/`*.md`) → eslint → tsc (src + test) → jest with coverage → build (CJS + ESM, `scripts/fix-esm.js`) → `scripts/check-dist.js`. CI and the husky `pre-push` hook run `npm run check:packages`.
 
 ### Single package
 ```bash
 cd packages/<name> && npm run test                # Tests for one package
 cd packages/<name> && npm run build               # Build one package
-cd packages/<name> && npx jest src/path.spec.ts   # Run a single test file
+cd packages/<name> && npx jest test/path.spec.ts  # Run a single test file
 ```
 
 ### Build output structure (each package)
@@ -38,30 +42,30 @@ Each package's `package.json` entry points:
 
 ## Architecture
 
-Lerna monorepo publishing independent npm packages implementing DDD patterns. All packages compile to both CJS and ESM targeting ES2020.
+npm workspaces monorepo publishing independent npm packages implementing DDD patterns (released with semantic-release, `scripts/build-all.js` builds them in dependency order). All packages compile to both CJS and ESM targeting ES2020.
 
 ### Packages and npm names
 
 | Directory | npm name | Version | Purpose |
 |---|---|---|---|
-| `common` | `@archi-code/common` | 0.0.7 | Shared utilities (`universalToString`) |
-| `domain` | `@archi-code/domain` | 0.0.7 | DDD framework — aggregates, value objects, validators, exceptions |
-| `criteria` | `@archi-code/criteria` | 0.0.1 | Search/filter/order/paginate query builders + MongoDB converter |
-| `crypto-tools` | `@archi-code/cypto-tools` | 0.0.1 | Encryption, password hashing, JWT signing ⚠️ see known issues |
-| `ephemeraDB` | `@archi-code/ephemeradb` | 0.0.1 | Async in-memory key-value store |
-| `test` | `@archi-code/test` | 0.0.7 | Test helpers: ObjectMother, JsonCompare, TypeExpectEqual |
+| `validation` | `@archi-code/validation` | 0.0.1 | Validators (TypeScript port of validator.js), `canBe*`/`to*` conversions, `@Validations` decorator |
+| `domain` | `@archi-code/domain` | 1.0.0-alpha.3 | DDD framework — aggregates, value objects, exceptions, domain events |
+| `criteria` | `@archi-code/criteria` | 1.0.0-alpha.1 | Search/filter/order/paginate query builders + MongoDB converter |
+| `crypto-tools` | `@archi-code/crypto-tools` | 1.0.0-alpha.1 | Encryption, password hashing, JWT signing |
+| `ephemeraDB` | `@archi-code/ephemeradb` | 1.0.0-alpha.3 | Async in-memory key-value store |
+| `test` | `@archi-code/test` | 1.0.0-alpha.3 | Test helpers: ObjectMother, JsonCompare, TypeExpectEqual |
 
 ### Dependency graph
 
 ```
-@archi-code/common  (zero dependencies — true foundation)
+@archi-code/validation  (zero runtime dependencies — foundation)
     ↑
     ├── @archi-code/domain   (runtime: @archi-code/validation, uuid)
-    └── @archi-code/test
+    └── @archi-code/test     (runtime: @archi-code/validation)
 
-@archi-code/criteria    (standalone — no runtime deps)
-@archi-code/ephemeradb  (standalone — no runtime deps)
-@archi-code/cypto-tools (peer deps: bcrypt, jsonwebtoken, libsodium-wrappers-sumo)
+@archi-code/criteria     (standalone — no runtime deps)
+@archi-code/ephemeradb   (standalone — no runtime deps)
+@archi-code/crypto-tools (optional peer deps, loaded on demand: bcrypt, jsonwebtoken, libsodium-wrappers-sumo)
 ```
 
 ### domain package internals
@@ -73,43 +77,36 @@ The core DDD package. Key concepts:
 - **Value objects** — `StringType`, `NumberType`, `BooleanType`, `DateType`, `UuidType`, `EnumType`, `JsonType`, `ArrayType` (`type/<name>-type.ts`). Optional by default (`T | null`); `Required(XType)` makes the constructor ask for `T` and throws `RequiredValueException` when empty. Conversions come from `@archi-code/validation`; validations are declared with its `@Validations`. Values are immutable (`type/immutable/`). `CreatedAt`, `UpdatedAt` and `IdType` are required types.
 - **Exceptions** — `AbstractException` → `DomainException` / `ApplicationException` / `InfrastructureException`. Specifics: `ValidationException`, `AggregateNotFoundException`, `TypePrimitiveException`, `RequiredValueException`.
 - **`EventBase`** (`event/event-base.ts`) — Abstract base for domain events; must implement `eventName()`.
-- **Gate** — `npm run check:domain` (root): prettier → eslint → tsc → jest at 100% coverage → build (CJS + ESM with `scripts/fix-esm.js`) → `scripts/check-dist.js`.
+- **Tests** — `src/` holds only code; every spec lives in `packages/domain/test/`, mirroring the `src/` folder tree (`src/type/string-type.ts` → `test/type/string-type.spec.ts`).
+- **Gate** — `npm run check:domain` (root): the common `check:all` gate with 100% coverage; its `scripts/check-dist.js` also smoke-tests the value objects in both builds.
 
 ### TypeScript config hierarchy (per package)
 
 ```
-tsconfig.json  (extends ../../tsconfig.base.json)
-└── tsconfig.build.json  (excludes *.spec.ts, tests/)
+tsconfig.json  (extends ../../tsconfig.base.json, includes src/ and test/)
+└── tsconfig.build.json  (rootDir ./src, compiles only src/)
     ├── tsconfig.cjs.json  → outDir: ./dist/cjs, module: CommonJS
     └── tsconfig.esm.json  → outDir: ./dist/esm, module: ES2020
 ```
 
 ### Code style
 
-- **Prettier**: single quotes, trailing commas, print width 180, 2-space indent, semicolons.
+- **Prettier**: single quotes, trailing commas, print width 100, 2-space indent, semicolons.
 - **ESLint**: TypeScript strict + Prettier enforced. `any` and `Function` types are allowed.
-- Test files: `*.spec.ts` convention.
+- Test files: `*.spec.ts` convention. In `domain`, `test`, `criteria`, `ephemeraDB` and `crypto-tools`, `src/` holds only code and specs live in the package's `test/` folder, mirroring `src/`.
 - **No comments**: code must describe itself through names (variables, functions, classes, tests) and structure. Do not add comments, docblocks or section banners. A comment is the exception, only when it is truly necessary to explain a non-obvious *why* that the code cannot express.
 
 ### Testing
 
-- Jest + ts-jest. Coverage thresholds per package (20–60% minimum).
+- Jest + ts-jest. Coverage thresholds per package: 100% in `domain`, `validation` and `ephemeraDB`; the others are pinned to their current coverage so it can only go up.
 - Use `ObjectMother` from `@archi-code/test` to build test fixtures.
 - Use `EphemeraDb` for in-memory repository stubs in tests.
 
 ## Known issues
 
-### 1. Package name typo — crypto-tools
-`packages/crypto-tools/package.json` has `"name": "@archi-code/cypto-tools"` (missing `r`).
-Should be `@archi-code/crypto-tools`. Any external project installing this package must use the typo'd name until fixed.
+### 1. Version inconsistency
+Package versions are not synchronized: `validation` is at `0.0.1`; `criteria` and `crypto-tools` at `1.0.0-alpha.1`; `domain`, `ephemeraDB` and `test` at `1.0.0-alpha.3`.
+`domain` and `test` pin `@archi-code/validation` to exactly `0.0.1`.
 
-### 2. Version inconsistency
-`criteria`, `crypto-tools`, `ephemeraDB` are at `0.0.1`; `common`, `domain`, `test` are at `0.0.7`.
-Lerna versioning is not synchronized across all packages.
-
-### 3. Node engine mismatch
-`domain` requires `"node": ">=22"`, all other packages require `"node": ">=16"`.
-
-### 4. Unused declared dependencies
-- `criteria/package.json` declares `@archi-code/common` but never imports it.
-- `ephemeraDB/package.json` declares `@archi-code/common` but never imports it.
+### 2. ESLint does not lint `scripts/*.js`
+`eslint.config.js` ignores every `**/*.js`, so the build/check scripts in each package are only covered by Prettier and editorconfig.

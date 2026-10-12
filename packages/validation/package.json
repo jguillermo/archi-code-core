@@ -48,12 +48,13 @@
     "test:coverage": "jest --coverage",
     "check:types": "tsc -p tsconfig.json --noEmit --incremental false && tsc -p benchmark/tsconfig.json --noEmit --incremental false",
     "check:dist": "node scripts/check-dist.js && node --experimental-vm-modules --no-warnings scripts/check-web.js",
-    "check:all": "npm run check:prettier && npm run check:lint && npm run check:types && npm run test:coverage && npm run build && npm run check:dist",
+    "check:editorconfig": "editorconfig-checker --exclude node_modules --exclude dist --exclude '.git'",
+    "check:all": "npm run check:editorconfig && npm run check:prettier && npm run check:lint && npm run check:types && npm run test:coverage && npm run build && npm run check:dist",
     "benchmark": "ts-node --project benchmark/tsconfig.json benchmark/run.ts",
     "check:lint": "eslint src test benchmark --ext .ts",
-    "check:prettier": "prettier --check \"{src,test,scripts}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\" \"benchmark/**/*.ts\" benchmark/tsconfig.json",
+    "check:prettier": "prettier --check \"{src,test,scripts}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\" \"benchmark/**/*.ts\" benchmark/tsconfig.json \"docs/**/*.md\" benchmark/README.md \"*.{json,md}\"",
     "fix:lint": "eslint src test benchmark --ext .ts --fix",
-    "fix:prettier": "prettier --write \"{src,test,scripts}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\" \"benchmark/**/*.ts\" benchmark/tsconfig.json"
+    "fix:prettier": "prettier --write \"{src,test,scripts}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\" \"benchmark/**/*.ts\" benchmark/tsconfig.json \"docs/**/*.md\" benchmark/README.md \"*.{json,md}\""
   },
   "jest": {
     "moduleFileExtensions": [
@@ -62,10 +63,17 @@
       "ts"
     ],
     "rootDir": ".",
-    "roots": ["<rootDir>/test"],
+    "roots": [
+      "<rootDir>/test"
+    ],
     "testRegex": "\\.spec\\.ts$",
     "transform": {
-      "^.+\\.ts$": ["ts-jest", { "tsconfig": "tsconfig.spec.json" }]
+      "^.+\\.ts$": [
+        "ts-jest",
+        {
+          "tsconfig": "tsconfig.spec.json"
+        }
+      ]
     },
     "collectCoverageFrom": [
       "src/**/*.(t|j)s"

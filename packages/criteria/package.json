@@ -33,14 +33,18 @@
   "scripts": {
     "prebuild": "rm -rf dist || true",
     "build:cjs": "tsc -p tsconfig.cjs.json",
-    "build:esm": "tsc -p tsconfig.esm.json",
+    "build:esm": "tsc -p tsconfig.esm.json && node scripts/fix-esm.js",
     "build": "npm run build:cjs && npm run build:esm",
     "test": "jest",
     "test:coverage": "jest --coverage",
-    "check:lint": "eslint src --ext .ts",
-    "fix:lint": "eslint src --ext .ts --fix",
-    "check:prettier": "prettier --check \"{src,test}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\"",
-    "fix:prettier": "prettier --write \"{src,test}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\""
+    "check:types": "tsc -p tsconfig.json --noEmit --incremental false",
+    "check:dist": "node scripts/check-dist.js",
+    "check:editorconfig": "editorconfig-checker --exclude node_modules --exclude dist --exclude '.git'",
+    "check:all": "npm run check:editorconfig && npm run check:prettier && npm run check:lint && npm run check:types && npm run test:coverage && npm run build && npm run check:dist",
+    "check:lint": "eslint src test --ext .ts",
+    "fix:lint": "eslint src test --ext .ts --fix",
+    "check:prettier": "prettier --check \"{src,test,scripts}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\" \"*.{json,md}\"",
+    "fix:prettier": "prettier --write \"{src,test,scripts}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\" \"*.{json,md}\""
   },
   "jest": {
     "moduleFileExtensions": [
@@ -48,24 +52,27 @@
       "json",
       "ts"
     ],
-    "rootDir": "src",
+    "rootDir": ".",
+    "roots": [
+      "<rootDir>/test"
+    ],
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.ts$": "ts-jest"
     },
     "collectCoverageFrom": [
-      "**/*.(t|j)s"
+      "src/**/*.(t|j)s"
     ],
-    "coverageDirectory": "./../coverage",
+    "coverageDirectory": "./coverage",
     "testEnvironment": "node",
     "collectCoverage": false,
     "injectGlobals": false,
     "coverageThreshold": {
       "global": {
-        "branches": 20,
-        "functions": 20,
-        "lines": 20,
-        "statements": 20
+        "statements": 95,
+        "branches": 90,
+        "functions": 100,
+        "lines": 95
       }
     }
   },

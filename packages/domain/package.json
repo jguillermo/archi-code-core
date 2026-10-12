@@ -41,11 +41,12 @@
     "test:coverage": "jest --coverage",
     "check:types": "tsc -p tsconfig.json --noEmit --incremental false",
     "check:dist": "node scripts/check-dist.js",
-    "check:all": "npm run check:prettier && npm run check:lint && npm run check:types && npm run test:coverage && npm run build && npm run check:dist",
-    "check:lint": "eslint src --ext .ts",
-    "fix:lint": "eslint src --ext .ts --fix",
-    "check:prettier": "prettier --check \"{src,test,scripts}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\"",
-    "fix:prettier": "prettier --write \"{src,test,scripts}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\""
+    "check:editorconfig": "editorconfig-checker --exclude node_modules --exclude dist --exclude '.git'",
+    "check:all": "npm run check:editorconfig && npm run check:prettier && npm run check:lint && npm run check:types && npm run test:coverage && npm run build && npm run check:dist",
+    "check:lint": "eslint src test --ext .ts",
+    "fix:lint": "eslint src test --ext .ts --fix",
+    "check:prettier": "prettier --check \"{src,test,scripts}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\" \"*.{json,md}\"",
+    "fix:prettier": "prettier --write \"{src,test,scripts}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\" \"*.{json,md}\""
   },
   "jest": {
     "moduleFileExtensions": [
@@ -53,15 +54,18 @@
       "json",
       "ts"
     ],
-    "rootDir": "src",
+    "rootDir": ".",
+    "roots": [
+      "<rootDir>/test"
+    ],
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.ts$": "ts-jest"
     },
     "collectCoverageFrom": [
-      "**/*.(t|j)s"
+      "src/**/*.(t|j)s"
     ],
-    "coverageDirectory": "./../coverage",
+    "coverageDirectory": "./coverage",
     "testEnvironment": "node",
     "collectCoverage": false,
     "injectGlobals": false,

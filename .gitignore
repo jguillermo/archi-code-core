@@ -56,7 +56,7 @@ pids
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 lerna-debug.log
-tsconfig.build.tsbuildinfo
+*.tsbuildinfo
 
 temp_combined.txt
 .content_files

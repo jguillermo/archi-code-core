@@ -6,7 +6,7 @@
     "lib": ["ES2020", "ES2022.Intl"],
     "rootDir": "..",
     "noEmit": true,
-    "types": ["node", "reflect-metadata"]
+    "types": ["node"]
   },
   "ts-node": {
     "transpileOnly": true

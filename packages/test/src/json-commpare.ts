@@ -99,9 +99,7 @@ export class JsonCompare {
       const isEquals = CompareValue.getInstance().compare(data, reference);
       if (!isEquals) {
         path = path === '' ? path : `${path}: `;
-        this._differences.push(
-          `${path}${anyToString(data)} -> ${anyToString(reference)}`,
-        );
+        this._differences.push(`${path}${anyToString(data)} -> ${anyToString(reference)}`);
       }
     }
   }
