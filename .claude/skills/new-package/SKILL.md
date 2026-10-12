@@ -17,6 +17,7 @@ Creates a package that follows `.claude/rules/packages.md`. Read that rule first
 
    It refuses an existing folder or an invalid name, writes the package, adds `check:<folder>` to
    the root `package.json` and formats everything with Prettier.
+
 3. Run `npm install` at the root so the workspace is linked (`check-types` imports the package by
    name). This updates `package-lock.json`.
 4. Run `npm run check:<folder>`; it must pass before any real code is written.

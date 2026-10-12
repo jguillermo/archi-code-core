@@ -5,6 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ### Root (all packages via npm workspaces)
+
 ```bash
 npm run build           # Build all packages (CJS + ESM) in dependency order
 npm run test            # Run all tests
@@ -16,18 +17,21 @@ npm run check:packages  # Full gate (check:all) in every package
 npm run check:<name>    # Full gate in one package: validator, domain, criteria, crypto-tools, ephemeradb, test
 ```
 
-Every package's `check:all` runs the same gate: editorconfig-checker → prettier (`src`, `test` and the package's own `*.json`/`*.md`) → eslint → tsc (src + test) → jest with coverage → build (CJS + ESM) → dist check. CI and the husky `pre-push` hook run `npm run check:packages`.
+Every package's `check:all` runs the same gate: editorconfig-checker → prettier (`src`, `test` and the package's own `*.json`/`*.md`) → eslint → tsc (src + test) → jest with coverage → build (CJS + ESM) → dist check. CI (pull requests and release, before publishing) runs `npm run check`; the husky `pre-push` hook runs `npm run check:packages`.
 
 The root `scripts/` holds only the general tools (packages have no `scripts/` folder); each package calls them as `node ../../scripts/<name>.js` and they act on the current package directory:
+
 - `scripts/fix-esm.js` — adds `.js` to relative imports in `dist/esm`, gives files that call `require()` a `createRequire` shim (so optional deps loaded with `require` also work in ESM) and writes `dist/esm/package.json` (`type: module`).
 - `scripts/check-dist.js` — `main`/`module`/`types` exist, CJS and ESM load and expose the same exports.
 - `scripts/check-types.js` — a throwaway TypeScript consumer imports the package by name from an ESM (`.mts`) and a CJS (`.cts`) file under `node16`, `nodenext` and `bundler` resolution. Each `exports` condition must carry its own `types` (`import` → `dist/esm`, `require` → `dist/cjs`).
 - `scripts/check-web.js` — `browser` field points to the ESM build, `dist/esm` has no bare imports nor Node-only globals, and the build loads in a realm without Node APIs.
 
 Checks specific to one package's build live in that package, in `test/dist/dist.check.js` (every package has one; jest ignores it because it is not a `.spec.ts`). They must exercise the real API, not just load it. It may export `smoke(m)` (run on CJS and ESM), `crossBuild(cjs, esm)` (check-dist) and `web(webModule, nodeModule)` (check-web); each returns `[name, check]` pairs where `check()` returns (or resolves to) `true` or an error message. `scripts/lib/package-checks.js` loads and runs them.
-- Root `npm run check:scripts` / `fix:scripts` run Prettier over `scripts/`.
+
+- Root `npm run check:scripts` / `fix:scripts` run Prettier over `scripts/`, the root `*.md` and `.claude/**/*.md`.
 
 ### Single package
+
 ```bash
 cd packages/<name> && npm run test                # Tests for one package
 cd packages/<name> && npm run build               # Build one package
@@ -35,6 +39,7 @@ cd packages/<name> && npx jest test/path.spec.ts  # Run a single test file
 ```
 
 ### Build output structure (each package)
+
 ```
 dist/
 ├── cjs/    # CommonJS (require) with its .d.ts declarations
@@ -42,6 +47,7 @@ dist/
 ```
 
 Each package's `package.json` entry points:
+
 - `main`: `./dist/cjs/index.js`
 - `module`: `./dist/esm/index.js`
 - `types`: `./dist/cjs/index.d.ts`
@@ -57,14 +63,14 @@ npm workspaces monorepo publishing independent npm packages implementing DDD pat
 
 ### Packages and npm names
 
-| Directory | npm name | Version | Purpose |
-|---|---|---|---|
-| `validation` | `@archi-code/validation` | 0.0.1 | Validators (TypeScript port of validator.js), `canBe*`/`to*` conversions, `@Validations` decorator |
-| `domain` | `@archi-code/domain` | 1.0.0-alpha.3 | DDD framework — aggregates, value objects, exceptions, domain events |
-| `criteria` | `@archi-code/criteria` | 1.0.0-alpha.1 | Search/filter/order/paginate query builders + MongoDB converter |
-| `crypto-tools` | `@archi-code/crypto-tools` | 1.0.0-alpha.1 | Encryption, password hashing, JWT signing |
-| `ephemeraDB` | `@archi-code/ephemeradb` | 1.0.0-alpha.3 | Async in-memory key-value store |
-| `test` | `@archi-code/test` | 1.0.0-alpha.3 | Test helpers: ObjectMother, JsonCompare, TypeExpectEqual |
+| Directory      | npm name                   | Version       | Purpose                                                                                            |
+| -------------- | -------------------------- | ------------- | -------------------------------------------------------------------------------------------------- |
+| `validation`   | `@archi-code/validation`   | 0.0.1         | Validators (TypeScript port of validator.js), `canBe*`/`to*` conversions, `@Validations` decorator |
+| `domain`       | `@archi-code/domain`       | 1.0.0-alpha.3 | DDD framework — aggregates, value objects, exceptions, domain events                               |
+| `criteria`     | `@archi-code/criteria`     | 1.0.0-alpha.1 | Search/filter/order/paginate query builders + MongoDB converter                                    |
+| `crypto-tools` | `@archi-code/crypto-tools` | 1.0.0-alpha.1 | Encryption, password hashing, JWT signing                                                          |
+| `ephemeraDB`   | `@archi-code/ephemeradb`   | 1.0.0-alpha.3 | Async in-memory key-value store                                                                    |
+| `test`         | `@archi-code/test`         | 1.0.0-alpha.3 | Test helpers: `DtoObjectMother`, `JsonCompare`, type assertions (`Expect`, `Equal`, `IsAny`…)      |
 
 ### Dependency graph
 
@@ -104,20 +110,21 @@ tsconfig.json  (extends ../../tsconfig.base.json, includes src/ and test/)
 
 - **Prettier**: single quotes, trailing commas, print width 100, 2-space indent, semicolons.
 - **ESLint**: TypeScript strict + Prettier enforced. `any` and `Function` types are allowed.
-- Test files: `*.spec.ts` convention. In `domain`, `test`, `criteria`, `ephemeraDB` and `crypto-tools`, `src/` holds only code and specs live in the package's `test/` folder, mirroring `src/`.
-- **No comments**: code must describe itself through names (variables, functions, classes, tests) and structure. Do not add comments, docblocks or section banners. A comment is the exception, only when it is truly necessary to explain a non-obvious *why* that the code cannot express.
+- Test files: `*.spec.ts` convention. In every package `src/` holds only code and specs live in the package's `test/` folder, mirroring `src/`.
+- **No comments**: code must describe itself through names (variables, functions, classes, tests) and structure. Do not add comments, docblocks or section banners. A comment is the exception, only when it is truly necessary to explain a non-obvious _why_ that the code cannot express.
 
 ### Testing
 
 - Jest + ts-jest. Coverage threshold: 100% (statements, branches, functions, lines) in every package. Each package's `test/index.spec.ts` pins its public API.
-- Use `ObjectMother` from `@archi-code/test` to build test fixtures.
-- Use `EphemeraDb` for in-memory repository stubs in tests.
+- Specs import from `../src/...` and `@jest/globals`; no package depends on another for its tests. `@archi-code/test` (`DtoObjectMother`, `JsonCompare`) and `EphemeraDb` are helpers for the projects that consume these packages.
 
 ## Known issues
 
 ### 1. Version inconsistency
+
 Package versions are not synchronized: `validation` is at `0.0.1`; `criteria` and `crypto-tools` at `1.0.0-alpha.1`; `domain`, `ephemeraDB` and `test` at `1.0.0-alpha.3`.
 `domain` and `test` pin `@archi-code/validation` to exactly `0.0.1`.
 
 ### 2. ESLint does not lint `scripts/*.js`
+
 `eslint.config.js` ignores every `**/*.js`, so the shared `scripts/` are only covered by Prettier (`check:scripts`) and editorconfig.

@@ -1,7 +1,7 @@
 ---
 paths:
-  - "packages/**"
-  - "scripts/**"
+  - 'packages/**'
+  - 'scripts/**'
 ---
 
 # Package standard
@@ -61,8 +61,9 @@ packages/<folder>/
 - `jest`: `rootDir` `.`, `roots` `["<rootDir>/src", "<rootDir>/test"]` (both: with only `test`,
   files no test imports escape coverage), `testRegex` `.*\.spec\.ts$`, `collectCoverageFrom`
   `["src/**/*.(t|j)s"]`, `coverageDirectory` `./coverage`, `injectGlobals` `false`.
-- Coverage threshold: 100% (statements, branches, functions, lines) in every package. Code no
-  behaviour can reach is removed, not excluded from coverage.
+- Coverage threshold: 100% (statements, branches, functions, lines) in every package. Never delete
+  code to reach it: cover it with a test, or mark a defensive branch no test can reach with
+  `// istanbul ignore`.
 - Runtime deps in `dependencies`; optional heavy libraries as optional `peerDependencies`.
 
 ## TypeScript

@@ -23,10 +23,8 @@ jobs:
       - name: Build packages in dependency order
         run: npm run build
 
-      - name: Root checks (prettier, eslint, shared scripts, editorconfig)
+      # Shared scripts (prettier + node --test), editorconfig over the repo, then the same gate in
+      # every package (check:packages): editorconfig, prettier, eslint, tsc on src/test, jest with
+      # its coverage threshold, CJS+ESM build and dist checks.
+      - name: Root checks and full gate of every package
         run: npm run check
-
-      # Every package runs the same gate: editorconfig, prettier, eslint, tsc on src/test,
-      # jest with its coverage threshold, CJS+ESM build and dist checks.
-      - name: All packages — full gate (check:all)
-        run: npm run check:packages

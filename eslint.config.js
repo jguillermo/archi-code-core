@@ -7,7 +7,7 @@ const js = require('@eslint/js');
 
 module.exports = tseslint.config(
   // Ignore build artifacts and dependencies
-  { ignores: ['**/dist/**', '**/node_modules/**', '**/*.js', 'packages/validation/src/wasm/**'] },
+  { ignores: ['**/dist/**', '**/node_modules/**', '**/*.js'] },
 
   // Base ESLint recommended rules
   js.configs.recommended,
@@ -18,6 +18,18 @@ module.exports = tseslint.config(
   // TypeScript stylistic preset
   tseslint.configs.stylistic,
 
+  // Prettier formatting for every package source and test file
+  {
+    files: ['packages/*/src/**/*.ts', 'packages/*/test/**/*.ts'],
+    plugins: {
+      prettier: prettierPlugin,
+    },
+    rules: {
+      ...prettierConfig.rules,
+      'prettier/prettier': 'error',
+    },
+  },
+
   // Source files — strict library rules
   {
     files: ['packages/*/src/**/*.ts'],
@@ -27,14 +39,7 @@ module.exports = tseslint.config(
         sourceType: 'module',
       },
     },
-    plugins: {
-      prettier: prettierPlugin,
-    },
     rules: {
-      // Prettier formatting (must be last to override conflicting rules)
-      ...prettierConfig.rules,
-      'prettier/prettier': 'error',
-
       // --- Library flexibility ---
       '@typescript-eslint/no-explicit-any': 'off', // DDD patterns use any intentionally
       '@typescript-eslint/no-unsafe-function-type': 'off', // Function type allowed
@@ -103,11 +108,7 @@ module.exports = tseslint.config(
 
   // Test files — relaxed rules (no need for explicit types in tests)
   {
-    files: [
-      'packages/*/src/**/*.spec.ts',
-      'packages/*/src/**/*.test.ts',
-      'packages/*/test/**/*.ts',
-    ],
+    files: ['packages/*/test/**/*.ts'],
     rules: {
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/explicit-module-boundary-types': 'off',
