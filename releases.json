@@ -14,6 +14,9 @@
     },
     "@archi-code/test": {
       "main": "1.0.0-alpha.1"
+    },
+    "@archi-code/validation": {
+      "main": "3.0.0-alpha.1"
     }
   },
   "deploys": [
@@ -36,6 +39,16 @@
         {
           "name": "@archi-code/crypto-tools",
           "previous": "2.0.0-alpha.1",
+          "version": "3.0.0-alpha.1",
+          "bump": "major",
+          "reasons": [
+            "breaking: releases.json sin deploys, nueva major del conjunto (3.0.0-alpha.1)"
+          ],
+          "dependencies": {}
+        },
+        {
+          "name": "@archi-code/validation",
+          "previous": null,
           "version": "3.0.0-alpha.1",
           "bump": "major",
           "reasons": [
