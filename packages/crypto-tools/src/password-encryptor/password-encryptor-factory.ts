@@ -7,10 +7,8 @@ export class PasswordEncryptorFactory {
     switch (algorithm) {
       case BcryptPasswordEncryptor.name:
         return new BcryptPasswordEncryptor(saltRounds);
-        break;
       case SodiumPasswordEncryptor.name:
         return new SodiumPasswordEncryptor(saltRounds);
-        break;
       default:
         throw new Error(`Unsupported algorithm: ${algorithm}`);
     }

@@ -196,3 +196,69 @@ describe('MongoCriteriaConverter', () => {
     });
   });
 });
+
+describe('MongoCriteriaConverter edge cases', () => {
+  const convertFilter = (filter: SimpleFilterDto) =>
+    new MongoCriteriaConverter().convert(new SearchCriteriaDto(filter)).filter;
+
+  it('converts "ne", "gte", "lt" and "lte" to their Mongo operators', () => {
+    expect(convertFilter(new SimpleFilterDto('a', FilterOperator.NE, 'x'))).toEqual({
+      a: { $ne: 'x' },
+    });
+    expect(convertFilter(new SimpleFilterDto('a', FilterOperator.GTE, 1))).toEqual({
+      a: { $gte: 1 },
+    });
+    expect(convertFilter(new SimpleFilterDto('a', FilterOperator.LT, 1))).toEqual({
+      a: { $lt: 1 },
+    });
+    expect(convertFilter(new SimpleFilterDto('a', FilterOperator.LTE, 1))).toEqual({
+      a: { $lte: 1 },
+    });
+  });
+
+  it('converts "in" and "nin" keeping an array value', () => {
+    expect(convertFilter(new SimpleFilterDto('a', FilterOperator.IN, ['x', 'y']))).toEqual({
+      a: { $in: ['x', 'y'] },
+    });
+    expect(convertFilter(new SimpleFilterDto('a', FilterOperator.NIN, ['x', 'y']))).toEqual({
+      a: { $nin: ['x', 'y'] },
+    });
+  });
+
+  it('wraps a single "in" and "nin" value in an array', () => {
+    expect(convertFilter(new SimpleFilterDto('a', FilterOperator.IN, 'x'))).toEqual({
+      a: { $in: ['x'] },
+    });
+    expect(convertFilter(new SimpleFilterDto('a', FilterOperator.NIN, 'x'))).toEqual({
+      a: { $nin: ['x'] },
+    });
+  });
+
+  it('rejects "between" without exactly two values', () => {
+    expect(() => convertFilter(new SimpleFilterDto('a', FilterOperator.BETWEEN, 5))).toThrow(
+      'BETWEEN operator requires an array of two values for field a',
+    );
+    expect(() =>
+      convertFilter(new SimpleFilterDto('a', FilterOperator.BETWEEN, [1, 2, 3])),
+    ).toThrow('BETWEEN operator requires an array of two values for field a');
+  });
+
+  it('rejects an operator without a Mongo equivalent', () => {
+    expect(() => convertFilter(new SimpleFilterDto('a', FilterOperator.INARRAY, 'x'))).toThrow(
+      'Operator inarray is not supported for Mongo conversion',
+    );
+  });
+
+  it('rejects a filter that is neither simple nor composite', () => {
+    const criteria = new SearchCriteriaDto({} as SimpleFilterDto);
+    expect(() => new MongoCriteriaConverter().convert(criteria)).toThrow('Unsupported filter type');
+  });
+
+  it('sorts by "_id" when ordering by "id"', () => {
+    const criteria = new SearchCriteriaDto(
+      undefined,
+      new SearchOrderDto([{ field: 'id', direction: 'desc' }]),
+    );
+    expect(new MongoCriteriaConverter().convert(criteria).sort).toEqual({ _id: -1 });
+  });
+});

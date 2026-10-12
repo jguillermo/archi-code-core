@@ -83,3 +83,27 @@ describe('PasswordEncryptorFactory', () => {
     });
   });
 });
+
+describe('PasswordEncryptor defaults', () => {
+  class DefaultRoundsEncryptor extends PasswordEncryptor {
+    constructor() {
+      super();
+    }
+
+    rounds(): number {
+      return this._saltRounds;
+    }
+
+    async hashPassword(password: string): Promise<string> {
+      return password;
+    }
+
+    async verifyPassword(password: string, hash: string): Promise<boolean> {
+      return password === hash;
+    }
+  }
+
+  it('uses 10 salt rounds when none are given', () => {
+    expect(new DefaultRoundsEncryptor().rounds()).toBe(10);
+  });
+});

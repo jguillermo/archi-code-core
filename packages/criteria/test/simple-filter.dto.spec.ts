@@ -75,3 +75,11 @@ describe('SimpleFilterDto', () => {
     });
   });
 });
+
+describe('SimpleFilterDto numeric arrays', () => {
+  it('rejects an array with a non-numeric value for a numeric operator', () => {
+    expect(() => new SimpleFilterDto('age', FilterOperator.BETWEEN, [1, 'abc'])).toThrow(
+      'SimpleFilterDto: Value "abc" must be a number',
+    );
+  });
+});

@@ -84,3 +84,31 @@ describe('Hasher', () => {
     });
   });
 });
+
+describe('Hasher defaults', () => {
+  class DefaultSaltHasher extends Hasher {
+    constructor() {
+      super();
+    }
+
+    saltLength(): number {
+      return this.saltToUse.length;
+    }
+
+    async sha256(text: string): Promise<string> {
+      return text;
+    }
+
+    async sha512(text: string): Promise<string> {
+      return text;
+    }
+
+    async blake2b(text: string): Promise<string> {
+      return text;
+    }
+  }
+
+  it('uses a 16-byte salt when no length is given', () => {
+    expect(new DefaultSaltHasher().saltLength()).toBe(16);
+  });
+});

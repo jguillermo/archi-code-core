@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from '@jest/globals';
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { PasswordEncryptor } from '../../../src/password-encryptor/password-encryptor';
 import { PasswordEncryptorFactory } from '../../../src/password-encryptor/password-encryptor-factory';
 import { BcryptPasswordEncryptor } from '../../../src/password-encryptor/client/bcrypt-password-encryptor';
@@ -37,5 +37,28 @@ describe('BcryptPasswordEncryptor', () => {
       const nonBcryptHash = 'sha256$abcdef1234567890';
       expect(BcryptPasswordEncryptor.isValidHash(nonBcryptHash)).toBe(false);
     });
+  });
+});
+
+describe('BcryptPasswordEncryptor without bcrypt', () => {
+  it('uses 10 salt rounds when none are given', async () => {
+    const hash = await new BcryptPasswordEncryptor().hashPassword('secret');
+    expect(hash.startsWith('$2b$10$')).toBe(true);
+  });
+
+  it('refuses to work when bcrypt is not installed', async () => {
+    jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await jest.isolateModulesAsync(async () => {
+      jest.doMock('bcrypt', () => {
+        throw new Error('Cannot find module bcrypt');
+      });
+      const isolated =
+        await import('../../../src/password-encryptor/client/bcrypt-password-encryptor');
+      expect(() => new isolated.BcryptPasswordEncryptor()).toThrow(
+        'bcrypt module is required but not installed.',
+      );
+    });
+    jest.dontMock('bcrypt');
+    jest.restoreAllMocks();
   });
 });

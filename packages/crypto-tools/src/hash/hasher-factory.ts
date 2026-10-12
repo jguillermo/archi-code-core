@@ -6,7 +6,6 @@ export class HasherFactory {
     switch (algorithm) {
       case SodiumHasher.name:
         return new SodiumHasher(saltLength);
-        break;
       default:
         throw new Error(`Unsupported algorithm: ${algorithm}`);
     }

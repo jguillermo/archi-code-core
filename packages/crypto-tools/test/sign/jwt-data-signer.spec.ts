@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from '@jest/globals';
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { JWTDataSigner } from '../../src/sign/jwt-data-signer';
 
 describe('JWTDataSigner', () => {
@@ -55,5 +55,35 @@ describe('JWTDataSigner', () => {
   it('verify Error: invalid token', () => {
     const invalidToken = 'eyJhbGciOiJIUzI1ajjA7PbDW9AkOaEykb0';
     expect(signer.data(invalidToken)).toEqual({});
+  });
+});
+
+describe('JWTDataSigner guards', () => {
+  it('rejects a secret shorter than 16 characters', () => {
+    expect(() => new JWTDataSigner('short')).toThrow(
+      'La clave secreta debe ser una cadena de al menos 16 caracteres.',
+    );
+  });
+
+  it('reports a data error when the token cannot be read', () => {
+    const signer = new JWTDataSigner('supersecretkeysupersecretkey');
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+    expect(() => signer.data(circular as unknown as string)).toThrow(/^data Error: /);
+  });
+
+  it('refuses to work when jsonwebtoken is not installed', async () => {
+    jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await jest.isolateModulesAsync(async () => {
+      jest.doMock('jsonwebtoken', () => {
+        throw new Error('Cannot find module jsonwebtoken');
+      });
+      const isolated = await import('../../src/sign/jwt-data-signer');
+      expect(() => new isolated.JWTDataSigner('supersecretkeysupersecretkey')).toThrow(
+        'jsonwebtoken module is required but not installed.',
+      );
+    });
+    jest.dontMock('jsonwebtoken');
+    jest.restoreAllMocks();
   });
 });

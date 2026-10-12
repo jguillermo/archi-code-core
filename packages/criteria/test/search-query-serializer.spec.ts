@@ -260,3 +260,17 @@ describe('SearchQuerySerializer', () => {
     });
   });
 });
+
+describe('SearchQuerySerializer invalid filters', () => {
+  it('rejects serializing a filter that is neither simple nor composite', () => {
+    const criteria = new SearchCriteriaDto({} as SimpleFilterDto);
+    expect(() => SearchQuerySerializer.serialize(criteria)).toThrow('Unknown filter type');
+  });
+
+  it('rejects a composite filter without a filters array', () => {
+    const json = JSON.stringify({ filters: { type: 'composite', logicalOperator: 'and' } });
+    expect(() => SearchQuerySerializer.deserialize(json)).toThrow(
+      'CompositeFilterDto: "filters" must be a non-empty array',
+    );
+  });
+});

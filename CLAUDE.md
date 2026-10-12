@@ -111,7 +111,7 @@ tsconfig.json  (extends ../../tsconfig.base.json, includes src/ and test/)
 
 ### Testing
 
-- Jest + ts-jest. Coverage thresholds per package: 100% in `domain`, `validation`, `ephemeraDB` and new packages; the others are pinned to their current coverage so it can only go up. Each package's `test/index.spec.ts` pins its public API.
+- Jest + ts-jest. Coverage threshold: 100% (statements, branches, functions, lines) in every package. Each package's `test/index.spec.ts` pins its public API.
 - Use `ObjectMother` from `@archi-code/test` to build test fixtures.
 - Use `EphemeraDb` for in-memory repository stubs in tests.
 

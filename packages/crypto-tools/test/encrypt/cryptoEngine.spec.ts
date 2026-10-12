@@ -140,3 +140,12 @@ describe('CryptoEngine', () => {
     expect(decoded).toBe(message);
   });
 });
+
+describe('CryptoEngine alphabet', () => {
+  it('ignores characters outside its alphabet when decoding', () => {
+    const machine = new CryptoEngine('seed-key');
+    const encoded = machine.encode('hello world');
+    const withForeignCharacter = `${encoded.slice(0, 4)} ${encoded.slice(4)}`;
+    expect(machine.decode(withForeignCharacter)).toBe('hello world');
+  });
+});

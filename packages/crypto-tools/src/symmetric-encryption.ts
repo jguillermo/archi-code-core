@@ -27,7 +27,7 @@ export class SymmetricEncryption {
       'aes-192-cbc': 24,
       'aes-128-cbc': 16,
     };
-    const requiredLength = keyLengths[this.algorithm] ?? 32;
+    const requiredLength = keyLengths[this.algorithm];
 
     if (key.length === requiredLength) {
       return key;

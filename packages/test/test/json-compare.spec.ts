@@ -221,4 +221,10 @@ describe('JsonCompare', () => {
       ],
     );
   });
+
+  describe('constructor', () => {
+    it('compares in include mode when strict is not given', () => {
+      expect(new JsonCompare({ a: 1 }, { a: 1, b: 2 }).differences).toEqual([]);
+    });
+  });
 });

@@ -118,3 +118,21 @@ describe('SymmetricEncryption', () => {
     expect(decrypted).toBe(largeText);
   });
 });
+
+describe('SymmetricEncryption key sizes', () => {
+  it('uses a key that already has the required length as is', () => {
+    const exact = new SymmetricEncryption('aes-128-cbc', '0123456789abcdef');
+    expect(exact.decrypt(exact.encrypt('text'))).toBe('text');
+  });
+
+  it('repeats a short key until it reaches the required length', () => {
+    const short = new SymmetricEncryption('aes-256-cbc', '0123456789abcdef');
+    const repeated = new SymmetricEncryption('aes-256-cbc', '0123456789abcdef0123456789abcdef');
+    expect(repeated.decrypt(short.encrypt('text'))).toBe('text');
+  });
+
+  it('reports an encryption error for input that is not text', () => {
+    const instance = new SymmetricEncryption('aes-256-cbc', '0123456789abcdef');
+    expect(() => instance.encrypt(42 as unknown as string)).toThrow(/^Encryption failed: /);
+  });
+});

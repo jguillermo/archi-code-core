@@ -20,9 +20,6 @@ export class SodiumInitializer {
 
   public static async getSodium(): Promise<any> {
     await this.ensureInitialized();
-    if (!this.sodium) {
-      throw new Error('libsodium-wrappers-sumo is not available. Please install it if needed.');
-    }
     return this.sodium;
   }
 }

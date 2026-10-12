@@ -40,10 +40,7 @@ export class JWTDataSigner {
 
   verify(signedData: string): object {
     try {
-      const data = JWTDataSigner.jwt.verify(signedData, this.secretKey, this.verifyOptions) as
-        | object
-        | null;
-      return data ?? {};
+      return JWTDataSigner.jwt.verify(signedData, this.secretKey, this.verifyOptions) as object;
     } catch (error) {
       throw new Error(`verify Error: ${(error as Error).message}`);
     }
