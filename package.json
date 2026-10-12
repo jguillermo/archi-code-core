@@ -5,7 +5,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "node scripts/generate-packages-tree.js && node scripts/build-all.js",
+    "build": "node scripts/build-all.js",
     "test": "npm run test -ws --if-present",
     "test:coverage": "npm run test:coverage -ws --if-present",
     "test:scripts": "node --test scripts/__tests__/**/*.test.js",
@@ -19,7 +19,6 @@
     "fix:scripts": "prettier --write \"scripts/**/*.js\" \"*.md\" \".claude/**/*.md\"",
     "prepare": "husky",
     "clean": "rm -rf packages/*/node_modules node_modules",
-    "generate-tree": "node scripts/generate-packages-tree.js",
     "version": "node scripts/version.js",
     "release": "node scripts/release.js",
     "benchmark": "npm run benchmark -w packages/validation",

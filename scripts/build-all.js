@@ -2,20 +2,36 @@
 'use strict';
 
 const { execSync } = require('child_process');
-const fs = require('fs');
 const path = require('path');
+const { topoSort } = require('./lib/topo-sort');
+const { readWorkspacePackages } = require('./lib/workspace-packages');
 
 const ROOT = path.join(__dirname, '..');
-const TREE_FILE = path.join(ROOT, 'packages.tree.json');
+const SCOPE = '@archi-code/';
 
-const tree = JSON.parse(fs.readFileSync(TREE_FILE, 'utf8'));
-
-function run(cmd, opts = {}) {
-  console.log(`\n$ ${cmd}`);
-  execSync(cmd, { stdio: 'inherit', ...opts });
+function internalDeps(packageJson) {
+  const deps = {
+    ...packageJson.dependencies,
+    ...packageJson.devDependencies,
+    ...packageJson.peerDependencies,
+  };
+  return Object.keys(deps).filter((name) => name.startsWith(SCOPE));
 }
 
-for (const pkg of tree) {
-  console.log(`\nBuilding ${pkg.name}...`);
-  run(`npm run build -w ${pkg.name}`);
+const ordered = topoSort(
+  readWorkspacePackages(ROOT).map((pkg) => ({
+    ...pkg,
+    internalDeps: internalDeps(pkg.packageJson),
+  })),
+);
+
+console.log('Build order:');
+ordered.forEach((pkg, index) => {
+  const deps = pkg.internalDeps.length ? pkg.internalDeps.join(', ') : 'none';
+  console.log(`  ${index + 1}. ${pkg.name}  (internal deps: ${deps})`);
+});
+
+for (const pkg of ordered) {
+  console.log(`\nBuilding ${pkg.name}...\n$ npm run build -w ${pkg.name}`);
+  execSync(`npm run build -w ${pkg.name}`, { cwd: ROOT, stdio: 'inherit' });
 }
