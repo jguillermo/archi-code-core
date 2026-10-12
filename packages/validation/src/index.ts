@@ -45,6 +45,7 @@ export { isJWT } from './validators/isJWT';
 export { isJSON } from './validators/isJSON';
 export { isEmpty } from './validators/isEmpty';
 export { isNotEmpty } from './validators/isNotEmpty';
+export { isRequired } from './validators/isRequired';
 export { isLength } from './validators/isLength';
 export { isLocale } from './validators/isLocale';
 export { isByteLength } from './validators/isByteLength';
@@ -95,7 +96,7 @@ export * from './canBe';
 export * from './convert';
 export * as sanitizer from './sanitizer';
 export { Validations } from './decorator/validations';
-export { validate } from './decorator/validate';
+export { runValidations } from './decorator/validate';
 export type {
   Validation,
   BuiltInValidation,

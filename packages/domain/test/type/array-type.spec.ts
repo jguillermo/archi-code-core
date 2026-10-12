@@ -330,6 +330,24 @@ describe('Required(ArrayType)', () => {
     });
   });
 
+  describe('validate', () => {
+    it('fails isRequired when the value becomes null, with no item errors', () => {
+      class ClearableAges extends RequiredAges {
+        clear(): void {
+          this._value = null;
+        }
+      }
+      const ages = new ClearableAges([18]);
+      ages.clear();
+
+      expect(ages.validate()).toEqual({
+        ok: false,
+        value: null,
+        errors: [{ validator: 'isRequired', message: 'Value does not satisfy isRequired' }],
+      });
+    });
+  });
+
   describe('construction', () => {
     it.each(convertibleInputs)('%p → %p', (input, expected) => {
       expect(new RequiredAges(input as number[]).value).toEqual(expected);

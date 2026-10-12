@@ -1,20 +1,20 @@
 # Validations decorator
 
-`@Validations` attaches a list of validations to a class. `validate(Class, value)` runs them,
+`@Validations` attaches a list of validations to a class. `runValidations(Class, value)` runs them,
 inherited ones included, against a value.
 
 ```ts
-import { Validations, validate } from '@archi-code/validation';
+import { Validations, runValidations } from '@archi-code/validation';
 
 @Validations([{ validator: 'isInt', properties: { min: 0 } }])
 class Quantity {}
 
-validate(Quantity, '-3');
+runValidations(Quantity, '-3');
 // { ok: false, value: '-3', errors: [{ validator: 'isInt', message: 'Value does not satisfy isInt' }] }
 ```
 
 The decorator is metadata only. It does not change the class, does not wrap its constructor and
-does not validate anything by itself: validation happens only when you call `validate`.
+does not validate anything by itself: validation happens only when you call `runValidations`.
 
 - [Public API](#public-api)
 - [Declaring validations](#declaring-validations)
@@ -29,21 +29,21 @@ does not validate anything by itself: validation happens only when you call `val
 
 ## Public API
 
-| Export                    | Kind     | Purpose                                                                                              |
-| ------------------------- | -------- | ---------------------------------------------------------------------------------------------------- |
-| `Validations(list)`       | function | Class decorator that declares the class's validations                                                |
-| `validate(Class, value)`  | function | Runs the class's validations, inherited ones included, against `value`, returns a `ValidationResult` |
-| `Validation`              | type     | `BuiltInValidation \| CustomValidation`                                                              |
-| `BuiltInValidation`       | type     | `{ validator, properties?, message? }`                                                               |
-| `CustomValidation`        | type     | `{ custom, fn, message? }`                                                                           |
-| `ValidatorName`           | type     | Names of the registry's validators (`'isInt'`, `'isEmail'`, …)                                       |
-| `ValidationProperties<K>` | type     | The options object of validator `K`                                                                  |
-| `ValidationResult<T>`     | type     | `ValidationSuccess<T> \| ValidationFailure<T>`                                                       |
-| `ValidationSuccess<T>`    | type     | `{ ok: true, value, errors: [] }`                                                                    |
-| `ValidationFailure<T>`    | type     | `{ ok: false, value, errors: ValidationError[] }`                                                    |
-| `ValidationError`         | type     | `{ validator, message } \| { custom, message }`                                                      |
-| `Validatable<T>`          | type     | An object that validates itself: `validate(): ValidationResult<T>`                                   |
-| `ValidationError`         | type     | `{ validator, message } \| { custom, message }`                                                      |
+| Export                         | Kind     | Purpose                                                                                              |
+| ------------------------------ | -------- | ---------------------------------------------------------------------------------------------------- |
+| `Validations(list)`            | function | Class decorator that declares the class's validations                                                |
+| `runValidations(Class, value)` | function | Runs the class's validations, inherited ones included, against `value`, returns a `ValidationResult` |
+| `Validation`                   | type     | `BuiltInValidation \| CustomValidation`                                                              |
+| `BuiltInValidation`            | type     | `{ validator, properties?, message? }`                                                               |
+| `CustomValidation`             | type     | `{ custom, fn, message? }`                                                                           |
+| `ValidatorName`                | type     | Names of the registry's validators (`'isInt'`, `'isEmail'`, …)                                       |
+| `ValidationProperties<K>`      | type     | The options object of validator `K`                                                                  |
+| `ValidationResult<T>`          | type     | `ValidationSuccess<T> \| ValidationFailure<T>`                                                       |
+| `ValidationSuccess<T>`         | type     | `{ ok: true, value, errors: [] }`                                                                    |
+| `ValidationFailure<T>`         | type     | `{ ok: false, value, errors: ValidationError[] }`                                                    |
+| `ValidationError`              | type     | `{ validator, message } \| { custom, message }`                                                      |
+| `Validatable<T>`               | type     | An object that validates itself: `validate(): ValidationResult<T>`                                   |
+| `ValidationError`              | type     | `{ validator, message } \| { custom, message }`                                                      |
 
 ## Declaring validations
 
@@ -99,9 +99,9 @@ replace each other. Identity decides duplicates and replacement (below). `proper
 | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **The class is defined** (usually when its module is first imported) | The decorator runs once: checks the declaration, freezes a copy and stores it for that class. A wrong declaration throws here and stops the module from loading |
 | **`new MyClass()`**                                                  | Nothing. The decorator adds no code to the constructor                                                                                                          |
-| **`validate(MyClass, value)`**                                       | Walks the prototype chain, merges the stored lists, then runs each validation against the value, in order. Recomputed on each call, nothing is cached           |
+| **`runValidations(MyClass, value)`**                                 | Walks the prototype chain, merges the stored lists, then runs each validation against the value, in order. Recomputed on each call, nothing is cached           |
 
-Because `validate` recomputes the list on each call, it sees the classes as they are at that
+Because `runValidations` recomputes the list on each call, it sees the classes as they are at that
 moment. A parent decorated after its subclass was defined is still seen by the subclass.
 
 Several decorators on one class apply bottom-up, as TypeScript always does: the one nearest the
@@ -111,12 +111,12 @@ class runs first.
 @Validations([{ validator: 'isEmail' }]) // applied second
 @Validations([{ validator: 'isInt' }, { validator: 'isPort' }]) // applied first
 class Stacked {}
-// validate(Stacked, value) runs: isInt, isPort, isEmail
+// runValidations(Stacked, value) runs: isInt, isPort, isEmail
 ```
 
 ## Inheritance and replacement
 
-`validate(Child, value)` walks from the root parent down to `Child` and merges each class's own
+`runValidations(Child, value)` walks from the root parent down to `Child` and merges each class's own
 validations before running them:
 
 1. The root parent's validations come first, then each subclass's, in declaration order.
@@ -124,7 +124,7 @@ validations before running them:
    replacement keeps the parent's position.
 3. A class without `@Validations` in the middle of the chain passes its parent's validations on
    unchanged.
-4. Declaring a subclass never changes the parent: `validate(Parent, value)` runs what it ran before.
+4. Declaring a subclass never changes the parent: `runValidations(Parent, value)` runs what it ran before.
 
 ```ts
 @Validations([{ validator: 'isInt', properties: { min: 0 } }, { validator: 'isEmail' }])
@@ -133,7 +133,7 @@ class Parent {}
 @Validations([{ validator: 'isInt', properties: { min: 5 } }, { validator: 'isPort' }])
 class Child extends Parent {}
 
-validate(Child, value);
+runValidations(Child, value);
 // runs, in order:
 //   isInt { min: 5 }   ← replaced, keeps first place
 //   isEmail
@@ -165,19 +165,23 @@ With TypeScript most of these are already compile errors. The runtime checks cov
 callers and casts.
 
 Not checked at decoration: whether `properties` is right for the validator. The types enforce it.
-A wrong value passed from JavaScript surfaces in `validate`, as described below.
+A wrong value passed from JavaScript surfaces in `runValidations`, as described below.
 
 ## Running validations
 
 ```ts
-const result = validate(Even, 3);
+const result = runValidations(Even, 3);
 if (!result.ok) {
   // result.value: 3
   // result.errors: [{ custom: 'isEven', message: 'Must be even' }]
 }
 ```
 
-- **Every validation runs.** A failure does not stop the rest; you get one error per failed
+- **With a value, every validation runs**, whether `isRequired` is declared or not.
+- **Without a value (`null` or `undefined`), only `isRequired` decides.** If the class or any
+  parent declares `{ validator: 'isRequired' }`, only it runs and fails; otherwise the value is
+  optional, no validation runs and the result is ok.
+- **A failure does not stop the rest:** you get one error per failed
   validation, in the same order.
 - **`ok` = valid.** `ok` is `true` exactly when `errors` is empty.
 - **`value` is the validated value**, as passed: not copied, not converted.
@@ -197,7 +201,7 @@ if (!result.ok) {
   - Anything your own `fn` throws. It is not caught: it propagates and stops the remaining
     validations. If a custom rule can fail on odd input, make `fn` return `false` instead.
 
-A class without validations, or whose parents have none, is always valid: `validate` returns `{ ok: true, value, errors: [] }`.
+A class without validations, or whose parents have none, is always valid: `runValidations` returns `{ ok: true, value, errors: [] }`.
 
 ## Immutability
 
@@ -222,7 +226,7 @@ own registry. Its classes are different objects anyway.
 
 `v1` in the key is the shape of what is stored. A future release that stores something different
 will use a new key, so it will not share a registry with this one. A newer copy with the same key
-may still store a validator that an older copy does not know; the older `validate` then throws
+may still store a validator that an older copy does not know; the older copy then throws
 `Unknown validator "<name>"` instead of skipping it.
 
 ## TypeScript setup
@@ -237,9 +241,9 @@ It does not need `emitDecoratorMetadata` or `reflect-metadata`.
 
 ## Pitfalls
 
-**Pass the class, not an instance.** `validate(new Quantity(), value)` throws
+**Pass the class, not an instance.** `runValidations(new Quantity(), value)` throws
 `ValidationConfigError`. From an instance use
-`validate(instance.constructor as typeof Quantity, value)`.
+`runValidations(instance.constructor as typeof Quantity, value)`.
 
 **A decoration error happens at import time.** A wrong declaration throws when the module that
 defines the class is loaded, so it can surface as a failed import. That is intended: the error

@@ -1,3 +1,4 @@
+import { Validations } from '@archi-code/validation';
 import type { AbstractType } from '../abstract-type';
 import { RequiredMark } from './required-mark';
 import type { RequiredMarked } from './required-mark';
@@ -10,6 +11,7 @@ export type RequiredType<C extends TypeClass> = Omit<C, 'prototype'> &
   (abstract new (value: RequiredValueOf<C>) => InstanceType<C> & RequiredMarked);
 
 export function Required<C extends TypeClass>(Base: C): RequiredType<C> {
+  @Validations([{ validator: 'isRequired' }])
   abstract class RequiredValue extends (Base as unknown as abstract new (
     ...args: any[]
   ) => AbstractType<unknown>) {}

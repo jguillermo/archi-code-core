@@ -29,7 +29,7 @@ const publicFunctions = Object.entries(api as unknown as Record<string, unknown>
   ([name, fn]) =>
     typeof fn === 'function' &&
     name !== 'ValidationConfigError' &&
-    !['Validations', 'validate'].includes(name),
+    !['Validations', 'runValidations'].includes(name),
 ) as [string, (...args: unknown[]) => unknown][];
 
 describe('hostile values never make a public function throw', () => {

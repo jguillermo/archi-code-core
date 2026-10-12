@@ -142,7 +142,7 @@ editor autocompletes them and flags unknown ones.
 `isEthereumAddress`, `isFullWidth`, `isHalfWidth`, `isHexadecimal`, `isHSL`, `isISIN`,
 `isISO15924`, `isISO31661Numeric`, `isISO4217`, `isISO6346` (also `isFreightContainerID`),
 `isISO6391`, `isISRC`, `isJWT`, `isLocale`, `isLowercase`, `isLuhnNumber`, `isMagnetURI`, `isMD5`,
-`isMimeType`, `isMongoId`, `isMultibyte`, `isNotEmpty`, `isOctal`, `isPort`, `isRFC3339`, `isSemVer`, `isSlug`,
+`isMimeType`, `isMongoId`, `isMultibyte`, `isNotEmpty`, `isOctal`, `isPort`, `isRequired`, `isRFC3339`, `isSemVer`, `isSlug`,
 `isSurrogatePair`, `isULID`, `isUppercase`, `isVariableWidth`.
 
 ## Tree-shaking: prefer named imports
@@ -201,12 +201,12 @@ never throws.
 
 ## Validations decorator
 
-Declare a class's validations with `@Validations` and run them with `validate(Class, value)`.
+Declare a class's validations with `@Validations` and run them with `runValidations(Class, value)`.
 A built-in validation names its `validator` and gives its parameters as a single `properties`
 object (required when the validator needs something, not allowed when it takes nothing). A custom validation names itself with `custom` and brings its own `fn`.
 
 ```ts
-import { Validations, validate } from '@archi-code/validation';
+import { Validations, runValidations } from '@archi-code/validation';
 
 @Validations([{ validator: 'isInt', properties: { min: 0 } }])
 class Quantity {}
@@ -218,7 +218,7 @@ class Quantity {}
 class Pairs extends Quantity {}
 
 // Pairs runs isInt { min: 5 }, then isEven — parent first, in declaration order
-validate(Pairs, '3');
+runValidations(Pairs, '3');
 // { ok: false, value: '3', errors: [
 //   { validator: 'isInt', message: 'Value does not satisfy isInt' },
 //   { custom: 'isEven', message: 'Must be even' } ] }
@@ -229,10 +229,10 @@ validate(Pairs, '3');
 
 A built-in and a custom with the same name are different validations: neither replaces the other.
 A subclass, or a later `@Validations` on the same class, replaces a matching validation in its
-place. `validate` runs every validation, even after one fails, and returns `{ ok, value, errors }`:
+place. With a value (not `null` nor `undefined`), every validation runs, whether `isRequired` is declared or not. Without a value, only `isRequired` runs when it is declared (and fails); when it is not, the value is optional, no validation runs and the result is ok. A failure does not stop the rest, and `runValidations` returns `{ ok, value, errors }`:
 `ok` is true when `errors` is empty. The declaration is checked when the class is decorated: an unknown validator, a
 custom without its `fn`, a validation with both `validator` and `custom`, or the same validation
-declared twice in one list throws `ValidationConfigError` right there, not on the first `validate`.
+declared twice in one list throws `ValidationConfigError` right there, not on the first `runValidations`.
 
 Full guide — when each part runs, inheritance, every check and pitfalls:
 [docs/decorator.md](docs/decorator.md).
@@ -315,6 +315,7 @@ all properties of the options object:
 - `isNotEmpty` is new: `true` for a string with at least one non-whitespace character or a
   finite number; `false` for `''`, whitespace only (spaces, tabs, line breaks, Unicode spaces),
   `null`, `undefined`, `NaN`, `Infinity`, booleans and any other value.
+- `isRequired` is new: `false` only for `null` and `undefined`.
 
 ## Package setup
 

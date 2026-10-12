@@ -15,12 +15,12 @@ function smoke(m) {
     ['canBeDate', () => m.canBeDate('2024/01/31') === true],
     ['sanitizer.trim', () => m.sanitizer.trim('  a  ') === 'a'],
     [
-      'validate',
+      'runValidations',
       () => {
         class Age {}
         m.Validations([{ validator: 'isInt', properties: { min: 2 } }])(Age);
-        const invalid = m.validate(Age, '1');
-        const valid = m.validate(Age, '5');
+        const invalid = m.runValidations(Age, '1');
+        const valid = m.runValidations(Age, '5');
         return (
           invalid.ok === false &&
           invalid.errors.length === 1 &&
@@ -42,8 +42,8 @@ function crossBuild(cjs, esm) {
         class DecoratedWithEsm {}
         esm.Validations([{ validator: 'isEmail' }])(DecoratedWithEsm);
         return (
-          esm.validate(DecoratedWithCjs, 'x').errors.length === 1 &&
-          cjs.validate(DecoratedWithEsm, 'x').errors.length === 1
+          esm.runValidations(DecoratedWithCjs, 'x').errors.length === 1 &&
+          cjs.runValidations(DecoratedWithEsm, 'x').errors.length === 1
         );
       },
     ],

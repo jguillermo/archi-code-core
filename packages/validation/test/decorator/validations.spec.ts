@@ -2,7 +2,7 @@ import { describe, it, expect, jest } from '@jest/globals';
 import { Validations, ownValidations, keyOf } from '../../src/decorator/validations';
 import { ValidationConfigError } from '../../src/helpers/errors';
 import type { Validation } from '../../src/decorator/validations';
-import { validate } from '../../src/decorator/validate';
+import { runValidations } from '../../src/decorator/validate';
 
 interface DecoratorModules {
   validations: typeof import('../../src/decorator/validations');
@@ -179,13 +179,13 @@ describe('Validations', () => {
 
     class DecoratedHere {}
     Validations([{ validator: 'isInt' }])(DecoratedHere);
-    expect(other.validate.validate(DecoratedHere, 'x').errors).toEqual([
+    expect(other.validate.runValidations(DecoratedHere, 'x').errors).toEqual([
       { validator: 'isInt', message: 'Value does not satisfy isInt' },
     ]);
 
     class DecoratedThere {}
     other.validations.Validations([{ validator: 'isEmail' }])(DecoratedThere);
-    expect(validate(DecoratedThere, 'x').errors).toEqual([
+    expect(runValidations(DecoratedThere, 'x').errors).toEqual([
       { validator: 'isEmail', message: 'Value does not satisfy isEmail' },
     ]);
   });

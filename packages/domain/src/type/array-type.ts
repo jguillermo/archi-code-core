@@ -2,6 +2,7 @@ import { toArray } from '@archi-code/validation';
 import type { ValidationError, ValidationResult } from '@archi-code/validation';
 import { AbstractType } from './abstract-type';
 import { Immutable } from './immutable/immutable';
+import type { ValueOf } from './required/required-mark';
 import { TypePrimitiveException } from '../exceptions/domain/type-primitive.exception';
 
 type ItemValue<Item extends AbstractType<any>> = Item['value'];
@@ -50,9 +51,9 @@ export abstract class ArrayType<Item extends AbstractType<any>> extends Abstract
     return Immutable.freeze(converted.value.map((item) => this.createItem(item).value));
   }
 
-  protected validateValue(value: ItemValue<Item>[]): ValidationResult<ItemValue<Item>[]> {
-    const own = super.validateValue(value);
-    const itemErrors = value.flatMap((itemValue, index) =>
+  validate(): ValidationResult<ValueOf<ItemValue<Item>[], this>> {
+    const own = super.validate();
+    const itemErrors = (this._value ?? []).flatMap((itemValue, index) =>
       this.createItem(itemValue)
         .validate()
         .errors.map(
@@ -65,7 +66,7 @@ export abstract class ArrayType<Item extends AbstractType<any>> extends Abstract
     }
     return Object.freeze({
       ok: false,
-      value,
+      value: own.value,
       errors: Object.freeze([...own.errors, ...itemErrors]),
     });
   }

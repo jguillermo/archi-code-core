@@ -1,4 +1,5 @@
 import { validator } from '../validators';
+import { isRequired as hasValue } from '../validators/isRequired';
 import { ValidationConfigError } from '../helpers/errors';
 import { isCustom, isValidatorName, keyOf, ownValidations } from './validations';
 import type { Validation, ValidatedClass } from './validations';
@@ -25,6 +26,8 @@ export interface Validatable<T> {
   validate(): ValidationResult<T>;
 }
 
+const IS_REQUIRED = keyOf({ validator: 'isRequired' });
+
 function validationsOf(target: ValidatedClass): Validation[] {
   const rootFirstChain: ValidatedClass[] = [];
   for (
@@ -43,31 +46,43 @@ function validationsOf(target: ValidatedClass): Validation[] {
   return [...byKey.values()];
 }
 
-export function validate<T>(target: ValidatedClass, value: T): ValidationResult<T> {
-  if (typeof target !== 'function')
-    throw new ValidationConfigError('validate expects a class, not an instance or a value');
-  const errors: ValidationError[] = [];
-  for (const validation of validationsOf(target)) {
-    if (isCustom(validation)) {
-      if (!validation.fn(value))
-        errors.push({
-          custom: validation.custom,
-          message: validation.message ?? `Value does not satisfy ${validation.custom}`,
-        });
-      continue;
-    }
-    const name = validation.validator;
-    // The registry is shared across package copies: another version may store an unknown validator.
-    if (!isValidatorName(name)) {
-      throw new ValidationConfigError(`Unknown validator "${name}"`);
-    }
-    const run = validator[name] as (value: unknown, options?: object) => boolean;
-    if (!run(value, validation.properties))
-      errors.push({
-        validator: name,
-        message: validation.message ?? `Value does not satisfy ${name}`,
-      });
+function errorOf(validation: Validation, value: unknown): ValidationError | null {
+  if (isCustom(validation)) {
+    if (validation.fn(value)) return null;
+    return {
+      custom: validation.custom,
+      message: validation.message ?? `Value does not satisfy ${validation.custom}`,
+    };
   }
+  const name = validation.validator;
+  // The registry is shared across package copies: another version may store an unknown validator.
+  if (!isValidatorName(name)) {
+    throw new ValidationConfigError(`Unknown validator "${name}"`);
+  }
+  const run = validator[name] as (value: unknown, options?: object) => boolean;
+  if (run(value, validation.properties)) return null;
+  return { validator: name, message: validation.message ?? `Value does not satisfy ${name}` };
+}
+
+export function runValidations<T>(target: ValidatedClass, value: T): ValidationResult<T> {
+  if (typeof target !== 'function')
+    throw new ValidationConfigError('runValidations expects a class, not an instance or a value');
+
+  const declared = validationsOf(target);
+  const isRequired = declared.filter((validation) => keyOf(validation) === IS_REQUIRED);
+  const isOptional = isRequired.length === 0;
+
+  let toRun: Validation[];
+  if (hasValue(value)) toRun = declared;
+  else if (isOptional) toRun = [];
+  else toRun = isRequired;
+
+  const errors: ValidationError[] = [];
+  for (const validation of toRun) {
+    const error = errorOf(validation, value);
+    if (error !== null) errors.push(error);
+  }
+
   return Object.freeze(
     errors.length === 0
       ? { ok: true, value, errors: Object.freeze([]) as readonly [] }

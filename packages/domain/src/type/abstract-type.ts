@@ -1,8 +1,7 @@
-import { anyToString, validate as runValidations } from '@archi-code/validation';
+import { anyToString, runValidations } from '@archi-code/validation';
 import type { Validatable, ValidatedClass, ValidationResult } from '@archi-code/validation';
 import { TypeInput } from './input/type-input';
 import type { ValueOf } from './required/required-mark';
-import { TypeValidation } from './validation/type-validation';
 
 export { Required } from './required/required';
 export type { RequiredType } from './required/required';
@@ -27,13 +26,9 @@ export abstract class AbstractType<T> implements Validatable<T | null> {
   }
 
   validate(): ValidationResult<ValueOf<T, this>> {
-    const result =
-      this._value === null ? TypeValidation.nullIsValid : this.validateValue(this._value);
-    return result as ValidationResult<ValueOf<T, this>>;
-  }
-
-  protected validateValue(value: T): ValidationResult<T> {
-    return runValidations(this.constructor as ValidatedClass, value);
+    return runValidations(this.constructor as ValidatedClass, this._value) as ValidationResult<
+      ValueOf<T, this>
+    >;
   }
 
   protected abstract filter(value: unknown): T | null;

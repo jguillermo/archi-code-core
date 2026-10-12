@@ -1,5 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 import { expectTypeOf } from 'expect-type';
+import { Validations, runValidations } from '@archi-code/validation';
 import { Required } from '../../../src/type/required/required';
 import { RequiredMark } from '../../../src/type/required/required-mark';
 import { AbstractType } from '../../../src/type/abstract-type';
@@ -47,6 +48,28 @@ describe('Required', () => {
 
       expect(RequiredMark.isMarked(new RequiredAmount(1))).toBe(true);
       expect(RequiredMark.isMarked(new Child(1))).toBe(true);
+    });
+
+    it('declares the isRequired validation on the subclass, not on the wrapped type', () => {
+      const requiredError = {
+        validator: 'isRequired',
+        message: 'Value does not satisfy isRequired',
+      };
+      expect(runValidations(RequiredAmount, null).errors).toEqual([requiredError]);
+      expect(runValidations(Amount, null).ok).toBe(true);
+    });
+
+    it('fails only isRequired for null, without running the validations of the wrapped type', () => {
+      @Validations([{ custom: 'positive', fn: (value) => typeof value === 'number' && value > 0 }])
+      class Positive extends Amount {}
+      class RequiredPositive extends Required(Positive) {}
+
+      expect(runValidations(RequiredPositive, null).errors).toEqual([
+        { validator: 'isRequired', message: 'Value does not satisfy isRequired' },
+      ]);
+      expect(runValidations(RequiredPositive, -1).errors).toEqual([
+        { custom: 'positive', message: 'Value does not satisfy positive' },
+      ]);
     });
 
     it('does not mark the wrapped type', () => {

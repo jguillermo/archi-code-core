@@ -359,6 +359,26 @@ describe('AbstractType', () => {
       expect(new RequiredDefaulted(5).validate()).toEqual(valid(5));
     });
 
+    it('fails only isRequired when the value becomes null, without running the other validations', () => {
+      const rule = jest.fn(() => true);
+
+      @Validations([{ custom: 'rule', fn: rule }])
+      class Clearable extends RequiredNumber {
+        clear(): void {
+          this._value = null;
+        }
+      }
+      const clearable = new Clearable(1);
+      clearable.clear();
+
+      expect(clearable.validate()).toEqual({
+        ok: false,
+        value: null,
+        errors: [{ validator: 'isRequired', message: 'Value does not satisfy isRequired' }],
+      });
+      expect(rule).not.toHaveBeenCalled();
+    });
+
     it('does not make the wrapped type required', () => {
       expect(new PlainNumber(null).validate()).toEqual(valid(null));
     });

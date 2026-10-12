@@ -5,7 +5,7 @@ import * as path from 'path';
 import * as api from '../src';
 import {
   validator,
-  validate,
+  runValidations,
   Validations,
   toEnum,
   toInteger,
@@ -131,6 +131,7 @@ const PUBLIC_API = [
   'isPostalCode',
   'isPostalCodeLocales',
   'isRFC3339',
+  'isRequired',
   'isRgbColor',
   'isSemVer',
   'isSlug',
@@ -146,6 +147,7 @@ const PUBLIC_API = [
   'isWhitelisted',
   'matches',
   'passportNumberLocales',
+  'runValidations',
   'sanitizer',
   'scorePassword',
   'toArray',
@@ -157,7 +159,6 @@ const PUBLIC_API = [
   'toJson',
   'toJsonValue',
   'toString',
-  'validate',
   'validator',
 ];
 
@@ -259,16 +260,16 @@ describe('public types', () => {
     void (() => Validations([{ validator: 'isNothing' }]));
   });
 
-  it('validate takes a class and the value, and returns the result', () => {
+  it('runValidations takes a class and the value, and returns the result', () => {
     abstract class Base {
       abstract id: string;
     }
-    expect(validate(Base, '5')).toEqual({ ok: true, value: '5', errors: [] });
+    expect(runValidations(Base, '5')).toEqual({ ok: true, value: '5', errors: [] });
     // @ts-expect-error an instance is not a class
-    void (() => validate({}, '5'));
+    void (() => runValidations({}, '5'));
     // @ts-expect-error the list form no longer exists
-    void (() => validate([{ validator: 'isInt' }], '5'));
-    expectTypeOf(validate(Base, '5')).toEqualTypeOf<ValidationResult<string>>();
+    void (() => runValidations([{ validator: 'isInt' }], '5'));
+    expectTypeOf(runValidations(Base, '5')).toEqualTypeOf<ValidationResult<string>>();
     expectTypeOf<ValidationResult<number>>().toEqualTypeOf<
       ValidationSuccess<number> | ValidationFailure<number>
     >();
