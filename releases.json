@@ -4,7 +4,7 @@
       "main": "3.0.0-alpha.2"
     },
     "@archi-code/crypto-tools": {
-      "main": "3.0.0-alpha.1"
+      "main": "3.0.0-alpha.2"
     },
     "@archi-code/domain": {
       "main": "3.0.0-alpha.1"
@@ -99,6 +99,16 @@
       "packages": [
         {
           "name": "@archi-code/criteria",
+          "previous": "3.0.0-alpha.1",
+          "version": "3.0.0-alpha.2",
+          "bump": "minor",
+          "reasons": [
+            "commits (minor)"
+          ],
+          "dependencies": {}
+        },
+        {
+          "name": "@archi-code/crypto-tools",
           "previous": "3.0.0-alpha.1",
           "version": "3.0.0-alpha.2",
           "bump": "minor",
