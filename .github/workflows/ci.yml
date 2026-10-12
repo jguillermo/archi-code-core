@@ -27,4 +27,6 @@ jobs:
       # every package (check:packages): editorconfig, prettier, eslint, tsc on src/test, jest with
       # its coverage threshold, CJS+ESM build and dist checks.
       - name: Root checks and full gate of every package
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run check
