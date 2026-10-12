@@ -4,8 +4,9 @@
 const fs = require('fs');
 const path = require('path');
 const { pathToFileURL } = require('url');
+const { entryPoint, loadPackageChecks, runChecks } = require('./lib/package-checks');
 
-const ROOT = path.resolve(__dirname, '..');
+const ROOT = process.cwd();
 const pkg = require(path.join(ROOT, 'package.json'));
 
 function fail(message) {
@@ -26,8 +27,8 @@ async function main() {
       fail(`package.json "${field}" points to a missing file: ${pkg[field]}`);
   }
 
-  const cjs = require(path.join(ROOT, pkg.exports['.'].require));
-  const esm = await import(pathToFileURL(path.join(ROOT, pkg.exports['.'].import)).href);
+  const cjs = require(path.join(ROOT, entryPoint(pkg, 'require')));
+  const esm = await import(pathToFileURL(path.join(ROOT, entryPoint(pkg, 'import'))).href);
 
   const cjsKeys = exportNames(cjs);
   const esmKeys = exportNames(esm);
@@ -35,6 +36,13 @@ async function main() {
   if (JSON.stringify(cjsKeys) !== JSON.stringify(esmKeys)) {
     fail(`CJS and ESM exports differ:\n  CJS: ${cjsKeys.join(', ')}\n  ESM: ${esmKeys.join(', ')}`);
   }
+
+  const { smoke, crossBuild } = loadPackageChecks(ROOT);
+  if (smoke) {
+    await runChecks('CJS', smoke(cjs), fail);
+    await runChecks('ESM', smoke(esm), fail);
+  }
+  if (crossBuild) await runChecks('CJS+ESM', crossBuild(cjs, esm), fail);
 
   console.log(
     `check-dist: OK — CJS and ESM load in Node and expose the same ${cjsKeys.length} exports`,

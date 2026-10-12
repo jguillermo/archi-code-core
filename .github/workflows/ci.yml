@@ -23,8 +23,8 @@ jobs:
       - name: Build packages in dependency order
         run: npm run build
 
-      - name: Root editorconfig
-        run: npm run check:editorconfig
+      - name: Root checks (prettier, eslint, shared scripts, editorconfig)
+        run: npm run check
 
       # Every package runs the same gate: editorconfig, prettier, eslint, tsc on src/test,
       # jest with its coverage threshold, CJS+ESM build and dist checks.

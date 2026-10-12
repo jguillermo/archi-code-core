@@ -29,7 +29,9 @@ const PRERELEASE_TAG = BRANCH_PRERELEASE['main'] ?? null;
 
 if (DRY_RUN) {
   console.log(`\n[DRY RUN] Local analysis only — no builds, no publish, no git operations.`);
-  console.log(`[DRY RUN] Current branch: ${CURRENT_BRANCH}  |  Simulating: main  |  prerelease: ${PRERELEASE_TAG}\n`);
+  console.log(
+    `[DRY RUN] Current branch: ${CURRENT_BRANCH}  |  Simulating: main  |  prerelease: ${PRERELEASE_TAG}\n`,
+  );
 }
 
 function run(cmd, opts = {}) {
@@ -41,7 +43,9 @@ function run(cmd, opts = {}) {
 function analyzeCommits(pkgName, pkgPath) {
   let lastTag;
   try {
-    lastTag = execSync(`git describe --tags --match "${pkgName}@*" --abbrev=0 2>/dev/null`).toString().trim();
+    lastTag = execSync(`git describe --tags --match "${pkgName}@*" --abbrev=0 2>/dev/null`)
+      .toString()
+      .trim();
   } catch {
     lastTag = null;
   }
@@ -74,7 +78,13 @@ function bumpVersion(version, bump, prereleaseTag) {
   const prMatch = version.match(/^(\d+)\.(\d+)\.(\d+)-(.+)\.(\d+)$/);
 
   if (prMatch && prereleaseTag && prMatch[4] === prereleaseTag) {
-    const [major, minor, patch, , n] = [prMatch[1], prMatch[2], prMatch[3], prMatch[4], prMatch[5]].map(Number);
+    const [major, minor, patch, , n] = [
+      prMatch[1],
+      prMatch[2],
+      prMatch[3],
+      prMatch[4],
+      prMatch[5],
+    ].map(Number);
     if (bump === 'major') return `${major + 1}.0.0-${prereleaseTag}.1`;
     return `${major}.${minor}.${patch}-${prereleaseTag}.${n + 1}`;
   }
@@ -136,7 +146,9 @@ for (const pkg of tree) {
     if (depsUpdated) console.log(`  deps     : updated → forces patch release`);
     if (effectiveBump) {
       const nextVersion = bumpVersion(releasedVersions[pkg.name], effectiveBump, PRERELEASE_TAG);
-      console.log(`  bump     : ${effectiveBump}  →  ${releasedVersions[pkg.name]} → ${nextVersion}`);
+      console.log(
+        `  bump     : ${effectiveBump}  →  ${releasedVersions[pkg.name]} → ${nextVersion}`,
+      );
       releasedVersions[pkg.name] = nextVersion;
     } else {
       console.log(`  bump     : none (no feat/fix/BREAKING commits and no dep updates)`);

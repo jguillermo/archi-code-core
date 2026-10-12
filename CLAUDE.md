@@ -18,7 +18,16 @@ npm run check:packages  # Full gate (check:all) in every package
 npm run check:<name>    # Full gate in one package: validator, domain, criteria, crypto-tools, ephemeradb, test
 ```
 
-Every package's `check:all` runs the same gate: editorconfig-checker → prettier (`src`, `test`, `scripts` and the package's own `*.json`/`*.md`) → eslint → tsc (src + test) → jest with coverage → build (CJS + ESM, `scripts/fix-esm.js`) → `scripts/check-dist.js`. CI and the husky `pre-push` hook run `npm run check:packages`.
+Every package's `check:all` runs the same gate: editorconfig-checker → prettier (`src`, `test` and the package's own `*.json`/`*.md`) → eslint → tsc (src + test) → jest with coverage → build (CJS + ESM) → dist check. CI and the husky `pre-push` hook run `npm run check:packages`.
+
+The root `scripts/` holds only the general tools (packages have no `scripts/` folder); each package calls them as `node ../../scripts/<name>.js` and they act on the current package directory:
+- `scripts/fix-esm.js` — adds `.js` to relative imports in `dist/esm`, gives files that call `require()` a `createRequire` shim (so optional deps loaded with `require` also work in ESM) and writes `dist/esm/package.json` (`type: module`).
+- `scripts/check-dist.js` — `main`/`module`/`types` exist, CJS and ESM load and expose the same exports.
+- `scripts/check-types.js` — a throwaway TypeScript consumer imports the package by name from an ESM (`.mts`) and a CJS (`.cts`) file under `node16`, `nodenext` and `bundler` resolution. Each `exports` condition must carry its own `types` (`import` → `dist/esm`, `require` → `dist/cjs`).
+- `scripts/check-web.js` — `browser` field points to the ESM build, `dist/esm` has no bare imports nor Node-only globals, and the build loads in a realm without Node APIs.
+
+Checks specific to one package's build live in that package, in `test/dist/dist.check.js` (every package has one; jest ignores it because it is not a `.spec.ts`). They must exercise the real API, not just load it. It may export `smoke(m)` (run on CJS and ESM), `crossBuild(cjs, esm)` (check-dist) and `web(webModule, nodeModule)` (check-web); each returns `[name, check]` pairs where `check()` returns (or resolves to) `true` or an error message. `scripts/lib/package-checks.js` loads and runs them.
+- Root `npm run check:scripts` / `fix:scripts` run Prettier over `scripts/`.
 
 ### Single package
 ```bash
@@ -78,7 +87,7 @@ The core DDD package. Key concepts:
 - **Exceptions** — `AbstractException` → `DomainException` / `ApplicationException` / `InfrastructureException`. Specifics: `ValidationException`, `AggregateNotFoundException`, `TypePrimitiveException`, `RequiredValueException`.
 - **`EventBase`** (`event/event-base.ts`) — Abstract base for domain events; must implement `eventName()`.
 - **Tests** — `src/` holds only code; every spec lives in `packages/domain/test/`, mirroring the `src/` folder tree (`src/type/string-type.ts` → `test/type/string-type.spec.ts`).
-- **Gate** — `npm run check:domain` (root): the common `check:all` gate with 100% coverage; its `scripts/check-dist.js` also smoke-tests the value objects in both builds.
+- **Gate** — `npm run check:domain` (root): the common `check:all` gate with 100% coverage; `test/dist/dist.check.js` smoke-tests the value objects in both builds.
 
 ### TypeScript config hierarchy (per package)
 
@@ -109,4 +118,4 @@ Package versions are not synchronized: `validation` is at `0.0.1`; `criteria` an
 `domain` and `test` pin `@archi-code/validation` to exactly `0.0.1`.
 
 ### 2. ESLint does not lint `scripts/*.js`
-`eslint.config.js` ignores every `**/*.js`, so the build/check scripts in each package are only covered by Prettier and editorconfig.
+`eslint.config.js` ignores every `**/*.js`, so the shared `scripts/` are only covered by Prettier (`check:scripts`) and editorconfig.

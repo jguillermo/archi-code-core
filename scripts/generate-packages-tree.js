@@ -11,7 +11,9 @@ const OUTPUT_FILE = path.join(ROOT, 'packages.tree.json');
 const SCOPE = '@archi-code/';
 
 // Read all packages
-const dirs = fs.readdirSync(PACKAGES_DIR).filter((d) => fs.existsSync(path.join(PACKAGES_DIR, d, 'package.json')));
+const dirs = fs
+  .readdirSync(PACKAGES_DIR)
+  .filter((d) => fs.existsSync(path.join(PACKAGES_DIR, d, 'package.json')));
 
 const all = dirs.map((dir) => {
   const pkgJson = JSON.parse(fs.readFileSync(path.join(PACKAGES_DIR, dir, 'package.json'), 'utf8'));
