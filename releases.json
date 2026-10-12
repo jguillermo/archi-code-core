@@ -10,7 +10,7 @@
       "main": "3.0.0-alpha.1"
     },
     "@archi-code/ephemeradb": {
-      "main": "1.0.0-alpha.1"
+      "main": "3.0.0-alpha.1"
     },
     "@archi-code/test": {
       "main": "1.0.0-alpha.1"
@@ -67,6 +67,16 @@
           "dependencies": {
             "@archi-code/validation": "3.0.0-alpha.1"
           }
+        },
+        {
+          "name": "@archi-code/ephemeradb",
+          "previous": "1.0.0-alpha.1",
+          "version": "3.0.0-alpha.1",
+          "bump": "major",
+          "reasons": [
+            "breaking: releases.json sin deploys, nueva major del conjunto (3.0.0-alpha.1)"
+          ],
+          "dependencies": {}
         }
       ]
     }
