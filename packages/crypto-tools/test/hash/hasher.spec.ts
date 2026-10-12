@@ -11,10 +11,10 @@ describe('Hasher', () => {
     });
 
     it('should throw an error if salt length is not positive', () => {
-      expect(() => HasherFactory.create(SodiumHasher.name, 0)).toThrowError(
+      expect(() => HasherFactory.create(SodiumHasher.name, 0)).toThrow(
         'Salt length must be a positive number.',
       );
-      expect(() => HasherFactory.create(SodiumHasher.name, -5)).toThrowError(
+      expect(() => HasherFactory.create(SodiumHasher.name, -5)).toThrow(
         'Salt length must be a positive number.',
       );
     });

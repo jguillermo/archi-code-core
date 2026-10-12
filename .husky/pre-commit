@@ -1,1 +1,1 @@
-#npm run check:packages
+node scripts/pre-commit.js

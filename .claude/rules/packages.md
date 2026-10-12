@@ -38,7 +38,7 @@ packages/<folder>/
   what is published. The release writes them into the published `package.json`;
   `npm run check:versions` fails otherwise.
 - `name` `@archi-code/<folder>`, `author` `Jose Guillermo`, `license` `MIT`, `repository` the
-  monorepo, `engines.node` `>=22`, `publishConfig.access` `public`, `files` `["dist/"]`.
+  monorepo, `engines.node` `>=24`, `publishConfig.access` `public`, `files` `["dist/"]`.
 - Entry points: `main` `./dist/cjs/index.js`, `module` `./dist/esm/index.js`, `types`
   `./dist/cjs/index.d.ts`.
 - `exports` — each condition carries its own types:

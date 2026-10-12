@@ -22,11 +22,11 @@ describe('PasswordEncryptorFactory', () => {
     });
 
     it('should throw an error if saltRounds is less than 4', () => {
-      expect(() => PasswordEncryptorFactory.create(SodiumPasswordEncryptor.name, 3)).toThrowError(
+      expect(() => PasswordEncryptorFactory.create(SodiumPasswordEncryptor.name, 3)).toThrow(
         'Salt rounds must be between 4 and 31.',
       );
       for (const client of clients) {
-        expect(() => PasswordEncryptorFactory.create(client, 3)).toThrowError(
+        expect(() => PasswordEncryptorFactory.create(client, 3)).toThrow(
           'Salt rounds must be between 4 and 31.',
         );
       }
@@ -34,7 +34,7 @@ describe('PasswordEncryptorFactory', () => {
 
     it('should throw an error if saltRounds is greater than 31', () => {
       for (const client of clients) {
-        expect(() => PasswordEncryptorFactory.create(client, 32)).toThrowError(
+        expect(() => PasswordEncryptorFactory.create(client, 32)).toThrow(
           'Salt rounds must be between 4 and 31.',
         );
       }

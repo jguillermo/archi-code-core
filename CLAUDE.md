@@ -20,7 +20,7 @@ npm run version         # Dry-run of the release: current and next version of ea
 npm run release         # Deploy (CI): publish the planned packages and record them in releases.json
 ```
 
-Every package's `check:all` runs the same gate: editorconfig-checker → prettier (`src`, `test` and the package's own `*.json`/`*.md`) → eslint → tsc (src + test) → jest with coverage → build (CJS + ESM) → dist check. CI on pull requests runs `npm run check`; the release workflow (push to `main`/`release`, GitHub environment `deploy` with the `NPM_TOKEN` secret) only builds and publishes; the husky `pre-push` hook runs `npm run check:packages`.
+Every package's `check:all` runs the same gate: editorconfig-checker → prettier (`src`, `test` and the package's own `*.json`/`*.md`) → eslint → tsc (src + test) → jest with coverage → build (CJS + ESM) → dist check. CI on pull requests runs `npm run check`; the release workflow (push to `main`/`release`, GitHub environment `deploy` with the `NPM_TOKEN` secret) only builds and publishes. The husky hooks stay fast and leave the full gate to CI: `pre-commit` runs `scripts/pre-commit.js` (Prettier and ESLint only on the staged files the gate checks) and `pre-push` runs `scripts/check-versions.js`.
 
 The root `scripts/` holds only the general tools (packages have no `scripts/` folder); each package calls them as `node ../../scripts/<name>.js` and they act on the current package directory:
 

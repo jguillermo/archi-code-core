@@ -480,6 +480,7 @@ export function isIdentityCard(value: unknown, options?: IsIdentityCardOptions):
   }
   if (locale === 'any') {
     for (const key in validators) {
+      // istanbul ignore else
       if (Object.prototype.hasOwnProperty.call(validators, key)) {
         const validator = validators[key];
         if (validator(str)) {

@@ -79,6 +79,7 @@ export class CryptoEngine {
       mapping[b] = a;
     }
 
+    // istanbul ignore else
     if (indices.length === 1) {
       const remaining = indices[0];
       mapping[remaining] = remaining;

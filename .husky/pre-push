@@ -1,1 +1,1 @@
-#npm run check:packages
+node scripts/check-versions.js

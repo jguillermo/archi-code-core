@@ -30,7 +30,7 @@ function packageJson(folder) {
     author: AUTHOR,
     license: 'MIT',
     repository: { type: 'git', url: 'https://github.com/jguillermo/archi-code-core' },
-    engines: { node: '>=22' },
+    engines: { node: '>=24' },
     publishConfig: { access: 'public' },
     main: './dist/cjs/index.js',
     module: './dist/esm/index.js',

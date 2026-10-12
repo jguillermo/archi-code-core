@@ -118,7 +118,7 @@ describe('SearchQuerySerializer', () => {
 
     it('debería lanzar error si el orden tiene dirección inválida', () => {
       const orders = [{ field: 'name', direction: 'ascending' }];
-      expect(() => new SearchOrderDto(orders as any)).toThrowError(
+      expect(() => new SearchOrderDto(orders as any)).toThrow(
         'SearchOrderDto: Each order must have direction "asc" or "desc"',
       );
     });
@@ -139,13 +139,13 @@ describe('SearchQuerySerializer', () => {
     });
 
     it('debería lanzar error si el paginador tiene valores no enteros o negativos', () => {
-      expect(() => new SearchPaginatorDto(0, 10)).toThrowError(
+      expect(() => new SearchPaginatorDto(0, 10)).toThrow(
         'SearchPaginatorDto: "page" and "perPage" must be positive integers',
       );
-      expect(() => new SearchPaginatorDto(2, 0)).toThrowError(
+      expect(() => new SearchPaginatorDto(2, 0)).toThrow(
         'SearchPaginatorDto: "page" and "perPage" must be positive integers',
       );
-      expect(() => new SearchPaginatorDto('abc' as any, 10)).toThrowError(
+      expect(() => new SearchPaginatorDto('abc' as any, 10)).toThrow(
         'SearchPaginatorDto: "page" and "perPage" must be integers',
       );
     });
@@ -177,7 +177,7 @@ describe('SearchQuerySerializer', () => {
     });
 
     it('debería lanzar error si groupBy no es un string o array de strings', () => {
-      expect(() => new SearchGroupByDto(123 as any)).toThrowError(
+      expect(() => new SearchGroupByDto(123 as any)).toThrow(
         'SearchGroupByDto: groupBy must be a string or an array of strings',
       );
     });
@@ -222,7 +222,7 @@ describe('SearchQuerySerializer', () => {
 
   describe('Casos de error', () => {
     it('debería lanzar error al deserializar un JSON inválido', () => {
-      expect(() => SearchQuerySerializer.deserialize('invalid json')).toThrowError(
+      expect(() => SearchQuerySerializer.deserialize('invalid json')).toThrow(
         'Invalid JSON string',
       );
     });
@@ -234,7 +234,7 @@ describe('SearchQuerySerializer', () => {
         paginator: null,
         groupBy: null,
       });
-      expect(() => SearchQuerySerializer.deserialize(invalidFilterJson)).toThrowError(
+      expect(() => SearchQuerySerializer.deserialize(invalidFilterJson)).toThrow(
         'Unknown filter format',
       );
     });

@@ -209,7 +209,7 @@ describe('runValidations', () => {
 
   describe('custom validations', () => {
     it('calls fn once with the value as it was passed', () => {
-      const fn = jest.fn(() => true);
+      const fn = jest.fn((_value: unknown) => true);
       @Validations([{ custom: 'rule', fn }])
       class Target {}
       const value = { id: 1 };
@@ -397,7 +397,7 @@ describe('runValidations', () => {
     });
 
     it.each(presentValues)('%s is a value, so the validations run', (_, value) => {
-      const fn = jest.fn(() => false);
+      const fn = jest.fn((_value: unknown) => false);
       @Validations([{ custom: 'rule', fn }])
       class Optional {}
       expect(runValidations(Optional, value).errors).toEqual([customError('rule')]);
