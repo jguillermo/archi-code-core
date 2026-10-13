@@ -13,7 +13,7 @@
       "main": "3.0.0-alpha.4"
     },
     "@archi-code/test": {
-      "main": "3.0.0-alpha.3"
+      "main": "3.0.0-alpha.4"
     },
     "@archi-code/validation": {
       "main": "3.0.0-alpha.4"
@@ -295,6 +295,19 @@
             "commits (minor)"
           ],
           "dependencies": {}
+        },
+        {
+          "name": "@archi-code/test",
+          "previous": "3.0.0-alpha.3",
+          "version": "3.0.0-alpha.4",
+          "bump": "minor",
+          "reasons": [
+            "commits (minor)",
+            "cascada: @archi-code/validation → 3.0.0-alpha.4"
+          ],
+          "dependencies": {
+            "@archi-code/validation": "3.0.0-alpha.4"
+          }
         }
       ]
     }
