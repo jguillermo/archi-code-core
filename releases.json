@@ -1,7 +1,7 @@
 {
   "packages": {
     "@archi-code/criteria": {
-      "main": "3.0.0-alpha.3"
+      "main": "3.0.0-alpha.4"
     },
     "@archi-code/crypto-tools": {
       "main": "3.0.0-alpha.3"
@@ -235,6 +235,23 @@
           "dependencies": {
             "@archi-code/validation": "3.0.0-alpha.3"
           }
+        }
+      ]
+    },
+    {
+      "date": "2026-10-13T15:12:33.469Z",
+      "commit": "29daf2722fa4fd2b1174585c82ec05eeeac2dfc4",
+      "channel": "main",
+      "packages": [
+        {
+          "name": "@archi-code/criteria",
+          "previous": "3.0.0-alpha.3",
+          "version": "3.0.0-alpha.4",
+          "bump": "minor",
+          "reasons": [
+            "commits (minor)"
+          ],
+          "dependencies": {}
         }
       ]
     }
