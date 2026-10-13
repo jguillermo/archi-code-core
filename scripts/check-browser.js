@@ -49,9 +49,9 @@ function startServer(pages) {
 }
 
 async function main() {
-  const webEntry = pkg.exports && pkg.exports['.'] && pkg.exports['.'].browser;
+  const webEntry = pkg.exports && pkg.exports['.'] && pkg.exports['.'].browser?.default;
   if (!webEntry || !fs.existsSync(path.join(ROOT, webEntry))) {
-    fail(`exports["."].browser (${webEntry}) does not exist — run npm run build`);
+    fail(`exports["."].browser.default (${webEntry}) does not exist — run npm run build`);
   }
   const { browser: browserChecks } = loadPackageChecks(ROOT);
   if (!browserChecks) fail('test/dist/dist.check.js exports no browser checks');

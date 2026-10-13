@@ -78,6 +78,10 @@ describe('token', () => {
     await expect(token.decrypt(1 as unknown as string, SECRET)).rejects.toThrow(
       'token must be a string.',
     );
+    await expect(token.encrypt({ id: BigInt(7) }, SECRET)).rejects.toMatchObject({
+      name: 'CryptoError',
+      code: 'INVALID_INPUT',
+    });
     await expect(token.encrypt({}, SECRET, { expiresIn: -1 })).rejects.toMatchObject({
       code: 'INVALID_INPUT',
     });

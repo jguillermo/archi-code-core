@@ -4,6 +4,7 @@ use argon2::{Argon2, Params, Version};
 use hkdf::Hkdf;
 use sha2::{Sha256, Sha384};
 use subtle::ConstantTimeEq;
+use zeroize::Zeroizing;
 
 use crate::aead::{AeadAlgorithm, open, seal};
 use crate::encoding::{from_base64url, random_bytes, to_base64url};
@@ -128,8 +129,14 @@ impl Kdf {
         Ok(())
     }
 
-    fn derive(self, secret: &[u8], salt: Option<&[u8]>, info: &[u8], length: usize) -> Vec<u8> {
-        let mut key = vec![0u8; length];
+    fn derive(
+        self,
+        secret: &[u8],
+        salt: Option<&[u8]>,
+        info: &[u8],
+        length: usize,
+    ) -> Zeroizing<Vec<u8>> {
+        let mut key = Zeroizing::new(vec![0u8; length]);
         match self {
             Kdf::HkdfSha256 => Hkdf::<Sha256>::new(salt, secret)
                 .expand(info, &mut key)
@@ -169,7 +176,7 @@ pub fn derive_key(
     salt: Option<&[u8]>,
     info: &str,
     length: usize,
-) -> CryptoResult<Vec<u8>> {
+) -> CryptoResult<Zeroizing<Vec<u8>>> {
     let kdf = if cnsa {
         Kdf::HkdfSha384
     } else {
@@ -299,16 +306,18 @@ pub fn decrypt(text: &str, secret: &str, algorithm: Option<&str>) -> CryptoResul
         .map_err(|_| CryptoError::malformed("Decrypted data is not UTF-8 text; use decryptBytes."))
 }
 
-fn legacy_key(secret: &str, key_length: usize) -> CryptoResult<Vec<u8>> {
+fn legacy_key(secret: &str, key_length: usize) -> CryptoResult<Zeroizing<Vec<u8>>> {
     let bytes = secret.as_bytes();
     if bytes.len() < MIN_SECRET_LENGTH {
         return Err(CryptoError::invalid_key(
             "Key must have a minimum length of 16 characters.",
         ));
     }
-    Ok((0..key_length)
-        .map(|index| bytes[index % bytes.len()])
-        .collect())
+    Ok(Zeroizing::new(
+        (0..key_length)
+            .map(|index| bytes[index % bytes.len()])
+            .collect(),
+    ))
 }
 
 #[cfg(test)]

@@ -6,6 +6,7 @@ use serde_json::{Map, Value};
 use crate::clock::check_now;
 use crate::error::{CryptoError, CryptoResult};
 use crate::level::{Level, explicit_level};
+use crate::rsa_keys::{check_size, parse_private, parse_public};
 
 const MIN_SECRET_LENGTH: usize = 16;
 
@@ -158,7 +159,10 @@ pub fn sign(payload_json: &str, key: &str, options_json: &str, now: f64) -> Cryp
     claims.entry("iat").or_insert(Value::from(now));
     if let Some(expires_in) = options.expires_in {
         let expires_in = crate::clock::check_duration(expires_in, "expiresIn")?;
-        claims.insert("exp".into(), Value::from(now + expires_in));
+        let expires = now
+            .checked_add(expires_in)
+            .ok_or_else(|| CryptoError::invalid_input("expiresIn is too large."))?;
+        claims.insert("exp".into(), Value::from(expires));
     }
     let optional = [
         ("iss", options.issuer.map(Value::String)),
@@ -175,8 +179,16 @@ pub fn sign(payload_json: &str, key: &str, options_json: &str, now: f64) -> Cryp
             check_secret(key)?;
             EncodingKey::from_secret(key.as_bytes())
         }
-        KeyKind::Pem => EncodingKey::from_rsa_pem(key.as_bytes())
-            .map_err(|_| CryptoError::invalid_key("Invalid RSA private key PEM."))?,
+        KeyKind::Pem => {
+            let private = parse_private(key)
+                .map_err(|_| CryptoError::invalid_key("Invalid RSA private key PEM."))?;
+            check_size(
+                &rsa::RsaPublicKey::from(&private),
+                explicit_level(options.level.as_deref())?,
+            )?;
+            EncodingKey::from_rsa_pem(key.as_bytes())
+                .map_err(|_| CryptoError::invalid_key("Invalid RSA private key PEM."))?
+        }
     };
     if options.require_expiration.unwrap_or(true) && !claims.contains_key("exp") {
         return Err(CryptoError::invalid_input(
@@ -278,10 +290,17 @@ pub fn verify(token: &str, key: &str, options_json: &str, now: f64) -> CryptoRes
     if !allowed.contains(&header.alg) || kind_of(header.alg) != kind {
         return Err(verify_error(CryptoError::unsupported, "invalid algorithm"));
     }
+    let invalid_key = |message: &str| verify_error(CryptoError::invalid_key, message);
     let decoding_key = match kind {
-        KeyKind::Secret => DecodingKey::from_secret(key.as_bytes()),
-        KeyKind::Pem => DecodingKey::from_rsa_pem(key.as_bytes())
-            .map_err(|_| verify_error(CryptoError::invalid_key, "invalid key"))?,
+        KeyKind::Secret => {
+            check_secret(key).map_err(|error| invalid_key(&error.message))?;
+            DecodingKey::from_secret(key.as_bytes())
+        }
+        KeyKind::Pem => {
+            let public = parse_public(key).map_err(|_| invalid_key("invalid key"))?;
+            check_size(&public, None).map_err(|error| invalid_key(&error.message))?;
+            DecodingKey::from_rsa_pem(key.as_bytes()).map_err(|_| invalid_key("invalid key"))?
+        }
     };
     let mut validation = Validation::new(header.alg);
     validation.validate_exp = false;
@@ -318,7 +337,7 @@ pub fn decode(token: &str) -> String {
 mod tests {
     use super::*;
     use crate::error::ErrorCode;
-    use crate::rsa_keys::tests::pair_2048;
+    use crate::rsa_keys::tests::{SMALL_KEY_ERROR, pair_2048, pair_4096, public_1024};
     use serde_json::json;
 
     const SECRET: &str = "supersecretkeysupersecretkey";
@@ -540,9 +559,20 @@ mod tests {
             .code,
             ErrorCode::InvalidKey
         );
+        assert_eq!(
+            sign(
+                "{}",
+                &pair.private_key,
+                r#"{"level":"cnsa","expiresIn":60}"#,
+                NOW,
+            )
+            .unwrap_err()
+            .message,
+            "RSA key of 2048 bits is below the 4096 bits required by level cnsa."
+        );
         let rs512 = sign(
             "{}",
-            &pair.private_key,
+            &pair_4096().private_key,
             r#"{"level":"cnsa","expiresIn":60}"#,
             NOW,
         )
@@ -552,6 +582,10 @@ mod tests {
             JwtAlgorithm::RS512
         );
         assert!(sign("{}", "-----BEGIN PRIVATE KEY-----\nnope", "", NOW).is_err());
+        assert_eq!(
+            verify(&token, public_1024(), "", NOW).unwrap_err().message,
+            format!("verify Error: {SMALL_KEY_ERROR}")
+        );
     }
 
     #[test]
@@ -575,6 +609,29 @@ mod tests {
         assert!(sign("{}", SECRET, r#"{"unknown":1}"#, NOW).is_err());
         assert!(sign("{}", SECRET, r#"{"expiresIn":0}"#, NOW).is_err());
         assert!(verify("a.b.c", SECRET, r#"{"algorithms":["none"]}"#, NOW).is_err());
+        let signed_with_short = jsonwebtoken::encode(
+            &Header::new(JwtAlgorithm::HS256),
+            &json!({ "exp": NOW + 60.0 }),
+            &EncodingKey::from_secret(b"short"),
+        )
+        .unwrap();
+        assert_eq!(
+            verify(&signed_with_short, "short", "", NOW)
+                .unwrap_err()
+                .message,
+            "verify Error: Secret key must have at least 16 characters."
+        );
+        assert_eq!(
+            sign(
+                "{}",
+                SECRET,
+                &format!(r#"{{"expiresIn":{}}}"#, i64::MAX),
+                NOW
+            )
+            .unwrap_err()
+            .message,
+            "expiresIn is too large."
+        );
         let array_payload = jsonwebtoken::encode(
             &Header::new(JwtAlgorithm::HS256),
             &json!([1]),

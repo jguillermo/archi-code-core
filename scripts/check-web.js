@@ -19,10 +19,16 @@ if (typeof vm.SourceTextModule !== 'function') {
   fail('vm.SourceTextModule is unavailable — run with node --experimental-vm-modules');
 }
 
-const webEntry = pkg.exports['.'].browser;
+const browserCondition = pkg.exports['.'].browser ?? {};
+const webEntry = browserCondition.default;
 if (pkg.browser !== webEntry || !webEntry || !webEntry.startsWith('./dist/esm/')) {
   fail(
-    `"browser" field and exports["."].browser must both point to the ESM build (got ${pkg.browser} / ${webEntry})`,
+    `"browser" field and exports["."].browser.default must both point to the ESM build (got ${pkg.browser} / ${webEntry})`,
+  );
+}
+if (browserCondition.types !== webEntry.replace(/\.js$/, '.d.ts')) {
+  fail(
+    `exports["."].browser.types must be the declarations of the ESM build (got ${browserCondition.types})`,
   );
 }
 const ENTRY = path.join(ROOT, webEntry);

@@ -30,9 +30,13 @@
   "module": "./dist/esm/index.js",
   "types": "./dist/cjs/index.d.ts",
   "browser": "./dist/esm/index.js",
+  "sideEffects": false,
   "exports": {
     ".": {
-      "browser": "./dist/esm/index.js",
+      "browser": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
       "node": {
         "import": {
           "types": "./dist/esm/index.d.ts",
@@ -109,6 +113,5 @@
         "statements": 100
       }
     }
-  },
-  "gitHead": "ec24f58d7c943a184f815076751029df7294f689"
+  }
 }

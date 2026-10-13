@@ -2,6 +2,7 @@ use rand_core::OsRng;
 use rsa::Oaep;
 use rsa::RsaPublicKey;
 use sha2::{Sha256, Sha384, Sha512};
+use zeroize::Zeroizing;
 
 use crate::aead::{AeadAlgorithm, open, seal};
 use crate::encoding::{from_base64url, random_bytes, to_base64url};
@@ -67,7 +68,7 @@ pub fn encrypt(
     let oaep = resolve::<RsaOaep>(level, algorithm)?;
     let public = parse_public(public_pem)?;
     check_size(&public, explicit_level(level)?)?;
-    let content_key = random_bytes(CONTENT_KEY_LENGTH)?;
+    let content_key = Zeroizing::new(random_bytes(CONTENT_KEY_LENGTH)?);
     let wrapped = wrap_key(&public, oaep.0, &content_key)?;
     let header = to_base64url(
         format!(
@@ -114,9 +115,11 @@ pub fn decrypt_bytes(token: &str, private_pem: &str) -> CryptoResult<Vec<u8>> {
     sealed.extend(from_base64url(tag, "tag")?);
     let unreadable =
         || CryptoError::tampered("Data may have been tampered with or the key is wrong.");
-    let content_key = private
-        .decrypt_blinded(&mut OsRng, padding(oaep.0), &wrapped)
-        .map_err(|_| unreadable())?;
+    let content_key = Zeroizing::new(
+        private
+            .decrypt_blinded(&mut OsRng, padding(oaep.0), &wrapped)
+            .map_err(|_| unreadable())?,
+    );
     if content_key.len() != CONTENT_KEY_LENGTH {
         return Err(unreadable());
     }

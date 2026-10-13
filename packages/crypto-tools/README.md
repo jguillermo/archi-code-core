@@ -27,7 +27,7 @@ await cipher.decrypt(encrypted, key); // 'hola'
 const locked = await cipher.encrypt('hola', 'a password people type', { password: true });
 
 const { publicKey, privateKey } = await rsa.generateKeyPair({ level: 'standard' });
-const sealed = await rsa.encrypt(fileBytes, publicKey); // any size: RSA wraps an AES key
+const sealed = await rsa.encrypt(fileBytes, publicKey); // RSA wraps an AES key (see Data size)
 await rsa.decryptBytes(sealed, privateKey);
 
 const signed = await signature.sign(fileBytes, privateKey);
@@ -63,7 +63,18 @@ In the browser, read files with `new Uint8Array(await file.arrayBuffer())`; in N
 
 `securityLevels()` returns what every level uses. Errors are `CryptoError` with a `code`:
 `INVALID_KEY`, `INVALID_INPUT`, `TAMPERED`, `EXPIRED`, `MALFORMED`, `UNSUPPORTED`, `WORKER` or
-`TIMEOUT`.
+`TIMEOUT`. A `jwt` or `token` payload that `JSON.stringify` cannot serialize (a `BigInt`, a cycle)
+rejects with `INVALID_INPUT`.
+
+Keys: RSA keys must have at least 2048 bits, also to verify (`signature.verify`, `jwt.verify`), and
+`signature.sign` / `jwt.sign` check the size of the level they get. `jwt` secrets need 16 characters
+to sign and to verify.
+
+Data size: `cipher.encrypt`, `rsa.encrypt` and `signature` take the whole input in memory: it is
+copied to the worker, then into the wasm memory (at most 4 GiB, shared with the output), and
+encrypted outputs are base64url strings, about 4/3 of the input. JavaScript engines cap the length of
+a string (V8: about 512 Mi characters), so keep each input well below 380 MiB and split larger files
+into parts.
 
 ## Security levels
 
@@ -139,10 +150,14 @@ Calls go to a lazy pool of up to `min(4, cores − 1)` workers: Web Workers buil
 browsers, `worker_threads` in Node. Workers do not keep a Node process alive when idle. Where no worker
 exists, or the page blocks them, the calls run on the calling thread (with one warning);
 `workers.configure({ mode: 'worker' })` fails instead, `mode: 'inline'` forces the calling thread.
+`workers.configure()` and `workers.terminate()` close the current workers: the calls still running
+reject with `WORKER`, so configure the pool before using it.
 
 - **Timeout.** A worker that answers nothing for `timeout` ms (default `60000`; `Infinity` turns it
   off) is replaced: the call it was running rejects with `TIMEOUT` and the calls queued behind it move
   to another worker. The calling thread cannot be interrupted, so the inline mode has no timeout.
+  Generating a 4096-bit RSA key can take several seconds, and longer on slow phones: raise `timeout`
+  if the app generates keys there.
 - **Crashes.** A call that traps the wasm (a Rust panic, memory exhausted) rejects with `WORKER` and its
   worker is replaced, so the next calls never run on a broken instance. A worker whose wasm cannot
   start (for example, the browser cannot reserve its memory) rejects its calls with `WORKER` and is
@@ -153,6 +168,10 @@ exists, or the page blocks them, the calls run on the calling thread (with one w
 - **Bytes.** A `Uint8Array` is copied to the worker. A view over a larger buffer (a `subarray`, or a
   small Node `Buffer` from the shared pool) and bytes in a `SharedArrayBuffer` are copied first, so the
   worker only receives the bytes of the view.
+- **Secrets in memory.** Derived keys, AES and RSA content keys and the AES key schedules are wiped
+  (`zeroize`) when the call ends. Keys and passwords arrive as JavaScript strings, which nobody can
+  wipe, and the copy the wasm glue makes of them is freed but not wiped; closing an idle worker gives
+  its whole memory back.
 - **Memory.** wasm memory only grows: an Argon2id hash keeps 64 MiB (256 MiB at `cnsa`) in its worker,
   up to that times the pool size. A worker idle for `idleTimeout` ms (default `30000`; `Infinity`
   keeps them) is closed to give that memory back; the next call starts a new one, which only
@@ -165,8 +184,9 @@ calls fall back to the calling thread, which also needs `'unsafe-eval'` because 
 embedded wasm-bindgen glue; with neither, every call rejects with `WORKER`. `npm run check:dist` runs
 these cases in Chromium, Firefox and WebKit.
 
-Size: the wasm (about 1.4 MiB) ships gzipped and as base64 inside the JavaScript, about 670 KiB per
-build (ESM or CJS; an app loads one). It is decompressed once with the standard `DecompressionStream`
+Size: the wasm (about 1.4 MiB) ships gzipped and as base64 inside the JavaScript, about 720 KiB per
+build (ESM or CJS; an app loads one, about 515 KiB once the server gzips it). The package holds both
+builds, about 1.8 MB unpacked. It is decompressed once with the standard `DecompressionStream`
 (Node 18+ and current browsers; check its support if you target old Safari or Firefox).
 
 ## Compatibility with the previous version
@@ -179,8 +199,8 @@ Data it produced still works:
 - `cipher.decrypt(data, key, { algorithm: 'aes-256-cbc-hmac' })` (also 128 and 192) reads the
   `iv|ciphertext|hmac` format of `SymmetricEncryption`. That format can only be decrypted: encrypting
   with it rejects with `UNSUPPORTED`, so migrate the data to an AEAD algorithm.
-- `jwt.verify` accepts tokens signed by `jsonwebtoken` with the same secret; tokens without `exp` need
-  `{ requireExpiration: false }`.
+- `jwt.verify` accepts tokens signed by `jsonwebtoken` with the same secret if it has at least 16
+  characters; tokens without `exp` need `{ requireExpiration: false }`.
 - `CryptoEngine` produces byte for byte the same outputs. It is a reversible **obfuscation**, not
   encryption: use `cipher` for anything secret.
 

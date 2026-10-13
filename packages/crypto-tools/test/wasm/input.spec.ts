@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 import { runInNewContext } from 'vm';
-import { nowInSeconds, requireObject, requireText, toBytes } from '../../src/wasm/input';
+import { nowInSeconds, requireObject, requireText, toBytes, toJson } from '../../src/wasm/input';
 
 describe('input', () => {
   it('turns text into UTF-8 bytes and keeps byte arrays', () => {
@@ -52,6 +52,29 @@ describe('input', () => {
     for (const value of [null, [1], 'x']) {
       expect(() => requireObject(value, 'payload')).toThrow('payload must be a plain object.');
     }
+  });
+
+  it('serializes a plain object to JSON or explains why it cannot', () => {
+    expect(toJson({ a: 1 }, 'payload')).toBe('{"a":1}');
+    expect(() => toJson([1], 'payload')).toThrow('payload must be a plain object.');
+    expect(() => toJson({ big: BigInt(1) }, 'payload')).toThrow(
+      expect.objectContaining({
+        name: 'CryptoError',
+        code: 'INVALID_INPUT',
+        message: expect.stringContaining('payload cannot be serialized to JSON: '),
+      }),
+    );
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+    expect(() => toJson(circular, 'payload')).toThrow('payload cannot be serialized to JSON: ');
+    const throwing = {
+      toJSON: () => {
+        throw 'refused';
+      },
+    };
+    expect(() => toJson(throwing, 'payload')).toThrow(
+      'payload cannot be serialized to JSON: refused',
+    );
   });
 
   it('gives the current time in seconds', () => {

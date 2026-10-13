@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it, jest } from '@jest/globals';
 import { compileWasm, wasmGlue } from '../../src/wasm/wasm-module';
 
 describe('wasm module', () => {
@@ -10,6 +10,19 @@ describe('wasm module', () => {
     expect(exports).toEqual(
       expect.arrayContaining(['passwordHash', 'cipherEncrypt', 'engineEncode']),
     );
+  });
+
+  it('compiles again after a failed compilation', async () => {
+    await jest.isolateModulesAsync(async () => {
+      const { compileWasm: compileFresh } = await import('../../src/wasm/wasm-module');
+      const compile = jest
+        .spyOn(WebAssembly, 'compile')
+        .mockRejectedValueOnce(new Error('out of memory'));
+      await expect(compileFresh()).rejects.toThrow('out of memory');
+      expect(await compileFresh()).toBeInstanceOf(WebAssembly.Module);
+      expect(compile).toHaveBeenCalledTimes(2);
+      compile.mockRestore();
+    });
   });
 
   it('ships the no-modules glue without Node globals', () => {

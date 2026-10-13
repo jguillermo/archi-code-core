@@ -270,7 +270,8 @@ class CryptoWorkerPool {
   }
 
   private startWatchdog(member: PoolMember): void {
-    if (member.watchdog !== undefined || !Number.isFinite(this.timeout)) {
+    const interruptible = member.runtime !== 'inline';
+    if (member.watchdog !== undefined || !interruptible || !Number.isFinite(this.timeout)) {
       return;
     }
     member.watchdog = setTimeout(() => this.timedOut(member), this.timeout);

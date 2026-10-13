@@ -13,6 +13,11 @@ async function gunzip(bytes: Uint8Array<ArrayBuffer>): Promise<ArrayBuffer> {
 }
 
 export function compileWasm(): Promise<WebAssembly.Module> {
-  compiled ??= gunzip(decodeBase64(WASM_GZIP_BASE64)).then((bytes) => WebAssembly.compile(bytes));
+  compiled ??= gunzip(decodeBase64(WASM_GZIP_BASE64))
+    .then((bytes) => WebAssembly.compile(bytes))
+    .catch((error: unknown) => {
+      compiled = undefined;
+      throw error;
+    });
   return compiled;
 }

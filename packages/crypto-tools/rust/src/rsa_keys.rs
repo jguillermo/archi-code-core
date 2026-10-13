@@ -142,6 +142,19 @@ pub mod tests {
         PAIR.get_or_init(|| generate(Some("cnsa"), None).unwrap())
     }
 
+    pub fn public_1024() -> &'static str {
+        static PEM: OnceLock<String> = OnceLock::new();
+        PEM.get_or_init(|| {
+            let private = RsaPrivateKey::new(&mut OsRng, 1024).unwrap();
+            RsaPublicKey::from(&private)
+                .to_public_key_pem(LineEnding::LF)
+                .unwrap()
+        })
+    }
+
+    pub const SMALL_KEY_ERROR: &str =
+        "RSA key of 1024 bits is below the 2048 bits required by this package.";
+
     #[test]
     fn generates_pem_key_pairs_of_the_level_size() {
         let pair = pair_2048();

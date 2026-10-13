@@ -492,6 +492,14 @@ describe('workers pool', () => {
     });
   });
 
+  it('never arms a timeout for calls on the calling thread', async () => {
+    const timers = jest.spyOn(globalThis, 'setTimeout');
+    const { callCrypto, workers } = await loadWorkers({});
+    workers.configure({ mode: 'inline', timeout: 12_345, idleTimeout: Infinity });
+    expect(await callCrypto('engineEncode', 'testhash123', 'HELLO WORLD')).toBe('Pt3/97FmPVoz+4JG');
+    expect(timers.mock.calls.some(([, delay]) => delay === 12_345)).toBe(false);
+  });
+
   it('runs inline on request without warning', async () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     const { handles, factory } = fakeFactory();

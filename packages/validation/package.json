@@ -23,7 +23,10 @@
   "browser": "./dist/esm/index.js",
   "exports": {
     ".": {
-      "browser": "./dist/esm/index.js",
+      "browser": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
       "node": {
         "import": {
           "types": "./dist/esm/index.d.ts",

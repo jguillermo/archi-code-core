@@ -108,8 +108,9 @@ Only when the package needs them, and documented in its README:
   `check:lint`/`fix:lint`, their own tsconfig type-checked in `check:types`, and one script to
   run them (e.g. `benchmark`).
 - Extra `.gitignore` lines, `.prettierignore`, `sideEffects`.
-- A web build: `browser` field + `browser` export condition + `check-web.js` and `check-browser.js`
-  in `check:dist` + `web` and `browser` in `dist.check.js` (`browser()` returns
+- A web build: `browser` field + `browser` export condition (with its own `types`) +
+  `sideEffects: false` + `check-web.js` and `check-browser.js` in `check:dist` + `web` and `browser`
+  in `dist.check.js` (`browser()` returns
   `[name, pageFunction, { csp }?]`; each function runs in a real browser page and receives the URL of
   the ESM entry). `check-web.js` loads the ESM build in a realm with the standard Web APIs
   (`TextEncoder`, `crypto`, `atob`, timers…) and no Node APIs nor `Worker`. Its `exports["."]` may add a `node` condition (nested `import` /
@@ -118,7 +119,7 @@ Only when the package needs them, and documented in its README:
 
   ```json
   ".": {
-    "browser": "./dist/esm/index.js",
+    "browser": { "types": "./dist/esm/index.d.ts", "default": "./dist/esm/index.js" },
     "node": { "import": { "types": …, "default": … }, "require": { "types": …, "default": … } },
     "import": { "types": "./dist/esm/index.d.ts", "default": "./dist/esm/index.js" },
     "require": { "types": "./dist/cjs/index.d.ts", "default": "./dist/cjs/index.js" },

@@ -115,6 +115,7 @@ fn read_algorithm(header: &str) -> Option<RsaPss> {
 
 pub fn verify(data: &[u8], signature: &str, public_pem: &str) -> CryptoResult<bool> {
     let public = parse_public(public_pem)?;
+    check_size(&public, None)?;
     let parts: Vec<&str> = signature.split('.').collect();
     let [header, "", encoded] = parts.as_slice() else {
         return Ok(false);
@@ -137,7 +138,7 @@ pub fn verify(data: &[u8], signature: &str, public_pem: &str) -> CryptoResult<bo
 mod tests {
     use super::*;
     use crate::error::ErrorCode;
-    use crate::rsa_keys::tests::{pair_2048, pair_4096};
+    use crate::rsa_keys::tests::{SMALL_KEY_ERROR, pair_2048, pair_4096, public_1024};
 
     #[test]
     fn signs_and_verifies_binary_files_with_every_level() {
@@ -200,5 +201,9 @@ mod tests {
             ErrorCode::InvalidKey
         );
         assert!(sign(b"x", &pair_2048().private_key, None, Some("PS1")).is_err());
+        let signature = sign(b"x", &pair_2048().private_key, None, None).unwrap();
+        let error = verify(b"x", &signature, public_1024()).unwrap_err();
+        assert_eq!(error.code, ErrorCode::InvalidKey);
+        assert_eq!(error.message, SMALL_KEY_ERROR);
     }
 }

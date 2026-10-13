@@ -3,6 +3,7 @@ use pasetors::keys::SymmetricKey;
 use pasetors::token::UntrustedToken;
 use pasetors::version4::{LocalToken, V4};
 use serde_json::{Map, Value};
+use zeroize::Zeroizing;
 
 use crate::aead::{AeadAlgorithm, open, seal};
 use crate::cipher::derive_key;
@@ -49,7 +50,7 @@ impl Algorithm for TokenAlgorithm {
     }
 }
 
-fn token_key(secret: &str, algorithm: TokenAlgorithm) -> CryptoResult<Vec<u8>> {
+fn token_key(secret: &str, algorithm: TokenAlgorithm) -> CryptoResult<Zeroizing<Vec<u8>>> {
     derive_key(
         secret,
         algorithm == TokenAlgorithm::JweDirA256Gcm,
@@ -148,7 +149,10 @@ fn claims_with_times(
     }
     if let Some(expires_in) = expires_in {
         let expires_in = check_duration(expires_in, "expiresIn")?;
-        claims.insert("exp".into(), Value::String(to_rfc3339(now + expires_in)?));
+        let expires = now
+            .checked_add(expires_in)
+            .ok_or_else(|| CryptoError::invalid_input("expiresIn is too large."))?;
+        claims.insert("exp".into(), Value::String(to_rfc3339(expires)?));
     }
     Ok(claims)
 }
@@ -295,6 +299,20 @@ mod tests {
             ErrorCode::Expired
         );
         assert!(encrypt(r#"{}"#, SECRET, None, None, NOW, Some(-1.0), true).is_err());
+        assert_eq!(
+            encrypt(
+                r#"{}"#,
+                SECRET,
+                None,
+                None,
+                NOW,
+                Some(i64::MAX as f64),
+                true
+            )
+            .unwrap_err()
+            .message,
+            "expiresIn is too large."
+        );
     }
 
     #[test]

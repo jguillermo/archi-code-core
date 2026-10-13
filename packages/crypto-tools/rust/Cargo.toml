@@ -20,9 +20,9 @@ hex = "0.4"
 base64 = "0.22"
 bcrypt = "0.17"
 argon2 = "0.5"
-aes = "0.8"
+aes = { version = "0.8", features = ["zeroize"] }
 cbc = { version = "0.1", features = ["alloc"] }
-aes-gcm = "0.10"
+aes-gcm = { version = "0.10", features = ["zeroize"] }
 chacha20poly1305 = "0.10"
 subtle = "2"
 rsa = { version = "0.9", features = ["sha2"] }
@@ -33,6 +33,7 @@ serde_json = "1"
 rand_core = { version = "0.6", features = ["getrandom"] }
 time = { version = "0.3", features = ["formatting", "parsing"] }
 unicode-segmentation = "1"
+zeroize = "1"
 
 [profile.dev.package."*"]
 opt-level = 3

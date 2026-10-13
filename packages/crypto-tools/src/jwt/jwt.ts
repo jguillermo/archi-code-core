@@ -1,5 +1,5 @@
 import type { SecurityLevel } from '../level/security-level';
-import { nowInSeconds, requireObject, requireText } from '../wasm/input';
+import { nowInSeconds, requireText, toJson } from '../wasm/input';
 import { callCrypto } from '../worker/workers';
 
 export type JwtAlgorithm = 'HS256' | 'HS384' | 'HS512' | 'RS256' | 'RS384' | 'RS512';
@@ -27,7 +27,7 @@ export type JwtPayload = Record<string, unknown>;
 
 export const jwt = {
   async sign(payload: JwtPayload, key: string, options: JwtSignOptions = {}): Promise<string> {
-    const json = JSON.stringify(requireObject(payload, 'payload'));
+    const json = toJson(payload, 'payload');
     const secret = requireText(key, 'key');
     return callCrypto('jwtSign', json, secret, JSON.stringify(options), nowInSeconds());
   },

@@ -36,6 +36,16 @@ export function requireObject(value: unknown, name: string): Record<string, unkn
   return value as Record<string, unknown>;
 }
 
+export function toJson(value: unknown, name: string): string {
+  const object = requireObject(value, name);
+  try {
+    return JSON.stringify(object);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new CryptoError('INVALID_INPUT', `${name} cannot be serialized to JSON: ${reason}`);
+  }
+}
+
 export function nowInSeconds(): number {
   return Date.now() / 1000;
 }

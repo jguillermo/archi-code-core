@@ -1,5 +1,5 @@
 import type { LevelOptions } from '../level/security-level';
-import { nowInSeconds, requireObject, requireText } from '../wasm/input';
+import { nowInSeconds, requireText, toJson } from '../wasm/input';
 import { callCrypto } from '../worker/workers';
 
 export type TokenAlgorithm = 'paseto-v4-local' | 'jwe-dir-a256gcm';
@@ -21,7 +21,7 @@ export const token = {
   },
 
   async encrypt(payload: TokenPayload, key: string, options: TokenOptions = {}): Promise<string> {
-    const json = JSON.stringify(requireObject(payload, 'payload'));
+    const json = toJson(payload, 'payload');
     const { level, algorithm, expiresIn, requireExpiration } = options;
     const secret = requireText(key, 'key');
     return callCrypto(

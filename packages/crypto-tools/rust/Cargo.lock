@@ -21,6 +21,7 @@ dependencies = [
  "cfg-if",
  "cipher",
  "cpufeatures",
+ "zeroize",
 ]
 
 [[package]]
@@ -35,6 +36,7 @@ dependencies = [
  "ctr",
  "ghash",
  "subtle",
+ "zeroize",
 ]
 
 [[package]]
@@ -252,6 +254,7 @@ dependencies = [
  "time",
  "unicode-segmentation",
  "wasm-bindgen",
+ "zeroize",
 ]
 
 [[package]]

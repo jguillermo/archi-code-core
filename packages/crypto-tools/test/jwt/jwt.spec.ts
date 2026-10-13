@@ -122,5 +122,14 @@ describe('jwt', () => {
       'payload must be a plain object.',
     );
     await expect(jwt.sign({}, 1 as unknown as string)).rejects.toThrow('key must be a string.');
+    await expect(jwt.sign({ id: BigInt(7) }, SECRET)).rejects.toMatchObject({
+      name: 'CryptoError',
+      code: 'INVALID_INPUT',
+    });
+    const signed = await jwt.sign({}, SECRET, { expiresIn: 60 });
+    await expect(jwt.verify(signed, 'short')).rejects.toMatchObject({
+      code: 'INVALID_KEY',
+      message: 'verify Error: Secret key must have at least 16 characters.',
+    });
   });
 });
