@@ -10,7 +10,7 @@
       "main": "3.0.0-alpha.3"
     },
     "@archi-code/ephemeradb": {
-      "main": "3.0.0-alpha.2"
+      "main": "3.0.0-alpha.3"
     },
     "@archi-code/test": {
       "main": "3.0.0-alpha.2"
@@ -212,6 +212,16 @@
           "dependencies": {
             "@archi-code/validation": "3.0.0-alpha.3"
           }
+        },
+        {
+          "name": "@archi-code/ephemeradb",
+          "previous": "3.0.0-alpha.2",
+          "version": "3.0.0-alpha.3",
+          "bump": "patch",
+          "reasons": [
+            "commits (patch)"
+          ],
+          "dependencies": {}
         }
       ]
     }
