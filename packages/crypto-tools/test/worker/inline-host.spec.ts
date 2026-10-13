@@ -29,11 +29,13 @@ describe('inlineWorkerFactory', () => {
   });
 
   it('marks a wasm trap as fatal', async () => {
-    const handle = inlineWorkerFactory(wasmGlue()).create('');
+    const trappingGlue = `var wasm_bindgen = Object.assign(() => Promise.resolve(), {
+      engineEncode: () => { throw new WebAssembly.RuntimeError('unreachable'); },
+    });`;
+    const handle = inlineWorkerFactory(trappingGlue).create('');
     handle.post({ type: 'init', module: await compileWasm() });
     const request = requester(handle);
-    const huge = '$argon2id$v=19$m=4000000,t=1,p=1$c2FsdHNhbHQ$aGFzaGhhc2hoYXNoaGFzaA';
-    expect(await request('passwordVerify', 'x', huge)).toEqual({
+    expect(await request('engineEncode', 'k', 'x')).toEqual({
       id: 1,
       ok: false,
       error: 'unreachable',

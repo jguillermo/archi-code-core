@@ -13,6 +13,9 @@ const HANDLER = `
   var handle = function (message) {
     if (message.type === 'init') {
       ready = wasm_bindgen({ module_or_path: message.module });
+      ready.catch(function (error) {
+        send({ type: 'failed', error: error instanceof Error ? error.message : String(error) });
+      });
       return;
     }
     ready
@@ -37,6 +40,7 @@ const HANDLER = `
       handle(event.data);
     };
   }
+  send({ type: 'started' });
 })();
 `;
 

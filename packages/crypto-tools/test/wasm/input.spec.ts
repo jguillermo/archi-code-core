@@ -10,6 +10,25 @@ describe('input', () => {
     expect(toBytes(Buffer.from([3]))).toEqual(Buffer.from([3]));
   });
 
+  it('copies a view so the worker never receives the rest of its buffer', () => {
+    const buffer = new Uint8Array([1, 2, 3, 4, 5, 6]);
+    for (const view of [buffer.subarray(2, 4), buffer.subarray(0, 2), Buffer.from('ab')]) {
+      const sent = toBytes(view);
+      expect(sent).not.toBe(view);
+      expect([...sent]).toEqual([...view]);
+      expect(sent.byteOffset).toBe(0);
+      expect(sent.buffer.byteLength).toBe(view.byteLength);
+    }
+  });
+
+  it('copies bytes kept in shared memory', () => {
+    const shared = new Uint8Array(new SharedArrayBuffer(2));
+    shared.set([8, 9]);
+    const sent = toBytes(shared);
+    expect(sent.buffer).toBeInstanceOf(ArrayBuffer);
+    expect([...sent]).toEqual([8, 9]);
+  });
+
   it('accepts byte arrays created in another realm', () => {
     const foreign = runInNewContext('new Uint8Array([7])') as Uint8Array;
     expect(toBytes(foreign)).toBe(foreign);

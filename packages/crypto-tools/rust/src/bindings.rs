@@ -105,6 +105,7 @@ pub fn token_encrypt(
     algorithm: Option<String>,
     now: f64,
     expires_in: Option<f64>,
+    require_expiration: Option<bool>,
 ) -> Result<String, JsValue> {
     js(token::encrypt(
         payload_json,
@@ -113,12 +114,23 @@ pub fn token_encrypt(
         algorithm.as_deref(),
         now,
         expires_in,
+        require_expiration.unwrap_or(true),
     ))
 }
 
 #[wasm_bindgen(js_name = tokenDecrypt)]
-pub fn token_decrypt(token: &str, key: &str, now: f64) -> Result<String, JsValue> {
-    js(token::decrypt(token, key, now))
+pub fn token_decrypt(
+    token: &str,
+    key: &str,
+    now: f64,
+    require_expiration: Option<bool>,
+) -> Result<String, JsValue> {
+    js(token::decrypt(
+        token,
+        key,
+        now,
+        require_expiration.unwrap_or(true),
+    ))
 }
 
 #[wasm_bindgen(js_name = rsaGenerateKeyPair)]

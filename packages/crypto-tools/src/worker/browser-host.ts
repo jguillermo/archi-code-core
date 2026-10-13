@@ -1,9 +1,9 @@
-import type { CryptoResponse } from './crypto-functions';
+import type { WorkerReply } from './crypto-functions';
 import type { WorkerFactory, WorkerHandle, WorkerMessage } from './worker-handle';
 
 interface BrowserWorker {
   postMessage(message: WorkerMessage): void;
-  onmessage: ((event: { data: CryptoResponse }) => void) | null;
+  onmessage: ((event: { data: WorkerReply }) => void) | null;
   onerror: ((event: { message?: string }) => void) | null;
   terminate(): void;
 }

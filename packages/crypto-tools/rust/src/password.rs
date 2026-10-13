@@ -55,7 +55,7 @@ pub enum PasswordParams {
 }
 
 const MIN_BCRYPT_COST: u32 = 4;
-const MAX_BCRYPT_COST: u32 = 31;
+const MAX_BCRYPT_COST: u32 = 14;
 const MAX_BCRYPT_BYTES: usize = 72;
 pub const MAX_PASSWORD_CHARACTERS: usize = 64;
 
@@ -160,7 +160,7 @@ pub fn hash(
     }
 }
 
-fn is_bcrypt_hash(value: &str) -> bool {
+fn bcrypt_hash_cost(value: &str) -> Option<u32> {
     let bytes = value.as_bytes();
     let prefix = if value.starts_with("$2$") {
         3
@@ -171,16 +171,33 @@ fn is_bcrypt_hash(value: &str) -> bool {
     {
         4
     } else {
-        return false;
+        return None;
     };
     let rest = &bytes[prefix..];
-    rest.len() == 2 + 1 + 53
+    let well_formed = rest.len() == 2 + 1 + 53
         && rest[0].is_ascii_digit()
         && rest[1].is_ascii_digit()
         && rest[2] == b'$'
         && rest[3..]
             .iter()
-            .all(|byte| byte.is_ascii_alphanumeric() || *byte == b'.' || *byte == b'/')
+            .all(|byte| byte.is_ascii_alphanumeric() || *byte == b'.' || *byte == b'/');
+    well_formed.then(|| u32::from(rest[0] - b'0') * 10 + u32::from(rest[1] - b'0'))
+}
+
+fn within_argon2_limits(hash: &PasswordHash<'_>) -> bool {
+    let PasswordParams::Argon2id {
+        memory_kib,
+        iterations,
+        parallelism,
+    } = argon2_params(Level::Cnsa)
+    else {
+        unreachable!("argon2_params always describes argon2id")
+    };
+    Params::try_from(hash).is_ok_and(|params| {
+        params.m_cost() <= memory_kib
+            && params.t_cost() <= iterations
+            && params.p_cost() <= parallelism
+    })
 }
 
 fn parse_argon2(value: &str) -> Option<PasswordHash<'_>> {
@@ -190,18 +207,20 @@ fn parse_argon2(value: &str) -> Option<PasswordHash<'_>> {
 }
 
 pub fn is_hash(value: &str) -> bool {
-    is_bcrypt_hash(value) || parse_argon2(value).is_some()
+    bcrypt_hash_cost(value).is_some() || parse_argon2(value).is_some()
 }
 
 pub fn verify(password: &str, hash: &str) -> bool {
-    if is_bcrypt_hash(hash) {
-        return bcrypt::verify(password, hash).unwrap_or(false);
+    if let Some(cost) = bcrypt_hash_cost(hash) {
+        return cost <= MAX_BCRYPT_COST
+            && password.len() <= MAX_BCRYPT_BYTES
+            && bcrypt::verify(password, hash).unwrap_or(false);
     }
     match parse_argon2(hash) {
-        Some(parsed) => Argon2::default()
+        Some(parsed) if within_argon2_limits(&parsed) => Argon2::default()
             .verify_password(password.as_bytes(), &parsed)
             .is_ok(),
-        None => false,
+        _ => false,
     }
 }
 
@@ -255,7 +274,7 @@ mod tests {
     }
 
     #[test]
-    fn accepts_a_bcrypt_cost_between_4_and_31() {
+    fn accepts_a_bcrypt_cost_between_4_and_14() {
         assert_eq!(
             params(None, Some("bcrypt"), Some(4)).unwrap(),
             PasswordParams::Bcrypt { cost: 4 }
@@ -264,9 +283,13 @@ mod tests {
             params(None, Some("bcrypt"), None).unwrap(),
             PasswordParams::Bcrypt { cost: 12 }
         );
-        for cost in [3, 32] {
+        assert_eq!(
+            params(None, Some("bcrypt"), Some(14)).unwrap(),
+            PasswordParams::Bcrypt { cost: 14 }
+        );
+        for cost in [3, 15, 31] {
             let error = params(Some("basic"), None, Some(cost)).unwrap_err();
-            assert_eq!(error.message, "Cost must be between 4 and 31.");
+            assert_eq!(error.message, "Cost must be between 4 and 14.");
         }
         assert!(params(Some("strong"), None, Some(10)).is_err());
         assert_eq!(
@@ -345,6 +368,36 @@ mod tests {
         let hash = hash(&exact, Some("basic"), None, Some(4)).unwrap();
         assert!(verify(&exact, &hash));
         assert!(!verify(&"ñ".repeat(35), &hash));
+    }
+
+    #[test]
+    fn does_not_verify_bcrypt_passwords_it_would_truncate() {
+        let long = "a".repeat(MAX_BCRYPT_BYTES + 8);
+        let first_bytes = &long[..MAX_BCRYPT_BYTES];
+        let hash = bcrypt::hash(first_bytes, 4).unwrap();
+        assert!(verify(first_bytes, &hash));
+        assert!(!verify(&long, &hash));
+    }
+
+    #[test]
+    fn refuses_to_verify_hashes_above_the_cnsa_cost() {
+        let bcrypt_14 = bcrypt::hash("secret", 14).unwrap();
+        assert!(verify("secret", &bcrypt_14));
+        let bcrypt_31 = format!("$2b$31${}", &bcrypt_14[7..]);
+        assert!(is_hash(&bcrypt_31));
+        assert!(!verify("secret", &bcrypt_31));
+        let cnsa = hash("secret", Some("cnsa"), None, None).unwrap();
+        assert!(verify("secret", &cnsa));
+        for (from, to) in [
+            ("m=262144", "m=4194304"),
+            ("t=4", "t=5"),
+            ("p=4", "p=5"),
+            ("m=262144", "m=1"),
+        ] {
+            let crafted = cnsa.replacen(from, to, 1);
+            assert!(is_hash(&crafted), "{to}");
+            assert!(!verify("secret", &crafted), "{to}");
+        }
     }
 
     #[test]

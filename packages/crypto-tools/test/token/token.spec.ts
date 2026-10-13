@@ -19,7 +19,10 @@ describe('token', () => {
     ['cnsa', 'eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..'],
     ['military', 'eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..'],
   ])('encrypts a JSON payload with level %s', async (level, prefix) => {
-    const encrypted = await token.encrypt({ id: 7, roles: ['user'] }, SECRET, { level });
+    const encrypted = await token.encrypt({ id: 7, roles: ['user'] }, SECRET, {
+      level,
+      expiresIn: 60,
+    });
     expect(encrypted.startsWith(prefix)).toBe(true);
     const payload = await token.decrypt<{ id: number; roles: string[]; iat: string }>(
       encrypted,
@@ -44,10 +47,26 @@ describe('token', () => {
     });
   });
 
+  it('requires an expiration unless told otherwise', async () => {
+    await expect(token.encrypt({ id: 7 }, SECRET)).rejects.toMatchObject({
+      code: 'INVALID_INPUT',
+      message:
+        'A token needs an expiration: pass expiresIn, an exp claim or requireExpiration: false.',
+    });
+    const forever = await token.encrypt({ id: 7 }, SECRET, { requireExpiration: false });
+    await expect(token.decrypt(forever, SECRET)).rejects.toMatchObject({
+      code: 'MALFORMED',
+      message: 'Token has no exp claim; pass requireExpiration: false to accept it.',
+    });
+    expect(await token.decrypt(forever, SECRET, { requireExpiration: false })).toMatchObject({
+      id: 7,
+    });
+  });
+
   it('detects tampering, wrong keys and malformed tokens', async () => {
     const key = await token.generateKey();
     expect(key).toMatch(/^[A-Za-z0-9_-]{43}$/);
-    const encrypted = await token.encrypt({ id: 7 }, key);
+    const encrypted = await token.encrypt({ id: 7 }, key, { expiresIn: 60 });
     await expect(token.decrypt(encrypted, SECRET)).rejects.toMatchObject({ code: 'TAMPERED' });
     await expect(token.decrypt('v4.local.nope', key)).rejects.toMatchObject({ code: 'MALFORMED' });
   });

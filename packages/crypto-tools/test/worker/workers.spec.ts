@@ -8,6 +8,7 @@ interface Setup {
   browser?: WorkerFactory;
   node?: WorkerFactory;
   compile?: () => Promise<unknown>;
+  glue?: string;
 }
 
 async function loadWorkers(setup: Setup): Promise<typeof WorkersModule> {
@@ -18,10 +19,10 @@ async function loadWorkers(setup: Setup): Promise<typeof WorkersModule> {
     }));
     jest.doMock('../../src/worker/node-host', () => ({ nodeWorkerFactory: () => setup.node }));
     if (setup.compile) {
-      const compile = setup.compile;
+      const { compile, glue = 'glue' } = setup;
       jest.doMock('../../src/wasm/wasm-module', () => ({
         compileWasm: compile,
-        wasmGlue: () => 'glue',
+        wasmGlue: () => glue,
       }));
     }
     loaded = await import('../../src/worker/workers');
@@ -69,25 +70,34 @@ describe('workers with the real runtime', () => {
     }
   });
 
-  it('replaces a worker whose wasm traps and keeps serving calls', async () => {
-    const { callCrypto, workers } = await import('../../src/worker/workers');
-    workers.configure({ size: 1 });
-    const huge = '$argon2id$v=19$m=4000000,t=1,p=1$c2FsdHNhbHQ$aGFzaGhhc2hoYXNoaGFzaA';
-    await expect(callCrypto('passwordVerify', 'x', huge)).rejects.toMatchObject({
-      code: 'WORKER',
-      message: 'Crypto worker crashed: unreachable',
+  it('drops a worker whose wasm cannot start and serves the next calls with a new one', async () => {
+    const real = await import('../../src/wasm/wasm-module');
+    const { nodeWorkerFactory } = await import('../../src/worker/node-host');
+    const empty = new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0]);
+    let broken = true;
+    const { callCrypto, workers } = await loadWorkers({
+      node: nodeWorkerFactory(),
+      glue: real.wasmGlue(),
+      compile: () => (broken ? WebAssembly.compile(empty) : real.compileWasm()),
     });
-    expect(await callCrypto('passwordIsHash', huge)).toBe(true);
+    workers.configure({ size: 1 });
+    await expect(callCrypto('passwordIsHash', 'nope')).rejects.toMatchObject({
+      code: 'WORKER',
+      message: expect.stringContaining('Crypto worker failed: '),
+    });
+    broken = false;
+    expect(await callCrypto('passwordIsHash', 'nope')).toBe(false);
+    workers.terminate();
   });
 
   it('stops a call that runs longer than the timeout and keeps serving calls', async () => {
     const { callCrypto, workers } = await import('../../src/worker/workers');
-    workers.configure({ size: 1, timeout: 500 });
-    const slow = callCrypto('passwordHash', 'x', undefined, 'bcrypt', 31);
+    workers.configure({ size: 1, timeout: 200 });
+    const slow = callCrypto('passwordHash', 'x', 'cnsa', undefined, undefined);
     const queued = callCrypto('engineEncode', 'testhash123', 'HELLO WORLD');
     await expect(slow).rejects.toMatchObject({
       code: 'TIMEOUT',
-      message: 'Crypto call passwordHash took longer than 500 ms.',
+      message: 'Crypto call passwordHash took longer than 200 ms.',
     });
     await expect(queued).resolves.toBe('Pt3/97FmPVoz+4JG');
     workers.configure({ timeout: 60_000 });
@@ -395,6 +405,51 @@ describe('workers pool', () => {
     );
     web.handles[0].fail(new Error('late exit'));
     workers.terminate();
+  });
+
+  it('keeps using Web Workers when one fails after it started', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const web = fakeFactory('web-worker');
+    const { callCrypto, workers } = await loadWorkers({ browser: web.factory, compile: compiled });
+    workers.configure({ size: 1 });
+    const call = callCrypto('passwordHash', 'x', 'cnsa', undefined, undefined);
+    await flush();
+    web.handles[0].respond({ type: 'started' });
+    web.handles[0].fail(new Error('Out of memory'));
+    await expect(call).rejects.toMatchObject({
+      code: 'WORKER',
+      message: 'Crypto worker failed: Out of memory',
+    });
+    expect(warn).not.toHaveBeenCalled();
+    void callCrypto('engineEncode', 'k', 'a');
+    await flush();
+    expect(web.handles).toHaveLength(2);
+    expect(workers.runtime()).toBe('web-worker');
+  });
+
+  it('rejects the calls of a worker whose wasm could not start and starts a new one', async () => {
+    const { handles, factory } = fakeFactory();
+    const { callCrypto, workers } = await loadWorkers({ node: factory, compile: compiled });
+    workers.configure({ size: 1 });
+    const first = callCrypto('engineEncode', 'k', 'a');
+    const second = callCrypto('engineEncode', 'k', 'b');
+    await flush();
+    handles[0].respond({ type: 'started' });
+    handles[0].respond({
+      type: 'failed',
+      error: 'WebAssembly.Memory(): could not allocate memory',
+    });
+    for (const call of [first, second]) {
+      await expect(call).rejects.toMatchObject({
+        code: 'WORKER',
+        message: 'Crypto worker failed: WebAssembly.Memory(): could not allocate memory',
+      });
+    }
+    expect(handles[0].terminated).toBe(true);
+    const next = callCrypto('engineEncode', 'k', 'c');
+    await flush();
+    handles[1].respond({ id: 3, ok: true, result: 'C' });
+    await expect(next).resolves.toBe('C');
   });
 
   it('treats other Web Worker failures as failures', async () => {

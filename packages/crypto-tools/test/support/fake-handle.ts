@@ -1,4 +1,4 @@
-import type { CryptoResponse } from '../../src/worker/crypto-functions';
+import type { WorkerReply } from '../../src/worker/crypto-functions';
 import type {
   WorkerFactory,
   WorkerHandle,
@@ -10,14 +10,14 @@ export class FakeHandle implements WorkerHandle {
   posted: WorkerMessage[] = [];
   alive: boolean[] = [];
   terminated = false;
-  private listener: (response: CryptoResponse) => void = () => undefined;
+  private listener: (reply: WorkerReply) => void = () => undefined;
   private failure: (error: Error) => void = () => undefined;
 
   post(message: WorkerMessage): void {
     this.posted.push(message);
   }
 
-  onMessage(listener: (response: CryptoResponse) => void): void {
+  onMessage(listener: (reply: WorkerReply) => void): void {
     this.listener = listener;
   }
 
@@ -33,8 +33,8 @@ export class FakeHandle implements WorkerHandle {
     this.terminated = true;
   }
 
-  respond(response: CryptoResponse): void {
-    this.listener(response);
+  respond(reply: WorkerReply): void {
+    this.listener(reply);
   }
 
   fail(error: Error): void {

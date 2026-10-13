@@ -98,14 +98,23 @@ count `🔒` as 2). Longer passwords reject with `INVALID_INPUT`.
 bcrypt only reads the first 72 **bytes** of UTF-8: 72 ASCII characters, but 36 with accents, 24 in
 Chinese or 18 emoji. Instead of truncating in silence, `hash` with bcrypt (`level: 'basic'` or
 `algorithm: 'bcrypt'`) rejects a password over 72 bytes with `INVALID_INPUT`; Argon2id, the default, has
-no such limit. `cost` only applies to bcrypt, so it needs `algorithm: 'bcrypt'` or `level: 'basic'`.
-`password.verify` has no limit, so hashes made before (by 3.x or with longer passwords) still verify.
+no such limit. `cost` only applies to bcrypt, so it needs `algorithm: 'bcrypt'` or `level: 'basic'`,
+and goes from 4 to 14.
 
-## Keys and passwords in `cipher`
+`password.verify` never truncates either: a password over 72 bytes does not verify against a bcrypt
+hash, also one made by 3.x or another library that truncated it (those users need a password reset).
+It also refuses (returns `false`) any hash that asks for more work than the `cnsa` level: bcrypt cost
+over 14, or Argon2 over 256 MiB, t=4 or p=4. A hash read from somewhere an attacker can write could
+otherwise ask for gigabytes of memory or days of CPU. `password.isHash` only checks the format, so it
+is still `true` for those hashes.
 
-By default `cipher` derives its key with HKDF, which is fast and assumes the key is already random: use
-`cipher.generateKey()` (32 random bytes) or another secret of at least 16 characters (32 at `cnsa`)
-that nobody chose by hand. HKDF does not slow down guessing, so a password people type would be weak.
+## Keys and passwords in `cipher` and `token`
+
+`cipher` (by default) and `token` (always) derive their key with HKDF, which is fast and assumes the
+key is already random: use `cipher.generateKey()` / `token.generateKey()` (32 random bytes) or another
+secret of at least 16 characters (32 at `cnsa`) that nobody chose by hand. HKDF does not slow down
+guessing, so with a password people type anyone holding an output could find it offline. `token` has
+no password mode: keep its key random.
 
 For a password people type, pass `{ password: true }`: the key is derived with Argon2id and a random
 salt (the parameters of the password table: 64 MiB, t=3, p=4; 256 MiB, t=4 at `cnsa`), which is slow on
@@ -113,12 +122,16 @@ purpose. The password must have 8 to 64 characters (counted as in `password.hash
 the derivation (`v1.<alg>.argon2id-m65536-t3-p4.…`), so `decrypt` needs no option; it only accepts the
 Argon2 parameters this package produces, so crafted data cannot ask for huge memory.
 
-## JWT expiration
+## Expiration of `jwt` and `token`
 
 `jwt.sign` needs an expiration: `expiresIn`, an `exp` claim in the payload, or an explicit
 `requireExpiration: false` for a token that never expires. `jwt.verify` rejects a token without `exp`
 (`MALFORMED`, `verify Error: jwt has no exp claim`) unless it gets `requireExpiration: false` or
 `ignoreExpiration: true`. `clockTolerance` must be 0 or a positive number of seconds.
+
+`token` follows the same rule: `token.encrypt` rejects (`INVALID_INPUT`) a payload without `expiresIn`
+or an `exp` claim unless it gets `requireExpiration: false`, and `token.decrypt(data, key)` rejects a
+token without `exp` (`MALFORMED`) unless it gets `{ requireExpiration: false }`.
 
 ## Workers and the main thread
 
@@ -129,11 +142,17 @@ exists, or the page blocks them, the calls run on the calling thread (with one w
 
 - **Timeout.** A worker that answers nothing for `timeout` ms (default `60000`; `Infinity` turns it
   off) is replaced: the call it was running rejects with `TIMEOUT` and the calls queued behind it move
-  to another worker. This stops calls such as a bcrypt hash of cost 31 or an Argon2 hash with huge
-  parameters coming from outside. The calling thread cannot be interrupted, so the inline mode has no
-  timeout.
+  to another worker. The calling thread cannot be interrupted, so the inline mode has no timeout.
 - **Crashes.** A call that traps the wasm (a Rust panic, memory exhausted) rejects with `WORKER` and its
-  worker is replaced, so the next calls never run on a broken instance.
+  worker is replaced, so the next calls never run on a broken instance. A worker whose wasm cannot
+  start (for example, the browser cannot reserve its memory) rejects its calls with `WORKER` and is
+  dropped; the next call starts a new one.
+- **Fallback.** Only a Web Worker that fails before its script runs (the page blocks `blob:` workers)
+  moves the pool to the calling thread. A worker that started and then fails (out of memory in an
+  Argon2 hash, for example) rejects its calls with `WORKER` and the pool keeps using workers.
+- **Bytes.** A `Uint8Array` is copied to the worker. A view over a larger buffer (a `subarray`, or a
+  small Node `Buffer` from the shared pool) and bytes in a `SharedArrayBuffer` are copied first, so the
+  worker only receives the bytes of the view.
 - **Memory.** wasm memory only grows: an Argon2id hash keeps 64 MiB (256 MiB at `cnsa`) in its worker,
   up to that times the pool size. A worker idle for `idleTimeout` ms (default `30000`; `Infinity`
   keeps them) is closed to give that memory back; the next call starts a new one, which only
@@ -155,7 +174,8 @@ build (ESM or CJS; an app loads one). It is decompressed once with the standard 
 The 3.x API (classes such as `BcryptPasswordEncryptor`, `SodiumHasher`, `JWTDataSigner`) is gone.
 Data it produced still works:
 
-- `password.verify` accepts bcrypt and libsodium Argon2id hashes.
+- `password.verify` accepts bcrypt and libsodium Argon2id hashes up to the `cnsa` cost (see Password
+  length); bcrypt passwords over 72 bytes no longer verify.
 - `cipher.decrypt(data, key, { algorithm: 'aes-256-cbc-hmac' })` (also 128 and 192) reads the
   `iv|ciphertext|hmac` format of `SymmetricEncryption`. That format can only be decrypted: encrypting
   with it rejects with `UNSUPPORTED`, so migrate the data to an AEAD algorithm.

@@ -1,7 +1,12 @@
 import { CryptoError } from '../level/crypto-error';
 import { compileWasm, wasmGlue } from '../wasm/wasm-module';
 import { browserWorkerFactory } from './browser-host';
-import type { CryptoFunctionName, CryptoFunctions, CryptoResponse } from './crypto-functions';
+import type {
+  CryptoFunctionName,
+  CryptoFunctions,
+  CryptoResponse,
+  WorkerReply,
+} from './crypto-functions';
 import { inlineWorkerFactory } from './inline-host';
 import { nodeWorkerFactory } from './node-host';
 import type { WorkerFactory, WorkerHandle, WorkerRuntime } from './worker-handle';
@@ -30,7 +35,7 @@ interface PendingCall {
 
 interface PoolMember {
   runtime: WorkerRuntime;
-  answered: boolean;
+  started: boolean;
   handle: WorkerHandle;
   ready: Promise<void>;
   pending: Map<number, PendingCall>;
@@ -197,16 +202,26 @@ class CryptoWorkerPool {
     }
     const member: PoolMember = {
       runtime: factory.runtime,
-      answered: false,
+      started: false,
       handle,
       pending: new Map(),
       ready: compileWasm().then((module) => handle.post({ type: 'init', module })),
     };
     member.ready.catch((error: unknown) => this.fail(member, error));
-    handle.onMessage((response) => this.settle(member, response));
+    handle.onMessage((reply) => this.receive(member, reply));
     handle.onFailure((error) => this.failed(member, error));
     this.members.push(member);
     return member;
+  }
+
+  private receive(member: PoolMember, reply: WorkerReply): void {
+    if (!('type' in reply)) {
+      this.settle(member, reply);
+    } else if (reply.type === 'started') {
+      member.started = true;
+    } else {
+      this.fail(member, reply.error);
+    }
   }
 
   private settle(member: PoolMember, response: CryptoResponse): void {
@@ -215,7 +230,7 @@ class CryptoWorkerPool {
       return;
     }
     member.pending.delete(response.id);
-    member.answered = true;
+    member.started = true;
     this.stopWatchdog(member);
     if (response.ok) {
       call.resolve(response.result);
@@ -295,7 +310,7 @@ class CryptoWorkerPool {
 
   private failed(member: PoolMember, error: Error): void {
     const blockedBeforeStarting =
-      member.runtime === 'web-worker' && !member.answered && this.mode === 'auto';
+      member.runtime === 'web-worker' && !member.started && this.mode === 'auto';
     if (blockedBeforeStarting && this.members.includes(member)) {
       this.workersBlocked = true;
       this.warnInline(`workers are blocked (${error.message})`);

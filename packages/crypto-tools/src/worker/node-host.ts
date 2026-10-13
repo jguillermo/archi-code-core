@@ -1,9 +1,9 @@
-import type { CryptoResponse } from './crypto-functions';
+import type { WorkerReply } from './crypto-functions';
 import type { WorkerFactory, WorkerHandle, WorkerMessage } from './worker-handle';
 
 interface NodeWorker {
   postMessage(message: WorkerMessage): void;
-  on(event: 'message', listener: (response: CryptoResponse) => void): void;
+  on(event: 'message', listener: (reply: WorkerReply) => void): void;
   on(event: 'error', listener: (error: Error) => void): void;
   on(event: 'exit', listener: (code: number) => void): void;
   ref(): void;

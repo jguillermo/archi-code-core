@@ -118,7 +118,7 @@ function web(webModule, nodeModule) {
     [
       'web and Node agree on tokens, JWT and CryptoEngine',
       async () => {
-        const encrypted = await webModule.token.encrypt({ id: 7 }, SECRET);
+        const encrypted = await webModule.token.encrypt({ id: 7 }, SECRET, { expiresIn: 60 });
         const signed = await nodeModule.jwt.sign({ id: 8 }, SECRET, { expiresIn: 60 });
         const engine = await webModule.CryptoEngine.prototype.encode.call(
           new webModule.CryptoEngine('testhash123'),

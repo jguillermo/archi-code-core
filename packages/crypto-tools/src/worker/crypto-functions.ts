@@ -33,8 +33,14 @@ export interface CryptoFunctions {
     algorithm: Optional<string>,
     now: number,
     expiresIn: Optional<number>,
+    requireExpiration: Optional<boolean>,
   ): string;
-  tokenDecrypt(token: string, key: string, now: number): string;
+  tokenDecrypt(
+    token: string,
+    key: string,
+    now: number,
+    requireExpiration: Optional<boolean>,
+  ): string;
   rsaGenerateKeyPair(level: Optional<string>, bits: Optional<number>): string;
   rsaEncrypt(
     data: Uint8Array,
@@ -76,3 +82,7 @@ export interface CryptoRequest {
 export type CryptoResponse =
   | { id: number; ok: true; result: unknown }
   | { id: number; ok: false; error: string; fatal?: boolean };
+
+export type WorkerNotice = { type: 'started' } | { type: 'failed'; error: string };
+
+export type WorkerReply = CryptoResponse | WorkerNotice;

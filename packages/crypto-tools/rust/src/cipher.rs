@@ -269,6 +269,11 @@ pub fn decrypt_bytes(text: &str, secret: &str, algorithm: Option<&str>) -> Crypt
         kdf.check_secret(secret)?;
     }
     let salt = from_base64url(parts[3], "salt")?;
+    if salt.len() != SALT_LENGTH {
+        return Err(CryptoError::malformed(format!(
+            "Invalid encrypted format: the salt must have {SALT_LENGTH} bytes."
+        )));
+    }
     let nonce = from_base64url(parts[4], "nonce")?;
     let sealed = from_base64url(parts[5], "ciphertext")?;
     let key = kdf.derive(
@@ -448,6 +453,23 @@ mod tests {
                 .message,
             "Invalid encrypted format: unknown key derivation."
         );
+    }
+
+    #[test]
+    fn rejects_a_salt_of_the_wrong_length_without_trapping() {
+        for (kdf_secret, password) in [("correct horse", true), (SECRET, false)] {
+            let encrypted = encrypt(b"x", kdf_secret, None, None, password).unwrap();
+            let mut parts: Vec<&str> = encrypted.split('.').collect();
+            for salt in ["", "AAAA", "AAAAAAAAAAAAAAAAAAAAAAAA"] {
+                parts[3] = salt;
+                let error = decrypt(&parts.join("."), kdf_secret, None).unwrap_err();
+                assert_eq!(error.code, crate::error::ErrorCode::Malformed, "{salt}");
+                assert_eq!(
+                    error.message,
+                    "Invalid encrypted format: the salt must have 16 bytes."
+                );
+            }
+        }
     }
 
     #[test]

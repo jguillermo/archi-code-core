@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { browserWorkerFactory } from '../../src/worker/browser-host';
+import type { WorkerNotice } from '../../src/worker/crypto-functions';
 import { workerSource } from '../../src/worker/worker-source';
 import { compileWasm, wasmGlue } from '../../src/wasm/wasm-module';
 import { FakeWebWorker } from '../support/fake-web-worker';
@@ -28,8 +29,9 @@ describe('browserWorkerFactory', () => {
     const factory = browserWorkerFactory();
     expect(factory?.runtime).toBe('web-worker');
     const handle = required(factory).create(workerSource(wasmGlue()));
+    const notices: WorkerNotice[] = [];
+    const request = requester(handle, notices);
     handle.post({ type: 'init', module: await compileWasm() });
-    const request = requester(handle);
     expect(await request('engineEncode', 'testhash123', 'HELLO WORLD')).toEqual({
       id: 1,
       ok: true,
@@ -52,6 +54,7 @@ describe('browserWorkerFactory', () => {
       'a-secret-key-1234567890',
     );
     expect(bytes.ok && [...(bytes.result as Uint8Array)]).toEqual([4, 5]);
+    expect(notices).toEqual([{ type: 'started' }]);
   });
 
   it('reports worker failures', () => {

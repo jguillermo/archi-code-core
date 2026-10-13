@@ -55,9 +55,9 @@ describe('password', () => {
       iterations: 4,
       parallelism: 4,
     });
-    expect(await password.params({ algorithm: 'bcrypt', cost: 31 })).toEqual({
+    expect(await password.params({ algorithm: 'bcrypt', cost: 14 })).toEqual({
       algorithm: 'bcrypt',
-      cost: 31,
+      cost: 14,
     });
   });
 
@@ -100,14 +100,32 @@ describe('password', () => {
     });
   });
 
+  it('does not verify a bcrypt password longer than the 72 bytes the hash kept', async () => {
+    const first72Bytes = 'ñ'.repeat(36);
+    const hash = await password.hash(first72Bytes, { algorithm: 'bcrypt', cost: 4 });
+    expect(await password.verify(first72Bytes, hash)).toBe(true);
+    expect(await password.verify(`${first72Bytes}extra`, hash)).toBe(false);
+  });
+
+  it('does not verify hashes that ask for more work than the cnsa level', async () => {
+    const bcrypt = fixtures.password.bcrypt;
+    const costly = bcrypt.hash.replace('$2b$04$', '$2b$31$');
+    expect(await password.isHash(costly)).toBe(true);
+    expect(await password.verify(bcrypt.password, costly)).toBe(false);
+    const argon2id = fixtures.password.argon2id;
+    const huge = argon2id.hash.replace('m=65536', 'm=4194304');
+    expect(await password.isHash(huge)).toBe(true);
+    expect(await password.verify(argon2id.password, huge)).toBe(false);
+  });
+
   it('rejects invalid options and input', async () => {
     await expect(password.hash('secret', { cost: 10 })).rejects.toMatchObject({
       code: 'UNSUPPORTED',
     });
-    for (const cost of [3, 32]) {
+    for (const cost of [3, 15]) {
       await expect(password.hash('secret', { algorithm: 'bcrypt', cost })).rejects.toMatchObject({
         code: 'INVALID_INPUT',
-        message: 'Cost must be between 4 and 31.',
+        message: 'Cost must be between 4 and 14.',
       });
     }
     await expect(

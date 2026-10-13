@@ -160,9 +160,15 @@ pub fn encrypt(
     algorithm: Option<&str>,
     now: f64,
     expires_in: Option<f64>,
+    require_expiration: bool,
 ) -> CryptoResult<String> {
     let algorithm = resolve::<TokenAlgorithm>(level, algorithm)?;
     let claims = claims_with_times(payload_json, check_now(now)?, expires_in)?;
+    if require_expiration && !claims.contains_key("exp") {
+        return Err(CryptoError::invalid_input(
+            "A token needs an expiration: pass expiresIn, an exp claim or requireExpiration: false.",
+        ));
+    }
     let message = Value::Object(claims).to_string();
     let key = token_key(secret, algorithm)?;
     match algorithm {
@@ -181,7 +187,12 @@ fn time_claim(claims: &Map<String, Value>, name: &str) -> CryptoResult<Option<i6
     }
 }
 
-pub fn decrypt(token: &str, secret: &str, now: f64) -> CryptoResult<String> {
+pub fn decrypt(
+    token: &str,
+    secret: &str,
+    now: f64,
+    require_expiration: bool,
+) -> CryptoResult<String> {
     let now = check_now(now)?;
     let algorithm = if token.starts_with(PASETO_PREFIX) {
         TokenAlgorithm::PasetoV4Local
@@ -199,10 +210,14 @@ pub fn decrypt(token: &str, secret: &str, now: f64) -> CryptoResult<String> {
             "Token payload is not a JSON object.",
         ));
     };
-    if let Some(expires) = time_claim(&claims, "exp")?
-        && now >= expires
-    {
-        return Err(CryptoError::expired("Token expired."));
+    match time_claim(&claims, "exp")? {
+        Some(expires) if now >= expires => return Err(CryptoError::expired("Token expired.")),
+        None if require_expiration => {
+            return Err(CryptoError::malformed(
+                "Token has no exp claim; pass requireExpiration: false to accept it.",
+            ));
+        }
+        _ => {}
     }
     if let Some(not_before) = time_claim(&claims, "nbf")?
         && now < not_before
@@ -259,9 +274,10 @@ mod tests {
             ("cnsa", "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0.."),
             ("military", "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0.."),
         ] {
-            let token = encrypt(r#"{"id":7}"#, SECRET, Some(level), None, NOW, None).unwrap();
+            let token =
+                encrypt(r#"{"id":7}"#, SECRET, Some(level), None, NOW, None, false).unwrap();
             assert!(token.starts_with(prefix), "{level}");
-            let opened = payload(&decrypt(&token, SECRET, NOW).unwrap());
+            let opened = payload(&decrypt(&token, SECRET, NOW, false).unwrap());
             assert_eq!(opened["id"], 7);
             assert_eq!(opened["iat"], "2023-11-14T22:13:20Z");
         }
@@ -269,30 +285,51 @@ mod tests {
 
     #[test]
     fn expires_after_the_given_seconds() {
-        let token = encrypt(r#"{"id":7}"#, SECRET, None, None, NOW, Some(60.0)).unwrap();
+        let token = encrypt(r#"{"id":7}"#, SECRET, None, None, NOW, Some(60.0), true).unwrap();
         assert_eq!(
-            payload(&decrypt(&token, SECRET, NOW + 59.0).unwrap())["exp"],
+            payload(&decrypt(&token, SECRET, NOW + 59.0, true).unwrap())["exp"],
             "2023-11-14T22:14:20Z"
         );
         assert_eq!(
-            decrypt(&token, SECRET, NOW + 60.0).unwrap_err().code,
+            decrypt(&token, SECRET, NOW + 60.0, true).unwrap_err().code,
             ErrorCode::Expired
         );
-        assert!(encrypt(r#"{}"#, SECRET, None, None, NOW, Some(-1.0)).is_err());
+        assert!(encrypt(r#"{}"#, SECRET, None, None, NOW, Some(-1.0), true).is_err());
+    }
+
+    #[test]
+    fn requires_an_expiration_unless_told_otherwise() {
+        assert_eq!(
+            encrypt(r#"{"id":7}"#, SECRET, None, None, NOW, None, true)
+                .unwrap_err()
+                .message,
+            "A token needs an expiration: pass expiresIn, an exp claim or requireExpiration: false."
+        );
+        let with_claim = r#"{"exp":"2030-01-01T00:00:00Z"}"#;
+        let token = encrypt(with_claim, SECRET, None, None, NOW, None, true).unwrap();
+        assert!(decrypt(&token, SECRET, NOW, true).is_ok());
+        let forever = encrypt(r#"{"id":7}"#, SECRET, None, None, NOW, None, false).unwrap();
+        let error = decrypt(&forever, SECRET, NOW, true).unwrap_err();
+        assert_eq!(error.code, ErrorCode::Malformed);
+        assert_eq!(
+            error.message,
+            "Token has no exp claim; pass requireExpiration: false to accept it."
+        );
+        assert!(decrypt(&forever, SECRET, NOW, false).is_ok());
     }
 
     #[test]
     fn honours_not_before_and_keeps_an_explicit_iat() {
         let claims = r#"{"iat":"2020-01-01T00:00:00Z","nbf":"2030-01-01T00:00:00Z"}"#;
-        let token = encrypt(claims, SECRET, None, None, NOW, None).unwrap();
+        let token = encrypt(claims, SECRET, None, None, NOW, None, false).unwrap();
         assert_eq!(
-            decrypt(&token, SECRET, NOW).unwrap_err().message,
+            decrypt(&token, SECRET, NOW, false).unwrap_err().message,
             "Token is not active yet."
         );
-        assert!(decrypt(&token, SECRET, 1_900_000_000.0).is_ok());
-        let bad = encrypt(r#"{"exp":42}"#, SECRET, None, None, NOW, None).unwrap();
+        assert!(decrypt(&token, SECRET, 1_900_000_000.0, false).is_ok());
+        let bad = encrypt(r#"{"exp":42}"#, SECRET, None, None, NOW, None, false).unwrap();
         assert_eq!(
-            decrypt(&bad, SECRET, NOW).unwrap_err().code,
+            decrypt(&bad, SECRET, NOW, false).unwrap_err().code,
             ErrorCode::Malformed
         );
     }
@@ -300,38 +337,41 @@ mod tests {
     #[test]
     fn detects_tampering_and_wrong_keys() {
         for level in ["standard", "cnsa"] {
-            let token = encrypt(r#"{"id":7}"#, SECRET, Some(level), None, NOW, None).unwrap();
+            let token =
+                encrypt(r#"{"id":7}"#, SECRET, Some(level), None, NOW, None, false).unwrap();
             let other = "another-secret-key-with-32-characters!!";
             assert_eq!(
-                decrypt(&token, other, NOW).unwrap_err().code,
+                decrypt(&token, other, NOW, false).unwrap_err().code,
                 ErrorCode::Tampered
             );
             let mut bytes = token.into_bytes();
             let index = bytes.len() - 3;
             bytes[index] = if bytes[index] == b'A' { b'B' } else { b'A' };
             let tampered = String::from_utf8(bytes).unwrap();
-            assert!(decrypt(&tampered, SECRET, NOW).is_err());
+            assert!(decrypt(&tampered, SECRET, NOW, false).is_err());
         }
     }
 
     #[test]
     fn rejects_bad_payloads_and_malformed_tokens() {
         assert_eq!(
-            encrypt("[1]", SECRET, None, None, NOW, None)
+            encrypt("[1]", SECRET, None, None, NOW, None, false)
                 .unwrap_err()
                 .code,
             ErrorCode::InvalidInput
         );
         for token in ["", "v4.local.", "a.b.c", "e30.x.y.z.w", "v4.local.AAAA"] {
-            assert!(decrypt(token, SECRET, NOW).is_err(), "{token}");
+            assert!(decrypt(token, SECRET, NOW, false).is_err(), "{token}");
         }
         assert_eq!(
-            decrypt("nope", "short-but-valid-16", NOW).unwrap_err().code,
+            decrypt("nope", "short-but-valid-16", NOW, false)
+                .unwrap_err()
+                .code,
             ErrorCode::Malformed
         );
         let header = to_base64url(br#"{"alg":"A256KW","enc":"A256GCM"}"#);
         assert_eq!(
-            decrypt(&format!("{header}..a.b.c"), SECRET, NOW)
+            decrypt(&format!("{header}..a.b.c"), SECRET, NOW, false)
                 .unwrap_err()
                 .code,
             ErrorCode::Unsupported
@@ -339,7 +379,7 @@ mod tests {
         let key = token_key(SECRET, TokenAlgorithm::JweDirA256Gcm).unwrap();
         let array = jwe_seal(&key, b"[1]").unwrap();
         assert_eq!(
-            decrypt(&array, SECRET, NOW).unwrap_err().code,
+            decrypt(&array, SECRET, NOW, false).unwrap_err().code,
             ErrorCode::Malformed
         );
         assert!(paseto_seal(&key[..16], b"x").is_err());
