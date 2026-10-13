@@ -1,33 +1,33 @@
 ---
 name: archi-code-domain
-description: Reglas, patrones y errores comunes para escribir código TypeScript con @archi-code/domain (DDD de archi-code - value objects inmutables, Required(...), AggregateRoot con eventos de dominio, EventBase y excepciones con código). Úsala cuando haya que crear o modificar value objects, declarar validaciones con @Validations, modelar agregados y eventos, lanzar o definir excepciones de dominio, o siempre que el código importe @archi-code/domain.
+description: Rules, patterns and common mistakes for writing TypeScript code with @archi-code/domain (archi-code DDD - immutable value objects, Required(...), AggregateRoot with domain events, EventBase and exceptions with codes). Use it when creating or changing value objects, declaring validations with @Validations, modeling aggregates and events, throwing or defining domain exceptions, or whenever the code imports @archi-code/domain.
 ---
 
 # archi-code-domain
 
-`@archi-code/domain` es el paquete de Domain-Driven Design de archi-code para TypeScript: value objects
-que convierten, validan y son inmutables, agregados con eventos de dominio y excepciones con código.
+`@archi-code/domain` is archi-code's Domain-Driven Design package for TypeScript: value objects that
+convert, validate and are immutable, aggregates with domain events, and exceptions with codes.
 
-## API completa
+## Full API
 
-Antes de usar una clase, función, opción o tipo que no aparezca en esta skill, lee
-`node_modules/@archi-code/domain/README.md`: corresponde a la versión instalada. No supongas firmas,
-opciones ni exports. Si el paquete no está instalado: `npm install @archi-code/domain` (y
-`npm install @archi-code/validation` si se declaran validaciones con `@Validations`).
+Before using a class, function, option or type that does not appear in this skill, read
+`node_modules/@archi-code/domain/README.md`: it matches the installed version. Do not assume
+signatures, options or exports. If the package is not installed: `npm install @archi-code/domain`
+(and `npm install @archi-code/validation` if validations are declared with `@Validations`).
 
-Si esa ruta no existe (monorepo con workspaces, pnpm…), localiza el paquete con
-`node -p "require.resolve('@archi-code/domain/package.json')"` y lee el `README.md` de esa
-carpeta.
+If that path does not exist (monorepo with workspaces, pnpm…), locate the package with
+`node -p "require.resolve('@archi-code/domain/package.json')"` and read the `README.md` in that
+folder.
 
-## Skills relacionadas
+## Related skills
 
-Si están instaladas en el proyecto, úsalas junto a esta:
+If they are installed in the project, use them together with this one:
 
-- `archi-code-validation`: validadores disponibles, sus opciones y reglas de `@Validations`.
-- `archi-code-ephemeradb`: repositorios en memoria para tests de agregados.
-- `archi-code-test`: comparar JSON y crear object mothers en los tests.
+- `archi-code-validation`: available validators, their options and `@Validations` rules.
+- `archi-code-ephemeradb`: in-memory repositories for aggregate tests.
+- `archi-code-test`: comparing JSON and creating object mothers in tests.
 
-## Importación
+## Import
 
 ```ts
 import {
@@ -49,50 +49,51 @@ import { Validations } from '@archi-code/validation';
 const { Required, StringType } = require('@archi-code/domain');
 ```
 
-## Reglas
+## Rules
 
-- Los value objects son **opcionales por defecto** (`value: T | null`). `Required(XType)` los hace
-  obligatorios: el constructor exige `T` y, si recibe un vacío (`null`, `undefined` o string en
-  blanco), lanza `RequiredValueException` con el nombre de la clase. `Required(...)` también declara
-  la validación `isRequired`.
-- Un VO de dominio es siempre una subclase con nombre (`class Email extends ...`): el nombre aparece en
-  los mensajes de error.
-- La construcción solo convierte (o lanza `TypePrimitiveException` si no puede). Las reglas de
-  `@Validations` se comprueban al llamar a `validate()`, que no guarda estado, nunca lanza y devuelve
-  `{ ok, value, errors }`. Un VO opcional vacío es válido sin ejecutar validaciones.
-- `@Validations` se importa de `@archi-code/validation`; los parámetros de un validador van en un único
-  objeto `properties`. Las subclases heredan las validaciones y una con el mismo nombre reemplaza a la
-  del padre.
-- Los valores son **inmutables**: para cambiar un valor se sustituye el VO entero. `toString` es un
-  **getter** (`vo.toString`).
-- Un tipo propio extiende `AbstractType<T>` e implementa solo `protected filter(value: unknown): T`
-  (recibe la entrada ya no vacía; devuelve el valor o lanza `TypePrimitiveException`). Si basta con
-  restringir un tipo existente, extiéndelo y usa `@Validations`.
-- Agregados: `record(event)` es `protected` (solo el propio agregado registra eventos);
-  `pullDomainEvents()` devuelve los eventos en orden y vacía la lista. Llámalo después de persistir,
-  para publicar. `EventBase` solo exige `eventName(): string`.
-- `PrimitiveTypes<T>` solo ve los miembros **públicos** no método (quita el `_` inicial): expón los VO
-  con getters públicos o propiedades públicas `readonly`.
-- Dónde lanzar cada excepción:
-  - Dominio (agregados, VO, reglas de negocio): `DomainException` o una subclase propia con su código;
-    `ValidationException` tras un `validate()` fallido; `AggregateNotFoundException` cuando el
-    repositorio no encuentra el agregado.
-  - Casos de uso: `ApplicationException`.
-  - Adaptadores (BD, red…): `InfrastructureException` / `InternalErrorException`.
-  - `TypePrimitiveException` y `RequiredValueException` las lanzan los VO; lánzalas tú solo dentro de
-    `filter` de un tipo propio.
+- Value objects are **optional by default** (`value: T | null`). `Required(XType)` makes them
+  required: the constructor demands `T` and, if it receives an empty value (`null`, `undefined` or a
+  blank string), throws `RequiredValueException` with the class name. `Required(...)` also declares
+  the `isRequired` validation.
+- A domain VO is always a named subclass (`class Email extends ...`): the name appears in the error
+  messages.
+- Construction only converts (or throws `TypePrimitiveException` if it cannot). `@Validations` rules
+  are checked when calling `validate()`, which keeps no state, never throws and returns
+  `{ ok, value, errors }`. An empty optional VO is valid without running validations.
+- `@Validations` is imported from `@archi-code/validation`; a validator's parameters go in a single
+  `properties` object. Subclasses inherit validations, and one with the same name replaces the
+  parent's.
+- Values are **immutable**: to change a value, replace the whole VO. `toString` is a **getter**
+  (`vo.toString`).
+- A custom type extends `AbstractType<T>` and implements only `protected filter(value: unknown): T`
+  (it receives input already known to be non-empty; it returns the value or throws
+  `TypePrimitiveException`). If restricting an existing type is enough, extend it and use
+  `@Validations`.
+- Aggregates: `record(event)` is `protected` (only the aggregate itself records events);
+  `pullDomainEvents()` returns the events in order and empties the list. Call it after persisting, to
+  publish. `EventBase` only requires `eventName(): string`.
+- `PrimitiveTypes<T>` only sees **public** non-method members (it strips the leading `_`): expose the
+  VOs with public getters or public `readonly` properties.
+- Where to throw each exception:
+  - Domain (aggregates, VOs, business rules): `DomainException` or a custom subclass with its own
+    code; `ValidationException` after a failed `validate()`; `AggregateNotFoundException` when the
+    repository does not find the aggregate.
+  - Use cases: `ApplicationException`.
+  - Adapters (DB, network…): `InfrastructureException` / `InternalErrorException`.
+  - `TypePrimitiveException` and `RequiredValueException` are thrown by the VOs; throw them yourself
+    only inside the `filter` of a custom type.
 
-## Patrones recomendados
+## Recommended patterns
 
-Opcional por defecto, obligatorio con `Required(XType)`:
+Optional by default, required with `Required(XType)`:
 
 ```ts
-class Nickname extends StringType {} // value: string | null; constructor acepta string | null | nada
-class Name extends Required(StringType) {} // value: string; constructor exige string
-class FullName extends Name {} // sigue siendo obligatorio
+class Nickname extends StringType {} // value: string | null; constructor accepts string | null | nothing
+class Name extends Required(StringType) {} // value: string; constructor demands string
+class FullName extends Name {} // still required
 ```
 
-Validaciones con `@Validations` y fallo explícito con `ValidationException`:
+Validations with `@Validations` and an explicit failure with `ValidationException`:
 
 ```ts
 import { Validations } from '@archi-code/validation';
@@ -117,7 +118,7 @@ if (!result.ok) {
 }
 ```
 
-Agregado con eventos de dominio:
+Aggregate with domain events:
 
 ```ts
 class UserRenamed extends EventBase {
@@ -170,7 +171,7 @@ class User extends AggregateRoot {
 }
 ```
 
-Excepción de dominio propia con su código:
+Custom domain exception with its own code:
 
 ```ts
 class OrderCancelledException extends DomainException {
@@ -180,27 +181,30 @@ class OrderCancelledException extends DomainException {
 }
 ```
 
-## Qué no hacer
+## What not to do
 
-- No inventes API: no hay `ExceptionCode` exportado, ni `equals()`, ni `toPrimitives()` en la base, ni
-  `ValueObject`, `Entity` o `Id` genéricos. Ante la duda, consulta el README instalado.
-- `vo.toString()` → error: `toString` es un getter (`vo.toString`). Por lo mismo, `` `${vo}` `` y
-  `String(vo)` lanzan `TypeError: Cannot convert object to primitive value`; usa `vo.toString` o
+- Do not invent API: there is no exported `ExceptionCode`, no `equals()`, no `toPrimitives()` in the
+  base class, and no generic `ValueObject`, `Entity` or `Id`. When in doubt, check the installed
+  README.
+- `vo.toString()` → error: `toString` is a getter (`vo.toString`). For the same reason, `` `${vo}` ``
+  and `String(vo)` throw `TypeError: Cannot convert object to primitive value`; use `vo.toString` or
   `vo.value`.
-- `JSON.stringify(vo)` da `{"_value":...}`: serializa con `vo.value` o con `PrimitiveTypes`.
-- Esperar que el constructor falle por una regla de `@Validations`: solo falla por conversión o por
-  vacío en `Required`. Llama a `validate()`.
-- Pasar valores sin convertir con su tipo estático (`new NumberType('1.5')`): error de tipos; la
-  conversión es para entradas `any`/`unknown`.
-- Usar `Required(StringType)` directamente como tipo de propiedad en vez de una subclase con nombre.
-- Intentar mutar `vo.value` (fechas, objetos JSON, arrays): están congelados; los setters de fecha
-  lanzan `TypeError: Cannot call setFullYear: the date is immutable`. En `ArrayType` usa
-  `addItem`/`setItem`/`removeItem`; en `UpdatedAt`, `setNow()`.
-- Llamar a `setNow()` en `CreatedAt`: no existe, solo en `UpdatedAt`.
-- `JsonType` con `{}` o con un array: lanza `TypePrimitiveException` (debe ser un objeto no vacío).
-- `IdType` con `00000000-0000-0000-0000-000000000000` o `ffffffff-ffff-ffff-ffff-ffffffffffff`:
-  lanza `TypePrimitiveException`.
-- Declarar los VO de un agregado como `private` sin getters y esperar que `PrimitiveTypes` los vea.
-- Llamar a `record()` desde fuera del agregado (es `protected`) u olvidar `super()` en el
-  constructor de un agregado o evento.
-- Importar `@Validations` desde `@archi-code/domain`: se importa de `@archi-code/validation`.
+- `JSON.stringify(vo)` gives `{"_value":...}`: serialize with `vo.value` or with `PrimitiveTypes`.
+- Expecting the constructor to fail because of an `@Validations` rule: it only fails on conversion or
+  on an empty value in `Required`. Call `validate()`.
+- Passing unconverted values with their static type (`new NumberType('1.5')`): type error; conversion
+  is for `any`/`unknown` input.
+- Using `Required(StringType)` directly as a property type instead of a named subclass.
+- Trying to mutate `vo.value` (dates, JSON objects, arrays): they are frozen; date setters throw
+  `TypeError: Cannot call setFullYear: the date is immutable`. In `ArrayType` use
+  `addItem`/`setItem`/`removeItem`; in `UpdatedAt`, `setNow()`.
+- Calling `setNow()` on `CreatedAt`: it does not exist, only on `UpdatedAt`.
+- `JsonType` with `{}` or with an array: throws `TypePrimitiveException` (it must be a non-empty
+  object).
+- `IdType` with `00000000-0000-0000-0000-000000000000` or `ffffffff-ffff-ffff-ffff-ffffffffffff`:
+  throws `TypePrimitiveException`.
+- Declaring an aggregate's VOs as `private` without getters and expecting `PrimitiveTypes` to see
+  them.
+- Calling `record()` from outside the aggregate (it is `protected`) or forgetting `super()` in the
+  constructor of an aggregate or event.
+- Importing `@Validations` from `@archi-code/domain`: it is imported from `@archi-code/validation`.

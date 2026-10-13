@@ -1,21 +1,21 @@
 # @archi-code/crypto-tools
 
-Kit criptográfico para **navegadores y Node.js**: hash de contraseñas, cifrado simétrico, RSA, firmas
-de ficheros, hashes y HMAC, tokens JSON cifrados y JWT. Toda la lógica está escrita en Rust (crates
-conocidos como RustCrypto, `bcrypt`, `argon2`, `rsa`, `pasetors` y `jsonwebtoken`) y compilada en **un
-único módulo wasm** que viaja dentro del paquete. Cada llamada se ejecuta en un **worker**, así que no
-bloquea el hilo principal. Sin dependencias npm; build dual ESM + CJS con tipos TypeScript.
+Cryptography toolkit for **browsers and Node.js**: password hashing, symmetric encryption, RSA, file
+signatures, hashes and HMAC, encrypted JSON tokens and JWT. All the logic is written in Rust
+(well-known crates such as RustCrypto, `bcrypt`, `argon2`, `rsa`, `pasetors` and `jsonwebtoken`) and
+compiled into **a single wasm module** shipped inside the package. Every call runs in a **worker**, so
+it does not block the main thread. No npm dependencies; dual ESM + CJS build with TypeScript types.
 
-## Instalación
+## Installation
 
 ```bash
 npm install @archi-code/crypto-tools
 ```
 
-Requiere Node.js 24 o superior (campo `engines`) o un navegador actual con `WebAssembly`,
-`DecompressionStream` y Web Workers.
+Requires Node.js 24 or later (`engines` field) or a current browser with `WebAssembly`,
+`DecompressionStream` and Web Workers.
 
-## Importación
+## Import
 
 ESM:
 
@@ -49,86 +49,84 @@ const {
 } = require('@archi-code/crypto-tools');
 ```
 
-El mismo paquete sirve al navegador (condición `browser` → build ESM) y a Node (`import` → ESM,
-`require` → CJS), sin configurar el bundler ni cargar ficheros `.wasm` aparte.
+The same package serves the browser (`browser` condition → ESM build) and Node (`import` → ESM,
+`require` → CJS), without configuring the bundler or loading separate `.wasm` files.
 
-## Conceptos comunes
+## Common concepts
 
-- **Todo es asíncrono.** Cada función devuelve una `Promise`; usa `await`. Los errores llegan como
-  rechazo con un `CryptoError` (ver [Errores](#errores)).
-- **Opciones al final.** Casi todas las funciones aceptan `{ level, algorithm }`:
-  - `level`: `'basic' | 'standard' | 'strong' | 'cnsa' | 'military'` (`military` es un alias de
-    `cnsa`). Por defecto, `standard`. Elige los algoritmos por ti (ver
-    [Niveles de seguridad](#niveles-de-seguridad)).
-  - `algorithm`: elige un algoritmo concreto. Si pasas `level` y `algorithm` a la vez y no coinciden,
-    la llamada se rechaza con `UNSUPPORTED` (`Algorithm argon2id does not match level basic, which uses bcrypt.`).
-- **Las salidas registran su algoritmo**, así que descifrar o verificar nunca necesita el nivel.
-- **Datos**: donde se esperan datos se acepta texto (`string`, codificado en UTF-8) o `Uint8Array`.
-  En el navegador lee un fichero con `new Uint8Array(await file.arrayBuffer())`; en Node, con
-  `fs.readFile` (un `Buffer` es un `Uint8Array`). Las claves, contraseñas y tokens son siempre
-  `string`.
+- **Everything is asynchronous.** Every function returns a `Promise`; use `await`. Errors arrive as
+  a rejection with a `CryptoError` (see [Errors](#errors)).
+- **Options last.** Almost every function accepts `{ level, algorithm }`:
+  - `level`: `'basic' | 'standard' | 'strong' | 'cnsa' | 'military'` (`military` is an alias of
+    `cnsa`). Defaults to `standard`. It picks the algorithms for you (see
+    [Security levels](#security-levels)).
+  - `algorithm`: picks a specific algorithm. If you pass `level` and `algorithm` together and they do
+    not match, the call is rejected with `UNSUPPORTED` (`Algorithm argon2id does not match level basic, which uses bcrypt.`).
+- **Outputs record their algorithm**, so decrypting or verifying never needs the level.
+- **Data**: wherever data is expected, text (`string`, encoded as UTF-8) or `Uint8Array` is accepted.
+  In the browser, read a file with `new Uint8Array(await file.arrayBuffer())`; in Node, with
+  `fs.readFile` (a `Buffer` is a `Uint8Array`). Keys, passwords and tokens are always `string`.
 
-## `password`: hash de contraseñas
+## `password`: password hashing
 
 ```ts
 const stored = await password.hash('correct horse battery staple');
-// '$argon2id$v=19$m=65536,t=3,p=4$…' (sal aleatoria: cambia en cada llamada)
+// '$argon2id$v=19$m=65536,t=3,p=4$…' (random salt: changes on every call)
 
 await password.verify('correct horse battery staple', stored); // true
-await password.verify('otra', stored); // false
+await password.verify('other', stored); // false
 
 await password.isHash(stored); // true
-await password.isHash('hola'); // false
+await password.isHash('hello'); // false
 
-await password.hash('secreto', { level: 'basic' }); // '$2b$10$…' (bcrypt)
-await password.hash('secreto', { algorithm: 'bcrypt', cost: 12 }); // '$2b$12$…'
-await password.hash('secreto', { level: 'cnsa' }); // '$argon2id$v=19$m=262144,t=4,p=4$…'
+await password.hash('secret', { level: 'basic' }); // '$2b$10$…' (bcrypt)
+await password.hash('secret', { algorithm: 'bcrypt', cost: 12 }); // '$2b$12$…'
+await password.hash('secret', { level: 'cnsa' }); // '$argon2id$v=19$m=262144,t=4,p=4$…'
 
 await password.params(); // { algorithm: 'argon2id', memoryKiB: 65536, iterations: 3, parallelism: 4 }
 await password.params({ level: 'basic' }); // { algorithm: 'bcrypt', cost: 10 }
 ```
 
-| Función                 | Devuelve                  | Descripción                                                                                    |
-| ----------------------- | ------------------------- | ---------------------------------------------------------------------------------------------- |
-| `hash(plain, options?)` | `Promise<string>`         | Hash PHC Argon2id (`$argon2id$v=19$…`) o bcrypt (`$2b$…`).                                     |
-| `verify(plain, hash)`   | `Promise<boolean>`        | `true` si la contraseña corresponde al hash. Un hash no reconocido o demasiado caro → `false`. |
-| `isHash(value)`         | `Promise<boolean>`        | Solo comprueba el formato (`$2b$` o `$argon2id$v=19$`).                                        |
-| `params(options?)`      | `Promise<PasswordParams>` | Parámetros que usaría `hash` con esas opciones, sin calcular nada.                             |
+| Function                | Returns                   | Description                                                                               |
+| ----------------------- | ------------------------- | ----------------------------------------------------------------------------------------- |
+| `hash(plain, options?)` | `Promise<string>`         | Argon2id (`$argon2id$v=19$…`) or bcrypt (`$2b$…`) PHC hash.                               |
+| `verify(plain, hash)`   | `Promise<boolean>`        | `true` if the password matches the hash. An unrecognized or too expensive hash → `false`. |
+| `isHash(value)`         | `Promise<boolean>`        | Only checks the format (`$2b$` or `$argon2id$v=19$`).                                     |
+| `params(options?)`      | `Promise<PasswordParams>` | Parameters `hash` would use with those options, without computing anything.               |
 
-Opciones (`PasswordOptions`): `level`, `algorithm` (`'bcrypt' | 'argon2id'`) y `cost` (solo bcrypt,
-de 4 a 14; con Argon2id se rechaza con `UNSUPPORTED`).
+Options (`PasswordOptions`): `level`, `algorithm` (`'bcrypt' | 'argon2id'`) and `cost` (bcrypt only,
+from 4 to 14; with Argon2id it is rejected with `UNSUPPORTED`).
 
-### Longitud de la contraseña
+### Password length
 
-- `password.hash` acepta como máximo **64 caracteres**, contados como los ve una persona (grapheme
-  clusters): `ñ`, `密` y `🔒` cuentan 1 cada uno, también cuando `ñ` llega descompuesta como `n` + `◌̃`
-  (el `.length` de JavaScript contaría `🔒` como 2). Una contraseña más larga se rechaza con
-  `INVALID_INPUT`.
-- bcrypt solo lee los primeros 72 **bytes** de UTF-8: 72 caracteres ASCII, pero 36 con tildes, 24 en
-  chino o 18 emojis. En lugar de truncar en silencio, `hash` con bcrypt (`level: 'basic'` o
-  `algorithm: 'bcrypt'`) rechaza una contraseña de más de 72 bytes con `INVALID_INPUT`. Argon2id, el
-  algoritmo por defecto, no tiene ese límite.
+- `password.hash` accepts at most **64 characters**, counted as a person sees them (grapheme
+  clusters): `ñ`, `密` and `🔒` count as 1 each, also when `ñ` arrives decomposed as `n` + `◌̃`
+  (JavaScript's `.length` would count `🔒` as 2). A longer password is rejected with `INVALID_INPUT`.
+- bcrypt only reads the first 72 **bytes** of UTF-8: 72 ASCII characters, but 36 accented ones, 24
+  Chinese ones or 18 emojis. Instead of silently truncating, `hash` with bcrypt (`level: 'basic'` or
+  `algorithm: 'bcrypt'`) rejects a password over 72 bytes with `INVALID_INPUT`. Argon2id, the default
+  algorithm, has no such limit.
 
-### Qué acepta `verify`
+### What `verify` accepts
 
-`password.verify` solo acepta los formatos que produce `password.hash`: bcrypt `$2b$` y Argon2id
-versión 19 (`$argon2id$v=19$`). Los hashes de otras librerías u otros formatos (`$2a$`, `$2y$`,
-Argon2i…) devuelven `false`. Tampoco trunca: una contraseña de más de 72 bytes no verifica contra un
-hash bcrypt.
+`password.verify` only accepts the formats `password.hash` produces: bcrypt `$2b$` and Argon2id
+version 19 (`$argon2id$v=19$`). Hashes from other libraries or in other formats (`$2a$`, `$2y$`,
+Argon2i…) return `false`. It does not truncate either: a password over 72 bytes does not verify
+against a bcrypt hash.
 
-También rechaza (devuelve `false`) cualquier hash que pida más trabajo que el nivel `cnsa`: coste
-bcrypt mayor de 14, o Argon2 con más de 256 MiB, t=4 o p=4. Así, un hash leído de un sitio donde un
-atacante puede escribir no puede pedir gigas de memoria ni días de CPU. `password.isHash` solo mira el
-formato, así que sigue devolviendo `true` para esos hashes.
+It also rejects (returns `false`) any hash that asks for more work than the `cnsa` level: a bcrypt
+cost above 14, or Argon2 with more than 256 MiB, t=4 or p=4. That way, a hash read from a place where
+an attacker can write cannot ask for gigabytes of memory or days of CPU. `password.isHash` only looks
+at the format, so it still returns `true` for those hashes.
 
-## `cipher`: cifrado simétrico
+## `cipher`: symmetric encryption
 
 ```ts
-const key = await cipher.generateKey(); // 32 bytes aleatorios en base64url (43 caracteres)
+const key = await cipher.generateKey(); // 32 random bytes in base64url (43 characters)
 
-const encrypted = await cipher.encrypt('hola mundo', key);
-// 'v1.aes-256-gcm.hkdf-sha256.<sal>.<nonce>.<cifrado>'
-await cipher.decrypt(encrypted, key); // 'hola mundo'
+const encrypted = await cipher.encrypt('hello world', key);
+// 'v1.aes-256-gcm.hkdf-sha256.<salt>.<nonce>.<ciphertext>'
+await cipher.decrypt(encrypted, key); // 'hello world'
 
 const fileBytes = new Uint8Array([1, 2, 3]);
 const sealed = await cipher.encrypt(fileBytes, key, { level: 'strong' });
@@ -136,219 +134,222 @@ const sealed = await cipher.encrypt(fileBytes, key, { level: 'strong' });
 await cipher.decryptBytes(sealed, key); // Uint8Array [1, 2, 3]
 
 const cnsaKey = await cipher.generateKey({ level: 'cnsa' });
-await cipher.encrypt('hola', cnsaKey, { level: 'cnsa' }); // 'v1.aes-256-gcm.hkdf-sha384.…'
+await cipher.encrypt('hello', cnsaKey, { level: 'cnsa' }); // 'v1.aes-256-gcm.hkdf-sha384.…'
 ```
 
-| Función                                  | Devuelve              | Descripción                                                                         |
-| ---------------------------------------- | --------------------- | ----------------------------------------------------------------------------------- |
-| `generateKey(options?)`                  | `Promise<string>`     | Clave aleatoria de 32 bytes en base64url.                                           |
-| `encrypt(data, key, options?)`           | `Promise<string>`     | `v1.<alg>.<kdf>.<sal>.<nonce>.<cifrado>` (base64url). AEAD: detecta manipulaciones. |
-| `decrypt(encrypted, key, options?)`      | `Promise<string>`     | Descifra a texto UTF-8 (`MALFORMED` si no es UTF-8: usa `decryptBytes`).            |
-| `decryptBytes(encrypted, key, options?)` | `Promise<Uint8Array>` | Descifra a bytes.                                                                   |
+| Function                                 | Returns               | Description                                                                        |
+| ---------------------------------------- | --------------------- | ---------------------------------------------------------------------------------- |
+| `generateKey(options?)`                  | `Promise<string>`     | Random 32-byte key in base64url.                                                   |
+| `encrypt(data, key, options?)`           | `Promise<string>`     | `v1.<alg>.<kdf>.<salt>.<nonce>.<ciphertext>` (base64url). AEAD: detects tampering. |
+| `decrypt(encrypted, key, options?)`      | `Promise<string>`     | Decrypts to UTF-8 text (`MALFORMED` if it is not UTF-8: use `decryptBytes`).       |
+| `decryptBytes(encrypted, key, options?)` | `Promise<Uint8Array>` | Decrypts to bytes.                                                                 |
 
-- Algoritmos (`CipherAlgorithm`): `'aes-128-gcm' | 'aes-256-gcm' | 'chacha20-poly1305' | 'xchacha20-poly1305'`.
-- `encrypt` acepta `{ level, algorithm, password }`; `decrypt` y `decryptBytes` aceptan
-  `{ algorithm }` para exigir un algoritmo concreto (si el dato se cifró con otro → `UNSUPPORTED`).
-- Una clave equivocada o un dato manipulado se rechazan con `TAMPERED`; un texto que no tiene el
-  formato, con `MALFORMED`.
+- Algorithms (`CipherAlgorithm`): `'aes-128-gcm' | 'aes-256-gcm' | 'chacha20-poly1305' | 'xchacha20-poly1305'`.
+- `encrypt` accepts `{ level, algorithm, password }`; `decrypt` and `decryptBytes` accept
+  `{ algorithm }` to require a specific algorithm (if the data was encrypted with another one →
+  `UNSUPPORTED`).
+- A wrong key or tampered data are rejected with `TAMPERED`; text that does not have the format, with
+  `MALFORMED`.
 
-### Claves aleatorias frente a contraseñas
+### Random keys versus passwords
 
-Por defecto la clave se deriva con HKDF, que es rápido y presupone que la clave ya es aleatoria: usa
-`cipher.generateKey()` u otro secreto de al menos **16 caracteres** (**32** con `level: 'cnsa'`, que
-deriva con HKDF-SHA384) que nadie haya elegido a mano. Una clave más corta se rechaza con `INVALID_KEY`.
-HKDF no frena los intentos de adivinarla, así que con una contraseña que teclea una persona cualquiera
-que tenga una salida podría encontrarla offline.
+By default the key is derived with HKDF, which is fast and assumes the key is already random: use
+`cipher.generateKey()` or another secret of at least **16 characters** (**32** with `level: 'cnsa'`,
+which derives with HKDF-SHA384) that nobody chose by hand. A shorter key is rejected with
+`INVALID_KEY`. HKDF does not slow down guessing attempts, so with a password typed by a person,
+anyone who has an output could find it offline.
 
-Para una contraseña que teclea una persona, pasa `{ password: true }`: la clave se deriva con Argon2id
-y una sal aleatoria (64 MiB, t=3, p=4; 256 MiB, t=4 con `cnsa`), lento a propósito. La contraseña debe
-tener **de 8 a 64 caracteres** (contados como en `password.hash`; si no, `INVALID_KEY`).
+For a password typed by a person, pass `{ password: true }`: the key is derived with Argon2id and a
+random salt (64 MiB, t=3, p=4; 256 MiB, t=4 with `cnsa`), deliberately slow. The password must have
+**8 to 64 characters** (counted as in `password.hash`; otherwise `INVALID_KEY`).
 
 ```ts
-const locked = await cipher.encrypt('nota privada', 'mi contraseña larga', { password: true });
+const locked = await cipher.encrypt('private note', 'my long passphrase', { password: true });
 // 'v1.aes-256-gcm.argon2id-m65536-t3-p4.…'
-await cipher.decrypt(locked, 'mi contraseña larga'); // 'nota privada' (no necesita opciones)
+await cipher.decrypt(locked, 'my long passphrase'); // 'private note' (no options needed)
 ```
 
-La salida registra la derivación, así que `decrypt` no necesita opciones; solo acepta los parámetros
-Argon2 que produce este paquete, de modo que un dato manipulado no puede pedir memoria enorme.
+The output records the derivation, so `decrypt` needs no options; it only accepts the Argon2
+parameters this package produces, so tampered data cannot ask for huge amounts of memory.
 
-## `rsa`: cifrado asimétrico
+## `rsa`: asymmetric encryption
 
 ```ts
 const { publicKey, privateKey } = await rsa.generateKeyPair({ level: 'standard' });
 // publicKey: '-----BEGIN PUBLIC KEY-----…' (SPKI)   privateKey: '-----BEGIN PRIVATE KEY-----…' (PKCS#8)
 
-const sealed = await rsa.encrypt('mensaje secreto', publicKey);
-// JWE compacto con cabecera {"alg":"RSA-OAEP-256","enc":"A256GCM"}
-await rsa.decrypt(sealed, privateKey); // 'mensaje secreto'
+const sealed = await rsa.encrypt('secret message', publicKey);
+// compact JWE with header {"alg":"RSA-OAEP-256","enc":"A256GCM"}
+await rsa.decrypt(sealed, privateKey); // 'secret message'
 
 const fileBytes = new Uint8Array([9, 8, 7]);
 const sealedFile = await rsa.encrypt(fileBytes, publicKey);
 await rsa.decryptBytes(sealedFile, privateKey); // Uint8Array [9, 8, 7]
 ```
 
-| Función                               | Devuelve              | Descripción                                                   |
-| ------------------------------------- | --------------------- | ------------------------------------------------------------- |
-| `generateKeyPair(options?)`           | `Promise<RsaKeyPair>` | `{ publicKey, privateKey }` en PEM (SPKI / PKCS#8).           |
-| `encrypt(data, publicKey, options?)`  | `Promise<string>`     | JWE `RSA-OAEP-*` + `A256GCM`: RSA envuelve una clave AES-256. |
-| `decrypt(encrypted, privateKey)`      | `Promise<string>`     | Descifra a texto UTF-8.                                       |
-| `decryptBytes(encrypted, privateKey)` | `Promise<Uint8Array>` | Descifra a bytes.                                             |
+| Function                              | Returns               | Description                                             |
+| ------------------------------------- | --------------------- | ------------------------------------------------------- |
+| `generateKeyPair(options?)`           | `Promise<RsaKeyPair>` | `{ publicKey, privateKey }` in PEM (SPKI / PKCS#8).     |
+| `encrypt(data, publicKey, options?)`  | `Promise<string>`     | JWE `RSA-OAEP-*` + `A256GCM`: RSA wraps an AES-256 key. |
+| `decrypt(encrypted, privateKey)`      | `Promise<string>`     | Decrypts to UTF-8 text.                                 |
+| `decryptBytes(encrypted, privateKey)` | `Promise<Uint8Array>` | Decrypts to bytes.                                      |
 
-- `generateKeyPair` acepta `{ level, bits }` con `bits` en `2048 | 3072 | 4096`. Otro tamaño, o uno
-  menor que el del nivel (`{ level: 'strong', bits: 2048 }`), se rechaza con `UNSUPPORTED`.
-- `encrypt` acepta `{ level, algorithm }` con `algorithm` en `'RSA-OAEP-256' | 'RSA-OAEP-384' | 'RSA-OAEP-512'`.
-  Una clave más pequeña que la del nivel pedido se rechaza con `INVALID_KEY` (`RSA key of 2048 bits is below the 3072 bits required by level standard.`).
-- Solo se admiten claves PEM SPKI (pública) y PKCS#8 (privada) de al menos 2048 bits. Otro formato →
-  `INVALID_KEY`.
-- Generar una clave de 4096 bits puede tardar varios segundos, más en móviles lentos.
+- `generateKeyPair` accepts `{ level, bits }` with `bits` in `2048 | 3072 | 4096`. Any other size, or
+  one smaller than the level's (`{ level: 'strong', bits: 2048 }`), is rejected with `UNSUPPORTED`.
+- `encrypt` accepts `{ level, algorithm }` with `algorithm` in `'RSA-OAEP-256' | 'RSA-OAEP-384' | 'RSA-OAEP-512'`.
+  A key smaller than the requested level's is rejected with `INVALID_KEY` (`RSA key of 2048 bits is below the 3072 bits required by level standard.`).
+- Only PEM SPKI (public) and PKCS#8 (private) keys of at least 2048 bits are supported. Any other
+  format → `INVALID_KEY`.
+- Generating a 4096-bit key can take several seconds, longer on slow phones.
 
-## `signature`: firmas de ficheros
+## `signature`: file signatures
 
 ```ts
 const { publicKey, privateKey } = await rsa.generateKeyPair();
-const fileBytes = new TextEncoder().encode('contenido del fichero');
+const fileBytes = new TextEncoder().encode('file contents');
 
 const signed = await signature.sign(fileBytes, privateKey);
-// '<cabecera>..<firma>': cabecera {"alg":"PS256","b64":false,"crit":["b64"]} y payload vacío
+// '<header>..<signature>': header {"alg":"PS256","b64":false,"crit":["b64"]} and empty payload
 await signature.verify(fileBytes, signed, publicKey); // true
-await signature.verify('otro contenido', signed, publicKey); // false
+await signature.verify('other contents', signed, publicKey); // false
 ```
 
-| Función                            | Devuelve           | Descripción                                                 |
-| ---------------------------------- | ------------------ | ----------------------------------------------------------- |
-| `sign(data, privateKey, options?)` | `Promise<string>`  | JWS separado con payload sin codificar (RFC 7797), RSA-PSS. |
-| `verify(data, signed, publicKey)`  | `Promise<boolean>` | `true` si la firma corresponde a los datos y a la clave.    |
+| Function                           | Returns            | Description                                              |
+| ---------------------------------- | ------------------ | -------------------------------------------------------- |
+| `sign(data, privateKey, options?)` | `Promise<string>`  | Detached JWS with unencoded payload (RFC 7797), RSA-PSS. |
+| `verify(data, signed, publicKey)`  | `Promise<boolean>` | `true` if the signature matches the data and the key.    |
 
-- Algoritmos (`SignatureAlgorithm`): `'PS256' | 'PS384' | 'PS512'`. La firma no incluye los datos:
-  guárdala junto al fichero y pásale los mismos bytes a `verify`.
-- `sign` comprueba el tamaño de clave del nivel que recibe (`INVALID_KEY` si es menor); `verify` exige
-  al menos 2048 bits.
+- Algorithms (`SignatureAlgorithm`): `'PS256' | 'PS384' | 'PS512'`. The signature does not include
+  the data: store it next to the file and pass the same bytes to `verify`.
+- `sign` checks the key size of the level it receives (`INVALID_KEY` if smaller); `verify` requires at
+  least 2048 bits.
 
-## `hash`: resúmenes y HMAC
+## `hash`: digests and HMAC
 
 ```ts
-await hash.digest('hola');
-// 'b221d9dbb083a7f33428d7c2a3c3198ae925614d70210e28716ccaa7cd4ddb79' (SHA-256, hex)
-await hash.digest(new Uint8Array([104, 111, 108, 97]), { level: 'cnsa' }); // SHA-512, 128 caracteres hex
-await hash.digest('hola', { algorithm: 'blake2b' });
-// '4ee0cdb64e70bb9da93113f8ddcb3e2fd23bef1cda2c6d45afec7ef959ac6298' (BLAKE2b de 32 bytes)
+await hash.digest('hello');
+// '2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824' (SHA-256, hex)
+await hash.digest(new Uint8Array([104, 101, 108, 108, 111]), { level: 'cnsa' }); // SHA-512, 128 hex characters
+await hash.digest('hello', { algorithm: 'blake2b' });
+// '324dcf027dd4a30a932c441f365a25e86b173defa4b8e58948253471b81b72cf' (32-byte BLAKE2b)
 
-await hash.hmac('hola', 'clave');
-// '67c0066d5104af2bd88decc45269ddb529a0097b8da4cfbbe58ec2a5f63ca50d' (HMAC-SHA256)
-await hash.hmac('hola', 'clave', { level: 'strong' }); // HMAC-SHA384, 96 caracteres hex
+await hash.hmac('hello', 'key');
+// '9307b3b915efb5171ff14d8cb55fbcc798c6c0ef1456d66ded1a6aa723a58b7b' (HMAC-SHA256)
+await hash.hmac('hello', 'key', { level: 'strong' }); // HMAC-SHA384, 96 hex characters
 ```
 
-| Función                     | Devuelve          | Descripción  |
+| Function                    | Returns           | Description  |
 | --------------------------- | ----------------- | ------------ |
-| `digest(data, options?)`    | `Promise<string>` | Hash en hex. |
-| `hmac(data, key, options?)` | `Promise<string>` | HMAC en hex. |
+| `digest(data, options?)`    | `Promise<string>` | Hash in hex. |
+| `hmac(data, key, options?)` | `Promise<string>` | HMAC in hex. |
 
-- `digest`: `algorithm` en `'sha256' | 'sha384' | 'sha512' | 'blake2b'`.
-- `hmac`: `algorithm` en `'sha256' | 'sha384' | 'sha512'` (`blake2b` → `UNSUPPORTED`). La clave no puede
-  estar vacía (`INVALID_KEY`).
+- `digest`: `algorithm` in `'sha256' | 'sha384' | 'sha512' | 'blake2b'`.
+- `hmac`: `algorithm` in `'sha256' | 'sha384' | 'sha512'` (`blake2b` → `UNSUPPORTED`). The key cannot
+  be empty (`INVALID_KEY`).
 
-## `token`: tokens JSON cifrados
+## `token`: encrypted JSON tokens
 
-Tokens opacos: el contenido va cifrado y autenticado, nadie sin la clave puede leerlo ni modificarlo.
+Opaque tokens: the content is encrypted and authenticated; nobody without the key can read or modify it.
 
 ```ts
-const tokenKey = await token.generateKey(); // 32 bytes aleatorios en base64url
+const tokenKey = await token.generateKey(); // 32 random bytes in base64url
 
 const opaque = await token.encrypt({ userId: 7 }, tokenKey, { expiresIn: 3600 });
 // 'v4.local.…' (PASETO v4.local)
 await token.decrypt(opaque, tokenKey);
-// { exp: '2026-10-13T12:52:01Z', iat: '2026-10-13T11:52:01Z', userId: 7 } (fechas de una ejecución real)
+// { exp: '2026-10-13T16:29:51Z', iat: '2026-10-13T15:29:51Z', userId: 7 } (dates from a real run)
 ```
 
-| Función                                | Devuelve          | Descripción                                                    |
-| -------------------------------------- | ----------------- | -------------------------------------------------------------- |
-| `generateKey()`                        | `Promise<string>` | Clave aleatoria de 32 bytes en base64url.                      |
-| `encrypt(payload, key, options?)`      | `Promise<string>` | PASETO `v4.local` (JWE `dir` + `A256GCM` con `level: 'cnsa'`). |
-| `decrypt<P>(encrypted, key, options?)` | `Promise<P>`      | Descifra y comprueba `exp` y `nbf`. Detecta el formato solo.   |
+| Function                               | Returns           | Description                                                         |
+| -------------------------------------- | ----------------- | ------------------------------------------------------------------- |
+| `generateKey()`                        | `Promise<string>` | Random 32-byte key in base64url.                                    |
+| `encrypt(payload, key, options?)`      | `Promise<string>` | PASETO `v4.local` (JWE `dir` + `A256GCM` with `level: 'cnsa'`).     |
+| `decrypt<P>(encrypted, key, options?)` | `Promise<P>`      | Decrypts and checks `exp` and `nbf`. Detects the format on its own. |
 
-- `encrypt` acepta `{ level, algorithm, expiresIn, requireExpiration }`; `algorithm` en
-  `'paseto-v4-local' | 'jwe-dir-a256gcm'`; `expiresIn` en segundos.
-- `iat` y `exp` se guardan como fechas RFC 3339 (texto), no como números. Si el payload ya trae `iat`
-  se respeta.
-- La clave se deriva con HKDF: usa `token.generateKey()` u otro secreto aleatorio de al menos 16
-  caracteres (32 con `cnsa`). `token` no tiene modo contraseña.
-- El payload debe ser un objeto plano serializable con `JSON.stringify` (un `BigInt` o un ciclo →
+- `encrypt` accepts `{ level, algorithm, expiresIn, requireExpiration }`; `algorithm` in
+  `'paseto-v4-local' | 'jwe-dir-a256gcm'`; `expiresIn` in seconds.
+- `iat` and `exp` are stored as RFC 3339 dates (text), not as numbers. If the payload already has
+  `iat`, it is kept.
+- The key is derived with HKDF: use `token.generateKey()` or another random secret of at least 16
+  characters (32 with `cnsa`). `token` has no password mode.
+- The payload must be a plain object serializable with `JSON.stringify` (a `BigInt` or a cycle →
   `INVALID_INPUT`).
 
-### Caducidad obligatoria
+### Mandatory expiration
 
-`token.encrypt` rechaza (`INVALID_INPUT`) un payload sin `expiresIn` ni claim `exp`, salvo que reciba
-`requireExpiration: false`. `token.decrypt(data, key)` rechaza un token sin `exp` (`MALFORMED`) salvo
-que reciba `{ requireExpiration: false }`, y uno caducado o aún no activo (`EXPIRED`).
+`token.encrypt` rejects (`INVALID_INPUT`) a payload with neither `expiresIn` nor an `exp` claim,
+unless it receives `requireExpiration: false`. `token.decrypt(data, key)` rejects a token without
+`exp` (`MALFORMED`) unless it receives `{ requireExpiration: false }`, and one that is expired or not
+yet active (`EXPIRED`).
 
 ```ts
 const tokenKey = await token.generateKey();
 const forever = await token.encrypt({ userId: 7 }, tokenKey, { requireExpiration: false });
-await token.decrypt(forever, tokenKey); // rechaza con CryptoError MALFORMED (no tiene exp)
+await token.decrypt(forever, tokenKey); // rejects with CryptoError MALFORMED (it has no exp)
 await token.decrypt(forever, tokenKey, { requireExpiration: false });
-// { iat: '2026-10-13T11:52:01Z', userId: 7 }
+// { iat: '2026-10-13T15:29:51Z', userId: 7 }
 ```
 
 ## `jwt`: JSON Web Tokens
 
 ```ts
-const secret = 'un-secreto-de-al-menos-16';
+const secret = 'a-secret-of-at-least-16';
 
 const signed = await jwt.sign({ userId: 7, role: 'admin' }, secret, {
   expiresIn: 3600,
-  issuer: 'mi-app',
+  issuer: 'my-app',
   audience: 'api',
 });
-await jwt.verify(signed, secret, { issuer: 'mi-app', audience: 'api' });
-// { aud: 'api', exp: 1791895921, iat: 1791892321, iss: 'mi-app', role: 'admin', userId: 7 }
-// (marcas de tiempo de una ejecución real)
+await jwt.verify(signed, secret, { issuer: 'my-app', audience: 'api' });
+// { aud: 'api', exp: 1791908991, iat: 1791905391, iss: 'my-app', role: 'admin', userId: 7 }
+// (timestamps from a real run)
 
-await jwt.decode(signed); // el mismo payload, leído SIN verificar la firma
+await jwt.decode(signed); // the same payload, read WITHOUT verifying the signature
 
 const { publicKey, privateKey } = await rsa.generateKeyPair();
-const rs = await jwt.sign({ sub: 'u1' }, privateKey, { expiresIn: 600 }); // cabecera {"typ":"JWT","alg":"RS256"}
+const rs = await jwt.sign({ sub: 'u1' }, privateKey, { expiresIn: 600 }); // header {"typ":"JWT","alg":"RS256"}
 await jwt.verify(rs, publicKey); // { exp: …, iat: …, sub: 'u1' }
 ```
 
-| Función                            | Devuelve          | Descripción                                                                   |
-| ---------------------------------- | ----------------- | ----------------------------------------------------------------------------- |
-| `sign(payload, key, options?)`     | `Promise<string>` | Firma con un secreto (HS256/384/512) o una clave privada PEM (RS256/384/512). |
-| `verify<P>(signed, key, options?)` | `Promise<P>`      | Verifica firma, `exp`, `nbf`, `iss` y `aud`; devuelve el payload.             |
-| `decode<P>(signed)`                | `Promise<P>`      | Decodifica el payload **sin verificar**. No lo uses para autorizar.           |
+| Function                           | Returns           | Description                                                               |
+| ---------------------------------- | ----------------- | ------------------------------------------------------------------------- |
+| `sign(payload, key, options?)`     | `Promise<string>` | Signs with a secret (HS256/384/512) or a PEM private key (RS256/384/512). |
+| `verify<P>(signed, key, options?)` | `Promise<P>`      | Verifies signature, `exp`, `nbf`, `iss` and `aud`; returns the payload.   |
+| `decode<P>(signed)`                | `Promise<P>`      | Decodes the payload **without verifying**. Do not use it to authorize.    |
 
-- El tipo de clave decide la familia: un texto que empieza por `-----BEGIN` es PEM (RS\*); cualquier
-  otro es un secreto (HS\*). Pedir `algorithm: 'HS256'` con un PEM (o RS\* con un secreto) →
+- The key type decides the family: text that starts with `-----BEGIN` is PEM (RS\*); anything else
+  is a secret (HS\*). Asking for `algorithm: 'HS256'` with a PEM (or RS\* with a secret) →
   `INVALID_KEY`.
-- Opciones de `sign` (`JwtSignOptions`): `level`, `algorithm` (`'HS256' | 'HS384' | 'HS512' | 'RS256' | 'RS384' | 'RS512'`),
-  `expiresIn` (segundos), `issuer`, `subject`, `audience` (`string | string[]`) y `requireExpiration`.
-  Una opción desconocida se rechaza con `INVALID_INPUT`.
-- Opciones de `verify` (`JwtVerifyOptions`): `algorithms` (lista permitida; por defecto, la familia de la
-  clave), `issuer`, `audience`, `clockTolerance` (segundos, 0 o positivo) y `requireExpiration`.
-- `iat` y `exp` son segundos Unix (números). Si el payload ya trae `iat` se respeta.
-- Los secretos necesitan **al menos 16 caracteres**, para firmar y para verificar (`INVALID_KEY`). Las
-  claves RSA necesitan al menos 2048 bits, también para verificar; `sign` comprueba además el tamaño del
-  nivel que recibe.
-- Firma inválida o clave equivocada → `TAMPERED`; `iss` o `aud` distintos → `TAMPERED`; caducado o aún
-  no activo → `EXPIRED`; algoritmo no permitido → `UNSUPPORTED`; texto que no es un JWT → `MALFORMED`.
+- `sign` options (`JwtSignOptions`): `level`, `algorithm` (`'HS256' | 'HS384' | 'HS512' | 'RS256' | 'RS384' | 'RS512'`),
+  `expiresIn` (seconds), `issuer`, `subject`, `audience` (`string | string[]`) and `requireExpiration`.
+  An unknown option is rejected with `INVALID_INPUT`.
+- `verify` options (`JwtVerifyOptions`): `algorithms` (allow list; defaults to the key's family),
+  `issuer`, `audience`, `clockTolerance` (seconds, 0 or positive) and `requireExpiration`.
+- `iat` and `exp` are Unix seconds (numbers). If the payload already has `iat`, it is kept.
+- Secrets need **at least 16 characters**, both to sign and to verify (`INVALID_KEY`). RSA keys need
+  at least 2048 bits, also to verify; `sign` additionally checks the size of the level it receives.
+- Invalid signature or wrong key → `TAMPERED`; different `iss` or `aud` → `TAMPERED`; expired or not
+  yet active → `EXPIRED`; algorithm not allowed → `UNSUPPORTED`; text that is not a JWT →
+  `MALFORMED`.
 
-### Caducidad obligatoria
+### Mandatory expiration
 
-`jwt.sign` necesita una caducidad: `expiresIn`, un claim `exp` en el payload, o `requireExpiration: false`
-explícito para un token que no caduca (si no, `INVALID_INPUT`). `jwt.verify` rechaza un token sin `exp`
-(`MALFORMED`) salvo que reciba `requireExpiration: false`, y uno caducado (`EXPIRED`).
+`jwt.sign` needs an expiration: `expiresIn`, an `exp` claim in the payload, or an explicit
+`requireExpiration: false` for a token that never expires (otherwise `INVALID_INPUT`). `jwt.verify`
+rejects a token without `exp` (`MALFORMED`) unless it receives `requireExpiration: false`, and an
+expired one (`EXPIRED`).
 
 ```ts
-const secret = 'un-secreto-de-al-menos-16';
-await jwt.sign({ a: 1 }, secret); // rechaza con CryptoError INVALID_INPUT (sin caducidad)
+const secret = 'a-secret-of-at-least-16';
+await jwt.sign({ a: 1 }, secret); // rejects with CryptoError INVALID_INPUT (no expiration)
 const forever = await jwt.sign({ a: 1 }, secret, { requireExpiration: false });
-await jwt.verify(forever, secret); // rechaza con CryptoError MALFORMED (no tiene exp)
+await jwt.verify(forever, secret); // rejects with CryptoError MALFORMED (it has no exp)
 await jwt.verify(forever, secret, { requireExpiration: false }); // { a: 1, iat: … }
 ```
 
-## Niveles de seguridad
+## Security levels
 
-`securityLevels()` devuelve lo que usa cada nivel (`SecurityLevels`, sin el alias `military`):
+`securityLevels()` returns what each level uses (`SecurityLevels`, without the `military` alias):
 
 ```ts
 import { securityLevels, SECURITY_LEVEL_NAMES } from '@archi-code/crypto-tools';
@@ -361,51 +362,51 @@ SECURITY_LEVEL_NAMES; // ['basic', 'standard', 'strong', 'cnsa', 'military']
 //   token: 'paseto-v4-local' }
 ```
 
-| Herramienta | `basic`         | `standard` (por defecto)  | `strong`                  | `cnsa` / `military`                  |
-| ----------- | --------------- | ------------------------- | ------------------------- | ------------------------------------ |
-| `cipher`    | AES-128-GCM     | AES-256-GCM               | XChaCha20-Poly1305        | AES-256-GCM, HKDF-SHA384, clave ≥ 32 |
-| `token`     | PASETO v4.local | PASETO v4.local           | PASETO v4.local           | JWE `dir` + `A256GCM`                |
-| `hash`      | SHA-256         | SHA-256                   | SHA-384                   | SHA-512                              |
-| `password`  | bcrypt coste 10 | Argon2id t=3, 64 MiB, p=4 | Argon2id t=3, 64 MiB, p=4 | Argon2id t=4, 256 MiB, p=4           |
-| `rsa`       | 2048, OAEP-256  | 3072, OAEP-256            | 4096, OAEP-384            | 4096, OAEP-512                       |
-| `signature` | PS256 (2048)    | PS256 (3072)              | PS384 (4096)              | PS512 (4096)                         |
-| `jwt`       | HS256 / RS256   | HS256 / RS256             | HS384 / RS384             | HS512 / RS512                        |
+| Tool        | `basic`         | `standard` (default)      | `strong`                  | `cnsa` / `military`                |
+| ----------- | --------------- | ------------------------- | ------------------------- | ---------------------------------- |
+| `cipher`    | AES-128-GCM     | AES-256-GCM               | XChaCha20-Poly1305        | AES-256-GCM, HKDF-SHA384, key ≥ 32 |
+| `token`     | PASETO v4.local | PASETO v4.local           | PASETO v4.local           | JWE `dir` + `A256GCM`              |
+| `hash`      | SHA-256         | SHA-256                   | SHA-384                   | SHA-512                            |
+| `password`  | bcrypt cost 10  | Argon2id t=3, 64 MiB, p=4 | Argon2id t=3, 64 MiB, p=4 | Argon2id t=4, 256 MiB, p=4         |
+| `rsa`       | 2048, OAEP-256  | 3072, OAEP-256            | 4096, OAEP-384            | 4096, OAEP-512                     |
+| `signature` | PS256 (2048)    | PS256 (3072)              | PS384 (4096)              | PS512 (4096)                       |
+| `jwt`       | HS256 / RS256   | HS256 / RS256             | HS384 / RS384             | HS512 / RS512                      |
 
-Algoritmos fuera de los niveles disponibles con `algorithm`: `chacha20-poly1305` en `cipher` y
-`blake2b` en `hash.digest`.
+Algorithms outside the levels, available with `algorithm`: `chacha20-poly1305` in `cipher` and
+`blake2b` in `hash.digest`.
 
-Estos valores son una elección de este paquete y **deben revisarse contra las fuentes antes de usarlos**
-para afirmar el cumplimiento de una norma:
+These values are a choice of this package and **must be checked against the sources before using
+them** to claim compliance with a standard:
 
-- `cnsa` sigue las familias de algoritmos de la NSA Commercial National Security Algorithm Suite (CNSA
-  1.0: AES-256, SHA-384 o superior, RSA ≥ 3072). CNSA no cubre el hash de contraseñas, PASETO ni
-  XChaCha20; `military` es un nombre, no una certificación.
-- Argon2id en `standard` y `strong` usa la segunda opción recomendada de la RFC 9106 (t=3, 64 MiB, 4
-  carriles); para contraseñas ambos niveles son iguales.
-- Los costes de bcrypt siguen la práctica habitual; consulta el OWASP Password Storage Cheat Sheet.
+- `cnsa` follows the algorithm families of the NSA Commercial National Security Algorithm Suite (CNSA
+  1.0: AES-256, SHA-384 or higher, RSA ≥ 3072). CNSA does not cover password hashing, PASETO or
+  XChaCha20; `military` is a name, not a certification.
+- Argon2id in `standard` and `strong` uses the second recommended option of RFC 9106 (t=3, 64 MiB, 4
+  lanes); for passwords both levels are the same.
+- The bcrypt costs follow common practice; see the OWASP Password Storage Cheat Sheet.
 
-## Errores
+## Errors
 
-Toda función rechaza con un `CryptoError` (subclase de `Error`, `name === 'CryptoError'`) que lleva un
-`code` estable. `CRYPTO_ERROR_CODES` contiene la lista completa. Los mensajes están en inglés y pueden
-cambiar: decide por el `code`, no por el texto.
+Every function rejects with a `CryptoError` (a subclass of `Error`, `name === 'CryptoError'`) that
+carries a stable `code`. `CRYPTO_ERROR_CODES` holds the full list. Messages are in English and may
+change: decide on the `code`, not on the text.
 
-| `code`          | Cuándo                                                                                                                                            |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `INVALID_KEY`   | Clave o secreto inválido: demasiado corto, PEM que no es SPKI/PKCS#8, RSA menor que el nivel, HMAC vacío.                                         |
-| `INVALID_INPUT` | Entrada inválida: tipo erróneo, contraseña > 64 caracteres o > 72 bytes con bcrypt, payload no serializable, falta caducidad, opciones inválidas. |
-| `TAMPERED`      | Dato o firma manipulados, clave equivocada, `iss`/`aud` de un JWT distintos.                                                                      |
-| `EXPIRED`       | Token o JWT caducado o aún no activo (`nbf`).                                                                                                     |
-| `MALFORMED`     | El texto no tiene el formato esperado, falta `exp` al verificar, o el descifrado no es UTF-8.                                                     |
-| `UNSUPPORTED`   | Nivel o algoritmo desconocido, `level` y `algorithm` que no coinciden, tamaño RSA no admitido, algoritmo JWT no permitido.                        |
-| `WORKER`        | El worker falló (trap del wasm, memoria agotada), no pudo arrancar, o el pool se cerró con la llamada en curso.                                   |
-| `TIMEOUT`       | El worker no respondió dentro de `timeout` ms.                                                                                                    |
+| `code`          | When                                                                                                                                          |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `INVALID_KEY`   | Invalid key or secret: too short, PEM that is not SPKI/PKCS#8, RSA below the level, empty HMAC key.                                           |
+| `INVALID_INPUT` | Invalid input: wrong type, password > 64 characters or > 72 bytes with bcrypt, non-serializable payload, missing expiration, invalid options. |
+| `TAMPERED`      | Tampered data or signature, wrong key, mismatched JWT `iss`/`aud`.                                                                            |
+| `EXPIRED`       | Token or JWT expired or not yet active (`nbf`).                                                                                               |
+| `MALFORMED`     | The text does not have the expected format, `exp` is missing when verifying, or the decrypted data is not UTF-8.                              |
+| `UNSUPPORTED`   | Unknown level or algorithm, `level` and `algorithm` that do not match, unsupported RSA size, JWT algorithm not allowed.                       |
+| `WORKER`        | The worker failed (wasm trap, out of memory), could not start, or the pool was closed with the call in progress.                              |
+| `TIMEOUT`       | The worker did not answer within `timeout` ms.                                                                                                |
 
 ```ts
 import { CryptoError, jwt } from '@archi-code/crypto-tools';
 
-const secret = 'un-secreto-de-al-menos-16';
-const signedJwt = await jwt.sign({ exp: 1 }, secret); // exp en 1970: ya caducado
+const secret = 'a-secret-of-at-least-16';
+const signedJwt = await jwt.sign({ exp: 1 }, secret); // exp in 1970: already expired
 
 try {
   const claims = await jwt.verify(signedJwt, secret);
@@ -413,11 +414,11 @@ try {
   if (error instanceof CryptoError) {
     switch (error.code) {
       case 'EXPIRED':
-        console.log('caducado'); // se imprime esto
+        console.log('expired'); // this is printed
         break;
       case 'TAMPERED':
       case 'MALFORMED':
-        console.log('token no válido');
+        console.log('invalid token');
         break;
       default:
         throw error;
@@ -426,176 +427,176 @@ try {
 }
 ```
 
-`password.verify` y `signature.verify` devuelven `false` cuando la contraseña o la firma no
-corresponden; solo rechazan por entradas inválidas (por ejemplo, un argumento que no es `string`).
+`password.verify` and `signature.verify` return `false` when the password or the signature does not
+match; they only reject on invalid input (for example, an argument that is not a `string`).
 
-## Workers y entornos
+## Workers and environments
 
-Las llamadas van a un pool perezoso de hasta `min(4, núcleos − 1)` workers (al menos 1): Web Workers
-creados desde una Blob URL en navegadores y `worker_threads` en Node. Los workers no mantienen vivo un
-proceso Node cuando están inactivos, así que un script termina solo sin cerrar el pool.
+Calls go to a lazy pool of up to `min(4, cores − 1)` workers (at least 1): Web Workers created from
+a Blob URL in browsers and `worker_threads` in Node. Idle workers do not keep a Node process alive,
+so a script exits on its own without closing the pool.
 
 ```ts
 import { workers } from '@archi-code/crypto-tools';
 
-workers.runtime(); // 'worker-threads' en Node; 'web-worker' en el navegador
+workers.runtime(); // 'worker-threads' in Node; 'web-worker' in the browser
 workers.configure({ size: 2, timeout: 120_000, idleTimeout: 10_000 });
-workers.terminate(); // cierra los workers (p. ej. al final de los tests)
+workers.terminate(); // closes the workers (e.g. at the end of the tests)
 ```
 
-| Función              | Descripción                                                                                                                            |
-| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `configure(options)` | Cambia la configuración y cierra los workers actuales. Es síncrona y lanza `CryptoError` (`INVALID_INPUT`) si una opción no es válida. |
-| `terminate()`        | Cierra los workers; las llamadas en curso rechazan con `WORKER`. La siguiente llamada crea workers nuevos.                             |
-| `runtime()`          | Dónde se ejecutarán las llamadas: `'web-worker'`, `'worker-threads'` o `'inline'`.                                                     |
+| Function             | Description                                                                                                                                       |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `configure(options)` | Changes the configuration and closes the current workers. It is synchronous and throws `CryptoError` (`INVALID_INPUT`) if an option is not valid. |
+| `terminate()`        | Closes the workers; calls in progress reject with `WORKER`. The next call creates new workers.                                                    |
+| `runtime()`          | Where calls will run: `'web-worker'`, `'worker-threads'` or `'inline'`.                                                                           |
 
-Opciones (`WorkersOptions`):
+Options (`WorkersOptions`):
 
-| Opción        | Valor por defecto     | Descripción                                                                                                                                  |
-| ------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `size`        | `min(4, núcleos − 1)` | Número máximo de workers (entero ≥ 1).                                                                                                       |
-| `mode`        | `'auto'`              | `'auto'`: workers si existen, si no el hilo actual. `'worker'`: falla con `WORKER` si no hay workers. `'inline'`: siempre en el hilo actual. |
-| `timeout`     | `60000` ms            | Un worker que no responde en ese tiempo se reemplaza y la llamada rechaza con `TIMEOUT`. `Infinity` lo desactiva.                            |
-| `idleTimeout` | `30000` ms            | Un worker inactivo ese tiempo se cierra para devolver su memoria. `Infinity` los mantiene.                                                   |
+| Option        | Default             | Description                                                                                                                                                       |
+| ------------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `size`        | `min(4, cores − 1)` | Maximum number of workers (integer ≥ 1).                                                                                                                          |
+| `mode`        | `'auto'`            | `'auto'`: workers if they exist, otherwise the current thread. `'worker'`: fails with `WORKER` if there are no workers. `'inline'`: always on the current thread. |
+| `timeout`     | `60000` ms          | A worker that does not answer within that time is replaced and the call rejects with `TIMEOUT`. `Infinity` disables it.                                           |
+| `idleTimeout` | `30000` ms          | A worker idle for that time is closed to give back its memory. `Infinity` keeps them.                                                                             |
 
-`configure()` y `terminate()` cierran los workers actuales y las llamadas en curso rechazan con
-`WORKER`: configura el pool antes de usarlo.
+`configure()` and `terminate()` close the current workers and calls in progress reject with
+`WORKER`: configure the pool before using it.
 
-- **Timeout.** Las llamadas que esperaban detrás de la que agotó el tiempo pasan a otro worker. El hilo
-  actual no se puede interrumpir, así que el modo inline no tiene timeout. Generar una clave RSA de
-  4096 bits puede tardar varios segundos, más en móviles lentos: sube `timeout` si la app genera claves
-  allí.
-- **Fallos.** Una llamada que provoca un trap del wasm (un panic de Rust, memoria agotada) rechaza con
-  `WORKER` y su worker se reemplaza, así que las siguientes llamadas nunca corren sobre una instancia
-  rota. Un worker cuyo wasm no puede arrancar rechaza sus llamadas con `WORKER` y se descarta; la
-  siguiente llamada crea uno nuevo.
-- **Respaldo en el hilo actual.** Donde no existen workers, o la página bloquea los Web Workers `blob:`
-  antes de que arranquen, las llamadas se ejecutan en el hilo actual (con un único aviso en consola).
-  Un worker que arrancó y luego falla (por ejemplo, sin memoria en un hash Argon2) rechaza sus llamadas
-  con `WORKER` y el pool sigue usando workers.
-- **Bytes.** Un `Uint8Array` se copia al worker. Una vista sobre un buffer mayor (un `subarray`, o un
-  `Buffer` pequeño de Node del pool compartido) y los bytes de un `SharedArrayBuffer` se copian antes,
-  así que el worker solo recibe los bytes de la vista.
-- **Memoria.** La memoria wasm solo crece: un hash Argon2id deja 64 MiB (256 MiB con `cnsa`) en su
-  worker, hasta eso multiplicado por el tamaño del pool. `idleTimeout` cierra los workers inactivos
-  para devolverla; la siguiente llamada arranca uno nuevo, que solo instancia el módulo ya compilado.
-- **Secretos en memoria.** Las claves derivadas, las claves de contenido AES y RSA y los key schedules
-  de AES se borran (`zeroize`) al terminar la llamada. Las claves y contraseñas llegan como strings de
-  JavaScript, que nadie puede borrar, y la copia que hace el glue de wasm se libera pero no se borra;
-  cerrar un worker inactivo devuelve toda su memoria.
+- **Timeout.** Calls that were waiting behind the one that timed out move to another worker. The
+  current thread cannot be interrupted, so inline mode has no timeout. Generating a 4096-bit RSA key
+  can take several seconds, longer on slow phones: raise `timeout` if the app generates keys there.
+- **Failures.** A call that causes a wasm trap (a Rust panic, out of memory) rejects with `WORKER` and
+  its worker is replaced, so later calls never run on a broken instance. A worker whose wasm cannot
+  start rejects its calls with `WORKER` and is discarded; the next call creates a new one.
+- **Fallback to the current thread.** Where no workers exist, or the page blocks `blob:` Web Workers
+  before they start, calls run on the current thread (with a single console warning). A worker that
+  started and later fails (for example, out of memory in an Argon2 hash) rejects its calls with
+  `WORKER` and the pool keeps using workers.
+- **Bytes.** A `Uint8Array` is copied to the worker. A view over a larger buffer (a `subarray`, or a
+  small Node `Buffer` from the shared pool) and the bytes of a `SharedArrayBuffer` are copied first,
+  so the worker only receives the bytes of the view.
+- **Memory.** wasm memory only grows: an Argon2id hash leaves 64 MiB (256 MiB with `cnsa`) in its
+  worker, up to that times the pool size. `idleTimeout` closes idle workers to give it back; the next
+  call starts a new one, which only instantiates the already compiled module.
+- **Secrets in memory.** Derived keys, AES and RSA content keys and AES key schedules are wiped
+  (`zeroize`) when the call ends. Keys and passwords arrive as JavaScript strings, which nobody can
+  wipe, and the copy made by the wasm glue is freed but not wiped; closing an idle worker gives back
+  all of its memory.
 
-### Content Security Policy (navegador)
+### Content Security Policy (browser)
 
-La página necesita `script-src 'wasm-unsafe-eval'` (el wasm se compila desde el paquete) y
-`worker-src blob:` para los workers, por ejemplo:
+The page needs `script-src 'wasm-unsafe-eval'` (the wasm is compiled from the package) and
+`worker-src blob:` for the workers, for example:
 
 ```
 default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src blob:
 ```
 
-Sin `blob:` las llamadas pasan al hilo actual, que además necesita `'unsafe-eval'` porque evalúa el
-glue de wasm-bindgen embebido; sin ninguno de los dos, toda llamada rechaza con `WORKER`.
+Without `blob:` calls move to the current thread, which also needs `'unsafe-eval'` because it
+evaluates the embedded wasm-bindgen glue; with neither of the two, every call rejects with `WORKER`.
 
-### Tamaño de datos y del paquete
+### Data and package size
 
-- `cipher.encrypt`, `rsa.encrypt` y `signature` procesan toda la entrada en memoria: se copia al
-  worker y luego a la memoria wasm (como máximo 4 GiB, compartidos con la salida), y las salidas
-  cifradas son strings base64url de unos 4/3 de la entrada. Los motores JavaScript limitan la longitud
-  de un string (V8: unos 512 Mi caracteres), así que mantén cada entrada muy por debajo de 380 MiB y
-  divide los ficheros mayores en partes.
-- El wasm (unos 1,3 MiB) viaja comprimido con gzip y en base64 dentro del JavaScript: unos 690 KiB por
-  build (ESM o CJS; una app carga una, unos 495 KiB si el servidor la sirve con gzip). Se descomprime
-  una vez con el `DecompressionStream` estándar (comprueba su soporte si apuntas a Safari o Firefox
-  antiguos).
+- `cipher.encrypt`, `rsa.encrypt` and `signature` process the whole input in memory: it is copied to
+  the worker and then to wasm memory (at most 4 GiB, shared with the output), and encrypted outputs
+  are base64url strings of about 4/3 of the input. JavaScript engines limit the length of a string
+  (V8: about 512 Mi characters), so keep each input well below 380 MiB and split larger files into
+  parts.
+- The wasm (about 1.3 MiB) ships gzip-compressed and base64-encoded inside the JavaScript: about 690
+  KiB per build (ESM or CJS; an app loads one, about 495 KiB if the server serves it with gzip). It is
+  decompressed once with the standard `DecompressionStream` (check its support if you target older
+  Safari or Firefox).
 
-## Seguridad y riesgo conocido
+## Security and known risk
 
-El crate `rsa` tiene el aviso RUSTSEC-2023-0071 (ataque Marvin): su aritmética no es de tiempo
-constante, así que el tiempo de **cada operación con la clave privada** puede filtrar información
-sobre ella. Aquí eso es `rsa.decrypt` / `rsa.decryptBytes`, `signature.sign` y `jwt.sign` con una
-clave PEM RSA; verificar y cifrar solo usan la clave pública y no están afectados. Ninguna versión de
-`rsa` lo corrige todavía (incluidas las release candidates 0.10).
+The `rsa` crate has advisory RUSTSEC-2023-0071 (Marvin attack): its arithmetic is not constant-time,
+so the timing of **every private-key operation** can leak information about the key. Here that means
+`rsa.decrypt` / `rsa.decryptBytes`, `signature.sign` and `jwt.sign` with an RSA PEM key; verifying and
+encrypting only use the public key and are not affected. No version of `rsa` fixes it yet (including
+the 0.10 release candidates).
 
-Mitigación en este paquete: toda operación con la clave privada usa RSA blinding con un valor aleatorio
-nuevo (`decrypt_blinded`, `BlindedSigningKey`; `jsonwebtoken` aplica blinding a sus firmas RS\*), que
-oculta la relación entre la entrada y el tiempo pero no hace el código de tiempo constante. La
-recomendación del propio aviso sigue vigente: evita estas operaciones donde un atacante pueda medir su
-tiempo, por ejemplo un servidor que descifra o firma datos de la red bajo demanda. El uso local, o
-firmar tus propios datos, no tiene problema. Detalles: https://rustsec.org/advisories/RUSTSEC-2023-0071.
+Mitigation in this package: every private-key operation uses RSA blinding with a fresh random value
+(`decrypt_blinded`, `BlindedSigningKey`; `jsonwebtoken` applies blinding to its RS\* signatures),
+which hides the relationship between the input and the timing but does not make the code
+constant-time. The advisory's own recommendation still applies: avoid these operations where an
+attacker can measure their timing, for example a server that decrypts or signs data from the network
+on demand. Local use, or signing your own data, is fine. Details:
+https://rustsec.org/advisories/RUSTSEC-2023-0071.
 
-Otras pautas:
+Other guidelines:
 
-- Usa claves aleatorias (`generateKey()`) para `cipher` y `token`; para contraseñas que teclea una
-  persona usa `cipher` con `{ password: true }` y nunca `token`.
-- `jwt.decode` no verifica nada: usa `jwt.verify` para cualquier decisión de autorización.
-- Los niveles son una elección de este paquete (ver [Niveles de seguridad](#niveles-de-seguridad)); no
-  equivalen a una certificación.
+- Use random keys (`generateKey()`) for `cipher` and `token`; for passwords typed by a person use
+  `cipher` with `{ password: true }` and never `token`.
+- `jwt.decode` verifies nothing: use `jwt.verify` for any authorization decision.
+- The levels are a choice of this package (see [Security levels](#security-levels)); they are not
+  equivalent to a certification.
 
-## Resumen de exports
+## Exports summary
 
-| Export                 | Tipo      | Contenido                                               |
-| ---------------------- | --------- | ------------------------------------------------------- |
-| `password`             | objeto    | `hash`, `verify`, `isHash`, `params`                    |
-| `cipher`               | objeto    | `generateKey`, `encrypt`, `decrypt`, `decryptBytes`     |
-| `rsa`                  | objeto    | `generateKeyPair`, `encrypt`, `decrypt`, `decryptBytes` |
-| `signature`            | objeto    | `sign`, `verify`                                        |
-| `hash`                 | objeto    | `digest`, `hmac`                                        |
-| `token`                | objeto    | `generateKey`, `encrypt`, `decrypt`                     |
-| `jwt`                  | objeto    | `sign`, `verify`, `decode`                              |
-| `workers`              | objeto    | `configure`, `terminate`, `runtime`                     |
-| `securityLevels`       | función   | `() => Promise<SecurityLevels>`                         |
-| `CryptoError`          | clase     | Error con `code: CryptoErrorCode`                       |
-| `CRYPTO_ERROR_CODES`   | constante | Lista de los 8 códigos de error                         |
-| `SECURITY_LEVEL_NAMES` | constante | `['basic', 'standard', 'strong', 'cnsa', 'military']`   |
+| Export                 | Kind     | Contents                                                |
+| ---------------------- | -------- | ------------------------------------------------------- |
+| `password`             | object   | `hash`, `verify`, `isHash`, `params`                    |
+| `cipher`               | object   | `generateKey`, `encrypt`, `decrypt`, `decryptBytes`     |
+| `rsa`                  | object   | `generateKeyPair`, `encrypt`, `decrypt`, `decryptBytes` |
+| `signature`            | object   | `sign`, `verify`                                        |
+| `hash`                 | object   | `digest`, `hmac`                                        |
+| `token`                | object   | `generateKey`, `encrypt`, `decrypt`                     |
+| `jwt`                  | object   | `sign`, `verify`, `decode`                              |
+| `workers`              | object   | `configure`, `terminate`, `runtime`                     |
+| `securityLevels`       | function | `() => Promise<SecurityLevels>`                         |
+| `CryptoError`          | class    | Error with `code: CryptoErrorCode`                      |
+| `CRYPTO_ERROR_CODES`   | constant | List of the 8 error codes                               |
+| `SECURITY_LEVEL_NAMES` | constant | `['basic', 'standard', 'strong', 'cnsa', 'military']`   |
 
-Tipos exportados: `SecurityLevel`, `LevelOptions`, `PasswordParams`, `SecurityLevelDescription`,
+Exported types: `SecurityLevel`, `LevelOptions`, `PasswordParams`, `SecurityLevelDescription`,
 `SecurityLevels`, `CryptoErrorCode`, `PasswordAlgorithm`, `PasswordOptions`, `CipherAlgorithm`,
 `CipherKeyOptions`, `CipherOptions`, `CipherDecryptOptions`, `RsaAlgorithm`, `RsaBits`, `RsaKeyPair`,
 `RsaKeyPairOptions`, `RsaOptions`, `SignatureAlgorithm`, `SignatureOptions`, `HashAlgorithm`,
 `HmacAlgorithm`, `HashOptions`, `HmacOptions`, `TokenAlgorithm`, `TokenOptions`, `TokenDecryptOptions`,
 `TokenPayload`, `JwtAlgorithm`, `JwtSignOptions`, `JwtVerifyOptions`, `JwtPayload`, `WorkerMode`,
-`WorkersOptions` y `WorkerRuntime`.
+`WorkersOptions` and `WorkerRuntime`.
 
-## Skill para asistentes de IA
+## AI assistant skill
 
-El paquete incluye `SKILL.md`, una skill de Claude Code con las reglas, los patrones y los errores
-comunes para escribir código correcto y seguro con esta librería. Para la API completa remite a este
-README dentro de `node_modules/@archi-code/crypto-tools`, así que sigue valiendo al actualizar el
-paquete. Para instalarla en tu proyecto:
+The package includes `SKILL.md`, a Claude Code skill with the rules, patterns and common mistakes for
+writing correct and secure code with this library. For the full API it points to this README inside
+`node_modules/@archi-code/crypto-tools`, so it stays valid when you update the package. To install it
+in your project:
 
 ```bash
 mkdir -p .claude/skills/archi-code-crypto-tools && cp node_modules/@archi-code/crypto-tools/SKILL.md .claude/skills/archi-code-crypto-tools/SKILL.md
 ```
 
-### Cómo se usa
+### How to use
 
-Invócala con una petición:
-
-```text
-/archi-code-crypto-tools añade registro e inicio de sesión con contraseñas hasheadas y JWT de 15 minutos
-```
-
-O pide la tarea sin nombrarla y Claude la carga sola porque encaja con su descripción:
+Invoke it with a request:
 
 ```text
-Cifra el campo iban antes de guardarlo y descífralo al leerlo
+/archi-code-crypto-tools add sign-up and login with hashed passwords and 15-minute JWTs
 ```
 
-También sirve para revisar código que ya usa el paquete:
+Or ask for the task without naming it, and Claude loads it on its own because it matches its
+description:
 
 ```text
-/archi-code-crypto-tools revisa el código de autenticación: await, caducidad de tokens y manejo de CryptoError
+Encrypt the iban field before saving it and decrypt it when reading it
 ```
 
-Con la skill cargada, Claude sigue sus reglas, evita los errores de su lista "Qué no hacer" y, antes de
-usar algo que la skill no muestra, lee este README en `node_modules`.
+It also works for reviewing code that already uses the package:
 
-### Mantenerla al día
+```text
+/archi-code-crypto-tools review the authentication code: await, token expiration and CryptoError handling
+```
 
-- La copia no se actualiza sola: después de actualizar `@archi-code/crypto-tools`, vuelve a ejecutar el comando
-  de arriba.
-- Sube `.claude/skills/archi-code-crypto-tools/` al repositorio para que todo el equipo la use.
+With the skill loaded, Claude follows its rules, avoids the mistakes in its "What not to do" list
+and, before using anything the skill does not show, reads this README in `node_modules`.
 
-## Licencia
+### Keeping it up to date
+
+- The copy does not update itself: after updating `@archi-code/crypto-tools`, run the command above
+  again.
+- Commit `.claude/skills/archi-code-crypto-tools/` to the repository so the whole team uses it.
+
+## License
 
 MIT

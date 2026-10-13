@@ -1,32 +1,32 @@
 ---
 name: archi-code-crypto-tools
-description: Reglas, patrones y errores comunes para escribir código correcto y seguro con @archi-code/crypto-tools, el kit criptográfico Rust→wasm para navegador y Node.js que ejecuta cada llamada en workers. Úsala cuando haya que hashear o verificar contraseñas, cifrar o descifrar, usar RSA o firmas, calcular hashes o HMAC, emitir o verificar tokens y JWT, elegir un nivel de seguridad, tratar un CryptoError o configurar el pool de workers; y siempre que el código importe @archi-code/crypto-tools.
+description: Rules, patterns and common mistakes for writing correct and secure code with @archi-code/crypto-tools, the Rust→wasm cryptography toolkit for the browser and Node.js that runs every call in workers. Use it when hashing or verifying passwords, encrypting or decrypting, using RSA or signatures, computing hashes or HMAC, issuing or verifying tokens and JWTs, choosing a security level, handling a CryptoError or configuring the worker pool; and whenever the code imports @archi-code/crypto-tools.
 ---
 
 # archi-code-crypto-tools
 
-`@archi-code/crypto-tools` es un kit criptográfico escrito en Rust, compilado a un único wasm embebido y
-ejecutado en un pool de workers (Web Workers en el navegador, `worker_threads` en Node). Mismo paquete
-y misma API en navegador y Node, sin dependencias npm ni configuración del bundler.
+`@archi-code/crypto-tools` is a cryptography toolkit written in Rust, compiled into a single embedded
+wasm and run in a pool of workers (Web Workers in the browser, `worker_threads` in Node). Same
+package and same API in the browser and Node, with no npm dependencies and no bundler configuration.
 
-## API completa
+## Full API
 
-Antes de usar una función, opción, algoritmo o tipo que no aparezca en esta skill, lee
-`node_modules/@archi-code/crypto-tools/README.md`: corresponde a la versión instalada. No supongas
-firmas, opciones ni valores por defecto. Si el paquete no está instalado:
+Before using a function, option, algorithm or type that does not appear in this skill, read
+`node_modules/@archi-code/crypto-tools/README.md`: it matches the installed version. Do not assume
+signatures, options or defaults. If the package is not installed:
 `npm install @archi-code/crypto-tools`.
 
-Si esa ruta no existe (monorepo con workspaces, pnpm…), localiza el paquete con
-`node -p "require.resolve('@archi-code/crypto-tools/package.json')"` y lee el `README.md` de esa
-carpeta.
+If that path does not exist (monorepo with workspaces, pnpm…), locate the package with
+`node -p "require.resolve('@archi-code/crypto-tools/package.json')"` and read the `README.md` in that
+folder.
 
-## Skills relacionadas
+## Related skills
 
-Si están instaladas en el proyecto, úsalas junto a esta:
+If they are installed in the project, use them together with this one:
 
-- `archi-code-validation`: validar entradas (email, longitud de contraseña…) antes de hashear o firmar.
+- `archi-code-validation`: validate input (email, password length…) before hashing or signing.
 
-## Importación
+## Import
 
 ```ts
 import { password, cipher, jwt, token, CryptoError } from '@archi-code/crypto-tools';
@@ -36,66 +36,68 @@ import { password, cipher, jwt, token, CryptoError } from '@archi-code/crypto-to
 const { password, cipher, jwt, token, CryptoError } = require('@archi-code/crypto-tools');
 ```
 
-No hay export por defecto ni subrutas (`@archi-code/crypto-tools/jwt` no existe).
+There is no default export and no subpaths (`@archi-code/crypto-tools/jwt` does not exist).
 
-## Reglas
+## Rules
 
-1. **Todo es async**: cada función (salvo `workers.*`, que es síncrono) devuelve una `Promise`. Usa
-   siempre `await`; un error llega como rechazo con `CryptoError`, nunca como valor de retorno.
-2. **Opciones al final**, como objeto `{ level, algorithm, … }`. Niveles: `basic`, `standard` (por
-   defecto), `strong` y `cnsa` (`military` es su alias). Si `level` y `algorithm` no coinciden →
-   `UNSUPPORTED`: pasa uno u otro.
-3. **Las salidas registran su algoritmo**: `decrypt`/`verify` no necesitan `level`.
-4. **Contraseñas**: `standard` es Argon2id; solo `basic` usa bcrypt. Máximo **64 caracteres**
-   (grapheme clusters, no `.length`); bcrypt rechaza contraseñas de más de **72 bytes UTF-8** en lugar
-   de truncarlas. Ambos casos → `INVALID_INPUT`. `password.verify` devuelve `false` si no coincide.
-5. **Caducidad obligatoria**: `jwt.sign` y `token.encrypt` exigen `expiresIn` o un claim `exp`, salvo
-   `requireExpiration: false`, que entonces también hay que pasar a `verify`/`decrypt`.
-6. **Errores por `code`**: `CryptoError` tiene `code` (`INVALID_KEY`, `INVALID_INPUT`, `TAMPERED`,
-   `EXPIRED`, `MALFORMED`, `UNSUPPORTED`, `WORKER`, `TIMEOUT`). Los mensajes no son contrato.
-7. **Sin compatibilidad con otras librerías**: solo lee lo que ella misma produce. No verifica hashes de
-   `bcryptjs` (`$2a$`, `$2y$`) ni Argon2i/d, no descifra datos de `crypto.createCipheriv` ni carga
-   claves PKCS#1 (`BEGIN RSA PRIVATE KEY`).
-8. **Pool de workers**:
-   - Llama a `workers.configure(...)` una vez al arrancar, antes de la primera llamada; hacerlo con
-     llamadas en curso las rechaza con `WORKER`.
-   - Una llamada que supera `timeout` rechaza con `TIMEOUT` y el worker se reemplaza; un trap del wasm
-     rechaza con `WORKER`. Los workers inactivos se cierran solos tras `idleTimeout`.
-   - Un script Node termina solo; en tests (Jest) o al apagar un servidor llama a
-     `workers.terminate()` (por ejemplo en `afterAll`).
-   - Si la app genera claves RSA 4096 o usa `cnsa` en dispositivos lentos, sube `timeout`.
-   - En navegador con CSP: `script-src 'wasm-unsafe-eval'` y `worker-src blob:`. Sin `blob:` todo
-     corre en el hilo principal y además necesita `'unsafe-eval'`; sin ambos, toda llamada rechaza con
-     `WORKER`.
+1. **Everything is async**: every function (except `workers.*`, which is synchronous) returns a
+   `Promise`. Always use `await`; an error arrives as a rejection with `CryptoError`, never as a
+   return value.
+2. **Options last**, as an object `{ level, algorithm, … }`. Levels: `basic`, `standard` (default),
+   `strong` and `cnsa` (`military` is its alias). If `level` and `algorithm` do not match →
+   `UNSUPPORTED`: pass one or the other.
+3. **Outputs record their algorithm**: `decrypt`/`verify` do not need `level`.
+4. **Passwords**: `standard` is Argon2id; only `basic` uses bcrypt. At most **64 characters**
+   (grapheme clusters, not `.length`); bcrypt rejects passwords over **72 UTF-8 bytes** instead of
+   truncating them. Both cases → `INVALID_INPUT`. `password.verify` returns `false` if it does not
+   match.
+5. **Mandatory expiration**: `jwt.sign` and `token.encrypt` require `expiresIn` or an `exp` claim,
+   unless `requireExpiration: false`, which must then also be passed to `verify`/`decrypt`.
+6. **Errors by `code`**: `CryptoError` has a `code` (`INVALID_KEY`, `INVALID_INPUT`, `TAMPERED`,
+   `EXPIRED`, `MALFORMED`, `UNSUPPORTED`, `WORKER`, `TIMEOUT`). Messages are not a contract.
+7. **No compatibility with other libraries**: it only reads what it produces itself. It does not
+   verify `bcryptjs` hashes (`$2a$`, `$2y$`) or Argon2i/d, does not decrypt data from
+   `crypto.createCipheriv` and does not load PKCS#1 keys (`BEGIN RSA PRIVATE KEY`).
+8. **Worker pool**:
+   - Call `workers.configure(...)` once at startup, before the first call; doing it with calls in
+     progress rejects them with `WORKER`.
+   - A call that exceeds `timeout` rejects with `TIMEOUT` and the worker is replaced; a wasm trap
+     rejects with `WORKER`. Idle workers close on their own after `idleTimeout`.
+   - A Node script exits on its own; in tests (Jest) or when shutting down a server call
+     `workers.terminate()` (for example in `afterAll`).
+   - If the app generates 4096-bit RSA keys or uses `cnsa` on slow devices, raise `timeout`.
+   - In a browser with CSP: `script-src 'wasm-unsafe-eval'` and `worker-src blob:`. Without `blob:`
+     everything runs on the main thread and also needs `'unsafe-eval'`; without both, every call
+     rejects with `WORKER`.
 
-## Patrones recomendados
+## Recommended patterns
 
-Registro e inicio de sesión:
+Sign-up and login:
 
 ```ts
-const stored = await password.hash(plainPassword); // Argon2id; guarda el string completo
-const ok = await password.verify(plainPassword, stored); // boolean, no lanza por no coincidir
+const stored = await password.hash(plainPassword); // Argon2id; store the whole string
+const ok = await password.verify(plainPassword, stored); // boolean, does not throw on mismatch
 ```
 
-Cifrar con una clave de aplicación (genérala una vez y guárdala como secreto):
+Encrypt with an application key (generate it once and store it as a secret):
 
 ```ts
 const key = await cipher.generateKey();
 const encrypted = await cipher.encrypt(data, key);
-const plain = await cipher.decrypt(encrypted, key); // o decryptBytes para binarios
+const plain = await cipher.decrypt(encrypted, key); // or decryptBytes for binary data
 ```
 
-Sesión con JWT (caducidad siempre):
+Session with JWT (always with expiration):
 
 ```ts
 const accessToken = await jwt.sign({ sub: userId, role }, jwtSecret, {
   expiresIn: 900,
-  issuer: 'mi-app',
+  issuer: 'my-app',
 });
-const claims = await jwt.verify(accessToken, jwtSecret, { issuer: 'mi-app' });
+const claims = await jwt.verify(accessToken, jwtSecret, { issuer: 'my-app' });
 ```
 
-Manejo de errores por código:
+Error handling by code:
 
 ```ts
 try {
@@ -111,33 +113,34 @@ try {
 }
 ```
 
-## Qué no hacer
+## What not to do
 
-- No olvides `await` ni compares la `Promise` (`if (password.verify(...))` es siempre verdadero).
-- No envuelvas `password.verify` en `try/catch` esperando una excepción por contraseña errónea: devuelve
-  `false`. Lo mismo `signature.verify`.
-- No pases contraseñas de más de 64 caracteres, ni de más de 72 bytes con bcrypt; valida la longitud
-  en el formulario o captura `INVALID_INPUT`.
-- No uses `level: 'basic'` (bcrypt) para contraseñas nuevas sin motivo: `standard` (Argon2id) es el
-  defecto recomendado.
-- No esperes compatibilidad con hashes, cifrados o claves de otras librerías (ver Reglas, 7).
-- No uses una contraseña humana como clave de `cipher` sin `{ password: true }`, ni como clave de
-  `token` (no tiene modo contraseña): usa `generateKey()`.
-- No firmes JWT sin caducidad: `jwt.sign` y `token.encrypt` exigen `expiresIn` o un claim `exp`;
-  `requireExpiration: false` solo para tokens que de verdad no caducan, y entonces `verify`/`decrypt`
-  también necesitan `{ requireExpiration: false }`.
-- No uses `jwt.decode` para autorizar: no verifica la firma.
-- No inventes opciones de `jwt` (`expiresInMinutes`, `notBefore`, `jwtid`, `ignoreExpiration`…): las
-  desconocidas → `INVALID_INPUT`. Consulta el README instalado.
-- No compares hashes de `hash.digest` para contraseñas ni muestres hashes de `password.hash` como
-  deterministas: llevan sal aleatoria.
-- No mezcles `level` y `algorithm` contradictorios (`{ level: 'basic', algorithm: 'argon2id' }` →
+- Do not forget `await` or compare the `Promise` (`if (password.verify(...))` is always true).
+- Do not wrap `password.verify` in `try/catch` expecting an exception for a wrong password: it
+  returns `false`. The same goes for `signature.verify`.
+- Do not pass passwords over 64 characters, or over 72 bytes with bcrypt; validate the length in the
+  form or catch `INVALID_INPUT`.
+- Do not use `level: 'basic'` (bcrypt) for new passwords without a reason: `standard` (Argon2id) is
+  the recommended default.
+- Do not expect compatibility with hashes, ciphertexts or keys from other libraries (see Rules, 7).
+- Do not use a human password as a `cipher` key without `{ password: true }`, nor as a `token` key
+  (it has no password mode): use `generateKey()`.
+- Do not sign JWTs without expiration: `jwt.sign` and `token.encrypt` require `expiresIn` or an `exp`
+  claim; `requireExpiration: false` only for tokens that truly never expire, and then
+  `verify`/`decrypt` also need `{ requireExpiration: false }`.
+- Do not use `jwt.decode` to authorize: it does not verify the signature.
+- Do not invent `jwt` options (`expiresInMinutes`, `notBefore`, `jwtid`, `ignoreExpiration`…):
+  unknown ones → `INVALID_INPUT`. Check the installed README.
+- Do not compare `hash.digest` hashes for passwords, and do not present `password.hash` hashes as
+  deterministic: they carry a random salt.
+- Do not mix contradictory `level` and `algorithm` (`{ level: 'basic', algorithm: 'argon2id' }` →
   `UNSUPPORTED`).
-- No pases objetos con `BigInt` o ciclos como payload de `jwt`/`token`.
-- No uses claves RSA de menos de 2048 bits ni PEM PKCS#1; usa `rsa.generateKeyPair`.
-- No cargues ficheros enormes de una vez: `cipher.encrypt`, `rsa.encrypt` y `signature` trabajan en
-  memoria; mantén cada entrada muy por debajo de 380 MiB y trocea los ficheros mayores.
-- No ignores el riesgo conocido del crate `rsa` (aviso RUSTSEC-2023-0071): está descrito en la sección
-  "Seguridad y riesgo conocido" del README; revísalo antes de usar operaciones con clave privada RSA.
-- `cnsa`/`military` es una elección de algoritmos de este paquete, no una certificación: no lo
-  presentes como cumplimiento normativo sin revisarlo.
+- Do not pass objects with `BigInt` or cycles as a `jwt`/`token` payload.
+- Do not use RSA keys under 2048 bits or PKCS#1 PEM; use `rsa.generateKeyPair`.
+- Do not load huge files at once: `cipher.encrypt`, `rsa.encrypt` and `signature` work in memory;
+  keep each input well below 380 MiB and split larger files into chunks.
+- Do not ignore the known risk of the `rsa` crate (advisory RUSTSEC-2023-0071): it is described in
+  the "Security and known risk" section of the README; review it before using RSA private-key
+  operations.
+- `cnsa`/`military` is an algorithm choice of this package, not a certification: do not present it
+  as regulatory compliance without reviewing it.

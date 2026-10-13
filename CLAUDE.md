@@ -105,7 +105,7 @@ Each package's `package.json` entry points:
 
 ## Package standard
 
-Every package follows `.claude/rules/packages.md` (layout, `package.json`, tsconfig, Jest, tests, build checks, documentation, allowed extensions and a checklist). Each package ships a Spanish `README.md` with its whole API and a light `SKILL.md` (Claude Code skill `archi-code-<name>`: rules, patterns and common mistakes; for the API it sends the assistant to the installed README) that consumers copy into `.claude/skills/`. Create new packages with `node scripts/new-package.js <folder> "<description>"` or the `/new-package` skill; the result passes `check:all` from the start.
+Every package follows `.claude/rules/packages.md` (layout, `package.json`, tsconfig, Jest, tests, build checks, documentation, allowed extensions and a checklist). Each package ships an English `README.md` with its whole API and a light `SKILL.md` (Claude Code skill `archi-code-<name>`: rules, patterns and common mistakes; for the API it sends the assistant to the installed README) that consumers copy into `.claude/skills/`. Create new packages with `node scripts/new-package.js <folder> "<description>"` or the `/new-package` skill; the result passes `check:all` from the start.
 
 ## Architecture
 
@@ -189,6 +189,7 @@ tsconfig.json  (extends ../../tsconfig.base.json, includes src/ and test/)
 - **ESLint**: TypeScript strict + Prettier enforced. `any` and `Function` types are allowed.
 - Test files: `*.spec.ts` convention. In every package `src/` holds only code and specs live in the package's `test/` folder, mirroring `src/`.
 - **Imports**: inside `src/`, import each symbol from the file that declares it, never through a re-exporting `index.ts` (see `.claude/rules/packages.md`).
+- **English only**: everything in the repository is written in English: code, identifiers, comments, test names, error and log messages, scripts, README files, skills, rules and other documentation. Non-ASCII text is allowed only as test data. (Talking to the user in Spanish is fine; what gets written into the repo is English.)
 - **No comments**: code must describe itself through names (variables, functions, classes, tests) and structure. Do not add comments, docblocks or section banners. A comment is the exception, only when it is truly necessary to explain a non-obvious _why_ that the code cannot express.
 
 ### Testing

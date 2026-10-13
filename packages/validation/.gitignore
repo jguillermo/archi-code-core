@@ -46,7 +46,7 @@ lerna-debug.log*
 .temp
 .tmp
 
-# Benchmark: mejor marca histórica (local, depende del hardware de cada máquina)
+# Benchmark: all-time best score (local, depends on each machine's hardware)
 benchmark/best-scores.json
 
 # Runtime data

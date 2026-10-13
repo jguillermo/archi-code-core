@@ -8,7 +8,7 @@ const { STATE_FILE, commitsInState, readState, stateErrors } = require('./releas
 function unreachableCommits(root, state) {
   return commitsInState(state)
     .filter((commit) => !isAncestorOfHead(root, commit))
-    .map((commit) => `${STATE_FILE}: el commit ${commit} no está en la historia de HEAD`);
+    .map((commit) => `${STATE_FILE}: commit ${commit} is not in the history of HEAD`);
 }
 
 function loadPlan(root, branch, state = readState(root)) {

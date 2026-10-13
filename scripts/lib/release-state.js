@@ -45,22 +45,22 @@ function findPublication(state, name, version) {
 function deployErrors(index, deploy) {
   const where = `deploys[${index}]`;
   const errors = [];
-  if (!COMMIT_RE.test(deploy?.commit ?? '')) errors.push(`${where}: commit no válido`);
-  if (Number.isNaN(Date.parse(deploy?.date))) errors.push(`${where}: fecha no válida`);
-  if (!CHANNELS[deploy?.channel]) errors.push(`${where}: canal no válido "${deploy?.channel}"`);
+  if (!COMMIT_RE.test(deploy?.commit ?? '')) errors.push(`${where}: invalid commit`);
+  if (Number.isNaN(Date.parse(deploy?.date))) errors.push(`${where}: invalid date`);
+  if (!CHANNELS[deploy?.channel]) errors.push(`${where}: invalid channel "${deploy?.channel}"`);
   if (deploy?.reset !== undefined && !parseVersionSafe(deploy.reset)) {
-    errors.push(`${where}: reset no válido "${deploy.reset}"`);
+    errors.push(`${where}: invalid reset "${deploy.reset}"`);
   }
   if (!Array.isArray(deploy?.packages) || !deploy.packages.length) {
-    errors.push(`${where}: "packages" debe ser una lista no vacía`);
+    errors.push(`${where}: "packages" must be a non-empty list`);
     return errors;
   }
   deploy.packages.forEach((pkg, position) => {
     if (!pkg?.name || !parseVersionSafe(pkg.version)) {
-      errors.push(`${where}.packages[${position}]: necesita "name" y una "version" válida`);
+      errors.push(`${where}.packages[${position}]: needs "name" and a valid "version"`);
     }
     if (pkg?.commit !== undefined && !COMMIT_RE.test(pkg.commit)) {
-      errors.push(`${where}.packages[${position}]: commit no válido`);
+      errors.push(`${where}.packages[${position}]: invalid commit`);
     }
   });
   return errors;
@@ -68,7 +68,7 @@ function deployErrors(index, deploy) {
 
 function stateErrors(state) {
   if (!state || typeof state.packages !== 'object' || !Array.isArray(state.deploys)) {
-    return [`${STATE_FILE} debe tener "packages" (objeto) y "deploys" (lista)`];
+    return [`${STATE_FILE} must have "packages" (object) and "deploys" (list)`];
   }
   const errors = [];
   state.deploys.forEach((deploy, index) => errors.push(...deployErrors(index, deploy)));
@@ -78,21 +78,20 @@ function stateErrors(state) {
     for (const [channel, version] of Object.entries(channels)) {
       const where = `${name} (${channel})`;
       if (!CHANNELS[channel]) {
-        errors.push(`${name}: canal desconocido "${channel}"`);
+        errors.push(`${name}: unknown channel "${channel}"`);
         continue;
       }
       const parsed = parseVersionSafe(version);
       if (!parsed) {
-        errors.push(`${where}: versión no válida "${version}"`);
+        errors.push(`${where}: invalid version "${version}"`);
         continue;
       }
       if (channel === 'main' && !parsed.pre) {
-        errors.push(`${where}: ${version} debería ser una prerelease`);
+        errors.push(`${where}: ${version} should be a prerelease`);
       }
-      if (channel === 'release' && parsed.pre)
-        errors.push(`${where}: ${version} debería ser estable`);
+      if (channel === 'release' && parsed.pre) errors.push(`${where}: ${version} should be stable`);
       if (!unregisteredAllowed && !findPublication(state, name, version)) {
-        errors.push(`${where}: ningún deploy registra la publicación de ${version}`);
+        errors.push(`${where}: no deploy records the publication of ${version}`);
       }
     }
   }

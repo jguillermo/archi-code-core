@@ -15,7 +15,7 @@ Creates a package that follows `.claude/rules/packages.md`. Read that rule first
    node scripts/new-package.js <folder> "<description>"
    ```
 
-   It refuses an existing folder or an invalid name, writes the package (with a Spanish `README.md`
+   It refuses an existing folder or an invalid name, writes the package (with an English `README.md`
    and a `SKILL.md` named `archi-code-<folder>`), adds `check:<folder>` to the root `package.json`
    and formats everything with Prettier.
 

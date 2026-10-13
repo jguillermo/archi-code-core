@@ -12,7 +12,7 @@ function publishManifest(packageJson, release, commit) {
     manifest[field] = { ...packageJson[field] };
     for (const dep of Object.keys(manifest[field]).filter((name) => name.startsWith(SCOPE))) {
       const version = release.dependencies[dep];
-      if (!version) throw new Error(`${release.name}: no hay versión exacta para ${dep}`);
+      if (!version) throw new Error(`${release.name}: there is no exact version for ${dep}`);
       manifest[field][dep] = version;
     }
   }
@@ -31,19 +31,19 @@ function isExactVersion(text) {
 function manifestErrors(manifest, release, commit) {
   const errors = [];
   if (manifest.name !== release.name) {
-    errors.push(`name "${manifest.name}" en vez de "${release.name}"`);
+    errors.push(`name "${manifest.name}" instead of "${release.name}"`);
   }
   if (manifest.version !== release.next) {
-    errors.push(`version "${manifest.version}" en vez de "${release.next}"`);
+    errors.push(`version "${manifest.version}" instead of "${release.next}"`);
   }
   if (manifest.releaseCommit !== commit) {
-    errors.push(`releaseCommit "${manifest.releaseCommit}" en vez de "${commit}"`);
+    errors.push(`releaseCommit "${manifest.releaseCommit}" instead of "${commit}"`);
   }
   for (const field of PUBLISHED_FIELDS) {
     for (const [dep, range] of Object.entries(manifest[field] ?? {})) {
       if (!dep.startsWith(SCOPE)) continue;
       if (!isExactVersion(range) || range !== release.dependencies[dep]) {
-        errors.push(`${field}.${dep} "${range}" en vez de "${release.dependencies[dep]}"`);
+        errors.push(`${field}.${dep} "${range}" instead of "${release.dependencies[dep]}"`);
       }
     }
   }

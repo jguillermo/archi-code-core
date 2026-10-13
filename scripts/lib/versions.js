@@ -10,14 +10,16 @@ const VERSION_RE = /^(\d+)\.(\d+)\.(\d+)(?:-([a-z]+)\.(\d+))?$/;
 function channelFor(branch) {
   const channel = CHANNELS[branch];
   if (!channel) {
-    throw new Error(`Rama "${branch}" no publica: solo ${Object.keys(CHANNELS).join(' y ')}`);
+    throw new Error(
+      `Branch "${branch}" does not publish: only ${Object.keys(CHANNELS).join(' and ')}`,
+    );
   }
   return channel;
 }
 
 function parseVersion(text) {
   const match = VERSION_RE.exec(text);
-  if (!match) throw new Error(`Versión no válida: "${text}"`);
+  if (!match) throw new Error(`Invalid version: "${text}"`);
   return {
     major: Number(match[1]),
     minor: Number(match[2]),

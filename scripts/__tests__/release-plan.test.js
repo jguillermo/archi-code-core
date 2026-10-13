@@ -92,7 +92,7 @@ describe('channelFor', () => {
   });
 
   test('any other branch is rejected', () => {
-    assert.throws(() => channelFor('feature/x'), /no publica/);
+    assert.throws(() => channelFor('feature/x'), /does not publish/);
   });
 });
 
@@ -149,8 +149,8 @@ describe('compareVersions', () => {
   });
 
   test('rejects anything that is not X.Y.Z or X.Y.Z-id.N', () => {
-    assert.throws(() => compareVersions('1.0', '1.0.0'), /Versión no válida/);
-    assert.throws(() => compareVersions('1.0.0-alpha', '1.0.0'), /Versión no válida/);
+    assert.throws(() => compareVersions('1.0', '1.0.0'), /Invalid version/);
+    assert.throws(() => compareVersions('1.0.0-alpha', '1.0.0'), /Invalid version/);
   });
 });
 
@@ -267,7 +267,7 @@ describe('buildPlan', () => {
       [BASE, MID, APP],
     );
     assert.equal(byName[MID].next, '1.0.0-alpha.2');
-    assert.deepEqual(byName[MID].reasons, [`cascada: ${BASE} → 1.0.0-alpha.2`]);
+    assert.deepEqual(byName[MID].reasons, [`cascade: ${BASE} → 1.0.0-alpha.2`]);
     assert.deepEqual(byName[MID].dependencies, { [BASE]: '1.0.0-alpha.2' });
     assert.equal(byName[APP].next, '1.0.0-alpha.2');
     assert.deepEqual(byName[APP].dependencies, { [MID]: '1.0.0-alpha.2' });
@@ -295,7 +295,7 @@ describe('buildPlan', () => {
     const app = result.packages.find((p) => p.name === APP);
     assert.equal(app.next, '1.0.0-alpha.2');
     assert.deepEqual(app.reasons, [
-      `cascada: ${BASE} está en 1.0.0-alpha.3 y la versión publicada fija 1.0.0-alpha.2`,
+      `cascade: ${BASE} is at 1.0.0-alpha.3 and the published version pins 1.0.0-alpha.2`,
     ]);
     assert.deepEqual(app.dependencies, { [BASE]: '1.0.0-alpha.3' });
   });
@@ -334,7 +334,7 @@ describe('buildPlan', () => {
       ],
     );
     assert.deepEqual(result.packages[1].reasons, [
-      'breaking: releases.json sin deploys, nueva major del conjunto (2.0.0-alpha.1)',
+      'breaking: releases.json without deploys, new major for the whole set (2.0.0-alpha.1)',
     ]);
     assert.deepEqual(result.packages[1].dependencies, { [BASE]: '2.0.0-alpha.1' });
     assert.deepEqual(calls, []);
@@ -363,8 +363,8 @@ describe('buildPlan', () => {
       result.packages.map((p) => [p.name, p.next, p.reasons]),
       [
         [BASE, null, []],
-        [APP, '2.0.0-alpha.1', ['completa el reinicio del conjunto (2.0.0-alpha.1)']],
-        [MID, '2.0.0-alpha.1', ['completa el reinicio del conjunto (2.0.0-alpha.1)']],
+        [APP, '2.0.0-alpha.1', ['completes the reset of the whole set (2.0.0-alpha.1)']],
+        [MID, '2.0.0-alpha.1', ['completes the reset of the whole set (2.0.0-alpha.1)']],
       ],
     );
     assert.deepEqual(result.packages[1].dependencies, { [BASE]: '2.0.0-alpha.1' });
@@ -417,7 +417,7 @@ describe('buildPlan', () => {
     });
     assert.equal(byName.a.next, '1.0.0-alpha.2');
     assert.deepEqual(byName.a.warnings, [
-      'commit no convencional cuenta como patch: Remove commom (#9)',
+      'non conventional commit counts as patch: Remove commom (#9)',
     ]);
   });
 
@@ -441,7 +441,7 @@ describe('buildPlan', () => {
       commits: { a: ['fix: x'] },
     });
     assert.deepEqual(result.errors, [
-      'a depende de @archi-code/ghost, que no es un paquete del monorepo',
+      'a depends on @archi-code/ghost, which is not a package of the monorepo',
     ]);
   });
 
@@ -461,7 +461,7 @@ describe('buildPlan', () => {
       commits: { a: ['fix: x'] },
     });
     assert.deepEqual(result.errors, [
-      'a: la versión calculada 0.0.1-alpha.1 no es mayor que 2.0.0-beta.1',
+      'a: the computed version 0.0.1-alpha.1 is not greater than 2.0.0-beta.1',
     ]);
   });
 
@@ -473,7 +473,7 @@ describe('buildPlan', () => {
           published: { a: { main: 'v1' } },
           commits: { a: ['fix: x'] },
         }),
-      /Versión no válida: "v1"/,
+      /Invalid version: "v1"/,
     );
   });
 

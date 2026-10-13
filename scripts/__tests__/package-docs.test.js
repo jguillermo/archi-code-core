@@ -16,7 +16,7 @@ const NAME = '@archi-code/domain';
 const SKILL = [
   '---',
   'name: archi-code-domain',
-  'description: Usa @archi-code/domain para value objects.',
+  'description: Use @archi-code/domain for value objects.',
   '---',
   '',
   '# archi-code-domain',
@@ -44,8 +44,8 @@ describe('skillErrors', () => {
 
   test('accepts a folded description spread over indented lines', () => {
     const folded = SKILL.replace(
-      'description: Usa @archi-code/domain para value objects.',
-      'description: >\n  Usa @archi-code/domain\n  para value objects.',
+      'description: Use @archi-code/domain for value objects.',
+      'description: >\n  Use @archi-code/domain\n  for value objects.',
     );
     assert.deepEqual(skillErrors(folded, NAME), []);
   });
@@ -88,7 +88,7 @@ describe('packageDocsErrors', () => {
   const manifest = { name: NAME, files: ['dist/', 'SKILL.md'] };
 
   test('passes with SKILL.md in files, a README that mentions it and a valid skill', () => {
-    const dir = packageDir({ 'README.md': 'Copia SKILL.md', 'SKILL.md': SKILL });
+    const dir = packageDir({ 'README.md': 'Copy SKILL.md', 'SKILL.md': SKILL });
     assert.deepEqual(packageDocsErrors(dir, manifest), []);
   });
 

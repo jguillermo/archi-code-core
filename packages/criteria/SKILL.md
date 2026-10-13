@@ -1,31 +1,31 @@
 ---
 name: archi-code-criteria
-description: Construye criterios de búsqueda con @archi-code/criteria (filtros simples y compuestos, orden, paginación, agrupación), los serializa a texto y los convierte a consultas de MongoDB. Úsala cuando haya que importar @archi-code/criteria, escribir un repositorio con búsqueda/filtrado/orden/paginación, traducir parámetros de una petición a SearchCriteriaDto o generar filter/sort/skip/limit para MongoDB.
+description: Builds search criteria with @archi-code/criteria (simple and composite filters, ordering, pagination, grouping), serializes them to text and converts them to MongoDB queries. Use it whenever the code imports @archi-code/criteria, when writing a repository with search/filtering/ordering/pagination, translating request parameters into a SearchCriteriaDto or generating filter/sort/skip/limit for MongoDB.
 ---
 
 # archi-code-criteria
 
-DTO de criterios de búsqueda que se validan en el constructor (lanzan `Error` si son inválidos), un
-serializador JSON y un conversor a MongoDB. Sin dependencias en tiempo de ejecución.
+Search criteria DTOs that validate in the constructor (they throw `Error` when invalid), a JSON
+serializer and a MongoDB converter. No runtime dependencies.
 
-## API completa
+## Full API
 
-Antes de usar una clase, método, operador, opción o tipo que no aparezca en esta skill, lee
-`node_modules/@archi-code/criteria/README.md`: corresponde a la versión instalada. No supongas firmas
-ni opciones. Si el paquete no está instalado: `npm install @archi-code/criteria`.
+Before using a class, method, operator, option or type that does not appear in this skill, read
+`node_modules/@archi-code/criteria/README.md`: it matches the installed version. Do not guess
+signatures or options. If the package is not installed: `npm install @archi-code/criteria`.
 
-Si esa ruta no existe (monorepo con workspaces, pnpm…), localiza el paquete con
-`node -p "require.resolve('@archi-code/criteria/package.json')"` y lee el `README.md` de esa
-carpeta.
+If that path does not exist (monorepo with workspaces, pnpm…), locate the package with
+`node -p "require.resolve('@archi-code/criteria/package.json')"` and read the `README.md` in that
+folder.
 
-## Skills relacionadas
+## Related skills
 
-Si están instaladas en el proyecto, úsalas junto a esta:
+If they are installed in the project, use them together with this one:
 
-- `archi-code-domain`: agregados y value objects que devuelve el repositorio.
-- `archi-code-ephemeradb`: repositorio en memoria para tests.
+- `archi-code-domain`: aggregates and value objects returned by the repository.
+- `archi-code-ephemeradb`: in-memory repository for tests.
 
-## Importación
+## Import
 
 ```ts
 import {
@@ -42,23 +42,25 @@ import type { MongoQuery, SearchFilterDto } from '@archi-code/criteria';
 
 CJS: `const { SimpleFilterDto, FilterOperator } = require('@archi-code/criteria');`
 
-Solo named exports desde la raíz del paquete; no hay export por defecto ni subrutas.
+Only named exports from the package root; there is no default export and no subpaths.
 
-## Reglas
+## Rules
 
-- Los DTO (`SimpleFilterDto`, `CompositeFilterDto`, `SearchOrderDto`, `SearchPaginatorDto`,
-  `SearchGroupByDto`) validan en el constructor y lanzan `Error`; `SearchCriteriaDto` no valida nada.
-- `SearchCriteriaDto(filters?, orders?, paginator?, groupBy?)` es posicional: para saltar una parte
-  se pasa `undefined`.
-- Con operadores numéricos (`LT`, `LTE`, `GT`, `GTE`, `BETWEEN`) el valor se convierte con
-  `Number()`: `'18'` se guarda como `18`.
-- Los filtros compuestos admiten anidamiento (`CompositeFilterDto` dentro de otro).
-- El orden del array de `SearchOrderDto` es la prioridad.
-- En `MongoCriteriaConverter`, `groupBy` se ignora; sin filtros ni orden da `filter: {}` y `sort: {}`.
+- The DTOs (`SimpleFilterDto`, `CompositeFilterDto`, `SearchOrderDto`, `SearchPaginatorDto`,
+  `SearchGroupByDto`) validate in the constructor and throw `Error`; `SearchCriteriaDto` validates
+  nothing.
+- `SearchCriteriaDto(filters?, orders?, paginator?, groupBy?)` is positional: to skip a part, pass
+  `undefined`.
+- With numeric operators (`LT`, `LTE`, `GT`, `GTE`, `BETWEEN`) the value is converted with
+  `Number()`: `'18'` is stored as `18`.
+- Composite filters can be nested (a `CompositeFilterDto` inside another one).
+- The order of the `SearchOrderDto` array is the priority.
+- In `MongoCriteriaConverter`, `groupBy` is ignored; with no filters and no ordering it gives
+  `filter: {}` and `sort: {}`.
 
-## Patrones recomendados
+## Recommended patterns
 
-Traducir parámetros HTTP a un criterio (los DTO validan, captura el `Error` y devuelve 400):
+Translating HTTP parameters into a criterion (the DTOs validate; catch the `Error` and return 400):
 
 ```ts
 function toCriteria(q: { status?: string; minAge?: string; page?: string; perPage?: string }) {
@@ -77,33 +79,35 @@ function toCriteria(q: { status?: string; minAge?: string; page?: string; perPag
 }
 ```
 
-Repositorio MongoDB:
+MongoDB repository:
 
 ```ts
 const { filter, sort, skip, limit } = new MongoCriteriaConverter().convert(criteria);
 // collection.find(filter).sort(sort).skip(skip).limit(limit)
 ```
 
-Para distinguir filtros al recorrerlos usa `instanceof SimpleFilterDto` / `instanceof CompositeFilterDto`.
+To tell filters apart while walking them, use `instanceof SimpleFilterDto` /
+`instanceof CompositeFilterDto`.
 
-## Qué no hacer
+## What not to do
 
-- No crees un `CompositeFilterDto` con un array vacío: lanza. Si no hay filtros pasa `undefined`.
-- No uses `%` en `LIKE`/`ILIKE`: el valor es una expresión regular (`'^ana'`, `'ana$'`). Escapa los
-  caracteres especiales si el texto viene del usuario.
-- No uses operadores numéricos (`GT`, `BETWEEN`...) con fechas ISO o texto: `Number()` da `NaN` y
-  lanza. Para fechas guarda/compara números (timestamps).
-- `BETWEEN` necesita exactamente `[min, max]`; con otra forma el constructor no falla pero
-  `convert` lanza. Ambos extremos incluidos.
-- No esperes que `INARRAY` funcione con `MongoCriteriaConverter`: lanza
+- Do not create a `CompositeFilterDto` with an empty array: it throws. If there are no filters, pass
+  `undefined`.
+- Do not use `%` in `LIKE`/`ILIKE`: the value is a regular expression (`'^ana'`, `'ana$'`). Escape
+  special characters if the text comes from the user.
+- Do not use numeric operators (`GT`, `BETWEEN`...) with ISO dates or text: `Number()` gives `NaN`
+  and it throws. For dates, store/compare numbers (timestamps).
+- `BETWEEN` needs exactly `[min, max]`; with any other shape the constructor does not fail but
+  `convert` throws. Both ends are inclusive.
+- Do not expect `INARRAY` to work with `MongoCriteriaConverter`: it throws
   `Operator inarray is not supported for Mongo conversion`.
-- El campo `id` se renombra a `_id` solo en el orden, no en los filtros.
-- `page` empieza en 1, no en 0; `page` y `perPage` son enteros >= 1 (convierte los de una query
-  string con `Number(...)`). `limit: 0` sin paginador significa "sin límite" en MongoDB.
-- Las direcciones son `'asc'`/`'desc'` en minúsculas (no `'ASC'`, `1` ni `-1`); los operadores
-  lógicos `'and'`/`'or'` (no hay `'not'`).
-- `SearchQuerySerializer` no tiene instancia: `SearchQuerySerializer.serialize(...)`, nunca `new`.
-- No construyas objetos planos con la forma de los DTO para pasarlos al conversor: usa las clases
-  (`convert` distingue filtros con `instanceof`).
-- No inventes exports, operadores ni conversores (no hay builders fluidos, `Criteria`, `Filter`,
-  conversores SQL/TypeORM/Prisma...): compruébalo en el README instalado.
+- The `id` field is renamed to `_id` only in the ordering, not in the filters.
+- `page` starts at 1, not 0; `page` and `perPage` are integers >= 1 (convert those from a query
+  string with `Number(...)`). `limit: 0` without a paginator means "no limit" in MongoDB.
+- Directions are lowercase `'asc'`/`'desc'` (not `'ASC'`, `1` or `-1`); logical operators are
+  `'and'`/`'or'` (there is no `'not'`).
+- `SearchQuerySerializer` has no instance: `SearchQuerySerializer.serialize(...)`, never `new`.
+- Do not build plain objects shaped like the DTOs to pass them to the converter: use the classes
+  (`convert` tells filters apart with `instanceof`).
+- Do not invent exports, operators or converters (there are no fluent builders, `Criteria`,
+  `Filter`, SQL/TypeORM/Prisma converters...): check the installed README.

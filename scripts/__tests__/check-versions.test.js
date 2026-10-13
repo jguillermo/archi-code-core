@@ -22,7 +22,7 @@ describe('findVersionErrors', () => {
 
   test('rejects a real version in the package', () => {
     const errors = findVersionErrors(workspace({ name: '@archi-code/a', version: '1.0.0' }));
-    assert.deepEqual(errors, ['@archi-code/a: version "1.0.0" debe ser "0.0.0-development"']);
+    assert.deepEqual(errors, ['@archi-code/a: version "1.0.0" must be "0.0.0-development"']);
   });
 
   test('rejects internal deps with a version in any dependency field', () => {
@@ -36,9 +36,9 @@ describe('findVersionErrors', () => {
       }),
     );
     assert.deepEqual(errors, [
-      '@archi-code/a: dependencies.@archi-code/b "0.0.1" debe ser "0.0.0-development"',
-      '@archi-code/a: peerDependencies.@archi-code/c "*" debe ser "0.0.0-development"',
-      '@archi-code/a: devDependencies.@archi-code/d "^1.0.0" debe ser "0.0.0-development"',
+      '@archi-code/a: dependencies.@archi-code/b "0.0.1" must be "0.0.0-development"',
+      '@archi-code/a: peerDependencies.@archi-code/c "*" must be "0.0.0-development"',
+      '@archi-code/a: devDependencies.@archi-code/d "^1.0.0" must be "0.0.0-development"',
     ]);
   });
 });

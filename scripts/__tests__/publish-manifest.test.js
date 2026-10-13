@@ -46,7 +46,7 @@ describe('publishManifest', () => {
   test('throws when an internal dep has no exact version in the plan', () => {
     assert.throws(
       () => publishManifest({ ...local }, { ...release, dependencies: {} }, COMMIT),
-      /no hay versión exacta para @archi-code\/validation/,
+      /there is no exact version for @archi-code\/validation/,
     );
   });
 });
@@ -68,11 +68,11 @@ describe('manifestErrors', () => {
       COMMIT,
     );
     assert.deepEqual(errors, [
-      'name "@archi-code/other" en vez de "@archi-code/domain"',
-      `version "${DEV}" en vez de "1.0.0-alpha.4"`,
-      `releaseCommit "undefined" en vez de "${COMMIT}"`,
-      'dependencies.@archi-code/validation "^1.0.0-alpha.1" en vez de "1.0.0-alpha.1"',
-      `peerDependencies.@archi-code/validation "${DEV}" en vez de "1.0.0-alpha.1"`,
+      'name "@archi-code/other" instead of "@archi-code/domain"',
+      `version "${DEV}" instead of "1.0.0-alpha.4"`,
+      `releaseCommit "undefined" instead of "${COMMIT}"`,
+      'dependencies.@archi-code/validation "^1.0.0-alpha.1" instead of "1.0.0-alpha.1"',
+      `peerDependencies.@archi-code/validation "${DEV}" instead of "1.0.0-alpha.1"`,
     ]);
   });
 });
