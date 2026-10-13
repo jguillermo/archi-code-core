@@ -7,9 +7,7 @@ describe('wasm module', () => {
     expect(module).toBeInstanceOf(WebAssembly.Module);
     expect(await compileWasm()).toBe(module);
     const exports = WebAssembly.Module.exports(module).map((entry) => entry.name);
-    expect(exports).toEqual(
-      expect.arrayContaining(['passwordHash', 'cipherEncrypt', 'engineEncode']),
-    );
+    expect(exports).toEqual(expect.arrayContaining(['passwordHash', 'cipherEncrypt', 'jwtDecode']));
   });
 
   it('compiles again after a failed compilation', async () => {

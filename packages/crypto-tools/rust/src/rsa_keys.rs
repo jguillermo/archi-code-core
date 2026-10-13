@@ -1,5 +1,4 @@
 use rand_core::OsRng;
-use rsa::pkcs1::{DecodeRsaPrivateKey, DecodeRsaPublicKey};
 use rsa::pkcs8::{
     DecodePrivateKey, DecodePublicKey, EncodePrivateKey, EncodePublicKey, LineEnding,
 };
@@ -98,18 +97,12 @@ pub fn generate(level: Option<&str>, bits: Option<u32>) -> CryptoResult<KeyPair>
 
 pub fn parse_private(pem: &str) -> CryptoResult<RsaPrivateKey> {
     RsaPrivateKey::from_pkcs8_pem(pem)
-        .or_else(|_| RsaPrivateKey::from_pkcs1_pem(pem))
-        .map_err(|_| {
-            CryptoError::invalid_key("Invalid RSA private key: expected a PKCS#8 or PKCS#1 PEM.")
-        })
+        .map_err(|_| CryptoError::invalid_key("Invalid RSA private key: expected a PKCS#8 PEM."))
 }
 
 pub fn parse_public(pem: &str) -> CryptoResult<RsaPublicKey> {
     RsaPublicKey::from_public_key_pem(pem)
-        .or_else(|_| RsaPublicKey::from_pkcs1_pem(pem))
-        .map_err(|_| {
-            CryptoError::invalid_key("Invalid RSA public key: expected an SPKI or PKCS#1 PEM.")
-        })
+        .map_err(|_| CryptoError::invalid_key("Invalid RSA public key: expected an SPKI PEM."))
 }
 
 pub fn check_size(key: &RsaPublicKey, level: Option<Level>) -> CryptoResult<()> {
@@ -190,15 +183,15 @@ pub mod tests {
     }
 
     #[test]
-    fn reads_pkcs1_keys_too() {
+    fn reads_only_pkcs8_and_spki_keys() {
         use rsa::pkcs1::{EncodeRsaPrivateKey, EncodeRsaPublicKey};
         let private = parse_private(&pair_2048().private_key).unwrap();
         let pkcs1_private = private.to_pkcs1_pem(LineEnding::LF).unwrap();
         let pkcs1_public = RsaPublicKey::from(&private)
             .to_pkcs1_pem(LineEnding::LF)
             .unwrap();
-        assert!(parse_private(&pkcs1_private).is_ok());
-        assert!(parse_public(&pkcs1_public).is_ok());
+        assert!(parse_private(&pkcs1_private).is_err());
+        assert!(parse_public(&pkcs1_public).is_err());
         assert!(parse_private("nope").is_err());
         assert!(parse_public("nope").is_err());
     }

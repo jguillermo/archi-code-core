@@ -3,7 +3,6 @@ import * as api from '../src/index';
 
 const PUBLIC_API = [
   'CRYPTO_ERROR_CODES',
-  'CryptoEngine',
   'CryptoError',
   'SECURITY_LEVEL_NAMES',
   'cipher',

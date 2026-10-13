@@ -1,5 +1,4 @@
 export * from './cipher/cipher';
-export * from './engine/crypto-engine';
 export * from './hash/hash';
 export * from './jwt/jwt';
 export * from './level/crypto-error';

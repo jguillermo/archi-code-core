@@ -1,13 +1,11 @@
 import { afterAll, afterEach, describe, expect, it, jest } from '@jest/globals';
 import { jwt } from '../../src/jwt/jwt';
 import { workers } from '../../src/worker/workers';
-import { fixtures } from '../support/fixtures';
 import { basicKeyPair } from '../support/key-pairs';
 
 const SECRET = 'supersecretkeysupersecretkey';
 const PAYLOAD = { id: '39fb8463-8c29-4434-a5d6-07b964b36ad9', name: 'Alice', roles: ['user'] };
-const FOREIGN_TOKEN =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjM5ZmI4NDYzLThjMjktNDQzNC1hNWQ2LTA3Yjk2NGIzNmFkOSIsInJvbGVzIjpbInVzZXIiXSwibmFtZSI6IkFsaWNlIiwiaWF0IjoxNzM2NTkwOTQ5fQ.sqVH29NXG3LaxwIDfaVg8HwcajjA7PbDW9AkOaEykb0';
+const OTHER_SECRET = 'another-secret-of-16+';
 
 describe('jwt', () => {
   afterAll(() => {
@@ -25,32 +23,31 @@ describe('jwt', () => {
     expect(Math.abs(verified.iat - Date.now() / 1000)).toBeLessThan(5);
   });
 
-  it('verifies tokens signed by the previous jsonwebtoken implementation', async () => {
-    const verified = await jwt.verify(fixtures.jwt.token, fixtures.jwt.secret, {
-      requireExpiration: false,
+  it('explains why a JWT is rejected', async () => {
+    const signedElsewhere = await jwt.sign(PAYLOAD, OTHER_SECRET, { expiresIn: 60 });
+    await expect(jwt.verify(signedElsewhere, SECRET)).rejects.toMatchObject({
+      code: 'TAMPERED',
+      message: 'JWT signature is invalid or the key is wrong.',
     });
-    expect(verified.name).toBe('Alice');
-  });
-
-  it('keeps the error messages of jsonwebtoken', async () => {
-    await expect(jwt.verify(FOREIGN_TOKEN, SECRET)).rejects.toThrow(
-      'verify Error: invalid signature',
-    );
-    await expect(jwt.verify('eyJhbGciOiJIUzI1NiIsIajjA7PbDW9AkOaEykb0', SECRET)).rejects.toThrow(
-      'verify Error: jwt malformed',
-    );
+    await expect(
+      jwt.verify('eyJhbGciOiJIUzI1NiIsIajjA7PbDW9AkOaEykb0', SECRET),
+    ).rejects.toMatchObject({
+      code: 'MALFORMED',
+      message: 'Invalid JWT format.',
+    });
     await expect(jwt.verify(1 as unknown as string, SECRET)).rejects.toThrow(
-      'verify Error: jwt must be a string.',
+      'jwt must be a string.',
     );
   });
 
   it('decodes without verifying', async () => {
-    expect((await jwt.decode(await jwt.sign(PAYLOAD, SECRET, { expiresIn: 60 }))).id).toBe(
-      PAYLOAD.id,
-    );
-    expect((await jwt.decode(FOREIGN_TOKEN)).id).toBe(PAYLOAD.id);
-    expect(await jwt.decode('eyJhbGciOiJIUzI1ajjA7PbDW9AkOaEykb0')).toEqual({});
-    await expect(jwt.decode({} as unknown as string)).rejects.toThrow(/^data Error: /);
+    const signedElsewhere = await jwt.sign(PAYLOAD, OTHER_SECRET, { expiresIn: 60 });
+    expect((await jwt.decode(signedElsewhere)).id).toBe(PAYLOAD.id);
+    await expect(jwt.decode('eyJhbGciOiJIUzI1ajjA7PbDW9AkOaEykb0')).rejects.toMatchObject({
+      code: 'MALFORMED',
+      message: 'Invalid JWT format.',
+    });
+    await expect(jwt.decode({} as unknown as string)).rejects.toThrow('jwt must be a string.');
   });
 
   it('expires and checks issuer and audience', async () => {
@@ -68,21 +65,20 @@ describe('jwt', () => {
       'user-7',
     );
     await expect(jwt.verify(signed, SECRET, { issuer: 'other' })).rejects.toThrow(
-      'verify Error: jwt issuer invalid. expected: other',
+      'JWT issuer is not other.',
     );
     jest.setSystemTime(new Date('2030-01-01T00:01:00Z'));
     await expect(jwt.verify(signed, SECRET)).rejects.toMatchObject({
       code: 'EXPIRED',
-      message: 'verify Error: jwt expired',
+      message: 'JWT expired.',
     });
-    expect(await jwt.verify(signed, SECRET, { ignoreExpiration: true })).toMatchObject({ id: 7 });
   });
 
   it('picks the algorithm of the level', async () => {
     const signed = await jwt.sign({}, SECRET, { level: 'cnsa', expiresIn: 60 });
     expect(JSON.parse(Buffer.from(signed.split('.')[0], 'base64url').toString()).alg).toBe('HS512');
     await expect(jwt.verify(signed, SECRET, { algorithms: ['HS256'] })).rejects.toThrow(
-      'verify Error: invalid algorithm',
+      'JWT algorithm is not allowed for this key or these options.',
     );
   });
 
@@ -93,7 +89,9 @@ describe('jwt', () => {
       expiresIn: 60,
     });
     expect((await jwt.verify(signed, pair.publicKey)).id).toBe(7);
-    await expect(jwt.verify(signed, SECRET)).rejects.toThrow('verify Error: invalid algorithm');
+    await expect(jwt.verify(signed, SECRET)).rejects.toThrow(
+      'JWT algorithm is not allowed for this key or these options.',
+    );
   }, 120_000);
 
   it('requires an expiration unless told otherwise', async () => {
@@ -105,7 +103,7 @@ describe('jwt', () => {
     const forever = await jwt.sign({ id: 7 }, SECRET, { requireExpiration: false });
     await expect(jwt.verify(forever, SECRET)).rejects.toMatchObject({
       code: 'MALFORMED',
-      message: 'verify Error: jwt has no exp claim',
+      message: 'JWT has no exp claim; pass requireExpiration: false to accept it.',
     });
     expect((await jwt.verify(forever, SECRET, { requireExpiration: false })).id).toBe(7);
     await expect(
@@ -129,7 +127,7 @@ describe('jwt', () => {
     const signed = await jwt.sign({}, SECRET, { expiresIn: 60 });
     await expect(jwt.verify(signed, 'short')).rejects.toMatchObject({
       code: 'INVALID_KEY',
-      message: 'verify Error: Secret key must have at least 16 characters.',
+      message: 'Secret key must have at least 16 characters.',
     });
   });
 });

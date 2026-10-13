@@ -32,10 +32,12 @@ describe('browserWorkerFactory', () => {
     const notices: WorkerNotice[] = [];
     const request = requester(handle, notices);
     handle.post({ type: 'init', module: await compileWasm() });
-    expect(await request('engineEncode', 'testhash123', 'HELLO WORLD')).toEqual({
+    expect(
+      await request('hashDigest', new TextEncoder().encode('abc'), undefined, undefined),
+    ).toEqual({
       id: 1,
       ok: true,
-      result: 'Pt3/97FmPVoz+4JG',
+      result: 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
     });
     expect(await request('cipherDecrypt', 'nope', 'a-secret-key-1234567890', undefined)).toEqual({
       id: 2,

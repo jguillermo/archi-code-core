@@ -1,9 +1,8 @@
 import { afterAll, describe, expect, it } from '@jest/globals';
 import { password } from '../../src/password/password';
 import { workers } from '../../src/worker/workers';
-import { fixtures } from '../support/fixtures';
 
-const BCRYPT = /^\$2[aby]?\$\d{2}\$[./A-Za-z0-9]{53}$/;
+const BCRYPT = /^\$2b\$\d{2}\$[./A-Za-z0-9]{53}$/;
 const ARGON2ID_STANDARD = '$argon2id$v=19$m=65536,t=3,p=4$';
 
 describe('password', () => {
@@ -61,20 +60,17 @@ describe('password', () => {
     });
   });
 
-  it('verifies hashes created by the previous bcrypt and libsodium implementation', async () => {
-    for (const name of ['bcrypt', 'argon2id'] as const) {
-      const { password: plain, hash } = fixtures.password[name];
-      expect(await password.verify(plain, hash)).toBe(true);
-      expect(await password.verify('WrongPassword!', hash)).toBe(false);
-    }
-  });
-
   it('recognises password hashes', async () => {
     expect(
       await password.isHash('$2b$12$D5.xYyM96cGfD.g8O6jMkOt3kFKQoBJDdq9BdqjVwp3Xkrxjl5Nuq'),
     ).toBe(true);
-    expect(await password.isHash(fixtures.password.argon2id.hash)).toBe(true);
-    for (const value of ['', '$2b$malformedhash', 'sha256$abcdef1234567890']) {
+    expect(await password.isHash(await password.hash('secret'))).toBe(true);
+    for (const value of [
+      '',
+      '$2b$malformedhash',
+      'sha256$abcdef1234567890',
+      '$2a$12$D5.xYyM96cGfD.g8O6jMkOt3kFKQoBJDdq9BdqjVwp3Xkrxjl5Nuq',
+    ]) {
       expect(await password.isHash(value)).toBe(false);
       expect(await password.verify('SecurePassword123!', value)).toBe(false);
     }
@@ -108,14 +104,14 @@ describe('password', () => {
   });
 
   it('does not verify hashes that ask for more work than the cnsa level', async () => {
-    const bcrypt = fixtures.password.bcrypt;
-    const costly = bcrypt.hash.replace('$2b$04$', '$2b$31$');
+    const bcrypt = await password.hash('secret', { algorithm: 'bcrypt', cost: 4 });
+    const costly = bcrypt.replace('$2b$04$', '$2b$31$');
     expect(await password.isHash(costly)).toBe(true);
-    expect(await password.verify(bcrypt.password, costly)).toBe(false);
-    const argon2id = fixtures.password.argon2id;
-    const huge = argon2id.hash.replace('m=65536', 'm=4194304');
+    expect(await password.verify('secret', costly)).toBe(false);
+    const argon2id = await password.hash('secret');
+    const huge = argon2id.replace('m=65536', 'm=4194304');
     expect(await password.isHash(huge)).toBe(true);
-    expect(await password.verify(argon2id.password, huge)).toBe(false);
+    expect(await password.verify('secret', huge)).toBe(false);
   });
 
   it('rejects invalid options and input', async () => {

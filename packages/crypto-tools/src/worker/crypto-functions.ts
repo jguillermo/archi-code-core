@@ -67,8 +67,6 @@ export interface CryptoFunctions {
   jwtSign(payloadJson: string, key: string, optionsJson: string, now: number): string;
   jwtVerify(token: string, key: string, optionsJson: string, now: number): string;
   jwtDecode(token: string): string;
-  engineEncode(seedKey: string, message: string): string;
-  engineDecode(seedKey: string, message: string): string;
 }
 
 export type CryptoFunctionName = keyof CryptoFunctions;

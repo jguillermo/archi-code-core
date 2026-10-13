@@ -38,7 +38,7 @@ describe('rsa', () => {
   );
 
   it(
-    'interoperates with the RSA-OAEP and AES-GCM of Node',
+    'produces standard RSA-OAEP and AES-GCM that Node crypto reads and writes',
     async () => {
       const pair = await basicKeyPair();
       const oaep = { padding: constants.RSA_PKCS1_OAEP_PADDING, oaepHash: 'sha256' };

@@ -22,9 +22,9 @@ export function toBytes(data: unknown, name = 'data'): Uint8Array {
   throw new CryptoError('INVALID_INPUT', `${name} must be a string or a Uint8Array.`);
 }
 
-export function requireText(value: unknown, name: string, prefix = ''): string {
+export function requireText(value: unknown, name: string): string {
   if (typeof value !== 'string') {
-    throw new CryptoError('INVALID_INPUT', `${prefix}${name} must be a string.`);
+    throw new CryptoError('INVALID_INPUT', `${name} must be a string.`);
   }
   return value;
 }

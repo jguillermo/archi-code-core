@@ -42,9 +42,6 @@ describe('input', () => {
   it('requires text', () => {
     expect(requireText('x', 'key')).toBe('x');
     expect(() => requireText(1, 'key')).toThrow('key must be a string.');
-    expect(() => requireText(1, 'jwt', 'verify Error: ')).toThrow(
-      'verify Error: jwt must be a string.',
-    );
   });
 
   it('requires a plain object', () => {

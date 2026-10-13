@@ -9,6 +9,8 @@ use crate::level::{Level, explicit_level};
 use crate::rsa_keys::{check_size, parse_private, parse_public};
 
 const MIN_SECRET_LENGTH: usize = 16;
+const INVALID_FORMAT: &str = "Invalid JWT format.";
+const INVALID_PUBLIC_KEY: &str = "Invalid RSA public key PEM.";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum KeyKind {
@@ -35,7 +37,6 @@ pub struct VerifyOptions {
     issuer: Option<String>,
     audience: Option<String>,
     clock_tolerance: Option<f64>,
-    ignore_expiration: Option<bool>,
     require_expiration: Option<bool>,
 }
 
@@ -203,10 +204,6 @@ pub fn sign(payload_json: &str, key: &str, options_json: &str, now: f64) -> Cryp
     .map_err(|error| CryptoError::invalid_key(format!("JWT signing failed: {error}.")))
 }
 
-fn verify_error(code: fn(String) -> CryptoError, message: &str) -> CryptoError {
-    code(format!("verify Error: {message}"))
-}
-
 fn audience_matches(claim: Option<&Value>, expected: &str) -> bool {
     match claim {
         Some(Value::String(value)) => value == expected,
@@ -219,10 +216,9 @@ fn number_claim(claims: &Map<String, Value>, name: &str) -> CryptoResult<Option<
     match claims.get(name) {
         None => Ok(None),
         Some(Value::Number(value)) => Ok(value.as_f64()),
-        Some(_) => Err(verify_error(
-            CryptoError::malformed,
-            &format!("invalid {name} value"),
-        )),
+        Some(_) => Err(CryptoError::malformed(format!(
+            "Claim {name} must be a number of seconds."
+        ))),
     }
 }
 
@@ -241,35 +237,33 @@ fn check_claims(
     if let Some(not_before) = number_claim(claims, "nbf")?
         && not_before > now + tolerance
     {
-        return Err(verify_error(CryptoError::expired, "jwt not active"));
+        return Err(CryptoError::expired("JWT is not active yet."));
     }
     let expires = number_claim(claims, "exp")?;
-    if !options.ignore_expiration.unwrap_or(false) {
-        match expires {
-            Some(expires) if now >= expires + tolerance => {
-                return Err(verify_error(CryptoError::expired, "jwt expired"));
-            }
-            None if options.require_expiration.unwrap_or(true) => {
-                return Err(verify_error(CryptoError::malformed, "jwt has no exp claim"));
-            }
-            _ => {}
+    match expires {
+        Some(expires) if now >= expires + tolerance => {
+            return Err(CryptoError::expired("JWT expired."));
         }
+        None if options.require_expiration.unwrap_or(true) => {
+            return Err(CryptoError::malformed(
+                "JWT has no exp claim; pass requireExpiration: false to accept it.",
+            ));
+        }
+        _ => {}
     }
     if let Some(audience) = &options.audience
         && !audience_matches(claims.get("aud"), audience)
     {
-        return Err(verify_error(
-            CryptoError::tampered,
-            &format!("jwt audience invalid. expected: {audience}"),
-        ));
+        return Err(CryptoError::tampered(format!(
+            "JWT audience does not include {audience}."
+        )));
     }
     if let Some(issuer) = &options.issuer
         && claims.get("iss").and_then(Value::as_str) != Some(issuer.as_str())
     {
-        return Err(verify_error(
-            CryptoError::tampered,
-            &format!("jwt issuer invalid. expected: {issuer}"),
-        ));
+        return Err(CryptoError::tampered(format!(
+            "JWT issuer is not {issuer}."
+        )));
     }
     Ok(())
 }
@@ -278,8 +272,8 @@ pub fn verify(token: &str, key: &str, options_json: &str, now: f64) -> CryptoRes
     let options: VerifyOptions = parse_options(options_json)?;
     let now = check_now(now)?;
     let kind = key_kind(key);
-    let header = jsonwebtoken::decode_header(token)
-        .map_err(|_| verify_error(CryptoError::malformed, "jwt malformed"))?;
+    let header =
+        jsonwebtoken::decode_header(token).map_err(|_| CryptoError::malformed(INVALID_FORMAT))?;
     let allowed = match &options.algorithms {
         Some(names) => names
             .iter()
@@ -288,18 +282,19 @@ pub fn verify(token: &str, key: &str, options_json: &str, now: f64) -> CryptoRes
         None => family(kind).to_vec(),
     };
     if !allowed.contains(&header.alg) || kind_of(header.alg) != kind {
-        return Err(verify_error(CryptoError::unsupported, "invalid algorithm"));
+        return Err(CryptoError::unsupported(
+            "JWT algorithm is not allowed for this key or these options.",
+        ));
     }
-    let invalid_key = |message: &str| verify_error(CryptoError::invalid_key, message);
     let decoding_key = match kind {
         KeyKind::Secret => {
-            check_secret(key).map_err(|error| invalid_key(&error.message))?;
+            check_secret(key)?;
             DecodingKey::from_secret(key.as_bytes())
         }
         KeyKind::Pem => {
-            let public = parse_public(key).map_err(|_| invalid_key("invalid key"))?;
-            check_size(&public, None).map_err(|error| invalid_key(&error.message))?;
-            DecodingKey::from_rsa_pem(key.as_bytes()).map_err(|_| invalid_key("invalid key"))?
+            check_size(&parse_public(key)?, None)?;
+            DecodingKey::from_rsa_pem(key.as_bytes())
+                .map_err(|_| CryptoError::invalid_key(INVALID_PUBLIC_KEY))?
         }
     };
     let mut validation = Validation::new(header.alg);
@@ -311,25 +306,25 @@ pub fn verify(token: &str, key: &str, options_json: &str, now: f64) -> CryptoRes
         jsonwebtoken::decode::<Value>(token, &decoding_key, &validation).map_err(|error| {
             match error.kind() {
                 ErrorKind::InvalidSignature => {
-                    verify_error(CryptoError::tampered, "invalid signature")
+                    CryptoError::tampered("JWT signature is invalid or the key is wrong.")
                 }
                 ErrorKind::InvalidRsaKey(_) | ErrorKind::InvalidKeyFormat => {
-                    verify_error(CryptoError::invalid_key, "invalid key")
+                    CryptoError::invalid_key(INVALID_PUBLIC_KEY)
                 }
-                _ => verify_error(CryptoError::malformed, "jwt malformed"),
+                _ => CryptoError::malformed(INVALID_FORMAT),
             }
         })?;
     let Value::Object(claims) = data.claims else {
-        return Err(verify_error(CryptoError::malformed, "jwt malformed"));
+        return Err(CryptoError::malformed(INVALID_FORMAT));
     };
     check_claims(&claims, &options, now)?;
     Ok(Value::Object(claims).to_string())
 }
 
-pub fn decode(token: &str) -> String {
+pub fn decode(token: &str) -> CryptoResult<String> {
     match jsonwebtoken::dangerous::insecure_decode::<Value>(token) {
-        Ok(data) if data.claims.is_object() => data.claims.to_string(),
-        _ => "{}".to_string(),
+        Ok(data) if data.claims.is_object() => Ok(data.claims.to_string()),
+        _ => Err(CryptoError::malformed(INVALID_FORMAT)),
     }
 }
 
@@ -359,36 +354,36 @@ mod tests {
     }
 
     #[test]
-    fn verifies_tokens_signed_by_the_javascript_library() {
-        let fixtures: Value =
-            serde_json::from_str(include_str!("../../test/fixtures/legacy.json")).unwrap();
-        let secret = fixtures["jwt"]["secret"].as_str().unwrap();
-        let token = fixtures["jwt"]["token"].as_str().unwrap();
+    fn explains_why_a_jwt_is_rejected() {
+        let signed_with_another_secret = sign(
+            r#"{"name":"Alice"}"#,
+            "another-secret-of-16+",
+            r#"{"expiresIn":60}"#,
+            NOW,
+        )
+        .unwrap();
         assert_eq!(
-            claims(&verify(token, secret, NO_EXP, NOW).unwrap())["name"],
-            "Alice"
-        );
-        assert_eq!(
-            verify(token, secret, "", NOW).unwrap_err().message,
-            "verify Error: jwt has no exp claim"
-        );
-    }
-
-    #[test]
-    fn keeps_the_javascript_error_messages() {
-        let foreign = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjM5ZmI4NDYzLThjMjktNDQzNC1hNWQ2LTA3Yjk2NGIzNmFkOSIsInJvbGVzIjpbInVzZXIiXSwibmFtZSI6IkFsaWNlIiwiaWF0IjoxNzM2NTkwOTQ5fQ.sqVH29NXG3LaxwIDfaVg8HwcajjA7PbDW9AkOaEykb0";
-        assert_eq!(
-            verify(foreign, SECRET, "", NOW).unwrap_err().message,
-            "verify Error: invalid signature"
+            verify(&signed_with_another_secret, SECRET, "", NOW)
+                .unwrap_err()
+                .message,
+            "JWT signature is invalid or the key is wrong."
         );
         assert_eq!(
             verify("eyJhbGciOiJIUzI1NiIsIajjA7PbDW9AkOaEykb0", SECRET, "", NOW)
                 .unwrap_err()
                 .message,
-            "verify Error: jwt malformed"
+            "Invalid JWT format."
         );
-        assert_eq!(claims(&decode(foreign))["name"], "Alice");
-        assert_eq!(decode("eyJhbGciOiJIUzI1ajjA7PbDW9AkOaEykb0"), "{}");
+        assert_eq!(
+            claims(&decode(&signed_with_another_secret).unwrap())["name"],
+            "Alice"
+        );
+        assert_eq!(
+            decode("eyJhbGciOiJIUzI1ajjA7PbDW9AkOaEykb0")
+                .unwrap_err()
+                .message,
+            "Invalid JWT format."
+        );
     }
 
     #[test]
@@ -409,21 +404,26 @@ mod tests {
         let expired = verify(&token, SECRET, "", NOW + 60.0).unwrap_err();
         assert_eq!(
             (expired.code, expired.message.as_str()),
-            (ErrorCode::Expired, "verify Error: jwt expired")
+            (ErrorCode::Expired, "JWT expired.")
         );
         assert!(verify(&token, SECRET, r#"{"clockTolerance":5}"#, NOW + 61.0).is_ok());
-        assert!(verify(&token, SECRET, r#"{"ignoreExpiration":true}"#, NOW + 999.0).is_ok());
+        assert_eq!(
+            verify(&token, SECRET, r#"{"ignoreExpiration":true}"#, NOW + 999.0)
+                .unwrap_err()
+                .code,
+            ErrorCode::InvalidInput
+        );
         assert_eq!(
             verify(&token, SECRET, r#"{"issuer":"other"}"#, NOW)
                 .unwrap_err()
                 .message,
-            "verify Error: jwt issuer invalid. expected: other"
+            "JWT issuer is not other."
         );
         assert_eq!(
             verify(&token, SECRET, r#"{"audience":"api"}"#, NOW)
                 .unwrap_err()
                 .message,
-            "verify Error: jwt audience invalid. expected: api"
+            "JWT audience does not include api."
         );
         let many = sign(
             r#"{"id":7}"#,
@@ -440,12 +440,12 @@ mod tests {
         let early = sign(&json!({"nbf": NOW + 100.0}).to_string(), SECRET, EXP, NOW).unwrap();
         assert_eq!(
             verify(&early, SECRET, "", NOW).unwrap_err().message,
-            "verify Error: jwt not active"
+            "JWT is not active yet."
         );
         let bad_exp = sign(r#"{"exp":"tomorrow"}"#, SECRET, "", NOW).unwrap();
         assert_eq!(
             verify(&bad_exp, SECRET, "", NOW).unwrap_err().message,
-            "verify Error: invalid exp value"
+            "Claim exp must be a number of seconds."
         );
     }
 
@@ -461,10 +461,12 @@ mod tests {
         let missing = verify(&forever, SECRET, "", NOW).unwrap_err();
         assert_eq!(
             (missing.code, missing.message.as_str()),
-            (ErrorCode::Malformed, "verify Error: jwt has no exp claim")
+            (
+                ErrorCode::Malformed,
+                "JWT has no exp claim; pass requireExpiration: false to accept it."
+            )
         );
         assert!(verify(&forever, SECRET, NO_EXP, NOW).is_ok());
-        assert!(verify(&forever, SECRET, r#"{"ignoreExpiration":true}"#, NOW).is_ok());
     }
 
     #[test]
@@ -536,17 +538,17 @@ mod tests {
             verify(&token, &other.public_key, "", NOW)
                 .unwrap_err()
                 .message,
-            "verify Error: invalid signature"
+            "JWT signature is invalid or the key is wrong."
         );
         assert_eq!(
             verify(&token, SECRET, "", NOW).unwrap_err().message,
-            "verify Error: invalid algorithm"
+            "JWT algorithm is not allowed for this key or these options."
         );
         assert_eq!(
             verify(&token, &pair.public_key, r#"{"algorithms":["RS512"]}"#, NOW)
                 .unwrap_err()
                 .message,
-            "verify Error: invalid algorithm"
+            "JWT algorithm is not allowed for this key or these options."
         );
         assert_eq!(
             verify(
@@ -584,7 +586,7 @@ mod tests {
         assert!(sign("{}", "-----BEGIN PRIVATE KEY-----\nnope", "", NOW).is_err());
         assert_eq!(
             verify(&token, public_1024(), "", NOW).unwrap_err().message,
-            format!("verify Error: {SMALL_KEY_ERROR}")
+            SMALL_KEY_ERROR
         );
     }
 
@@ -619,7 +621,7 @@ mod tests {
             verify(&signed_with_short, "short", "", NOW)
                 .unwrap_err()
                 .message,
-            "verify Error: Secret key must have at least 16 characters."
+            "Secret key must have at least 16 characters."
         );
         assert_eq!(
             sign(
@@ -640,8 +642,8 @@ mod tests {
         .unwrap();
         assert_eq!(
             verify(&array_payload, SECRET, "", NOW).unwrap_err().message,
-            "verify Error: jwt malformed"
+            "Invalid JWT format."
         );
-        assert_eq!(decode(&array_payload), "{}");
+        assert!(decode(&array_payload).is_err());
     }
 }

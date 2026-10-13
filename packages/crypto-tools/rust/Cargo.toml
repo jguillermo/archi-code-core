@@ -21,10 +21,8 @@ base64 = "0.22"
 bcrypt = "0.17"
 argon2 = "0.5"
 aes = { version = "0.8", features = ["zeroize"] }
-cbc = { version = "0.1", features = ["alloc"] }
 aes-gcm = { version = "0.10", features = ["zeroize"] }
 chacha20poly1305 = "0.10"
-subtle = "2"
 rsa = { version = "0.9", features = ["sha2"] }
 pasetors = { version = "0.8", default-features = false, features = ["v4"] }
 jsonwebtoken = { version = "11", default-features = false, features = ["rust_crypto", "use_pem"] }

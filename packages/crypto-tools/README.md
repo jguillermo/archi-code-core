@@ -19,7 +19,7 @@ Every function is async and takes its options last. `level` picks the algorithms
 import { password, cipher, rsa, signature, hash, token, jwt } from '@archi-code/crypto-tools';
 
 const stored = await password.hash('secret', { level: 'strong' });
-await password.verify('secret', stored); // true (bcrypt and Argon2id hashes)
+await password.verify('secret', stored); // true
 
 const key = await cipher.generateKey({ level: 'cnsa' });
 const encrypted = await cipher.encrypt('hola', key, { level: 'cnsa' });
@@ -49,17 +49,16 @@ In the browser, read files with `new Uint8Array(await file.arrayBuffer())`; in N
 
 ## Tools
 
-| Module         | Functions                                                                     | Output                                                    |
-| -------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------- |
-| `password`     | `hash`, `verify`, `isHash`, `params`                                          | bcrypt `$2b$…` or Argon2id PHC string                     |
-| `cipher`       | `generateKey`, `encrypt`, `decrypt`, `decryptBytes`                           | `v1.<alg>.<kdf>.<salt>.<nonce>.<ciphertext>` (base64url)  |
-| `rsa`          | `generateKeyPair`, `encrypt`, `decrypt`, `decryptBytes`                       | PEM keys (SPKI / PKCS#8); JWE `RSA-OAEP-*` + `A256GCM`    |
-| `signature`    | `sign`, `verify`                                                              | detached JWS with unencoded payload (RFC 7797), RSA-PSS   |
-| `hash`         | `digest`, `hmac`                                                              | hex                                                       |
-| `token`        | `generateKey`, `encrypt`, `decrypt`                                           | PASETO `v4.local` (JWE `dir` + `A256GCM` at `cnsa`)       |
-| `jwt`          | `sign`, `verify`, `decode`                                                    | JWT HS256/384/512 with a secret, RS256/384/512 with a PEM |
-| `CryptoEngine` | `encode`, `decode`                                                            | legacy reversible obfuscation (see below)                 |
-| `workers`      | `configure({ size, mode, timeout, idleTimeout })`, `terminate()`, `runtime()` | worker pool control                                       |
+| Module      | Functions                                                                     | Output                                                      |
+| ----------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `password`  | `hash`, `verify`, `isHash`, `params`                                          | bcrypt `$2b$…` or Argon2id PHC string                       |
+| `cipher`    | `generateKey`, `encrypt`, `decrypt`, `decryptBytes`                           | `v1.<alg>.<kdf>.<salt>.<nonce>.<ciphertext>` (base64url)    |
+| `rsa`       | `generateKeyPair`, `encrypt`, `decrypt`, `decryptBytes`                       | PEM keys (SPKI / PKCS#8 only); JWE `RSA-OAEP-*` + `A256GCM` |
+| `signature` | `sign`, `verify`                                                              | detached JWS with unencoded payload (RFC 7797), RSA-PSS     |
+| `hash`      | `digest`, `hmac`                                                              | hex                                                         |
+| `token`     | `generateKey`, `encrypt`, `decrypt`                                           | PASETO `v4.local` (JWE `dir` + `A256GCM` at `cnsa`)         |
+| `jwt`       | `sign`, `verify`, `decode`                                                    | JWT HS256/384/512 with a secret, RS256/384/512 with a PEM   |
+| `workers`   | `configure({ size, mode, timeout, idleTimeout })`, `terminate()`, `runtime()` | worker pool control                                         |
 
 `securityLevels()` returns what every level uses. Errors are `CryptoError` with a `code`:
 `INVALID_KEY`, `INVALID_INPUT`, `TAMPERED`, `EXPIRED`, `MALFORMED`, `UNSUPPORTED`, `WORKER` or
@@ -112,9 +111,9 @@ Chinese or 18 emoji. Instead of truncating in silence, `hash` with bcrypt (`leve
 no such limit. `cost` only applies to bcrypt, so it needs `algorithm: 'bcrypt'` or `level: 'basic'`,
 and goes from 4 to 14.
 
-`password.verify` never truncates either: a password over 72 bytes does not verify against a bcrypt
-hash, also one made by 3.x or another library that truncated it (those users need a password reset).
-It also refuses (returns `false`) any hash that asks for more work than the `cnsa` level: bcrypt cost
+`password.verify` only accepts the formats `password.hash` produces: bcrypt `$2b$` and Argon2id
+version 19 (`$argon2id$v=19$`). It never truncates either: a password over 72 bytes does not verify
+against a bcrypt hash. It also refuses (returns `false`) any hash that asks for more work than the `cnsa` level: bcrypt cost
 over 14, or Argon2 over 256 MiB, t=4 or p=4. A hash read from somewhere an attacker can write could
 otherwise ask for gigabytes of memory or days of CPU. `password.isHash` only checks the format, so it
 is still `true` for those hashes.
@@ -137,8 +136,8 @@ Argon2 parameters this package produces, so crafted data cannot ask for huge mem
 
 `jwt.sign` needs an expiration: `expiresIn`, an `exp` claim in the payload, or an explicit
 `requireExpiration: false` for a token that never expires. `jwt.verify` rejects a token without `exp`
-(`MALFORMED`, `verify Error: jwt has no exp claim`) unless it gets `requireExpiration: false` or
-`ignoreExpiration: true`. `clockTolerance` must be 0 or a positive number of seconds.
+(`MALFORMED`) unless it gets `requireExpiration: false`, and an expired one (`EXPIRED`).
+`clockTolerance` must be 0 or a positive number of seconds.
 
 `token` follows the same rule: `token.encrypt` rejects (`INVALID_INPUT`) a payload without `expiresIn`
 or an `exp` claim unless it gets `requireExpiration: false`, and `token.decrypt(data, key)` rejects a
@@ -184,25 +183,10 @@ calls fall back to the calling thread, which also needs `'unsafe-eval'` because 
 embedded wasm-bindgen glue; with neither, every call rejects with `WORKER`. `npm run check:dist` runs
 these cases in Chromium, Firefox and WebKit.
 
-Size: the wasm (about 1.4 MiB) ships gzipped and as base64 inside the JavaScript, about 720 KiB per
-build (ESM or CJS; an app loads one, about 515 KiB once the server gzips it). The package holds both
-builds, about 1.8 MB unpacked. It is decompressed once with the standard `DecompressionStream`
+Size: the wasm (about 1.3 MiB) ships gzipped and as base64 inside the JavaScript, about 690 KiB per
+build (ESM or CJS; an app loads one, about 495 KiB once the server gzips it). The package holds both
+builds, about 1.7 MB unpacked. It is decompressed once with the standard `DecompressionStream`
 (Node 18+ and current browsers; check its support if you target old Safari or Firefox).
-
-## Compatibility with the previous version
-
-The 3.x API (classes such as `BcryptPasswordEncryptor`, `SodiumHasher`, `JWTDataSigner`) is gone.
-Data it produced still works:
-
-- `password.verify` accepts bcrypt and libsodium Argon2id hashes up to the `cnsa` cost (see Password
-  length); bcrypt passwords over 72 bytes no longer verify.
-- `cipher.decrypt(data, key, { algorithm: 'aes-256-cbc-hmac' })` (also 128 and 192) reads the
-  `iv|ciphertext|hmac` format of `SymmetricEncryption`. That format can only be decrypted: encrypting
-  with it rejects with `UNSUPPORTED`, so migrate the data to an AEAD algorithm.
-- `jwt.verify` accepts tokens signed by `jsonwebtoken` with the same secret if it has at least 16
-  characters; tokens without `exp` need `{ requireExpiration: false }`.
-- `CryptoEngine` produces byte for byte the same outputs. It is a reversible **obfuscation**, not
-  encryption: use `cipher` for anything secret.
 
 ## Known risk
 

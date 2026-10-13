@@ -1,9 +1,8 @@
 import { afterAll, describe, expect, it } from '@jest/globals';
 import { cipher } from '../../src/cipher/cipher';
-import type { LegacyCipherAlgorithm } from '../../src/cipher/cipher';
 import type { SecurityLevel } from '../../src/level/security-level';
 import { workers } from '../../src/worker/workers';
-import { fixtures, SECRET } from '../support/fixtures';
+import { SECRET } from '../support/fixtures';
 
 describe('cipher', () => {
   afterAll(() => {
@@ -66,34 +65,6 @@ describe('cipher', () => {
     ).rejects.toMatchObject({
       message: 'Key must have a minimum length of 32 characters.',
     });
-  });
-
-  it.each(fixtures.legacyCipher)(
-    'decrypts data from the previous SymmetricEncryption with $algorithm',
-    async ({ algorithm, key, text, encrypted }) => {
-      const legacy = `${algorithm}-hmac` as LegacyCipherAlgorithm;
-      expect(await cipher.decrypt(encrypted, key, { algorithm: legacy })).toBe(text);
-    },
-  );
-
-  it('only decrypts the previous format and keeps its errors', async () => {
-    const options = { algorithm: 'aes-256-cbc-hmac' as const };
-    const key = 'my-secure-keymy-secure-keymy-secure-keymy-secure-key';
-    await expect(
-      cipher.encrypt('x', key, options as unknown as { algorithm: 'aes-256-gcm' }),
-    ).rejects.toMatchObject({
-      code: 'UNSUPPORTED',
-      message:
-        'aes-256-cbc-hmac is the legacy format of crypto-tools 3.x and can only be decrypted; encrypt with an AEAD algorithm.',
-    });
-    await expect(cipher.decrypt('invalid|encrypted|string', key, options)).rejects.toThrow(
-      'Decryption failed: Invalid encrypted format.',
-    );
-    const tampered =
-      'cc0f4587733fbd9c0d9a95757a53ae81|f5d580517206f7d29d83a2a9711251b532c1a7cdba346ba9d71e20e66fbceeea|55637b1e30d6589296eb72287ba561e34e0a6b22c76ea4d6d';
-    await expect(cipher.decrypt(tampered, key, options)).rejects.toThrow(
-      'Decryption failed: Invalid HMAC. Data may have been tampered with.',
-    );
   });
 
   it('derives the key from a password with argon2id', async () => {

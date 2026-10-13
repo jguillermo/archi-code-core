@@ -34,6 +34,8 @@ async function loadWorkers(setup: Setup): Promise<typeof WorkersModule> {
 }
 
 const compiled = () => Promise.resolve({});
+const ABC = new TextEncoder().encode('abc');
+const SHA256_OF_ABC = 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad';
 
 describe('workers with the real runtime', () => {
   afterEach(async () => {
@@ -94,12 +96,12 @@ describe('workers with the real runtime', () => {
     const { callCrypto, workers } = await import('../../src/worker/workers');
     workers.configure({ size: 1, timeout: 200 });
     const slow = callCrypto('passwordHash', 'x', 'cnsa', undefined, undefined);
-    const queued = callCrypto('engineEncode', 'testhash123', 'HELLO WORLD');
+    const queued = callCrypto('hashDigest', ABC, undefined, undefined);
     await expect(slow).rejects.toMatchObject({
       code: 'TIMEOUT',
       message: 'Crypto call passwordHash took longer than 200 ms.',
     });
-    await expect(queued).resolves.toBe('Pt3/97FmPVoz+4JG');
+    await expect(queued).resolves.toBe(SHA256_OF_ABC);
     workers.configure({ timeout: 60_000 });
   }, 30_000);
 
@@ -143,7 +145,7 @@ describe('workers pool', () => {
     const { callCrypto, workers } = await loadWorkers({ node: factory, compile: compiled });
     workers.configure({ size: 2 });
     for (const text of ['a', 'b', 'c', 'd']) {
-      void callCrypto('engineEncode', 'k', text);
+      void callCrypto('jwtDecode', text);
     }
     await flush();
     expect(handles).toHaveLength(2);
@@ -151,12 +153,12 @@ describe('workers pool', () => {
     expect(handles[0].requests()).toEqual([1, 3]);
     expect(handles[1].requests()).toEqual([2, 4]);
     handles[0].respond({ id: 1, ok: true, result: 'x' });
-    void callCrypto('engineEncode', 'k', 'e');
+    void callCrypto('jwtDecode', 'e');
     await flush();
     expect(handles[0].requests()).toEqual([1, 3, 5]);
     handles[1].respond({ id: 2, ok: true, result: 'x' });
     handles[1].respond({ id: 4, ok: true, result: 'x' });
-    void callCrypto('engineEncode', 'k', 'f');
+    void callCrypto('jwtDecode', 'f');
     await flush();
     expect(handles[1].requests()).toEqual([2, 4, 6]);
   });
@@ -165,8 +167,8 @@ describe('workers pool', () => {
     jest.replaceProperty(globalThis, 'navigator', undefined as unknown as Navigator);
     const { handles, factory } = fakeFactory();
     const { callCrypto } = await loadWorkers({ node: factory, compile: compiled });
-    void callCrypto('engineEncode', 'k', 'a');
-    void callCrypto('engineEncode', 'k', 'b');
+    void callCrypto('jwtDecode', 'a');
+    void callCrypto('jwtDecode', 'b');
     await flush();
     expect(handles).toHaveLength(1);
   });
@@ -175,8 +177,8 @@ describe('workers pool', () => {
     const { handles, factory } = fakeFactory();
     const { callCrypto, workers } = await loadWorkers({ node: factory, compile: compiled });
     workers.configure({ size: 1 });
-    const ok = callCrypto('engineEncode', 'k', 'a');
-    const failed = callCrypto('engineEncode', 'k', 'b');
+    const ok = callCrypto('jwtDecode', 'a');
+    const failed = callCrypto('jwtDecode', 'b');
     await flush();
     const [handle] = handles;
     handle.respond({ id: 99, ok: true, result: 'ignored' });
@@ -190,7 +192,7 @@ describe('workers pool', () => {
   it('drops a failed worker, rejects its calls and replaces it', async () => {
     const { handles, factory } = fakeFactory();
     const { callCrypto } = await loadWorkers({ node: factory, compile: compiled });
-    const pending = callCrypto('engineEncode', 'k', 'a');
+    const pending = callCrypto('jwtDecode', 'a');
     await flush();
     handles[0].fail(new Error('boom'));
     await expect(pending).rejects.toMatchObject({
@@ -198,7 +200,7 @@ describe('workers pool', () => {
       message: 'Crypto worker failed: boom',
     });
     expect(handles[0].terminated).toBe(true);
-    void callCrypto('engineEncode', 'k', 'b');
+    void callCrypto('jwtDecode', 'b');
     await flush();
     expect(handles).toHaveLength(2);
   });
@@ -209,7 +211,7 @@ describe('workers pool', () => {
       node: factory,
       compile: () => Promise.reject('bad wasm'),
     });
-    await expect(callCrypto('engineEncode', 'k', 'a')).rejects.toMatchObject({
+    await expect(callCrypto('jwtDecode', 'a')).rejects.toMatchObject({
       code: 'WORKER',
       message: 'Crypto worker failed: bad wasm',
     });
@@ -233,7 +235,7 @@ describe('workers pool', () => {
     expect(() => workers.runtime()).toThrow(
       'This runtime has neither Web Workers nor worker_threads',
     );
-    await expect(callCrypto('engineEncode', 'k', 'a')).rejects.toMatchObject({ code: 'WORKER' });
+    await expect(callCrypto('jwtDecode', 'a')).rejects.toMatchObject({ code: 'WORKER' });
   });
 
   it('falls back to a single inline runner with one warning', async () => {
@@ -242,10 +244,10 @@ describe('workers pool', () => {
     workers.configure({ size: 3 });
     expect(workers.runtime()).toBe('inline');
     const results = await Promise.all([
-      callCrypto('engineEncode', 'testhash123', 'HELLO WORLD'),
-      callCrypto('engineEncode', 'testhash123', 'HELLO WORLD'),
+      callCrypto('hashDigest', ABC, undefined, undefined),
+      callCrypto('hashDigest', ABC, undefined, undefined),
     ]);
-    expect(results).toEqual(['Pt3/97FmPVoz+4JG', 'Pt3/97FmPVoz+4JG']);
+    expect(results).toEqual([SHA256_OF_ABC, SHA256_OF_ABC]);
     expect(warn).toHaveBeenCalledTimes(1);
   });
 
@@ -255,15 +257,15 @@ describe('workers pool', () => {
       const { handles, factory } = fakeFactory();
       const { callCrypto, workers } = await loadWorkers({ node: factory, compile: compiled });
       workers.configure({ size: 1, timeout: 100 });
-      const first = callCrypto('engineEncode', 'k', 'a');
-      const second = callCrypto('engineEncode', 'k', 'b');
-      const third = callCrypto('engineEncode', 'k', 'c');
+      const first = callCrypto('jwtDecode', 'a');
+      const second = callCrypto('jwtDecode', 'b');
+      const third = callCrypto('jwtDecode', 'c');
       await jest.advanceTimersByTimeAsync(60);
       handles[0].respond({ id: 1, ok: true, result: 'A' });
       await expect(first).resolves.toBe('A');
       const timedOut = expect(second).rejects.toMatchObject({
         code: 'TIMEOUT',
-        message: 'Crypto call engineEncode took longer than 100 ms.',
+        message: 'Crypto call jwtDecode took longer than 100 ms.',
       });
       await jest.advanceTimersByTimeAsync(60);
       expect(handles).toHaveLength(1);
@@ -285,25 +287,25 @@ describe('workers pool', () => {
       const { handles, factory } = fakeFactory();
       const { callCrypto, workers } = await loadWorkers({ node: factory, compile: compiled });
       workers.configure({ size: 1, idleTimeout: 100 });
-      const first = callCrypto('engineEncode', 'k', 'a');
+      const first = callCrypto('jwtDecode', 'a');
       await jest.advanceTimersByTimeAsync(0);
       handles[0].respond({ id: 1, ok: true, result: 'A' });
       await expect(first).resolves.toBe('A');
       await jest.advanceTimersByTimeAsync(60);
-      const second = callCrypto('engineEncode', 'k', 'b');
+      const second = callCrypto('jwtDecode', 'b');
       await jest.advanceTimersByTimeAsync(60);
       expect(handles[0].terminated).toBe(false);
       handles[0].respond({ id: 2, ok: true, result: 'B' });
       await expect(second).resolves.toBe('B');
       await jest.advanceTimersByTimeAsync(100);
       expect(handles[0].terminated).toBe(true);
-      const third = callCrypto('engineEncode', 'k', 'c');
+      const third = callCrypto('jwtDecode', 'c');
       await jest.advanceTimersByTimeAsync(0);
       expect(handles[1].requests()).toEqual([3]);
       handles[1].respond({ id: 3, ok: true, result: 'C' });
       await expect(third).resolves.toBe('C');
       workers.configure({ idleTimeout: Infinity });
-      const fourth = callCrypto('engineEncode', 'k', 'd');
+      const fourth = callCrypto('jwtDecode', 'd');
       await jest.advanceTimersByTimeAsync(0);
       handles[2].respond({ id: 4, ok: true, result: 'D' });
       await expect(fourth).resolves.toBe('D');
@@ -320,7 +322,7 @@ describe('workers pool', () => {
       const { handles, factory } = fakeFactory();
       const { callCrypto, workers } = await loadWorkers({ node: factory, compile: compiled });
       workers.configure({ timeout: Infinity });
-      const call = callCrypto('engineEncode', 'k', 'a');
+      const call = callCrypto('jwtDecode', 'a');
       await jest.advanceTimersByTimeAsync(3_600_000);
       handles[0].respond({ id: 1, ok: true, result: 'late' });
       await expect(call).resolves.toBe('late');
@@ -334,7 +336,7 @@ describe('workers pool', () => {
     const { callCrypto, workers } = await loadWorkers({ node: factory, compile: compiled });
     workers.configure({ size: 1 });
     const crashed = callCrypto('passwordVerify', 'x', 'huge');
-    const queued = callCrypto('engineEncode', 'k', 'a');
+    const queued = callCrypto('jwtDecode', 'a');
     await flush();
     handles[0].respond({ id: 1, ok: false, error: 'unreachable', fatal: true });
     await expect(crashed).rejects.toMatchObject({
@@ -361,8 +363,8 @@ describe('workers pool', () => {
     };
     const { callCrypto, workers } = await loadWorkers({ node: factory, compile: compiled });
     workers.configure({ size: 1, mode: 'worker' });
-    const crashed = callCrypto('engineEncode', 'k', 'a');
-    const queued = callCrypto('engineEncode', 'k', 'b');
+    const crashed = callCrypto('jwtDecode', 'a');
+    const queued = callCrypto('jwtDecode', 'b');
     await flush();
     handles[0].respond({ id: 1, ok: false, error: 'unreachable', fatal: true });
     await expect(crashed).rejects.toMatchObject({ code: 'WORKER' });
@@ -381,7 +383,7 @@ describe('workers pool', () => {
       },
     };
     const { callCrypto, workers } = await loadWorkers({ browser: blocked });
-    expect(await callCrypto('engineEncode', 'testhash123', 'HELLO WORLD')).toBe('Pt3/97FmPVoz+4JG');
+    expect(await callCrypto('hashDigest', ABC, undefined, undefined)).toBe(SHA256_OF_ABC);
     expect(workers.runtime()).toBe('inline');
     expect(warn).toHaveBeenCalledWith(
       '@archi-code/crypto-tools: workers are blocked (Refused by the Content Security Policy), running on the calling thread.',
@@ -394,10 +396,10 @@ describe('workers pool', () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     const web = fakeFactory('web-worker');
     const { callCrypto, workers } = await loadWorkers({ browser: web.factory });
-    const call = callCrypto('engineEncode', 'testhash123', 'HELLO WORLD');
+    const call = callCrypto('hashDigest', ABC, undefined, undefined);
     await flush();
     web.handles[0].fail(new Error('blocked by CSP'));
-    await expect(call).resolves.toBe('Pt3/97FmPVoz+4JG');
+    await expect(call).resolves.toBe(SHA256_OF_ABC);
     expect(web.handles[0].terminated).toBe(true);
     expect(workers.runtime()).toBe('inline');
     expect(warn).toHaveBeenCalledWith(
@@ -421,7 +423,7 @@ describe('workers pool', () => {
       message: 'Crypto worker failed: Out of memory',
     });
     expect(warn).not.toHaveBeenCalled();
-    void callCrypto('engineEncode', 'k', 'a');
+    void callCrypto('jwtDecode', 'a');
     await flush();
     expect(web.handles).toHaveLength(2);
     expect(workers.runtime()).toBe('web-worker');
@@ -431,8 +433,8 @@ describe('workers pool', () => {
     const { handles, factory } = fakeFactory();
     const { callCrypto, workers } = await loadWorkers({ node: factory, compile: compiled });
     workers.configure({ size: 1 });
-    const first = callCrypto('engineEncode', 'k', 'a');
-    const second = callCrypto('engineEncode', 'k', 'b');
+    const first = callCrypto('jwtDecode', 'a');
+    const second = callCrypto('jwtDecode', 'b');
     await flush();
     handles[0].respond({ type: 'started' });
     handles[0].respond({
@@ -446,7 +448,7 @@ describe('workers pool', () => {
       });
     }
     expect(handles[0].terminated).toBe(true);
-    const next = callCrypto('engineEncode', 'k', 'c');
+    const next = callCrypto('jwtDecode', 'c');
     await flush();
     handles[1].respond({ id: 3, ok: true, result: 'C' });
     await expect(next).resolves.toBe('C');
@@ -456,15 +458,15 @@ describe('workers pool', () => {
     const web = fakeFactory('web-worker');
     const { callCrypto, workers } = await loadWorkers({ browser: web.factory, compile: compiled });
     workers.configure({ size: 1 });
-    const answered = callCrypto('engineEncode', 'k', 'a');
-    const lost = callCrypto('engineEncode', 'k', 'b');
+    const answered = callCrypto('jwtDecode', 'a');
+    const lost = callCrypto('jwtDecode', 'b');
     await flush();
     web.handles[0].respond({ id: 1, ok: true, result: 'A' });
     await expect(answered).resolves.toBe('A');
     web.handles[0].fail(new Error('crashed'));
     await expect(lost).rejects.toMatchObject({ message: 'Crypto worker failed: crashed' });
     workers.configure({ mode: 'worker' });
-    const strict = callCrypto('engineEncode', 'k', 'c');
+    const strict = callCrypto('jwtDecode', 'c');
     await flush();
     web.handles[1].fail(new Error('blocked'));
     await expect(strict).rejects.toMatchObject({ message: 'Crypto worker failed: blocked' });
@@ -481,12 +483,12 @@ describe('workers pool', () => {
     jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     const { callCrypto, workers } = await loadWorkers({ browser: blocked, compile: compiled });
     workers.configure({ mode: 'worker' });
-    await expect(callCrypto('engineEncode', 'k', 'a')).rejects.toMatchObject({
+    await expect(callCrypto('jwtDecode', 'a')).rejects.toMatchObject({
       code: 'WORKER',
       message: 'Could not start a crypto worker: blocked',
     });
     workers.configure({ mode: 'auto' });
-    await expect(callCrypto('engineEncode', 'k', 'a')).rejects.toMatchObject({
+    await expect(callCrypto('jwtDecode', 'a')).rejects.toMatchObject({
       code: 'WORKER',
       message: expect.stringContaining('Could not start a crypto worker:'),
     });
@@ -496,7 +498,7 @@ describe('workers pool', () => {
     const timers = jest.spyOn(globalThis, 'setTimeout');
     const { callCrypto, workers } = await loadWorkers({});
     workers.configure({ mode: 'inline', timeout: 12_345, idleTimeout: Infinity });
-    expect(await callCrypto('engineEncode', 'testhash123', 'HELLO WORLD')).toBe('Pt3/97FmPVoz+4JG');
+    expect(await callCrypto('hashDigest', ABC, undefined, undefined)).toBe(SHA256_OF_ABC);
     expect(timers.mock.calls.some(([, delay]) => delay === 12_345)).toBe(false);
   });
 
@@ -505,7 +507,7 @@ describe('workers pool', () => {
     const { handles, factory } = fakeFactory();
     const { callCrypto, workers } = await loadWorkers({ node: factory });
     workers.configure({ mode: 'inline' });
-    expect(await callCrypto('engineEncode', 'testhash123', 'HELLO WORLD')).toBe('Pt3/97FmPVoz+4JG');
+    expect(await callCrypto('hashDigest', ABC, undefined, undefined)).toBe(SHA256_OF_ABC);
     expect(handles).toHaveLength(0);
     expect(warn).not.toHaveBeenCalled();
   });

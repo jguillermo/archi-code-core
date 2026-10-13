@@ -10,10 +10,12 @@ describe('inlineWorkerFactory', () => {
     const handle = factory.create('');
     handle.post({ type: 'init', module: await compileWasm() });
     const request = requester(handle);
-    expect(await request('engineEncode', 'testhash123', 'HELLO WORLD')).toEqual({
+    expect(
+      await request('hashDigest', new TextEncoder().encode('abc'), undefined, undefined),
+    ).toEqual({
       id: 1,
       ok: true,
-      result: 'Pt3/97FmPVoz+4JG',
+      result: 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
     });
     expect(await request('tokenDecrypt', 'nope', 'a-secret-key-1234567890', 1)).toEqual({
       id: 2,
@@ -21,7 +23,7 @@ describe('inlineWorkerFactory', () => {
       error: 'MALFORMED|Invalid token format.',
       fatal: false,
     });
-    const missing = await request('missing' as 'engineEncode');
+    const missing = await request('missing' as 'jwtDecode');
     expect(missing.ok).toBe(false);
     handle.onFailure(() => undefined);
     handle.keepAlive(true);
@@ -30,12 +32,12 @@ describe('inlineWorkerFactory', () => {
 
   it('marks a wasm trap as fatal', async () => {
     const trappingGlue = `var wasm_bindgen = Object.assign(() => Promise.resolve(), {
-      engineEncode: () => { throw new WebAssembly.RuntimeError('unreachable'); },
+      jwtDecode: () => { throw new WebAssembly.RuntimeError('unreachable'); },
     });`;
     const handle = inlineWorkerFactory(trappingGlue).create('');
     handle.post({ type: 'init', module: await compileWasm() });
     const request = requester(handle);
-    expect(await request('engineEncode', 'k', 'x')).toEqual({
+    expect(await request('jwtDecode', 'x')).toEqual({
       id: 1,
       ok: false,
       error: 'unreachable',
@@ -46,9 +48,10 @@ describe('inlineWorkerFactory', () => {
   it('drops responses while nobody listens', async () => {
     const handle = inlineWorkerFactory(wasmGlue()).create('');
     handle.post({ type: 'init', module: await compileWasm() });
-    handle.post({ id: 1, fn: 'engineEncode', args: ['k', 'x'] });
+    const abc = new TextEncoder().encode('abc');
+    handle.post({ id: 1, fn: 'hashDigest', args: [abc, undefined, undefined] });
     await new Promise((resolve) => setTimeout(resolve, 20));
     const request = requester(handle);
-    expect((await request('engineEncode', 'k', 'x')).ok).toBe(true);
+    expect((await request('hashDigest', abc, undefined, undefined)).ok).toBe(true);
   });
 });

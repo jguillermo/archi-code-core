@@ -19,7 +19,6 @@ export interface JwtVerifyOptions {
   issuer?: string;
   audience?: string;
   clockTolerance?: number;
-  ignoreExpiration?: boolean;
   requireExpiration?: boolean;
 }
 
@@ -37,7 +36,7 @@ export const jwt = {
     key: string,
     options: JwtVerifyOptions = {},
   ): Promise<Payload> {
-    const text = requireText(signed, 'jwt', 'verify Error: ');
+    const text = requireText(signed, 'jwt');
     const secret = requireText(key, 'key');
     const json = await callCrypto(
       'jwtVerify',
@@ -50,7 +49,7 @@ export const jwt = {
   },
 
   async decode<Payload extends JwtPayload = JwtPayload>(signed: string): Promise<Payload> {
-    const text = requireText(signed, 'jwt', 'data Error: ');
+    const text = requireText(signed, 'jwt');
     return JSON.parse(await callCrypto('jwtDecode', text)) as Payload;
   },
 };

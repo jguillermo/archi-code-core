@@ -59,11 +59,6 @@ function smoke(m) {
       },
     ],
     [
-      'CryptoEngine keeps the previous outputs',
-      async () =>
-        (await new m.CryptoEngine('testhash123').encode('HELLO WORLD')) === 'Pt3/97FmPVoz+4JG',
-    ],
-    [
       'errors carry a code',
       async () => {
         try {
@@ -116,18 +111,15 @@ function web(webModule, nodeModule) {
       },
     ],
     [
-      'web and Node agree on tokens, JWT and CryptoEngine',
+      'web and Node agree on tokens, JWT and hashes',
       async () => {
         const encrypted = await webModule.token.encrypt({ id: 7 }, SECRET, { expiresIn: 60 });
         const signed = await nodeModule.jwt.sign({ id: 8 }, SECRET, { expiresIn: 60 });
-        const engine = await webModule.CryptoEngine.prototype.encode.call(
-          new webModule.CryptoEngine('testhash123'),
-          'HELLO WORLD',
-        );
+        const digests = await Promise.all([webModule, nodeModule].map((m) => m.hash.digest('abc')));
         const ok =
           (await nodeModule.token.decrypt(encrypted, SECRET)).id === 7 &&
           (await webModule.jwt.verify(signed, SECRET)).id === 8 &&
-          engine === 'Pt3/97FmPVoz+4JG';
+          digests[0] === digests[1];
         nodeModule.workers.terminate();
         return ok;
       },
@@ -180,9 +172,10 @@ function browser() {
         const warnings = [];
         console.warn = (...values) => warnings.push(values.join(' '));
         const m = await import(entry);
-        const encoded = await new m.CryptoEngine('testhash123').encode('HELLO WORLD');
+        const digest = await m.hash.digest('abc');
         const runtime = m.workers.runtime();
-        if (encoded !== 'Pt3/97FmPVoz+4JG') return `encoded ${encoded}`;
+        if (digest !== 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad')
+          return `digest ${digest}`;
         if (runtime !== 'inline') return `runtime ${runtime}`;
         return (
           (warnings.length === 1 && warnings[0].includes('workers are blocked')) ||

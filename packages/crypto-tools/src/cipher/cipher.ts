@@ -8,8 +8,6 @@ export type CipherAlgorithm =
   | 'chacha20-poly1305'
   | 'xchacha20-poly1305';
 
-export type LegacyCipherAlgorithm = 'aes-128-cbc-hmac' | 'aes-192-cbc-hmac' | 'aes-256-cbc-hmac';
-
 export type CipherKeyOptions = LevelOptions<CipherAlgorithm>;
 
 export interface CipherOptions extends LevelOptions<CipherAlgorithm> {
@@ -17,7 +15,7 @@ export interface CipherOptions extends LevelOptions<CipherAlgorithm> {
 }
 
 export interface CipherDecryptOptions {
-  algorithm?: CipherAlgorithm | LegacyCipherAlgorithm;
+  algorithm?: CipherAlgorithm;
 }
 
 export const cipher = {

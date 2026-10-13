@@ -1,10 +1,7 @@
 use wasm_bindgen::prelude::*;
 
 use crate::error::CryptoResult;
-use crate::{
-    catalog, cipher, engine::CryptoEngine, hash, jwt, password, rsa_cipher, rsa_keys, signature,
-    token,
-};
+use crate::{catalog, cipher, hash, jwt, password, rsa_cipher, rsa_keys, signature, token};
 
 fn js<T>(result: CryptoResult<T>) -> Result<T, JsValue> {
     result.map_err(|error| JsValue::from_str(&error.encoded()))
@@ -223,16 +220,6 @@ pub fn jwt_verify(token: &str, key: &str, options_json: &str, now: f64) -> Resul
 }
 
 #[wasm_bindgen(js_name = jwtDecode)]
-pub fn jwt_decode(token: &str) -> String {
-    jwt::decode(token)
-}
-
-#[wasm_bindgen(js_name = engineEncode)]
-pub fn engine_encode(seed_key: &str, message: &str) -> Result<String, JsValue> {
-    js(CryptoEngine::new(seed_key).map(|engine| engine.encode(message)))
-}
-
-#[wasm_bindgen(js_name = engineDecode)]
-pub fn engine_decode(seed_key: &str, message: &str) -> Result<String, JsValue> {
-    js(CryptoEngine::new(seed_key).map(|engine| engine.decode(message)))
+pub fn jwt_decode(token: &str) -> Result<String, JsValue> {
+    js(jwt::decode(token))
 }

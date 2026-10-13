@@ -1,65 +1,51 @@
-use aes::cipher::block_padding::Pkcs7;
-use aes::cipher::{BlockDecryptMut, KeyIvInit};
 use argon2::{Argon2, Params, Version};
 use hkdf::Hkdf;
 use sha2::{Sha256, Sha384};
-use subtle::ConstantTimeEq;
 use zeroize::Zeroizing;
 
 use crate::aead::{AeadAlgorithm, open, seal};
 use crate::encoding::{from_base64url, random_bytes, to_base64url};
 use crate::error::{CryptoError, CryptoResult};
-use crate::hash::{DigestAlgorithm, hmac_bytes};
 use crate::level::{Algorithm, Level, explicit_level, resolve};
 use crate::password::{MAX_PASSWORD_CHARACTERS, PasswordParams, argon2_params, characters};
 
 const VERSION: &str = "v1";
 const SALT_LENGTH: usize = 16;
-const LEGACY_IV_LENGTH: usize = 16;
 const MIN_SECRET_LENGTH: usize = 16;
 const MIN_CNSA_SECRET_LENGTH: usize = 32;
 const MIN_PASSWORD_CHARACTERS: usize = 8;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CipherAlgorithm {
-    Aead(AeadAlgorithm),
-    LegacyCbcHmac(usize),
-}
+pub struct CipherAlgorithm(AeadAlgorithm);
 
 impl Algorithm for CipherAlgorithm {
     fn parse(value: &str) -> CryptoResult<Self> {
         match value {
-            "aes-128-gcm" => Ok(CipherAlgorithm::Aead(AeadAlgorithm::Aes128Gcm)),
-            "aes-256-gcm" => Ok(CipherAlgorithm::Aead(AeadAlgorithm::Aes256Gcm)),
-            "chacha20-poly1305" => Ok(CipherAlgorithm::Aead(AeadAlgorithm::ChaCha20Poly1305)),
-            "xchacha20-poly1305" => Ok(CipherAlgorithm::Aead(AeadAlgorithm::XChaCha20Poly1305)),
-            "aes-128-cbc-hmac" => Ok(CipherAlgorithm::LegacyCbcHmac(16)),
-            "aes-192-cbc-hmac" => Ok(CipherAlgorithm::LegacyCbcHmac(24)),
-            "aes-256-cbc-hmac" => Ok(CipherAlgorithm::LegacyCbcHmac(32)),
+            "aes-128-gcm" => Ok(CipherAlgorithm(AeadAlgorithm::Aes128Gcm)),
+            "aes-256-gcm" => Ok(CipherAlgorithm(AeadAlgorithm::Aes256Gcm)),
+            "chacha20-poly1305" => Ok(CipherAlgorithm(AeadAlgorithm::ChaCha20Poly1305)),
+            "xchacha20-poly1305" => Ok(CipherAlgorithm(AeadAlgorithm::XChaCha20Poly1305)),
             other => Err(CryptoError::unsupported(format!(
-                "Unsupported cipher algorithm: {other}. Use aes-128-gcm, aes-256-gcm, chacha20-poly1305, xchacha20-poly1305 or aes-128/192/256-cbc-hmac."
+                "Unsupported cipher algorithm: {other}. Use aes-128-gcm, aes-256-gcm, chacha20-poly1305 or xchacha20-poly1305."
             ))),
         }
     }
 
     fn name(self) -> &'static str {
-        match self {
-            CipherAlgorithm::Aead(AeadAlgorithm::Aes128Gcm) => "aes-128-gcm",
-            CipherAlgorithm::Aead(AeadAlgorithm::Aes256Gcm) => "aes-256-gcm",
-            CipherAlgorithm::Aead(AeadAlgorithm::ChaCha20Poly1305) => "chacha20-poly1305",
-            CipherAlgorithm::Aead(AeadAlgorithm::XChaCha20Poly1305) => "xchacha20-poly1305",
-            CipherAlgorithm::LegacyCbcHmac(16) => "aes-128-cbc-hmac",
-            CipherAlgorithm::LegacyCbcHmac(24) => "aes-192-cbc-hmac",
-            CipherAlgorithm::LegacyCbcHmac(_) => "aes-256-cbc-hmac",
+        match self.0 {
+            AeadAlgorithm::Aes128Gcm => "aes-128-gcm",
+            AeadAlgorithm::Aes256Gcm => "aes-256-gcm",
+            AeadAlgorithm::ChaCha20Poly1305 => "chacha20-poly1305",
+            AeadAlgorithm::XChaCha20Poly1305 => "xchacha20-poly1305",
         }
     }
 
     fn for_level(level: Level) -> Self {
-        match level {
-            Level::Basic => CipherAlgorithm::Aead(AeadAlgorithm::Aes128Gcm),
-            Level::Standard | Level::Cnsa => CipherAlgorithm::Aead(AeadAlgorithm::Aes256Gcm),
-            Level::Strong => CipherAlgorithm::Aead(AeadAlgorithm::XChaCha20Poly1305),
-        }
+        CipherAlgorithm(match level {
+            Level::Basic => AeadAlgorithm::Aes128Gcm,
+            Level::Standard | Level::Cnsa => AeadAlgorithm::Aes256Gcm,
+            Level::Strong => AeadAlgorithm::XChaCha20Poly1305,
+        })
     }
 }
 
@@ -186,22 +172,8 @@ pub fn derive_key(
     Ok(kdf.derive(secret.as_bytes(), salt, info.as_bytes(), length))
 }
 
-fn decrypt_only(algorithm: CipherAlgorithm) -> CryptoError {
-    CryptoError::unsupported(format!(
-        "{} is the legacy format of crypto-tools 3.x and can only be decrypted; encrypt with an AEAD algorithm.",
-        algorithm.name()
-    ))
-}
-
-fn resolve_aead(level: Option<&str>, algorithm: Option<&str>) -> CryptoResult<AeadAlgorithm> {
-    match resolve::<CipherAlgorithm>(level, algorithm)? {
-        CipherAlgorithm::Aead(aead) => Ok(aead),
-        legacy => Err(decrypt_only(legacy)),
-    }
-}
-
 pub fn generate_key(level: Option<&str>, algorithm: Option<&str>) -> CryptoResult<String> {
-    resolve_aead(level, algorithm)?;
+    resolve::<CipherAlgorithm>(level, algorithm)?;
     Ok(to_base64url(&random_bytes(32)?))
 }
 
@@ -219,8 +191,8 @@ pub fn encrypt(
     algorithm: Option<&str>,
     password: bool,
 ) -> CryptoResult<String> {
-    let aead = resolve_aead(level, algorithm)?;
-    let resolved = CipherAlgorithm::Aead(aead);
+    let resolved = resolve::<CipherAlgorithm>(level, algorithm)?;
+    let aead = resolved.0;
     let level = explicit_level(level)?;
     let kdf = match (password, level) {
         (true, level) => Kdf::for_password(level.unwrap_or(Level::Standard)),
@@ -248,20 +220,13 @@ pub fn encrypt(
 
 pub fn decrypt_bytes(text: &str, secret: &str, algorithm: Option<&str>) -> CryptoResult<Vec<u8>> {
     let expected = algorithm.map(CipherAlgorithm::parse).transpose()?;
-    if let Some(CipherAlgorithm::LegacyCbcHmac(key_length)) = expected {
-        return legacy_decrypt(text, secret, key_length);
-    }
     let parts: Vec<&str> = text.split('.').collect();
     if parts.len() != 6 || parts[0] != VERSION {
         return Err(CryptoError::malformed("Invalid encrypted format."));
     }
     let resolved = CipherAlgorithm::parse(parts[1])
         .map_err(|_| CryptoError::malformed("Invalid encrypted format: unknown algorithm."))?;
-    let CipherAlgorithm::Aead(aead) = resolved else {
-        return Err(CryptoError::malformed(
-            "Invalid encrypted format: unknown algorithm.",
-        ));
-    };
+    let aead = resolved.0;
     if let Some(expected) = expected
         && expected != resolved
     {
@@ -294,133 +259,16 @@ pub fn decrypt_bytes(text: &str, secret: &str, algorithm: Option<&str>) -> Crypt
 }
 
 pub fn decrypt(text: &str, secret: &str, algorithm: Option<&str>) -> CryptoResult<String> {
-    let legacy = matches!(
-        algorithm.map(CipherAlgorithm::parse).transpose()?,
-        Some(CipherAlgorithm::LegacyCbcHmac(_))
-    );
     let bytes = decrypt_bytes(text, secret, algorithm)?;
-    if legacy {
-        return Ok(String::from_utf8_lossy(&bytes).into_owned());
-    }
     String::from_utf8(bytes)
         .map_err(|_| CryptoError::malformed("Decrypted data is not UTF-8 text; use decryptBytes."))
-}
-
-fn legacy_key(secret: &str, key_length: usize) -> CryptoResult<Zeroizing<Vec<u8>>> {
-    let bytes = secret.as_bytes();
-    if bytes.len() < MIN_SECRET_LENGTH {
-        return Err(CryptoError::invalid_key(
-            "Key must have a minimum length of 16 characters.",
-        ));
-    }
-    Ok(Zeroizing::new(
-        (0..key_length)
-            .map(|index| bytes[index % bytes.len()])
-            .collect(),
-    ))
-}
-
-#[cfg(test)]
-fn legacy_cbc_encrypt(key: &[u8], iv: &[u8], data: &[u8]) -> Vec<u8> {
-    use aes::cipher::BlockEncryptMut;
-    match key.len() {
-        16 => cbc::Encryptor::<aes::Aes128>::new_from_slices(key, iv)
-            .unwrap_or_else(|_| unreachable!("key and iv lengths are fixed"))
-            .encrypt_padded_vec_mut::<Pkcs7>(data),
-        24 => cbc::Encryptor::<aes::Aes192>::new_from_slices(key, iv)
-            .unwrap_or_else(|_| unreachable!("key and iv lengths are fixed"))
-            .encrypt_padded_vec_mut::<Pkcs7>(data),
-        _ => cbc::Encryptor::<aes::Aes256>::new_from_slices(key, iv)
-            .unwrap_or_else(|_| unreachable!("key and iv lengths are fixed"))
-            .encrypt_padded_vec_mut::<Pkcs7>(data),
-    }
-}
-
-fn legacy_cbc_decrypt(key: &[u8], iv: &[u8], data: &[u8]) -> CryptoResult<Vec<u8>> {
-    let result = match key.len() {
-        16 => cbc::Decryptor::<aes::Aes128>::new_from_slices(key, iv)
-            .unwrap_or_else(|_| unreachable!("key and iv lengths are fixed"))
-            .decrypt_padded_vec_mut::<Pkcs7>(data),
-        24 => cbc::Decryptor::<aes::Aes192>::new_from_slices(key, iv)
-            .unwrap_or_else(|_| unreachable!("key and iv lengths are fixed"))
-            .decrypt_padded_vec_mut::<Pkcs7>(data),
-        _ => cbc::Decryptor::<aes::Aes256>::new_from_slices(key, iv)
-            .unwrap_or_else(|_| unreachable!("key and iv lengths are fixed"))
-            .decrypt_padded_vec_mut::<Pkcs7>(data),
-    };
-    result.map_err(|_| CryptoError::tampered("Decryption failed: bad decrypt."))
-}
-
-fn legacy_hmac(key: &[u8], data: &str) -> String {
-    hex::encode(
-        hmac_bytes(DigestAlgorithm::Sha256, key, data.as_bytes())
-            .unwrap_or_else(|_| unreachable!("sha256 supports HMAC")),
-    )
-}
-
-#[cfg(test)]
-fn legacy_encrypt(data: &[u8], secret: &str, key_length: usize) -> CryptoResult<String> {
-    let key = legacy_key(secret, key_length)?;
-    let iv = random_bytes(LEGACY_IV_LENGTH)?;
-    let encrypted = legacy_cbc_encrypt(&key, &iv, data);
-    let body = format!("{}|{}", hex::encode(&iv), hex::encode(&encrypted));
-    let mac = legacy_hmac(&key, &body);
-    Ok(format!("{body}|{mac}"))
-}
-
-fn legacy_decrypt(text: &str, secret: &str, key_length: usize) -> CryptoResult<Vec<u8>> {
-    let key = legacy_key(secret, key_length)?;
-    let mut parts = text.split('|');
-    let iv = parts.next().unwrap_or_default();
-    let encrypted = parts.next().unwrap_or_default();
-    let mac = parts.next().unwrap_or_default();
-    if iv.is_empty() || encrypted.is_empty() || mac.is_empty() || iv.len() != LEGACY_IV_LENGTH * 2 {
-        return Err(CryptoError::malformed(
-            "Decryption failed: Invalid encrypted format.",
-        ));
-    }
-    let expected = legacy_hmac(&key, &format!("{iv}|{encrypted}"));
-    if !bool::from(expected.as_bytes().ct_eq(mac.as_bytes())) {
-        return Err(CryptoError::tampered(
-            "Decryption failed: Invalid HMAC. Data may have been tampered with.",
-        ));
-    }
-    let iv = hex::decode(iv)
-        .map_err(|_| CryptoError::malformed("Decryption failed: Invalid encrypted format."))?;
-    let encrypted = hex::decode(encrypted)
-        .map_err(|_| CryptoError::malformed("Decryption failed: Invalid encrypted format."))?;
-    legacy_cbc_decrypt(&key, &iv, &encrypted)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::Value;
 
     const SECRET: &str = "a-secret-key-with-more-than-32-characters";
-
-    fn legacy(data: &[u8], key: &str, algorithm: &str) -> String {
-        let CipherAlgorithm::LegacyCbcHmac(key_length) = CipherAlgorithm::parse(algorithm).unwrap()
-        else {
-            panic!("{algorithm} is not a legacy algorithm")
-        };
-        legacy_encrypt(data, key, key_length).unwrap()
-    }
-
-    #[test]
-    fn only_decrypts_the_legacy_format() {
-        for algorithm in ["aes-128-cbc-hmac", "aes-192-cbc-hmac", "aes-256-cbc-hmac"] {
-            let error = encrypt(b"x", SECRET, None, Some(algorithm), false).unwrap_err();
-            assert_eq!(error.code, crate::error::ErrorCode::Unsupported);
-            assert_eq!(
-                error.message,
-                format!(
-                    "{algorithm} is the legacy format of crypto-tools 3.x and can only be decrypted; encrypt with an AEAD algorithm."
-                )
-            );
-            assert!(generate_key(None, Some(algorithm)).is_err());
-        }
-    }
 
     #[test]
     fn derives_the_key_from_a_password_with_argon2id() {
@@ -546,8 +394,6 @@ mod tests {
         let encrypted = encrypt(b"x", SECRET, None, None, false).unwrap();
         let bad_kdf = encrypted.replacen("hkdf-sha256", "hkdf-md5", 1);
         assert!(decrypt(&bad_kdf, SECRET, None).is_err());
-        let legacy_name = encrypted.replacen("aes-256-gcm", "aes-256-cbc-hmac", 1);
-        assert!(decrypt(&legacy_name, SECRET, None).is_err());
         assert!(decrypt(&encrypted, SECRET, Some("aes-128-gcm")).is_err());
     }
 
@@ -591,94 +437,5 @@ mod tests {
         assert_eq!(first, derive_key(SECRET, false, None, "info", 32).unwrap());
         assert_ne!(first, derive_key(SECRET, true, None, "info", 32).unwrap());
         assert!(derive_key("short", false, None, "info", 32).is_err());
-    }
-
-    #[test]
-    fn decrypts_data_from_the_javascript_symmetric_encryption() {
-        let fixtures: Value =
-            serde_json::from_str(include_str!("../../test/fixtures/legacy.json")).unwrap();
-        for case in fixtures["legacyCipher"].as_array().unwrap() {
-            let algorithm = format!("{}-hmac", case["algorithm"].as_str().unwrap());
-            let key = case["key"].as_str().unwrap();
-            let decrypted =
-                decrypt(case["encrypted"].as_str().unwrap(), key, Some(&algorithm)).unwrap();
-            assert_eq!(decrypted, case["text"].as_str().unwrap());
-        }
-    }
-
-    #[test]
-    fn keeps_the_legacy_format_round_trip_and_errors() {
-        for algorithm in ["aes-128-cbc-hmac", "aes-192-cbc-hmac", "aes-256-cbc-hmac"] {
-            let key = "0123456789abcdef";
-            let encrypted = legacy("こんにちは".as_bytes(), key, algorithm);
-            assert_eq!(encrypted.split('|').count(), 3);
-            assert_eq!(
-                decrypt(&encrypted, key, Some(algorithm)).unwrap(),
-                "こんにちは"
-            );
-        }
-        let key = "my-secure-keymy-secure-key";
-        let algorithm = Some("aes-256-cbc-hmac");
-        assert_eq!(
-            decrypt("invalid|encrypted|string", key, algorithm)
-                .unwrap_err()
-                .message,
-            "Decryption failed: Invalid encrypted format."
-        );
-        assert_eq!(
-            decrypt("shortiv|encrypteddata|hmac", key, algorithm)
-                .unwrap_err()
-                .message,
-            "Decryption failed: Invalid encrypted format."
-        );
-        let encrypted = legacy(b"text", key, "aes-256-cbc-hmac");
-        let tampered = format!("{}0", &encrypted[..encrypted.len() - 1]);
-        let tampered = if tampered == encrypted {
-            format!("{}1", &encrypted[..encrypted.len() - 1])
-        } else {
-            tampered
-        };
-        assert_eq!(
-            decrypt(&tampered, key, algorithm).unwrap_err().message,
-            "Decryption failed: Invalid HMAC. Data may have been tampered with."
-        );
-        assert_eq!(
-            legacy_encrypt(b"x", "123456789012345", 32)
-                .unwrap_err()
-                .message,
-            "Key must have a minimum length of 16 characters."
-        );
-        assert_eq!(
-            decrypt("bad", "123456789012345", algorithm)
-                .unwrap_err()
-                .message,
-            "Key must have a minimum length of 16 characters."
-        );
-    }
-
-    #[test]
-    fn reports_bad_hex_and_bad_padding_in_the_legacy_format() {
-        let key = "0123456789abcdef";
-        let algorithm = Some("aes-128-cbc-hmac");
-        let derived = legacy_key(key, 16).unwrap();
-        let iv = "zz".repeat(16);
-        let body = format!("{iv}|00");
-        let forged = format!("{body}|{}", legacy_hmac(&derived, &body));
-        assert_eq!(
-            decrypt(&forged, key, algorithm).unwrap_err().code,
-            crate::error::ErrorCode::Malformed
-        );
-        let body = format!("{}|zz", "00".repeat(16));
-        let forged = format!("{body}|{}", legacy_hmac(&derived, &body));
-        assert_eq!(
-            decrypt(&forged, key, algorithm).unwrap_err().code,
-            crate::error::ErrorCode::Malformed
-        );
-        let body = format!("{}|{}", "00".repeat(16), "11".repeat(16));
-        let forged = format!("{body}|{}", legacy_hmac(&derived, &body));
-        assert_eq!(
-            decrypt(&forged, key, algorithm).unwrap_err().code,
-            crate::error::ErrorCode::Tampered
-        );
     }
 }

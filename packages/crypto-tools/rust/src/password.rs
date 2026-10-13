@@ -57,6 +57,8 @@ pub enum PasswordParams {
 const MIN_BCRYPT_COST: u32 = 4;
 const MAX_BCRYPT_COST: u32 = 14;
 const MAX_BCRYPT_BYTES: usize = 72;
+const BCRYPT_PREFIX: &str = "$2b$";
+const ARGON2_VERSION: u32 = 0x13;
 pub const MAX_PASSWORD_CHARACTERS: usize = 64;
 
 fn bcrypt_cost(level: Level) -> u32 {
@@ -161,19 +163,7 @@ pub fn hash(
 }
 
 fn bcrypt_hash_cost(value: &str) -> Option<u32> {
-    let bytes = value.as_bytes();
-    let prefix = if value.starts_with("$2$") {
-        3
-    } else if value.len() > 4
-        && value.starts_with("$2")
-        && matches!(bytes[2], b'a' | b'b' | b'y')
-        && bytes[3] == b'$'
-    {
-        4
-    } else {
-        return None;
-    };
-    let rest = &bytes[prefix..];
+    let rest = value.strip_prefix(BCRYPT_PREFIX)?.as_bytes();
     let well_formed = rest.len() == 2 + 1 + 53
         && rest[0].is_ascii_digit()
         && rest[1].is_ascii_digit()
@@ -201,9 +191,9 @@ fn within_argon2_limits(hash: &PasswordHash<'_>) -> bool {
 }
 
 fn parse_argon2(value: &str) -> Option<PasswordHash<'_>> {
-    PasswordHash::new(value)
-        .ok()
-        .filter(|hash| hash.algorithm.as_str().starts_with("argon2"))
+    PasswordHash::new(value).ok().filter(|hash| {
+        hash.algorithm.as_str() == "argon2id" && hash.version == Some(ARGON2_VERSION)
+    })
 }
 
 pub fn is_hash(value: &str) -> bool {
@@ -227,11 +217,6 @@ pub fn verify(password: &str, hash: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::Value;
-
-    fn fixtures() -> Value {
-        serde_json::from_str(include_str!("../../test/fixtures/legacy.json")).unwrap()
-    }
 
     #[test]
     fn maps_every_level_to_its_parameters() {
@@ -401,14 +386,16 @@ mod tests {
     }
 
     #[test]
-    fn verifies_hashes_made_by_the_javascript_libraries() {
-        let fixtures = fixtures();
-        for name in ["bcrypt", "argon2id"] {
-            let case = &fixtures["password"][name];
-            let password = case["password"].as_str().unwrap();
-            let hash = case["hash"].as_str().unwrap();
-            assert!(verify(password, hash), "{name}");
-            assert!(!verify("WrongPassword!", hash), "{name}");
+    fn only_accepts_the_argon2id_hashes_it_produces() {
+        let own = hash("secret", None, None, None).unwrap();
+        assert!(is_hash(&own));
+        for other in [
+            own.replacen("$argon2id$", "$argon2i$", 1),
+            own.replacen("$argon2id$", "$argon2d$", 1),
+            own.replacen("v=19", "v=16", 1),
+        ] {
+            assert!(!is_hash(&other), "{other}");
+            assert!(!verify("secret", &other), "{other}");
         }
     }
 
@@ -420,15 +407,15 @@ mod tests {
             "$2b$12$malformedhashXXXXXXXXXXXXXXXXXXXXXXX",
             "sha256$abcdef1234567890",
             "$pbkdf2-sha256$i=1000$c2FsdA$aGFzaA",
+            "$2$12$D5.xYyM96cGfD.g8O6jMkOt3kFKQoBJDdq9BdqjVwp3Xkrxjl5Nuq",
+            "$2a$12$D5.xYyM96cGfD.g8O6jMkOt3kFKQoBJDdq9BdqjVwp3Xkrxjl5Nuq",
+            "$2y$12$D5.xYyM96cGfD.g8O6jMkOt3kFKQoBJDdq9BdqjVwp3Xkrxjl5Nuq",
         ] {
             assert!(!is_hash(value), "{value}");
             assert!(!verify("secret", value), "{value}");
         }
         assert!(is_hash(
             "$2b$12$D5.xYyM96cGfD.g8O6jMkOt3kFKQoBJDdq9BdqjVwp3Xkrxjl5Nuq"
-        ));
-        assert!(is_hash(
-            "$2$12$D5.xYyM96cGfD.g8O6jMkOt3kFKQoBJDdq9BdqjVwp3Xkrxjl5Nuq"
         ));
     }
 }

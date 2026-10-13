@@ -4,7 +4,6 @@ pub mod catalog;
 pub mod cipher;
 pub mod clock;
 pub mod encoding;
-pub mod engine;
 pub mod error;
 pub mod hash;
 pub mod jwt;

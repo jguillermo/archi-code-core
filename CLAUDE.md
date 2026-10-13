@@ -146,14 +146,15 @@ npm workspaces monorepo publishing independent npm packages implementing DDD pat
   async modules with standard verbs (`password.hash/verify`, `cipher.encrypt/decrypt`, `rsa`,
   `signature.sign/verify`, `hash.digest/hmac`, `token`, `jwt`) and `{ level, algorithm }` options.
 - Levels `basic | standard | strong | cnsa` (`military` = `cnsa`) are one table in `rust/src`; errors are
-  `CryptoError` with a `code`. `CryptoEngine` is the legacy obfuscator ported byte for byte (it replicates
-  V8's TimSort); `test/fixtures/legacy.json` holds outputs of the previous JS implementation.
+  `CryptoError` with a `code`. It is a new library: nothing exists for compatibility with an older
+  version or with other libraries; it only reads what it produces (bcrypt `$2b$`, Argon2id v19, PKCS#8 /
+  SPKI PEM) and its messages are its own.
 - Pool: a call that gets no answer within `timeout` ms (default 60 s) rejects with `TIMEOUT` and a wasm
   trap rejects with `WORKER`; in both cases the worker is replaced and its queued calls move to another
   one. A page that blocks Blob workers (CSP) falls back to the calling thread. Idle workers close after
   `idleTimeout` (default 30 s) to give back wasm memory (Argon2id keeps 64–256 MiB).
-- `cipher` derives with HKDF for random keys and with Argon2id for `{ password: true }`; the
-  `aes-*-cbc-hmac` legacy format is decrypt-only. `jwt` requires `exp` unless `requireExpiration: false`.
+- `cipher` derives with HKDF for random keys and with Argon2id for `{ password: true }` (AEAD only).
+  `jwt` and `token` require `exp` unless `requireExpiration: false`.
 - Passwords: `standard` is Argon2id, only `basic` is bcrypt; `password.hash` takes at most 64 characters
   (grapheme clusters) and bcrypt refuses passwords over 72 bytes instead of truncating them.
 - RSA private-key operations are blinded (`decrypt_blinded`, `BlindedSigningKey`); RUSTSEC-2023-0071
