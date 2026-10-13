@@ -60,7 +60,8 @@
     "./package.json": "./package.json"
   },
   "files": [
-    "dist/"
+    "dist/",
+    "SKILL.md"
   ],
   "scripts": {
     "prebuild": "rm -rf dist || true",

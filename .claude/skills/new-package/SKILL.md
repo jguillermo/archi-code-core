@@ -15,8 +15,9 @@ Creates a package that follows `.claude/rules/packages.md`. Read that rule first
    node scripts/new-package.js <folder> "<description>"
    ```
 
-   It refuses an existing folder or an invalid name, writes the package, adds `check:<folder>` to
-   the root `package.json` and formats everything with Prettier.
+   It refuses an existing folder or an invalid name, writes the package (with a Spanish `README.md`
+   and a `SKILL.md` named `archi-code-<folder>`), adds `check:<folder>` to the root `package.json`
+   and formats everything with Prettier.
 
 3. Run `npm install` at the root so the workspace is linked (`check-types` imports the package by
    name). This updates `package-lock.json`.
@@ -24,6 +25,7 @@ Creates a package that follows `.claude/rules/packages.md`. Read that rule first
 5. If the user described the package's code, replace the placeholder `PACKAGE_NAME` export with it
    and keep `test/index.spec.ts` (public API list), the specs mirroring `src/`, and
    `test/dist/dist.check.js` (real API calls on both builds) in sync. Coverage must stay at 100%.
-6. Add the package to the tables and the dependency graph in `CLAUDE.md`, and expand its
-   `README.md` with real usage.
+6. Add the package to the tables and the dependency graph in `CLAUDE.md` and the root `README.md`,
+   and document the real API in its `README.md` and the rules, patterns and common mistakes in its
+   light `SKILL.md` (Documentation section of the rule).
 7. Run `npm run check:<folder>` again and report the result. Do not commit.

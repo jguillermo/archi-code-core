@@ -50,7 +50,8 @@
     "./package.json": "./package.json"
   },
   "files": [
-    "dist/"
+    "dist/",
+    "SKILL.md"
   ],
   "sideEffects": false,
   "scripts": {
@@ -66,9 +67,9 @@
     "check:all": "npm run check:editorconfig && npm run check:prettier && npm run check:lint && npm run check:types && npm run test:coverage && npm run build && npm run check:dist",
     "benchmark": "ts-node --project benchmark/tsconfig.json benchmark/run.ts",
     "check:lint": "eslint src test benchmark --ext .ts",
-    "check:prettier": "prettier --check \"{src,test}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\" \"benchmark/**/*.ts\" benchmark/tsconfig.json \"docs/**/*.md\" benchmark/README.md \"*.{json,md}\"",
+    "check:prettier": "prettier --check \"{src,test}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\" \"benchmark/**/*.ts\" benchmark/tsconfig.json benchmark/README.md \"*.{json,md}\"",
     "fix:lint": "eslint src test benchmark --ext .ts --fix",
-    "fix:prettier": "prettier --write \"{src,test}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\" \"benchmark/**/*.ts\" benchmark/tsconfig.json \"docs/**/*.md\" benchmark/README.md \"*.{json,md}\""
+    "fix:prettier": "prettier --write \"{src,test}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\" \"benchmark/**/*.ts\" benchmark/tsconfig.json benchmark/README.md \"*.{json,md}\""
   },
   "jest": {
     "moduleFileExtensions": [

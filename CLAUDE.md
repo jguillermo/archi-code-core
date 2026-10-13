@@ -26,7 +26,7 @@ Every package's `check:all` runs the same gate: editorconfig-checker → prettie
 The root `scripts/` holds only the general tools (packages have no `scripts/` folder); each package calls them as `node ../../scripts/<name>.js` and they act on the current package directory:
 
 - `scripts/fix-esm.js` — adds `.js` to relative imports in `dist/esm`, gives files that call `require()` a `createRequire` shim (so optional deps loaded with `require` also work in ESM) and writes `dist/esm/package.json` (`type: module`).
-- `scripts/check-dist.js` — `main`/`module`/`types` exist, CJS and ESM load and expose the same exports.
+- `scripts/check-dist.js` — `main`/`module`/`types` exist, CJS and ESM load and expose the same exports, and the package documentation is valid and packed (`scripts/lib/package-docs.js`: `files` includes `SKILL.md`, the README mentions it, the `SKILL.md` frontmatter has exactly `name: archi-code-<name>` and `description`, and `npm pack` carries `README.md`, `LICENSE` and `SKILL.md`).
 - `scripts/check-types.js` — a throwaway TypeScript consumer imports the package by name from an ESM (`.mts`) and a CJS (`.cts`) file under `node16`, `nodenext` and `bundler` resolution. Each `exports` condition must carry its own `types` (`import` → `dist/esm`, `require` → `dist/cjs`).
 - `scripts/editorconfig.js` — runs editorconfig-checker with the shared excludes and the binary version pinned (`EC_VERSION`); the npm wrapper downloads the binary from GitHub, so `latest` would break when upstream renames its assets. Change the version only there.
 - `scripts/check-web.js` — `browser` field points to the ESM build, `dist/esm` has no bare imports nor Node-only globals, and the build loads in a realm with the standard Web APIs and without Node APIs.
@@ -71,7 +71,7 @@ network) and `npm run release` (deploy) use the same plan:
   `package.json` and the plan is computed again; a version on npm without a `releaseCommit` from this
   history stops the release.
 - Per package, in dependency order: writes the exact versions and `releaseCommit` into `package.json`,
-  builds, packs, verifies the packed `package.json`, restores the file and publishes that tarball.
+  builds, packs, verifies the packed `package.json` and that the tarball carries `README.md`, `LICENSE` and `SKILL.md`, restores the file and publishes that tarball.
   Right after each successful publish it records the version in `releases.json` and commits and pushes
   it to the branch (`chore(release): record <name>@<version> [skip ci]`), so a run that fails or is
   killed later never leaves a published version out of the file; a push that fails is retried by the
@@ -105,7 +105,7 @@ Each package's `package.json` entry points:
 
 ## Package standard
 
-Every package follows `.claude/rules/packages.md` (layout, `package.json`, tsconfig, Jest, tests, build checks, allowed extensions and a checklist). Create new packages with `node scripts/new-package.js <folder> "<description>"` or the `/new-package` skill; the result passes `check:all` from the start.
+Every package follows `.claude/rules/packages.md` (layout, `package.json`, tsconfig, Jest, tests, build checks, documentation, allowed extensions and a checklist). Each package ships a Spanish `README.md` with its whole API and a light `SKILL.md` (Claude Code skill `archi-code-<name>`: rules, patterns and common mistakes; for the API it sends the assistant to the installed README) that consumers copy into `.claude/skills/`. Create new packages with `node scripts/new-package.js <folder> "<description>"` or the `/new-package` skill; the result passes `check:all` from the start.
 
 ## Architecture
 

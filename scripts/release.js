@@ -9,6 +9,7 @@ const { CHANNELS } = require('./lib/versions');
 const { currentBranch, headCommit, isAncestorOfHead } = require('./lib/release-git');
 const { loadPlan } = require('./lib/load-plan');
 const { manifestErrors, publishManifest } = require('./lib/publish-manifest');
+const { packedDocsErrors } = require('./lib/package-docs');
 const {
   STATE_FILE,
   lastDeploy,
@@ -172,7 +173,10 @@ function packVerified(pkg, destination, commit) {
     const published = JSON.parse(
       execFileSync('tar', ['-xzOf', tarball, 'package/package.json'], { encoding: 'utf8' }),
     );
-    const errors = manifestErrors(published, pkg, commit);
+    const errors = [
+      ...manifestErrors(published, pkg, commit),
+      ...packedDocsErrors(packed.files.map((file) => file.path)),
+    ];
     if (errors.length) {
       throw new Error(`el tarball de ${pkg.name} no es válido:\n  ${errors.join('\n  ')}`);
     }

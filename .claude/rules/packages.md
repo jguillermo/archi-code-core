@@ -24,7 +24,7 @@ packages/<folder>/
 │   └── dist/dist.check.js   # build checks specific to this package
 ├── package.json
 ├── tsconfig.json  tsconfig.build.json  tsconfig.cjs.json  tsconfig.esm.json
-├── .gitignore  LICENSE  README.md
+├── .gitignore  LICENSE  README.md  SKILL.md
 ```
 
 - No `scripts/` folder inside a package: build and check tools live only in the root `scripts/`.
@@ -38,7 +38,8 @@ packages/<folder>/
   what is published. The release writes them into the published `package.json`;
   `npm run check:versions` fails otherwise.
 - `name` `@archi-code/<folder>`, `author` `Jose Guillermo`, `license` `MIT`, `repository` the
-  monorepo, `engines.node` `>=24`, `publishConfig.access` `public`, `files` `["dist/"]`.
+  monorepo, `engines.node` `>=24`, `publishConfig.access` `public`, `files` `["dist/", "SKILL.md"]` (npm adds `README.md` and
+  `LICENSE` on its own).
 - Entry points: `main` `./dist/cjs/index.js`, `module` `./dist/esm/index.js`, `types`
   `./dist/cjs/index.d.ts`.
 - `exports` — each condition carries its own types:
@@ -69,6 +70,35 @@ packages/<folder>/
   code to reach it: cover it with a test, or mark a defensive branch no test can reach with
   `// istanbul ignore`.
 - Runtime deps in `dependencies`; optional heavy libraries as optional `peerDependencies`.
+
+## Documentation
+
+Both files are written in Spanish and for the people (and the AI assistants) that consume the package:
+
+- `README.md` explains the whole public API with examples that run against the build (results shown
+  in comments are the real ones): installation, ESM/CJS import, one section per concept, errors, a
+  table of every export, a "Skill para asistentes de IA" section and the license. The skill section
+  shows the `mkdir`/`cp` install commands, a "Cómo se usa" subsection with three example prompts
+  for that package (explicit `/archi-code-<name> <task>`, a task that loads it on its own, a review
+  of existing code) and a "Mantenerla al día" subsection (copy it again after updating the package,
+  commit `.claude/skills/`). Nothing about the
+  internal gate or the release.
+- `SKILL.md` is a light Claude Code skill: a YAML frontmatter with exactly `name`
+  (`archi-code-<npm name without scope>`, e.g. `archi-code-domain`) and `description` (what it does
+  and when to use it), then the title `# archi-code-<name>` and only what rarely changes: an "API completa" section that
+  sends the assistant to `node_modules/@archi-code/<name>/README.md` (the installed version) before
+  using anything the skill does not show, with `node -p "require.resolve('@archi-code/<name>/package.json')"`
+  as the fallback for workspaces and pnpm; "Skills relacionadas" (the other `archi-code-*` skills
+  it is used with, when there are any); import, whose block names every symbol the patterns use so
+  they compile as copied; rules; a few recommended patterns taken from the README; and a
+  "Qué no hacer" list. No API tables nor export catalogs: the README is the only place that
+  describes the API, so a copied skill stays valid when the package is updated. Consumers copy it from
+  `node_modules/@archi-code/<name>/SKILL.md` to `.claude/skills/archi-code-<name>/SKILL.md`; the
+  README section shows those commands.
+- `check-dist.js` fails when `files` lacks `SKILL.md`, the README does not mention it, the
+  frontmatter is invalid or `npm pack` would leave `README.md`, `LICENSE` or `SKILL.md` out;
+  `release.js` checks the same files in the real tarball. Update the README whenever the public API
+  changes, and the skill when a rule, pattern or common mistake changes.
 
 ## TypeScript
 
@@ -146,8 +176,9 @@ Only when the package needs them, and documented in its README:
 2. `npm install` at the root to link the workspace.
 3. Replace the placeholder `PACKAGE_NAME` export with the real code, keeping
    `test/index.spec.ts` and `test/dist/dist.check.js` in sync with the public API.
-4. Add the package to the tables and the dependency graph in `CLAUDE.md`.
-5. `npm run check:<folder>` must pass. CI and `check:packages` pick the package up automatically.
+4. Document the real API in `README.md` and the rules in `SKILL.md` (see Documentation).
+5. Add the package to the tables and the dependency graph in `CLAUDE.md`.
+6. `npm run check:<folder>` must pass. CI and `check:packages` pick the package up automatically.
 
 ## Checklist (validate every package against it)
 
@@ -157,6 +188,7 @@ Only when the package needs them, and documented in its README:
 - [ ] `package.json` entry points, `exports`, `files`, `engines`, `scripts` and `jest` as above.
 - [ ] `version` and internal `@archi-code/*` deps are `0.0.0-development`.
 - [ ] The four tsconfig files as above.
-- [ ] `README.md`, `LICENSE`, `.gitignore` present.
+- [ ] `README.md`, `SKILL.md`, `LICENSE`, `.gitignore` present; README and skill in Spanish, covering
+      the current public API.
 - [ ] Root `package.json` has `check:<folder>`; `CLAUDE.md` lists the package.
 - [ ] `npm run check:<folder>` passes.

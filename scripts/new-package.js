@@ -36,7 +36,7 @@ function packageJson(folder) {
     module: './dist/esm/index.js',
     types: './dist/cjs/index.d.ts',
     exports: { '.': { import: esm, require: cjs }, './package.json': './package.json' },
-    files: ['dist/'],
+    files: ['dist/', 'SKILL.md'],
     scripts: {
       prebuild: 'rm -rf dist || true',
       'build:cjs': 'tsc -p tsconfig.cjs.json',
@@ -68,6 +68,104 @@ function packageJson(folder) {
       coverageThreshold: { global: { branches: 100, functions: 100, lines: 100, statements: 100 } },
     },
   };
+}
+
+function skillName(name) {
+  return name.replace(`${SCOPE}/`, 'archi-code-');
+}
+
+function readme(name, description) {
+  const skillDir = `.claude/skills/${skillName(name)}`;
+  return [
+    `# ${name}`,
+    '',
+    description,
+    '',
+    '## Instalación',
+    '',
+    '```bash',
+    `npm install ${name}`,
+    '```',
+    '',
+    '## Uso',
+    '',
+    '```ts',
+    `import { PACKAGE_NAME } from '${name}';`,
+    '```',
+    '',
+    '## Skill para asistentes de IA',
+    '',
+    'El paquete incluye `SKILL.md`, una skill de Claude Code con las reglas, los patrones recomendados y los errores comunes. Para la API completa remite a este README dentro de `node_modules`, así que sigue valiendo al actualizar el paquete. Para instalarla en tu proyecto:',
+    '',
+    '```bash',
+    `mkdir -p ${skillDir}`,
+    `cp node_modules/${name}/SKILL.md ${skillDir}/SKILL.md`,
+    '```',
+    '',
+    '### Cómo se usa',
+    '',
+    'Invócala con una petición:',
+    '',
+    '```text',
+    `/${skillName(name)} <tarea que usa ${name}>`,
+    '```',
+    '',
+    'O pide la tarea sin nombrarla y Claude la carga sola porque encaja con su descripción:',
+    '',
+    '```text',
+    '<tarea que encaja con la descripción de la skill>',
+    '```',
+    '',
+    'También sirve para revisar código que ya usa el paquete:',
+    '',
+    '```text',
+    `/${skillName(name)} revisa src/ y corrige lo que incumpla las reglas del paquete`,
+    '```',
+    '',
+    'Con la skill cargada, Claude sigue sus reglas, evita los errores de su lista "Qué no hacer" y, antes de usar algo que la skill no muestra, lee este README en `node_modules`.',
+    '',
+    '### Mantenerla al día',
+    '',
+    `- La copia no se actualiza sola: después de actualizar \`${name}\`, vuelve a ejecutar el \`cp\` de arriba.`,
+    `- Sube \`${skillDir}/\` al repositorio para que todo el equipo la use.`,
+    '',
+    '## Licencia',
+    '',
+    'MIT',
+    '',
+  ].join('\n');
+}
+
+function skill(name, description) {
+  return [
+    '---',
+    `name: ${skillName(name)}`,
+    `description: ${description} Úsala cuando el código importe ${name} o la tarea necesite lo que ofrece.`,
+    '---',
+    '',
+    `# ${skillName(name)}`,
+    '',
+    description,
+    '',
+    '## API completa',
+    '',
+    `Antes de usar algo que esta skill no muestre, lee \`node_modules/${name}/README.md\`: corresponde a la versión instalada. No supongas firmas ni opciones. Si el paquete no está instalado: \`npm install ${name}\`.`,
+    '',
+    `Si esa ruta no existe (monorepo con workspaces, pnpm…), localiza el paquete con \`node -p "require.resolve('${name}/package.json')"\` y lee el \`README.md\` de esa carpeta.`,
+    '',
+    '## Importación',
+    '',
+    '```ts',
+    `import { PACKAGE_NAME } from '${name}';`,
+    '```',
+    '',
+    '## Reglas',
+    '',
+    '## Patrones recomendados',
+    '',
+    '## Qué no hacer',
+    '',
+  ].join('\n');
 }
 
 function templates(folder, description) {
@@ -104,7 +202,8 @@ function templates(folder, description) {
       '',
     ].join('\n'),
     LICENSE: fs.readFileSync(path.join(REPO, 'packages', 'domain', 'LICENSE'), 'utf8'),
-    'README.md': `# ${name}\n\n${description}\n\n\`\`\`bash\nnpm install ${name}\n\`\`\`\n\n## License\n\nMIT\n`,
+    'README.md': readme(name, description),
+    'SKILL.md': skill(name, description),
     'src/index.ts': `export const PACKAGE_NAME = '${name}';\n`,
     'test/index.spec.ts': [
       "import { describe, expect, it } from '@jest/globals';",

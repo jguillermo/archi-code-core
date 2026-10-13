@@ -3,8 +3,10 @@
 
 const fs = require('fs');
 const path = require('path');
+const { execFileSync } = require('child_process');
 const { pathToFileURL } = require('url');
 const { entryPoint, loadPackageChecks, runChecks } = require('./lib/package-checks');
+const { packageDocsErrors, packedDocsErrors } = require('./lib/package-docs');
 
 const ROOT = process.cwd();
 const pkg = require(path.join(ROOT, 'package.json'));
@@ -44,8 +46,17 @@ async function main() {
   }
   if (crossBuild) await runChecks('CJS+ESM', crossBuild(cjs, esm), fail);
 
+  const [packed] = JSON.parse(
+    execFileSync('npm', ['pack', '--dry-run', '--json'], { cwd: ROOT, encoding: 'utf8' }),
+  );
+  const docsErrors = [
+    ...packageDocsErrors(ROOT, pkg),
+    ...packedDocsErrors(packed.files.map((file) => file.path)),
+  ];
+  if (docsErrors.length) fail(docsErrors.join('\n  '));
+
   console.log(
-    `check-dist: OK — CJS and ESM load in Node and expose the same ${cjsKeys.length} exports`,
+    `check-dist: OK — CJS and ESM load in Node and expose the same ${cjsKeys.length} exports; README.md and SKILL.md are packed`,
   );
 }
 
