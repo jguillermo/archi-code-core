@@ -16,7 +16,7 @@
       "main": "3.0.0-alpha.3"
     },
     "@archi-code/validation": {
-      "main": "3.0.0-alpha.3"
+      "main": "3.0.0-alpha.4"
     }
   },
   "deploys": [
@@ -255,6 +255,16 @@
         },
         {
           "name": "@archi-code/crypto-tools",
+          "previous": "3.0.0-alpha.3",
+          "version": "3.0.0-alpha.4",
+          "bump": "minor",
+          "reasons": [
+            "commits (minor)"
+          ],
+          "dependencies": {}
+        },
+        {
+          "name": "@archi-code/validation",
           "previous": "3.0.0-alpha.3",
           "version": "3.0.0-alpha.4",
           "bump": "minor",
