@@ -43,6 +43,7 @@ describe('nodeWorkerFactory', () => {
       id: 3,
       ok: false,
       error: 'MALFORMED|Invalid encrypted format.',
+      fatal: false,
     });
     handle.keepAlive(false);
 

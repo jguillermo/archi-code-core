@@ -47,7 +47,7 @@ mod tests {
         assert_eq!(levels["basic"]["cipher"], "aes-128-gcm");
         assert_eq!(
             levels["standard"]["password"],
-            json!({"algorithm": "bcrypt", "cost": 12})
+            json!({"algorithm": "argon2id", "memoryKiB": 65536, "iterations": 3, "parallelism": 4})
         );
         assert_eq!(levels["strong"]["token"], "paseto-v4-local");
         assert_eq!(levels["cnsa"]["rsa"]["signature"], "PS512");

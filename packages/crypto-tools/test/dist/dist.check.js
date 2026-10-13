@@ -11,7 +11,7 @@ function smoke(m) {
     [
       'password hashes and verifies',
       async () => {
-        const hash = await m.password.hash('secret', { cost: 4 });
+        const hash = await m.password.hash('secret', { algorithm: 'bcrypt', cost: 4 });
         return (
           (await m.password.verify('secret', hash)) === true &&
           (await m.password.verify('other', hash)) === false
@@ -51,7 +51,7 @@ function smoke(m) {
       'token and jwt round-trip a JSON payload',
       async () => {
         const encrypted = await m.token.encrypt({ id: 7 }, SECRET, { expiresIn: 60 });
-        const signed = await m.jwt.sign({ id: 7 }, SECRET);
+        const signed = await m.jwt.sign({ id: 7 }, SECRET, { expiresIn: 60 });
         return (
           (await m.token.decrypt(encrypted, SECRET)).id === 7 &&
           (await m.jwt.verify(signed, SECRET)).id === 7
@@ -111,7 +111,7 @@ function web(webModule, nodeModule) {
     [
       'web hashes a password that Node verifies',
       async () => {
-        const hash = await webModule.password.hash('secret', { cost: 4 });
+        const hash = await webModule.password.hash('secret', { algorithm: 'bcrypt', cost: 4 });
         return nodeModule.password.verify('secret', hash);
       },
     ],
@@ -119,7 +119,7 @@ function web(webModule, nodeModule) {
       'web and Node agree on tokens, JWT and CryptoEngine',
       async () => {
         const encrypted = await webModule.token.encrypt({ id: 7 }, SECRET);
-        const signed = await nodeModule.jwt.sign({ id: 8 }, SECRET);
+        const signed = await nodeModule.jwt.sign({ id: 8 }, SECRET, { expiresIn: 60 });
         const engine = await webModule.CryptoEngine.prototype.encode.call(
           new webModule.CryptoEngine('testhash123'),
           'HELLO WORLD',
@@ -135,4 +135,80 @@ function web(webModule, nodeModule) {
   ];
 }
 
-module.exports = { smoke, web };
+const STRICT_CSP = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'";
+
+async function everyToolInAWebWorker(entry) {
+  const m = await import(entry);
+  const secret = 'a-secret-key-with-more-than-32-characters';
+  if (m.workers.runtime() !== 'web-worker') return `runtime ${m.workers.runtime()}`;
+  let ticks = 0;
+  const timer = setInterval(() => {
+    ticks += 1;
+  }, 5);
+  const hash = await m.password.hash('secret', { level: 'strong' });
+  clearInterval(timer);
+  if (ticks < 3) return `the page was blocked while hashing (${ticks} ticks)`;
+  if (!(await m.password.verify('secret', hash))) return 'password did not verify';
+  const encrypted = await m.cipher.encrypt('hola', secret, { level: 'cnsa' });
+  if ((await m.cipher.decrypt(encrypted, secret)) !== 'hola') return 'cipher round trip';
+  const pair = await m.rsa.generateKeyPair({ level: 'basic' });
+  const file = new Uint8Array([1, 2, 3]);
+  const sealed = await m.rsa.encrypt(file, pair.publicKey);
+  if ((await m.rsa.decryptBytes(sealed, pair.privateKey)).join() !== '1,2,3') return 'rsa';
+  const signed = await m.signature.sign(file, pair.privateKey);
+  if (!(await m.signature.verify(file, signed, pair.publicKey))) return 'signature';
+  const token = await m.token.encrypt({ id: 7 }, secret, { expiresIn: 60 });
+  if ((await m.token.decrypt(token, secret)).id !== 7) return 'token';
+  const jwt = await m.jwt.sign({ id: 8 }, secret, { expiresIn: 60 });
+  if ((await m.jwt.verify(jwt, secret)).id !== 8) return 'jwt';
+  const digest = await m.hash.digest('abc');
+  m.workers.terminate();
+  return digest === 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad' || digest;
+}
+
+function browser() {
+  return [
+    ['runs every tool in a Web Worker without blocking the page', everyToolInAWebWorker],
+    [
+      'runs in a Web Worker under the documented CSP',
+      everyToolInAWebWorker,
+      { csp: `${STRICT_CSP}; worker-src blob:` },
+    ],
+    [
+      'falls back to the page thread when the CSP blocks blob workers',
+      async (entry) => {
+        const warnings = [];
+        console.warn = (...values) => warnings.push(values.join(' '));
+        const m = await import(entry);
+        const encoded = await new m.CryptoEngine('testhash123').encode('HELLO WORLD');
+        const runtime = m.workers.runtime();
+        if (encoded !== 'Pt3/97FmPVoz+4JG') return `encoded ${encoded}`;
+        if (runtime !== 'inline') return `runtime ${runtime}`;
+        return (
+          (warnings.length === 1 && warnings[0].includes('workers are blocked')) ||
+          `warnings ${JSON.stringify(warnings)}`
+        );
+      },
+      { csp: `${STRICT_CSP} 'unsafe-eval'` },
+    ],
+    [
+      'rejects with a WORKER error when the CSP allows neither blob workers nor eval',
+      async (entry) => {
+        console.warn = () => undefined;
+        const m = await import(entry);
+        try {
+          await m.hash.digest('abc');
+          return 'the call did not fail';
+        } catch (error) {
+          return (
+            (error instanceof m.CryptoError && error.code === 'WORKER') ||
+            `${error && error.name}: ${error && error.message}`
+          );
+        }
+      },
+      { csp: STRICT_CSP },
+    ],
+  ];
+}
+
+module.exports = { smoke, web, browser };

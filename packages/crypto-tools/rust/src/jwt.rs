@@ -24,6 +24,7 @@ pub struct SignOptions {
     issuer: Option<String>,
     subject: Option<String>,
     audience: Option<Value>,
+    require_expiration: Option<bool>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -34,6 +35,7 @@ pub struct VerifyOptions {
     audience: Option<String>,
     clock_tolerance: Option<f64>,
     ignore_expiration: Option<bool>,
+    require_expiration: Option<bool>,
 }
 
 fn key_kind(key: &str) -> KeyKind {
@@ -176,6 +178,11 @@ pub fn sign(payload_json: &str, key: &str, options_json: &str, now: f64) -> Cryp
         KeyKind::Pem => EncodingKey::from_rsa_pem(key.as_bytes())
             .map_err(|_| CryptoError::invalid_key("Invalid RSA private key PEM."))?,
     };
+    if options.require_expiration.unwrap_or(true) && !claims.contains_key("exp") {
+        return Err(CryptoError::invalid_input(
+            "A JWT needs an expiration: pass expiresIn, an exp claim or requireExpiration: false.",
+        ));
+    }
     jsonwebtoken::encode(
         &Header::new(algorithm),
         &Value::Object(claims),
@@ -213,17 +220,28 @@ fn check_claims(
     now: i64,
 ) -> CryptoResult<()> {
     let tolerance = options.clock_tolerance.unwrap_or(0.0);
+    if !tolerance.is_finite() || tolerance < 0.0 {
+        return Err(CryptoError::invalid_input(
+            "Invalid JWT options: clockTolerance must be a positive number of seconds or 0.",
+        ));
+    }
     let now = now as f64;
     if let Some(not_before) = number_claim(claims, "nbf")?
         && not_before > now + tolerance
     {
         return Err(verify_error(CryptoError::expired, "jwt not active"));
     }
-    if !options.ignore_expiration.unwrap_or(false)
-        && let Some(expires) = number_claim(claims, "exp")?
-        && now >= expires + tolerance
-    {
-        return Err(verify_error(CryptoError::expired, "jwt expired"));
+    let expires = number_claim(claims, "exp")?;
+    if !options.ignore_expiration.unwrap_or(false) {
+        match expires {
+            Some(expires) if now >= expires + tolerance => {
+                return Err(verify_error(CryptoError::expired, "jwt expired"));
+            }
+            None if options.require_expiration.unwrap_or(true) => {
+                return Err(verify_error(CryptoError::malformed, "jwt has no exp claim"));
+            }
+            _ => {}
+        }
     }
     if let Some(audience) = &options.audience
         && !audience_matches(claims.get("aud"), audience)
@@ -305,6 +323,8 @@ mod tests {
 
     const SECRET: &str = "supersecretkeysupersecretkey";
     const NOW: f64 = 1_736_590_949.0;
+    const EXP: &str = r#"{"expiresIn":60}"#;
+    const NO_EXP: &str = r#"{"requireExpiration":false}"#;
 
     fn claims(json: &str) -> Value {
         serde_json::from_str(json).unwrap()
@@ -312,7 +332,7 @@ mod tests {
 
     #[test]
     fn signs_and_verifies_with_a_secret() {
-        let token = sign(r#"{"id":"39fb","roles":["user"]}"#, SECRET, "", NOW).unwrap();
+        let token = sign(r#"{"id":"39fb","roles":["user"]}"#, SECRET, EXP, NOW).unwrap();
         assert!(token.starts_with("eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9."));
         let verified = claims(&verify(&token, SECRET, "", NOW).unwrap());
         assert_eq!(verified["id"], "39fb");
@@ -326,8 +346,12 @@ mod tests {
         let secret = fixtures["jwt"]["secret"].as_str().unwrap();
         let token = fixtures["jwt"]["token"].as_str().unwrap();
         assert_eq!(
-            claims(&verify(token, secret, "", NOW).unwrap())["name"],
+            claims(&verify(token, secret, NO_EXP, NOW).unwrap())["name"],
             "Alice"
+        );
+        assert_eq!(
+            verify(token, secret, "", NOW).unwrap_err().message,
+            "verify Error: jwt has no exp claim"
         );
     }
 
@@ -382,13 +406,19 @@ mod tests {
                 .message,
             "verify Error: jwt audience invalid. expected: api"
         );
-        let many = sign(r#"{"id":7}"#, SECRET, r#"{"audience":["web","api"]}"#, NOW).unwrap();
+        let many = sign(
+            r#"{"id":7}"#,
+            SECRET,
+            r#"{"audience":["web","api"],"expiresIn":60}"#,
+            NOW,
+        )
+        .unwrap();
         assert!(verify(&many, SECRET, r#"{"audience":"api"}"#, NOW).is_ok());
     }
 
     #[test]
     fn checks_not_before_and_claim_types() {
-        let early = sign(&json!({"nbf": NOW + 100.0}).to_string(), SECRET, "", NOW).unwrap();
+        let early = sign(&json!({"nbf": NOW + 100.0}).to_string(), SECRET, EXP, NOW).unwrap();
         assert_eq!(
             verify(&early, SECRET, "", NOW).unwrap_err().message,
             "verify Error: jwt not active"
@@ -401,6 +431,36 @@ mod tests {
     }
 
     #[test]
+    fn requires_an_expiration_unless_told_otherwise() {
+        assert_eq!(
+            sign(r#"{"id":7}"#, SECRET, "", NOW).unwrap_err().message,
+            "A JWT needs an expiration: pass expiresIn, an exp claim or requireExpiration: false."
+        );
+        let with_claim = sign(&json!({"exp": NOW + 10.0}).to_string(), SECRET, "", NOW).unwrap();
+        assert!(verify(&with_claim, SECRET, "", NOW).is_ok());
+        let forever = sign(r#"{"id":7}"#, SECRET, NO_EXP, NOW).unwrap();
+        let missing = verify(&forever, SECRET, "", NOW).unwrap_err();
+        assert_eq!(
+            (missing.code, missing.message.as_str()),
+            (ErrorCode::Malformed, "verify Error: jwt has no exp claim")
+        );
+        assert!(verify(&forever, SECRET, NO_EXP, NOW).is_ok());
+        assert!(verify(&forever, SECRET, r#"{"ignoreExpiration":true}"#, NOW).is_ok());
+    }
+
+    #[test]
+    fn rejects_a_negative_clock_tolerance() {
+        let token = sign("{}", SECRET, EXP, NOW).unwrap();
+        assert_eq!(
+            verify(&token, SECRET, r#"{"clockTolerance":-5}"#, NOW)
+                .unwrap_err()
+                .message,
+            "Invalid JWT options: clockTolerance must be a positive number of seconds or 0."
+        );
+        assert!(verify(&token, SECRET, r#"{"clockTolerance":0}"#, NOW).is_ok());
+    }
+
+    #[test]
     fn picks_the_algorithm_of_the_level_and_key() {
         let cases = [
             ("basic", "HS256"),
@@ -409,7 +469,8 @@ mod tests {
             ("cnsa", "HS512"),
         ];
         for (level, alg) in cases {
-            let token = sign("{}", SECRET, &json!({ "level": level }).to_string(), NOW).unwrap();
+            let options = json!({ "level": level, "expiresIn": 60 }).to_string();
+            let token = sign("{}", SECRET, &options, NOW).unwrap();
             assert_eq!(
                 jsonwebtoken::decode_header(&token).unwrap().alg,
                 parse_algorithm(alg).unwrap()
@@ -430,7 +491,7 @@ mod tests {
             sign(
                 "{}",
                 SECRET,
-                r#"{"level":"strong","algorithm":"HS384"}"#,
+                r#"{"level":"strong","algorithm":"HS384","expiresIn":60}"#,
                 NOW
             )
             .is_ok()
@@ -443,7 +504,7 @@ mod tests {
         let token = sign(
             r#"{"id":7}"#,
             &pair.private_key,
-            r#"{"algorithm":"RS256"}"#,
+            r#"{"algorithm":"RS256","expiresIn":60}"#,
             NOW,
         )
         .unwrap();
@@ -479,7 +540,13 @@ mod tests {
             .code,
             ErrorCode::InvalidKey
         );
-        let rs512 = sign("{}", &pair.private_key, r#"{"level":"cnsa"}"#, NOW).unwrap();
+        let rs512 = sign(
+            "{}",
+            &pair.private_key,
+            r#"{"level":"cnsa","expiresIn":60}"#,
+            NOW,
+        )
+        .unwrap();
         assert_eq!(
             jsonwebtoken::decode_header(&rs512).unwrap().alg,
             JwtAlgorithm::RS512

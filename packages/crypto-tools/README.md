@@ -24,6 +24,7 @@ await password.verify('secret', stored); // true (bcrypt and Argon2id hashes)
 const key = await cipher.generateKey({ level: 'cnsa' });
 const encrypted = await cipher.encrypt('hola', key, { level: 'cnsa' });
 await cipher.decrypt(encrypted, key); // 'hola'
+const locked = await cipher.encrypt('hola', 'a password people type', { password: true });
 
 const { publicKey, privateKey } = await rsa.generateKeyPair({ level: 'standard' });
 const sealed = await rsa.encrypt(fileBytes, publicKey); // any size: RSA wraps an AES key
@@ -48,34 +49,35 @@ In the browser, read files with `new Uint8Array(await file.arrayBuffer())`; in N
 
 ## Tools
 
-| Module         | Functions                                               | Output                                                    |
-| -------------- | ------------------------------------------------------- | --------------------------------------------------------- |
-| `password`     | `hash`, `verify`, `isHash`, `params`                    | bcrypt `$2b$…` or Argon2id PHC string                     |
-| `cipher`       | `generateKey`, `encrypt`, `decrypt`, `decryptBytes`     | `v1.<alg>.<kdf>.<salt>.<nonce>.<ciphertext>` (base64url)  |
-| `rsa`          | `generateKeyPair`, `encrypt`, `decrypt`, `decryptBytes` | PEM keys (SPKI / PKCS#8); JWE `RSA-OAEP-*` + `A256GCM`    |
-| `signature`    | `sign`, `verify`                                        | detached JWS with unencoded payload (RFC 7797), RSA-PSS   |
-| `hash`         | `digest`, `hmac`                                        | hex                                                       |
-| `token`        | `generateKey`, `encrypt`, `decrypt`                     | PASETO `v4.local` (JWE `dir` + `A256GCM` at `cnsa`)       |
-| `jwt`          | `sign`, `verify`, `decode`                              | JWT HS256/384/512 with a secret, RS256/384/512 with a PEM |
-| `CryptoEngine` | `encode`, `decode`                                      | legacy reversible obfuscation (see below)                 |
-| `workers`      | `configure({ size, mode })`, `terminate()`, `runtime()` | worker pool control                                       |
+| Module         | Functions                                                                     | Output                                                    |
+| -------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `password`     | `hash`, `verify`, `isHash`, `params`                                          | bcrypt `$2b$…` or Argon2id PHC string                     |
+| `cipher`       | `generateKey`, `encrypt`, `decrypt`, `decryptBytes`                           | `v1.<alg>.<kdf>.<salt>.<nonce>.<ciphertext>` (base64url)  |
+| `rsa`          | `generateKeyPair`, `encrypt`, `decrypt`, `decryptBytes`                       | PEM keys (SPKI / PKCS#8); JWE `RSA-OAEP-*` + `A256GCM`    |
+| `signature`    | `sign`, `verify`                                                              | detached JWS with unencoded payload (RFC 7797), RSA-PSS   |
+| `hash`         | `digest`, `hmac`                                                              | hex                                                       |
+| `token`        | `generateKey`, `encrypt`, `decrypt`                                           | PASETO `v4.local` (JWE `dir` + `A256GCM` at `cnsa`)       |
+| `jwt`          | `sign`, `verify`, `decode`                                                    | JWT HS256/384/512 with a secret, RS256/384/512 with a PEM |
+| `CryptoEngine` | `encode`, `decode`                                                            | legacy reversible obfuscation (see below)                 |
+| `workers`      | `configure({ size, mode, timeout, idleTimeout })`, `terminate()`, `runtime()` | worker pool control                                       |
 
 `securityLevels()` returns what every level uses. Errors are `CryptoError` with a `code`:
-`INVALID_KEY`, `INVALID_INPUT`, `TAMPERED`, `EXPIRED`, `MALFORMED`, `UNSUPPORTED` or `WORKER`.
+`INVALID_KEY`, `INVALID_INPUT`, `TAMPERED`, `EXPIRED`, `MALFORMED`, `UNSUPPORTED`, `WORKER` or
+`TIMEOUT`.
 
 ## Security levels
 
 `'basic' | 'standard' | 'strong' | 'cnsa'`, with `'military'` as an alias of `'cnsa'`. The default is
 `standard`. Outputs record their algorithm, so decrypting or verifying never needs the level.
 
-| Tool               | `basic`         | `standard`      | `strong`                  | `cnsa` / `military`                |
-| ------------------ | --------------- | --------------- | ------------------------- | ---------------------------------- |
-| `cipher`           | AES-128-GCM     | AES-256-GCM     | XChaCha20-Poly1305        | AES-256-GCM, HKDF-SHA384, key ≥ 32 |
-| `token`            | PASETO v4.local | PASETO v4.local | PASETO v4.local           | JWE `dir` + `A256GCM`              |
-| `hash`             | SHA-256         | SHA-256         | SHA-384                   | SHA-512                            |
-| `password`         | bcrypt cost 10  | bcrypt cost 12  | Argon2id t=3, 64 MiB, p=4 | Argon2id t=4, 256 MiB, p=4         |
-| `rsa`, `signature` | 2048, SHA-256   | 3072, SHA-256   | 4096, SHA-384             | 4096, SHA-512                      |
-| `jwt`              | HS256 / RS256   | HS256 / RS256   | HS384 / RS384             | HS512 / RS512                      |
+| Tool               | `basic`         | `standard`                | `strong`                  | `cnsa` / `military`                |
+| ------------------ | --------------- | ------------------------- | ------------------------- | ---------------------------------- |
+| `cipher`           | AES-128-GCM     | AES-256-GCM               | XChaCha20-Poly1305        | AES-256-GCM, HKDF-SHA384, key ≥ 32 |
+| `token`            | PASETO v4.local | PASETO v4.local           | PASETO v4.local           | JWE `dir` + `A256GCM`              |
+| `hash`             | SHA-256         | SHA-256                   | SHA-384                   | SHA-512                            |
+| `password`         | bcrypt cost 10  | Argon2id t=3, 64 MiB, p=4 | Argon2id t=3, 64 MiB, p=4 | Argon2id t=4, 256 MiB, p=4         |
+| `rsa`, `signature` | 2048, SHA-256   | 3072, SHA-256             | 4096, SHA-384             | 4096, SHA-512                      |
+| `jwt`              | HS256 / RS256   | HS256 / RS256             | HS384 / RS384             | HS512 / RS512                      |
 
 These values are this package's choice and **must be reviewed against the sources before relying on
 them** for a compliance claim:
@@ -83,18 +85,70 @@ them** for a compliance claim:
 - `cnsa` follows the algorithm families of the NSA Commercial National Security Algorithm Suite (CNSA
   1.0: AES-256, SHA-384 or stronger, RSA ≥ 3072). CNSA does not cover password hashing, PASETO or
   XChaCha20; `military` is a name, not a certification.
-- `strong` Argon2id uses the second recommended option of RFC 9106 (t=3, 64 MiB, 4 lanes).
+- `standard` and `strong` Argon2id use the second recommended option of RFC 9106 (t=3, 64 MiB, 4
+  lanes); for passwords both levels are the same.
 - bcrypt costs follow common practice; check the OWASP Password Storage Cheat Sheet.
+
+## Password length
+
+`password.hash` accepts up to **64 characters**, counted as a person sees them (grapheme clusters): `ñ`,
+`密` and `🔒` count 1 each, also when `ñ` arrives decomposed as `n` + `◌̃` (JavaScript's `.length` would
+count `🔒` as 2). Longer passwords reject with `INVALID_INPUT`.
+
+bcrypt only reads the first 72 **bytes** of UTF-8: 72 ASCII characters, but 36 with accents, 24 in
+Chinese or 18 emoji. Instead of truncating in silence, `hash` with bcrypt (`level: 'basic'` or
+`algorithm: 'bcrypt'`) rejects a password over 72 bytes with `INVALID_INPUT`; Argon2id, the default, has
+no such limit. `cost` only applies to bcrypt, so it needs `algorithm: 'bcrypt'` or `level: 'basic'`.
+`password.verify` has no limit, so hashes made before (by 3.x or with longer passwords) still verify.
+
+## Keys and passwords in `cipher`
+
+By default `cipher` derives its key with HKDF, which is fast and assumes the key is already random: use
+`cipher.generateKey()` (32 random bytes) or another secret of at least 16 characters (32 at `cnsa`)
+that nobody chose by hand. HKDF does not slow down guessing, so a password people type would be weak.
+
+For a password people type, pass `{ password: true }`: the key is derived with Argon2id and a random
+salt (the parameters of the password table: 64 MiB, t=3, p=4; 256 MiB, t=4 at `cnsa`), which is slow on
+purpose. The password must have 8 to 64 characters (counted as in `password.hash`). The output records
+the derivation (`v1.<alg>.argon2id-m65536-t3-p4.…`), so `decrypt` needs no option; it only accepts the
+Argon2 parameters this package produces, so crafted data cannot ask for huge memory.
+
+## JWT expiration
+
+`jwt.sign` needs an expiration: `expiresIn`, an `exp` claim in the payload, or an explicit
+`requireExpiration: false` for a token that never expires. `jwt.verify` rejects a token without `exp`
+(`MALFORMED`, `verify Error: jwt has no exp claim`) unless it gets `requireExpiration: false` or
+`ignoreExpiration: true`. `clockTolerance` must be 0 or a positive number of seconds.
 
 ## Workers and the main thread
 
 Calls go to a lazy pool of up to `min(4, cores − 1)` workers: Web Workers built from a Blob URL in
 browsers, `worker_threads` in Node. Workers do not keep a Node process alive when idle. Where no worker
-exists the calls run on the calling thread (with one warning); `workers.configure({ mode: 'worker' })`
-fails instead, `mode: 'inline'` forces the calling thread.
+exists, or the page blocks them, the calls run on the calling thread (with one warning);
+`workers.configure({ mode: 'worker' })` fails instead, `mode: 'inline'` forces the calling thread.
 
-Browser pages with a Content Security Policy must allow `worker-src blob:`; the inline mode also needs
-`'unsafe-eval'` because it evaluates the embedded wasm-bindgen glue.
+- **Timeout.** A worker that answers nothing for `timeout` ms (default `60000`; `Infinity` turns it
+  off) is replaced: the call it was running rejects with `TIMEOUT` and the calls queued behind it move
+  to another worker. This stops calls such as a bcrypt hash of cost 31 or an Argon2 hash with huge
+  parameters coming from outside. The calling thread cannot be interrupted, so the inline mode has no
+  timeout.
+- **Crashes.** A call that traps the wasm (a Rust panic, memory exhausted) rejects with `WORKER` and its
+  worker is replaced, so the next calls never run on a broken instance.
+- **Memory.** wasm memory only grows: an Argon2id hash keeps 64 MiB (256 MiB at `cnsa`) in its worker,
+  up to that times the pool size. A worker idle for `idleTimeout` ms (default `30000`; `Infinity`
+  keeps them) is closed to give that memory back; the next call starts a new one, which only
+  instantiates the already compiled module.
+
+Content Security Policy: the page needs `script-src 'wasm-unsafe-eval'` (the wasm is compiled from the
+package) and `worker-src blob:` for the workers, for example
+`default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src blob:`. Without `blob:` the
+calls fall back to the calling thread, which also needs `'unsafe-eval'` because it evaluates the
+embedded wasm-bindgen glue; with neither, every call rejects with `WORKER`. `npm run check:dist` runs
+these cases in Chromium, Firefox and WebKit.
+
+Size: the wasm (about 1.4 MiB) ships gzipped and as base64 inside the JavaScript, about 670 KiB per
+build (ESM or CJS; an app loads one). It is decompressed once with the standard `DecompressionStream`
+(Node 18+ and current browsers; check its support if you target old Safari or Firefox).
 
 ## Compatibility with the previous version
 
@@ -103,23 +157,35 @@ Data it produced still works:
 
 - `password.verify` accepts bcrypt and libsodium Argon2id hashes.
 - `cipher.decrypt(data, key, { algorithm: 'aes-256-cbc-hmac' })` (also 128 and 192) reads the
-  `iv|ciphertext|hmac` format of `SymmetricEncryption`.
-- `jwt.verify` accepts tokens signed by `jsonwebtoken` with the same secret.
+  `iv|ciphertext|hmac` format of `SymmetricEncryption`. That format can only be decrypted: encrypting
+  with it rejects with `UNSUPPORTED`, so migrate the data to an AEAD algorithm.
+- `jwt.verify` accepts tokens signed by `jsonwebtoken` with the same secret; tokens without `exp` need
+  `{ requireExpiration: false }`.
 - `CryptoEngine` produces byte for byte the same outputs. It is a reversible **obfuscation**, not
   encryption: use `cipher` for anything secret.
 
 ## Known risk
 
-The `rsa` crate has advisory RUSTSEC-2023-0071 (Marvin attack, a timing side channel) with no fixed
-release yet. It affects RSA decryption (`rsa.decrypt`, which unwraps the AES key); signing, verifying
-and encrypting are not affected. Check https://rustsec.org/advisories/RUSTSEC-2023-0071 before
-exposing `rsa.decrypt` to attacker-controlled input at scale.
+The `rsa` crate has advisory RUSTSEC-2023-0071 (Marvin attack): its arithmetic is not constant-time,
+so the timing of **every operation with the private key** can leak information about it. Here that is
+`rsa.decrypt` / `rsa.decryptBytes`, `signature.sign` and `jwt.sign` with an RSA PEM key; verifying and
+encrypting only use the public key and are not affected. No `rsa` release fixes it yet (0.10 release
+candidates included).
+
+Mitigation in this package: every private-key operation uses RSA blinding with a fresh random value
+(`decrypt_blinded`, `BlindedSigningKey`; `jsonwebtoken` blinds its RS\* signatures), which hides the
+relation between the input and the timing but does not make the code constant-time. The advisory's
+own guidance stands: avoid these operations where an attacker can measure their timing, for example a
+server that decrypts or signs data from the network on request. Local use, or signing your own data, is
+fine. `npm run check:audit` (also in CI, weekly) lists it as accepted in `rust/.cargo/audit.toml`;
+remove it from there when a fixed release exists. Details: https://rustsec.org/advisories/RUSTSEC-2023-0071.
 
 ## Building from source
 
 Needs Rust (the version in `rust/rust-toolchain.toml`, installed by rustup) and `wasm-pack`.
 `npm run build` compiles the crate, embeds the wasm and builds ESM + CJS; `npm run check:rust` runs
-rustfmt, clippy and the Rust tests. The PASETO test vectors in `test/fixtures/paseto-v4.json` come from
+rustfmt, clippy and the Rust tests; `npm run check:audit` runs `cargo audit` (needs `cargo-audit`).
+`check:dist` runs the build in real browsers with Playwright (`npx playwright install` once). The PASETO test vectors in `test/fixtures/paseto-v4.json` come from
 the `pasetors` crate.
 
 ## License

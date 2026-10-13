@@ -18,7 +18,7 @@ describe('jwt', () => {
   });
 
   it('signs and verifies the payload', async () => {
-    const signed = await jwt.sign(PAYLOAD, SECRET);
+    const signed = await jwt.sign(PAYLOAD, SECRET, { expiresIn: 60 });
     expect(typeof signed).toBe('string');
     const verified = await jwt.verify<typeof PAYLOAD & { iat: number }>(signed, SECRET);
     expect(verified.id).toBe(PAYLOAD.id);
@@ -26,7 +26,9 @@ describe('jwt', () => {
   });
 
   it('verifies tokens signed by the previous jsonwebtoken implementation', async () => {
-    const verified = await jwt.verify(fixtures.jwt.token, fixtures.jwt.secret);
+    const verified = await jwt.verify(fixtures.jwt.token, fixtures.jwt.secret, {
+      requireExpiration: false,
+    });
     expect(verified.name).toBe('Alice');
   });
 
@@ -43,7 +45,9 @@ describe('jwt', () => {
   });
 
   it('decodes without verifying', async () => {
-    expect((await jwt.decode(await jwt.sign(PAYLOAD, SECRET))).id).toBe(PAYLOAD.id);
+    expect((await jwt.decode(await jwt.sign(PAYLOAD, SECRET, { expiresIn: 60 }))).id).toBe(
+      PAYLOAD.id,
+    );
     expect((await jwt.decode(FOREIGN_TOKEN)).id).toBe(PAYLOAD.id);
     expect(await jwt.decode('eyJhbGciOiJIUzI1ajjA7PbDW9AkOaEykb0')).toEqual({});
     await expect(jwt.decode({} as unknown as string)).rejects.toThrow(/^data Error: /);
@@ -75,7 +79,7 @@ describe('jwt', () => {
   });
 
   it('picks the algorithm of the level', async () => {
-    const signed = await jwt.sign({}, SECRET, { level: 'cnsa' });
+    const signed = await jwt.sign({}, SECRET, { level: 'cnsa', expiresIn: 60 });
     expect(JSON.parse(Buffer.from(signed.split('.')[0], 'base64url').toString()).alg).toBe('HS512');
     await expect(jwt.verify(signed, SECRET, { algorithms: ['HS256'] })).rejects.toThrow(
       'verify Error: invalid algorithm',
@@ -84,10 +88,30 @@ describe('jwt', () => {
 
   it('signs with an RSA private key and verifies with the public key', async () => {
     const pair = await basicKeyPair();
-    const signed = await jwt.sign({ id: 7 }, pair.privateKey, { algorithm: 'RS256' });
+    const signed = await jwt.sign({ id: 7 }, pair.privateKey, {
+      algorithm: 'RS256',
+      expiresIn: 60,
+    });
     expect((await jwt.verify(signed, pair.publicKey)).id).toBe(7);
     await expect(jwt.verify(signed, SECRET)).rejects.toThrow('verify Error: invalid algorithm');
   }, 120_000);
+
+  it('requires an expiration unless told otherwise', async () => {
+    await expect(jwt.sign({ id: 7 }, SECRET)).rejects.toMatchObject({
+      code: 'INVALID_INPUT',
+      message:
+        'A JWT needs an expiration: pass expiresIn, an exp claim or requireExpiration: false.',
+    });
+    const forever = await jwt.sign({ id: 7 }, SECRET, { requireExpiration: false });
+    await expect(jwt.verify(forever, SECRET)).rejects.toMatchObject({
+      code: 'MALFORMED',
+      message: 'verify Error: jwt has no exp claim',
+    });
+    expect((await jwt.verify(forever, SECRET, { requireExpiration: false })).id).toBe(7);
+    await expect(
+      jwt.verify(forever, SECRET, { requireExpiration: false, clockTolerance: -1 }),
+    ).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+  });
 
   it('rejects short secrets and invalid payloads', async () => {
     await expect(jwt.sign({}, 'short')).rejects.toMatchObject({

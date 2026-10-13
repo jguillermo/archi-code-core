@@ -36,6 +36,10 @@ jobs:
         with:
           workspaces: packages/crypto-tools/rust
 
+      # check:dist of @archi-code/crypto-tools runs its build in real browsers (scripts/check-browser.js).
+      - name: Install the browsers of Playwright
+        run: npx playwright install --with-deps chromium firefox webkit
+
       - name: Build packages in dependency order
         run: npm run build
 

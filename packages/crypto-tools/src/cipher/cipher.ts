@@ -6,19 +6,22 @@ export type CipherAlgorithm =
   | 'aes-128-gcm'
   | 'aes-256-gcm'
   | 'chacha20-poly1305'
-  | 'xchacha20-poly1305'
-  | 'aes-128-cbc-hmac'
-  | 'aes-192-cbc-hmac'
-  | 'aes-256-cbc-hmac';
+  | 'xchacha20-poly1305';
 
-export type CipherOptions = LevelOptions<CipherAlgorithm>;
+export type LegacyCipherAlgorithm = 'aes-128-cbc-hmac' | 'aes-192-cbc-hmac' | 'aes-256-cbc-hmac';
+
+export type CipherKeyOptions = LevelOptions<CipherAlgorithm>;
+
+export interface CipherOptions extends LevelOptions<CipherAlgorithm> {
+  password?: boolean;
+}
 
 export interface CipherDecryptOptions {
-  algorithm?: CipherAlgorithm;
+  algorithm?: CipherAlgorithm | LegacyCipherAlgorithm;
 }
 
 export const cipher = {
-  async generateKey(options: CipherOptions = {}): Promise<string> {
+  async generateKey(options: CipherKeyOptions = {}): Promise<string> {
     return callCrypto('cipherGenerateKey', options.level, options.algorithm);
   },
 
@@ -34,6 +37,7 @@ export const cipher = {
       requireText(key, 'key'),
       options.level,
       options.algorithm,
+      options.password,
     );
   },
 

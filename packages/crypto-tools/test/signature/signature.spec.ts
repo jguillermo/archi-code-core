@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, it } from '@jest/globals';
+import { constants, verify } from 'crypto';
 import { signature } from '../../src/signature/signature';
 import { workers } from '../../src/worker/workers';
 import { basicKeyPair, cnsaKeyPair } from '../support/key-pairs';
@@ -36,6 +37,25 @@ describe('signature', () => {
       expect(await signature.verify('contract', signed, (await basicKeyPair()).publicKey)).toBe(
         false,
       );
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'produces standard RSA-PSS signatures that Node verifies',
+    async () => {
+      const pair = await cnsaKeyPair();
+      for (const [level, digest, saltLength] of [
+        ['standard', 'sha256', 32],
+        ['strong', 'sha384', 48],
+        ['cnsa', 'sha512', 64],
+      ] as const) {
+        const signed = await signature.sign('contract', pair.privateKey, { level });
+        const [header, , encoded] = signed.split('.');
+        const input = Buffer.from(`${header}.contract`);
+        const key = { key: pair.publicKey, padding: constants.RSA_PKCS1_PSS_PADDING, saltLength };
+        expect(verify(digest, input, key, Buffer.from(encoded, 'base64url'))).toBe(true);
+      }
     },
     TIMEOUT,
   );

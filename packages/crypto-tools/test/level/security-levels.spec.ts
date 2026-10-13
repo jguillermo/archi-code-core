@@ -18,6 +18,12 @@ describe('securityLevels', () => {
       rsa: { bits: 2048, encryption: 'RSA-OAEP-256', signature: 'PS256' },
       jwt: { secret: 'HS256', pem: 'RS256' },
     });
+    expect(levels.standard.password).toEqual({
+      algorithm: 'argon2id',
+      memoryKiB: 65536,
+      iterations: 3,
+      parallelism: 4,
+    });
     expect(levels.cnsa.cipher).toBe('aes-256-gcm');
     expect(levels.cnsa.token).toBe('jwe-dir-a256gcm');
     expect(levels.strong.cipher).toBe('xchacha20-poly1305');

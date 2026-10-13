@@ -34,6 +34,7 @@ export function inlineWorkerFactory(glue: string): WorkerFactory {
                   id: message.id,
                   ok: false,
                   error: error instanceof Error ? error.message : String(error),
+                  fatal: error instanceof WebAssembly.RuntimeError,
                 }),
             );
         },

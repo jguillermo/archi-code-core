@@ -1,5 +1,5 @@
 use rand_core::OsRng;
-use rsa::pss::{Signature, SigningKey, VerifyingKey};
+use rsa::pss::{BlindedSigningKey, Signature, VerifyingKey};
 use rsa::signature::{RandomizedSigner, SignatureEncoding, Verifier};
 use rsa::{RsaPrivateKey, RsaPublicKey};
 use serde_json::Value;
@@ -59,13 +59,13 @@ fn signing_input(header: &str, data: &[u8]) -> Vec<u8> {
 
 fn sign_with(key: RsaPrivateKey, hash: RsaHash, input: &[u8]) -> Vec<u8> {
     match hash {
-        RsaHash::Sha256 => SigningKey::<Sha256>::new(key)
+        RsaHash::Sha256 => BlindedSigningKey::<Sha256>::new(key)
             .sign_with_rng(&mut OsRng, input)
             .to_vec(),
-        RsaHash::Sha384 => SigningKey::<Sha384>::new(key)
+        RsaHash::Sha384 => BlindedSigningKey::<Sha384>::new(key)
             .sign_with_rng(&mut OsRng, input)
             .to_vec(),
-        RsaHash::Sha512 => SigningKey::<Sha512>::new(key)
+        RsaHash::Sha512 => BlindedSigningKey::<Sha512>::new(key)
             .sign_with_rng(&mut OsRng, input)
             .to_vec(),
     }

@@ -1,0 +1,40 @@
+name: Audit
+
+# Advisories appear without code changes, so besides pull requests the audit runs every Monday.
+on:
+  pull_request:
+    branches: [main, release]
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  audit:
+    name: Audit runtime dependencies (npm and Rust)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install the Rust toolchain of crypto-tools
+        working-directory: packages/crypto-tools/rust
+        run: rustup toolchain install
+
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit@0.22.2
+
+      # npm audit over the runtime dependencies of every package, cargo audit over the crypto-tools
+      # crate (accepted advisories live in packages/crypto-tools/rust/.cargo/audit.toml).
+      - name: Audit dependencies
+        run: npm run check:audit

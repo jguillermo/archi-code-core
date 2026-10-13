@@ -14,7 +14,8 @@ describe('web-safety', () => {
 
   test('offers the standard Web APIs and no Node APIs', () => {
     const globals = webGlobals();
-    for (const name of ['TextEncoder', 'TextDecoder', 'crypto', 'atob', 'URL', 'setTimeout']) {
+    const standard = ['TextEncoder', 'TextDecoder', 'crypto', 'atob', 'URL', 'setTimeout'];
+    for (const name of [...standard, 'Response', 'DecompressionStream']) {
       assert.ok(globals[name], name);
     }
     for (const name of ['process', 'Buffer', 'require', 'Worker']) {

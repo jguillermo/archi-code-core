@@ -6,6 +6,7 @@ export const CRYPTO_ERROR_CODES = [
   'MALFORMED',
   'UNSUPPORTED',
   'WORKER',
+  'TIMEOUT',
 ] as const;
 
 export type CryptoErrorCode = (typeof CRYPTO_ERROR_CODES)[number];

@@ -6,6 +6,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const zlib = require('zlib');
 
 const EMBED_WASM = path.join(__dirname, '..', 'embed-wasm.js');
 const GLUE =
@@ -29,12 +30,13 @@ function embed(root, ...args) {
 }
 
 describe('embed-wasm', () => {
-  test('writes the wasm as base64 and the glue without Node globals', () => {
+  test('writes the wasm gzipped as base64 and the glue without Node globals', () => {
     const root = packageWith(GLUE);
     const result = embed(root, 'wasm/lib', 'src/wasm/assets.generated.ts');
     assert.equal(result.status, 0, result.stderr);
     const source = fs.readFileSync(path.join(root, 'src/wasm/assets.generated.ts'), 'utf8');
-    assert.match(source, /export const WASM_BASE64: string = 'AGFzbQ==';/);
+    const [, embedded] = source.match(/export const WASM_GZIP_BASE64: string = '([^']+)';/);
+    assert.deepEqual([...zlib.gunzipSync(Buffer.from(embedded, 'base64'))], [0, 97, 115, 109]);
     assert.match(source, /function\(bindings\)/);
     assert.match(source, /bindings\.add = add;/);
     assert.match(source, /wasm = instance\.exports;/);

@@ -19,12 +19,26 @@ describe('inlineWorkerFactory', () => {
       id: 2,
       ok: false,
       error: 'MALFORMED|Invalid token format.',
+      fatal: false,
     });
     const missing = await request('missing' as 'engineEncode');
     expect(missing.ok).toBe(false);
     handle.onFailure(() => undefined);
     handle.keepAlive(true);
     handle.terminate();
+  });
+
+  it('marks a wasm trap as fatal', async () => {
+    const handle = inlineWorkerFactory(wasmGlue()).create('');
+    handle.post({ type: 'init', module: await compileWasm() });
+    const request = requester(handle);
+    const huge = '$argon2id$v=19$m=4000000,t=1,p=1$c2FsdHNhbHQ$aGFzaGhhc2hoYXNoaGFzaA';
+    expect(await request('passwordVerify', 'x', huge)).toEqual({
+      id: 1,
+      ok: false,
+      error: 'unreachable',
+      fatal: true,
+    });
   });
 
   it('drops responses while nobody listens', async () => {

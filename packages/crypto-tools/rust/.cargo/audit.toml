@@ -1,0 +1,3 @@
+[advisories]
+# RUSTSEC-2023-0071 has no fixed rsa release; the accepted risk and its mitigation are in README "Known risk".
+ignore = ["RUSTSEC-2023-0071"]

@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, it } from '@jest/globals';
+import { constants, createCipheriv, privateDecrypt, publicEncrypt, randomBytes } from 'crypto';
 import { rsa } from '../../src/rsa/rsa';
 import { workers } from '../../src/worker/workers';
 import { basicKeyPair, cnsaKeyPair } from '../support/key-pairs';
@@ -32,6 +33,41 @@ describe('rsa', () => {
       expect(await rsa.decryptBytes(encrypted, pair.privateKey)).toEqual(file);
       const text = await rsa.encrypt('hola', pair.publicKey, { level: 'basic' });
       expect(await rsa.decrypt(text, pair.privateKey)).toBe('hola');
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'interoperates with the RSA-OAEP and AES-GCM of Node',
+    async () => {
+      const pair = await basicKeyPair();
+      const oaep = { padding: constants.RSA_PKCS1_OAEP_PADDING, oaepHash: 'sha256' };
+      const encrypted = await rsa.encrypt('from wasm', pair.publicKey);
+      const [header, wrapped] = encrypted.split('.');
+      const contentKey = privateDecrypt(
+        { key: pair.privateKey, ...oaep },
+        Buffer.from(wrapped, 'base64url'),
+      );
+      expect(contentKey).toHaveLength(32);
+
+      const key = randomBytes(32);
+      const nonce = randomBytes(12);
+      const nodeHeader = Buffer.from('{"alg":"RSA-OAEP-256","enc":"A256GCM"}').toString(
+        'base64url',
+      );
+      const aes = createCipheriv('aes-256-gcm', key, nonce).setAAD(Buffer.from(nodeHeader));
+      const ciphertext = Buffer.concat([aes.update('from node'), aes.final()]);
+      const token = [
+        nodeHeader,
+        publicEncrypt({ key: pair.publicKey, ...oaep }, key),
+        nonce,
+        ciphertext,
+        aes.getAuthTag(),
+      ]
+        .map((part) => (typeof part === 'string' ? part : part.toString('base64url')))
+        .join('.');
+      expect(header).toBe(nodeHeader);
+      expect(await rsa.decrypt(token, pair.privateKey)).toBe('from node');
     },
     TIMEOUT,
   );

@@ -115,7 +115,7 @@ pub fn decrypt_bytes(token: &str, private_pem: &str) -> CryptoResult<Vec<u8>> {
     let unreadable =
         || CryptoError::tampered("Data may have been tampered with or the key is wrong.");
     let content_key = private
-        .decrypt(padding(oaep.0), &wrapped)
+        .decrypt_blinded(&mut OsRng, padding(oaep.0), &wrapped)
         .map_err(|_| unreadable())?;
     if content_key.len() != CONTENT_KEY_LENGTH {
         return Err(unreadable());

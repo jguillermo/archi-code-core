@@ -2,6 +2,7 @@ use argon2::password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, Salt
 use argon2::{Argon2, Params, Version};
 use rand_core::OsRng;
 use serde::Serialize;
+use unicode_segmentation::UnicodeSegmentation;
 
 use crate::error::{CryptoError, CryptoResult};
 use crate::level::{Algorithm, Level, resolve};
@@ -32,8 +33,8 @@ impl Algorithm for PasswordAlgorithm {
 
     fn for_level(level: Level) -> Self {
         match level {
-            Level::Basic | Level::Standard => PasswordAlgorithm::Bcrypt,
-            Level::Strong | Level::Cnsa => PasswordAlgorithm::Argon2id,
+            Level::Basic => PasswordAlgorithm::Bcrypt,
+            Level::Standard | Level::Strong | Level::Cnsa => PasswordAlgorithm::Argon2id,
         }
     }
 }
@@ -55,6 +56,8 @@ pub enum PasswordParams {
 
 const MIN_BCRYPT_COST: u32 = 4;
 const MAX_BCRYPT_COST: u32 = 31;
+const MAX_BCRYPT_BYTES: usize = 72;
+pub const MAX_PASSWORD_CHARACTERS: usize = 64;
 
 fn bcrypt_cost(level: Level) -> u32 {
     match level {
@@ -63,7 +66,7 @@ fn bcrypt_cost(level: Level) -> u32 {
     }
 }
 
-fn argon2_params(level: Level) -> PasswordParams {
+pub fn argon2_params(level: Level) -> PasswordParams {
     match level {
         Level::Cnsa => PasswordParams::Argon2id {
             memory_kib: 262_144,
@@ -85,10 +88,7 @@ pub fn params(
 ) -> CryptoResult<PasswordParams> {
     let explicit = level.map(Level::parse).transpose()?;
     let resolved = resolve::<PasswordAlgorithm>(level, algorithm)?;
-    let effective_level = explicit.unwrap_or(match resolved {
-        PasswordAlgorithm::Bcrypt => Level::Standard,
-        PasswordAlgorithm::Argon2id => Level::Strong,
-    });
+    let effective_level = explicit.unwrap_or(Level::Standard);
     match (resolved, cost) {
         (PasswordAlgorithm::Bcrypt, Some(cost)) => {
             if !(MIN_BCRYPT_COST..=MAX_BCRYPT_COST).contains(&cost) {
@@ -102,10 +102,35 @@ pub fn params(
             cost: bcrypt_cost(effective_level),
         }),
         (PasswordAlgorithm::Argon2id, Some(_)) => Err(CryptoError::unsupported(
-            "The cost option only applies to bcrypt; argon2id takes its parameters from the level.",
+            "The cost option only applies to bcrypt (algorithm bcrypt or level basic); argon2id takes its parameters from the level.",
         )),
         (PasswordAlgorithm::Argon2id, None) => Ok(argon2_params(effective_level)),
     }
+}
+
+pub fn characters(password: &str) -> usize {
+    password.graphemes(true).count()
+}
+
+fn check_length(password: &str) -> CryptoResult<()> {
+    let count = characters(password);
+    if count > MAX_PASSWORD_CHARACTERS {
+        return Err(CryptoError::invalid_input(format!(
+            "Password must have at most {MAX_PASSWORD_CHARACTERS} characters; it has {count}."
+        )));
+    }
+    Ok(())
+}
+
+fn bcrypt_hash(password: &str, cost: u32) -> CryptoResult<String> {
+    let bytes = password.len();
+    if bytes > MAX_BCRYPT_BYTES {
+        return Err(CryptoError::invalid_input(format!(
+            "bcrypt only uses the first {MAX_BCRYPT_BYTES} bytes and this password has {bytes}; use argon2id (level standard)."
+        )));
+    }
+    bcrypt::hash(password, cost)
+        .map_err(|error| CryptoError::invalid_input(format!("bcrypt failed: {error}.")))
 }
 
 pub fn hash(
@@ -114,9 +139,10 @@ pub fn hash(
     algorithm: Option<&str>,
     cost: Option<u32>,
 ) -> CryptoResult<String> {
-    match params(level, algorithm, cost)? {
-        PasswordParams::Bcrypt { cost } => bcrypt::hash(password, cost)
-            .map_err(|error| CryptoError::invalid_input(format!("bcrypt failed: {error}."))),
+    let params = params(level, algorithm, cost)?;
+    check_length(password)?;
+    match params {
+        PasswordParams::Bcrypt { cost } => bcrypt_hash(password, cost),
         PasswordParams::Argon2id {
             memory_kib,
             iterations,
@@ -196,7 +222,15 @@ mod tests {
         );
         assert_eq!(
             params(Some("standard"), None, None).unwrap(),
-            PasswordParams::Bcrypt { cost: 12 }
+            PasswordParams::Argon2id {
+                memory_kib: 65_536,
+                iterations: 3,
+                parallelism: 4
+            }
+        );
+        assert_eq!(
+            params(None, None, None),
+            params(Some("standard"), None, None)
         );
         assert_eq!(
             params(Some("strong"), None, None).unwrap(),
@@ -223,19 +257,27 @@ mod tests {
     #[test]
     fn accepts_a_bcrypt_cost_between_4_and_31() {
         assert_eq!(
-            params(None, None, Some(4)).unwrap(),
+            params(None, Some("bcrypt"), Some(4)).unwrap(),
             PasswordParams::Bcrypt { cost: 4 }
         );
+        assert_eq!(
+            params(None, Some("bcrypt"), None).unwrap(),
+            PasswordParams::Bcrypt { cost: 12 }
+        );
         for cost in [3, 32] {
-            let error = params(None, None, Some(cost)).unwrap_err();
+            let error = params(Some("basic"), None, Some(cost)).unwrap_err();
             assert_eq!(error.message, "Cost must be between 4 and 31.");
         }
         assert!(params(Some("strong"), None, Some(10)).is_err());
+        assert_eq!(
+            params(None, None, Some(10)).unwrap_err().code,
+            crate::error::ErrorCode::Unsupported
+        );
     }
 
     #[test]
     fn hashes_and_verifies_with_bcrypt() {
-        let hash = hash("secret", None, None, Some(4)).unwrap();
+        let hash = hash("secret", None, Some("bcrypt"), Some(4)).unwrap();
         assert!(hash.starts_with("$2b$04$"));
         assert!(is_hash(&hash));
         assert!(verify("secret", &hash));
@@ -249,6 +291,60 @@ mod tests {
         assert!(is_hash(&hash));
         assert!(verify("secret", &hash));
         assert!(!verify("other", &hash));
+    }
+
+    #[test]
+    fn counts_characters_as_people_see_them() {
+        assert_eq!(characters("contraseña"), 10);
+        assert_eq!(characters("contrasen\u{303}a"), 10);
+        assert_eq!(characters("👨‍👩‍👧🔒"), 2);
+        assert_eq!(characters("密码"), 2);
+    }
+
+    #[test]
+    fn accepts_up_to_64_characters_of_any_kind() {
+        for unit in ["a", "ñ", "密", "🔒"] {
+            let longest = unit.repeat(MAX_PASSWORD_CHARACTERS);
+            let hash = hash(&longest, Some("standard"), None, None).unwrap();
+            assert!(verify(&longest, &hash), "{unit}");
+            let shorter = unit.repeat(MAX_PASSWORD_CHARACTERS - 1);
+            assert!(!verify(&shorter, &hash), "{unit}");
+            let error = hash_too_long(unit);
+            assert_eq!(
+                error.message,
+                "Password must have at most 64 characters; it has 65."
+            );
+        }
+    }
+
+    fn hash_too_long(unit: &str) -> CryptoError {
+        hash(
+            &unit.repeat(MAX_PASSWORD_CHARACTERS + 1),
+            Some("basic"),
+            None,
+            Some(4),
+        )
+        .unwrap_err()
+    }
+
+    #[test]
+    fn refuses_bcrypt_passwords_it_would_truncate() {
+        let ascii = "a".repeat(64);
+        assert!(verify(
+            &ascii,
+            &hash(&ascii, Some("basic"), None, Some(4)).unwrap()
+        ));
+        let accented = "ñ".repeat(37);
+        let error = hash(&accented, Some("basic"), None, Some(4)).unwrap_err();
+        assert_eq!(error.code, crate::error::ErrorCode::InvalidInput);
+        assert_eq!(
+            error.message,
+            "bcrypt only uses the first 72 bytes and this password has 74; use argon2id (level standard)."
+        );
+        let exact = "ñ".repeat(36);
+        let hash = hash(&exact, Some("basic"), None, Some(4)).unwrap();
+        assert!(verify(&exact, &hash));
+        assert!(!verify(&"ñ".repeat(35), &hash));
     }
 
     #[test]

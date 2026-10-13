@@ -67,12 +67,14 @@ pub fn cipher_encrypt(
     key: &str,
     level: Option<String>,
     algorithm: Option<String>,
+    password: Option<bool>,
 ) -> Result<String, JsValue> {
     js(cipher::encrypt(
         data,
         key,
         level.as_deref(),
         algorithm.as_deref(),
+        password.unwrap_or(false),
     ))
 }
 

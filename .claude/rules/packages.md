@@ -108,8 +108,10 @@ Only when the package needs them, and documented in its README:
   `check:lint`/`fix:lint`, their own tsconfig type-checked in `check:types`, and one script to
   run them (e.g. `benchmark`).
 - Extra `.gitignore` lines, `.prettierignore`, `sideEffects`.
-- A web build: `browser` field + `browser` export condition + `check-web.js` in `check:dist` +
-  `web` in `dist.check.js`. `check-web.js` loads the ESM build in a realm with the standard Web APIs
+- A web build: `browser` field + `browser` export condition + `check-web.js` and `check-browser.js`
+  in `check:dist` + `web` and `browser` in `dist.check.js` (`browser()` returns
+  `[name, pageFunction, { csp }?]`; each function runs in a real browser page and receives the URL of
+  the ESM entry). `check-web.js` loads the ESM build in a realm with the standard Web APIs
   (`TextEncoder`, `crypto`, `atob`, timers…) and no Node APIs nor `Worker`. Its `exports["."]` may add a `node` condition (nested `import` /
   `require`, each with its own `types`, so Node never takes the `browser` entry) and a last
   `default` pointing to the ESM build for resolvers that match no condition:
@@ -129,8 +131,9 @@ Only when the package needs them, and documented in its README:
   formats it and `.editorconfig` gives `*.rs` 4 spaces. `build:wasm` runs `wasm-pack --target no-modules`
   into `wasm/` (gitignored) and `node ../../scripts/embed-wasm.js` turns it into
   `src/wasm/wasm-assets.generated.ts` (gitignored, in `.prettierignore`, ignored by ESLint, editorconfig
-  and coverage). `check:rust` (fmt, clippy on wasm32 and native, `cargo test`) and `fix:rust` run inside
-  `rust/` so rustup and cargo find their config. `build` starts with `build:wasm` and `check:all` runs
+  and coverage). `check:rust` (fmt, clippy on wasm32 and native, `cargo test`), `fix:rust` and `check:audit`
+  (`cargo audit`, accepted advisories in `rust/.cargo/audit.toml`) run inside `rust/` so rustup and
+  cargo find their config. `build` starts with `build:wasm` and `check:all` runs
   `check:rust → build:wasm` right after `check:lint`. CI installs the toolchain and wasm-pack.
 - `jest.injectGlobals` `true`, only for a spec suite that cannot be edited and relies on Jest
   globals (e.g. one ported from another project). New specs still import from `@jest/globals`.

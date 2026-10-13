@@ -1,5 +1,6 @@
 use aes::cipher::block_padding::Pkcs7;
-use aes::cipher::{BlockDecryptMut, BlockEncryptMut, KeyIvInit};
+use aes::cipher::{BlockDecryptMut, KeyIvInit};
+use argon2::{Argon2, Params, Version};
 use hkdf::Hkdf;
 use sha2::{Sha256, Sha384};
 use subtle::ConstantTimeEq;
@@ -9,12 +10,14 @@ use crate::encoding::{from_base64url, random_bytes, to_base64url};
 use crate::error::{CryptoError, CryptoResult};
 use crate::hash::{DigestAlgorithm, hmac_bytes};
 use crate::level::{Algorithm, Level, explicit_level, resolve};
+use crate::password::{MAX_PASSWORD_CHARACTERS, PasswordParams, argon2_params, characters};
 
 const VERSION: &str = "v1";
 const SALT_LENGTH: usize = 16;
 const LEGACY_IV_LENGTH: usize = 16;
 const MIN_SECRET_LENGTH: usize = 16;
 const MIN_CNSA_SECRET_LENGTH: usize = 32;
+const MIN_PASSWORD_CHARACTERS: usize = 8;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CipherAlgorithm {
@@ -63,42 +66,101 @@ impl Algorithm for CipherAlgorithm {
 enum Kdf {
     HkdfSha256,
     HkdfSha384,
+    Argon2id {
+        memory_kib: u32,
+        iterations: u32,
+        parallelism: u32,
+    },
 }
 
 impl Kdf {
-    fn name(self) -> &'static str {
+    fn for_password(level: Level) -> Kdf {
+        let PasswordParams::Argon2id {
+            memory_kib,
+            iterations,
+            parallelism,
+        } = argon2_params(level)
+        else {
+            unreachable!("argon2_params always describes argon2id")
+        };
+        Kdf::Argon2id {
+            memory_kib,
+            iterations,
+            parallelism,
+        }
+    }
+
+    fn name(self) -> String {
         match self {
-            Kdf::HkdfSha256 => "hkdf-sha256",
-            Kdf::HkdfSha384 => "hkdf-sha384",
+            Kdf::HkdfSha256 => "hkdf-sha256".to_string(),
+            Kdf::HkdfSha384 => "hkdf-sha384".to_string(),
+            Kdf::Argon2id {
+                memory_kib,
+                iterations,
+                parallelism,
+            } => format!("argon2id-m{memory_kib}-t{iterations}-p{parallelism}"),
         }
     }
 
     fn parse(value: &str) -> CryptoResult<Self> {
-        match value {
-            "hkdf-sha256" => Ok(Kdf::HkdfSha256),
-            "hkdf-sha384" => Ok(Kdf::HkdfSha384),
-            _ => Err(CryptoError::malformed(
-                "Invalid encrypted format: unknown key derivation.",
-            )),
-        }
+        let known = [Kdf::HkdfSha256, Kdf::HkdfSha384]
+            .into_iter()
+            .chain(Level::ALL.map(Kdf::for_password));
+        known
+            .into_iter()
+            .find(|kdf| kdf.name() == value)
+            .ok_or_else(|| {
+                CryptoError::malformed("Invalid encrypted format: unknown key derivation.")
+            })
     }
 
-    fn min_secret_length(self) -> usize {
-        match self {
+    fn check_secret(self, secret: &str) -> CryptoResult<()> {
+        let minimum = match self {
             Kdf::HkdfSha256 => MIN_SECRET_LENGTH,
             Kdf::HkdfSha384 => MIN_CNSA_SECRET_LENGTH,
+            Kdf::Argon2id { .. } => return check_password(secret),
+        };
+        if secret.len() < minimum {
+            return Err(CryptoError::invalid_key(format!(
+                "Key must have a minimum length of {minimum} characters."
+            )));
         }
+        Ok(())
     }
 
     fn derive(self, secret: &[u8], salt: Option<&[u8]>, info: &[u8], length: usize) -> Vec<u8> {
         let mut key = vec![0u8; length];
-        let expanded = match self {
-            Kdf::HkdfSha256 => Hkdf::<Sha256>::new(salt, secret).expand(info, &mut key),
-            Kdf::HkdfSha384 => Hkdf::<Sha384>::new(salt, secret).expand(info, &mut key),
-        };
-        expanded.unwrap_or_else(|_| unreachable!("output length is far below the HKDF limit"));
+        match self {
+            Kdf::HkdfSha256 => Hkdf::<Sha256>::new(salt, secret)
+                .expand(info, &mut key)
+                .unwrap_or_else(|_| unreachable!("output length is far below the HKDF limit")),
+            Kdf::HkdfSha384 => Hkdf::<Sha384>::new(salt, secret)
+                .expand(info, &mut key)
+                .unwrap_or_else(|_| unreachable!("output length is far below the HKDF limit")),
+            Kdf::Argon2id {
+                memory_kib,
+                iterations,
+                parallelism,
+            } => {
+                let params = Params::new(memory_kib, iterations, parallelism, Some(length))
+                    .unwrap_or_else(|_| unreachable!("the parameters come from the level table"));
+                Argon2::new(argon2::Algorithm::Argon2id, Version::V0x13, params)
+                    .hash_password_into(secret, salt.unwrap_or_default(), &mut key)
+                    .unwrap_or_else(|_| unreachable!("salt and key lengths are fixed"));
+            }
+        }
         key
     }
+}
+
+fn check_password(password: &str) -> CryptoResult<()> {
+    let count = characters(password);
+    if !(MIN_PASSWORD_CHARACTERS..=MAX_PASSWORD_CHARACTERS).contains(&count) {
+        return Err(CryptoError::invalid_key(format!(
+            "Password must have between {MIN_PASSWORD_CHARACTERS} and {MAX_PASSWORD_CHARACTERS} characters; it has {count}."
+        )));
+    }
+    Ok(())
 }
 
 pub fn derive_key(
@@ -113,22 +175,26 @@ pub fn derive_key(
     } else {
         Kdf::HkdfSha256
     };
-    check_secret(secret, kdf)?;
+    kdf.check_secret(secret)?;
     Ok(kdf.derive(secret.as_bytes(), salt, info.as_bytes(), length))
 }
 
-fn check_secret(secret: &str, kdf: Kdf) -> CryptoResult<()> {
-    let minimum = kdf.min_secret_length();
-    if secret.len() < minimum {
-        return Err(CryptoError::invalid_key(format!(
-            "Key must have a minimum length of {minimum} characters."
-        )));
+fn decrypt_only(algorithm: CipherAlgorithm) -> CryptoError {
+    CryptoError::unsupported(format!(
+        "{} is the legacy format of crypto-tools 3.x and can only be decrypted; encrypt with an AEAD algorithm.",
+        algorithm.name()
+    ))
+}
+
+fn resolve_aead(level: Option<&str>, algorithm: Option<&str>) -> CryptoResult<AeadAlgorithm> {
+    match resolve::<CipherAlgorithm>(level, algorithm)? {
+        CipherAlgorithm::Aead(aead) => Ok(aead),
+        legacy => Err(decrypt_only(legacy)),
     }
-    Ok(())
 }
 
 pub fn generate_key(level: Option<&str>, algorithm: Option<&str>) -> CryptoResult<String> {
-    resolve::<CipherAlgorithm>(level, algorithm)?;
+    resolve_aead(level, algorithm)?;
     Ok(to_base64url(&random_bytes(32)?))
 }
 
@@ -144,20 +210,17 @@ pub fn encrypt(
     secret: &str,
     level: Option<&str>,
     algorithm: Option<&str>,
+    password: bool,
 ) -> CryptoResult<String> {
-    let resolved = resolve::<CipherAlgorithm>(level, algorithm)?;
-    let aead = match resolved {
-        CipherAlgorithm::Aead(aead) => aead,
-        CipherAlgorithm::LegacyCbcHmac(key_length) => {
-            return legacy_encrypt(data, secret, key_length);
-        }
+    let aead = resolve_aead(level, algorithm)?;
+    let resolved = CipherAlgorithm::Aead(aead);
+    let level = explicit_level(level)?;
+    let kdf = match (password, level) {
+        (true, level) => Kdf::for_password(level.unwrap_or(Level::Standard)),
+        (false, Some(Level::Cnsa)) => Kdf::HkdfSha384,
+        (false, _) => Kdf::HkdfSha256,
     };
-    let kdf = if explicit_level(level)? == Some(Level::Cnsa) {
-        Kdf::HkdfSha384
-    } else {
-        Kdf::HkdfSha256
-    };
-    check_secret(secret, kdf)?;
+    kdf.check_secret(secret)?;
     let salt = random_bytes(SALT_LENGTH)?;
     let nonce = random_bytes(aead.nonce_length())?;
     let key = kdf.derive(
@@ -202,7 +265,9 @@ pub fn decrypt_bytes(text: &str, secret: &str, algorithm: Option<&str>) -> Crypt
         )));
     }
     let kdf = Kdf::parse(parts[2])?;
-    check_secret(secret, kdf)?;
+    if !matches!(kdf, Kdf::Argon2id { .. }) {
+        kdf.check_secret(secret)?;
+    }
     let salt = from_base64url(parts[3], "salt")?;
     let nonce = from_base64url(parts[4], "nonce")?;
     let sealed = from_base64url(parts[5], "ciphertext")?;
@@ -241,7 +306,9 @@ fn legacy_key(secret: &str, key_length: usize) -> CryptoResult<Vec<u8>> {
         .collect())
 }
 
+#[cfg(test)]
 fn legacy_cbc_encrypt(key: &[u8], iv: &[u8], data: &[u8]) -> Vec<u8> {
+    use aes::cipher::BlockEncryptMut;
     match key.len() {
         16 => cbc::Encryptor::<aes::Aes128>::new_from_slices(key, iv)
             .unwrap_or_else(|_| unreachable!("key and iv lengths are fixed"))
@@ -277,6 +344,7 @@ fn legacy_hmac(key: &[u8], data: &str) -> String {
     )
 }
 
+#[cfg(test)]
 fn legacy_encrypt(data: &[u8], secret: &str, key_length: usize) -> CryptoResult<String> {
     let key = legacy_key(secret, key_length)?;
     let iv = random_bytes(LEGACY_IV_LENGTH)?;
@@ -317,23 +385,89 @@ mod tests {
 
     const SECRET: &str = "a-secret-key-with-more-than-32-characters";
 
+    fn legacy(data: &[u8], key: &str, algorithm: &str) -> String {
+        let CipherAlgorithm::LegacyCbcHmac(key_length) = CipherAlgorithm::parse(algorithm).unwrap()
+        else {
+            panic!("{algorithm} is not a legacy algorithm")
+        };
+        legacy_encrypt(data, key, key_length).unwrap()
+    }
+
+    #[test]
+    fn only_decrypts_the_legacy_format() {
+        for algorithm in ["aes-128-cbc-hmac", "aes-192-cbc-hmac", "aes-256-cbc-hmac"] {
+            let error = encrypt(b"x", SECRET, None, Some(algorithm), false).unwrap_err();
+            assert_eq!(error.code, crate::error::ErrorCode::Unsupported);
+            assert_eq!(
+                error.message,
+                format!(
+                    "{algorithm} is the legacy format of crypto-tools 3.x and can only be decrypted; encrypt with an AEAD algorithm."
+                )
+            );
+            assert!(generate_key(None, Some(algorithm)).is_err());
+        }
+    }
+
+    #[test]
+    fn derives_the_key_from_a_password_with_argon2id() {
+        let password = "correct horse";
+        let encrypted = encrypt(b"hola", password, None, None, true).unwrap();
+        assert!(encrypted.starts_with("v1.aes-256-gcm.argon2id-m65536-t3-p4."));
+        assert_eq!(decrypt(&encrypted, password, None).unwrap(), "hola");
+        assert_eq!(
+            decrypt(&encrypted, "correct horsf", None).unwrap_err().code,
+            crate::error::ErrorCode::Tampered
+        );
+        let cnsa = encrypt(b"x", password, Some("cnsa"), None, true).unwrap();
+        assert!(cnsa.starts_with("v1.aes-256-gcm.argon2id-m262144-t4-p4."));
+        assert_eq!(decrypt(&cnsa, password, None).unwrap(), "x");
+        let strong = encrypt(b"x", password, Some("strong"), None, true).unwrap();
+        assert!(strong.starts_with("v1.xchacha20-poly1305.argon2id-m65536-t3-p4."));
+    }
+
+    #[test]
+    fn accepts_passwords_of_8_to_64_characters() {
+        for (password, count) in [("1234567", 7), (&"ñ".repeat(65)[..], 65)] {
+            assert_eq!(
+                encrypt(b"x", password, None, None, true)
+                    .unwrap_err()
+                    .message,
+                format!("Password must have between 8 and 64 characters; it has {count}.")
+            );
+        }
+        assert!(encrypt(b"x", "12345678", Some("basic"), None, true).is_ok());
+    }
+
+    #[test]
+    fn refuses_argon2_parameters_it_did_not_produce() {
+        let encrypted = encrypt(b"x", "correct horse", None, None, true).unwrap();
+        let tampered = encrypted.replacen("argon2id-m65536", "argon2id-m4000000", 1);
+        assert_eq!(
+            decrypt(&tampered, "correct horse", None)
+                .unwrap_err()
+                .message,
+            "Invalid encrypted format: unknown key derivation."
+        );
+    }
+
     #[test]
     fn round_trips_with_every_level() {
         for level in ["basic", "standard", "strong", "cnsa", "military"] {
-            let encrypted = encrypt("hola 👋".as_bytes(), SECRET, Some(level), None).unwrap();
+            let encrypted =
+                encrypt("hola 👋".as_bytes(), SECRET, Some(level), None, false).unwrap();
             assert_eq!(decrypt(&encrypted, SECRET, None).unwrap(), "hola 👋");
         }
     }
 
     #[test]
     fn records_algorithm_and_key_derivation_in_the_header() {
-        let basic = encrypt(b"x", SECRET, Some("basic"), None).unwrap();
+        let basic = encrypt(b"x", SECRET, Some("basic"), None, false).unwrap();
         assert!(basic.starts_with("v1.aes-128-gcm.hkdf-sha256."));
-        let strong = encrypt(b"x", SECRET, Some("strong"), None).unwrap();
+        let strong = encrypt(b"x", SECRET, Some("strong"), None, false).unwrap();
         assert!(strong.starts_with("v1.xchacha20-poly1305.hkdf-sha256."));
-        let cnsa = encrypt(b"x", SECRET, Some("cnsa"), None).unwrap();
+        let cnsa = encrypt(b"x", SECRET, Some("cnsa"), None, false).unwrap();
         assert!(cnsa.starts_with("v1.aes-256-gcm.hkdf-sha384."));
-        let chacha = encrypt(b"x", SECRET, None, Some("chacha20-poly1305")).unwrap();
+        let chacha = encrypt(b"x", SECRET, None, Some("chacha20-poly1305"), false).unwrap();
         assert_eq!(
             decrypt(&chacha, SECRET, Some("chacha20-poly1305")).unwrap(),
             "x"
@@ -342,14 +476,14 @@ mod tests {
 
     #[test]
     fn produces_a_different_ciphertext_every_time() {
-        let first = encrypt(b"x", SECRET, None, None).unwrap();
-        let second = encrypt(b"x", SECRET, None, None).unwrap();
+        let first = encrypt(b"x", SECRET, None, None, false).unwrap();
+        let second = encrypt(b"x", SECRET, None, None, false).unwrap();
         assert_ne!(first, second);
     }
 
     #[test]
     fn detects_tampering_and_wrong_keys() {
-        let encrypted = encrypt(b"secret data", SECRET, None, None).unwrap();
+        let encrypted = encrypt(b"secret data", SECRET, None, None, false).unwrap();
         let mut tampered = encrypted.clone().into_bytes();
         let last = tampered.len() - 2;
         tampered[last] = if tampered[last] == b'A' { b'B' } else { b'A' };
@@ -378,7 +512,7 @@ mod tests {
                 "{text}"
             );
         }
-        let encrypted = encrypt(b"x", SECRET, None, None).unwrap();
+        let encrypted = encrypt(b"x", SECRET, None, None, false).unwrap();
         let bad_kdf = encrypted.replacen("hkdf-sha256", "hkdf-md5", 1);
         assert!(decrypt(&bad_kdf, SECRET, None).is_err());
         let legacy_name = encrypted.replacen("aes-256-gcm", "aes-256-cbc-hmac", 1);
@@ -388,7 +522,7 @@ mod tests {
 
     #[test]
     fn returns_bytes_and_refuses_binary_as_text() {
-        let encrypted = encrypt(&[0, 159, 146, 150], SECRET, None, None).unwrap();
+        let encrypted = encrypt(&[0, 159, 146, 150], SECRET, None, None, false).unwrap();
         assert_eq!(
             decrypt_bytes(&encrypted, SECRET, None).unwrap(),
             vec![0, 159, 146, 150]
@@ -402,14 +536,14 @@ mod tests {
     #[test]
     fn requires_longer_secrets_for_cnsa() {
         let short = "0123456789abcdef";
-        assert!(encrypt(b"x", short, None, None).is_ok());
+        assert!(encrypt(b"x", short, None, None, false).is_ok());
         assert_eq!(
-            encrypt(b"x", short, Some("cnsa"), None)
+            encrypt(b"x", short, Some("cnsa"), None, false)
                 .unwrap_err()
                 .message,
             "Key must have a minimum length of 32 characters."
         );
-        assert!(encrypt(b"x", "short", None, None).is_err());
+        assert!(encrypt(b"x", "short", None, None, false).is_err());
     }
 
     #[test]
@@ -445,7 +579,7 @@ mod tests {
     fn keeps_the_legacy_format_round_trip_and_errors() {
         for algorithm in ["aes-128-cbc-hmac", "aes-192-cbc-hmac", "aes-256-cbc-hmac"] {
             let key = "0123456789abcdef";
-            let encrypted = encrypt("こんにちは".as_bytes(), key, None, Some(algorithm)).unwrap();
+            let encrypted = legacy("こんにちは".as_bytes(), key, algorithm);
             assert_eq!(encrypted.split('|').count(), 3);
             assert_eq!(
                 decrypt(&encrypted, key, Some(algorithm)).unwrap(),
@@ -466,7 +600,7 @@ mod tests {
                 .message,
             "Decryption failed: Invalid encrypted format."
         );
-        let encrypted = encrypt(b"text", key, None, algorithm).unwrap();
+        let encrypted = legacy(b"text", key, "aes-256-cbc-hmac");
         let tampered = format!("{}0", &encrypted[..encrypted.len() - 1]);
         let tampered = if tampered == encrypted {
             format!("{}1", &encrypted[..encrypted.len() - 1])
@@ -478,7 +612,13 @@ mod tests {
             "Decryption failed: Invalid HMAC. Data may have been tampered with."
         );
         assert_eq!(
-            encrypt(b"x", "123456789012345", None, algorithm)
+            legacy_encrypt(b"x", "123456789012345", 32)
+                .unwrap_err()
+                .message,
+            "Key must have a minimum length of 16 characters."
+        );
+        assert_eq!(
+            decrypt("bad", "123456789012345", algorithm)
                 .unwrap_err()
                 .message,
             "Key must have a minimum length of 16 characters."

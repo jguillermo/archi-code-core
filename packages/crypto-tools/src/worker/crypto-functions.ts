@@ -21,6 +21,7 @@ export interface CryptoFunctions {
     key: string,
     level: Optional<string>,
     algorithm: Optional<string>,
+    password: Optional<boolean>,
   ): string;
   cipherDecrypt(text: string, key: string, algorithm: Optional<string>): string;
   cipherDecryptBytes(text: string, key: string, algorithm: Optional<string>): Uint8Array;
@@ -74,4 +75,4 @@ export interface CryptoRequest {
 
 export type CryptoResponse =
   | { id: number; ok: true; result: unknown }
-  | { id: number; ok: false; error: string };
+  | { id: number; ok: false; error: string; fatal?: boolean };

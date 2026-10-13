@@ -22,7 +22,12 @@ const HANDLER = `
         send({ id: message.id, ok: true, result: result }, transfer);
       })
       .catch(function (error) {
-        send({ id: message.id, ok: false, error: error instanceof Error ? error.message : String(error) });
+        send({
+          id: message.id,
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+          fatal: error instanceof WebAssembly.RuntimeError,
+        });
       });
   };
   if (port) {

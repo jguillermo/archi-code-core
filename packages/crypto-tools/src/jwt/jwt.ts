@@ -11,6 +11,7 @@ export interface JwtSignOptions {
   issuer?: string;
   subject?: string;
   audience?: string | string[];
+  requireExpiration?: boolean;
 }
 
 export interface JwtVerifyOptions {
@@ -19,6 +20,7 @@ export interface JwtVerifyOptions {
   audience?: string;
   clockTolerance?: number;
   ignoreExpiration?: boolean;
+  requireExpiration?: boolean;
 }
 
 export type JwtPayload = Record<string, unknown>;

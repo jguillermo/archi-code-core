@@ -39,6 +39,7 @@ describe('browserWorkerFactory', () => {
       id: 2,
       ok: false,
       error: 'MALFORMED|Invalid encrypted format.',
+      fatal: false,
     });
     const encrypted = await request(
       'cipherEncrypt',

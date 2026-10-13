@@ -16,11 +16,12 @@ npm run clean           # Remove all node_modules
 npm run check:packages  # Full gate (check:all) in every package
 npm run check:<name>    # Full gate in one package: validator, domain, criteria, crypto-tools, ephemeradb, test
 npm run check:versions  # Every package version and internal dep is 0.0.0-development
+npm run check:audit     # npm audit of runtime deps + cargo audit of crypto-tools (network; CI audit.yml, weekly)
 npm run version         # Dry-run of the release: current and next version of each package, writes release-plan.json
 npm run release         # Deploy (CI): publish the planned packages and record them in releases.json
 ```
 
-Every package's `check:all` runs the same gate: editorconfig-checker → prettier (`src`, `test` and the package's own `*.json`/`*.md`) → eslint → tsc (src + test) → jest with coverage → build (CJS + ESM) → dist check. CI on pull requests runs `npm run check`; the release workflow (push to `main`/`release`, GitHub environment `deploy` with the `NPM_TOKEN` secret) only builds and publishes. The husky hooks stay fast and leave the full gate to CI: `pre-commit` runs `scripts/pre-commit.js` (Prettier and ESLint only on the staged files the gate checks) and `pre-push` runs `scripts/check-versions.js`.
+Every package's `check:all` runs the same gate: editorconfig-checker → prettier (`src`, `test` and the package's own `*.json`/`*.md`) → eslint → tsc (src + test) → jest with coverage → build (CJS + ESM) → dist check. CI on pull requests runs `npm run check` (and `.github/workflows/audit.yml` runs `npm run check:audit`, also every Monday); the release workflow (push to `main`/`release`, GitHub environment `deploy` with the `NPM_TOKEN` secret) only builds and publishes. The husky hooks stay fast and leave the full gate to CI: `pre-commit` runs `scripts/pre-commit.js` (Prettier and ESLint only on the staged files the gate checks) and `pre-push` runs `scripts/check-versions.js`.
 
 The root `scripts/` holds only the general tools (packages have no `scripts/` folder); each package calls them as `node ../../scripts/<name>.js` and they act on the current package directory:
 
@@ -29,9 +30,10 @@ The root `scripts/` holds only the general tools (packages have no `scripts/` fo
 - `scripts/check-types.js` — a throwaway TypeScript consumer imports the package by name from an ESM (`.mts`) and a CJS (`.cts`) file under `node16`, `nodenext` and `bundler` resolution. Each `exports` condition must carry its own `types` (`import` → `dist/esm`, `require` → `dist/cjs`).
 - `scripts/editorconfig.js` — runs editorconfig-checker with the shared excludes and the binary version pinned (`EC_VERSION`); the npm wrapper downloads the binary from GitHub, so `latest` would break when upstream renames its assets. Change the version only there.
 - `scripts/check-web.js` — `browser` field points to the ESM build, `dist/esm` has no bare imports nor Node-only globals, and the build loads in a realm with the standard Web APIs and without Node APIs.
-- `scripts/embed-wasm.js` — turns a `wasm-pack --target no-modules` output into a generated `.ts` module (wasm as base64 + glue as text) and refuses glue that needs Node or imports modules. `scripts/lib/web-safety.js` holds the checks it shares with `check-web.js`.
+- `scripts/check-browser.js` — serves the package's `dist/` and runs the `browser` checks of `test/dist/dist.check.js` inside real Chromium, Firefox and WebKit pages through Playwright (root devDependency; `npx playwright install` once, `CHECK_BROWSERS=chromium` narrows it). Each check is `[name, pageFunction, { csp }?]`: the function runs in a page served with that Content-Security-Policy, receives the URL of the ESM entry and returns `true` or an error message.
+- `scripts/embed-wasm.js` — turns a `wasm-pack --target no-modules` output into a generated `.ts` module (wasm gzipped as base64, decompressed with `DecompressionStream`, + glue as text) and refuses glue that needs Node or imports modules. `scripts/lib/web-safety.js` holds the checks it shares with `check-web.js`.
 
-Checks specific to one package's build live in that package, in `test/dist/dist.check.js` (every package has one; jest ignores it because it is not a `.spec.ts`). They must exercise the real API, not just load it. It may export `smoke(m)` (run on CJS and ESM), `crossBuild(cjs, esm)` (check-dist) and `web(webModule, nodeModule)` (check-web); each returns `[name, check]` pairs where `check()` returns (or resolves to) `true` or an error message. `scripts/lib/package-checks.js` loads and runs them.
+Checks specific to one package's build live in that package, in `test/dist/dist.check.js` (every package has one; jest ignores it because it is not a `.spec.ts`). They must exercise the real API, not just load it. It may export `smoke(m)` (run on CJS and ESM), `crossBuild(cjs, esm)` (check-dist), `web(webModule, nodeModule)` (check-web) and `browser()` (check-browser); each returns `[name, check]` pairs where `check()` returns (or resolves to) `true` or an error message. `scripts/lib/package-checks.js` loads and runs them.
 
 - Root `npm run check:scripts` / `fix:scripts` run Prettier over `scripts/`, the root `*.md` and `.claude/**/*.md`.
 
@@ -146,7 +148,18 @@ npm workspaces monorepo publishing independent npm packages implementing DDD pat
 - Levels `basic | standard | strong | cnsa` (`military` = `cnsa`) are one table in `rust/src`; errors are
   `CryptoError` with a `code`. `CryptoEngine` is the legacy obfuscator ported byte for byte (it replicates
   V8's TimSort); `test/fixtures/legacy.json` holds outputs of the previous JS implementation.
-- Gate: `npm run check:crypto-tools` needs Rust (`rust/rust-toolchain.toml`) and `wasm-pack`.
+- Pool: a call that gets no answer within `timeout` ms (default 60 s) rejects with `TIMEOUT` and a wasm
+  trap rejects with `WORKER`; in both cases the worker is replaced and its queued calls move to another
+  one. A page that blocks Blob workers (CSP) falls back to the calling thread. Idle workers close after
+  `idleTimeout` (default 30 s) to give back wasm memory (Argon2id keeps 64–256 MiB).
+- `cipher` derives with HKDF for random keys and with Argon2id for `{ password: true }`; the
+  `aes-*-cbc-hmac` legacy format is decrypt-only. `jwt` requires `exp` unless `requireExpiration: false`.
+- Passwords: `standard` is Argon2id, only `basic` is bcrypt; `password.hash` takes at most 64 characters
+  (grapheme clusters) and bcrypt refuses passwords over 72 bytes instead of truncating them.
+- RSA private-key operations are blinded (`decrypt_blinded`, `BlindedSigningKey`); RUSTSEC-2023-0071
+  has no fixed `rsa` release and is accepted in `rust/.cargo/audit.toml` (see README "Known risk").
+- Gate: `npm run check:crypto-tools` needs Rust (`rust/rust-toolchain.toml`), `wasm-pack` and the
+  Playwright browsers; `check:audit` needs `cargo-audit`.
 
 ### domain package internals
 

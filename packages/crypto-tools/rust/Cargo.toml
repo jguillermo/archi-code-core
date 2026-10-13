@@ -32,6 +32,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 rand_core = { version = "0.6", features = ["getrandom"] }
 time = { version = "0.3", features = ["formatting", "parsing"] }
+unicode-segmentation = "1"
 
 [profile.dev.package."*"]
 opt-level = 3

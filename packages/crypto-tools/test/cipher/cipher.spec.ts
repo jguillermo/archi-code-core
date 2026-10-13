@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it } from '@jest/globals';
 import { cipher } from '../../src/cipher/cipher';
-import type { CipherAlgorithm } from '../../src/cipher/cipher';
+import type { LegacyCipherAlgorithm } from '../../src/cipher/cipher';
 import type { SecurityLevel } from '../../src/level/security-level';
 import { workers } from '../../src/worker/workers';
 import { fixtures, SECRET } from '../support/fixtures';
@@ -71,17 +71,21 @@ describe('cipher', () => {
   it.each(fixtures.legacyCipher)(
     'decrypts data from the previous SymmetricEncryption with $algorithm',
     async ({ algorithm, key, text, encrypted }) => {
-      const legacy = `${algorithm}-hmac` as CipherAlgorithm;
+      const legacy = `${algorithm}-hmac` as LegacyCipherAlgorithm;
       expect(await cipher.decrypt(encrypted, key, { algorithm: legacy })).toBe(text);
     },
   );
 
-  it('keeps the previous format and its errors', async () => {
+  it('only decrypts the previous format and keeps its errors', async () => {
     const options = { algorithm: 'aes-256-cbc-hmac' as const };
     const key = 'my-secure-keymy-secure-keymy-secure-keymy-secure-key';
-    const encrypted = await cipher.encrypt('Hello, Secure World!', key, options);
-    expect(encrypted.split('|')).toHaveLength(3);
-    expect(await cipher.decrypt(encrypted, key, options)).toBe('Hello, Secure World!');
+    await expect(
+      cipher.encrypt('x', key, options as unknown as { algorithm: 'aes-256-gcm' }),
+    ).rejects.toMatchObject({
+      code: 'UNSUPPORTED',
+      message:
+        'aes-256-cbc-hmac is the legacy format of crypto-tools 3.x and can only be decrypted; encrypt with an AEAD algorithm.',
+    });
     await expect(cipher.decrypt('invalid|encrypted|string', key, options)).rejects.toThrow(
       'Decryption failed: Invalid encrypted format.',
     );
@@ -90,6 +94,19 @@ describe('cipher', () => {
     await expect(cipher.decrypt(tampered, key, options)).rejects.toThrow(
       'Decryption failed: Invalid HMAC. Data may have been tampered with.',
     );
+  });
+
+  it('derives the key from a password with argon2id', async () => {
+    const encrypted = await cipher.encrypt('hola', 'correct horse', { password: true });
+    expect(encrypted.startsWith('v1.aes-256-gcm.argon2id-m65536-t3-p4.')).toBe(true);
+    expect(await cipher.decrypt(encrypted, 'correct horse')).toBe('hola');
+    await expect(cipher.decrypt(encrypted, 'correct horsf')).rejects.toMatchObject({
+      code: 'TAMPERED',
+    });
+    await expect(cipher.encrypt('hola', 'short', { password: true })).rejects.toMatchObject({
+      code: 'INVALID_KEY',
+      message: 'Password must have between 8 and 64 characters; it has 5.',
+    });
   });
 
   it('rejects data that is neither text nor bytes', async () => {

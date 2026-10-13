@@ -37,6 +37,7 @@ describe('CryptoError', () => {
       'MALFORMED',
       'UNSUPPORTED',
       'WORKER',
+      'TIMEOUT',
     ]);
   });
 });

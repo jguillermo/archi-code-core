@@ -30,6 +30,8 @@ function webGlobals() {
     clearInterval,
     console,
     performance,
+    Response,
+    DecompressionStream,
   };
 }
 
