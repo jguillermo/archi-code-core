@@ -1,6 +1,6 @@
 'use strict';
 
-const HEADER = ['PAQUETE', 'ACTUAL', 'NUEVA', 'COMMITS', 'MOTIVO'];
+const HEADER = ['PACKAGE', 'CURRENT', 'NEXT', 'COMMITS', 'REASON'];
 
 function releasing(plan) {
   return plan.packages.filter((pkg) => pkg.next);
@@ -19,7 +19,7 @@ function summaryRows(plan) {
   return plan.packages.map((pkg) => [
     pkg.name,
     pkg.current ?? '—',
-    pkg.next ?? '(sin cambios)',
+    pkg.next ?? '(no changes)',
     String(pkg.commits.length),
     pkg.reasons.join(', ') || '—',
   ]);
@@ -38,10 +38,10 @@ function table(rows) {
 function packageDetail(pkg) {
   return [
     pkg.reset
-      ? 'reinicio del conjunto: nueva major para todos los paquetes, sin mirar commits'
-      : `desde ${pkg.baseCommit ? pkg.baseCommit.slice(0, 7) : 'el inicio de la historia'}`,
+      ? 'reset of the whole set: new major for every package, without looking at commits'
+      : `since ${pkg.baseCommit ? pkg.baseCommit.slice(0, 7) : 'the beginning of the history'}`,
     ...Object.entries(pkg.dependencies).map(
-      ([dep, version]) => `dep  ${dep}: ${version ?? '(sin versión publicada)'}`,
+      ([dep, version]) => `dep  ${dep}: ${version ?? '(no published version)'}`,
     ),
     ...pkg.commits.map(
       (commit) => `${commit.hash} ${(commit.bump ?? '-').padEnd(5)} ${commit.subject}`,
@@ -51,22 +51,22 @@ function packageDetail(pkg) {
 }
 
 function renderLastDeploy(deploy) {
-  if (!deploy) return ['Último deploy: ninguno registrado'];
+  if (!deploy) return ['Last deploy: none recorded'];
   return [
-    `Último deploy: ${formatDate(deploy.date)}  |  canal ${deploy.channel}  |  ` +
+    `Last deploy: ${formatDate(deploy.date)}  |  channel ${deploy.channel}  |  ` +
       `commit ${deploy.commit.slice(0, 7)}`,
     ...deploy.packages.map((pkg) => `  ${pkg.name}  ${pkg.previous ?? '—'} → ${pkg.version}`),
   ];
 }
 
 function renderPlan(plan) {
-  const lines = [`canal: ${plan.branch}  |  dist-tags npm: ${plan.distTags.join(', ')}`, ''];
+  const lines = [`channel: ${plan.branch}  |  npm dist-tags: ${plan.distTags.join(', ')}`, ''];
   lines.push(...table([HEADER, ...summaryRows(plan)]));
   for (const pkg of releasing(plan)) {
     lines.push('', `${pkg.name}  ${pkg.current ?? '—'} → ${pkg.next}`);
     lines.push(...packageDetail(pkg).map((line) => `  ${line}`));
   }
-  lines.push('', `${releasing(plan).length} paquete(s) subirían de versión.`);
+  lines.push('', `${releasing(plan).length} package(s) would get a new version.`);
   return lines;
 }
 
@@ -76,14 +76,14 @@ function escapeCell(text) {
 
 function planMarkdown(plan) {
   const lines = [
-    `### Plan de release — canal \`${plan.branch}\`, dist-tags \`${plan.distTags.join(', ')}\``,
+    `### Release plan — channel \`${plan.branch}\`, dist-tags \`${plan.distTags.join(', ')}\``,
     '',
     `| ${HEADER.join(' | ')} |`,
     `|${HEADER.map(() => ' --- ').join('|')}|`,
     ...summaryRows(plan).map((row) => `| ${row.map(escapeCell).join(' | ')} |`),
   ];
   if (plan.errors.length) {
-    lines.push('', '**Errores:**', ...plan.errors.map((error) => `- ${error}`));
+    lines.push('', '**Errors:**', ...plan.errors.map((error) => `- ${error}`));
   }
   return `${lines.join('\n')}\n`;
 }

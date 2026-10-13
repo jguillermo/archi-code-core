@@ -21,22 +21,23 @@ const branch = currentBranch(ROOT);
 const target = branchArgument() ?? (CHANNELS[branch] ? branch : 'main');
 const { state, plan, errors } = loadPlan(ROOT, target);
 
-console.log(`\nRama actual: ${branch}`);
-if (target !== branch) console.log(`(simulación: en ${branch} se calcula como si fuera ${target})`);
+console.log(`\nCurrent branch: ${branch}`);
+if (target !== branch)
+  console.log(`(simulation: on ${branch} it is computed as if it were ${target})`);
 renderLastDeploy(lastDeploy(state)).forEach((line) => console.log(line));
 console.log('');
 
 if (plan) {
   renderPlan(plan).forEach((line) => console.log(line));
   fs.writeFileSync(PLAN_FILE, `${JSON.stringify(plan, null, 2)}\n`);
-  console.log(`Plan en ${path.relative(ROOT, PLAN_FILE)}`);
+  console.log(`Plan in ${path.relative(ROOT, PLAN_FILE)}`);
   if (process.env.GITHUB_STEP_SUMMARY) {
     fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, planMarkdown(plan));
   }
 }
 
 if (errors.length) {
-  console.error('\nErrores (el deploy no publicaría nada):');
+  console.error('\nErrors (the deploy would publish nothing):');
   errors.forEach((error) => console.error(`  ✘ ${error}`));
   process.exit(1);
 }

@@ -54,7 +54,7 @@ if (require.main === module) {
   const prettierOk = prettier.length === 0 || run('prettier', ['--check', ...prettier]);
   const eslintOk = eslint.length === 0 || run('eslint', eslint);
   if (!prettierOk || !eslintOk) {
-    console.error('pre-commit: corrige con `npm run fix` y vuelve a añadir los archivos');
+    console.error('pre-commit: fix with `npm run fix` and stage the files again');
     process.exit(1);
   }
 }

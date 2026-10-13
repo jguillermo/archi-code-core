@@ -11,12 +11,12 @@ function findVersionErrors(packages) {
   const errors = [];
   for (const { name, packageJson } of packages) {
     if (packageJson.version !== DEV_VERSION) {
-      errors.push(`${name}: version "${packageJson.version}" debe ser "${DEV_VERSION}"`);
+      errors.push(`${name}: version "${packageJson.version}" must be "${DEV_VERSION}"`);
     }
     for (const field of DEPENDENCY_FIELDS) {
       for (const [dep, range] of Object.entries(packageJson[field] ?? {})) {
         if (dep.startsWith(SCOPE) && range !== DEV_VERSION) {
-          errors.push(`${name}: ${field}.${dep} "${range}" debe ser "${DEV_VERSION}"`);
+          errors.push(`${name}: ${field}.${dep} "${range}" must be "${DEV_VERSION}"`);
         }
       }
     }
@@ -27,13 +27,11 @@ function findVersionErrors(packages) {
 if (require.main === module) {
   const errors = findVersionErrors(readWorkspacePackages(path.join(__dirname, '..')));
   if (errors.length) {
-    console.error(
-      'check-versions: las versiones reales viven en releases.json, no en package.json',
-    );
+    console.error('check-versions: the real versions live in releases.json, not in package.json');
     errors.forEach((error) => console.error(`  ✘ ${error}`));
     process.exit(1);
   }
-  console.log(`check-versions: OK — todos los paquetes y deps internas en ${DEV_VERSION}`);
+  console.log(`check-versions: OK — every package and internal dep at ${DEV_VERSION}`);
 }
 
 module.exports = { findVersionErrors };

@@ -152,7 +152,7 @@ describe('stateErrors', () => {
     assert.deepEqual(stateErrors(pending), []);
     assert.deepEqual(
       stateErrors({ ...pending, deploys: [{ ...pending.deploys[0], reset: 'x' }] }),
-      ['deploys[0]: reset no válido "x"'],
+      ['deploys[0]: invalid reset "x"'],
     );
   });
 
@@ -172,7 +172,7 @@ describe('stateErrors', () => {
 
   test('rejects a file without packages or deploys', () => {
     assert.deepEqual(stateErrors({}), [
-      `${STATE_FILE} debe tener "packages" (objeto) y "deploys" (lista)`,
+      `${STATE_FILE} must have "packages" (object) and "deploys" (list)`,
     ]);
   });
 
@@ -185,12 +185,12 @@ describe('stateErrors', () => {
       ],
     });
     assert.deepEqual(errors, [
-      'deploys[0]: commit no válido',
-      'deploys[0]: fecha no válida',
-      'deploys[0]: canal no válido "z"',
-      'deploys[0]: "packages" debe ser una lista no vacía',
-      'deploys[1].packages[0]: necesita "name" y una "version" válida',
-      'deploys[1].packages[0]: commit no válido',
+      'deploys[0]: invalid commit',
+      'deploys[0]: invalid date',
+      'deploys[0]: invalid channel "z"',
+      'deploys[0]: "packages" must be a non-empty list',
+      'deploys[1].packages[0]: needs "name" and a valid "version"',
+      'deploys[1].packages[0]: invalid commit',
     ]);
   });
 
@@ -209,11 +209,11 @@ describe('stateErrors', () => {
       ],
     });
     assert.deepEqual(errors, [
-      '@archi-code/x (main): 1.0.0 debería ser una prerelease',
-      '@archi-code/x (release): 1.0.0-alpha.1 debería ser estable',
-      '@archi-code/x: canal desconocido "beta"',
-      '@archi-code/y (main): versión no válida "v1"',
-      '@archi-code/z (main): ningún deploy registra la publicación de 1.0.0-alpha.5',
+      '@archi-code/x (main): 1.0.0 should be a prerelease',
+      '@archi-code/x (release): 1.0.0-alpha.1 should be stable',
+      '@archi-code/x: unknown channel "beta"',
+      '@archi-code/y (main): invalid version "v1"',
+      '@archi-code/z (main): no deploy records the publication of 1.0.0-alpha.5',
     ]);
   });
 });

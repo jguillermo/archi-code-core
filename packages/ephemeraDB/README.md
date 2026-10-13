@@ -1,19 +1,19 @@
 # @archi-code/ephemeradb
 
-Almacén asíncrono en memoria de entidades con `id`, pensado para dobles de repositorio en tests y
-prototipos. Todas sus operaciones devuelven `Promise`, como un repositorio real, así que puedes
-sustituir uno por otro sin cambiar el código que lo usa. Sin dependencias en tiempo de ejecución; el
-paquete incluye builds CJS y ESM.
+Asynchronous in-memory store of entities with an `id`, meant for repository doubles in tests and
+prototypes. All its operations return a `Promise`, like a real repository, so you can swap one for
+the other without changing the code that uses it. No runtime dependencies; the package ships CJS
+and ESM builds.
 
-## Instalación
+## Installation
 
 ```bash
 npm install --save-dev @archi-code/ephemeradb
 ```
 
-Usa `--save-dev` si solo lo necesitas en tests. Requiere Node.js 24 o superior.
+Use `--save-dev` if you only need it in tests. Requires Node.js 24 or later.
 
-## Importación
+## Import
 
 ESM / TypeScript:
 
@@ -34,18 +34,18 @@ db.persist({ id: '1', name: 'Ana' })
 
 ## `EphemeraDb<T extends { id: string }>`
 
-Cada instancia es un almacén independiente. El tipo de las entidades debe tener un `id` de tipo
-`string`; con otro tipo de `id` TypeScript no compila:
+Each instance is an independent store. The entity type must have an `id` of type `string`; with any
+other `id` type TypeScript does not compile:
 
 ```ts
 new EphemeraDb<{ id: number }>();
 // error TS2344: Type '{ id: number; }' does not satisfy the constraint '{ id: string; }'.
 ```
 
-### Guardar: `persist(item)`
+### Save: `persist(item)`
 
-Inserta la entidad o, si ya existe otra con el mismo `id`, la reemplaza en su misma posición
-(_upsert_). Devuelve `Promise<void>`.
+Inserts the entity or, if another one with the same `id` already exists, replaces it in the same
+position (_upsert_). Returns `Promise<void>`.
 
 ```ts
 interface User {
@@ -63,19 +63,19 @@ await db.findAll();
 // [{ id: '1', name: 'Ana María' }, { id: '2', name: 'Luis' }]
 ```
 
-### Buscar por id: `findById(id)`
+### Find by id: `findById(id)`
 
-Devuelve `Promise<T | null>`: la entidad, o `null` si no existe.
+Returns `Promise<T | null>`: the entity, or `null` if it does not exist.
 
 ```ts
 await db.findById('1'); // { id: '1', name: 'Ana María' }
 await db.findById('99'); // null
 ```
 
-### Listar: `findAll()`
+### List: `findAll()`
 
-Devuelve `Promise<T[]>` con todas las entidades en orden de inserción. El array es una copia: añadir o
-quitar elementos de él no cambia el almacén.
+Returns `Promise<T[]>` with every entity in insertion order. The array is a copy: adding or removing
+elements from it does not change the store.
 
 ```ts
 const all = await db.findAll();
@@ -83,42 +83,42 @@ all.pop();
 (await db.findAll()).length; // 2
 ```
 
-### Borrar: `remove(id)`
+### Delete: `remove(id)`
 
-Devuelve `Promise<boolean>`: `true` si había una entidad con ese `id` y se borró, `false` si no
-existía.
+Returns `Promise<boolean>`: `true` if there was an entity with that `id` and it was deleted, `false`
+if it did not exist.
 
 ```ts
 await db.remove('2'); // true
 await db.remove('2'); // false
 ```
 
-### Vaciar: `clear()`
+### Empty: `clear()`
 
-Borra todas las entidades. Devuelve `Promise<void>`.
+Deletes every entity. Returns `Promise<void>`.
 
 ```ts
 await db.clear();
 await db.findAll(); // []
 ```
 
-## Referencias, no copias
+## References, not copies
 
-El almacén guarda las referencias que recibe y `findById`/`findAll` devuelven esos mismos objetos.
-Si modificas un objeto después de guardarlo, el almacén ve el cambio:
+The store keeps the references it receives and `findById`/`findAll` return those same objects. If
+you modify an object after saving it, the store sees the change:
 
 ```ts
 const user = { id: 'r', name: 'Eva' };
 await db.persist(user);
-user.name = 'cambiado';
+user.name = 'changed';
 
-await db.findById('r'); // { id: 'r', name: 'cambiado' }
+await db.findById('r'); // { id: 'r', name: 'changed' }
 ```
 
-Si necesitas aislamiento (por ejemplo, para comprobar que tu código llama a `persist`), guarda y
-devuelve copias en tu repositorio (`structuredClone(item)`).
+If you need isolation (for example, to check that your code calls `persist`), store and return
+copies in your repository (`structuredClone(item)`).
 
-## Ejemplo: repositorio en memoria
+## Example: in-memory repository
 
 ```ts
 interface UserRepository {
@@ -143,57 +143,59 @@ await repository.save({ id: 'x', name: 'X' });
 await repository.byId('x'); // { id: 'x', name: 'X' }
 ```
 
-Crea una instancia nueva (o llama a `clear()`) en cada test para que no compartan datos.
+Create a new instance (or call `clear()`) in each test so they do not share data.
 
-## Errores
+## Errors
 
-Ninguna operación lanza ni rechaza: buscar o borrar un `id` inexistente devuelve `null` / `false`.
+No operation throws or rejects: finding or deleting an `id` that does not exist returns `null` /
+`false`.
 
-## Resumen de exports
+## Exports summary
 
-| Export       | Tipo  | Métodos                                                                                                                                                 |
+| Export       | Type  | Methods                                                                                                                                                 |
 | ------------ | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `EphemeraDb` | clase | `persist(item): Promise<void>`, `findById(id): Promise<T \| null>`, `findAll(): Promise<T[]>`, `remove(id): Promise<boolean>`, `clear(): Promise<void>` |
+| `EphemeraDb` | class | `persist(item): Promise<void>`, `findById(id): Promise<T \| null>`, `findAll(): Promise<T[]>`, `remove(id): Promise<boolean>`, `clear(): Promise<void>` |
 
-## Skill para asistentes de IA
+## AI assistant skill
 
-El paquete incluye `SKILL.md`, una skill de Claude Code con las reglas, los patrones recomendados y
-los errores habituales. Para la API completa remite a este README dentro de `node_modules`, así que
-sigue valiendo al actualizar el paquete. Para instalarla en tu proyecto:
+The package ships `SKILL.md`, a Claude Code skill with the rules, the recommended patterns and the
+common mistakes. For the full API it points to this README inside `node_modules`, so it stays valid
+when you update the package. To install it in your project:
 
 ```bash
 mkdir -p .claude/skills/archi-code-ephemeradb && cp node_modules/@archi-code/ephemeradb/SKILL.md .claude/skills/archi-code-ephemeradb/SKILL.md
 ```
 
-### Cómo se usa
+### How to use
 
-Invócala con una petición:
-
-```text
-/archi-code-ephemeradb crea un InMemoryOrderRepository para los tests del caso de uso CreateOrder
-```
-
-O pide la tarea sin nombrarla y Claude la carga sola porque encaja con su descripción:
+Invoke it with a request:
 
 ```text
-Sustituye el repositorio MongoDB por uno en memoria en los tests de integración
+/archi-code-ephemeradb create an InMemoryOrderRepository for the tests of the CreateOrder use case
 ```
 
-También sirve para revisar código que ya usa el paquete:
+Or ask for the task without naming it and Claude loads it on its own because it matches its
+description:
 
 ```text
-/archi-code-ephemeradb revisa los tests y evita que compartan estado entre ellos
+Replace the MongoDB repository with an in-memory one in the integration tests
 ```
 
-Con la skill cargada, Claude sigue sus reglas, evita los errores de su lista "Qué no hacer" y, antes de
-usar algo que la skill no muestra, lee este README en `node_modules`.
+It also works to review code that already uses the package:
 
-### Mantenerla al día
+```text
+/archi-code-ephemeradb review the tests and keep them from sharing state with each other
+```
 
-- La copia no se actualiza sola: después de actualizar `@archi-code/ephemeradb`, vuelve a ejecutar el comando
-  de arriba.
-- Sube `.claude/skills/archi-code-ephemeradb/` al repositorio para que todo el equipo la use.
+With the skill loaded, Claude follows its rules, avoids the mistakes in its "What not to do" list
+and, before using anything the skill does not show, reads this README in `node_modules`.
 
-## Licencia
+### Keeping it up to date
+
+- The copy does not update itself: after updating `@archi-code/ephemeradb`, run the command above
+  again.
+- Commit `.claude/skills/archi-code-ephemeradb/` to the repository so the whole team uses it.
+
+## License
 
 MIT

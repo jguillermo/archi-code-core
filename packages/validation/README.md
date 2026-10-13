@@ -1,38 +1,37 @@
 # @archi-code/validation
 
-Validadores de strings, conversores de tipo y sanitizadores para TypeScript en un solo paquete.
-Los validadores son un port endurecido de [validator.js](https://github.com/validatorjs/validator.js).
-No tiene dependencias en tiempo de ejecución y publica builds CJS y ESM que también funcionan en el
-navegador.
+String validators, type converters and sanitizers for TypeScript in a single package.
+The validators are a hardened port of [validator.js](https://github.com/validatorjs/validator.js).
+It has no runtime dependencies and ships CJS and ESM builds that also work in the browser.
 
-- [Instalación](#instalación)
-- [Importación](#importación)
-- [Tres herramientas](#tres-herramientas)
-- [Contrato](#contrato)
-- [Validadores `is*`](#validadores-is)
-- [Conversores `to*`](#conversores-to)
-- [Comprobaciones `canBe*`](#comprobaciones-canbe)
-- [Sanitizadores](#sanitizadores)
-- [Contraseñas: `isStrongPassword` y `scorePassword`](#contraseñas-isstrongpassword-y-scorepassword)
-- [Decorador `@Validations` y `runValidations`](#decorador-validations-y-runvalidations)
-- [Errores y excepciones](#errores-y-excepciones)
-- [Tipos exportados](#tipos-exportados)
-- [Diferencias con validator.js](#diferencias-con-validatorjs)
-- [Skill para asistentes de IA](#skill-para-asistentes-de-ia)
-- [Licencia](#licencia)
+- [Installation](#installation)
+- [Import](#import)
+- [Three tools](#three-tools)
+- [Contract](#contract)
+- [`is*` validators](#is-validators)
+- [`to*` converters](#to-converters)
+- [`canBe*` checks](#canbe-checks)
+- [Sanitizers](#sanitizers)
+- [Passwords: `isStrongPassword` and `scorePassword`](#passwords-isstrongpassword-and-scorepassword)
+- [`@Validations` decorator and `runValidations`](#validations-decorator-and-runvalidations)
+- [Errors and exceptions](#errors-and-exceptions)
+- [Exported types](#exported-types)
+- [Differences from validator.js](#differences-from-validatorjs)
+- [AI assistant skill](#ai-assistant-skill)
+- [License](#license)
 
-## Instalación
+## Installation
 
 ```bash
 npm install @archi-code/validation
 ```
 
-Requiere Node.js 24 o superior. En el navegador, el campo `browser` y la condición `browser` de
-`exports` apuntan al build ESM.
+Requires Node.js 24 or later. In the browser, the `browser` field and the `browser` condition of
+`exports` point to the ESM build.
 
-## Importación
+## Import
 
-Todo son exports con nombre (no hay `export default`).
+Everything is a named export (there is no `export default`).
 
 ```ts
 // ESM / TypeScript
@@ -45,28 +44,28 @@ import type { IsEmailOptions, Converted } from '@archi-code/validation';
 const { isEmail, toInteger, canBeDate, sanitizer } = require('@archi-code/validation');
 ```
 
-Cada validador se exporta por separado y es exactamente la misma función que su miembro del
-registro `validator` (`isEmail === validator.isEmail`). El paquete declara `"sideEffects": false`,
-así que el bundler solo incluye lo que importas:
+Each validator is exported on its own and is exactly the same function as its member of the
+`validator` registry (`isEmail === validator.isEmail`). The package declares `"sideEffects": false`,
+so the bundler only includes what you import:
 
 ```ts
-import { isEmail } from '@archi-code/validation'; // solo isEmail y sus helpers
-import { validator } from '@archi-code/validation'; // todos los validadores y tablas de locales
+import { isEmail } from '@archi-code/validation'; // only isEmail and its helpers
+import { validator } from '@archi-code/validation'; // every validator and locale table
 ```
 
-Usa `validator` solo cuando necesites acceso dinámico (`validator[nombre]`); en el resto de casos,
-importa por nombre. `validator` está congelado (`Object.freeze`): no se puede parchear.
+Use `validator` only when you need dynamic access (`validator[name]`); otherwise, import by name.
+`validator` is frozen (`Object.freeze`): it cannot be patched.
 
-## Tres herramientas
+## Three tools
 
-| Herramienta                                      | Pregunta que responde                                  | Devuelve                                    |
-| ------------------------------------------------ | ------------------------------------------------------ | ------------------------------------------- |
-| `isX(value, options?)` (también `validator.isX`) | ¿Es este valor un X válido? (email, URL, IBAN, móvil…) | `boolean`                                   |
-| `toX(value, options?)`                           | Convierte este valor al tipo X.                        | `{ ok, value, error }`                      |
-| `canBeX(value)`                                  | ¿Se puede convertir este valor al tipo X?              | `boolean` (siempre igual a `toX(value).ok`) |
+| Tool                                          | Question it answers                                         | Returns                                     |
+| --------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------- |
+| `isX(value, options?)` (also `validator.isX`) | Is this value a valid X? (email, URL, IBAN, mobile number…) | `boolean`                                   |
+| `toX(value, options?)`                        | Converts this value to type X.                              | `{ ok, value, error }`                      |
+| `canBeX(value)`                               | Can this value be converted to type X?                      | `boolean` (always equal to `toX(value).ok`) |
 
-Las reglas de tipo viven solo en los conversores `to*`; `canBe*` y los validadores se apoyan en
-ellos, así que `canBeX(v) === toX(v).ok` se cumple siempre.
+The type rules live only in the `to*` converters; `canBe*` and the validators rely on them, so
+`canBeX(v) === toX(v).ok` always holds.
 
 ```ts
 import {
@@ -87,23 +86,23 @@ canBeDate('2024-01-31'); // true
 sanitizer.escape('<a>'); // '&lt;a&gt;'
 ```
 
-## Contrato
+## Contract
 
-- **Un validador devuelve solo `boolean`** y nunca lanza por culpa del valor: `null`, objetos,
-  `Symbol`, strings enormes o surrogates sueltos devuelven `false`.
-- **Una configuración inválida lanza `ValidationConfigError`, y solo eso**: locales, códigos de país,
-  algoritmos o proveedores desconocidos, un `decimal_digits` mal formado, un patrón que no es una
-  RegExp válida, opciones que no son un objeto… Nunca un `TypeError` o `SyntaxError` crudo.
-- **Un único objeto de opciones.** Cada validador recibe el valor y, como mucho, un objeto de
-  opciones. No hay parámetros posicionales ni formas abreviadas: `isLength(v, 2)` o `isIP(v, 4)`
-  lanzan `ValidationConfigError`; se escribe `isLength(v, { min: 2 })` e `isIP(v, { version: 4 })`.
-- **`null` como opciones equivale a «sin opciones»**, igual que `undefined`.
-- **Entrada que no es string.** Los validadores leen el valor con `toString`: los strings se usan
-  tal cual, los números finitos se convierten con `String()` y los booleanos pasan a
-  `'true'`/`'false'`. Cualquier otro valor da `false`.
-- **Los conversores `to*` nunca lanzan.** Siempre devuelven `{ ok: true, value, error: null }` o
-  `{ ok: false, value: null, error }`. `error` es uno de los mensajes fijos de `ConvertMessages` y
-  nunca contiene el valor. Un resultado numérico correcto siempre es un número finito.
+- **A validator returns only `boolean`** and never throws because of the value: `null`, objects,
+  `Symbol`, huge strings or lone surrogates return `false`.
+- **An invalid configuration throws `ValidationConfigError`, and only that**: unknown locales,
+  country codes, algorithms or providers, a malformed `decimal_digits`, a pattern that is not a
+  valid RegExp, options that are not an object… Never a raw `TypeError` or `SyntaxError`.
+- **A single options object.** Each validator takes the value and, at most, one options object.
+  There are no positional parameters or shorthand forms: `isLength(v, 2)` or `isIP(v, 4)` throw
+  `ValidationConfigError`; write `isLength(v, { min: 2 })` and `isIP(v, { version: 4 })`.
+- **`null` as options means "no options"**, just like `undefined`.
+- **Non-string input.** Validators read the value with `toString`: strings are used as they are,
+  finite numbers are converted with `String()` and booleans become `'true'`/`'false'`. Any other
+  value gives `false`.
+- **The `to*` converters never throw.** They always return `{ ok: true, value, error: null }` or
+  `{ ok: false, value: null, error }`. `error` is one of the fixed messages of `ConvertMessages` and
+  never contains the value. A successful numeric result is always a finite number.
 
 ```ts
 import { isInt, isAlpha, isEmail, isLength, isHash } from '@archi-code/validation';
@@ -112,54 +111,53 @@ isInt(5); // true
 isAlpha(true); // true
 isEmail(null); // false
 isEmail('ana@example.com', null); // true
-isLength('x', 2); // lanza ValidationConfigError: options must be an object, got 2
-isHash('x', { algorithm: 'nope' }); // lanza ValidationConfigError: Invalid hash algorithm 'nope'
+isLength('x', 2); // throws ValidationConfigError: options must be an object, got 2
+isHash('x', { algorithm: 'nope' }); // throws ValidationConfigError: Invalid hash algorithm 'nope'
 ```
 
-## Validadores `is*`
+## `is*` validators
 
-Hay 91 validadores. Todos tienen una de estas tres firmas:
+There are 91 validators. Each one has one of these three signatures:
 
 ```ts
-isPort(value); // solo el valor
-isAlpha(value, options?); // todas las opciones son opcionales
-isVAT(value, options); // el objeto de opciones tiene al menos una propiedad obligatoria
+isPort(value); // only the value
+isAlpha(value, options?); // every option is optional
+isVAT(value, options); // the options object has at least one required property
 ```
 
-`value` es siempre `unknown`. `options` está tipado por la interfaz `<Validador>Options` que se
-exporta junto al validador (`IsEmailOptions`, `IsVATOptions`, `MatchesOptions`…): el editor
-autocompleta las opciones y marca como error las desconocidas. Los parámetros de locale, país o
-algoritmo sugieren los valores conocidos y aceptan cualquier string (un valor desconocido lanza
-`ValidationConfigError` en tiempo de ejecución). Una opción omitida toma el valor por defecto del
-validador.
+`value` is always `unknown`. `options` is typed by the `<Validator>Options` interface exported next
+to the validator (`IsEmailOptions`, `IsVATOptions`, `MatchesOptions`…): the editor autocompletes the
+options and flags unknown ones as errors. Locale, country and algorithm parameters suggest the known
+values and accept any string (an unknown value throws `ValidationConfigError` at runtime). An
+omitted option takes the validator's default value.
 
-En las tablas, **negrita** = propiedad obligatoria.
+In the tables, **bold** = required property.
 
-### Texto y contenido
+### Text and content
 
-| Firma                             | Opciones (valor por defecto)                                                                   | Comprueba que el valor…                                                |
-| --------------------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `isAlpha(value, options?)`        | `locale` (`'en-US'`, ver `isAlphaLocales`), `ignore` (string o RegExp de caracteres a ignorar) | solo tiene letras del locale                                           |
-| `isAlphanumeric(value, options?)` | `locale` (`'en-US'`, ver `isAlphanumericLocales`), `ignore`                                    | solo tiene letras del locale y dígitos                                 |
-| `isAscii(value)`                  | —                                                                                              | solo tiene caracteres ASCII                                            |
-| `isLowercase(value)`              | —                                                                                              | no cambia al pasarlo a minúsculas                                      |
-| `isUppercase(value)`              | —                                                                                              | no cambia al pasarlo a mayúsculas                                      |
-| `isFullWidth(value)`              | —                                                                                              | contiene caracteres de ancho completo                                  |
-| `isHalfWidth(value)`              | —                                                                                              | contiene caracteres de medio ancho                                     |
-| `isVariableWidth(value)`          | —                                                                                              | mezcla caracteres de ancho completo y de medio ancho                   |
-| `isMultibyte(value)`              | —                                                                                              | contiene caracteres multibyte                                          |
-| `isSurrogatePair(value)`          | —                                                                                              | contiene pares sustitutos UTF-16                                       |
-| `isSlug(value)`                   | —                                                                                              | es un slug (`mi-articulo-1`)                                           |
-| `isLength(value, options?)`       | `min` (`0`), `max`, `discreteLengths` (longitudes permitidas), `graphemes` (contar grafemas)   | tiene una longitud dentro del rango                                    |
-| `isByteLength(value, options?)`   | `min` (`0`), `max`                                                                             | ocupa en UTF-8 un número de bytes dentro del rango                     |
-| `isEmpty(value, options?)`        | `ignore_whitespace` (`false`)                                                                  | es el string vacío                                                     |
-| `isNotEmpty(value)`               | —                                                                                              | es un string con algún carácter que no es espacio, o un número finito  |
-| `isRequired(value)`               | —                                                                                              | no es `null` ni `undefined`                                            |
-| `contains(value, options)`        | **`elem`**, `ignoreCase` (`false`), `minOccurrences` (`1`)                                     | contiene `elem` al menos `minOccurrences` veces                        |
-| `equals(value, options)`          | **`comparison`**                                                                               | es igual a `comparison`                                                |
-| `matches(value, options)`         | **`pattern`** (RegExp o string), `modifiers` (flags si `pattern` es string)                    | encaja con el patrón                                                   |
-| `isIn(value, options)`            | **`values`** (array, objeto o string)                                                          | está en el array, es una clave del objeto o es un substring del string |
-| `isWhitelisted(value, options)`   | **`chars`** (string o array de caracteres)                                                     | solo tiene caracteres de `chars`                                       |
+| Signature                         | Options (default value)                                                                         | Checks that the value…                                                  |
+| --------------------------------- | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `isAlpha(value, options?)`        | `locale` (`'en-US'`, see `isAlphaLocales`), `ignore` (string or RegExp of characters to ignore) | has only letters of the locale                                          |
+| `isAlphanumeric(value, options?)` | `locale` (`'en-US'`, see `isAlphanumericLocales`), `ignore`                                     | has only letters of the locale and digits                               |
+| `isAscii(value)`                  | —                                                                                               | has only ASCII characters                                               |
+| `isLowercase(value)`              | —                                                                                               | does not change when lowercased                                         |
+| `isUppercase(value)`              | —                                                                                               | does not change when uppercased                                         |
+| `isFullWidth(value)`              | —                                                                                               | contains full-width characters                                          |
+| `isHalfWidth(value)`              | —                                                                                               | contains half-width characters                                          |
+| `isVariableWidth(value)`          | —                                                                                               | mixes full-width and half-width characters                              |
+| `isMultibyte(value)`              | —                                                                                               | contains multibyte characters                                           |
+| `isSurrogatePair(value)`          | —                                                                                               | contains UTF-16 surrogate pairs                                         |
+| `isSlug(value)`                   | —                                                                                               | is a slug (`my-article-1`)                                              |
+| `isLength(value, options?)`       | `min` (`0`), `max`, `discreteLengths` (allowed lengths), `graphemes` (count graphemes)          | has a length within the range                                           |
+| `isByteLength(value, options?)`   | `min` (`0`), `max`                                                                              | takes a number of UTF-8 bytes within the range                          |
+| `isEmpty(value, options?)`        | `ignore_whitespace` (`false`)                                                                   | is the empty string                                                     |
+| `isNotEmpty(value)`               | —                                                                                               | is a string with some non-whitespace character, or a finite number      |
+| `isRequired(value)`               | —                                                                                               | is neither `null` nor `undefined`                                       |
+| `contains(value, options)`        | **`elem`**, `ignoreCase` (`false`), `minOccurrences` (`1`)                                      | contains `elem` at least `minOccurrences` times                         |
+| `equals(value, options)`          | **`comparison`**                                                                                | is equal to `comparison`                                                |
+| `matches(value, options)`         | **`pattern`** (RegExp or string), `modifiers` (flags when `pattern` is a string)                | matches the pattern                                                     |
+| `isIn(value, options)`            | **`values`** (array, object or string)                                                          | is in the array, is a key of the object or is a substring of the string |
+| `isWhitelisted(value, options)`   | **`chars`** (string or array of characters)                                                     | has only characters from `chars`                                        |
 
 ```ts
 import {
@@ -174,33 +172,33 @@ import {
 
 isAlpha('año'); // false
 isAlpha('año nuevo', { locale: 'es-ES', ignore: ' ' }); // true
-isLength('hola', { min: 2, max: 10 }); // true
+isLength('hello', { min: 2, max: 10 }); // true
 isLength('👍🏽', { max: 1 }); // false
 isLength('👍🏽', { max: 1, graphemes: true }); // true
 isNotEmpty('  '); // false
 isNotEmpty(0); // true
 isRequired(''); // true
 isRequired(null); // false
-contains('Hola Mundo', { elem: 'mundo', ignoreCase: true }); // true
+contains('Hello World', { elem: 'world', ignoreCase: true }); // true
 matches('ABC-123', { pattern: /^[A-Z]{3}-\d{3}$/ }); // true
 matches('abc', { pattern: '^ABC$', modifiers: 'i' }); // true
 isIn('b', { values: ['a', 'b'] }); // true
 isIn('es', { values: { es: 1, en: 2 } }); // true
 ```
 
-### Números
+### Numbers
 
-| Firma                           | Opciones (valor por defecto)                                                                                   | Comprueba que el valor…                                                                                        |
-| ------------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `isInt(value, options?)`        | `min`, `max`, `lt`, `gt`, `allow_leading_zeroes` (`true`)                                                      | es un entero (con los límites indicados)                                                                       |
-| `isFloat(value, options?)`      | `min`, `max`, `lt`, `gt`, `locale` (separador decimal del locale, ver `isFloatLocales`)                        | es un número decimal finito (con los límites indicados)                                                        |
-| `isDecimal(value, options?)`    | `force_decimal` (`false`), `decimal_digits` (`'1,'`: rango de decimales, p. ej. `'1,2'`), `locale` (`'en-US'`) | es un número decimal                                                                                           |
-| `isNumeric(value, options?)`    | `no_symbols` (sin signo ni punto), `locale` (separador decimal; `.` si no se indica)                           | solo tiene dígitos (y signo/separador si se permiten)                                                          |
-| `isDivisibleBy(value, options)` | **`num`**                                                                                                      | es un número divisible por `num`                                                                               |
-| `isHexadecimal(value)`          | —                                                                                                              | es un número hexadecimal                                                                                       |
-| `isOctal(value)`                | —                                                                                                              | es un número octal                                                                                             |
-| `isPort(value)`                 | —                                                                                                              | es un entero entre 0 y 65535 sin ceros a la izquierda                                                          |
-| `isBoolean(value, options?)`    | `loose` (`false`)                                                                                              | es `'true'`, `'false'`, `'1'` o `'0'` exactos; con `loose`, sin distinguir mayúsculas y también `'yes'`/`'no'` |
+| Signature                       | Options (default value)                                                                                           | Checks that the value…                                                                                 |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `isInt(value, options?)`        | `min`, `max`, `lt`, `gt`, `allow_leading_zeroes` (`true`)                                                         | is an integer (within the given limits)                                                                |
+| `isFloat(value, options?)`      | `min`, `max`, `lt`, `gt`, `locale` (decimal separator of the locale, see `isFloatLocales`)                        | is a finite decimal number (within the given limits)                                                   |
+| `isDecimal(value, options?)`    | `force_decimal` (`false`), `decimal_digits` (`'1,'`: range of decimal places, e.g. `'1,2'`), `locale` (`'en-US'`) | is a decimal number                                                                                    |
+| `isNumeric(value, options?)`    | `no_symbols` (no sign or point), `locale` (decimal separator; `.` when not given)                                 | has only digits (and sign/separator when allowed)                                                      |
+| `isDivisibleBy(value, options)` | **`num`**                                                                                                         | is a number divisible by `num`                                                                         |
+| `isHexadecimal(value)`          | —                                                                                                                 | is a hexadecimal number                                                                                |
+| `isOctal(value)`                | —                                                                                                                 | is an octal number                                                                                     |
+| `isPort(value)`                 | —                                                                                                                 | is an integer between 0 and 65535 without leading zeros                                                |
+| `isBoolean(value, options?)`    | `loose` (`false`)                                                                                                 | is exactly `'true'`, `'false'`, `'1'` or `'0'`; with `loose`, case-insensitive and also `'yes'`/`'no'` |
 
 ```ts
 import {
@@ -229,17 +227,17 @@ isBoolean('yes', { loose: true }); // true
 
 ### Internet
 
-| Firma                           | Opciones (valor por defecto)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Comprueba que el valor…          |
+| Signature                       | Options (default value)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Checks that the value…           |
 | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
-| `isEmail(value, options?)`      | `allow_display_name` (`false`), `require_display_name` (`false`), `allow_utf8_local_part` (`true`), `require_tld` (`true`), `allow_underscores` (`false`), `blacklisted_chars` (`''`), `ignore_max_length` (`false`), `host_blacklist` (`[]`), `host_whitelist` (`[]`), `allow_ip_domain`, `domain_specific_validation`                                                                                                                                                                                                                  | es una dirección de email        |
-| `isURL(value, options?)`        | `protocols` (`['http', 'https', 'ftp']`), `require_tld` (`true`), `require_protocol` (`false`), `require_host` (`true`), `require_port` (`false`), `require_valid_protocol` (`true`), `allow_underscores` (`false`), `allow_trailing_dot` (`false`), `allow_protocol_relative_urls` (`false`), `allow_fragments` (`true`), `allow_query_components` (`true`), `validate_length` (`true`), `max_allowed_length` (`2084`), `disallow_auth`, `host_whitelist`, `host_blacklist`, `allow_wildcard`, `allow_numeric_tld`, `ignore_max_length` | es una URL                       |
-| `isFQDN(value, options?)`       | `require_tld` (`true`), `allow_underscores` (`false`), `allow_trailing_dot` (`false`), `allow_numeric_tld` (`false`), `allow_wildcard` (`false`), `ignore_max_length` (`false`)                                                                                                                                                                                                                                                                                                                                                          | es un nombre de dominio completo |
-| `isIP(value, options?)`         | `version` (`4` o `6`; sin indicar, cualquiera)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | es una IP                        |
-| `isIPRange(value, options?)`    | `version` (`4` o `6`; sin indicar, cualquiera)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | es un rango CIDR                 |
-| `isMACAddress(value, options?)` | `no_separators`, `no_colons`, `eui` (`'48'` o `'64'`; sin indicar, cualquiera)                                                                                                                                                                                                                                                                                                                                                                                                                                                           | es una dirección MAC             |
-| `isDataURI(value)`              | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | es un data URI                   |
-| `isMagnetURI(value)`            | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | es un enlace magnet              |
-| `isMailtoURI(value, options?)`  | las opciones de `isEmail`, aplicadas a cada dirección                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | es un URI `mailto:`              |
+| `isEmail(value, options?)`      | `allow_display_name` (`false`), `require_display_name` (`false`), `allow_utf8_local_part` (`true`), `require_tld` (`true`), `allow_underscores` (`false`), `blacklisted_chars` (`''`), `ignore_max_length` (`false`), `host_blacklist` (`[]`), `host_whitelist` (`[]`), `allow_ip_domain`, `domain_specific_validation`                                                                                                                                                                                                                  | is an email address              |
+| `isURL(value, options?)`        | `protocols` (`['http', 'https', 'ftp']`), `require_tld` (`true`), `require_protocol` (`false`), `require_host` (`true`), `require_port` (`false`), `require_valid_protocol` (`true`), `allow_underscores` (`false`), `allow_trailing_dot` (`false`), `allow_protocol_relative_urls` (`false`), `allow_fragments` (`true`), `allow_query_components` (`true`), `validate_length` (`true`), `max_allowed_length` (`2084`), `disallow_auth`, `host_whitelist`, `host_blacklist`, `allow_wildcard`, `allow_numeric_tld`, `ignore_max_length` | is a URL                         |
+| `isFQDN(value, options?)`       | `require_tld` (`true`), `allow_underscores` (`false`), `allow_trailing_dot` (`false`), `allow_numeric_tld` (`false`), `allow_wildcard` (`false`), `ignore_max_length` (`false`)                                                                                                                                                                                                                                                                                                                                                          | is a fully qualified domain name |
+| `isIP(value, options?)`         | `version` (`4` or `6`; when not given, either)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | is an IP address                 |
+| `isIPRange(value, options?)`    | `version` (`4` or `6`; when not given, either)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | is a CIDR range                  |
+| `isMACAddress(value, options?)` | `no_separators`, `no_colons`, `eui` (`'48'` or `'64'`; when not given, either)                                                                                                                                                                                                                                                                                                                                                                                                                                                           | is a MAC address                 |
+| `isDataURI(value)`              | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | is a data URI                    |
+| `isMagnetURI(value)`            | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | is a magnet link                 |
+| `isMailtoURI(value, options?)`  | the `isEmail` options, applied to each address                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | is a `mailto:` URI               |
 
 ```ts
 import { isEmail, isURL, isFQDN, isIP, isIPRange, isMACAddress } from '@archi-code/validation';
@@ -257,20 +255,20 @@ isIPRange('10.0.0.0/8'); // true
 isMACAddress('0123456789ab', { no_separators: true }); // true
 ```
 
-### Fechas y horas
+### Dates and times
 
-| Firma                        | Opciones (valor por defecto)                                                                                                   | Comprueba que el valor…                                         |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------- |
-| `isDate(value, options?)`    | `format` (`'YYYY/MM/DD'`), `delimiters` (`['/', '-']`), `strictMode` (`false`), `twoDigitYearPivot` (año actual de dos cifras) | es una fecha de calendario con ese formato (o un `Date` válido) |
-| `isTime(value, options?)`    | `hourFormat` (`'hour24'` o `'hour12'`), `mode` (`'default'`, `'withSeconds'` o `'withOptionalSeconds'`)                        | es una hora                                                     |
-| `isISO8601(value, options?)` | `strict` (además comprueba que la fecha exista), `strictSeparator` (exige `T`)                                                 | es una fecha ISO 8601                                           |
-| `isRFC3339(value)`           | —                                                                                                                              | es una fecha RFC 3339                                           |
-| `isAfter(value, options?)`   | `comparisonDate` (por defecto, ahora)                                                                                          | es una fecha posterior a `comparisonDate`                       |
-| `isBefore(value, options?)`  | `comparisonDate` (por defecto, ahora)                                                                                          | es una fecha anterior a `comparisonDate`                        |
+| Signature                    | Options (default value)                                                                                                      | Checks that the value…                                |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `isDate(value, options?)`    | `format` (`'YYYY/MM/DD'`), `delimiters` (`['/', '-']`), `strictMode` (`false`), `twoDigitYearPivot` (current two-digit year) | is a calendar date in that format (or a valid `Date`) |
+| `isTime(value, options?)`    | `hourFormat` (`'hour24'` or `'hour12'`), `mode` (`'default'`, `'withSeconds'` or `'withOptionalSeconds'`)                    | is a time                                             |
+| `isISO8601(value, options?)` | `strict` (also checks that the date exists), `strictSeparator` (requires `T`)                                                | is an ISO 8601 date                                   |
+| `isRFC3339(value)`           | —                                                                                                                            | is an RFC 3339 date                                   |
+| `isAfter(value, options?)`   | `comparisonDate` (now, by default)                                                                                           | is a date after `comparisonDate`                      |
+| `isBefore(value, options?)`  | `comparisonDate` (now, by default)                                                                                           | is a date before `comparisonDate`                     |
 
-`isAfter` e `isBefore` interpretan las fechas de forma determinista, sin depender de la zona horaria
-de la máquina: aceptan fechas ISO (también de precisión reducida, como `'2024'` o `'2024-03'`) y la
-salida de `Date#toString()` y `Date#toUTCString()`, pero no formatos que dependen del motor, como
+`isAfter` and `isBefore` parse dates deterministically, without depending on the machine's time
+zone: they accept ISO dates (also with reduced precision, such as `'2024'` or `'2024-03'`) and the
+output of `Date#toString()` and `Date#toUTCString()`, but not engine-dependent formats such as
 `'2030/01/01'`.
 
 ```ts
@@ -288,22 +286,22 @@ isBefore('2024-01-01', { comparisonDate: '2024-06-01' }); // true
 isAfter('2030/01/01'); // false
 ```
 
-### Identificadores, hashes y codificaciones
+### Identifiers, hashes and encodings
 
-| Firma                       | Opciones (valor por defecto)                                                                                                                         | Comprueba que el valor…                 |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| `isUUID(value, options?)`   | `version` (`'all'`; también `'loose'`, `'nil'`, `'max'`, `1`…`8`)                                                                                    | es un UUID                              |
-| `isULID(value)`             | —                                                                                                                                                    | es un ULID                              |
-| `isMongoId(value)`          | —                                                                                                                                                    | es un ObjectId de MongoDB               |
-| `isJWT(value)`              | —                                                                                                                                                    | tiene la forma de un JWT                |
-| `isMD5(value)`              | —                                                                                                                                                    | es un hash MD5                          |
-| `isHash(value, options)`    | **`algorithm`**: `md5`, `md4`, `sha1`, `sha256`, `sha384`, `sha512`, `ripemd128`, `ripemd160`, `tiger128`, `tiger160`, `tiger192`, `crc32`, `crc32b` | es un hash hexadecimal de ese algoritmo |
-| `isBase32(value, options?)` | `crockford` (`false`)                                                                                                                                | está en Base32                          |
-| `isBase58(value)`           | —                                                                                                                                                    | está en Base58                          |
-| `isBase64(value, options?)` | `urlSafe` (`false`), `padding` (por defecto `true`, o `false` si `urlSafe`)                                                                          | está en Base64                          |
-| `isJSON(value, options?)`   | `allow_primitives` (`false`: además `true`, `false` y `null`), `allow_any_value` (`false`: cualquier JSON)                                           | es JSON que se parsea a objeto o array  |
-| `isSemVer(value)`           | —                                                                                                                                                    | es una versión semántica                |
-| `isMimeType(value)`         | —                                                                                                                                                    | es un tipo MIME                         |
+| Signature                   | Options (default value)                                                                                                                              | Checks that the value…                    |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| `isUUID(value, options?)`   | `version` (`'all'`; also `'loose'`, `'nil'`, `'max'`, `1`…`8`)                                                                                       | is a UUID                                 |
+| `isULID(value)`             | —                                                                                                                                                    | is a ULID                                 |
+| `isMongoId(value)`          | —                                                                                                                                                    | is a MongoDB ObjectId                     |
+| `isJWT(value)`              | —                                                                                                                                                    | has the shape of a JWT                    |
+| `isMD5(value)`              | —                                                                                                                                                    | is an MD5 hash                            |
+| `isHash(value, options)`    | **`algorithm`**: `md5`, `md4`, `sha1`, `sha256`, `sha384`, `sha512`, `ripemd128`, `ripemd160`, `tiger128`, `tiger160`, `tiger192`, `crc32`, `crc32b` | is a hexadecimal hash of that algorithm   |
+| `isBase32(value, options?)` | `crockford` (`false`)                                                                                                                                | is Base32                                 |
+| `isBase58(value)`           | —                                                                                                                                                    | is Base58                                 |
+| `isBase64(value, options?)` | `urlSafe` (`false`), `padding` (`true` by default, or `false` with `urlSafe`)                                                                        | is Base64                                 |
+| `isJSON(value, options?)`   | `allow_primitives` (`false`: also `true`, `false` and `null`), `allow_any_value` (`false`: any JSON)                                                 | is JSON that parses to an object or array |
+| `isSemVer(value)`           | —                                                                                                                                                    | is a semantic version                     |
+| `isMimeType(value)`         | —                                                                                                                                                    | is a MIME type                            |
 
 ```ts
 import { isUUID, isHash, isBase64, isJSON } from '@archi-code/validation';
@@ -319,13 +317,13 @@ isJSON('true', { allow_primitives: true }); // true
 isJSON('1', { allow_any_value: true }); // true
 ```
 
-### Colores
+### Colors
 
-| Firma                         | Opciones (valor por defecto)                             | Comprueba que el valor…      |
+| Signature                     | Options (default value)                                  | Checks that the value…       |
 | ----------------------------- | -------------------------------------------------------- | ---------------------------- |
-| `isHexColor(value, options?)` | `require_hashtag` (`false`)                              | es un color hexadecimal      |
-| `isRgbColor(value, options?)` | `includePercentValues` (`true`), `allowSpaces` (`false`) | es un color `rgb()`/`rgba()` |
-| `isHSL(value)`                | —                                                        | es un color `hsl()`/`hsla()` |
+| `isHexColor(value, options?)` | `require_hashtag` (`false`)                              | is a hexadecimal color       |
+| `isRgbColor(value, options?)` | `includePercentValues` (`true`), `allowSpaces` (`false`) | is an `rgb()`/`rgba()` color |
+| `isHSL(value)`                | —                                                        | is an `hsl()`/`hsla()` color |
 
 ```ts
 import { isHexColor, isRgbColor, isHSL } from '@archi-code/validation';
@@ -336,21 +334,21 @@ isRgbColor('rgb(255, 0, 0)', { allowSpaces: true }); // true
 isHSL('hsl(120, 100%, 50%)'); // true
 ```
 
-### Finanzas y pagos
+### Finance and payments
 
-| Firma                           | Opciones (valor por defecto)                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Comprueba que el valor…                     |
-| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| `isIBAN(value, options?)`       | `whitelist`, `blacklist` (códigos de país, ver `ibanLocales`)                                                                                                                                                                                                                                                                                                                                                                                                                                            | es un IBAN (formato y dígitos de control)   |
-| `isBIC(value)`                  | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | es un código BIC/SWIFT                      |
-| `isAbaRouting(value)`           | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | es un número de ruta bancaria ABA (EE. UU.) |
-| `isCreditCard(value, options?)` | `provider`: `amex`, `dinersclub`, `discover`, `jcb`, `mastercard`, `unionpay`, `visa` (sin indicar, cualquiera)                                                                                                                                                                                                                                                                                                                                                                                          | es un número de tarjeta                     |
-| `isLuhnNumber(value)`           | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | supera el algoritmo de Luhn                 |
-| `isCurrency(value, options?)`   | `symbol` (`'$'`), `require_symbol` (`false`), `allow_space_after_symbol` (`false`), `symbol_after_digits` (`false`), `allow_negatives` (`true`), `parens_for_negatives` (`false`), `negative_sign_before_digits` (`false`), `negative_sign_after_digits` (`false`), `allow_negative_sign_placeholder` (`false`), `thousands_separator` (`','`), `decimal_separator` (`'.'`), `allow_decimal` (`true`), `require_decimal` (`false`), `digits_after_decimal` (`[2]`), `allow_space_after_digits` (`false`) | es un importe monetario                     |
-| `isVAT(value, options)`         | **`countryCode`** (p. ej. `'ES'`, `'GB'`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                | tiene el formato de NIF-IVA de ese país     |
-| `isISIN(value)`                 | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | es un ISIN                                  |
-| `isISO4217(value)`              | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | es un código de moneda ISO 4217             |
-| `isEthereumAddress(value)`      | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | es una dirección Ethereum                   |
-| `isBtcAddress(value)`           | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | es una dirección Bitcoin                    |
+| Signature                       | Options (default value)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Checks that the value…                    |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| `isIBAN(value, options?)`       | `whitelist`, `blacklist` (country codes, see `ibanLocales`)                                                                                                                                                                                                                                                                                                                                                                                                                                              | is an IBAN (format and check digits)      |
+| `isBIC(value)`                  | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | is a BIC/SWIFT code                       |
+| `isAbaRouting(value)`           | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | is an ABA routing number (US)             |
+| `isCreditCard(value, options?)` | `provider`: `amex`, `dinersclub`, `discover`, `jcb`, `mastercard`, `unionpay`, `visa` (when not given, any)                                                                                                                                                                                                                                                                                                                                                                                              | is a card number                          |
+| `isLuhnNumber(value)`           | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | passes the Luhn algorithm                 |
+| `isCurrency(value, options?)`   | `symbol` (`'$'`), `require_symbol` (`false`), `allow_space_after_symbol` (`false`), `symbol_after_digits` (`false`), `allow_negatives` (`true`), `parens_for_negatives` (`false`), `negative_sign_before_digits` (`false`), `negative_sign_after_digits` (`false`), `allow_negative_sign_placeholder` (`false`), `thousands_separator` (`','`), `decimal_separator` (`'.'`), `allow_decimal` (`true`), `require_decimal` (`false`), `digits_after_decimal` (`[2]`), `allow_space_after_digits` (`false`) | is a monetary amount                      |
+| `isVAT(value, options)`         | **`countryCode`** (e.g. `'ES'`, `'GB'`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | has the VAT number format of that country |
+| `isISIN(value)`                 | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | is an ISIN                                |
+| `isISO4217(value)`              | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | is an ISO 4217 currency code              |
+| `isEthereumAddress(value)`      | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | is an Ethereum address                    |
+| `isBtcAddress(value)`           | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | is a Bitcoin address                      |
 
 ```ts
 import { isIBAN, isCreditCard, isCurrency, isVAT } from '@archi-code/validation';
@@ -368,22 +366,22 @@ isCurrency('1.000,00€', {
 isVAT('GB999 9999 00', { countryCode: 'GB' }); // true
 ```
 
-### Personas, países e idiomas
+### People, countries and languages
 
-| Firma                               | Opciones (valor por defecto)                                                                                       | Comprueba que el valor…                    |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------ |
-| `isMobilePhone(value, options?)`    | `locale` (uno, una lista o `'any'`; sin indicar, cualquiera; ver `isMobilePhoneLocales`), `strictMode` (exige `+`) | es un móvil de alguno de los locales       |
-| `isPostalCode(value, options)`      | **`locale`** (código de país o `'any'`, ver `isPostalCodeLocales`)                                                 | es un código postal de ese país            |
-| `isIdentityCard(value, options?)`   | `locale` (`'any'`)                                                                                                 | es un documento de identidad de ese locale |
-| `isPassportNumber(value, options)`  | **`countryCode`** (ver `passportNumberLocales`)                                                                    | tiene el formato de pasaporte de ese país  |
-| `isLicensePlate(value, options)`    | **`locale`** (p. ej. `'de-DE'`, `'pt-BR'`, o `'any'`)                                                              | es una matrícula de ese locale             |
-| `isLatLong(value, options?)`        | `checkDMS` (`false`: grados, minutos y segundos)                                                                   | es un par `latitud,longitud`               |
-| `isLocale(value)`                   | —                                                                                                                  | es un identificador de locale              |
-| `isISO6391(value)`                  | —                                                                                                                  | es un código de idioma ISO 639-1           |
-| `isISO15924(value)`                 | —                                                                                                                  | es un código de escritura ISO 15924        |
-| `isISO31661Alpha2(value, options?)` | `userAssignedCodes` (códigos extra aceptados)                                                                      | es un código de país ISO 3166-1 alfa-2     |
-| `isISO31661Alpha3(value, options?)` | `userAssignedCodes`                                                                                                | es un código de país ISO 3166-1 alfa-3     |
-| `isISO31661Numeric(value)`          | —                                                                                                                  | es un código de país ISO 3166-1 numérico   |
+| Signature                           | Options (default value)                                                                                         | Checks that the value…                   |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| `isMobilePhone(value, options?)`    | `locale` (one, a list or `'any'`; when not given, any; see `isMobilePhoneLocales`), `strictMode` (requires `+`) | is a mobile number of one of the locales |
+| `isPostalCode(value, options)`      | **`locale`** (country code or `'any'`, see `isPostalCodeLocales`)                                               | is a postal code of that country         |
+| `isIdentityCard(value, options?)`   | `locale` (`'any'`)                                                                                              | is an identity document of that locale   |
+| `isPassportNumber(value, options)`  | **`countryCode`** (see `passportNumberLocales`)                                                                 | has the passport format of that country  |
+| `isLicensePlate(value, options)`    | **`locale`** (e.g. `'de-DE'`, `'pt-BR'`, or `'any'`)                                                            | is a license plate of that locale        |
+| `isLatLong(value, options?)`        | `checkDMS` (`false`: degrees, minutes and seconds)                                                              | is a `latitude,longitude` pair           |
+| `isLocale(value)`                   | —                                                                                                               | is a locale identifier                   |
+| `isISO6391(value)`                  | —                                                                                                               | is an ISO 639-1 language code            |
+| `isISO15924(value)`                 | —                                                                                                               | is an ISO 15924 script code              |
+| `isISO31661Alpha2(value, options?)` | `userAssignedCodes` (extra accepted codes)                                                                      | is an ISO 3166-1 alpha-2 country code    |
+| `isISO31661Alpha3(value, options?)` | `userAssignedCodes`                                                                                             | is an ISO 3166-1 alpha-3 country code    |
+| `isISO31661Numeric(value)`          | —                                                                                                               | is an ISO 3166-1 numeric country code    |
 
 ```ts
 import {
@@ -396,7 +394,7 @@ import {
 
 isMobilePhone('612345678', { locale: 'es-ES', strictMode: true }); // false
 isMobilePhone('612345678', { locale: ['es-ES', 'pt-PT'] }); // true
-isMobilePhone('600', { locale: 'xx-XX' }); // lanza ValidationConfigError: Invalid locale 'xx-XX'
+isMobilePhone('600', { locale: 'xx-XX' }); // throws ValidationConfigError: Invalid locale 'xx-XX'
 isPostalCode('21001', { locale: 'ES' }); // true
 isIdentityCard('12345678Z', { locale: 'ES' }); // true
 isLicensePlate('B-AB 1234', { locale: 'de-DE' }); // true
@@ -404,17 +402,17 @@ isISO31661Alpha2('XK'); // false
 isISO31661Alpha2('XK', { userAssignedCodes: ['XK'] }); // true
 ```
 
-### Productos, publicaciones y dispositivos
+### Products, publications and devices
 
-| Firma                         | Opciones (valor por defecto)                     | Comprueba que el valor…             |
-| ----------------------------- | ------------------------------------------------ | ----------------------------------- |
-| `isISBN(value, options?)`     | `version` (`10` o `13`; sin indicar, cualquiera) | es un ISBN                          |
-| `isISSN(value, options?)`     | `case_sensitive`, `require_hyphen`               | es un ISSN                          |
-| `isEAN(value)`                | —                                                | es un código EAN                    |
-| `isISRC(value)`               | —                                                | es un ISRC                          |
-| `isIMEI(value, options?)`     | `allow_hyphens`                                  | es un IMEI                          |
-| `isISO6346(value)`            | —                                                | es un código de contenedor ISO 6346 |
-| `isFreightContainerID(value)` | —                                                | alias de `isISO6346`                |
+| Signature                     | Options (default value)                          | Checks that the value…        |
+| ----------------------------- | ------------------------------------------------ | ----------------------------- |
+| `isISBN(value, options?)`     | `version` (`10` or `13`; when not given, either) | is an ISBN                    |
+| `isISSN(value, options?)`     | `case_sensitive`, `require_hyphen`               | is an ISSN                    |
+| `isEAN(value)`                | —                                                | is an EAN code                |
+| `isISRC(value)`               | —                                                | is an ISRC                    |
+| `isIMEI(value, options?)`     | `allow_hyphens`                                  | is an IMEI                    |
+| `isISO6346(value)`            | —                                                | is an ISO 6346 container code |
+| `isFreightContainerID(value)` | —                                                | alias of `isISO6346`          |
 
 ```ts
 import { isISBN, isIMEI, isISO6346 } from '@archi-code/validation';
@@ -425,28 +423,28 @@ isIMEI('49-015420-323751-8', { allow_hyphens: true }); // true
 isISO6346('CSQU3054383'); // true
 ```
 
-### Contraseñas
+### Passwords
 
-| Firma                               | Opciones (valor por defecto)                                                                          | Comprueba que el valor…  |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------ |
-| `isStrongPassword(value, options?)` | `minLength` (`8`), `minLowercase` (`1`), `minUppercase` (`1`), `minNumbers` (`1`), `minSymbols` (`1`) | cumple todos los mínimos |
+| Signature                           | Options (default value)                                                                               | Checks that the value… |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------- | ---------------------- |
+| `isStrongPassword(value, options?)` | `minLength` (`8`), `minLowercase` (`1`), `minUppercase` (`1`), `minNumbers` (`1`), `minSymbols` (`1`) | meets every minimum    |
 
-Ver [Contraseñas](#contraseñas-isstrongpassword-y-scorepassword).
+See [Passwords](#passwords-isstrongpassword-and-scorepassword).
 
-### Listas de locales
+### Locale lists
 
-Son arrays congelados (`readonly string[]`) con las claves que acepta cada validador. También están
-en el registro `validator`.
+They are frozen arrays (`readonly string[]`) with the keys each validator accepts. They are also in
+the `validator` registry.
 
-| Export                  | Locales / países de                    |
-| ----------------------- | -------------------------------------- |
-| `isAlphaLocales`        | `isAlpha`                              |
-| `isAlphanumericLocales` | `isAlphanumeric`                       |
-| `isFloatLocales`        | `isFloat` (y `isDecimal`, `isNumeric`) |
-| `ibanLocales`           | `isIBAN`                               |
-| `isMobilePhoneLocales`  | `isMobilePhone`                        |
-| `isPostalCodeLocales`   | `isPostalCode`                         |
-| `passportNumberLocales` | `isPassportNumber`                     |
+| Export                  | Locales / countries of                   |
+| ----------------------- | ---------------------------------------- |
+| `isAlphaLocales`        | `isAlpha`                                |
+| `isAlphanumericLocales` | `isAlphanumeric`                         |
+| `isFloatLocales`        | `isFloat` (and `isDecimal`, `isNumeric`) |
+| `ibanLocales`           | `isIBAN`                                 |
+| `isMobilePhoneLocales`  | `isMobilePhone`                          |
+| `isPostalCodeLocales`   | `isPostalCode`                           |
+| `passportNumberLocales` | `isPassportNumber`                       |
 
 ```ts
 import { isAlphaLocales, isMobilePhoneLocales } from '@archi-code/validation';
@@ -455,10 +453,10 @@ isAlphaLocales.includes('es-ES'); // true
 isMobilePhoneLocales.includes('es-ES'); // true
 ```
 
-### Registro `validator`
+### `validator` registry
 
-`validator` es un objeto congelado con los 91 validadores y las 7 listas de locales. Su tipo es
-`ValidatorRegistry`. Sirve para acceder por nombre:
+`validator` is a frozen object with the 91 validators and the 7 locale lists. Its type is
+`ValidatorRegistry`. Use it to access validators by name:
 
 ```ts
 import { validator } from '@archi-code/validation';
@@ -466,9 +464,9 @@ import { validator } from '@archi-code/validation';
 validator.isInt('5'); // true
 ```
 
-## Conversores `to*`
+## `to*` converters
 
-Convierten un valor a un tipo y nunca lanzan. Devuelven `Converted<T>`:
+They convert a value to a type and never throw. They return `Converted<T>`:
 
 ```ts
 type Converted<T> =
@@ -476,19 +474,19 @@ type Converted<T> =
   | { readonly ok: false; readonly value: null; readonly error: ConvertMessage };
 ```
 
-Comprobar `ok` estrecha el tipo: dentro de `if (r.ok)` el `value` es `T`.
+Checking `ok` narrows the type: inside `if (r.ok)`, `value` is `T`.
 
-| Firma                                           | Regla por defecto                                                                                                                                          | Opciones                                                                                                                                                                                                            |
-| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `toString(v): Converted<string>`                | Strings, booleanos y números finitos                                                                                                                       | —                                                                                                                                                                                                                   |
-| `toBoolean(v, options?): Converted<boolean>`    | `true`/`false`, `1`/`0` y los strings `'true'`/`'false'`/`'1'`/`'0'` recortados y sin distinguir mayúsculas                                                | `mode`: `'default'`, `'strict'` (strings exactos, sin recortar ni pasar a minúsculas) o `'loose'` (sin distinguir mayúsculas, sin recortar, añade `'yes'`/`'no'`)                                                   |
-| `toInteger(v, options?): Converted<number>`     | Enteros seguros, como número o como string recortado `-?\d+`; fuera de ±2^53 falla con `INTEGER_OVERFLOW`                                                  | `syntax: 'validator'` (la regla de `isInt`: admite `+`), `allowLeadingZeroes` (con `syntax: 'validator'`; `false` rechaza ceros a la izquierda)                                                                     |
-| `toFloat(v, options?): Converted<number>`       | Números finitos o strings recortados en notación decimal (no `0x`/`0b`/`0o`)                                                                               | `syntax: 'validator'` (la regla de `isFloat`), `decimalSeparator` (con `syntax: 'validator'`; por defecto `'.'`)                                                                                                    |
-| `toDate(v, options?): Converted<Date>`          | `YYYY/MM/DD` con `/` o `-` como separador (resultado: ese día a las 00:00 UTC) o un `Date` válido                                                          | `format`, `delimiters`, `strictMode`, `twoDigitYearPivot` (como `isDate`); `iso: true` (fecha u hora ISO, con zona opcional); `lax: true` (ISO de precisión reducida y salida de `Date#toString()`/`toUTCString()`) |
-| `toJson(v): Converted<Record<string, unknown>>` | Un objeto JSON plano no vacío: texto JSON, u objeto que sobrevive a un viaje JSON (objetos/arrays planos con strings, booleanos, números finitos o `null`) | —                                                                                                                                                                                                                   |
-| `toJsonValue(v, options?): Converted<unknown>`  | Texto JSON que se parsea a objeto o array                                                                                                                  | `allowPrimitives` (además `true`, `false`, `null`), `allowAnyValue` (cualquier JSON)                                                                                                                                |
-| `toArray(v): Converted<unknown[]>`              | Arrays, o texto JSON que contiene un array                                                                                                                 | —                                                                                                                                                                                                                   |
-| `toEnum(v, options): Converted<T>`              | Un string, número o booleano cuya forma de texto está en `options` (`readonly T[]`)                                                                        | —                                                                                                                                                                                                                   |
+| Signature                                       | Default rule                                                                                                                                                   | Options                                                                                                                                                                                                                 |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `toString(v): Converted<string>`                | Strings, booleans and finite numbers                                                                                                                           | —                                                                                                                                                                                                                       |
+| `toBoolean(v, options?): Converted<boolean>`    | `true`/`false`, `1`/`0` and the strings `'true'`/`'false'`/`'1'`/`'0'`, trimmed and case-insensitive                                                           | `mode`: `'default'`, `'strict'` (exact strings, no trimming or lowercasing) or `'loose'` (case-insensitive, no trimming, adds `'yes'`/`'no'`)                                                                           |
+| `toInteger(v, options?): Converted<number>`     | Safe integers, as a number or as a trimmed `-?\d+` string; outside ±2^53 it fails with `INTEGER_OVERFLOW`                                                      | `syntax: 'validator'` (the `isInt` rule: allows `+`), `allowLeadingZeroes` (with `syntax: 'validator'`; `false` rejects leading zeros)                                                                                  |
+| `toFloat(v, options?): Converted<number>`       | Finite numbers or trimmed strings in decimal notation (not `0x`/`0b`/`0o`)                                                                                     | `syntax: 'validator'` (the `isFloat` rule), `decimalSeparator` (with `syntax: 'validator'`; `'.'` by default)                                                                                                           |
+| `toDate(v, options?): Converted<Date>`          | `YYYY/MM/DD` with `/` or `-` as separator (result: that day at 00:00 UTC) or a valid `Date`                                                                    | `format`, `delimiters`, `strictMode`, `twoDigitYearPivot` (as in `isDate`); `iso: true` (ISO date or date-time, optional zone); `lax: true` (reduced-precision ISO and the output of `Date#toString()`/`toUTCString()`) |
+| `toJson(v): Converted<Record<string, unknown>>` | A non-empty plain JSON object: JSON text, or an object that survives a JSON round trip (plain objects/arrays with strings, booleans, finite numbers or `null`) | —                                                                                                                                                                                                                       |
+| `toJsonValue(v, options?): Converted<unknown>`  | JSON text that parses to an object or array                                                                                                                    | `allowPrimitives` (also `true`, `false`, `null`), `allowAnyValue` (any JSON)                                                                                                                                            |
+| `toArray(v): Converted<unknown[]>`              | Arrays, or JSON text that contains an array                                                                                                                    | —                                                                                                                                                                                                                       |
+| `toEnum(v, options): Converted<T>`              | A string, number or boolean whose text form is in `options` (`readonly T[]`)                                                                                   | —                                                                                                                                                                                                                       |
 
 ```ts
 import {
@@ -520,7 +518,7 @@ toArray('[1,2]'); // { ok: true, value: [ 1, 2 ], error: null }
 toEnum(1, ['1', '2']); // { ok: true, value: '1', error: null }
 ```
 
-Con TypeScript, `ok` decide el tipo de `value`:
+With TypeScript, `ok` decides the type of `value`:
 
 ```ts
 import { toInteger, toEnum } from '@archi-code/validation';
@@ -535,14 +533,14 @@ if (quantity.ok) {
 const role = toEnum(input, ['admin', 'user'] as const); // Converted<'admin' | 'user'>
 ```
 
-> Las fechas ISO con hora necesitan la regla ISO: `canBeDate('2024-01-31T10:00:00Z')` es `false`,
-> mientras que `toDate('2024-01-31T10:00:00Z', { iso: true })` es `ok`.
+> ISO dates with a time need the ISO rule: `canBeDate('2024-01-31T10:00:00Z')` is `false`,
+> while `toDate('2024-01-31T10:00:00Z', { iso: true })` is `ok`.
 
 ### `ConvertMessages`
 
-Objeto congelado con los únicos mensajes de error posibles. Su tipo de valores es `ConvertMessage`.
+Frozen object with the only possible error messages. Its value type is `ConvertMessage`.
 
-| Clave              | Mensaje                                                                           |
+| Key                | Message                                                                           |
 | ------------------ | --------------------------------------------------------------------------------- |
 | `STRING`           | `Value cannot be converted to string`                                             |
 | `BOOLEAN`          | `Value cannot be converted to boolean`                                            |
@@ -563,8 +561,8 @@ toInteger('x').error === ConvertMessages.INTEGER; // true
 
 ### `anyToString`
 
-`anyToString(value: any): string` describe cualquier valor de forma legible, para logs y mensajes de
-error. Nunca lanza.
+`anyToString(value: any): string` describes any value in a readable way, for logs and error
+messages. It never throws.
 
 ```ts
 import { anyToString } from '@archi-code/validation';
@@ -577,11 +575,11 @@ anyToString(new Error('boom')); // 'new Error(boom)'
 anyToString(function foo() {}); // 'Function(foo)'
 ```
 
-## Comprobaciones `canBe*`
+## `canBe*` checks
 
-Devuelven `boolean` y equivalen siempre a `toX(value).ok` con las opciones por defecto.
+They return `boolean` and are always equivalent to `toX(value).ok` with the default options.
 
-| Firma                                               | Equivale a              |
+| Signature                                           | Equivalent to           |
 | --------------------------------------------------- | ----------------------- |
 | `canBeString(v): boolean`                           | `toString(v).ok`        |
 | `canBeBoolean(v): boolean`                          | `toBoolean(v).ok`       |
@@ -589,7 +587,7 @@ Devuelven `boolean` y equivalen siempre a `toX(value).ok` con las opciones por d
 | `canBeFloat(v): boolean`                            | `toFloat(v).ok`         |
 | `canBeDate(v): boolean`                             | `toDate(v).ok`          |
 | `canBeJson(v): boolean`                             | `toJson(v).ok`          |
-| `canBeJsonObject(v): boolean`                       | alias de `canBeJson`    |
+| `canBeJsonObject(v): boolean`                       | alias of `canBeJson`    |
 | `canBeArray(v): boolean`                            | `toArray(v).ok`         |
 | `canBeEnum(v, options: readonly string[]): boolean` | `toEnum(v, options).ok` |
 
@@ -603,24 +601,24 @@ canBeJson('[]'); // false
 canBeEnum('z', ['a', 'b']); // false
 ```
 
-## Sanitizadores
+## Sanitizers
 
-Se agrupan en el namespace `sanitizer`. A diferencia de los validadores, reciben un `string` y
-lanzan `TypeError` (`Expected a string but received a …`) si el primer argumento no lo es.
+They are grouped in the `sanitizer` namespace. Unlike the validators, they take a `string` and throw
+`TypeError` (`Expected a string but received a …`) when the first argument is not one.
 
-| Firma                                                        | Qué hace                                                                       |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------------ |
-| `sanitizer.trim(str, chars?): string`                        | Quita espacios (o los caracteres de `chars`) al principio y al final           |
-| `sanitizer.ltrim(str, chars?): string`                       | Igual, solo al principio                                                       |
-| `sanitizer.rtrim(str, chars?): string`                       | Igual, solo al final                                                           |
-| `sanitizer.escape(str): string`                              | Escapa `&`, `<`, `>`, `"`, `'`, `/` y otros caracteres como entidades HTML     |
-| `sanitizer.unescape(str): string`                            | Deshace `escape`                                                               |
-| `sanitizer.blacklist(str, chars): string`                    | Elimina los caracteres de `chars` (literales, sin rangos)                      |
-| `sanitizer.whitelist(str, chars): string`                    | Conserva solo los caracteres de `chars` (literales, sin rangos)                |
-| `sanitizer.stripLow(str, keepNewLines?): string`             | Elimina caracteres de control ASCII (con `keepNewLines`, conserva `\n` y `\r`) |
-| `sanitizer.normalizeEmail(email, options?): string \| false` | Normaliza un email; devuelve `false` si no tiene `@`                           |
+| Signature                                                    | What it does                                                                |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| `sanitizer.trim(str, chars?): string`                        | Removes whitespace (or the characters in `chars`) at the start and the end  |
+| `sanitizer.ltrim(str, chars?): string`                       | Same, only at the start                                                     |
+| `sanitizer.rtrim(str, chars?): string`                       | Same, only at the end                                                       |
+| `sanitizer.escape(str): string`                              | Escapes `&`, `<`, `>`, `"`, `'`, `/` and other characters as HTML entities  |
+| `sanitizer.unescape(str): string`                            | Reverses `escape`                                                           |
+| `sanitizer.blacklist(str, chars): string`                    | Removes the characters in `chars` (literal, no ranges)                      |
+| `sanitizer.whitelist(str, chars): string`                    | Keeps only the characters in `chars` (literal, no ranges)                   |
+| `sanitizer.stripLow(str, keepNewLines?): string`             | Removes ASCII control characters (with `keepNewLines`, keeps `\n` and `\r`) |
+| `sanitizer.normalizeEmail(email, options?): string \| false` | Normalizes an email; returns `false` when it has no `@`                     |
 
-Opciones de `normalizeEmail` (`NormalizeEmailOptions`), todas `true` por defecto: `all_lowercase`,
+`normalizeEmail` options (`NormalizeEmailOptions`), all `true` by default: `all_lowercase`,
 `gmail_lowercase`, `gmail_remove_dots`, `gmail_remove_subaddress`, `gmail_convert_googlemaildotcom`,
 `outlookdotcom_lowercase`, `outlookdotcom_remove_subaddress`, `yahoo_lowercase`,
 `yahoo_remove_subaddress`, `yandex_lowercase`, `yandex_convert_yandexru`, `icloud_lowercase`,
@@ -629,36 +627,36 @@ Opciones de `normalizeEmail` (`NormalizeEmailOptions`), todas `true` por defecto
 ```ts
 import { sanitizer } from '@archi-code/validation';
 
-sanitizer.trim('xxholaxx', 'x'); // 'hola'
-sanitizer.escape('<b>"Hola"</b>'); // '&lt;b&gt;&quot;Hola&quot;&lt;&#x2F;b&gt;'
+sanitizer.trim('xxhelloxx', 'x'); // 'hello'
+sanitizer.escape('<b>"Hello"</b>'); // '&lt;b&gt;&quot;Hello&quot;&lt;&#x2F;b&gt;'
 sanitizer.unescape('&lt;b&gt;'); // '<b>'
 sanitizer.whitelist('abc123', 'abc'); // 'abc'
 sanitizer.blacklist('abc123', '123'); // 'abc'
 sanitizer.stripLow('a\x00b\nc', true); // 'ab\nc'
 sanitizer.normalizeEmail('Ana.Lopez+news@Gmail.com'); // 'analopez@gmail.com'
 sanitizer.normalizeEmail('Ana.Lopez+news@Gmail.com', { gmail_remove_dots: false }); // 'ana.lopez@gmail.com'
-sanitizer.normalizeEmail('no-es-email'); // false
-sanitizer.trim(42); // lanza TypeError: Expected a string but received a number
+sanitizer.normalizeEmail('not-an-email'); // false
+sanitizer.trim(42); // throws TypeError: Expected a string but received a number
 ```
 
-## Contraseñas: `isStrongPassword` y `scorePassword`
+## Passwords: `isStrongPassword` and `scorePassword`
 
-`isStrongPassword(value, options?)` devuelve `boolean`: `true` si la contraseña cumple todos los
-mínimos (`minLength` `8`, `minLowercase` `1`, `minUppercase` `1`, `minNumbers` `1`, `minSymbols` `1`).
+`isStrongPassword(value, options?)` returns `boolean`: `true` when the password meets every minimum
+(`minLength` `8`, `minLowercase` `1`, `minUppercase` `1`, `minNumbers` `1`, `minSymbols` `1`).
 
-`scorePassword(value, options?): number` devuelve una puntuación numérica (no es un validador). Suma
-`pointsPerUnique` por cada carácter distinto, `pointsPerRepeat` por cada repetido y un bonus por
-contener minúsculas, mayúsculas, números y símbolos. Un valor que no se puede pasar a string
-puntúa `0`.
+`scorePassword(value, options?): number` returns a numeric score (it is not a validator). It adds
+`pointsPerUnique` for each distinct character, `pointsPerRepeat` for each repeated one and a bonus
+for containing lowercase letters, uppercase letters, numbers and symbols. A value that cannot be
+turned into a string scores `0`.
 
-| Opción de `ScorePasswordOptions` | Por defecto |
-| -------------------------------- | ----------- |
-| `pointsPerUnique`                | `1`         |
-| `pointsPerRepeat`                | `0.5`       |
-| `pointsForContainingLower`       | `10`        |
-| `pointsForContainingUpper`       | `10`        |
-| `pointsForContainingNumber`      | `10`        |
-| `pointsForContainingSymbol`      | `10`        |
+| `ScorePasswordOptions` option | Default |
+| ----------------------------- | ------- |
+| `pointsPerUnique`             | `1`     |
+| `pointsPerRepeat`             | `0.5`   |
+| `pointsForContainingLower`    | `10`    |
+| `pointsForContainingUpper`    | `10`    |
+| `pointsForContainingNumber`   | `10`    |
+| `pointsForContainingSymbol`   | `10`    |
 
 ```ts
 import { isStrongPassword, scorePassword } from '@archi-code/validation';
@@ -669,10 +667,10 @@ scorePassword('Abcdef1!'); // 48
 scorePassword('aaaa'); // 12.5
 ```
 
-## Decorador `@Validations` y `runValidations`
+## `@Validations` decorator and `runValidations`
 
-`@Validations(lista)` asocia una lista de validaciones a una clase. `runValidations(Clase, valor)` las
-ejecuta (incluidas las heredadas) contra un valor y devuelve un `ValidationResult`.
+`@Validations(list)` attaches a list of validations to a class. `runValidations(Class, value)` runs
+them (inherited ones included) against a value and returns a `ValidationResult`.
 
 ```ts
 import { Validations, runValidations } from '@archi-code/validation';
@@ -686,37 +684,37 @@ runValidations(Quantity, '7');
 // { ok: true, value: '7', errors: [] }
 ```
 
-El decorador solo guarda metadatos: no cambia la clase, no envuelve su constructor y no valida nada
-por sí mismo. La validación ocurre únicamente al llamar a `runValidations`.
+The decorator only stores metadata: it does not change the class, does not wrap its constructor and
+validates nothing by itself. Validation only happens when `runValidations` is called.
 
-### Configuración de TypeScript
+### TypeScript configuration
 
-Funciona con los dos modos de decoradores:
+It works with both decorator modes:
 
-- **Decoradores legacy** (`"experimentalDecorators": true`).
-- **Decoradores estándar** (TypeScript 5+ sin `experimentalDecorators`).
+- **Legacy decorators** (`"experimentalDecorators": true`).
+- **Standard decorators** (TypeScript 5+ without `experimentalDecorators`).
 
-No necesita `emitDecoratorMetadata` ni `reflect-metadata`.
+It needs neither `emitDecoratorMetadata` nor `reflect-metadata`.
 
-### Declarar validaciones
+### Declaring validations
 
-El decorador recibe un array. Cada elemento es de uno de estos dos tipos:
+The decorator takes an array. Each element is one of these two kinds:
 
-**Validación integrada** (`BuiltInValidation`): ejecuta uno de los validadores del paquete.
-`validator` es su nombre y `properties` es su objeto de opciones, que se pasa tal cual como segundo
-argumento: `{ validator: 'isVAT', properties: { countryCode: 'ES' } }` ejecuta
-`isVAT(value, { countryCode: 'ES' })`. El tipo de `properties` sale de la firma del validador:
+**Built-in validation** (`BuiltInValidation`): runs one of the package's validators. `validator` is
+its name and `properties` is its options object, passed as is as the second argument:
+`{ validator: 'isVAT', properties: { countryCode: 'ES' } }` runs
+`isVAT(value, { countryCode: 'ES' })`. The type of `properties` comes from the validator's signature:
 
-| Firma del validador                                      | `properties` |
-| -------------------------------------------------------- | ------------ |
-| Con opciones obligatorias (`isHash`, `isIn`, `matches`…) | Obligatorio  |
-| Solo con opciones opcionales (`isInt`, `isEmail`…)       | Opcional     |
-| Solo recibe el valor (`isPort`, `isSlug`…)               | No permitido |
+| Validator signature                                  | `properties` |
+| ---------------------------------------------------- | ------------ |
+| With required options (`isHash`, `isIn`, `matches`…) | Required     |
+| With only optional options (`isInt`, `isEmail`…)     | Optional     |
+| Takes only the value (`isPort`, `isSlug`…)           | Not allowed  |
 
-**Validación propia** (`CustomValidation`): `custom` es su nombre (aparece en los errores) y
-`fn: (value: unknown) => boolean` decide; un resultado truthy pasa y uno falsy falla.
+**Custom validation** (`CustomValidation`): `custom` is its name (it appears in the errors) and
+`fn: (value: unknown) => boolean` decides; a truthy result passes and a falsy one fails.
 
-Las dos admiten `message`. Sin él, el mensaje es `Value does not satisfy <nombre>`.
+Both accept `message`. Without it, the message is `Value does not satisfy <name>`.
 
 ```ts
 import { Validations, runValidations } from '@archi-code/validation';
@@ -735,28 +733,29 @@ runValidations(Example, '5');
 //   { custom: 'isEven', message: 'Must be even' } ] }
 ```
 
-**Identidad.** Dos validaciones son «la misma» si tienen el mismo tipo y nombre: `validator: 'isInt'`
-es una identidad y `custom: 'isInt'` es otra; una integrada y una propia con el mismo nombre nunca se
-reemplazan. `properties`, `fn` y `message` no cuentan para la identidad.
+**Identity.** Two validations are "the same" when they have the same kind and name:
+`validator: 'isInt'` is one identity and `custom: 'isInt'` is another; a built-in and a custom
+validation with the same name never replace each other. `properties`, `fn` and `message` do not
+count towards identity.
 
-### Valores ausentes e `isRequired`
+### Missing values and `isRequired`
 
-- **Con valor** (ni `null` ni `undefined`), se ejecutan todas las validaciones, se haya declarado
-  `isRequired` o no.
-- **Sin valor** (`null` o `undefined`), solo decide `isRequired`: si la clase o algún padre declara
-  `{ validator: 'isRequired' }`, solo se ejecuta esa y falla; si no, el valor es opcional, no se
-  ejecuta nada y el resultado es `ok`.
+- **With a value** (neither `null` nor `undefined`), every validation runs, whether `isRequired` was
+  declared or not.
+- **Without a value** (`null` or `undefined`), only `isRequired` decides: if the class or any parent
+  declares `{ validator: 'isRequired' }`, only that one runs and it fails; otherwise, the value is
+  optional, nothing runs and the result is `ok`.
 
 ```ts
 import { Validations, runValidations } from '@archi-code/validation';
 
-@Validations([{ validator: 'isRequired' }, { validator: 'isEmail', message: 'Email no válido' }])
+@Validations([{ validator: 'isRequired' }, { validator: 'isEmail', message: 'Invalid email' }])
 class Email {}
 
 runValidations(Email, undefined);
 // { ok: false, value: undefined, errors: [{ validator: 'isRequired', message: 'Value does not satisfy isRequired' }] }
 runValidations(Email, 'x');
-// { ok: false, value: 'x', errors: [{ validator: 'isEmail', message: 'Email no válido' }] }
+// { ok: false, value: 'x', errors: [{ validator: 'isEmail', message: 'Invalid email' }] }
 
 @Validations([{ validator: 'isInt', properties: { min: 0 } }])
 class OptionalQuantity {}
@@ -765,16 +764,16 @@ runValidations(OptionalQuantity, null);
 // { ok: true, value: null, errors: [] }
 ```
 
-### Herencia y reemplazo
+### Inheritance and replacement
 
-`runValidations(Hija, valor)` recorre la cadena desde el padre raíz hasta `Hija` y combina las
-validaciones propias de cada clase:
+`runValidations(Child, value)` walks the chain from the root parent down to `Child` and combines
+each class's own validations:
 
-1. Primero van las del padre raíz y luego las de cada subclase, en orden de declaración.
-2. Una validación de la subclase con la misma identidad que una heredada **la reemplaza** y conserva
-   su posición.
-3. Una clase intermedia sin `@Validations` transmite las de su padre sin cambios.
-4. Declarar una subclase nunca cambia al padre.
+1. The root parent's come first, then those of each subclass, in declaration order.
+2. A subclass validation with the same identity as an inherited one **replaces it** and keeps its
+   position.
+3. An intermediate class without `@Validations` passes its parent's on unchanged.
+4. Declaring a subclass never changes the parent.
 
 ```ts
 import { Validations, runValidations } from '@archi-code/validation';
@@ -786,49 +785,49 @@ class Parent {}
 class Child extends Parent {}
 
 runValidations(Child, 'x');
-// ejecuta, en orden: isInt { min: 5 } (reemplaza y conserva el primer puesto), isEmail, isPort
+// runs, in order: isInt { min: 5 } (replaces and keeps first place), isEmail, isPort
 ```
 
-Aplicar `@Validations` otra vez a la misma clase sigue las mismas reglas. Varios decoradores sobre una
-clase se aplican de abajo arriba, como siempre en TypeScript:
+Applying `@Validations` again to the same class follows the same rules. Several decorators on one
+class are applied from bottom to top, as always in TypeScript:
 
 ```ts
-@Validations([{ validator: 'isEmail' }]) // se aplica en segundo lugar
-@Validations([{ validator: 'isInt' }, { validator: 'isPort' }]) // se aplica primero
+@Validations([{ validator: 'isEmail' }]) // applied second
+@Validations([{ validator: 'isInt' }, { validator: 'isPort' }]) // applied first
 class Stacked {}
-// runValidations(Stacked, valor) ejecuta: isInt, isPort, isEmail
+// runValidations(Stacked, value) runs: isInt, isPort, isEmail
 ```
 
-### Cuándo se ejecuta cada parte
+### When each part runs
 
-| Momento                                                     | Qué ocurre                                                                                                                                             |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Se define la clase** (normalmente, al importar su módulo) | El decorador se ejecuta una vez: comprueba la declaración, congela una copia y la guarda. Una declaración errónea lanza aquí e impide cargar el módulo |
-| **`new MiClase()`**                                         | Nada. El decorador no añade código al constructor                                                                                                      |
-| **`runValidations(MiClase, valor)`**                        | Recorre la cadena de prototipos, combina las listas y ejecuta cada validación en orden. Se recalcula en cada llamada; no hay caché                     |
+| Moment                                                          | What happens                                                                                                                                           |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **The class is defined** (usually, when its module is imported) | The decorator runs once: it checks the declaration, freezes a copy and stores it. A wrong declaration throws here and prevents the module from loading |
+| **`new MyClass()`**                                             | Nothing. The decorator adds no code to the constructor                                                                                                 |
+| **`runValidations(MyClass, value)`**                            | Walks the prototype chain, combines the lists and runs each validation in order. It is recomputed on every call; there is no cache                     |
 
-### Comprobaciones de la declaración
+### Declaration checks
 
-El decorador comprueba cada elemento al decorar la clase. Al primer error lanza
-`ValidationConfigError` y no guarda nada para esa clase.
+The decorator checks each element when it decorates the class. On the first error it throws
+`ValidationConfigError` and stores nothing for that class.
 
-| Declaración                                                                | Mensaje                                                                                            |
-| -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| Se aplica a algo que no es una clase                                       | `@Validations can only decorate a class`                                                           |
-| El argumento no es un array                                                | `@Validations expects an array of validations`                                                     |
-| Un elemento no es un objeto                                                | `A validation must be an object`                                                                   |
-| Un elemento no tiene ni `validator` ni `custom`                            | `A validation needs "validator" or "custom"`                                                       |
-| Un elemento tiene `validator` y `custom` a la vez                          | `A validation cannot have both "validator" and "custom"`                                           |
-| `custom` no es un string no vacío                                          | `"custom" must be a non-empty string`                                                              |
-| Validación propia sin función `fn`                                         | `Custom "<nombre>" needs a "fn" function`                                                          |
-| `validator` no está en el registro (errata, `isAlphaLocales`, `toString`…) | `Unknown validator "<nombre>"`                                                                     |
-| La misma identidad dos veces en una lista                                  | `Validator "<nombre>" is declared more than once` / `Custom "<nombre>" is declared more than once` |
+| Declaration                                                              | Message                                                                                        |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| Applied to something that is not a class                                 | `@Validations can only decorate a class`                                                       |
+| The argument is not an array                                             | `@Validations expects an array of validations`                                                 |
+| An element is not an object                                              | `A validation must be an object`                                                               |
+| An element has neither `validator` nor `custom`                          | `A validation needs "validator" or "custom"`                                                   |
+| An element has both `validator` and `custom`                             | `A validation cannot have both "validator" and "custom"`                                       |
+| `custom` is not a non-empty string                                       | `"custom" must be a non-empty string`                                                          |
+| Custom validation without an `fn` function                               | `Custom "<name>" needs a "fn" function`                                                        |
+| `validator` is not in the registry (typo, `isAlphaLocales`, `toString`…) | `Unknown validator "<name>"`                                                                   |
+| The same identity twice in one list                                      | `Validator "<name>" is declared more than once` / `Custom "<name>" is declared more than once` |
 
-Con TypeScript la mayoría ya son errores de compilación; las comprobaciones en tiempo de ejecución
-cubren llamadas desde JavaScript y casts. No se comprueba al decorar si `properties` es correcto para
-el validador (lo garantizan los tipos); un valor erróneo desde JavaScript aparece en `runValidations`.
+With TypeScript most of these are already compile errors; the runtime checks cover calls from
+JavaScript and casts. Whether `properties` is correct for the validator is not checked when
+decorating (the types guarantee it); a wrong value from JavaScript shows up in `runValidations`.
 
-### Resultado de `runValidations`
+### `runValidations` result
 
 ```ts
 type ValidationResult<T> =
@@ -838,12 +837,13 @@ type ValidationResult<T> =
 type ValidationError = { validator: string; message: string } | { custom: string; message: string };
 ```
 
-- **Un fallo no detiene el resto**: hay un error por cada validación fallida, en el mismo orden.
-- **`ok` es `true` exactamente cuando `errors` está vacío.**
-- **`value` es el valor validado** tal como se pasó: ni copiado ni convertido.
-- **El resultado está congelado**, errores incluidos, y cada llamada devuelve uno nuevo.
-- **`'validator' in error`** distingue un error de una validación integrada de uno propio.
-- Una clase sin validaciones (ni propias ni heredadas) siempre es válida.
+- **One failure does not stop the rest**: there is one error per failed validation, in the same
+  order.
+- **`ok` is `true` exactly when `errors` is empty.**
+- **`value` is the validated value** as it was passed: neither copied nor converted.
+- **The result is frozen**, errors included, and each call returns a new one.
+- **`'validator' in error`** tells an error from a built-in validation apart from a custom one.
+- A class without validations (neither its own nor inherited) is always valid.
 
 ```ts
 const result = runValidations(Example, '5');
@@ -854,20 +854,20 @@ if (!result.ok) {
 }
 ```
 
-**Qué puede lanzar `runValidations`:**
+**What `runValidations` can throw:**
 
-- `ValidationConfigError` si el primer argumento no es una clase (una instancia, un objeto, un
+- `ValidationConfigError` when the first argument is not a class (an instance, an object, a
   string): `runValidations expects a class, not an instance or a value`.
-- `ValidationConfigError` de un validador integrado mal configurado (p. ej. `isHash` sin
-  `algorithm` desde JavaScript).
-- `ValidationConfigError` `Unknown validator "<nombre>"` si la clase la decoró otra copia del
-  paquete que tiene un validador que esta copia no conoce (ver abajo).
-- Lo que lance tu propia `fn`: no se captura, se propaga y detiene las validaciones restantes. Si una
-  regla propia puede fallar con entradas raras, haz que `fn` devuelva `false`.
+- `ValidationConfigError` from a misconfigured built-in validator (e.g. `isHash` without
+  `algorithm` from JavaScript).
+- `ValidationConfigError` `Unknown validator "<name>"` when the class was decorated by another copy
+  of the package that has a validator this copy does not know (see below).
+- Whatever your own `fn` throws: it is not caught, it propagates and stops the remaining
+  validations. If a custom rule can fail on unusual input, make `fn` return `false`.
 
-### Objetos que se validan solos: `Validatable<T>`
+### Self-validating objects: `Validatable<T>`
 
-`Validatable<T>` es la interfaz `{ validate(): ValidationResult<T> }`, útil para value objects:
+`Validatable<T>` is the interface `{ validate(): ValidationResult<T> }`, useful for value objects:
 
 ```ts
 import { Validations, runValidations } from '@archi-code/validation';
@@ -886,38 +886,39 @@ new Name('A').validate();
 // { ok: false, value: 'A', errors: [{ validator: 'isLength', message: 'Value does not satisfy isLength' }] }
 ```
 
-### Inmutabilidad y almacenamiento
+### Immutability and storage
 
-- El decorador guarda una copia profunda congelada de los objetos y arrays planos de la declaración:
-  cambiar después el array declarado o sus `properties` no afecta a la clase. Los valores que no son
-  objetos o arrays planos (una `RegExp`, un `Date`, la función `fn`) se guardan tal cual.
-- Las validaciones viven en un registro en `globalThis` bajo
-  `Symbol.for('@archi-code/validation/decorator.v1')`. Todas las copias del paquete en el mismo realm
-  de JavaScript (el build CJS y el ESM cargados a la vez, o dos copias instaladas en `node_modules`)
-  comparten el mismo registro. Otro realm (un worker, un iframe, un contexto `vm`) tiene el suyo.
+- The decorator stores a frozen deep copy of the plain objects and arrays in the declaration:
+  changing the declared array or its `properties` afterwards does not affect the class. Values that
+  are not plain objects or arrays (a `RegExp`, a `Date`, the `fn` function) are stored as they are.
+- Validations live in a registry on `globalThis` under
+  `Symbol.for('@archi-code/validation/decorator.v1')`. Every copy of the package in the same
+  JavaScript realm (the CJS and the ESM build loaded together, or two copies installed in
+  `node_modules`) shares the same registry. Another realm (a worker, an iframe, a `vm` context) has
+  its own.
 
-### Errores comunes
+### Common mistakes
 
-- **Pasa la clase, no una instancia.** `runValidations(new Quantity(), valor)` lanza
-  `ValidationConfigError`. Desde una instancia usa
-  `runValidations(instance.constructor as typeof Quantity, valor)`.
-- **Un error de declaración ocurre al importar.** Una declaración errónea lanza al cargar el módulo
-  que define la clase, así que puede aparecer como un import fallido. Es intencionado: el error sale
-  al arrancar, no con el primer valor.
+- **Pass the class, not an instance.** `runValidations(new Quantity(), value)` throws
+  `ValidationConfigError`. From an instance, use
+  `runValidations(instance.constructor as typeof Quantity, value)`.
+- **A declaration error happens on import.** A wrong declaration throws when the module that
+  defines the class loads, so it can show up as a failed import. This is intended: the error
+  surfaces at startup, not with the first value.
 
-## Errores y excepciones
+## Errors and exceptions
 
-| Quién                        | Cuándo                                                                                  | Qué lanza / devuelve                                             |
-| ---------------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| Validadores `is*`            | Valor inválido de cualquier tipo                                                        | `false` (nunca lanzan por el valor)                              |
-| Validadores `is*`            | Configuración inválida (locale/país/algoritmo desconocido, opciones que no son objeto…) | `ValidationConfigError`                                          |
-| Conversores `to*` y `canBe*` | Siempre                                                                                 | Nunca lanzan: `{ ok: false, value: null, error }` / `false`      |
-| `anyToString`                | Siempre                                                                                 | Nunca lanza                                                      |
-| `sanitizer.*`                | El primer argumento no es un string                                                     | `TypeError`                                                      |
-| `@Validations`               | Declaración inválida                                                                    | `ValidationConfigError` (al decorar)                             |
-| `runValidations`             | El objetivo no es una clase o un validador está mal configurado                         | `ValidationConfigError`; lo que lance una `fn` propia se propaga |
+| Who                           | When                                                                                      | What it throws / returns                                          |
+| ----------------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `is*` validators              | Invalid value of any type                                                                 | `false` (they never throw because of the value)                   |
+| `is*` validators              | Invalid configuration (unknown locale/country/algorithm, options that are not an object…) | `ValidationConfigError`                                           |
+| `to*` converters and `canBe*` | Always                                                                                    | They never throw: `{ ok: false, value: null, error }` / `false`   |
+| `anyToString`                 | Always                                                                                    | It never throws                                                   |
+| `sanitizer.*`                 | The first argument is not a string                                                        | `TypeError`                                                       |
+| `@Validations`                | Invalid declaration                                                                       | `ValidationConfigError` (when decorating)                         |
+| `runValidations`              | The target is not a class or a validator is misconfigured                                 | `ValidationConfigError`; whatever a custom `fn` throws propagates |
 
-`ValidationConfigError` extiende `Error` y su `name` es `'ValidationConfigError'`:
+`ValidationConfigError` extends `Error` and its `name` is `'ValidationConfigError'`:
 
 ```ts
 import { isMobilePhone, ValidationConfigError } from '@archi-code/validation';
@@ -931,40 +932,40 @@ try {
 }
 ```
 
-## Tipos exportados
+## Exported types
 
-Todos se importan con `import type { … } from '@archi-code/validation'`.
+They are all imported with `import type { … } from '@archi-code/validation'`.
 
-**Conversores**
+**Converters**
 
-| Tipo                                                                                                                     | Descripción                                                              |
-| ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
-| `Converted<T>`                                                                                                           | `Success<T> \| Failure`                                                  |
-| `Success<T>`                                                                                                             | `{ ok: true; value: T; error: null }`                                    |
-| `Failure`                                                                                                                | `{ ok: false; value: null; error: ConvertMessage }`                      |
-| `ConvertMessage`                                                                                                         | Unión de los mensajes de `ConvertMessages`                               |
-| `BooleanConvertOptions`, `IntegerConvertOptions`, `FloatConvertOptions`, `DateConvertOptions`, `JsonValueConvertOptions` | Opciones de `toBoolean`, `toInteger`, `toFloat`, `toDate`, `toJsonValue` |
+| Type                                                                                                                     | Description                                                             |
+| ------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
+| `Converted<T>`                                                                                                           | `Success<T> \| Failure`                                                 |
+| `Success<T>`                                                                                                             | `{ ok: true; value: T; error: null }`                                   |
+| `Failure`                                                                                                                | `{ ok: false; value: null; error: ConvertMessage }`                     |
+| `ConvertMessage`                                                                                                         | Union of the `ConvertMessages` messages                                 |
+| `BooleanConvertOptions`, `IntegerConvertOptions`, `FloatConvertOptions`, `DateConvertOptions`, `JsonValueConvertOptions` | Options of `toBoolean`, `toInteger`, `toFloat`, `toDate`, `toJsonValue` |
 
-**Decorador**
+**Decorator**
 
-| Tipo                      | Descripción                                                       |
-| ------------------------- | ----------------------------------------------------------------- |
-| `Validation`              | `BuiltInValidation \| CustomValidation`                           |
-| `BuiltInValidation`       | `{ validator, properties?, message? }` tipado por validador       |
-| `CustomValidation`        | `{ custom, fn, message? }`                                        |
-| `ValidatorName`           | Nombres de los validadores del registro (`'isInt'`, `'isEmail'`…) |
-| `ValidationProperties<K>` | Objeto de opciones del validador `K` (`never` si no tiene)        |
-| `ValidatedClass`          | Cualquier clase (también abstracta) que acepta `runValidations`   |
-| `ValidationResult<T>`     | `ValidationSuccess<T> \| ValidationFailure<T>`                    |
-| `ValidationSuccess<T>`    | `{ ok: true; value: T; errors: readonly [] }`                     |
-| `ValidationFailure<T>`    | `{ ok: false; value: T; errors: readonly ValidationError[] }`     |
-| `ValidationError`         | `{ validator, message } \| { custom, message }`                   |
-| `Validatable<T>`          | `{ validate(): ValidationResult<T> }`                             |
+| Type                      | Description                                                   |
+| ------------------------- | ------------------------------------------------------------- |
+| `Validation`              | `BuiltInValidation \| CustomValidation`                       |
+| `BuiltInValidation`       | `{ validator, properties?, message? }` typed per validator    |
+| `CustomValidation`        | `{ custom, fn, message? }`                                    |
+| `ValidatorName`           | Names of the registry's validators (`'isInt'`, `'isEmail'`…)  |
+| `ValidationProperties<K>` | Options object of validator `K` (`never` when it has none)    |
+| `ValidatedClass`          | Any class (abstract ones too) that `runValidations` accepts   |
+| `ValidationResult<T>`     | `ValidationSuccess<T> \| ValidationFailure<T>`                |
+| `ValidationSuccess<T>`    | `{ ok: true; value: T; errors: readonly [] }`                 |
+| `ValidationFailure<T>`    | `{ ok: false; value: T; errors: readonly ValidationError[] }` |
+| `ValidationError`         | `{ validator, message } \| { custom, message }`               |
+| `Validatable<T>`          | `{ validate(): ValidationResult<T> }`                         |
 
-**Validadores, sanitizadores y helpers**
+**Validators, sanitizers and helpers**
 
 - `ValidatorRegistry` (`typeof validator`), `ScorePasswordOptions`, `NormalizeEmailOptions`.
-- Opciones de cada validador: `ContainsOptions`, `EqualsOptions`, `MatchesOptions`,
+- Options of each validator: `ContainsOptions`, `EqualsOptions`, `MatchesOptions`,
   `IsAfterOptions`, `IsAlphaOptions`, `IsAlphanumericOptions`, `IsBase32Options`,
   `IsBase64Options`, `IsBeforeOptions`, `IsBooleanOptions`, `IsByteLengthOptions`,
   `IsCreditCardOptions`, `IsCurrencyOptions`, `IsDateOptions`, `IsDecimalOptions`,
@@ -977,10 +978,10 @@ Todos se importan con `import type { … } from '@archi-code/validation'`.
   `IsPassportNumberOptions`, `IsPostalCodeOptions`, `IsRgbColorOptions`,
   `IsStrongPasswordOptions`, `IsTimeOptions`, `IsURLOptions`, `IsUUIDOptions`, `IsVATOptions`,
   `IsWhitelistedOptions`.
-- Valores admitidos (sugieren los conocidos y aceptan cualquier string): `AlphaLocale`,
+- Accepted values (they suggest the known ones and accept any string): `AlphaLocale`,
   `AlphanumericLocale`, `CreditCardProvider`, `HashAlgorithm`, `IdentityCardLocale`,
   `LicensePlateLocale`, `MobilePhoneLocale`, `PassportCountryCode`, `PostalCodeLocale`,
-  `VATCountryCode`, `IsIPVersion`, `IsISBNVersion` y `IsUUIDVersion`.
+  `VATCountryCode`, `IsIPVersion`, `IsISBNVersion` and `IsUUIDVersion`.
 
 ```ts
 import { isAlpha } from '@archi-code/validation';
@@ -990,17 +991,17 @@ const spanish: IsAlphaOptions = { locale: 'es-ES', ignore: ' ' };
 isAlpha('año nuevo', spanish); // true
 ```
 
-## Diferencias con validator.js
+## Differences from validator.js
 
-Este paquete se aparta a propósito de validator.js donde el original aceptaba entradas inseguras o
-incorrectas.
+This package deliberately departs from validator.js where the original accepted unsafe or incorrect
+input.
 
-**Firmas.** validator.js pasa algunos parámetros por posición y admite formas abreviadas; aquí todo
-va en el objeto de opciones:
+**Signatures.** validator.js passes some parameters by position and accepts shorthand forms; here
+everything goes in the options object:
 
 | validator.js                               | @archi-code/validation                                                      |
 | ------------------------------------------ | --------------------------------------------------------------------------- |
-| `isAlpha(v, locale, { ignore })`           | `isAlpha(v, { locale, ignore })` (igual en `isAlphanumeric`)                |
+| `isAlpha(v, locale, { ignore })`           | `isAlpha(v, { locale, ignore })` (same for `isAlphanumeric`)                |
 | `isMobilePhone(v, locale, { strictMode })` | `isMobilePhone(v, { locale, strictMode })`                                  |
 | `contains(v, elem, options)`               | `contains(v, { elem, ignoreCase, minOccurrences })`                         |
 | `matches(v, pattern, modifiers)`           | `matches(v, { pattern, modifiers })`                                        |
@@ -1009,105 +1010,105 @@ va en el objeto de opciones:
 | `isHash(v, algorithm)`                     | `isHash(v, { algorithm })`                                                  |
 | `isIn(v, values)`                          | `isIn(v, { values })`                                                       |
 | `isWhitelisted(v, chars)`                  | `isWhitelisted(v, { chars })`                                               |
-| `isPostalCode(v, locale)`                  | `isPostalCode(v, { locale })` (igual en `isLicensePlate`, `isIdentityCard`) |
-| `isVAT(v, countryCode)`                    | `isVAT(v, { countryCode })` (igual en `isPassportNumber`)                   |
-| `isUUID(v, version)`                       | `isUUID(v, { version })` (igual en `isIPRange`)                             |
-| `isIP(v, version)`                         | `isIP(v, { version })` (igual en `isISBN`)                                  |
-| `isLength(v, min, max)`                    | `isLength(v, { min, max })` (igual en `isByteLength`)                       |
+| `isPostalCode(v, locale)`                  | `isPostalCode(v, { locale })` (same for `isLicensePlate`, `isIdentityCard`) |
+| `isVAT(v, countryCode)`                    | `isVAT(v, { countryCode })` (same for `isPassportNumber`)                   |
+| `isUUID(v, version)`                       | `isUUID(v, { version })` (same for `isIPRange`)                             |
+| `isIP(v, version)`                         | `isIP(v, { version })` (same for `isISBN`)                                  |
+| `isLength(v, min, max)`                    | `isLength(v, { min, max })` (same for `isByteLength`)                       |
 | `isDate(v, format)`                        | `isDate(v, { format })`                                                     |
-| `isAfter(v, date)`                         | `isAfter(v, { comparisonDate })` (igual en `isBefore`)                      |
+| `isAfter(v, date)`                         | `isAfter(v, { comparisonDate })` (same for `isBefore`)                      |
 
-**Seguridad**
+**Security**
 
-- `isURL` rechaza una barra invertida en la autoridad: `http://evil.com\@good.com` es `false`,
-  porque los navegadores tratan `\` como `/`.
-- `isURL` nunca lee un esquema que ejecuta código como nombre de usuario: `javascript:foo@example.com`
-  (también `vbscript:` y `data:`) es `false` salvo con `require_valid_protocol: false`. Usuario y
-  contraseña deben usar caracteres de userinfo de RFC 3986, y se rechazan los controles C0 y DEL en
-  toda la URL.
-- Las listas de hosts de `isURL` e `isEmail` comparan sin distinguir mayúsculas e ignoran un punto
-  final. Un host IPv6 entre corchetes se compara con la whitelist por su dirección.
-- `isEmail`: la parte local entrecomillada rechaza CR, LF, DEL y otros caracteres de control
-  (inyección de cabeceras), la parte local rechaza caracteres invisibles (ancho cero, bidi, BOM,
-  espacios no ASCII) y un nombre visible exige el `>` de cierre.
-- `isFQDN` (y por tanto `isURL` e `isEmail`) rechaza en los nombres de host caracteres invisibles,
-  controles bidi, separadores Unicode y surrogates sueltos.
+- `isURL` rejects a backslash in the authority: `http://evil.com\@good.com` is `false`, because
+  browsers treat `\` as `/`.
+- `isURL` never reads a code-executing scheme as a user name: `javascript:foo@example.com` (also
+  `vbscript:` and `data:`) is `false` unless `require_valid_protocol: false`. User and password must
+  use RFC 3986 userinfo characters, and C0 controls and DEL are rejected anywhere in the URL.
+- The host lists of `isURL` and `isEmail` compare case-insensitively and ignore a trailing dot. A
+  bracketed IPv6 host is compared with the whitelist by its address.
+- `isEmail`: the quoted local part rejects CR, LF, DEL and other control characters (header
+  injection), the local part rejects invisible characters (zero-width, bidi, BOM, non-ASCII spaces)
+  and a display name requires the closing `>`.
+- `isFQDN` (and therefore `isURL` and `isEmail`) rejects invisible characters, bidi controls,
+  Unicode separators and lone surrogates in host names.
 
-**Anclaje y sintaxis**
+**Anchoring and syntax**
 
 - `isCreditCard` (Mastercard), `isISO6346`, `isLicensePlate` (`pt-BR`, `fi-FI`),
-  `isPassportNumber` (`MZ`, `PH`), `isLatLong` y varias reglas de `isVAT` rechazan basura al
-  principio o al final.
-- `isMongoId` rechaza el prefijo `0x`/`0h`.
-- `isVAT('', { countryCode: 'HN' })` es `false`.
+  `isPassportNumber` (`MZ`, `PH`), `isLatLong` and several `isVAT` rules reject garbage at the start
+  or at the end.
+- `isMongoId` rejects the `0x`/`0h` prefix.
+- `isVAT('', { countryCode: 'HN' })` is `false`.
 
-**Números**
+**Numbers**
 
-- `isFloat` rechaza `'.e5'`, `'e5'` y valores fuera del rango numérico como `'1e400'`, y lee bien
-  el separador decimal del locale.
-- `isInt` compara los límites con exactitud más allá de `Number.MAX_SAFE_INTEGER`, usando BigInt
-  sobre el texto original.
+- `isFloat` rejects `'.e5'`, `'e5'` and values outside the numeric range such as `'1e400'`, and
+  reads the locale's decimal separator correctly.
+- `isInt` compares the limits exactly beyond `Number.MAX_SAFE_INTEGER`, using BigInt on the
+  original text.
 
-**Fechas**
+**Dates**
 
-- `isISO8601(…, { strict: true })` acepta los años 0000–0099.
-- `isAfter` e `isBefore` interpretan las fechas de forma determinista, sin depender de la zona
-  horaria de la máquina (ver [Fechas y horas](#fechas-y-horas)).
+- `isISO8601(…, { strict: true })` accepts the years 0000–0099.
+- `isAfter` and `isBefore` parse dates deterministically, without depending on the machine's time
+  zone (see [Dates and times](#dates-and-times)).
 
-**Otras diferencias**
+**Other differences**
 
-- `isAlpha` e `isAlphanumeric` toman cada carácter de `ignore` de forma literal.
-- `isIdentityCard` usa por defecto el locale `'any'`.
-- `isJWT` rechaza una cabecera o un payload vacíos.
-- Un locale desconocido dentro de un array de `isMobilePhone` lanza en lugar de ignorarse.
-- No incluye `isTaxID`.
-- `isNotEmpty` es nuevo: `true` para un string con al menos un carácter que no es espacio o para un
-  número finito; `false` para `''`, solo espacios (espacios, tabuladores, saltos de línea, espacios
-  Unicode), `null`, `undefined`, `NaN`, `Infinity`, booleanos y cualquier otro valor.
-- `isRequired` es nuevo: `false` solo para `null` y `undefined`.
+- `isAlpha` and `isAlphanumeric` take each character of `ignore` literally.
+- `isIdentityCard` uses the `'any'` locale by default.
+- `isJWT` rejects an empty header or payload.
+- An unknown locale inside an `isMobilePhone` array throws instead of being ignored.
+- `isTaxID` is not included.
+- `isNotEmpty` is new: `true` for a string with at least one non-whitespace character or for a
+  finite number; `false` for `''`, whitespace only (spaces, tabs, line breaks, Unicode spaces),
+  `null`, `undefined`, `NaN`, `Infinity`, booleans and any other value.
+- `isRequired` is new: `false` only for `null` and `undefined`.
 
-## Skill para asistentes de IA
+## AI assistant skill
 
-El paquete incluye `SKILL.md`, una skill de [Claude Code](https://claude.com/claude-code) para que
-un asistente de IA escriba código correcto con `@archi-code/validation` en tu proyecto. La skill
-contiene las reglas, los patrones recomendados y los errores comunes; para la API completa remite a
-este README dentro de `node_modules`, así que sigue valiendo al actualizar el paquete.
+The package includes `SKILL.md`, a [Claude Code](https://claude.com/claude-code) skill so that an
+AI assistant writes correct code with `@archi-code/validation` in your project. The skill holds the
+rules, the recommended patterns and the common mistakes; for the full API it points to this README
+inside `node_modules`, so it stays valid when you update the package.
 
-Para instalarla en tu proyecto, cópiala a la carpeta de skills de Claude Code:
+To install it in your project, copy it to the Claude Code skills folder:
 
 ```bash
 mkdir -p .claude/skills/archi-code-validation && cp node_modules/@archi-code/validation/SKILL.md .claude/skills/archi-code-validation/SKILL.md
 ```
 
-### Cómo se usa
+### How to use
 
-Invócala con una petición:
-
-```text
-/archi-code-validation valida en el DTO de registro que email sea un email y phone un móvil español
-```
-
-O pide la tarea sin nombrarla y Claude la carga sola porque encaja con su descripción:
+Invoke it with a request:
 
 ```text
-Convierte los query params page y perPage a enteros y usa 1 y 20 si no son válidos
+/archi-code-validation in the sign-up DTO, validate that email is an email and phone a Spanish mobile number
 ```
 
-También sirve para revisar código que ya usa el paquete:
+Or ask for the task without naming it and Claude loads it on its own because it matches its
+description:
 
 ```text
-/archi-code-validation revisa src/ y corrige las llamadas que pasan opciones posicionales en vez de un objeto
+Convert the page and perPage query params to integers and use 1 and 20 when they are not valid
 ```
 
-Con la skill cargada, Claude sigue sus reglas, evita los errores de su lista "Qué no hacer" y, antes de
-usar algo que la skill no muestra, lee este README en `node_modules`.
+It also helps to review code that already uses the package:
 
-### Mantenerla al día
+```text
+/archi-code-validation review src/ and fix the calls that pass positional options instead of an object
+```
 
-- La copia no se actualiza sola: después de actualizar `@archi-code/validation`, vuelve a ejecutar el comando
-  de arriba.
-- Sube `.claude/skills/archi-code-validation/` al repositorio para que todo el equipo la use.
+With the skill loaded, Claude follows its rules, avoids the mistakes in its "What not to do" list
+and, before using anything the skill does not show, reads this README in `node_modules`.
 
-## Licencia
+### Keeping it up to date
+
+- The copy does not update itself: after updating `@archi-code/validation`, run the command above
+  again.
+- Commit `.claude/skills/archi-code-validation/` to the repository so the whole team uses it.
+
+## License
 
 MIT

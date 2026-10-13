@@ -1,20 +1,19 @@
 # @archi-code/test
 
-Utilidades para tests: compara valores JSON y obtiene una lista legible de diferencias (con marcadores
-para UUID, fechas y valores no vacíos), construye DTO de prueba con un _object mother_ por niveles y
-comprueba tipos en tiempo de compilación. El paquete incluye builds CJS y ESM y depende de
-`@archi-code/validation`.
+Test utilities: compares JSON values and returns a readable list of differences (with markers for
+UUIDs, dates and non-empty values), builds test DTOs with a leveled _object mother_ and checks types
+at compile time. The package ships CJS and ESM builds and depends on `@archi-code/validation`.
 
-## Instalación
+## Installation
 
 ```bash
 npm install --save-dev @archi-code/test
 ```
 
-Requiere Node.js 24 o superior. Funciona con cualquier runner (Jest, Vitest, `node:test`…): no
-depende de ninguno.
+Requires Node.js 24 or later. Works with any runner (Jest, Vitest, `node:test`…): it depends on
+none of them.
 
-## Importación
+## Import
 
 ESM / TypeScript:
 
@@ -31,22 +30,21 @@ const { JsonCompare } = require('@archi-code/test');
 JsonCompare.strict({ a: 1 }, { a: 1 }); // []
 ```
 
-Las aserciones de tipos son solo tipos: impórtalas con `import type` (no existen en tiempo de
-ejecución).
+The type assertions are types only: import them with `import type` (they do not exist at runtime).
 
 ## `JsonCompare`
 
-Compara dos valores tipo JSON (objetos, arrays, cadenas, números, booleanos y `null`) y devuelve un
-`string[]` con las diferencias; un array vacío significa que coinciden. No lanza por diferencias: tú
-decides cómo afirmar (`expect(diff).toEqual([])`, `assert.deepEqual(diff, [])`…), y el mensaje del
-fallo ya enseña qué no coincide.
+Compares two JSON-like values (objects, arrays, strings, numbers, booleans and `null`) and returns a
+`string[]` with the differences; an empty array means they match. It does not throw on differences:
+you decide how to assert (`expect(diff).toEqual([])`, `assert.deepEqual(diff, [])`…), and the
+failure message already shows what does not match.
 
-El primer argumento es lo **esperado** (puede llevar marcadores) y el segundo el valor **real**. Cada
-diferencia de valor se escribe como `ruta: esperado -> real`.
+The first argument is the **expected** value (it may contain markers) and the second one the
+**actual** value. Each value difference is written as `path: expected -> actual`.
 
 ### `JsonCompare.strict(expected, actual)`
 
-Exige las mismas claves y la misma longitud en los arrays:
+Requires the same keys and the same array lengths:
 
 ```ts
 JsonCompare.strict({ a: 1, b: 'x' }, { a: 1, b: 'y' }); // ['b: x -> y']
@@ -57,15 +55,15 @@ JsonCompare.strict({ user: { tags: ['a'] } }, { user: { tags: ['a', 'b'] } });
 // ['user.tags: length of ["a"] is not equal to length of ["a","b"]']
 ```
 
-- `key not found`: la clave está en el valor real y falta en lo esperado.
-- `extra key found`: la clave está en lo esperado y falta en el valor real.
-- Los primitivos se comparan con `===`: `JsonCompare.strict({ a: 1 }, { a: '1' })` devuelve
-  `['a: 1 -> 1']` (número frente a cadena).
+- `key not found`: the key is in the actual value and missing from the expected one.
+- `extra key found`: the key is in the expected value and missing from the actual one.
+- Primitives are compared with `===`: `JsonCompare.strict({ a: 1 }, { a: '1' })` returns
+  `['a: 1 -> 1']` (number versus string).
 
 ### `JsonCompare.include(expected, actual)`
 
-Comprueba que lo esperado está contenido en el valor real: las claves que el real tiene de más se
-ignoran, y en los arrays solo se comparan las posiciones que tiene lo esperado.
+Checks that the expected value is contained in the actual one: extra keys in the actual value are
+ignored, and in arrays only the positions the expected value has are compared.
 
 ```ts
 JsonCompare.include({ a: 1 }, { a: 1, b: 2 }); // []
@@ -73,15 +71,15 @@ JsonCompare.include({ a: 1, c: 3 }, { a: 1 }); // ['c: extra key found']
 JsonCompare.include([{ id: 1 }], [{ id: 1, name: 'x' }, { id: 2 }]); // []
 ```
 
-### Marcadores
+### Markers
 
-En lo esperado, estas cadenas exactas validan un formato en lugar de un valor concreto:
+In the expected value, these exact strings validate a format instead of a specific value:
 
-| Marcador           | Acepta en el valor real                                                                                    |
-| ------------------ | ---------------------------------------------------------------------------------------------------------- |
-| `'UUID()'`         | una cadena UUID en minúsculas (versión 0–5; el primer carácter del cuarto grupo, `0`, `8`, `9`, `a` o `b`) |
-| `'IS_TIME()'`      | una cadena ISO 8601 UTC con milisegundos, como `new Date().toISOString()` (`2024-01-31T10:20:30.123Z`)     |
-| `'IS_NOT_EMPTY()'` | cualquier valor distinto de la cadena vacía `''`                                                           |
+| Marker             | Accepts in the actual value                                                                                 |
+| ------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `'UUID()'`         | a lowercase UUID string (version 0–5; the first character of the fourth group is `0`, `8`, `9`, `a` or `b`) |
+| `'IS_TIME()'`      | an ISO 8601 UTC string with milliseconds, like `new Date().toISOString()` (`2024-01-31T10:20:30.123Z`)      |
+| `'IS_NOT_EMPTY()'` | any value other than the empty string `''`                                                                  |
 
 ```ts
 const response = {
@@ -103,12 +101,12 @@ JsonCompare.strict(expected, { ...response, id: 'abc', token: '' });
 // ['id: UUID() -> abc', 'token: IS_NOT_EMPTY() -> ']
 ```
 
-Los marcadores solo funcionan en el primer argumento. `UUID()` e `IS_TIME()` esperan una cadena en el
-valor real: con otro tipo lanzan `TypeError` (con un número, `value.search is not a function`).
+Markers only work in the first argument. `UUID()` and `IS_TIME()` expect a string in the actual
+value: with any other type they throw `TypeError` (with a number, `value.search is not a function`).
 
 ### Constructor
 
-`new JsonCompare(expected, actual, strict = false)` hace lo mismo y expone el resultado en
+`new JsonCompare(expected, actual, strict = false)` does the same and exposes the result in
 `differences`:
 
 ```ts
@@ -116,26 +114,26 @@ new JsonCompare({ a: 1 }, { a: 1, b: 2 }).differences; // []
 new JsonCompare({ a: 1 }, { a: 1, b: 2 }, true).differences; // ['b: key not found']
 ```
 
-### Uso en un test
+### Use in a test
 
 ```ts
 expect(JsonCompare.include({ id: 'UUID()', name: 'Ana' }, await response.json())).toEqual([]);
 ```
 
-Compara datos ya serializados a JSON. Los objetos que no son planos (por ejemplo `Date`) se recorren
-por sus claves propias y dos `Date` distintas no producen diferencias: pásalos por
-`JSON.parse(JSON.stringify(valor))` o compara sus cadenas ISO.
+Compare data already serialized to JSON. Objects that are not plain (for example `Date`) are walked
+through their own keys and two different `Date`s produce no differences: pass them through
+`JSON.parse(JSON.stringify(value))` or compare their ISO strings.
 
 ## `DtoObjectMother<T>`
 
-Clase abstracta para crear DTO de prueba por niveles: el nivel 1 rellena las propiedades mínimas y
-cada nivel superior añade más. Se extiende implementando tres métodos:
+Abstract class to create test DTOs by levels: level 1 fills the minimum properties and each higher
+level adds more. You extend it by implementing three methods:
 
-| Método                   | Devuelve                      | Uso                                 |
-| ------------------------ | ----------------------------- | ----------------------------------- |
-| `getNewDto()`            | `T`                           | Instancia vacía del DTO             |
-| `getDefaultValues()`     | `Partial<T>`                  | Valor por defecto de cada propiedad |
-| `getPropertiesByLevel()` | `Record<number, (keyof T)[]>` | Propiedades que añade cada nivel    |
+| Method                   | Returns                       | Use                            |
+| ------------------------ | ----------------------------- | ------------------------------ |
+| `getNewDto()`            | `T`                           | Empty instance of the DTO      |
+| `getDefaultValues()`     | `Partial<T>`                  | Default value of each property |
+| `getPropertiesByLevel()` | `Record<number, (keyof T)[]>` | Properties each level adds     |
 
 ```ts
 class UserDto {
@@ -167,9 +165,9 @@ class UserDtoMother extends DtoObjectMother<UserDto> {
 
 ### `create(level, override = {}, exclude = [])`
 
-Método estático que se llama sobre la subclase y devuelve una instancia de `T` (la de `getNewDto()`).
-Incluye las propiedades de todos los niveles `<= level` con sus valores por defecto. En los resultados
-se muestran las propiedades con valor:
+Static method called on the subclass that returns an instance of `T` (the one from `getNewDto()`).
+It includes the properties of every level `<= level` with their default values. The results show
+the properties that have a value:
 
 ```ts
 const user = UserDtoMother.create(1);
@@ -189,31 +187,31 @@ UserDtoMother.create(2, {}, ['email']);
 // { id: '42e05ee0-…', name: 'Ana', levelValidation: 2 }
 ```
 
-- `override`: sustituye valores y añade propiedades aunque sean de un nivel superior. Un override
-  `null` o `undefined` se ignora y se usa el valor por defecto.
-- `exclude`: propiedades que no se asignan, aunque estén en el nivel o en `override`.
-- Siempre asigna `levelValidation = level` al resultado. Si quieres leerla con tipos, declárala en tu
-  DTO (`levelValidation?: number`).
+- `override`: replaces values and adds properties even if they belong to a higher level. A `null` or
+  `undefined` override is ignored and the default value is used.
+- `exclude`: properties that are not assigned, even if they are in the level or in `override`.
+- It always assigns `levelValidation = level` to the result. If you want to read it with types,
+  declare it in your DTO (`levelValidation?: number`).
 
-## Aserciones de tipos
+## Type assertions
 
-Tipos para comprobar en tiempo de compilación lo que infiere TypeScript. Una aserción que no se cumple
-es un error de `tsc` (`Type 'false' does not satisfy the constraint 'true'`), así que se comprueban con
-`tsc --noEmit` o con un runner que haga type-check (por ejemplo, ts-jest).
+Types to check at compile time what TypeScript infers. An assertion that does not hold is a `tsc`
+error (`Type 'false' does not satisfy the constraint 'true'`), so they are checked with
+`tsc --noEmit` or with a runner that type-checks (for example, ts-jest).
 
-| Tipo                                        | Resultado                                                                              |
-| ------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `Expect<T>` / `ExpectTrue<T>` / `IsTrue<T>` | exige que `T` sea `true`                                                               |
-| `ExpectFalse<T>` / `IsFalse<T>`             | exige que `T` sea `false`                                                              |
-| `Equal<X, Y>`                               | `true` si `X` e `Y` son idénticos (distingue `any`, y `A & B` de su objeto)            |
-| `NotEqual<X, Y>`                            | negación de `Equal`                                                                    |
-| `IsAny<T>` / `NotAny<T>`                    | `true` si `T` es (o no es) `any`                                                       |
-| `Alike<X, Y>`                               | como `Equal`, pero aplanando intersecciones (`{ a: 1 } & { b: 2 }` ≈ `{ a: 1; b: 2 }`) |
-| `ExpectExtends<VALUE, EXPECTED>`            | `true` si `EXPECTED` es asignable a `VALUE`                                            |
-| `ExpectValidArgs<FUNC, ARGS>`               | `true` si la tupla `ARGS` es válida como argumentos de `FUNC`                          |
-| `Debug<T>`                                  | aplana un nivel de `T` (útil para ver el tipo resultante)                              |
-| `MergeInsertions<T>`                        | aplana `T` recursivamente                                                              |
-| `UnionToIntersection<U>`                    | convierte `A \| B` en `A & B`                                                          |
+| Type                                        | Result                                                                                |
+| ------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `Expect<T>` / `ExpectTrue<T>` / `IsTrue<T>` | requires `T` to be `true`                                                             |
+| `ExpectFalse<T>` / `IsFalse<T>`             | requires `T` to be `false`                                                            |
+| `Equal<X, Y>`                               | `true` if `X` and `Y` are identical (tells `any` apart, and `A & B` from its object)  |
+| `NotEqual<X, Y>`                            | negation of `Equal`                                                                   |
+| `IsAny<T>` / `NotAny<T>`                    | `true` if `T` is (or is not) `any`                                                    |
+| `Alike<X, Y>`                               | like `Equal`, but flattening intersections (`{ a: 1 } & { b: 2 }` ≈ `{ a: 1; b: 2 }`) |
+| `ExpectExtends<VALUE, EXPECTED>`            | `true` if `EXPECTED` is assignable to `VALUE`                                         |
+| `ExpectValidArgs<FUNC, ARGS>`               | `true` if the tuple `ARGS` is valid as arguments of `FUNC`                            |
+| `Debug<T>`                                  | flattens one level of `T` (useful to see the resulting type)                          |
+| `MergeInsertions<T>`                        | flattens `T` recursively                                                              |
+| `UnionToIntersection<U>`                    | turns `A \| B` into `A & B`                                                           |
 
 ```ts
 import type {
@@ -249,8 +247,8 @@ type cases = [
   Expect<NotAny<string>>,
   Expect<ExpectExtends<string, 'a'>>,
   ExpectFalse<ExpectExtends<'a', string>>,
-  Expect<ExpectValidArgs<typeof greet, ['hola', 2]>>,
-  ExpectFalse<ExpectValidArgs<typeof greet, [2, 'hola']>>,
+  Expect<ExpectValidArgs<typeof greet, ['hello', 2]>>,
+  ExpectFalse<ExpectValidArgs<typeof greet, [2, 'hello']>>,
   Expect<Alike<{ a: 1 } & { b: 2 }, { a: 1; b: 2 }>>,
   ExpectFalse<Equal<{ a: 1 } & { b: 2 }, { a: 1; b: 2 }>>,
   Expect<Equal<Debug<{ a: 1 } & { b: 2 }>, { a: 1; b: 2 }>>,
@@ -258,71 +256,71 @@ type cases = [
   Expect<Equal<UnionToIntersection<{ a: 1 } | { b: 2 }>, { a: 1 } & { b: 2 }>>,
 ];
 
-// @ts-expect-error: string y number no son iguales
+// @ts-expect-error: string and number are not equal
 type fails = Expect<Equal<string, number>>;
 ```
 
-## Resumen de exports
+## Exports summary
 
-| Export                | Tipo            | Uso                                                                                                                 |
-| --------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `JsonCompare`         | clase           | `strict(expected, actual)` / `include(expected, actual)` → `string[]`; `new JsonCompare(e, a, strict?).differences` |
-| `DtoObjectMother<T>`  | clase abstracta | `create(level, override?, exclude?)` sobre subclases con `getNewDto`, `getDefaultValues`, `getPropertiesByLevel`    |
-| `Expect`              | tipo            | exige `true`                                                                                                        |
-| `ExpectTrue`          | tipo            | exige `true`                                                                                                        |
-| `ExpectFalse`         | tipo            | exige `false`                                                                                                       |
-| `IsTrue`              | tipo            | exige `true`                                                                                                        |
-| `IsFalse`             | tipo            | exige `false`                                                                                                       |
-| `Equal`               | tipo            | igualdad exacta de tipos                                                                                            |
-| `NotEqual`            | tipo            | desigualdad de tipos                                                                                                |
-| `IsAny`               | tipo            | `T` es `any`                                                                                                        |
-| `NotAny`              | tipo            | `T` no es `any`                                                                                                     |
-| `Alike`               | tipo            | igualdad aplanando intersecciones                                                                                   |
-| `ExpectExtends`       | tipo            | asignabilidad                                                                                                       |
-| `ExpectValidArgs`     | tipo            | argumentos válidos para una función                                                                                 |
-| `Debug`               | tipo            | aplana un nivel                                                                                                     |
-| `MergeInsertions`     | tipo            | aplana recursivamente                                                                                               |
-| `UnionToIntersection` | tipo            | unión → intersección                                                                                                |
+| Export                | Type           | Use                                                                                                                 |
+| --------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `JsonCompare`         | class          | `strict(expected, actual)` / `include(expected, actual)` → `string[]`; `new JsonCompare(e, a, strict?).differences` |
+| `DtoObjectMother<T>`  | abstract class | `create(level, override?, exclude?)` on subclasses with `getNewDto`, `getDefaultValues`, `getPropertiesByLevel`     |
+| `Expect`              | type           | requires `true`                                                                                                     |
+| `ExpectTrue`          | type           | requires `true`                                                                                                     |
+| `ExpectFalse`         | type           | requires `false`                                                                                                    |
+| `IsTrue`              | type           | requires `true`                                                                                                     |
+| `IsFalse`             | type           | requires `false`                                                                                                    |
+| `Equal`               | type           | exact type equality                                                                                                 |
+| `NotEqual`            | type           | type inequality                                                                                                     |
+| `IsAny`               | type           | `T` is `any`                                                                                                        |
+| `NotAny`              | type           | `T` is not `any`                                                                                                    |
+| `Alike`               | type           | equality flattening intersections                                                                                   |
+| `ExpectExtends`       | type           | assignability                                                                                                       |
+| `ExpectValidArgs`     | type           | valid arguments for a function                                                                                      |
+| `Debug`               | type           | flattens one level                                                                                                  |
+| `MergeInsertions`     | type           | flattens recursively                                                                                                |
+| `UnionToIntersection` | type           | union → intersection                                                                                                |
 
-## Skill para asistentes de IA
+## AI assistant skill
 
-El paquete incluye `SKILL.md`, una skill de Claude Code con las reglas, los patrones recomendados y
-los errores habituales. Para la API completa remite a este README dentro de `node_modules`, así que
-sigue valiendo al actualizar el paquete. Para instalarla en tu proyecto:
+The package ships `SKILL.md`, a Claude Code skill with the rules, the recommended patterns and the
+common mistakes. For the full API it points to this README inside `node_modules`, so it stays valid
+when you update the package. To install it in your project:
 
 ```bash
 mkdir -p .claude/skills/archi-code-test && cp node_modules/@archi-code/test/SKILL.md .claude/skills/archi-code-test/SKILL.md
 ```
 
-### Cómo se usa
+### How to use
 
-Invócala con una petición:
-
-```text
-/archi-code-test crea un UserDtoMother con nivel 1 para los obligatorios y nivel 2 para los opcionales
-```
-
-O pide la tarea sin nombrarla y Claude la carga sola porque encaja con su descripción:
+Invoke it with a request:
 
 ```text
-Escribe un test que compare la respuesta de POST /users con JsonCompare aceptando cualquier id y createdAt
+/archi-code-test create a UserDtoMother with level 1 for the required fields and level 2 for the optional ones
 ```
 
-También sirve para revisar código que ya usa el paquete:
+Or ask for the task without naming it and Claude loads it on its own because it matches its
+description:
 
 ```text
-/archi-code-test revisa los tests de tipos y pásalos a Expect<Equal<...>>
+Write a test that compares the response of POST /users with JsonCompare, accepting any id and createdAt
 ```
 
-Con la skill cargada, Claude sigue sus reglas, evita los errores de su lista "Qué no hacer" y, antes de
-usar algo que la skill no muestra, lee este README en `node_modules`.
+It also works to review code that already uses the package:
 
-### Mantenerla al día
+```text
+/archi-code-test review the type tests and move them to Expect<Equal<...>>
+```
 
-- La copia no se actualiza sola: después de actualizar `@archi-code/test`, vuelve a ejecutar el comando
-  de arriba.
-- Sube `.claude/skills/archi-code-test/` al repositorio para que todo el equipo la use.
+With the skill loaded, Claude follows its rules, avoids the mistakes in its "What not to do" list
+and, before using anything the skill does not show, reads this README in `node_modules`.
 
-## Licencia
+### Keeping it up to date
+
+- The copy does not update itself: after updating `@archi-code/test`, run the command above again.
+- Commit `.claude/skills/archi-code-test/` to the repository so the whole team uses it.
+
+## License
 
 MIT

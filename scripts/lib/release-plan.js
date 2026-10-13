@@ -87,7 +87,7 @@ function buildPlan({ branch, packages, state, readCommits }) {
     }));
     const warnings = commits
       .filter((commit) => !commit.conventional)
-      .map((commit) => `commit no convencional cuenta como ${commit.bump}: ${commit.subject}`);
+      .map((commit) => `non conventional commit counts as ${commit.bump}: ${commit.subject}`);
     const reasons = [];
     let bump = commits.reduce((acc, commit) => higherBump(acc, commit.bump), null);
     if (bump) reasons.push(`commits (${bump})`);
@@ -95,37 +95,38 @@ function buildPlan({ branch, packages, state, readCommits }) {
       bump = 'major';
       reasons.push(
         fullReset
-          ? `breaking: releases.json sin deploys, nueva major del conjunto (${reset})`
-          : `completa el reinicio del conjunto (${reset})`,
+          ? `breaking: releases.json without deploys, new major for the whole set (${reset})`
+          : `completes the reset of the whole set (${reset})`,
       );
     }
 
     for (const dep of pkg.internalDeps) {
       if (!known.has(dep)) {
-        errors.push(`${pkg.name} depende de ${dep}, que no es un paquete del monorepo`);
+        errors.push(`${pkg.name} depends on ${dep}, which is not a package of the monorepo`);
         continue;
       }
       if (reset) continue;
       if (byName[dep].next) {
         bump = higherBump(bump, 'patch');
-        reasons.push(`cascada: ${dep} → ${byName[dep].next}`);
+        reasons.push(`cascade: ${dep} → ${byName[dep].next}`);
       } else if (byName[dep].current && pinned?.[dep] !== byName[dep].current) {
         bump = higherBump(bump, 'patch');
         reasons.push(
-          `cascada: ${dep} está en ${byName[dep].current} y la versión publicada fija ` +
-            `${pinned?.[dep] ?? 'otra'}`,
+          `cascade: ${dep} is at ${byName[dep].current} and the published version pins ` +
+            `${pinned?.[dep] ?? 'another'}`,
         );
       }
     }
 
     const next = reset ?? (bump ? nextVersion({ current, lastStable, bump, channel }) : null);
     if (next && current && compareVersions(next, current) <= 0) {
-      errors.push(`${pkg.name}: la versión calculada ${next} no es mayor que ${current}`);
+      errors.push(`${pkg.name}: the computed version ${next} is not greater than ${current}`);
     }
     const dependencies = {};
     for (const dep of pkg.internalDeps.filter((name) => byName[name])) {
       const version = byName[dep].next ?? byName[dep].current;
-      if (!version && next) errors.push(`${pkg.name} sale pero ${dep} no tiene versión publicada`);
+      if (!version && next)
+        errors.push(`${pkg.name} is released but ${dep} has no published version`);
       dependencies[dep] = version;
     }
 

@@ -10,8 +10,8 @@ import { SearchGroupByDto } from '../../../src/search-group-by.dto';
 import { SearchOrderItemDto } from '../../../src/search-order-item.dto';
 
 describe('MongoCriteriaConverter', () => {
-  describe('Filtros simples', () => {
-    it('debe convertir un filtro simple con operador "eq"', () => {
+  describe('Simple filters', () => {
+    it('converts a simple filter with the "eq" operator', () => {
       const filter = new SimpleFilterDto('name', FilterOperator.EQ, 'Alice');
       const criteria = new SearchCriteriaDto(filter);
       const mongoQuery = new MongoCriteriaConverter().convert(criteria);
@@ -19,7 +19,7 @@ describe('MongoCriteriaConverter', () => {
       expect(mongoQuery.filter).toEqual({ name: 'Alice' });
     });
 
-    it('debe convertir un filtro simple con operador "gt"', () => {
+    it('converts a simple filter with the "gt" operator', () => {
       const filter = new SimpleFilterDto('age', FilterOperator.GT, 30);
       const criteria = new SearchCriteriaDto(filter);
       const mongoQuery = new MongoCriteriaConverter().convert(criteria);
@@ -27,7 +27,7 @@ describe('MongoCriteriaConverter', () => {
       expect(mongoQuery.filter).toEqual({ age: { $gt: 30 } });
     });
 
-    it('debe convertir un filtro simple con operador "between"', () => {
+    it('converts a simple filter with the "between" operator', () => {
       const filter = new SimpleFilterDto('price', FilterOperator.BETWEEN, [10, 20]);
       const criteria = new SearchCriteriaDto(filter);
       const mongoQuery = new MongoCriteriaConverter().convert(criteria);
@@ -35,7 +35,7 @@ describe('MongoCriteriaConverter', () => {
       expect(mongoQuery.filter).toEqual({ price: { $gte: 10, $lte: 20 } });
     });
 
-    it('debe convertir un filtro simple con operador "like"', () => {
+    it('converts a simple filter with the "like" operator', () => {
       const filter = new SimpleFilterDto('description', FilterOperator.LIKE, 'book');
       const criteria = new SearchCriteriaDto(filter);
       const mongoQuery = new MongoCriteriaConverter().convert(criteria);
@@ -43,7 +43,7 @@ describe('MongoCriteriaConverter', () => {
       expect(mongoQuery.filter).toEqual({ description: { $regex: 'book' } });
     });
 
-    it('debe convertir un filtro simple con operador "ilike"', () => {
+    it('converts a simple filter with the "ilike" operator', () => {
       const filter = new SimpleFilterDto('description', FilterOperator.ILIKE, 'BOOK');
       const criteria = new SearchCriteriaDto(filter);
       const mongoQuery = new MongoCriteriaConverter().convert(criteria);
@@ -52,8 +52,8 @@ describe('MongoCriteriaConverter', () => {
     });
   });
 
-  describe('Filtros compuestos', () => {
-    it('debe convertir un filtro compuesto (and) con filtros simples', () => {
+  describe('Composite filters', () => {
+    it('converts a composite (and) filter of simple filters', () => {
       const filter1 = new SimpleFilterDto('status', FilterOperator.EQ, 'active');
       const filter2 = new SimpleFilterDto('score', FilterOperator.GTE, 50);
       const compositeFilter = new CompositeFilterDto('and', [filter1, filter2]);
@@ -65,7 +65,7 @@ describe('MongoCriteriaConverter', () => {
       });
     });
 
-    it('debe convertir un filtro compuesto (or) con filtros simples', () => {
+    it('converts a composite (or) filter of simple filters', () => {
       const filter1 = new SimpleFilterDto('category', FilterOperator.EQ, 'books');
       const filter2 = new SimpleFilterDto('category', FilterOperator.EQ, 'electronics');
       const compositeFilter = new CompositeFilterDto('or', [filter1, filter2]);
@@ -77,7 +77,7 @@ describe('MongoCriteriaConverter', () => {
       });
     });
 
-    it('debe convertir filtros compuestos anidados', () => {
+    it('converts nested composite filters', () => {
       const simpleFilter = new SimpleFilterDto('price', FilterOperator.LT, 100);
       const innerComposite = new CompositeFilterDto('or', [simpleFilter]);
       const outerComposite = new CompositeFilterDto('and', [innerComposite]);
@@ -94,8 +94,8 @@ describe('MongoCriteriaConverter', () => {
     });
   });
 
-  describe('Ordenamiento', () => {
-    it('debe convertir el ordenamiento a un objeto de sort de MongoDB', () => {
+  describe('Ordering', () => {
+    it('converts the ordering to a MongoDB sort object', () => {
       const orders: SearchOrderItemDto[] = [
         { field: 'name', direction: 'asc' },
         { field: 'age', direction: 'desc' },
@@ -108,8 +108,8 @@ describe('MongoCriteriaConverter', () => {
     });
   });
 
-  describe('Paginación', () => {
-    it('debe convertir el paginador a skip y limit', () => {
+  describe('Pagination', () => {
+    it('converts the paginator to skip and limit', () => {
       const paginator = new SearchPaginatorDto(3, 10);
       const criteria = new SearchCriteriaDto(undefined, undefined, paginator);
       const mongoQuery = new MongoCriteriaConverter().convert(criteria);
@@ -119,8 +119,8 @@ describe('MongoCriteriaConverter', () => {
     });
   });
 
-  describe('Conversión completa', () => {
-    it('debe convertir una SearchCriteriaDto completa', () => {
+  describe('Full conversion', () => {
+    it('converts a full SearchCriteriaDto', () => {
       const filter1 = new SimpleFilterDto('status', FilterOperator.EQ, 'active');
       const filter2 = new SimpleFilterDto('score', FilterOperator.GTE, 50);
       const compositeFilter = new CompositeFilterDto('or', [filter1, filter2]);
@@ -147,8 +147,8 @@ describe('MongoCriteriaConverter', () => {
     });
   });
 
-  describe('Casos sin criterios', () => {
-    it('debe retornar un objeto vacío si no se provee ningún criterio', () => {
+  describe('Cases without criteria', () => {
+    it('returns an empty object when no criteria are provided', () => {
       const criteria = new SearchCriteriaDto();
       const mongoQuery = new MongoCriteriaConverter().convert(criteria);
 

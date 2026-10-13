@@ -95,7 +95,7 @@ interface RepeatMeasurements {
 
 function accOf(acc: Map<string, RepeatMeasurements>, name: string): RepeatMeasurements {
   const a = acc.get(name);
-  if (!a) throw new Error(`Sin mediciones para ${name}`);
+  if (!a) throw new Error(`No measurements for ${name}`);
   return a;
 }
 
@@ -123,18 +123,19 @@ function checkSamples(): string[] {
   const problems: string[] = [];
   const seen = new Set<string>();
   for (const s of samples) {
-    if (seen.has(s.name)) problems.push(`${s.name}: nombre duplicado`);
+    if (seen.has(s.name)) problems.push(`${s.name}: duplicate name`);
     seen.add(s.name);
-    if (s.valid.length === 0) problems.push(`${s.name}: no tiene valores valid`);
-    if (s.invalid.length === 0) problems.push(`${s.name}: no tiene valores invalid`);
+    if (s.valid.length === 0) problems.push(`${s.name}: has no valid values`);
+    if (s.invalid.length === 0) problems.push(`${s.name}: has no invalid values`);
     if (new Set(s.valid).size !== s.valid.length)
-      problems.push(`${s.name}: valores valid duplicados`);
+      problems.push(`${s.name}: duplicate valid values`);
     for (const input of s.valid) {
-      if (s.run(input) !== true) problems.push(`${s.name}: valid ${show(input)} no devuelve true`);
+      if (s.run(input) !== true)
+        problems.push(`${s.name}: valid ${show(input)} does not return true`);
     }
     for (const input of s.invalid) {
       if (s.run(input) !== false)
-        problems.push(`${s.name}: invalid ${show(input)} no devuelve false`);
+        problems.push(`${s.name}: invalid ${show(input)} does not return false`);
     }
   }
   return problems;
@@ -143,14 +144,14 @@ function checkSamples(): string[] {
 async function main(): Promise<void> {
   const problems = checkSamples();
   if (problems.length > 0) {
-    console.error(`Samples incorrectos (${problems.length}) — el benchmark no se ejecuta:`);
+    console.error(`Invalid samples (${problems.length}) — the benchmark does not run:`);
     for (const p of problems) console.error(`  - ${p}`);
     process.exit(1);
   }
 
   console.log(
-    `Benchmark: ${samples.length} validadores × 2 rutas (éxito/error), ` +
-      `${BENCH_REPEATS} repeticiones × ${BENCH_SAMPLES} muestras (promedio recortado).\n`,
+    `Benchmark: ${samples.length} validators × 2 paths (success/error), ` +
+      `${BENCH_REPEATS} repeats × ${BENCH_SAMPLES} samples (trimmed mean).\n`,
   );
 
   const okAcc = new Map<string, RepeatMeasurements>();

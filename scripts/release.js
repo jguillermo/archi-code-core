@@ -58,7 +58,7 @@ function npmVersionDocument(name, version) {
   const status = result.stdout.slice(split + 1);
   if (status === '200') return JSON.parse(result.stdout.slice(0, split));
   if (status === '404') return null;
-  throw new Error(`no se pudo consultar ${url} (HTTP ${status || result.stderr.trim()})`);
+  throw new Error(`could not query ${url} (HTTP ${status || result.stderr.trim()})`);
 }
 
 function targetBranch() {
@@ -71,15 +71,15 @@ function targetBranch() {
 
 function checkRepository(branch) {
   if (!CHANNELS[branch]) {
-    return [`la rama "${branch}" no publica: solo ${Object.keys(CHANNELS).join(' y ')}`];
+    return [`branch "${branch}" does not publish: only ${Object.keys(CHANNELS).join(' and ')}`];
   }
   if (PACK_ONLY) return [];
   const problems = [];
-  if (run('git', ['status', '--porcelain'])) problems.push('el árbol de trabajo no está limpio');
+  if (run('git', ['status', '--porcelain'])) problems.push('the working tree is not clean');
   run('git', ['fetch', 'origin', branch]);
   const head = headCommit(ROOT);
   const remote = run('git', ['rev-parse', `origin/${branch}`]);
-  if (head !== remote) problems.push(`HEAD (${head}) no es origin/${branch} (${remote})`);
+  if (head !== remote) problems.push(`HEAD (${head}) is not origin/${branch} (${remote})`);
   return problems;
 }
 
@@ -89,7 +89,7 @@ function checkPinnedDependencies(plan) {
   for (const pkg of releasing(plan)) {
     for (const [dep, version] of Object.entries(pkg.dependencies)) {
       if (!releasedNames.has(dep) && !npmVersionDocument(dep, version)) {
-        problems.push(`${pkg.name} depende de ${dep}@${version}, que no está en npm`);
+        problems.push(`${pkg.name} depends on ${dep}@${version}, which is not on npm`);
       }
     }
   }
@@ -135,11 +135,11 @@ function reconcileWithNpm(branch, loaded, record) {
       const commit = document.releaseCommit;
       if (!/^[0-9a-f]{40}$/.test(commit ?? '') || !isAncestorOfHead(ROOT, commit)) {
         throw new Error(
-          `${pkg.name}@${pkg.next} ya está en npm pero no la publicó esta herramienta desde ` +
-            `la historia de ${branch} (releaseCommit "${commit}"); hay que revisarlo a mano`,
+          `${pkg.name}@${pkg.next} is already on npm but this tool did not publish it from ` +
+            `the history of ${branch} (releaseCommit "${commit}"); it must be reviewed by hand`,
         );
       }
-      console.log(`↺ ${pkg.name}@${pkg.next} ya estaba en npm (desde ${commit.slice(0, 7)})`);
+      console.log(`↺ ${pkg.name}@${pkg.next} was already on npm (from ${commit.slice(0, 7)})`);
       const entry = deployEntry(pkg, {
         dependencies: Object.fromEntries(
           Object.entries(document.dependencies ?? {}).filter(([dep]) => dep in pkg.dependencies),
@@ -154,7 +154,7 @@ function reconcileWithNpm(branch, loaded, record) {
     if (reloaded.errors.length) throw new Error(reloaded.errors.join('\n  '));
     plan = reloaded.plan;
   }
-  throw new Error(`la reconciliación con npm no terminó en ${MAX_RECONCILE_ROUNDS} rondas`);
+  throw new Error(`reconciliation with npm did not finish in ${MAX_RECONCILE_ROUNDS} rounds`);
 }
 
 function packVerified(pkg, destination, commit) {
@@ -178,13 +178,13 @@ function packVerified(pkg, destination, commit) {
       ...packedDocsErrors(packed.files.map((file) => file.path)),
     ];
     if (errors.length) {
-      throw new Error(`el tarball de ${pkg.name} no es válido:\n  ${errors.join('\n  ')}`);
+      throw new Error(`the tarball of ${pkg.name} is not valid:\n  ${errors.join('\n  ')}`);
     }
     return tarball;
   } finally {
     fs.writeFileSync(manifestPath, original);
     if (fs.readFileSync(manifestPath, 'utf8') !== original) {
-      throw new Error(`${pkg.dir}/package.json no quedó restaurado`);
+      throw new Error(`${pkg.dir}/package.json was not restored`);
     }
   }
 }
@@ -203,11 +203,11 @@ function publishTarball(plan, pkg, tarball) {
   if (result.status === 0) return;
   if (/EPUBLISHCONFLICT|cannot publish over|previously published/i.test(result.stderr ?? '')) {
     throw new Error(
-      `${pkg.name}@${pkg.next} ya existe en npm aunque todavía no lo muestra (lo publicó otra ` +
-        'run hace poco); no se pisa: la próxima run lo registrará desde npm',
+      `${pkg.name}@${pkg.next} already exists on npm although it does not show it yet (another ` +
+        'run published it recently); not overwriting it: the next run will record it from npm',
     );
   }
-  throw new Error(`npm publish de ${pkg.name}@${pkg.next} falló (código ${result.status})`);
+  throw new Error(`npm publish of ${pkg.name}@${pkg.next} failed (code ${result.status})`);
 }
 
 // Saves releases.json in the branch right away, so a run that is killed later (cancelled, timed
@@ -228,7 +228,7 @@ function saveRecord(branch, state, message) {
     }
     return true;
   } catch (error) {
-    console.error(`⚠ no se pudo guardar ${STATE_FILE} en ${branch}: ${error.message}`);
+    console.error(`⚠ could not save ${STATE_FILE} on ${branch}: ${error.message}`);
     return false;
   }
 }
@@ -254,13 +254,13 @@ function syncDistTags(plan, state) {
     for (const tag of plan.distTags.filter((item) => tags[item] !== version)) {
       const result = quiet('npm', ['dist-tag', 'add', `${name}@${version}`, tag]);
       if (result.status === 0) console.log(`🏷  ${name}: ${tag} → ${version}`);
-      else console.error(`⚠ no se pudo poner ${tag} → ${name}@${version}: ${result.stderr.trim()}`);
+      else console.error(`⚠ could not set ${tag} → ${name}@${version}: ${result.stderr.trim()}`);
     }
   }
 }
 
 function abort(problems) {
-  console.error('\nrelease: no se publica nada:');
+  console.error('\nrelease: nothing is published:');
   problems.forEach((problem) => console.error(`  ✘ ${problem}`));
   process.exit(1);
 }
@@ -279,13 +279,13 @@ function main() {
 
   const head = headCommit(ROOT);
   const loaded = loadPlan(ROOT, branch);
-  console.log(`\nRelease${PACK_ONLY ? ' (solo pack, sin publicar)' : ''} — rama ${branch}`);
+  console.log(`\nRelease${PACK_ONLY ? ' (pack only, not published)' : ''} — branch ${branch}`);
   renderLastDeploy(lastDeploy(loaded.state)).forEach((line) => console.log(line));
   if (loaded.errors.length) abort(loaded.errors);
 
   const problems = findVersionErrors(loaded.packages);
   if (!PACK_ONLY && quiet('npm', ['whoami']).status !== 0) {
-    problems.push('npm no está autenticado (npm whoami)');
+    problems.push('npm is not authenticated (npm whoami)');
   }
   if (problems.length) abort(problems);
 
@@ -318,18 +318,18 @@ function main() {
       console.log(`\n── ${pkg.name}@${pkg.next}`);
       const tarball = packVerified(pkg, destination, head);
       if (PACK_ONLY) {
-        console.log(`✔ ${pkg.name}@${pkg.next} empaquetado y verificado`);
+        console.log(`✔ ${pkg.name}@${pkg.next} packed and verified`);
         continue;
       }
       publishTarball(plan, pkg, tarball);
       const entry = deployEntry(pkg);
       state = record(state, entry, plan.reset);
       published.push(entry);
-      console.log(`✔ ${pkg.name}@${pkg.next} publicado`);
+      console.log(`✔ ${pkg.name}@${pkg.next} published`);
       saveRecord(branch, state, `chore(release): record ${versionsLabel([entry])}`);
     }
   } catch (error) {
-    console.error(`\nrelease: se detiene en error: ${error.message}`);
+    console.error(`\nrelease: stopped on error: ${error.message}`);
     process.exitCode = 1;
   } finally {
     fs.rmSync(destination, { recursive: true, force: true });
@@ -339,20 +339,20 @@ function main() {
   syncDistTags(plan, state);
   const recorded = [...reconciled, ...published];
   if (!recorded.length) {
-    summary(['', 'Nada que publicar.']);
+    summary(['', 'Nothing to publish.']);
     return;
   }
 
   if (!saveRecord(branch, state, `chore(release): record ${versionsLabel(recorded)}`)) {
     console.error(
-      `\nrelease: ${STATE_FILE} no quedó guardado en ${branch}. Las versiones ya están en npm; ` +
-        'la próxima run las reconciliará desde su releaseCommit.',
+      `\nrelease: ${STATE_FILE} was not saved on ${branch}. The versions are already on npm; ` +
+        'the next run will reconcile them from their releaseCommit.',
     );
     process.exitCode = 1;
   }
   summary([
     '',
-    `${published.length} publicado(s), ${reconciled.length} reconciliado(s) desde npm:`,
+    `${published.length} published, ${reconciled.length} reconciled from npm:`,
     ...recorded.map((pkg) => `- ${pkg.name} ${pkg.previous ?? '—'} → ${pkg.version}`),
   ]);
 }

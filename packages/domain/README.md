@@ -1,37 +1,37 @@
 # @archi-code/domain
 
-Piezas para Domain-Driven Design en TypeScript: value objects que convierten, validan y son
-inmutables; un marcador obligatorio/opcional que el sistema de tipos hace cumplir; agregados con
-eventos de dominio y excepciones de dominio tipadas con código. Las conversiones y validaciones
-vienen de [`@archi-code/validation`](https://www.npmjs.com/package/@archi-code/validation). El
-paquete se publica con builds CJS y ESM.
+Building blocks for Domain-Driven Design in TypeScript: value objects that convert, validate and are
+immutable; a required/optional marker enforced by the type system; aggregates with domain events and
+typed domain exceptions with codes. Conversions and validations come from
+[`@archi-code/validation`](https://www.npmjs.com/package/@archi-code/validation). The package is
+published with CJS and ESM builds.
 
-## Instalación
+## Installation
 
 ```bash
 npm install @archi-code/domain
 ```
 
-- Node.js `>=24` (campo `engines`).
-- Dependencias de runtime, que npm instala solas: `@archi-code/validation` y `uuid`.
-- Para declarar validaciones con `@Validations` instala también `@archi-code/validation` como
-  dependencia directa de tu proyecto (de ahí importas el decorador):
+- Node.js `>=24` (`engines` field).
+- Runtime dependencies, installed by npm automatically: `@archi-code/validation` and `uuid`.
+- To declare validations with `@Validations`, also install `@archi-code/validation` as a direct
+  dependency of your project (the decorator is imported from it):
 
   ```bash
   npm install @archi-code/validation
   ```
 
-### Decoradores en TypeScript
+### TypeScript decorators
 
-`@Validations` funciona con los dos modos de decoradores de TypeScript:
+`@Validations` works with both TypeScript decorator modes:
 
-- **Estándar** (TypeScript 5+ sin `experimentalDecorators`): no necesita configuración.
-- **Legacy**: `"experimentalDecorators": true` en `tsconfig.json`.
+- **Standard** (TypeScript 5+ without `experimentalDecorators`): no configuration needed.
+- **Legacy**: `"experimentalDecorators": true` in `tsconfig.json`.
 
-No necesita `emitDecoratorMetadata` ni `reflect-metadata`. Si no declaras validaciones, no hace
-falta ningún ajuste de decoradores.
+It does not need `emitDecoratorMetadata` or `reflect-metadata`. If you declare no validations, no
+decorator setting is needed at all.
 
-## Importación
+## Import
 
 ```ts
 // ESM
@@ -43,28 +43,28 @@ import { AggregateRoot, EventBase, IdType, Required, StringType } from '@archi-c
 const { AggregateRoot, EventBase, IdType, Required, StringType } = require('@archi-code/domain');
 ```
 
-Los tipos (`PrimitiveTypes`, `RequiredType`…) se importan con `import type`.
+Types (`PrimitiveTypes`, `RequiredType`…) are imported with `import type`.
 
 ## Value objects
 
-Cada value object envuelve un valor de un tipo y convierte la entrada al construirse:
+Each value object wraps a value of one type and converts the input when it is constructed:
 
-| Clase             | Valor     | Acepta                                                                                      |
-| ----------------- | --------- | ------------------------------------------------------------------------------------------- |
-| `StringType`      | `string`  | strings, números finitos y booleanos                                                        |
-| `NumberType`      | `number`  | números finitos y strings decimales (`'1.5'`, `' 2 '`, `'1e3'`)                             |
-| `BooleanType`     | `boolean` | booleanos, `1`/`0` y `'true'`/`'false'`/`'1'`/`'0'` (sin distinguir mayúsculas)             |
-| `DateType`        | `Date`    | instancias `Date` válidas y strings ISO 8601 (sin zona = UTC)                               |
-| `UuidType`        | `string`  | strings UUID                                                                                |
-| `EnumType<T>`     | `T`       | una opción del enum que devuelve `getEnum()` (abstracta)                                    |
-| `JsonType<T>`     | `T`       | objetos JSON no vacíos y strings que contienen uno                                          |
-| `ArrayType<Item>` | `Item[]`  | arrays (o strings con un array JSON); cada elemento lo construye `createItem()` (abstracta) |
-| `CreatedAt`       | `Date`    | como `DateType`, obligatorio; `CreatedAt.now()`                                             |
-| `UpdatedAt`       | `Date`    | como `DateType`, obligatorio; `UpdatedAt.now()` y `setNow()`                                |
-| `IdType`          | `string`  | como `UuidType`, obligatorio y rechaza el UUID nil y el máximo                              |
+| Class             | Value     | Accepts                                                                                |
+| ----------------- | --------- | -------------------------------------------------------------------------------------- |
+| `StringType`      | `string`  | strings, finite numbers and booleans                                                   |
+| `NumberType`      | `number`  | finite numbers and decimal strings (`'1.5'`, `' 2 '`, `'1e3'`)                         |
+| `BooleanType`     | `boolean` | booleans, `1`/`0` and `'true'`/`'false'`/`'1'`/`'0'` (case-insensitive)                |
+| `DateType`        | `Date`    | valid `Date` instances and ISO 8601 strings (no zone = UTC)                            |
+| `UuidType`        | `string`  | UUID strings                                                                           |
+| `EnumType<T>`     | `T`       | one option of the enum returned by `getEnum()` (abstract)                              |
+| `JsonType<T>`     | `T`       | non-empty JSON objects and strings that contain one                                    |
+| `ArrayType<Item>` | `Item[]`  | arrays (or strings with a JSON array); each item is built by `createItem()` (abstract) |
+| `CreatedAt`       | `Date`    | like `DateType`, required; `CreatedAt.now()`                                           |
+| `UpdatedAt`       | `Date`    | like `DateType`, required; `UpdatedAt.now()` and `setNow()`                            |
+| `IdType`          | `string`  | like `UuidType`, required, and rejects the nil and max UUIDs                           |
 
-El constructor está tipado con el tipo del valor (`new NumberType(1.5)`). La conversión actúa en
-tiempo de ejecución sobre datos que llegan sin tipo, como un body JSON:
+The constructor is typed with the value's type (`new NumberType(1.5)`). The conversion acts at
+runtime on data that arrives untyped, such as a JSON body:
 
 ```ts
 import { BooleanType, DateType, NumberType, StringType } from '@archi-code/domain';
@@ -80,7 +80,7 @@ new DateType(body.at).toString; // '2024-01-31T08:00:00.000Z'
 new DateType('2018-03-23' as any).toString; // '2018-03-23T00:00:00.000Z'
 ```
 
-Un valor que no se puede convertir lanza `TypePrimitiveException`:
+A value that cannot be converted throws `TypePrimitiveException`:
 
 ```ts
 new NumberType('abc' as any);
@@ -93,29 +93,29 @@ new DateType('31/01/2024' as any);
 // TypePrimitiveException: Validation Error: Expected a valid Date, but received "31/01/2024".
 ```
 
-### Lo que expone cada value object
+### What each value object exposes
 
-| Miembro      | Tipo                  | Descripción                                                                    |
-| ------------ | --------------------- | ------------------------------------------------------------------------------ |
-| `value`      | `T \| null` (o `T`)   | El valor convertido; `T` si el tipo es obligatorio (`Required`)                |
-| `isNull`     | `boolean`             | `true` si no hay valor                                                         |
-| `toString`   | `string` (getter)     | Texto del valor; `''` si es `null`. `DateType` da ISO 8601, `JsonType` el JSON |
-| `validate()` | `ValidationResult<T>` | Ejecuta las validaciones declaradas con `@Validations`                         |
+| Member       | Type                  | Description                                                                             |
+| ------------ | --------------------- | --------------------------------------------------------------------------------------- |
+| `value`      | `T \| null` (or `T`)  | The converted value; `T` if the type is required (`Required`)                           |
+| `isNull`     | `boolean`             | `true` if there is no value                                                             |
+| `toString`   | `string` (getter)     | Text of the value; `''` if it is `null`. `DateType` gives ISO 8601, `JsonType` the JSON |
+| `validate()` | `ValidationResult<T>` | Runs the validations declared with `@Validations`                                       |
 
-`toString` es un **getter**, no un método: se usa `vo.toString`, no `vo.toString()`.
+`toString` is a **getter**, not a method: use `vo.toString`, not `vo.toString()`.
 
 ```ts
 new NumberType(3.5).toString; // '3.5'
 new NumberType().toString; // ''
-new StringType('   ').value; // null (los strings en blanco cuentan como vacíos)
+new StringType('   ').value; // null (blank strings count as empty)
 new StringType(null).isNull; // true
 ```
 
-### Opcional por defecto, obligatorio con `Required(...)`
+### Optional by default, required with `Required(...)`
 
-Un value object es opcional: acepta el valor, `null` o nada, y guarda `T | null`. Envuélvelo con
-`Required(...)` para hacerlo obligatorio: el constructor pide exactamente `T`, `value` queda tipado
-como `T` y un valor vacío lanza `RequiredValueException` al construir.
+A value object is optional: it accepts the value, `null` or nothing, and holds `T | null`. Wrap it
+with `Required(...)` to make it required: the constructor asks for exactly `T`, `value` is typed as
+`T` and an empty value throws `RequiredValueException` on construction.
 
 ```ts
 import { Required, StringType } from '@archi-code/domain';
@@ -126,26 +126,25 @@ class Nickname extends StringType {}
 const name: string = new Name('Ana').value; // 'Ana'
 const nickname: string | null = new Nickname().value; // null
 
-new Name(null); // error de tipos y, en ejecución:
+new Name(null); // type error and, at runtime:
 // RequiredValueException: Validation Error: Name is required, but received null.
 new Name('  ');
 // RequiredValueException: Validation Error: Name is required, but received "  ".
 ```
 
-`null`, `undefined` y los strings en blanco cuentan como vacíos en todos los tipos. Una subclase de
-un value object obligatorio también es obligatoria (`class FullName extends Name {}`).
-`Required(...)` acepta cualquier subclase de `AbstractType`, también las tuyas y las abstractas
-(`Required(StatusType)`, `Required(Tags)`).
+`null`, `undefined` and blank strings count as empty in every type. A subclass of a required value
+object is also required (`class FullName extends Name {}`). `Required(...)` accepts any subclass of
+`AbstractType`, including your own and abstract ones (`Required(StatusType)`, `Required(Tags)`).
 
-`Required(...)` declara además la validación `isRequired`, así que `validate()` de un tipo
-obligatorio también la incluye.
+`Required(...)` also declares the `isRequired` validation, so `validate()` on a required type
+includes it too.
 
-### Validaciones
+### Validations
 
-Las validaciones se declaran con `@Validations` de `@archi-code/validation` (los validadores
-`is*` de ese paquete o validaciones `custom` con su propia función). `validate()` no lanza:
-devuelve `{ ok, value, errors }` congelado. Un value object opcional y vacío es válido sin
-ejecutar sus validaciones.
+Validations are declared with `@Validations` from `@archi-code/validation` (that package's `is*`
+validators or `custom` validations with their own function). `validate()` does not throw: it returns
+a frozen `{ ok, value, errors }`. An optional, empty value object is valid without running its
+validations.
 
 ```ts
 import { Validations } from '@archi-code/validation';
@@ -176,11 +175,10 @@ new Quantity(3).validate();
 // { ok: false, value: 3, errors: [{ custom: 'isEven', message: 'Must be even' }] }
 ```
 
-Una subclase hereda las validaciones de su padre; si declara la misma validación, la reemplaza.
-Los nombres de validadores y sus `properties` están en la documentación de
-`@archi-code/validation`.
+A subclass inherits its parent's validations; if it declares the same validation, it replaces it.
+Validator names and their `properties` are in the `@archi-code/validation` documentation.
 
-Para convertir errores de validación en una excepción usa `ValidationException`:
+To turn validation errors into an exception, use `ValidationException`:
 
 ```ts
 const result = new Email('x').validate();
@@ -190,59 +188,58 @@ if (!result.ok) {
 }
 ```
 
-### Inmutabilidad
+### Immutability
 
-Los valores no cambian después de construirse:
+Values do not change after construction:
 
-- `DateType` (y `CreatedAt`/`UpdatedAt`) guarda una fecha cuyos setters lanzan:
+- `DateType` (and `CreatedAt`/`UpdatedAt`) holds a date whose setters throw:
 
   ```ts
   new DateType(new Date('2024-01-31T10:00:00Z')).value!.setFullYear(2000);
   // TypeError: Cannot call setFullYear: the date is immutable
   ```
 
-- `JsonType` y `ArrayType` guardan copias congeladas en profundidad (`Object.isFrozen(vo.value)`
-  es `true`).
-- `ArrayType` solo cambia sus elementos con `addItem`, `setItem` y `removeItem`, que sustituyen el
-  array por otro congelado. `UpdatedAt.setNow()` sustituye la fecha.
+- `JsonType` and `ArrayType` hold deeply frozen copies (`Object.isFrozen(vo.value)` is `true`).
+- `ArrayType` only changes its items with `addItem`, `setItem` and `removeItem`, which replace the
+  array with another frozen one. `UpdatedAt.setNow()` replaces the date.
 
-### `UuidType` e `IdType`
+### `UuidType` and `IdType`
 
 ```ts
 import { IdType, UuidType } from '@archi-code/domain';
 
-UuidType.random(); // UUID v4 aleatorio
-UuidType.fromValue('ana@example.com'); // '4badeee4-791f-51e2-a027-2c59bc6f8144' (v5, determinista)
-UuidType.fromValue('ana@example.com', '6ba7b811-9dad-11d1-80b4-00c04fd430c8'); // v5 con otro namespace
+UuidType.random(); // random UUID v4
+UuidType.fromValue('ana@example.com'); // '4badeee4-791f-51e2-a027-2c59bc6f8144' (v5, deterministic)
+UuidType.fromValue('ana@example.com', '6ba7b811-9dad-11d1-80b4-00c04fd430c8'); // v5 with another namespace
 
 new UuidType('abc');
 // TypePrimitiveException: Validation Error: Expected a valid UUID, but received "abc".
 
-const id = new IdType(IdType.random()); // obligatorio
+const id = new IdType(IdType.random()); // required
 new IdType('00000000-0000-0000-0000-000000000000');
 // TypePrimitiveException: Validation Error: Expected a valid Id, but received "00000000-0000-0000-0000-000000000000".
 ```
 
-`fromValue(value, namespace?)` usa por defecto el namespace DNS
+`fromValue(value, namespace?)` uses the DNS namespace by default
 (`6ba7b810-9dad-11d1-80b4-00c04fd430c8`).
 
-### `CreatedAt` y `UpdatedAt`
+### `CreatedAt` and `UpdatedAt`
 
-Fechas obligatorias:
+Required dates:
 
 ```ts
 import { CreatedAt, UpdatedAt } from '@archi-code/domain';
 
 const createdAt = CreatedAt.now();
 const updatedAt = UpdatedAt.now();
-updatedAt.setNow(); // sustituye la fecha por la actual (solo UpdatedAt)
+updatedAt.setNow(); // replaces the date with the current one (UpdatedAt only)
 createdAt.value; // Date
 ```
 
 ### `EnumType`
 
-Clase abstracta: implementa `getEnum()` devolviendo el enum. Acepta exactamente una de sus
-opciones (sin convertir: `'1'` no vale para un enum numérico).
+Abstract class: implement `getEnum()` returning the enum. It accepts exactly one of its options
+(without conversion: `'1'` is not valid for a numeric enum).
 
 ```ts
 import { EnumType } from '@archi-code/domain';
@@ -280,7 +277,7 @@ new LevelType('1' as any);
 
 ### `JsonType`
 
-Guarda un objeto JSON no vacío (copia congelada). `T` debe extender `JsonTypeValue`
+Holds a non-empty JSON object (frozen copy). `T` must extend `JsonTypeValue`
 (`Record<string, any>`).
 
 ```ts
@@ -307,8 +304,8 @@ new JsonType([1] as any);
 
 ### `ArrayType`
 
-Clase abstracta: implementa `createItem(value)` devolviendo el value object de cada elemento. El
-array guarda los valores ya convertidos por cada elemento; `items` reconstruye los value objects.
+Abstract class: implement `createItem(value)` returning the value object of each item. The array
+holds the values already converted by each item; `items` rebuilds the value objects.
 
 ```ts
 import { Validations } from '@archi-code/validation';
@@ -328,7 +325,7 @@ tags.value; // ['ddd', 'ts']
 tags.items; // [Tag, Tag]
 tags.hasItem('ts'); // true
 tags.addItem('node'); // ['ddd', 'ts', 'node']
-tags.setItem('ddd'); // añade solo si no está: ['ddd', 'ts', 'node']
+tags.setItem('ddd'); // adds only if missing: ['ddd', 'ts', 'node']
 tags.removeItem('ts'); // ['ddd', 'node']
 tags.toString; // 'ddd, node'
 
@@ -339,18 +336,19 @@ new Tags('abc' as any);
 // TypePrimitiveException: Validation Error: Expected a valid Array, but received "abc".
 ```
 
-`validate()` de un `ArrayType` añade los errores de cada elemento con su posición:
+`validate()` on an `ArrayType` adds each item's errors with its position:
 
 ```ts
 new Tags(['ok', 'x']).validate();
 // { ok: false, value: ['ok', 'x'], errors: [{ validator: 'isLength', message: 'Item 2: Value does not satisfy isLength' }] }
 ```
 
-### Value objects propios con `AbstractType`
+### Custom value objects with `AbstractType`
 
-Para un tipo nuevo extiende `AbstractType<T>` e implementa `filter(value)`: recibe la entrada ya
-no vacía, devuelve el valor convertido y lanza `TypePrimitiveException` si no es válido. El vacío
-(`null`, `undefined`, blancos) y `Required(...)` los resuelve la clase base.
+For a new type, extend `AbstractType<T>` and implement `filter(value)`: it receives the input
+already known to be non-empty, returns the converted value and throws `TypePrimitiveException` if it
+is not valid. Empty input (`null`, `undefined`, blanks) and `Required(...)` are handled by the base
+class.
 
 ```ts
 import { AbstractType, Required, TypePrimitiveException } from '@archi-code/domain';
@@ -372,13 +370,13 @@ new Percentage(140);
 class Discount extends Required(Percentage) {}
 ```
 
-Para restringir un tipo existente basta con extenderlo y declarar `@Validations`, como `Email`.
+To restrict an existing type, it is enough to extend it and declare `@Validations`, like `Email`.
 
-## Agregados y eventos de dominio
+## Aggregates and domain events
 
-- `EventBase`: clase abstracta de los eventos; implementa `eventName(): string`.
-- `AggregateRoot`: clase abstracta de los agregados. `record(event)` (protegido) guarda un evento y
-  `pullDomainEvents()` devuelve los guardados en orden y vacía la lista.
+- `EventBase`: abstract class for events; implement `eventName(): string`.
+- `AggregateRoot`: abstract class for aggregates. `record(event)` (protected) stores an event and
+  `pullDomainEvents()` returns the stored ones in order and empties the list.
 
 ```ts
 import { AggregateRoot, EventBase, IdType } from '@archi-code/domain';
@@ -405,26 +403,26 @@ user.pullDomainEvents(); // [UserCreated]
 user.pullDomainEvents(); // []
 ```
 
-## Tipos primitivos
+## Primitive types
 
-Tipos para pasar de un agregado (o cualquier clase con value objects) a sus valores planos:
+Types to go from an aggregate (or any class with value objects) to its plain values:
 
-| Tipo                       | Resultado                                                                                              |
-| -------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `PrimitiveType<T>`         | El valor de un value object (`T['value']`); enums como `string`/`number`; arrays elemento a elemento   |
-| `PrimitiveTypes<T>`        | Objeto con cada propiedad pública no método de `T` como `PrimitiveType`, sin el `_` inicial del nombre |
-| `DataTypes<T>`             | `Partial<PrimitiveTypes<T>>`                                                                           |
-| `Properties<T>`            | Las propiedades públicas de `T` que no son métodos                                                     |
-| `PropertiesData<T>`        | `Required<Properties<T>>`                                                                              |
-| `MutablePropertiesData<T>` | `PropertiesData<T>` sin `readonly`                                                                     |
-| `Methods<T>`               | Unión de los nombres de los métodos de `T`                                                             |
-| `MethodsAndProperties<T>`  | `{ [key in keyof T]: T[key] }`                                                                         |
-| `RequiredType<C>`          | Tipo de la clase que devuelve `Required(C)`                                                            |
-| `JsonTypeValue`            | `Record<string, any>`                                                                                  |
+| Type                       | Result                                                                                                     |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `PrimitiveType<T>`         | The value of a value object (`T['value']`); enums as `string`/`number`; arrays item by item                |
+| `PrimitiveTypes<T>`        | Object with each public non-method property of `T` as `PrimitiveType`, without the leading `_` of the name |
+| `DataTypes<T>`             | `Partial<PrimitiveTypes<T>>`                                                                               |
+| `Properties<T>`            | The public properties of `T` that are not methods                                                          |
+| `PropertiesData<T>`        | `Required<Properties<T>>`                                                                                  |
+| `MutablePropertiesData<T>` | `PropertiesData<T>` without `readonly`                                                                     |
+| `Methods<T>`               | Union of the names of the methods of `T`                                                                   |
+| `MethodsAndProperties<T>`  | `{ [key in keyof T]: T[key] }`                                                                             |
+| `RequiredType<C>`          | Type of the class returned by `Required(C)`                                                                |
+| `JsonTypeValue`            | `Record<string, any>`                                                                                      |
 
-`PrimitiveTypes` solo ve miembros **públicos** (`keyof`): las propiedades `private` o `protected`
-no aparecen. Expón los value objects con propiedades públicas `readonly` o con getters (ver el
-ejemplo completo).
+`PrimitiveTypes` only sees **public** members (`keyof`): `private` or `protected` properties do not
+appear. Expose the value objects with public `readonly` properties or with getters (see the full
+example).
 
 ```ts
 import type { DataTypes, PrimitiveTypes } from '@archi-code/domain';
@@ -440,33 +438,33 @@ type PersonPrimitives = PrimitiveTypes<Person>; // { name: string; nickname: str
 type PersonData = DataTypes<Person>; // { name?: string; nickname?: string | null }
 ```
 
-## Excepciones
+## Exceptions
 
-Todas extienden `AbstractException` (que extiende `Error`) y tienen:
+All of them extend `AbstractException` (which extends `Error`) and have:
 
-| Miembro       | Descripción                                                                             |
-| ------------- | --------------------------------------------------------------------------------------- |
-| `name`        | Nombre de la clase                                                                      |
-| `message`     | Mensaje                                                                                 |
-| `code`        | El último código de la cadena (`'DOM002'`, o el tuyo si lo pasas)                       |
-| `description` | Todos los códigos legibles: `'Domain Exception (DOM000), Aggregate Not Found (DOM002)'` |
-| `timestamp`   | `Date` de creación                                                                      |
-| `print()`     | `'[<description>]: <message>, <timestamp>'`                                             |
-| `toJSON()`    | `{ name, message, code, description, timestamp }` (`timestamp` en ISO 8601)             |
+| Member        | Description                                                                              |
+| ------------- | ---------------------------------------------------------------------------------------- |
+| `name`        | Class name                                                                               |
+| `message`     | Message                                                                                  |
+| `code`        | The last code in the chain (`'DOM002'`, or yours if you pass one)                        |
+| `description` | Every code in readable form: `'Domain Exception (DOM000), Aggregate Not Found (DOM002)'` |
+| `timestamp`   | Creation `Date`                                                                          |
+| `print()`     | `'[<description>]: <message>, <timestamp>'`                                              |
+| `toJSON()`    | `{ name, message, code, description, timestamp }` (`timestamp` in ISO 8601)              |
 
-| Clase                        | Extiende                  | Constructor                                | Códigos              | Mensaje                                                                    |
-| ---------------------------- | ------------------------- | ------------------------------------------ | -------------------- | -------------------------------------------------------------------------- |
-| `DomainException`            | `AbstractException`       | `(message, exceptionCodes = [])`           | `DOM000` + los tuyos | `message`                                                                  |
-| `ValidationException`        | `DomainException`         | `(errors: string[])`                       | `DOM000`, `DOM001`   | `Validation failed, <errors separados por ", ">`                           |
-| `AggregateNotFoundException` | `DomainException`         | `(entity: string, id: string)`             | `DOM000`, `DOM002`   | `<entity> with ID <id> not found.`                                         |
-| `TypePrimitiveException`     | `DomainException`         | `(expectedType, receivedValue, template?)` | `DOM000`, `DOM003`   | `Validation Error: Expected a valid <expectedType>, but received <valor>.` |
-| `RequiredValueException`     | `DomainException`         | `(typeName, receivedValue)`                | `DOM000`, `DOM004`   | `Validation Error: <typeName> is required, but received <valor>.`          |
-| `ApplicationException`       | `AbstractException`       | `(message, exceptionCodes = [])`           | `APP000` + los tuyos | `message`                                                                  |
-| `InfrastructureException`    | `AbstractException`       | `(message, exceptionCodes = [])`           | `INF000` + los tuyos | `message`                                                                  |
-| `InternalErrorException`     | `InfrastructureException` | `(message)`                                | `INF000`, `INF001`   | `Failed, internal error: <message>`                                        |
+| Class                        | Extends                   | Constructor                                | Codes              | Message                                                                    |
+| ---------------------------- | ------------------------- | ------------------------------------------ | ------------------ | -------------------------------------------------------------------------- |
+| `DomainException`            | `AbstractException`       | `(message, exceptionCodes = [])`           | `DOM000` + yours   | `message`                                                                  |
+| `ValidationException`        | `DomainException`         | `(errors: string[])`                       | `DOM000`, `DOM001` | `Validation failed, <errors joined with ", ">`                             |
+| `AggregateNotFoundException` | `DomainException`         | `(entity: string, id: string)`             | `DOM000`, `DOM002` | `<entity> with ID <id> not found.`                                         |
+| `TypePrimitiveException`     | `DomainException`         | `(expectedType, receivedValue, template?)` | `DOM000`, `DOM003` | `Validation Error: Expected a valid <expectedType>, but received <value>.` |
+| `RequiredValueException`     | `DomainException`         | `(typeName, receivedValue)`                | `DOM000`, `DOM004` | `Validation Error: <typeName> is required, but received <value>.`          |
+| `ApplicationException`       | `AbstractException`       | `(message, exceptionCodes = [])`           | `APP000` + yours   | `message`                                                                  |
+| `InfrastructureException`    | `AbstractException`       | `(message, exceptionCodes = [])`           | `INF000` + yours   | `message`                                                                  |
+| `InternalErrorException`     | `InfrastructureException` | `(message)`                                | `INF000`, `INF001` | `Failed, internal error: <message>`                                        |
 
-`TypePrimitiveException` y `RequiredValueException` son las que lanzan los value objects; el
-`template` de `TypePrimitiveException` sustituye a `'Expected a valid '`.
+`TypePrimitiveException` and `RequiredValueException` are the ones value objects throw; the
+`template` of `TypePrimitiveException` replaces `'Expected a valid '`.
 
 ```ts
 import {
@@ -491,8 +489,8 @@ new InternalErrorException('timeout').toJSON();
 // }
 ```
 
-Excepciones propias: extiende la de su capa y pasa tus códigos. En `description` un código propio
-aparece con el nombre de la clase:
+Custom exceptions: extend the one for their layer and pass your codes. In `description` a custom
+code appears with the class name:
 
 ```ts
 class OrderCancelledException extends DomainException {
@@ -506,7 +504,7 @@ error.code; // 'ORD001'
 error.description; // 'Domain Exception (DOM000), OrderCancelledException (ORD001)'
 ```
 
-## Ejemplo completo
+## Full example
 
 ```ts
 import { Validations } from '@archi-code/validation';
@@ -631,60 +629,60 @@ User.create(IdType.random(), 'Ana', 'x');
 
 ## Exports
 
-| Export                                                                                                                            | Tipo                  |
-| --------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
-| `AbstractType`                                                                                                                    | clase abstracta       |
-| `StringType`, `NumberType`, `BooleanType`, `DateType`, `UuidType`, `JsonType`                                                     | clases                |
-| `EnumType`, `ArrayType`                                                                                                           | clases abstractas     |
-| `CreatedAt`, `UpdatedAt`, `IdType`                                                                                                | clases (obligatorias) |
-| `Required`                                                                                                                        | función               |
-| `AggregateRoot`, `EventBase`                                                                                                      | clases abstractas     |
-| `AbstractException`                                                                                                               | clase abstracta       |
-| `DomainException`, `ApplicationException`, `InfrastructureException`                                                              | clases                |
-| `ValidationException`, `AggregateNotFoundException`, `TypePrimitiveException`, `RequiredValueException`, `InternalErrorException` | clases                |
-| `RequiredType`, `JsonTypeValue`, `PrimitiveType`, `PrimitiveTypes`, `DataTypes`                                                   | tipos                 |
-| `Properties`, `PropertiesData`, `MutablePropertiesData`, `Methods`, `MethodsAndProperties`                                        | tipos                 |
+| Export                                                                                                                            | Kind               |
+| --------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| `AbstractType`                                                                                                                    | abstract class     |
+| `StringType`, `NumberType`, `BooleanType`, `DateType`, `UuidType`, `JsonType`                                                     | classes            |
+| `EnumType`, `ArrayType`                                                                                                           | abstract classes   |
+| `CreatedAt`, `UpdatedAt`, `IdType`                                                                                                | classes (required) |
+| `Required`                                                                                                                        | function           |
+| `AggregateRoot`, `EventBase`                                                                                                      | abstract classes   |
+| `AbstractException`                                                                                                               | abstract class     |
+| `DomainException`, `ApplicationException`, `InfrastructureException`                                                              | classes            |
+| `ValidationException`, `AggregateNotFoundException`, `TypePrimitiveException`, `RequiredValueException`, `InternalErrorException` | classes            |
+| `RequiredType`, `JsonTypeValue`, `PrimitiveType`, `PrimitiveTypes`, `DataTypes`                                                   | types              |
+| `Properties`, `PropertiesData`, `MutablePropertiesData`, `Methods`, `MethodsAndProperties`                                        | types              |
 
-## Skill para asistentes de IA
+## AI assistant skill
 
-El paquete incluye `SKILL.md`, una skill de Claude Code con las reglas, los patrones y los errores
-comunes de `@archi-code/domain`. Para la API completa remite a este README dentro de
-`node_modules/@archi-code/domain`, así que sigue valiendo al actualizar el paquete. Para instalarla en
-tu proyecto:
+The package includes `SKILL.md`, a Claude Code skill with the rules, patterns and common mistakes of
+`@archi-code/domain`. For the full API it points to this README inside
+`node_modules/@archi-code/domain`, so it stays valid when you update the package. To install it in
+your project:
 
 ```bash
 mkdir -p .claude/skills/archi-code-domain && cp node_modules/@archi-code/domain/SKILL.md .claude/skills/archi-code-domain/SKILL.md
 ```
 
-### Cómo se usa
+### How to use
 
-Invócala con una petición:
-
-```text
-/archi-code-domain crea un value object Email obligatorio que valide el formato
-```
-
-O pide la tarea sin nombrarla y Claude la carga sola porque encaja con su descripción:
+Invoke it with a request:
 
 ```text
-Añade al agregado User un método changeEmail que registre un evento EmailChanged
+/archi-code-domain create a required Email value object that validates the format
 ```
 
-También sirve para revisar código que ya usa el paquete:
+Or ask for the task without naming it, and Claude loads it on its own because it matches its
+description:
 
 ```text
-/archi-code-domain revisa src/domain y corrige lo que incumpla las reglas del paquete
+Add a changeEmail method to the User aggregate that records an EmailChanged event
 ```
 
-Con la skill cargada, Claude sigue sus reglas, evita los errores de su lista "Qué no hacer" y, antes de
-usar algo que la skill no muestra, lee este README en `node_modules`.
+It also works for reviewing code that already uses the package:
 
-### Mantenerla al día
+```text
+/archi-code-domain review src/domain and fix whatever breaks the package rules
+```
 
-- La copia no se actualiza sola: después de actualizar `@archi-code/domain`, vuelve a ejecutar el comando
-  de arriba.
-- Sube `.claude/skills/archi-code-domain/` al repositorio para que todo el equipo la use.
+With the skill loaded, Claude follows its rules, avoids the mistakes in its "What not to do" list
+and, before using anything the skill does not show, reads this README in `node_modules`.
 
-## Licencia
+### Keeping it up to date
+
+- The copy does not update itself: after updating `@archi-code/domain`, run the command above again.
+- Commit `.claude/skills/archi-code-domain/` to the repository so the whole team uses it.
+
+## License
 
 MIT

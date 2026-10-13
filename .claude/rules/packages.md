@@ -73,29 +73,30 @@ packages/<folder>/
 
 ## Documentation
 
-Both files are written in Spanish and for the people (and the AI assistants) that consume the package:
+Everything in this repository is written in English: code, comments, test names, messages, scripts,
+README files, skills, rules and any other documentation. Non-ASCII strings are allowed only as test
+data (e.g. `'contraseña'` to test a non-ASCII password). Both package documents are written for the
+people (and the AI assistants) that consume the package:
 
 - `README.md` explains the whole public API with examples that run against the build (results shown
-  in comments are the real ones): installation, ESM/CJS import, one section per concept, errors, a
-  table of every export, a "Skill para asistentes de IA" section and the license. The skill section
-  shows the one-line install command
-  (`mkdir -p … && cp …`), a "Cómo se usa" subsection with three example prompts
-  for that package (explicit `/archi-code-<name> <task>`, a task that loads it on its own, a review
-  of existing code) and a "Mantenerla al día" subsection (copy it again after updating the package,
-  commit `.claude/skills/`). Nothing about the
-  internal gate or the release.
+  in comments are the real ones): `## Installation`, `## Import`, one section per concept, errors, a
+  table of every export, `## AI assistant skill` and `## License`. The skill section shows the
+  one-line install command (`mkdir -p … && cp …`), a `### How to use` subsection with three example
+  prompts for that package (explicit `/archi-code-<name> <task>`, a task that loads it on its own, a
+  review of existing code) and a `### Keeping it up to date` subsection (copy it again after updating
+  the package, commit `.claude/skills/`). Nothing about the internal gate or the release.
 - `SKILL.md` is a light Claude Code skill: a YAML frontmatter with exactly `name`
   (`archi-code-<npm name without scope>`, e.g. `archi-code-domain`) and `description` (what it does
-  and when to use it), then the title `# archi-code-<name>` and only what rarely changes: an "API completa" section that
-  sends the assistant to `node_modules/@archi-code/<name>/README.md` (the installed version) before
-  using anything the skill does not show, with `node -p "require.resolve('@archi-code/<name>/package.json')"`
-  as the fallback for workspaces and pnpm; "Skills relacionadas" (the other `archi-code-*` skills
-  it is used with, when there are any); import, whose block names every symbol the patterns use so
-  they compile as copied; rules; a few recommended patterns taken from the README; and a
-  "Qué no hacer" list. No API tables nor export catalogs: the README is the only place that
-  describes the API, so a copied skill stays valid when the package is updated. Consumers copy it from
-  `node_modules/@archi-code/<name>/SKILL.md` to `.claude/skills/archi-code-<name>/SKILL.md`; the
-  README section shows those commands.
+  and when to use it), then the title `# archi-code-<name>` and only what rarely changes, in this
+  order: `## Full API` (sends the assistant to `node_modules/@archi-code/<name>/README.md`, the
+  installed version, before using anything the skill does not show, with
+  `node -p "require.resolve('@archi-code/<name>/package.json')"` as the fallback for workspaces and
+  pnpm); `## Related skills` (the other `archi-code-*` skills it is used with); `## Import`, whose
+  block names every symbol the patterns use so they compile as copied; `## Rules`;
+  `## Recommended patterns` taken from the README; and `## What not to do`. No API tables nor export
+  catalogs: the README is the only place that describes the API, so a copied skill stays valid when
+  the package is updated. Consumers copy it from `node_modules/@archi-code/<name>/SKILL.md` to
+  `.claude/skills/archi-code-<name>/SKILL.md` with the README command.
 - `check-dist.js` fails when `files` lacks `SKILL.md`, the README does not mention it, the
   frontmatter is invalid or `npm pack` would leave `README.md`, `LICENSE` or `SKILL.md` out;
   `release.js` checks the same files in the real tarball. Update the README whenever the public API
@@ -189,7 +190,8 @@ Only when the package needs them, and documented in its README:
 - [ ] `package.json` entry points, `exports`, `files`, `engines`, `scripts` and `jest` as above.
 - [ ] `version` and internal `@archi-code/*` deps are `0.0.0-development`.
 - [ ] The four tsconfig files as above.
-- [ ] `README.md`, `SKILL.md`, `LICENSE`, `.gitignore` present; README and skill in Spanish, covering
-      the current public API.
+- [ ] `README.md`, `SKILL.md`, `LICENSE`, `.gitignore` present; README and skill cover the current
+      public API.
+- [ ] Everything is in English (code, comments, test names, messages, docs, README, skill).
 - [ ] Root `package.json` has `check:<folder>`; `CLAUDE.md` lists the package.
 - [ ] `npm run check:<folder>` passes.

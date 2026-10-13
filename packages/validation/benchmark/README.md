@@ -1,92 +1,92 @@
 # validation benchmark
 
-Mide el rendimiento de cada validador `is*` de `@archi-code/validation` en dos rutas
-—input **✓ válido** e input **✗ inválido**— y las compara contra la **mejor marca
-histórica** de la máquina, para saber de un vistazo si un cambio mejora o empeora.
+Measures the performance of every `is*` validator of `@archi-code/validation` on two paths
+—**✓ valid** input and **✗ invalid** input— and compares them against the machine's **all-time
+best score**, so you can tell at a glance whether a change makes things better or worse.
 
-## Cómo se corre
+## How to run it
 
 ```bash
-npm install -w packages/validation   # una vez, para tinybench
+npm install -w packages/validation   # once, for tinybench
 npm run benchmark -w packages/validation
 ```
 
-La medición completa se **repite varias veces** (`BENCH_REPEATS`, default **10**) y el valor
-final de cada validador es el **promedio recortado** de esas repeticiones: se descarta la más
-lenta (y la más rápida si hay ≥4) y se promedia el resto. Así una corrida con mala suerte (GC,
-throttling) no define el resultado. Cada repetición mide `BENCH_SAMPLES` muestras (default
-**10000**). Total ≈ 10 s.
+The whole measurement is **repeated several times** (`BENCH_REPEATS`, default **10**) and the
+final value of each validator is the **trimmed mean** of those repeats: the slowest one is
+discarded (and the fastest one too if there are ≥4) and the rest are averaged. That way an unlucky
+run (GC, throttling) does not decide the result. Each repeat measures `BENCH_SAMPLES` samples
+(default **10000**). Total ≈ 10 s.
 
 ```bash
 npm run benchmark -w packages/validation                              # 10 reps × 10000 (default)
-BENCH_REPEATS=3 BENCH_SAMPLES=5000 npm run benchmark -w ...           # rápido para iterar
-BENCH_REPEATS=20 npm run benchmark -w ...                             # aún más estable, más lento
+BENCH_REPEATS=3 BENCH_SAMPLES=5000 npm run benchmark -w ...           # fast, for iterating
+BENCH_REPEATS=20 npm run benchmark -w ...                             # even more stable, slower
 ```
 
-> Se mide por número fijo de muestras (no por tiempo) a propósito: tinybench guarda cada
-> muestra en memoria, y medir "por tiempo" sobre funciones de nanosegundos genera millones de
-> muestras y agota la RAM. Un microbenchmark siempre tiene algo de ruido (GC, JIT,
-> turbo/throttle del CPU); por eso además de promediar repeticiones, el color es "consciente
-> del ruido" (ver abajo): un cambio dentro del margen de error **no** se marca.
+> It measures a fixed number of samples (not a duration) on purpose: tinybench keeps every
+> sample in memory, and measuring "by time" over nanosecond functions produces millions of
+> samples and exhausts the RAM. A microbenchmark always has some noise (GC, JIT, CPU
+> turbo/throttle); that is why, besides averaging repeats, the colour is "noise-aware" (see
+> below): a change within the margin of error is **not** flagged.
 >
-> Mientras corre verás **una sola barra de progreso** (0-100% de todo el trabajo):
+> While it runs you will see **a single progress bar** (0-100% of all the work):
 > `[██████████░░░░░░░░░░] 42%`.
 
-## De dónde salen los valores a testear
+## Where the values under test come from
 
-Cada validador aporta sus propios valores **success** y **error** en un archivo dentro del
-propio benchmark: `benchmark/samples/<validador>.samples.ts`. Cada uno exporta un
-`ValidatorSample` con:
+Each validator provides its own **success** and **error** values in a file inside the
+benchmark itself: `benchmark/samples/<validator>.samples.ts`. Each one exports a
+`ValidatorSample` with:
 
-- `name` — nombre del validador,
-- `run(input)` — cómo invocarlo (con sus args, p. ej. `isHash(v, { algorithm: 'md5' })`),
-- `valid` / `invalid` — los valores a medir.
+- `name` — the validator's name,
+- `run(input)` — how to call it (with its args, e.g. `isHash(v, { algorithm: 'md5' })`),
+- `valid` / `invalid` — the values to measure.
 
-El benchmark los lee desde `benchmark/samples/index.ts`. Los samples son solo datos de entrada: el
-benchmark no contiene tests, se limita a ejecutar las funciones de validation. Al arrancar,
-`run.ts` comprueba que cada `valid` devuelva `true` y cada `invalid` devuelva `false` (además de
-nombres únicos y `valid` sin duplicados); si algún sample no cuadra, lista los problemas y termina
-con código 1 sin medir.
+The benchmark reads them from `benchmark/samples/index.ts`. The samples are input data only: the
+benchmark contains no tests, it only runs the validation functions. On start-up, `run.ts` checks
+that every `valid` returns `true` and every `invalid` returns `false` (plus unique names and no
+duplicate `valid` values); if any sample does not match, it lists the problems and exits with
+code 1 without measuring.
 
-## Referencia y colores
+## Reference and colours
 
-- En cada corrida se guarda una **referencia** por validador (éxito y error) en
-  `benchmark/best-scores.json` (**local**, ignorado por git — los tiempos dependen del
-  hardware). La referencia **solo se mueve ante un cambio real**: baja cuando de verdad
-  mejoras (más allá del ruido) y se mantiene en caso de regresión o ruido. Así no se arrastra
-  hacia un mínimo "con suerte" ni genera colores falsos.
-- La tabla muestra 4 datos por validador: el tiempo **éxito (ns)**, su **Δ**, el tiempo
-  **error (ns)** y su **Δ**. El **Δ** indica cuánto cambió vs tu referencia:
-  - 🔴 **rojo** = más lento que la referencia (regresión real).
-  - 🟢 **verde** = más rápido que la referencia (mejora real); baja la referencia.
-  - ⚪ gris = sin cambio real (dentro del ruido/tolerancia).
-- `ns` = nanosegundos por llamada. **Menos ns = más rápido.**
+- Every run saves a **reference** per validator (success and error) in
+  `benchmark/best-scores.json` (**local**, ignored by git — timings depend on the hardware).
+  The reference **only moves on a real change**: it goes down when you really improve (beyond
+  the noise) and stays put on a regression or noise. That way it is not dragged towards a
+  "lucky" minimum and does not produce false colours.
+- The table shows 4 figures per validator: the **success (ns)** time, its **Δ**, the
+  **error (ns)** time and its **Δ**. The **Δ** shows how much it changed vs your reference:
+  - 🔴 **red** = slower than the reference (real regression).
+  - 🟢 **green** = faster than the reference (real improvement); lowers the reference.
+  - ⚪ grey = no real change (within the noise/tolerance).
+- `ns` = nanoseconds per call. **Fewer ns = faster.**
 
-**Comparación consciente del ruido (en ambos sentidos):** solo se marca rojo/verde si el
-cambio supera **tanto** la tolerancia fija **como** el margen de error (±%) de esa medición.
-Así el ruido estadístico no se marca como cambio. Correr dos veces el mismo código debería
-dar casi todo gris.
+**Noise-aware comparison (in both directions):** red/green is only shown if the change exceeds
+**both** the fixed tolerance **and** the margin of error (±%) of that measurement. That way
+statistical noise is not flagged as a change. Running the same code twice should give almost
+all grey.
 
-Tolerancia fija (default 10 %):
+Fixed tolerance (default 10 %):
 
 ```bash
 BENCH_TOLERANCE=0.05 npm run benchmark -w packages/validation   # 5%
 ```
 
-Empezar de cero (ignora/reescribe la mejor marca guardada):
+Start from scratch (ignores/overwrites the saved best score):
 
 ```bash
 BENCH_RESET=1 npm run benchmark -w packages/validation
 ```
 
-Desactivar colores (salida en texto plano; también automático si la salida no es una TTY):
+Disable colours (plain-text output; also automatic when the output is not a TTY):
 
 ```bash
 NO_COLOR=1 npm run benchmark -w packages/validation
 ```
 
-## Salida
+## Output
 
-- Tabla en consola ordenada de más lento a más rápido (por éxito): `validador` / `éxito (ns)`
-  / `éxito Δ` / `error (ns)` / `error Δ`, con una explicación en español arriba.
-- `benchmark/RESULTS.md` con la misma información y los indicadores 🔴 / 🟢 / ⚪.
+- Console table sorted from slowest to fastest (by success): `validator` / `success (ns)`
+  / `success Δ` / `error (ns)` / `error Δ`, with an explanation in English above it.
+- `benchmark/RESULTS.md` with the same information and the 🔴 / 🟢 / ⚪ indicators.

@@ -58,10 +58,10 @@ function paint(padded: string, status: CompareStatus, color: boolean): string {
   return code + padded + ANSI.reset;
 }
 
-const HEADER_ES = [
-  'Tiempo por llamada en nanosegundos (ns) — menos ns = más rápido.',
-  '  éxito = tiempo validando un input VÁLIDO   ·   error = tiempo validando un input INVÁLIDO',
-  '  Δ = cambio vs tu referencia:  rojo = más lento  ·  verde = más rápido  ·  gris = sin cambio real (ruido)',
+const HEADER = [
+  'Time per call in nanoseconds (ns) — fewer ns = faster.',
+  '  success = time validating a VALID input   ·   error = time validating an INVALID input',
+  '  Δ = change vs your reference:  red = slower  ·  green = faster  ·  grey = no real change (noise)',
 ].join('\n');
 
 export function formatTable(rows: Row[], opts?: { color?: boolean; tolerance?: number }): string {
@@ -70,9 +70,9 @@ export function formatTable(rows: Row[], opts?: { color?: boolean; tolerance?: n
   const sorted = [...rows].sort((a, b) => a.okOps - b.okOps);
   const W = { name: 24, ns: 12, delta: 10 };
   const header = [
-    pad('validador', W.name),
-    pad('éxito (ns)', W.ns),
-    pad('éxito Δ', W.delta),
+    pad('validator', W.name),
+    pad('success (ns)', W.ns),
+    pad('success Δ', W.delta),
     pad('error (ns)', W.ns),
     pad('error Δ', W.delta),
   ].join(' ');
@@ -89,7 +89,7 @@ export function formatTable(rows: Row[], opts?: { color?: boolean; tolerance?: n
       paint(pad(fmtDelta(r.errNs, r.bestErrNs), W.delta), errStatus, color),
     ].join(' ');
   });
-  return [HEADER_ES, '', header, sep, ...lines].join('\n');
+  return [HEADER, '', header, sep, ...lines].join('\n');
 }
 
 function emoji(status: CompareStatus): string {
@@ -104,12 +104,12 @@ export function writeMarkdown(
   const tolerance = opts.tolerance ?? DEFAULT_TOLERANCE;
   const sorted = [...rows].sort((a, b) => a.okOps - b.okOps);
   const head =
-    `# Resultados del benchmark\n\n` +
+    `# Benchmark results\n\n` +
     `- Node: ${meta.node}\n\n` +
-    `Tiempo por llamada en nanosegundos (ns) — **menos ns = más rápido**. Ordenado de más lento a más rápido (por éxito).\n\n` +
-    `> **éxito** = tiempo validando un input válido · **error** = tiempo validando un input inválido · ` +
-    `**Δ** = cuánto cambió vs tu mejor marca (🔴 más lento · 🟢 mejor/récord · ⚪ igual)\n\n` +
-    `| validador | éxito (ns) | éxito Δ | error (ns) | error Δ |\n` +
+    `Time per call in nanoseconds (ns) — **fewer ns = faster**. Sorted from slowest to fastest (by success).\n\n` +
+    `> **success** = time validating a valid input · **error** = time validating an invalid input · ` +
+    `**Δ** = how much it changed vs your best score (🔴 slower · 🟢 better/record · ⚪ same)\n\n` +
+    `| validator | success (ns) | success Δ | error (ns) | error Δ |\n` +
     `|---|--:|:--|--:|:--|\n`;
   const body = sorted
     .map((r) => {

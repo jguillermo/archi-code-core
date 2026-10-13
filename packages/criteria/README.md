@@ -1,19 +1,18 @@
 # @archi-code/criteria
 
-Criterios de búsqueda para repositorios: filtros (simples y compuestos), orden, paginación y
-agrupación como DTO sencillos que se validan al construirse, un serializador para enviarlos como texto
-y un conversor a consultas de MongoDB. Sin dependencias en tiempo de ejecución; el paquete incluye
-builds CJS y ESM.
+Search criteria for repositories: filters (simple and composite), ordering, pagination and grouping
+as plain DTOs that validate themselves when constructed, a serializer to send them as text and a
+converter to MongoDB queries. No runtime dependencies; the package ships CJS and ESM builds.
 
-## Instalación
+## Installation
 
 ```bash
 npm install @archi-code/criteria
 ```
 
-Requiere Node.js 24 o superior.
+Requires Node.js 24 or later.
 
-## Importación
+## Import
 
 ESM / TypeScript:
 
@@ -34,10 +33,10 @@ const { FilterOperator, SimpleFilterDto } = require('@archi-code/criteria');
 new SimpleFilterDto('age', FilterOperator.GT, 18).value; // 18
 ```
 
-Los tipos (`LogicalOperator`, `SearchFilterDto`, `SearchOrderItemDto`, `MongoQuery`, `MongoFilter`,
-`MongoSort`, `MongoFilterOperator`) se importan con `import type`.
+The types (`LogicalOperator`, `SearchFilterDto`, `SearchOrderItemDto`, `MongoQuery`, `MongoFilter`,
+`MongoSort`, `MongoFilterOperator`) are imported with `import type`.
 
-## Ejemplo rápido
+## Quick example
 
 ```ts
 import {
@@ -61,29 +60,29 @@ new MongoCriteriaConverter().convert(criteria);
 
 ## `SearchCriteriaDto`
 
-Agrupa las cuatro partes de una búsqueda. Todas son opcionales y se pasan por posición:
+Groups the four parts of a search. All of them are optional and are passed by position:
 
 ```ts
 new SearchCriteriaDto(filters?, orders?, paginator?, groupBy?);
 ```
 
-| Propiedad   | Tipo                 |
+| Property    | Type                 |
 | ----------- | -------------------- |
 | `filters`   | `SearchFilterDto`    |
 | `orders`    | `SearchOrderDto`     |
 | `paginator` | `SearchPaginatorDto` |
 | `groupBy`   | `SearchGroupByDto`   |
 
-Para omitir una parte intermedia pasa `undefined`:
+To skip a part in the middle, pass `undefined`:
 `new SearchCriteriaDto(undefined, orders, paginator)`.
 
-## Filtros
+## Filters
 
-`SearchFilterDto` es el tipo `SimpleFilterDto | CompositeFilterDto`.
+`SearchFilterDto` is the type `SimpleFilterDto | CompositeFilterDto`.
 
 ### `SimpleFilterDto`
 
-Una condición sobre un campo: `new SimpleFilterDto(field, operator, value)`. `value` es
+A condition on one field: `new SimpleFilterDto(field, operator, value)`. `value` is
 `string | number | (string | number)[]`.
 
 ```ts
@@ -93,46 +92,46 @@ byStatus.operator; // 'eq'
 byStatus.value; // 'active'
 ```
 
-Con los operadores numéricos (`lt`, `lte`, `gt`, `gte`, `between`) el valor, o cada elemento si es un
-array, se convierte con `Number()`; así puedes pasar directamente lo que llega de una query string. Si
-el resultado es `NaN`, lanza:
+With the numeric operators (`lt`, `lte`, `gt`, `gte`, `between`) the value, or each element if it is
+an array, is converted with `Number()`, so you can pass whatever comes from a query string directly.
+If the result is `NaN`, it throws:
 
 ```ts
 new SimpleFilterDto('age', FilterOperator.GT, '18').value; // 18
 
-new SimpleFilterDto('age', FilterOperator.GT, 'dieciocho');
-// Error: SimpleFilterDto: Value "dieciocho" must be a number
+new SimpleFilterDto('age', FilterOperator.GT, 'eighteen');
+// Error: SimpleFilterDto: Value "eighteen" must be a number
 ```
 
-También lanza `Error` si `field` está vacío (`SimpleFilterDto: "field" must be a non-empty string`),
-si el operador no es de `FilterOperator` (`SimpleFilterDto: Invalid operator "<op>"`) o si `value` es
-`undefined` (`SimpleFilterDto: "value" is required`).
+It also throws `Error` if `field` is empty (`SimpleFilterDto: "field" must be a non-empty string`),
+if the operator is not a `FilterOperator` (`SimpleFilterDto: Invalid operator "<op>"`) or if `value`
+is `undefined` (`SimpleFilterDto: "value" is required`).
 
-### Operadores (`FilterOperator`)
+### Operators (`FilterOperator`)
 
-`FilterOperator` es un `enum` de cadenas:
+`FilterOperator` is a string `enum`:
 
-| Miembro   | Valor       | Significado                                   | MongoDB                                   |
+| Member    | Value       | Meaning                                       | MongoDB                                   |
 | --------- | ----------- | --------------------------------------------- | ----------------------------------------- |
-| `EQ`      | `'eq'`      | igual                                         | `{ campo: valor }`                        |
-| `NE`      | `'ne'`      | distinto                                      | `{ campo: { $ne: valor } }`               |
-| `LT`      | `'lt'`      | menor que (numérico)                          | `{ campo: { $lt: n } }`                   |
-| `LTE`     | `'lte'`     | menor o igual (numérico)                      | `{ campo: { $lte: n } }`                  |
-| `GT`      | `'gt'`      | mayor que (numérico)                          | `{ campo: { $gt: n } }`                   |
-| `GTE`     | `'gte'`     | mayor o igual (numérico)                      | `{ campo: { $gte: n } }`                  |
-| `IN`      | `'in'`      | está en la lista                              | `{ campo: { $in: [...] } }`               |
-| `NIN`     | `'nin'`     | no está en la lista                           | `{ campo: { $nin: [...] } }`              |
-| `BETWEEN` | `'between'` | entre dos valores, ambos incluidos (numérico) | `{ campo: { $gte: a, $lte: b } }`         |
-| `LIKE`    | `'like'`    | expresión regular                             | `{ campo: { $regex: v } }`                |
-| `ILIKE`   | `'ilike'`   | expresión regular sin distinguir mayúsculas   | `{ campo: { $regex: v, $options: 'i' } }` |
-| `INARRAY` | `'inarray'` | existe en el modelo, pero no en el conversor  | lanza `Error`                             |
+| `EQ`      | `'eq'`      | equal                                         | `{ field: value }`                        |
+| `NE`      | `'ne'`      | not equal                                     | `{ field: { $ne: value } }`               |
+| `LT`      | `'lt'`      | less than (numeric)                           | `{ field: { $lt: n } }`                   |
+| `LTE`     | `'lte'`     | less than or equal (numeric)                  | `{ field: { $lte: n } }`                  |
+| `GT`      | `'gt'`      | greater than (numeric)                        | `{ field: { $gt: n } }`                   |
+| `GTE`     | `'gte'`     | greater than or equal (numeric)               | `{ field: { $gte: n } }`                  |
+| `IN`      | `'in'`      | is in the list                                | `{ field: { $in: [...] } }`               |
+| `NIN`     | `'nin'`     | is not in the list                            | `{ field: { $nin: [...] } }`              |
+| `BETWEEN` | `'between'` | between two values, both inclusive (numeric)  | `{ field: { $gte: a, $lte: b } }`         |
+| `LIKE`    | `'like'`    | regular expression                            | `{ field: { $regex: v } }`                |
+| `ILIKE`   | `'ilike'`   | case-insensitive regular expression           | `{ field: { $regex: v, $options: 'i' } }` |
+| `INARRAY` | `'inarray'` | exists in the model, but not in the converter | throws `Error`                            |
 
-Con `IN` y `NIN` un valor que no es array se envuelve en uno (`'a'` → `['a']`). `LIKE` e `ILIKE` pasan
-el valor tal cual a `$regex`: es una expresión regular, no un patrón SQL con `%`.
+With `IN` and `NIN` a value that is not an array is wrapped in one (`'a'` → `['a']`). `LIKE` and
+`ILIKE` pass the value as is to `$regex`: it is a regular expression, not an SQL pattern with `%`.
 
 ### `CompositeFilterDto`
 
-Une filtros con un operador lógico (`LogicalOperator` = `'and' | 'or'`) y se puede anidar:
+Joins filters with a logical operator (`LogicalOperator` = `'and' | 'or'`) and can be nested:
 
 ```ts
 import type { SearchFilterDto } from '@archi-code/criteria';
@@ -154,13 +153,13 @@ new MongoCriteriaConverter().convert(new SearchCriteriaDto(filter)).filter;
 // }
 ```
 
-Lanza `Error` si el operador lógico no es `'and'` ni `'or'` o si `filters` está vacío
+It throws `Error` if the logical operator is neither `'and'` nor `'or'` or if `filters` is empty
 (`CompositeFilterDto: "filters" must be a non-empty array`).
 
-## Orden: `SearchOrderDto`
+## Ordering: `SearchOrderDto`
 
-Recibe un array de `SearchOrderItemDto` (`{ field: string; direction: 'asc' | 'desc' }`); el orden
-del array es la prioridad:
+Takes an array of `SearchOrderItemDto` (`{ field: string; direction: 'asc' | 'desc' }`); the order
+of the array is the priority:
 
 ```ts
 const orders = new SearchOrderDto([
@@ -171,12 +170,12 @@ const orders = new SearchOrderDto([
 orders.orders[0]; // { field: 'createdAt', direction: 'desc' }
 ```
 
-Lanza `Error` si no recibe un array, si un `field` está vacío o si `direction` no es `'asc'` ni
-`'desc'`.
+It throws `Error` if it does not receive an array, if a `field` is empty or if `direction` is
+neither `'asc'` nor `'desc'`.
 
-## Paginación: `SearchPaginatorDto`
+## Pagination: `SearchPaginatorDto`
 
-`new SearchPaginatorDto(page, perPage)`: `page` empieza en 1 y ambos deben ser enteros positivos.
+`new SearchPaginatorDto(page, perPage)`: `page` starts at 1 and both must be positive integers.
 
 ```ts
 const page = new SearchPaginatorDto(3, 25);
@@ -189,22 +188,22 @@ new SearchPaginatorDto(1.5, 10);
 // Error: SearchPaginatorDto: "page" and "perPage" must be integers
 ```
 
-## Agrupación: `SearchGroupByDto`
+## Grouping: `SearchGroupByDto`
 
-Acepta un campo o una lista de campos y los expone siempre como array en `fields`:
+Accepts one field or a list of fields and always exposes them as an array in `fields`:
 
 ```ts
 new SearchGroupByDto('country').fields; // ['country']
 new SearchGroupByDto(['country', 'city']).fields; // ['country', 'city']
 ```
 
-Lanza `Error` con `null`/`undefined`, con algo que no sea cadena o array, o si algún elemento del
-array no es cadena. El conversor de MongoDB no usa `groupBy`; queda disponible para tu propio
-repositorio y el serializador lo conserva.
+It throws `Error` with `null`/`undefined`, with anything that is not a string or an array, or if an
+element of the array is not a string. The MongoDB converter does not use `groupBy`; it stays
+available for your own repository and the serializer keeps it.
 
-## Conversión a MongoDB: `MongoCriteriaConverter`
+## MongoDB conversion: `MongoCriteriaConverter`
 
-`convert(criteria)` devuelve un `MongoQuery`:
+`convert(criteria)` returns a `MongoQuery`:
 
 ```ts
 interface MongoQuery {
@@ -238,21 +237,21 @@ converter.convert(new SearchCriteriaDto());
 // { filter: {}, sort: {}, skip: 0, limit: 0 }
 ```
 
-- `skip = (page - 1) * perPage` y `limit = perPage`. Sin paginador, `skip` y `limit` son `0` (en
-  MongoDB `limit(0)` significa sin límite).
-- En el orden, el campo `id` se traduce a `_id`. En los filtros no: filtra por `_id` si es lo que
-  guardas.
-- `INARRAY` lanza `Error: Operator inarray is not supported for Mongo conversion`, y `BETWEEN` sin un
-  array de exactamente dos valores lanza
-  `Error: BETWEEN operator requires an array of two values for field <campo>`.
+- `skip = (page - 1) * perPage` and `limit = perPage`. Without a paginator, `skip` and `limit` are
+  `0` (in MongoDB `limit(0)` means no limit).
+- In the ordering, the `id` field is translated to `_id`. Not in the filters: filter by `_id` if that
+  is what you store.
+- `INARRAY` throws `Error: Operator inarray is not supported for Mongo conversion`, and `BETWEEN`
+  without an array of exactly two values throws
+  `Error: BETWEEN operator requires an array of two values for field <field>`.
 
-El paquete no depende del driver de MongoDB: `filter`, `sort`, `skip` y `limit` son objetos y
-números planos que pasas tú a la consulta (`find`, `sort`, `skip`, `limit`).
+The package does not depend on the MongoDB driver: `filter`, `sort`, `skip` and `limit` are plain
+objects and numbers that you pass to the query yourself (`find`, `sort`, `skip`, `limit`).
 
-## Serialización: `SearchQuerySerializer`
+## Serialization: `SearchQuerySerializer`
 
-Métodos estáticos para enviar un criterio como texto (por ejemplo, en una URL o en un mensaje) y
-reconstruirlo con sus clases y validaciones:
+Static methods to send a criterion as text (for example, in a URL or in a message) and rebuild it
+with its classes and validations:
 
 ```ts
 const text = SearchQuerySerializer.serialize(
@@ -271,71 +270,72 @@ restored.paginator?.perPage; // 10
 restored.groupBy?.fields; // ['country']
 ```
 
-Los filtros compuestos se serializan como `{ "type": "composite", "logicalOperator", "filters" }`. Las
-partes ausentes se escriben como `null`. `deserialize` lanza `Error: Invalid JSON string` si el texto
-no es JSON y `Error: Unknown filter format` si un filtro no tiene `type` `'simple'` o `'composite'`;
-cualquier otro dato inválido lanza el error del DTO correspondiente.
+Composite filters are serialized as `{ "type": "composite", "logicalOperator", "filters" }`. Missing
+parts are written as `null`. `deserialize` throws `Error: Invalid JSON string` if the text is not
+JSON and `Error: Unknown filter format` if a filter does not have `type` `'simple'` or
+`'composite'`; any other invalid data throws the error of the corresponding DTO.
 
-## Resumen de exports
+## Exports summary
 
-| Export                   | Clase / tipo | Uso                                                                                      |
+| Export                   | Class / type | Use                                                                                      |
 | ------------------------ | ------------ | ---------------------------------------------------------------------------------------- |
-| `SearchCriteriaDto`      | clase        | Filtros, orden, paginación y agrupación de una búsqueda                                  |
-| `SimpleFilterDto`        | clase        | Una condición `campo operador valor`                                                     |
-| `CompositeFilterDto`     | clase        | Filtros unidos con `'and'` / `'or'`, anidables                                           |
+| `SearchCriteriaDto`      | class        | Filters, ordering, pagination and grouping of a search                                   |
+| `SimpleFilterDto`        | class        | One `field operator value` condition                                                     |
+| `CompositeFilterDto`     | class        | Filters joined with `'and'` / `'or'`, nestable                                           |
 | `FilterOperator`         | enum         | `eq`, `ne`, `lt`, `lte`, `gt`, `gte`, `in`, `nin`, `between`, `like`, `ilike`, `inarray` |
-| `SearchOrderDto`         | clase        | Lista ordenada de `SearchOrderItemDto`                                                   |
-| `SearchPaginatorDto`     | clase        | `page` (desde 1) y `perPage`                                                             |
-| `SearchGroupByDto`       | clase        | Campos de agrupación (`fields`)                                                          |
-| `SearchQuerySerializer`  | clase        | `serialize(criteria)` / `deserialize(text)` (estáticos)                                  |
-| `MongoCriteriaConverter` | clase        | `convert(criteria)` → `MongoQuery`                                                       |
-| `LogicalOperator`        | tipo         | `'and' \| 'or'`                                                                          |
-| `SearchFilterDto`        | tipo         | `SimpleFilterDto \| CompositeFilterDto`                                                  |
-| `SearchOrderItemDto`     | interfaz     | `{ field: string; direction: 'asc' \| 'desc' }`                                          |
-| `MongoQuery`             | interfaz     | `{ filter, sort, skip, limit }`                                                          |
-| `MongoFilter`            | tipo         | Filtro de MongoDB generado                                                               |
-| `MongoSort`              | tipo         | `Record<string, 1 \| -1>`                                                                |
-| `MongoFilterOperator`    | tipo         | `'$eq' \| '$ne' \| '$gt' \| '$gte' \| '$lt' \| '$lte' \| '$regex' \| '$in' \| '$nin'`    |
+| `SearchOrderDto`         | class        | Ordered list of `SearchOrderItemDto`                                                     |
+| `SearchPaginatorDto`     | class        | `page` (from 1) and `perPage`                                                            |
+| `SearchGroupByDto`       | class        | Grouping fields (`fields`)                                                               |
+| `SearchQuerySerializer`  | class        | `serialize(criteria)` / `deserialize(text)` (static)                                     |
+| `MongoCriteriaConverter` | class        | `convert(criteria)` → `MongoQuery`                                                       |
+| `LogicalOperator`        | type         | `'and' \| 'or'`                                                                          |
+| `SearchFilterDto`        | type         | `SimpleFilterDto \| CompositeFilterDto`                                                  |
+| `SearchOrderItemDto`     | interface    | `{ field: string; direction: 'asc' \| 'desc' }`                                          |
+| `MongoQuery`             | interface    | `{ filter, sort, skip, limit }`                                                          |
+| `MongoFilter`            | type         | Generated MongoDB filter                                                                 |
+| `MongoSort`              | type         | `Record<string, 1 \| -1>`                                                                |
+| `MongoFilterOperator`    | type         | `'$eq' \| '$ne' \| '$gt' \| '$gte' \| '$lt' \| '$lte' \| '$regex' \| '$in' \| '$nin'`    |
 
-## Skill para asistentes de IA
+## AI assistant skill
 
-El paquete incluye `SKILL.md`, una skill de Claude Code con las reglas, los patrones recomendados y
-los errores habituales. Para la API completa remite a este README dentro de `node_modules`, así que
-sigue valiendo al actualizar el paquete. Para instalarla en tu proyecto:
+The package ships `SKILL.md`, a Claude Code skill with the rules, the recommended patterns and the
+common mistakes. For the full API it points to this README inside `node_modules`, so it stays valid
+when you update the package. To install it in your project:
 
 ```bash
 mkdir -p .claude/skills/archi-code-criteria && cp node_modules/@archi-code/criteria/SKILL.md .claude/skills/archi-code-criteria/SKILL.md
 ```
 
-### Cómo se usa
+### How to use
 
-Invócala con una petición:
-
-```text
-/archi-code-criteria crea el endpoint GET /users con filtro por status y edad mínima, orden y paginación
-```
-
-O pide la tarea sin nombrarla y Claude la carga sola porque encaja con su descripción:
+Invoke it with a request:
 
 ```text
-Implementa el repositorio MongoDB de pedidos con búsqueda por SearchCriteriaDto
+/archi-code-criteria create the GET /users endpoint with a filter by status and minimum age, ordering and pagination
 ```
 
-También sirve para revisar código que ya usa el paquete:
+Or ask for the task without naming it and Claude loads it on its own because it matches its
+description:
 
 ```text
-/archi-code-criteria revisa los repositorios y avisa de filtros que no se pueden convertir a MongoDB
+Implement the MongoDB orders repository with search by SearchCriteriaDto
 ```
 
-Con la skill cargada, Claude sigue sus reglas, evita los errores de su lista "Qué no hacer" y, antes de
-usar algo que la skill no muestra, lee este README en `node_modules`.
+It also works to review code that already uses the package:
 
-### Mantenerla al día
+```text
+/archi-code-criteria review the repositories and flag filters that cannot be converted to MongoDB
+```
 
-- La copia no se actualiza sola: después de actualizar `@archi-code/criteria`, vuelve a ejecutar el comando
-  de arriba.
-- Sube `.claude/skills/archi-code-criteria/` al repositorio para que todo el equipo la use.
+With the skill loaded, Claude follows its rules, avoids the mistakes in its "What not to do" list
+and, before using anything the skill does not show, reads this README in `node_modules`.
 
-## Licencia
+### Keeping it up to date
+
+- The copy does not update itself: after updating `@archi-code/criteria`, run the command above
+  again.
+- Commit `.claude/skills/archi-code-criteria/` to the repository so the whole team uses it.
+
+## License
 
 MIT
