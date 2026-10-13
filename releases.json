@@ -7,7 +7,7 @@
       "main": "3.0.0-alpha.3"
     },
     "@archi-code/domain": {
-      "main": "3.0.0-alpha.2"
+      "main": "3.0.0-alpha.3"
     },
     "@archi-code/ephemeradb": {
       "main": "3.0.0-alpha.2"
@@ -199,6 +199,19 @@
             "commits (patch)"
           ],
           "dependencies": {}
+        },
+        {
+          "name": "@archi-code/domain",
+          "previous": "3.0.0-alpha.2",
+          "version": "3.0.0-alpha.3",
+          "bump": "patch",
+          "reasons": [
+            "commits (patch)",
+            "cascada: @archi-code/validation → 3.0.0-alpha.3"
+          ],
+          "dependencies": {
+            "@archi-code/validation": "3.0.0-alpha.3"
+          }
         }
       ]
     }
