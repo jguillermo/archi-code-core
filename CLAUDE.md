@@ -28,7 +28,8 @@ The root `scripts/` holds only the general tools (packages have no `scripts/` fo
 - `scripts/check-dist.js` — `main`/`module`/`types` exist, CJS and ESM load and expose the same exports.
 - `scripts/check-types.js` — a throwaway TypeScript consumer imports the package by name from an ESM (`.mts`) and a CJS (`.cts`) file under `node16`, `nodenext` and `bundler` resolution. Each `exports` condition must carry its own `types` (`import` → `dist/esm`, `require` → `dist/cjs`).
 - `scripts/editorconfig.js` — runs editorconfig-checker with the shared excludes and the binary version pinned (`EC_VERSION`); the npm wrapper downloads the binary from GitHub, so `latest` would break when upstream renames its assets. Change the version only there.
-- `scripts/check-web.js` — `browser` field points to the ESM build, `dist/esm` has no bare imports nor Node-only globals, and the build loads in a realm without Node APIs.
+- `scripts/check-web.js` — `browser` field points to the ESM build, `dist/esm` has no bare imports nor Node-only globals, and the build loads in a realm with the standard Web APIs and without Node APIs.
+- `scripts/embed-wasm.js` — turns a `wasm-pack --target no-modules` output into a generated `.ts` module (wasm as base64 + glue as text) and refuses glue that needs Node or imports modules. `scripts/lib/web-safety.js` holds the checks it shares with `check-web.js`.
 
 Checks specific to one package's build live in that package, in `test/dist/dist.check.js` (every package has one; jest ignores it because it is not a `.spec.ts`). They must exercise the real API, not just load it. It may export `smoke(m)` (run on CJS and ESM), `crossBuild(cjs, esm)` (check-dist) and `web(webModule, nodeModule)` (check-web); each returns `[name, check]` pairs where `check()` returns (or resolves to) `true` or an error message. `scripts/lib/package-checks.js` loads and runs them.
 
@@ -110,14 +111,14 @@ npm workspaces monorepo publishing independent npm packages implementing DDD pat
 
 ### Packages and npm names
 
-| Directory      | npm name                   | Purpose                                                                                            |
-| -------------- | -------------------------- | -------------------------------------------------------------------------------------------------- |
-| `validation`   | `@archi-code/validation`   | Validators (TypeScript port of validator.js), `canBe*`/`to*` conversions, `@Validations` decorator |
-| `domain`       | `@archi-code/domain`       | DDD framework — aggregates, value objects, exceptions, domain events                               |
-| `criteria`     | `@archi-code/criteria`     | Search/filter/order/paginate query builders + MongoDB converter                                    |
-| `crypto-tools` | `@archi-code/crypto-tools` | Encryption, password hashing, JWT signing                                                          |
-| `ephemeraDB`   | `@archi-code/ephemeradb`   | Async in-memory key-value store                                                                    |
-| `test`         | `@archi-code/test`         | Test helpers: `DtoObjectMother`, `JsonCompare`, type assertions (`Expect`, `Equal`, `IsAny`…)      |
+| Directory      | npm name                   | Purpose                                                                                                                |
+| -------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `validation`   | `@archi-code/validation`   | Validators (TypeScript port of validator.js), `canBe*`/`to*` conversions, `@Validations` decorator                     |
+| `domain`       | `@archi-code/domain`       | DDD framework — aggregates, value objects, exceptions, domain events                                                   |
+| `criteria`     | `@archi-code/criteria`     | Search/filter/order/paginate query builders + MongoDB converter                                                        |
+| `crypto-tools` | `@archi-code/crypto-tools` | Crypto toolkit in one Rust→wasm module run in workers (web + Node): password, cipher, RSA, signature, hash, token, JWT |
+| `ephemeraDB`   | `@archi-code/ephemeradb`   | Async in-memory key-value store                                                                                        |
+| `test`         | `@archi-code/test`         | Test helpers: `DtoObjectMother`, `JsonCompare`, type assertions (`Expect`, `Equal`, `IsAny`…)                          |
 
 ### Dependency graph
 
@@ -129,8 +130,23 @@ npm workspaces monorepo publishing independent npm packages implementing DDD pat
 
 @archi-code/criteria     (standalone — no runtime deps)
 @archi-code/ephemeradb   (standalone — no runtime deps)
-@archi-code/crypto-tools (optional peer deps, loaded on demand: bcrypt, jsonwebtoken, libsodium-wrappers-sumo)
+@archi-code/crypto-tools (standalone — no npm deps; Rust crates compiled into one embedded wasm)
 ```
+
+### crypto-tools package internals
+
+- All crypto logic is Rust in `packages/crypto-tools/rust/src` (RustCrypto, `bcrypt`, `argon2`, `rsa`,
+  `pasetors`, `jsonwebtoken`), with `cargo test` per module. `wasm-pack --target no-modules` builds it and
+  `scripts/embed-wasm.js` embeds wasm + glue into `src/wasm/wasm-assets.generated.ts`, so the same ESM/CJS
+  build runs in browsers and Node without `fs`, `fetch` or bundler setup.
+- `src/worker/workers.ts` runs every call in a pool of Web Workers (Blob URL) or `worker_threads`
+  (`process.getBuiltinModule`), falling back to the calling thread only where no worker exists; the API is
+  async modules with standard verbs (`password.hash/verify`, `cipher.encrypt/decrypt`, `rsa`,
+  `signature.sign/verify`, `hash.digest/hmac`, `token`, `jwt`) and `{ level, algorithm }` options.
+- Levels `basic | standard | strong | cnsa` (`military` = `cnsa`) are one table in `rust/src`; errors are
+  `CryptoError` with a `code`. `CryptoEngine` is the legacy obfuscator ported byte for byte (it replicates
+  V8's TimSort); `test/fixtures/legacy.json` holds outputs of the previous JS implementation.
+- Gate: `npm run check:crypto-tools` needs Rust (`rust/rust-toolchain.toml`) and `wasm-pack`.
 
 ### domain package internals
 

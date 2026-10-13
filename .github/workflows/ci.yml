@@ -20,6 +20,22 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # @archi-code/crypto-tools compiles its Rust core to wasm: the toolchain comes from
+      # packages/crypto-tools/rust/rust-toolchain.toml and wasm-pack is a prebuilt binary.
+      - name: Install the Rust toolchain of crypto-tools
+        working-directory: packages/crypto-tools/rust
+        run: rustup toolchain install
+
+      - name: Install wasm-pack
+        uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-pack@0.13.1
+
+      - name: Cache Rust builds
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/crypto-tools/rust
+
       - name: Build packages in dependency order
         run: npm run build
 

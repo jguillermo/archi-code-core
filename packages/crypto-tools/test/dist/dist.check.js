@@ -1,50 +1,138 @@
 'use strict';
 
-const SECRET = 'a-secret-key-with-more-than-16-chars';
+const SECRET = 'a-secret-key-with-more-than-32-characters';
 
 function smoke(m) {
   return [
     [
-      'BcryptPasswordEncryptor hashes and verifies',
+      'runs in worker_threads',
+      () => m.workers.runtime() === 'worker-threads' || `runtime ${m.workers.runtime()}`,
+    ],
+    [
+      'password hashes and verifies',
       async () => {
-        const encryptor = new m.BcryptPasswordEncryptor(4);
-        const hash = await encryptor.hashPassword('secret');
+        const hash = await m.password.hash('secret', { cost: 4 });
         return (
-          (await encryptor.verifyPassword('secret', hash)) === true &&
-          (await encryptor.verifyPassword('other', hash)) === false
+          (await m.password.verify('secret', hash)) === true &&
+          (await m.password.verify('other', hash)) === false
         );
       },
     ],
     [
-      'SodiumPasswordEncryptor hashes and verifies',
+      'cipher encrypts and decrypts with every level',
       async () => {
-        const encryptor = new m.SodiumPasswordEncryptor();
-        const hash = await encryptor.hashPassword('secret');
+        for (const level of ['basic', 'standard', 'strong', 'cnsa']) {
+          const encrypted = await m.cipher.encrypt('hola', SECRET, { level });
+          if ((await m.cipher.decrypt(encrypted, SECRET)) !== 'hola') return `level ${level}`;
+        }
+        return true;
+      },
+    ],
+    [
+      'rsa encrypts and signature signs a file',
+      async () => {
+        const pair = await m.rsa.generateKeyPair({ level: 'basic' });
+        const file = new Uint8Array([1, 2, 3, 4]);
+        const encrypted = await m.rsa.encrypt(file, pair.publicKey);
+        const decrypted = await m.rsa.decryptBytes(encrypted, pair.privateKey);
+        const signed = await m.signature.sign(file, pair.privateKey);
         return (
-          (await encryptor.verifyPassword('secret', hash)) === true &&
-          (await encryptor.verifyPassword('other', hash)) === false
+          decrypted.join() === '1,2,3,4' && (await m.signature.verify(file, signed, pair.publicKey))
         );
       },
     ],
     [
-      'SodiumHasher hashes with sha256',
-      async () => /^[0-9a-f]{64}$/.test(await new m.SodiumHasher().sha256('text')),
+      'hash digests the known sha256 vector',
+      async () =>
+        (await m.hash.digest('abc')) ===
+        'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
     ],
     [
-      'JWTDataSigner signs and verifies',
-      () => {
-        const signer = new m.JWTDataSigner(SECRET);
-        return signer.verify(signer.sign({ id: 7 })).id === 7;
+      'token and jwt round-trip a JSON payload',
+      async () => {
+        const encrypted = await m.token.encrypt({ id: 7 }, SECRET, { expiresIn: 60 });
+        const signed = await m.jwt.sign({ id: 7 }, SECRET);
+        return (
+          (await m.token.decrypt(encrypted, SECRET)).id === 7 &&
+          (await m.jwt.verify(signed, SECRET)).id === 7
+        );
       },
     ],
     [
-      'CryptoEngine encodes and decodes',
+      'CryptoEngine keeps the previous outputs',
+      async () =>
+        (await new m.CryptoEngine('testhash123').encode('HELLO WORLD')) === 'Pt3/97FmPVoz+4JG',
+    ],
+    [
+      'errors carry a code',
+      async () => {
+        try {
+          await m.cipher.decrypt('nope', SECRET);
+          return 'decrypt did not fail';
+        } catch (error) {
+          return (error instanceof m.CryptoError && error.code === 'MALFORMED') || String(error);
+        }
+      },
+    ],
+    [
+      'workers terminate',
       () => {
-        const engine = new m.CryptoEngine('seed-key');
-        return engine.decode(engine.encode('hello world')) === 'hello world';
+        m.workers.terminate();
+        return true;
       },
     ],
   ];
 }
 
-module.exports = { smoke };
+function web(webModule, nodeModule) {
+  webModule.workers.configure({ mode: 'inline' });
+  return [
+    ['runs inline in a realm without workers', () => webModule.workers.runtime() === 'inline'],
+    [
+      'web encrypts what Node decrypts and the other way round',
+      async () => {
+        const fromWeb = await webModule.cipher.encrypt('hola', SECRET, { level: 'strong' });
+        const fromNode = await nodeModule.cipher.encrypt('adiós', SECRET, { level: 'cnsa' });
+        return (
+          (await nodeModule.cipher.decrypt(fromWeb, SECRET)) === 'hola' &&
+          (await webModule.cipher.decrypt(fromNode, SECRET)) === 'adiós'
+        );
+      },
+    ],
+    [
+      'web signs a file that Node verifies',
+      async () => {
+        const pair = await nodeModule.rsa.generateKeyPair({ level: 'basic' });
+        const file = new Uint8Array([9, 8, 7]);
+        const signed = await webModule.signature.sign(file, pair.privateKey);
+        return nodeModule.signature.verify(file, signed, pair.publicKey);
+      },
+    ],
+    [
+      'web hashes a password that Node verifies',
+      async () => {
+        const hash = await webModule.password.hash('secret', { cost: 4 });
+        return nodeModule.password.verify('secret', hash);
+      },
+    ],
+    [
+      'web and Node agree on tokens, JWT and CryptoEngine',
+      async () => {
+        const encrypted = await webModule.token.encrypt({ id: 7 }, SECRET);
+        const signed = await nodeModule.jwt.sign({ id: 8 }, SECRET);
+        const engine = await webModule.CryptoEngine.prototype.encode.call(
+          new webModule.CryptoEngine('testhash123'),
+          'HELLO WORLD',
+        );
+        const ok =
+          (await nodeModule.token.decrypt(encrypted, SECRET)).id === 7 &&
+          (await webModule.jwt.verify(signed, SECRET)).id === 8 &&
+          engine === 'Pt3/97FmPVoz+4JG';
+        nodeModule.workers.terminate();
+        return ok;
+      },
+    ],
+  ];
+}
+
+module.exports = { smoke, web };

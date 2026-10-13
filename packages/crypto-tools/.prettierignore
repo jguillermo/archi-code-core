@@ -1,0 +1,2 @@
+src/wasm/*.generated.ts
+test/fixtures

@@ -2,9 +2,17 @@
   "name": "@archi-code/crypto-tools",
   "version": "0.0.0-development",
   "keywords": [
-    "DDD",
-    "node",
-    "value object"
+    "crypto",
+    "wasm",
+    "rust",
+    "password",
+    "aes",
+    "rsa",
+    "jwt",
+    "paseto",
+    "signature",
+    "web",
+    "node"
   ],
   "author": "Jose Guillermo",
   "license": "MIT",
@@ -21,8 +29,20 @@
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/cjs/index.d.ts",
+  "browser": "./dist/esm/index.js",
   "exports": {
     ".": {
+      "browser": "./dist/esm/index.js",
+      "node": {
+        "import": {
+          "types": "./dist/esm/index.d.ts",
+          "default": "./dist/esm/index.js"
+        },
+        "require": {
+          "types": "./dist/cjs/index.d.ts",
+          "default": "./dist/cjs/index.js"
+        }
+      },
       "import": {
         "types": "./dist/esm/index.d.ts",
         "default": "./dist/esm/index.js"
@@ -30,7 +50,8 @@
       "require": {
         "types": "./dist/cjs/index.d.ts",
         "default": "./dist/cjs/index.js"
-      }
+      },
+      "default": "./dist/esm/index.js"
     },
     "./package.json": "./package.json"
   },
@@ -39,39 +60,22 @@
   ],
   "scripts": {
     "prebuild": "rm -rf dist || true",
+    "build:wasm": "cd rust && wasm-pack build --release --target no-modules --no-pack --out-dir ../wasm --out-name crypto_tools && cd .. && node ../../scripts/embed-wasm.js wasm/crypto_tools src/wasm/wasm-assets.generated.ts",
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "build:esm": "tsc -p tsconfig.esm.json && node ../../scripts/fix-esm.js",
-    "build": "npm run build:cjs && npm run build:esm",
+    "build": "npm run build:wasm && npm run build:cjs && npm run build:esm",
     "test": "jest",
     "test:coverage": "jest --coverage",
+    "check:rust": "cd rust && cargo fmt --check && cargo clippy --target wasm32-unknown-unknown --all-targets -- -D warnings && cargo clippy --all-targets -- -D warnings && cargo test",
+    "fix:rust": "cd rust && cargo fmt",
     "check:types": "tsc -p tsconfig.json --noEmit --incremental false",
-    "check:dist": "node ../../scripts/check-dist.js && node ../../scripts/check-types.js",
+    "check:dist": "node ../../scripts/check-dist.js && node ../../scripts/check-types.js && node --experimental-vm-modules --no-warnings ../../scripts/check-web.js",
     "check:editorconfig": "node ../../scripts/editorconfig.js",
-    "check:all": "npm run check:editorconfig && npm run check:prettier && npm run check:lint && npm run check:types && npm run test:coverage && npm run build && npm run check:dist",
+    "check:all": "npm run check:editorconfig && npm run check:prettier && npm run check:lint && npm run check:rust && npm run build:wasm && npm run check:types && npm run test:coverage && npm run build && npm run check:dist",
     "check:lint": "eslint src test --ext .ts",
     "fix:lint": "eslint src test --ext .ts --fix",
     "check:prettier": "prettier --check \"{src,test}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\" \"*.{json,md}\"",
     "fix:prettier": "prettier --write \"{src,test}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\" \"*.{json,md}\""
-  },
-  "devDependencies": {
-    "@types/bcrypt": "^6.0.0",
-    "@types/jsonwebtoken": "^9.0.10"
-  },
-  "peerDependencies": {
-    "bcrypt": "^6.0.0",
-    "jsonwebtoken": "^9.0.3",
-    "libsodium-wrappers-sumo": "^0.8.2"
-  },
-  "peerDependenciesMeta": {
-    "libsodium-wrappers-sumo": {
-      "optional": true
-    },
-    "bcrypt": {
-      "optional": true
-    },
-    "jsonwebtoken": {
-      "optional": true
-    }
   },
   "jest": {
     "moduleFileExtensions": [
@@ -89,7 +93,8 @@
       "^.+\\.ts$": "ts-jest"
     },
     "collectCoverageFrom": [
-      "src/**/*.(t|j)s"
+      "src/**/*.(t|j)s",
+      "!src/**/*.generated.ts"
     ],
     "coverageDirectory": "./coverage",
     "testEnvironment": "node",

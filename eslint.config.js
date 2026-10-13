@@ -7,7 +7,7 @@ const js = require('@eslint/js');
 
 module.exports = tseslint.config(
   // Ignore build artifacts and dependencies
-  { ignores: ['**/dist/**', '**/node_modules/**', '**/*.js'] },
+  { ignores: ['**/dist/**', '**/node_modules/**', '**/*.js', '**/*.generated.ts'] },
 
   // Base ESLint recommended rules
   js.configs.recommended,

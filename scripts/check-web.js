@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const { entryPoint, loadPackageChecks, runChecks } = require('./lib/package-checks');
+const { SPECIFIER_RE, findNodeGlobal, webGlobals } = require('./lib/web-safety');
 
 const ROOT = process.cwd();
 const pkg = require(path.join(ROOT, 'package.json'));
@@ -36,10 +37,6 @@ function listJs(dir) {
   });
 }
 
-const SPECIFIER_RE = /(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)(['"])([^'"]+)\1/g;
-const NODE_GLOBALS_RE =
-  /\b(?:require\s*\(|process\.|Buffer\b|__dirname\b|__filename\b|module\.exports\b|exports\.)/;
-
 for (const file of listJs(ESM_DIR)) {
   const rel = path.relative(ROOT, file);
   const code = fs.readFileSync(file, 'utf8');
@@ -49,13 +46,12 @@ for (const file of listJs(ESM_DIR)) {
       fail(`${rel} imports "${specifier}" — a browser cannot resolve bare specifiers`);
     if (!specifier.endsWith('.js')) fail(`${rel} imports "${specifier}" without a .js extension`);
   }
-  const withoutComments = code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
-  const nodeGlobal = withoutComments.match(NODE_GLOBALS_RE);
-  if (nodeGlobal) fail(`${rel} uses the Node-only global "${nodeGlobal[0]}"`);
+  const nodeGlobal = findNodeGlobal(code);
+  if (nodeGlobal) fail(`${rel} uses the Node-only global "${nodeGlobal}"`);
 }
 
 async function loadInBrowserLikeRealm() {
-  const context = vm.createContext({});
+  const context = vm.createContext(webGlobals());
   const cache = new Map();
   const load = (file) => {
     let mod = cache.get(file);
@@ -80,7 +76,9 @@ async function main() {
   const { web: webChecks } = loadPackageChecks(ROOT);
   const exercised = webChecks ? await runChecks('web', webChecks(web, node), fail) : 0;
 
-  console.log(`check-web: OK — ESM build runs without Node APIs (${exercised} package checks)`);
+  console.log(
+    `check-web: OK — ESM build runs with Web APIs and without Node APIs (${exercised} package checks)`,
+  );
 }
 
 main().catch((e) => fail(e && e.stack ? e.stack : String(e)));
