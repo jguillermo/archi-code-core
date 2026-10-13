@@ -291,8 +291,7 @@ los errores habituales. Para la API completa remite a este README dentro de `nod
 sigue valiendo al actualizar el paquete. Para instalarla en tu proyecto:
 
 ```bash
-mkdir -p .claude/skills/archi-code-test
-cp node_modules/@archi-code/test/SKILL.md .claude/skills/archi-code-test/SKILL.md
+mkdir -p .claude/skills/archi-code-test && cp node_modules/@archi-code/test/SKILL.md .claude/skills/archi-code-test/SKILL.md
 ```
 
 ### Cómo se usa
@@ -320,7 +319,7 @@ usar algo que la skill no muestra, lee este README en `node_modules`.
 
 ### Mantenerla al día
 
-- La copia no se actualiza sola: después de actualizar `@archi-code/test`, vuelve a ejecutar el `cp`
+- La copia no se actualiza sola: después de actualizar `@archi-code/test`, vuelve a ejecutar el comando
   de arriba.
 - Sube `.claude/skills/archi-code-test/` al repositorio para que todo el equipo la use.
 

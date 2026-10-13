@@ -304,8 +304,7 @@ los errores habituales. Para la API completa remite a este README dentro de `nod
 sigue valiendo al actualizar el paquete. Para instalarla en tu proyecto:
 
 ```bash
-mkdir -p .claude/skills/archi-code-criteria
-cp node_modules/@archi-code/criteria/SKILL.md .claude/skills/archi-code-criteria/SKILL.md
+mkdir -p .claude/skills/archi-code-criteria && cp node_modules/@archi-code/criteria/SKILL.md .claude/skills/archi-code-criteria/SKILL.md
 ```
 
 ### Cómo se usa
@@ -333,7 +332,7 @@ usar algo que la skill no muestra, lee este README en `node_modules`.
 
 ### Mantenerla al día
 
-- La copia no se actualiza sola: después de actualizar `@archi-code/criteria`, vuelve a ejecutar el `cp`
+- La copia no se actualiza sola: después de actualizar `@archi-code/criteria`, vuelve a ejecutar el comando
   de arriba.
 - Sube `.claude/skills/archi-code-criteria/` al repositorio para que todo el equipo la use.
 

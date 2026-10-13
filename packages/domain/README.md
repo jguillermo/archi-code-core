@@ -653,8 +653,7 @@ comunes de `@archi-code/domain`. Para la API completa remite a este README dentr
 tu proyecto:
 
 ```bash
-mkdir -p .claude/skills/archi-code-domain
-cp node_modules/@archi-code/domain/SKILL.md .claude/skills/archi-code-domain/SKILL.md
+mkdir -p .claude/skills/archi-code-domain && cp node_modules/@archi-code/domain/SKILL.md .claude/skills/archi-code-domain/SKILL.md
 ```
 
 ### Cómo se usa
@@ -682,7 +681,7 @@ usar algo que la skill no muestra, lee este README en `node_modules`.
 
 ### Mantenerla al día
 
-- La copia no se actualiza sola: después de actualizar `@archi-code/domain`, vuelve a ejecutar el `cp`
+- La copia no se actualiza sola: después de actualizar `@archi-code/domain`, vuelve a ejecutar el comando
   de arriba.
 - Sube `.claude/skills/archi-code-domain/` al repositorio para que todo el equipo la use.
 

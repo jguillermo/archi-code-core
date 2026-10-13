@@ -78,7 +78,8 @@ Both files are written in Spanish and for the people (and the AI assistants) tha
 - `README.md` explains the whole public API with examples that run against the build (results shown
   in comments are the real ones): installation, ESM/CJS import, one section per concept, errors, a
   table of every export, a "Skill para asistentes de IA" section and the license. The skill section
-  shows the `mkdir`/`cp` install commands, a "Cómo se usa" subsection with three example prompts
+  shows the one-line install command
+  (`mkdir -p … && cp …`), a "Cómo se usa" subsection with three example prompts
   for that package (explicit `/archi-code-<name> <task>`, a task that loads it on its own, a review
   of existing code) and a "Mantenerla al día" subsection (copy it again after updating the package,
   commit `.claude/skills/`). Nothing about the

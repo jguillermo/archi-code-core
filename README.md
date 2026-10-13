@@ -26,8 +26,7 @@ al README instalado en `node_modules`, así que sigue valiendo al actualizar el 
 la de un paquete en tu proyecto:
 
 ```bash
-mkdir -p .claude/skills/archi-code-domain
-cp node_modules/@archi-code/domain/SKILL.md .claude/skills/archi-code-domain/SKILL.md
+mkdir -p .claude/skills/archi-code-domain && cp node_modules/@archi-code/domain/SKILL.md .claude/skills/archi-code-domain/SKILL.md
 ```
 
 Cambia `domain` por el paquete que uses. La skill se invoca con `/archi-code-<paquete>` o Claude la
