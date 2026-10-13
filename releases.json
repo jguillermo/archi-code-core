@@ -16,7 +16,7 @@
       "main": "3.0.0-alpha.2"
     },
     "@archi-code/validation": {
-      "main": "3.0.0-alpha.2"
+      "main": "3.0.0-alpha.3"
     }
   },
   "deploys": [
@@ -187,6 +187,16 @@
           "bump": "minor",
           "reasons": [
             "commits (minor)"
+          ],
+          "dependencies": {}
+        },
+        {
+          "name": "@archi-code/validation",
+          "previous": "3.0.0-alpha.2",
+          "version": "3.0.0-alpha.3",
+          "bump": "patch",
+          "reasons": [
+            "commits (patch)"
           ],
           "dependencies": {}
         }
