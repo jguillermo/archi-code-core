@@ -319,6 +319,9 @@ describe('Criteria.create', () => {
     [() => Criteria.create({ where: { $where: 'x' } as never }), 'INVALID_FIELD'],
     [() => Criteria.create({ where: { 'a..b': 'x' } as never }), 'INVALID_FIELD'],
     [() => Criteria.create({ where: { '__proto__.x': 'x' } as never }), 'INVALID_FIELD'],
+    [() => Criteria.create({ where: { 'a\u0000b': 'x' } as never }), 'INVALID_FIELD'],
+    [() => Criteria.create({ where: { 'a.\nb': 'x' } as never }), 'INVALID_FIELD'],
+    [() => Criteria.create({ where: { 'a\u007f': 'x' } as never }), 'INVALID_FIELD'],
     [() => Criteria.create({ orderBy: 'name' as never }), 'INVALID_ORDER'],
     [() => Criteria.create({ orderBy: { name: 'up' } as never }), 'INVALID_ORDER'],
     [
@@ -328,6 +331,11 @@ describe('Criteria.create', () => {
     [() => Criteria.create({ limit: 0 }), 'INVALID_PAGINATION'],
     [() => Criteria.create({ limit: 1.5 }), 'INVALID_PAGINATION'],
     [() => Criteria.create({ offset: -1 }), 'INVALID_PAGINATION'],
+    [() => Criteria.create({ offset: 1e300 }), 'INVALID_PAGINATION'],
+    [() => Criteria.create({ limit: Number.MAX_SAFE_INTEGER + 1 }), 'INVALID_PAGINATION'],
+    [() => Criteria.create().page(1e300, 10), 'INVALID_PAGINATION'],
+    [() => Criteria.create().page(2 ** 40, 2 ** 20), 'INVALID_PAGINATION'],
+    [() => Criteria.create().page(1, Number.MAX_SAFE_INTEGER + 1), 'INVALID_PAGINATION'],
   ])('rejects invalid input (%#)', (action, code) => {
     const error = errorOf(action);
     expect(error).toBeInstanceOf(CriteriaError);
@@ -356,6 +364,22 @@ describe('Criteria immutability', () => {
     expect(Object.isFrozen(criteria.order)).toBe(true);
     expect(Object.isFrozen(criteria.order[0])).toBe(true);
     expect(Object.isFrozen(criteria.pagination)).toBe(true);
+  });
+
+  it('refuses to change the dates it holds', () => {
+    const criteria = Criteria.create<UserPrimitives>({
+      where: { createdAt: { between: [new Date(0), new Date(10)] } },
+    });
+    const node = criteria.filter as { min: Date; max: Date };
+    expect(node.min).toBeInstanceOf(Date);
+    expect(Object.isFrozen(node.min)).toBe(true);
+    expect(() => node.min.setTime(99)).toThrow(TypeError);
+    expect(() => node.max.setUTCFullYear(2000)).toThrow('A criteria date cannot be changed');
+    expect(() => (node.min as unknown as { setYear(year: number): number }).setYear(99)).toThrow(
+      TypeError,
+    );
+    expect([node.min.getTime(), node.max.getTime()]).toEqual([0, 10]);
+    expect(Criteria.fromUrl<UserPrimitives>(criteria.toUrl()).equals(criteria)).toBe(true);
   });
 
   it('copies input lists and dates', () => {
@@ -431,6 +455,51 @@ describe('Criteria methods', () => {
     const same = Criteria.create<UserPrimitives>({ where: { createdAt: new Date(5) }, limit: 2 });
     expect(one.equals(same)).toBe(true);
     expect(one.equals(same.paginate({ limit: 3 }))).toBe(false);
+  });
+
+  it('equals ignores the order of AND/OR conditions and of list values', () => {
+    const one = Criteria.create<UserPrimitives>({
+      where: {
+        status: 'active',
+        age: { in: [1, 2, 2] },
+        OR: [{ name: 'a' }, { tags: { hasSome: ['x', 'y'] } }],
+        AND: [{ active: true }, { id: { nin: ['b', 'a'] } }],
+      },
+    });
+    const same = Criteria.create<UserPrimitives>({
+      where: {
+        AND: [{ id: { nin: ['a', 'b'] } }],
+        OR: [{ tags: { hasSome: ['y', 'x'] } }, { name: 'a' }],
+        active: true,
+        age: { in: [2, 1] },
+        status: 'active',
+      },
+    });
+    expect(one.equals(same)).toBe(true);
+    expect(one.toUrl()).not.toBe(same.toUrl());
+    expect(one.equals(same.and({ name: 'b' }))).toBe(false);
+  });
+
+  it('equals keeps the meaning of NOT, of AND against OR and of the order', () => {
+    const where = (and: 'AND' | 'OR') =>
+      Criteria.create<UserPrimitives>({ where: { [and]: [{ name: 'a' }, { id: 'b' }] } });
+    expect(where('AND').equals(where('OR'))).toBe(false);
+    expect(
+      Criteria.create<UserPrimitives>({
+        where: { NOT: { OR: [{ name: 'a' }, { id: 'b' }] } },
+      }).equals(
+        Criteria.create<UserPrimitives>({ where: { NOT: { OR: [{ id: 'b' }, { name: 'a' }] } } }),
+      ),
+    ).toBe(true);
+    expect(
+      Criteria.create<UserPrimitives>({ where: { OR: [{ name: 'a' }, { name: 'a' }] } }).equals(
+        Criteria.create<UserPrimitives>({ where: { name: 'a' } }),
+      ),
+    ).toBe(true);
+    const order = (first: 'name' | 'id', second: 'name' | 'id') =>
+      Criteria.create<UserPrimitives>({ orderBy: [{ [first]: 'asc' }, { [second]: 'asc' }] });
+    expect(order('name', 'id').equals(order('id', 'name'))).toBe(false);
+    expect(Criteria.create().equals(Criteria.create({ offset: 0 }))).toBe(true);
   });
 });
 

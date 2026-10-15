@@ -1,6 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 import { Criteria } from '../src/criteria';
 import { CriteriaError } from '../src/criteria-error';
+import { DEFAULT_CRITERIA_LIMITS } from '../src/criteria-limits';
 import { CriteriaChecker } from '../src/criteria';
 import { UserPrimitives } from './support/user';
 
@@ -96,9 +97,28 @@ describe('Criteria JSON', () => {
     expect(restored.pagination).toEqual(criteria.pagination);
   });
 
+  it('decodes an offset without limit', () => {
+    expect(Criteria.fromJSON({ v: 1, s: 5 }).pagination).toEqual({
+      kind: 'offset',
+      limit: null,
+      offset: 5,
+    });
+  });
+
+  it('applies the default limits without a schema', () => {
+    const values = Array.from({ length: 1001 }, (_, index) => `v${index}`);
+    expect(codeOf(() => Criteria.fromJSON({ v: 1, f: ['in', 'id', values] }))).toBe(
+      'LIMIT_EXCEEDED',
+    );
+    expect(Criteria.fromJSON({ v: 1, f: ['in', 'id', values.slice(1)] }).filter).not.toBeNull();
+  });
+
   it('applies a schema when one is given', () => {
     const checked = Criteria.create<UserPrimitives>({ limit: 1 });
-    const schema: CriteriaChecker<UserPrimitives> = { check: () => checked };
+    const schema: CriteriaChecker<UserPrimitives> = {
+      limits: DEFAULT_CRITERIA_LIMITS,
+      check: () => checked,
+    };
     expect(Criteria.fromJSON(criteria.toJSON(), schema)).toBe(checked);
   });
 

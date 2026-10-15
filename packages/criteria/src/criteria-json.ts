@@ -1,6 +1,7 @@
 import { CriteriaNodes } from './criteria-input';
-import { CriteriaError } from './criteria-error';
-import { CriteriaScalar, isRecord } from './criteria-value';
+import { CriteriaError, quote } from './criteria-error';
+import { assertDepth } from './criteria-limits';
+import { CriteriaScalar, isDate, isRecord } from './criteria-value';
 import { FilterNode, TextOperator } from './filter-node';
 import { OrderNode } from './order';
 import { Pagination } from './pagination';
@@ -28,7 +29,7 @@ const TEXT_OPERATORS_BY_CODE: Record<string, TextOperator> = {
 };
 
 function encodeValue(value: CriteriaScalar): EncodedScalar {
-  return value instanceof Date ? { d: value.getTime() } : value;
+  return isDate(value) ? { d: value.getTime() } : value;
 }
 
 function encodeNode(node: FilterNode): unknown[] {
@@ -89,7 +90,8 @@ function decodeFlag(flag: unknown): boolean {
   return flag === 1;
 }
 
-function decodeNode(raw: unknown): FilterNode {
+function decodeNode(raw: unknown, depth = 1): FilterNode {
+  assertDepth(depth);
   if (!Array.isArray(raw) || typeof raw[0] !== 'string') {
     throw new CriteriaError('INVALID_FORMAT', 'A filter must be a list that starts with its code');
   }
@@ -150,12 +152,14 @@ function decodeNode(raw: unknown): FilterNode {
     case 'or':
       return {
         kind: code,
-        filters: Array.isArray(first) ? first.map(decodeNode) : first,
+        filters: Array.isArray(first)
+          ? first.map((child: unknown) => decodeNode(child, depth + 1))
+          : first,
       } as FilterNode;
     case 'not':
-      return { kind: 'not', filter: decodeNode(first) };
+      return { kind: 'not', filter: decodeNode(first, depth + 1) };
     default:
-      throw new CriteriaError('INVALID_FORMAT', `Unknown filter code "${code}"`);
+      throw new CriteriaError('INVALID_FORMAT', `Unknown filter code "${quote(code)}"`);
   }
 }
 
@@ -178,7 +182,7 @@ export function decodeCriteria(json: unknown): CriteriaNodes {
   if (json.v !== 1) {
     throw new CriteriaError(
       'UNSUPPORTED_VERSION',
-      `Unsupported criteria version "${String(json.v)}"`,
+      `Unsupported criteria version "${quote(json.v)}"`,
     );
   }
   return {

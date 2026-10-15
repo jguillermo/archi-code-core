@@ -1,6 +1,13 @@
+import { canonicalCriteria } from './canonical-criteria';
 import { CriteriaError } from './criteria-error';
 import { CriteriaInput, CriteriaNodes, inputToNodes, paginationOf } from './criteria-input';
 import { CriteriaJson, decodeCriteria, encodeCriteria } from './criteria-json';
+import {
+  assertUrlLength,
+  assertWithinLimits,
+  CriteriaLimits,
+  DEFAULT_CRITERIA_LIMITS,
+} from './criteria-limits';
 import { decodeUrlText, encodeUrlText } from './criteria-url';
 import { FilterNode } from './filter-node';
 import { freezeFilter, freezeOrder, freezePagination } from './freeze-nodes';
@@ -11,6 +18,7 @@ import { Pagination } from './pagination';
 import { Where } from './where';
 
 export interface CriteriaChecker<T> {
+  readonly limits: CriteriaLimits;
   check(criteria: Criteria<T>): Criteria<T>;
 }
 
@@ -43,10 +51,15 @@ export class Criteria<T> {
 
   static fromJSON<T>(json: unknown, schema?: CriteriaChecker<T>): Criteria<T> {
     const criteria = Criteria.fromNodes<T>(decodeCriteria(json));
-    return schema === undefined ? criteria : schema.check(criteria);
+    if (schema !== undefined) {
+      return schema.check(criteria);
+    }
+    assertWithinLimits(criteria.filter, criteria.order, DEFAULT_CRITERIA_LIMITS);
+    return criteria;
   }
 
   static fromUrl<T>(text: string, schema?: CriteriaChecker<T>): Criteria<T> {
+    assertUrlLength(text, schema?.limits ?? DEFAULT_CRITERIA_LIMITS);
     return Criteria.fromJSON<T>(decodeUrlText(text), schema);
   }
 
@@ -71,14 +84,24 @@ export class Criteria<T> {
   }
 
   page(page: number, perPage: number): Criteria<T> {
-    if (!Number.isInteger(page) || page < 1 || !Number.isInteger(perPage) || perPage < 1) {
-      throw new CriteriaError('INVALID_PAGINATION', '"page" and "perPage" must be integers from 1');
+    const offset = (page - 1) * perPage;
+    if (
+      !Number.isSafeInteger(page) ||
+      page < 1 ||
+      !Number.isSafeInteger(perPage) ||
+      perPage < 1 ||
+      !Number.isSafeInteger(offset)
+    ) {
+      throw new CriteriaError(
+        'INVALID_PAGINATION',
+        '"page" and "perPage" must be integers from 1 and give a safe offset',
+      );
     }
-    return this.paginate({ limit: perPage, offset: (page - 1) * perPage });
+    return this.paginate({ limit: perPage, offset });
   }
 
   equals(other: Criteria<T>): boolean {
-    return this.toUrl() === other.toUrl();
+    return canonicalCriteria(this.toJSON()) === canonicalCriteria(other.toJSON());
   }
 
   toJSON(): CriteriaJson {

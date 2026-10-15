@@ -24,8 +24,23 @@
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/cjs/index.d.ts",
+  "browser": "./dist/esm/index.js",
   "exports": {
     ".": {
+      "browser": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "node": {
+        "import": {
+          "types": "./dist/esm/index.d.ts",
+          "default": "./dist/esm/index.js"
+        },
+        "require": {
+          "types": "./dist/cjs/index.d.ts",
+          "default": "./dist/cjs/index.js"
+        }
+      },
       "import": {
         "types": "./dist/esm/index.d.ts",
         "default": "./dist/esm/index.js"
@@ -33,7 +48,8 @@
       "require": {
         "types": "./dist/cjs/index.d.ts",
         "default": "./dist/cjs/index.js"
-      }
+      },
+      "default": "./dist/esm/index.js"
     },
     "./package.json": "./package.json"
   },
@@ -50,7 +66,7 @@
     "test": "jest",
     "test:coverage": "jest --coverage",
     "check:types": "tsc -p tsconfig.json --noEmit --incremental false",
-    "check:dist": "node ../../scripts/check-dist.js && node ../../scripts/check-types.js",
+    "check:dist": "node ../../scripts/check-dist.js && node ../../scripts/check-types.js && node --experimental-vm-modules --no-warnings ../../scripts/check-web.js && node ../../scripts/check-browser.js",
     "check:editorconfig": "node ../../scripts/editorconfig.js",
     "check:all": "npm run check:editorconfig && npm run check:prettier && npm run check:lint && npm run check:types && npm run test:coverage && npm run build && npm run check:dist",
     "check:lint": "eslint src test --ext .ts",

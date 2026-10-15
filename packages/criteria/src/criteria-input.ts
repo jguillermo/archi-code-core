@@ -1,4 +1,4 @@
-import { CriteriaError } from './criteria-error';
+import { CriteriaError, quote } from './criteria-error';
 import { isRecord } from './criteria-value';
 import { FilterNode } from './filter-node';
 import { normalizeOrderBy } from './normalize-order';
@@ -39,7 +39,7 @@ export function inputToNodes(input: unknown): Required<CriteriaNodes> {
   }
   const unknownKey = Object.keys(input).find((key) => !INPUT_KEYS.has(key));
   if (unknownKey !== undefined) {
-    throw new CriteriaError('INVALID_FORMAT', `Unknown criteria key "${unknownKey}"`);
+    throw new CriteriaError('INVALID_FORMAT', `Unknown criteria key "${quote(unknownKey)}"`);
   }
   return {
     filter: input.where === undefined ? null : normalizeWhere(input.where),

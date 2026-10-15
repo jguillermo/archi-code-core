@@ -2,15 +2,14 @@ import { describe, expect, it } from '@jest/globals';
 import * as api from '../src/index';
 
 const PUBLIC_API = [
-  'CRITERIA_CONTRACT_CASES',
   'Criteria',
   'CriteriaError',
+  'DEFAULT_CRITERIA_LIMITS',
+  'compareText',
   'compareValues',
-  'contractDay',
-  'createContractDocuments',
   'defineCriteriaSchema',
+  'isDate',
   'mapField',
-  'runCriteriaContract',
   'valuesEqual',
   'visitFilter',
 ];

@@ -43,6 +43,13 @@ describe('freezeFilter', () => {
     [{ kind: 'arrayEmpty', field: 'a', value: undefined }, 'INVALID_VALUE'],
     [{ kind: 'arrayContains', field: 'a', match: 'any', values: [1] }, 'INVALID_OPERATOR'],
     [{ kind: 'arrayContains', field: 'a', match: 'every', values: [] }, 'EMPTY_LIST'],
+    [{ kind: 'in', field: 'a', values: ['1', 1] }, 'INVALID_VALUE'],
+    [{ kind: 'notIn', field: 'a', values: [new Date(0), 0] }, 'INVALID_VALUE'],
+    [{ kind: 'arrayContains', field: 'a', match: 'some', values: [true, 'true'] }, 'INVALID_VALUE'],
+    [
+      { kind: 'text', field: 'a', operator: 'contains', value: '', caseSensitive: true },
+      'INVALID_VALUE',
+    ],
   ])('rejects %j with %s', (node, code) => {
     expect(codeOf(() => freezeFilter(node))).toBe(code);
   });
@@ -53,8 +60,8 @@ describe('freezeFilter', () => {
       filters: [
         { kind: 'not', filter: { kind: 'compare', field: 'a', operator: 'lte', value: 'z' } },
         { kind: 'between', field: 'd', min: new Date(1), max: new Date(1) },
-        { kind: 'notIn', field: 'a', values: [true, 'x'] },
-        { kind: 'text', field: 'a', operator: 'endsWith', value: '', caseSensitive: false },
+        { kind: 'notIn', field: 'a', values: [true, false] },
+        { kind: 'text', field: 'a', operator: 'endsWith', value: 'z', caseSensitive: false },
         { kind: 'arrayContains', field: 'a.b', match: 'every', values: [1] },
         { kind: 'arrayEmpty', field: 'a', value: true },
       ],

@@ -1,0 +1,142 @@
+{
+  "name": "@archi-code/criteria-adapters",
+  "version": "0.0.0-development",
+  "keywords": [
+    "DDD",
+    "node",
+    "browser",
+    "criteria",
+    "repository",
+    "search",
+    "in-memory",
+    "mongodb",
+    "indexeddb"
+  ],
+  "author": "Jose Guillermo",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jguillermo/archi-code-core"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    "./memory": {
+      "import": {
+        "types": "./dist/esm/memory/index.d.ts",
+        "default": "./dist/esm/memory/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/memory/index.d.ts",
+        "default": "./dist/cjs/memory/index.js"
+      }
+    },
+    "./mongodb": {
+      "import": {
+        "types": "./dist/esm/mongodb/index.d.ts",
+        "default": "./dist/esm/mongodb/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/mongodb/index.d.ts",
+        "default": "./dist/cjs/mongodb/index.js"
+      }
+    },
+    "./indexeddb": {
+      "import": {
+        "types": "./dist/esm/indexeddb/index.d.ts",
+        "default": "./dist/esm/indexeddb/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/indexeddb/index.d.ts",
+        "default": "./dist/cjs/indexeddb/index.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "typesVersions": {
+    "*": {
+      "memory": [
+        "./dist/cjs/memory/index.d.ts"
+      ],
+      "mongodb": [
+        "./dist/cjs/mongodb/index.d.ts"
+      ],
+      "indexeddb": [
+        "./dist/cjs/indexeddb/index.d.ts"
+      ]
+    }
+  },
+  "files": [
+    "dist/",
+    "SKILL.md"
+  ],
+  "sideEffects": false,
+  "dependencies": {
+    "@archi-code/criteria": "0.0.0-development"
+  },
+  "peerDependencies": {
+    "mongodb": ">=6.0.0"
+  },
+  "peerDependenciesMeta": {
+    "mongodb": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "fake-indexeddb": "6.2.5",
+    "mongodb": "7.7.0",
+    "mongodb-memory-server": "11.3.0",
+    "mongodb-v6": "npm:mongodb@6.21.0"
+  },
+  "scripts": {
+    "prebuild": "rm -rf dist || true",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "build:esm": "tsc -p tsconfig.esm.json && node ../../scripts/fix-esm.js",
+    "build": "npm run build:cjs && npm run build:esm",
+    "test": "jest",
+    "test:coverage": "jest --coverage",
+    "check:types": "tsc -p tsconfig.json --noEmit --incremental false",
+    "check:dist": "node ../../scripts/check-dist.js && node ../../scripts/check-types.js && node ../../scripts/check-browser.js",
+    "check:editorconfig": "node ../../scripts/editorconfig.js",
+    "check:all": "npm run check:editorconfig && npm run check:prettier && npm run check:lint && npm run check:types && npm run test:coverage && npm run build && npm run check:dist",
+    "check:lint": "eslint src test --ext .ts",
+    "fix:lint": "eslint src test --ext .ts --fix",
+    "check:prettier": "prettier --check \"{src,test}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\" \"*.{json,md}\"",
+    "fix:prettier": "prettier --write \"{src,test}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\" \"*.{json,md}\""
+  },
+  "jest": {
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
+    "rootDir": ".",
+    "roots": [
+      "<rootDir>/src",
+      "<rootDir>/test"
+    ],
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.ts$": "ts-jest"
+    },
+    "collectCoverageFrom": [
+      "src/**/*.(t|j)s"
+    ],
+    "coverageDirectory": "./coverage",
+    "testEnvironment": "node",
+    "collectCoverage": false,
+    "injectGlobals": false,
+    "coverageThreshold": {
+      "global": {
+        "branches": 100,
+        "functions": 100,
+        "lines": 100,
+        "statements": 100
+      }
+    }
+  }
+}

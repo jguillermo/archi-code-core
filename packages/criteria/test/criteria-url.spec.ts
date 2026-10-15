@@ -1,6 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 import { Criteria } from '../src/criteria';
 import { CriteriaError } from '../src/criteria-error';
+import { DEFAULT_CRITERIA_LIMITS } from '../src/criteria-limits';
 import { decodeUrlText, encodeUrlText } from '../src/criteria-url';
 import { UserPrimitives } from './support/user';
 
@@ -51,7 +52,8 @@ describe('Criteria URL text', () => {
 
   it('checks the result with a schema when one is given', () => {
     const limited = Criteria.create({ limit: 1 });
-    expect(Criteria.fromUrl(Criteria.create().toUrl(), { check: () => limited })).toBe(limited);
+    const schema = { limits: DEFAULT_CRITERIA_LIMITS, check: () => limited };
+    expect(Criteria.fromUrl(Criteria.create().toUrl(), schema)).toBe(limited);
   });
 
   it.each([
@@ -65,6 +67,19 @@ describe('Criteria URL text', () => {
     [encodeUrlText({ v: 9 }), 'UNSUPPORTED_VERSION'],
   ])('rejects %j', (text, code) => {
     expect(codeOf(() => Criteria.fromUrl(text))).toBe(code);
+  });
+
+  it('keeps the parse error as the cause of INVALID_TEXT', () => {
+    const notJson = encodeUrlText('x').slice(0, -1);
+    let error: unknown = null;
+    try {
+      decodeUrlText(notJson);
+    } catch (thrown) {
+      error = thrown;
+    }
+    expect(error).toBeInstanceOf(CriteriaError);
+    expect((error as CriteriaError).cause).toBeInstanceOf(SyntaxError);
+    expect(codeOf(() => decodeUrlText(5))).toBe('INVALID_TEXT');
   });
 
   it('rejects text that is not a string', () => {

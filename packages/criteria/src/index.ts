@@ -3,8 +3,10 @@ export type { CriteriaChecker } from './criteria';
 export type { CriteriaInput, CriteriaNodes } from './criteria-input';
 export type { CriteriaJson, EncodedScalar } from './criteria-json';
 export { CriteriaError } from './criteria-error';
-export type { CriteriaErrorCode } from './criteria-error';
-export { compareValues, valuesEqual } from './criteria-value';
+export { DEFAULT_CRITERIA_LIMITS } from './criteria-limits';
+export type { CriteriaLimits } from './criteria-limits';
+export type { CriteriaErrorCode, CriteriaErrorOptions } from './criteria-error';
+export { compareText, compareValues, isDate, valuesEqual } from './criteria-value';
 export type { CriteriaScalar, CriteriaValue, RangeValue } from './criteria-value';
 export type {
   AndNode,
@@ -53,12 +55,3 @@ export type {
   ScalarFieldType,
   SchemaFields,
 } from './criteria-schema';
-export { contractDay, createContractDocuments } from './contract/contract-documents';
-export type { ContractAddress, ContractDocument } from './contract/contract-documents';
-export { CRITERIA_CONTRACT_CASES } from './contract/contract-cases';
-export type { CriteriaContractCase } from './contract/contract-cases';
-export { runCriteriaContract } from './contract/run-criteria-contract';
-export type {
-  CriteriaContractAdapter,
-  CriteriaContractFailure,
-} from './contract/run-criteria-contract';

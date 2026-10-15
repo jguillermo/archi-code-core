@@ -40,6 +40,15 @@ jobs:
       - name: Install the browsers of Playwright
         run: npx playwright install --with-deps chromium firefox webkit
 
+      # @archi-code/criteria-adapters runs its MongoDB specs on the mongod binaries that
+      # mongodb-memory-server downloads (about 140 MB per version); keep them between runs.
+      - name: Cache the MongoDB binaries
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/mongodb-binaries
+          key: mongodb-binaries-${{ runner.os }}-${{ hashFiles('packages/criteria-adapters/package.json') }}
+          restore-keys: mongodb-binaries-${{ runner.os }}-
+
       - name: Build packages in dependency order
         run: npm run build
 

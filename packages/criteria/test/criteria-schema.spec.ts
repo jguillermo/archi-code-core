@@ -1,6 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 import { Criteria } from '../src/criteria';
 import { CriteriaError } from '../src/criteria-error';
+import { DEFAULT_CRITERIA_LIMITS } from '../src/criteria-limits';
 import { defineCriteriaSchema } from '../src/criteria-schema';
 import { UserPrimitives } from './support/user';
 
@@ -34,10 +35,12 @@ describe('defineCriteriaSchema types', () => {
     defineCriteriaSchema<UserPrimitives>({
       // @ts-expect-error age is a number
       fields: { age: 'string' },
+      maxLimit: 10,
     });
     defineCriteriaSchema<UserPrimitives>({
       // @ts-expect-error unknown field
       fields: { password: 'string' },
+      maxLimit: 10,
     });
     expect(true).toBe(true);
   });
@@ -125,9 +128,10 @@ describe('schema.parse', () => {
     });
   });
 
-  it('leaves the result unlimited when the schema sets no limits', () => {
-    const schema = defineCriteriaSchema<UserPrimitives>({ fields: { id: 'string' } });
-    expect(schema.parse({}).pagination).toBeNull();
+  it('rejects a schema without maxLimit', () => {
+    expect(codeOf(() => defineCriteriaSchema({ fields: { id: 'string' } } as never))).toBe(
+      'INVALID_SCHEMA',
+    );
   });
 
   it('accepts hasSome with one value when only hasSome is allowed', () => {
@@ -156,6 +160,21 @@ describe('schema.parse', () => {
     [{ orderBy: { password: 'asc' } }, 'UNKNOWN_FIELD'],
     [{ limit: 101 }, 'LIMIT_EXCEEDED'],
     [{ limit: 'ten' }, 'INVALID_PAGINATION'],
+    [{ offset: 10_000 }, 'NO_ERROR'],
+    [{ offset: 10_001 }, 'LIMIT_EXCEEDED'],
+    [{ offset: '1000000000000000' }, 'LIMIT_EXCEEDED'],
+    [{ offset: 1e300 }, 'LIMIT_EXCEEDED'],
+    [{ offset: -1 }, 'INVALID_PAGINATION'],
+    [{ where: { createdAt: '1' } }, 'INVALID_VALUE'],
+    [{ where: { createdAt: '2024' } }, 'INVALID_VALUE'],
+    [{ where: { createdAt: '1700000000000' } }, 'INVALID_VALUE'],
+    [{ where: { createdAt: 'March 7' } }, 'INVALID_VALUE'],
+    [{ where: { createdAt: '2024-01-01T00:00' } }, 'INVALID_VALUE'],
+    [{ where: { createdAt: '2024-02-30' } }, 'INVALID_VALUE'],
+    [{ where: { createdAt: 1.5 } }, 'INVALID_VALUE'],
+    [{ where: { age: '0x10' } }, 'INVALID_VALUE'],
+    [{ where: { age: '1e3' } }, 'INVALID_VALUE'],
+    [{ where: { age: ' 12 ' } }, 'INVALID_VALUE'],
   ])('rejects %j with %s', (input, code) => {
     expect(codeOf(() => userSchema.parse(input))).toBe(code);
   });
@@ -187,6 +206,14 @@ describe('schema.check and schema.fromUrl', () => {
     );
   });
 
+  it('converts strict ISO dates and milliseconds given as a number', () => {
+    const at = (value: unknown): unknown =>
+      (userSchema.parse({ where: { createdAt: value } }).filter as { value: Date }).value;
+    expect(at('2024-01-01')).toEqual(new Date('2024-01-01T00:00:00.000Z'));
+    expect(at('2024-01-01T10:00+02:00')).toEqual(new Date('2024-01-01T08:00:00.000Z'));
+    expect(at(1_700_000_000_000)).toEqual(new Date(1_700_000_000_000));
+  });
+
   it('freezes the schema', () => {
     expect(Object.isFrozen(userSchema)).toBe(true);
   });
@@ -201,7 +228,14 @@ describe('schema definition errors', () => {
     [{ fields: { age: 'number[][]' } }],
     [{ fields: { age: { type: 'number', operators: ['contains'] } } }],
     [{ fields: { tags: { type: 'string[]', sortable: true } } }],
-    [{ fields: {}, defaultLimit: 0 }],
+    [{ fields: {}, maxLimit: 10, defaultLimit: 0 }],
+    [{ fields: {}, maxLimit: 0 }],
+    [{ fields: {}, maxLimit: Number.MAX_SAFE_INTEGER + 1 }],
+    [{ fields: {}, maxLimit: 10, maxOffset: 0 }],
+    [{ fields: {}, maxLimit: 10, maxOffset: 1.5 }],
+    [{ fields: {}, maxLimit: 10, limits: null }],
+    [{ fields: {}, maxLimit: 10, limits: { maxRows: 1 } }],
+    [{ fields: {}, maxLimit: 10, limits: { maxDepth: 65 } }],
     [{ fields: {}, maxLimit: 1.5 }],
     [{ fields: {}, defaultLimit: 10, maxLimit: 5 }],
   ])('rejects %j', (definition) => {
@@ -217,7 +251,90 @@ describe('schema definition errors', () => {
   it('skips fields declared as undefined', () => {
     const schema = defineCriteriaSchema<UserPrimitives>({
       fields: { id: 'string', age: undefined },
+      maxLimit: 10,
     });
     expect(codeOf(() => schema.parse({ where: { age: 1 } }))).toBe('UNKNOWN_FIELD');
+  });
+});
+
+describe('schema limits', () => {
+  const smallSchema = defineCriteriaSchema<UserPrimitives>({
+    fields: { id: 'string', age: 'number' },
+    maxLimit: 10,
+    maxOffset: 20,
+    limits: { maxDepth: 2, maxNodes: 3, maxListSize: 2, maxUrlLength: 60 },
+  });
+
+  it('exposes the resolved limits', () => {
+    expect(smallSchema.limits).toEqual({
+      ...DEFAULT_CRITERIA_LIMITS,
+      maxDepth: 2,
+      maxNodes: 3,
+      maxListSize: 2,
+      maxUrlLength: 60,
+    });
+    expect(userSchema.limits).toBe(DEFAULT_CRITERIA_LIMITS);
+  });
+
+  it.each([
+    [{ where: { NOT: { NOT: { id: 'a' } } } }, 'LIMIT_EXCEEDED'],
+    [{ where: { NOT: { id: 'a' } } }, 'NO_ERROR'],
+    [{ where: { OR: [{ id: 'a' }, { id: 'b' }, { id: 'c' }] } }, 'LIMIT_EXCEEDED'],
+    [{ where: { id: { in: ['a', 'b', 'c'] } } }, 'LIMIT_EXCEEDED'],
+    [{ offset: 21 }, 'LIMIT_EXCEEDED'],
+    [{ offset: 20 }, 'NO_ERROR'],
+  ])('parse checks %j', (input, code) => {
+    expect(codeOf(() => smallSchema.parse(input))).toBe(code);
+  });
+
+  it('checks a criteria built in code and a URL text against its limits', () => {
+    const wide = Criteria.create<UserPrimitives>({ where: { id: { in: ['a', 'b', 'c'] } } });
+    expect(codeOf(() => smallSchema.check(wide))).toBe('LIMIT_EXCEEDED');
+    expect(codeOf(() => smallSchema.fromUrl(wide.toUrl()))).toBe('LIMIT_EXCEEDED');
+    const long = Criteria.create<UserPrimitives>({ where: { id: 'a'.repeat(60) } }).toUrl();
+    expect(codeOf(() => smallSchema.fromUrl(long))).toBe('LIMIT_EXCEEDED');
+    expect(codeOf(() => Criteria.fromUrl(long, smallSchema))).toBe('LIMIT_EXCEEDED');
+  });
+});
+
+describe('schema tiebreaker', () => {
+  const pagedSchema = defineCriteriaSchema<UserPrimitives>({
+    fields: { id: 'string', name: 'string', createdAt: 'date' },
+    maxLimit: 50,
+    tiebreaker: 'id',
+  });
+
+  it('adds the tiebreaker last so pages never overlap', () => {
+    expect(pagedSchema.parse({}).order).toEqual([{ field: 'id', direction: 'asc' }]);
+    expect(pagedSchema.parse({ orderBy: { createdAt: 'desc' } }).order).toEqual([
+      { field: 'createdAt', direction: 'desc' },
+      { field: 'id', direction: 'asc' },
+    ]);
+    expect(
+      pagedSchema.check(Criteria.create<UserPrimitives>({ orderBy: { name: 'asc' } })).order,
+    ).toEqual([
+      { field: 'name', direction: 'asc' },
+      { field: 'id', direction: 'asc' },
+    ]);
+  });
+
+  it('keeps the direction the input gives to the tiebreaker', () => {
+    expect(pagedSchema.parse({ orderBy: [{ id: 'desc' }, { name: 'asc' }] }).order).toEqual([
+      { field: 'id', direction: 'desc' },
+      { field: 'name', direction: 'asc' },
+    ]);
+  });
+
+  it.each([
+    [{ tiebreaker: 'age' }],
+    [{ tiebreaker: 'tags', fields: { tags: 'string[]' } }],
+    [{ tiebreaker: 'name', fields: { name: { type: 'string', sortable: false } } }],
+    [{ tiebreaker: 7 }],
+  ])('rejects %j', (definition) => {
+    expect(
+      codeOf(() =>
+        defineCriteriaSchema({ fields: { id: 'string' }, maxLimit: 10, ...definition } as never),
+      ),
+    ).toBe('INVALID_SCHEMA');
   });
 });

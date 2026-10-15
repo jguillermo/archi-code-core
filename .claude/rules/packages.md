@@ -41,7 +41,8 @@ packages/<folder>/
   monorepo, `engines.node` `>=24`, `publishConfig.access` `public`, `files` `["dist/", "SKILL.md"]` (npm adds `README.md` and
   `LICENSE` on its own).
 - Entry points: `main` `./dist/cjs/index.js`, `module` `./dist/esm/index.js`, `types`
-  `./dist/cjs/index.d.ts`.
+  `./dist/cjs/index.d.ts` (a package with only subpath modules has none of them; see "Allowed
+  per-package extensions").
 - `exports` — each condition carries its own types:
 
   ```json
@@ -114,22 +115,26 @@ people (and the AI assistants) that consume the package:
 - Inside `src/`, import each symbol from the file that declares it
   (`'../exceptions/domain/type-primitive.exception'`), never through an `index.ts` that only
   re-exports it (`'../exceptions'`). Barrels inside a package hide dependencies and create import
-  cycles; `index.ts` files exist to expose the public API. Specs in `test/` may import from the
-  `src` barrels.
+  cycles; `index.ts` files exist to expose the public API. The one exception is a package with
+  subpath modules: across modules, import only through the other module's `index.ts` (its public
+  API). Specs in `test/` may import from the `src` barrels.
 - WebStorm's "Import can be shortened" inspection suggests the opposite: disable it, and the
   directory (`index`) import option in Code Style › TypeScript › Imports (`.idea/` is not shared).
 
 ## Tests and build checks
 
 - Specs import from `../src/...` and use `@jest/globals`. No comments in code (see CLAUDE.md).
-- `test/dist/dist.check.js` exports `smoke(m)` (run on the CJS and the ESM build) and optionally
+- `test/dist/dist.check.js` (for `"."`; `test/dist/<module>.check.js` for each subpath module)
+  exports `smoke(m)` (run on the CJS and the ESM build) and optionally
   `crossBuild(cjs, esm)` and `web(webModule, nodeModule)`; each returns `[name, check]` pairs whose
   `check()` returns (or resolves to) `true` or an error message. The checks must call the real API
   (hash and verify, convert, persist and find…), not just test that it loads.
-- The root scripts check every package the same way: `check-dist.js` (entry files exist, CJS and
-  ESM load with the same exports, `smoke`/`crossBuild`), `check-types.js` (a TypeScript consumer
-  imports the package from ESM and CJS under node16, nodenext and bundler) and `fix-esm.js` (full
-  `.js` specifiers, `createRequire` shim for `require()` in ESM, `dist/esm/package.json`).
+- The root scripts check every package the same way, once per entry point in `exports`:
+  `check-dist.js` (entry files exist, CJS and ESM load with the same exports, `smoke`/`crossBuild`,
+  no hook file for an entry that is not exported), `check-types.js` (a TypeScript consumer imports
+  every entry point from ESM and CJS under node16, nodenext and bundler, and from CommonJS under
+  node10) and `fix-esm.js` (full `.js` specifiers, `createRequire` shim for `require()` in ESM,
+  `dist/esm/package.json`).
 
 ## Allowed per-package extensions
 
@@ -144,7 +149,10 @@ Only when the package needs them, and documented in its README:
   `sideEffects: false` + `check-web.js` and `check-browser.js` in `check:dist` + `web` and `browser`
   in `dist.check.js` (`browser()` returns
   `[name, pageFunction, { csp }?]`; each function runs in a real browser page and receives the URL of
-  the ESM entry). `check-web.js` loads the ESM build in a realm with the standard Web APIs
+  the ESM entry). `check-browser.js` alone (without the rest of the web build) also fits a package
+  whose ESM build imports its runtime `dependencies` by name: it serves them through an import map,
+  runs the `browser` hooks of every entry point and serves `test/` helpers transpiled at
+  `/test/<path>`. `check-web.js` loads the ESM build in a realm with the standard Web APIs
   (`TextEncoder`, `crypto`, `atob`, timers…) and no Node APIs nor `Worker`. Its `exports["."]` may add a `node` condition (nested `import` /
   `require`, each with its own `types`, so Node never takes the `browser` entry) and a last
   `default` pointing to the ESM build for resolvers that match no condition:
@@ -168,6 +176,18 @@ Only when the package needs them, and documented in its README:
   (`cargo audit`, accepted advisories in `rust/.cargo/audit.toml`) run inside `rust/` so rustup and
   cargo find their config. `build` starts with `build:wasm` and `check:all` runs
   `check:rust → build:wasm` right after `check:lint`. CI installs the toolchain and wasm-pack.
+- Subpath modules, for a package that groups independent modules (only
+  `criteria-adapters` today). Each module lives in `src/<module>/` with its own `index.ts`, its
+  specs in `test/<module>/` (with its own `index.spec.ts` pinning that module's API) and its build
+  hooks in `test/dist/<module>.check.js`. `exports` lists only `"./<module>"` entries (each with
+  `import`/`require` and their `types`) and `"./package.json"`; there is no `"."`, no `main`/`module`/
+  `types`, and `typesVersions` maps every module to its `dist/cjs/<module>/index.d.ts` for
+  `moduleResolution: node`. Inside a module, import from the declaring file; across modules only
+  through `../<module>/index`. `test/cross/module-boundaries.spec.ts` is required: it pins the
+  allowed module graph, checks that every module is an exported subpath, and forbids cycles,
+  imports out of `src/`, deep imports into another module and imports of the package itself. Test
+  harnesses shared by the modules (such as a contract) live in `test/<name>/` and are never
+  published. One README (a section per module) and one `SKILL.md` cover every module.
 - `jest.injectGlobals` `true`, only for a spec suite that cannot be edited and relies on Jest
   globals (e.g. one ported from another project). New specs still import from `@jest/globals`.
 
@@ -185,7 +205,8 @@ Only when the package needs them, and documented in its README:
 ## Checklist (validate every package against it)
 
 - [ ] No specs in `src/`, no `scripts/` folder; `test/` mirrors `src/`.
-- [ ] `src/` imports each symbol from its declaring file, never through a re-exporting `index.ts`.
+- [ ] `src/` imports each symbol from its declaring file, never through a re-exporting `index.ts`
+      (subpath modules: across modules only through the module's `index.ts`).
 - [ ] `test/index.spec.ts` pins the public API; `test/dist/dist.check.js` exercises it.
 - [ ] `package.json` entry points, `exports`, `files`, `engines`, `scripts` and `jest` as above.
 - [ ] `version` and internal `@archi-code/*` deps are `0.0.0-development`.

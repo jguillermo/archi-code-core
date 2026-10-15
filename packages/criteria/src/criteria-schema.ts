@@ -1,11 +1,14 @@
 import { Criteria, CriteriaChecker } from './criteria';
-import { CriteriaError } from './criteria-error';
+import { CriteriaError, quote } from './criteria-error';
 import { CriteriaNodes, inputToNodes } from './criteria-input';
+import { assertWithinLimits, CriteriaLimits, resolveLimits } from './criteria-limits';
 import { CriteriaScalar, isRecord } from './criteria-value';
+import { parseDate, parseNumber } from './parse-scalar';
 import { assertField } from './field-name';
 import { FieldNode, FilterNode } from './filter-node';
+import { OrderNode } from './order';
 import { Pagination } from './pagination';
-import { Path, PathValue } from './path';
+import { Path, PathValue, SortablePath } from './path';
 import { visitFilter } from './visit-filter';
 
 export type ScalarFieldType = 'string' | 'number' | 'boolean' | 'date';
@@ -57,8 +60,11 @@ export type SchemaFields<T> = {
 
 export interface CriteriaSchemaDefinition<T> {
   readonly fields: SchemaFields<T>;
+  readonly maxLimit: number;
   readonly defaultLimit?: number;
-  readonly maxLimit?: number;
+  readonly maxOffset?: number;
+  readonly limits?: Partial<CriteriaLimits>;
+  readonly tiebreaker?: SortablePath<T>;
 }
 
 export interface CriteriaSchema<T> extends CriteriaChecker<T> {
@@ -106,11 +112,14 @@ function isArrayType(type: FieldType): boolean {
 function resolveField(field: string, spec: unknown): ResolvedField {
   const resolved: unknown = typeof spec === 'string' ? { type: spec } : spec;
   if (!isRecord(resolved) || typeof resolved.type !== 'string') {
-    throw new CriteriaError('INVALID_SCHEMA', `Field "${field}" needs a type`);
+    throw new CriteriaError('INVALID_SCHEMA', `Field "${quote(field)}" needs a type`);
   }
   const type = resolved.type as FieldType;
   if (!SCALAR_TYPES.includes(elementType(type)) || type.endsWith('[][]')) {
-    throw new CriteriaError('INVALID_SCHEMA', `Field "${field}" has an unknown type "${type}"`);
+    throw new CriteriaError(
+      'INVALID_SCHEMA',
+      `Field "${quote(field)}" has an unknown type "${quote(type)}"`,
+    );
   }
   const allowed = OPERATORS_BY_TYPE[isArrayType(type) ? 'array' : elementType(type)];
   const operators = (resolved.operators ?? allowed) as readonly FilterOperatorName[];
@@ -118,19 +127,24 @@ function resolveField(field: string, spec: unknown): ResolvedField {
   if (invalid !== undefined) {
     throw new CriteriaError(
       'INVALID_SCHEMA',
-      `Operator "${invalid}" does not apply to field "${field}" of type ${type}`,
+      `Operator "${quote(invalid)}" does not apply to field "${quote(field)}" of type ${type}`,
     );
   }
   const sortable = resolved.sortable ?? !isArrayType(type);
   if (sortable === true && isArrayType(type)) {
-    throw new CriteriaError('INVALID_SCHEMA', `Field "${field}" is a list and cannot be sorted`);
+    throw new CriteriaError(
+      'INVALID_SCHEMA',
+      `Field "${quote(field)}" is a list and cannot be sorted`,
+    );
   }
   return { type, operators, sortable: sortable === true };
 }
 
-function assertLimit(value: number | undefined, name: string): void {
-  if (value !== undefined && !(Number.isInteger(value) && value >= 1)) {
-    throw new CriteriaError('INVALID_SCHEMA', `"${name}" must be an integer from 1`);
+const DEFAULT_MAX_OFFSET = 10_000;
+
+function assertLimit(value: unknown, name: string): void {
+  if (value !== undefined && !(Number.isSafeInteger(value) && (value as number) >= 1)) {
+    throw new CriteriaError('INVALID_SCHEMA', `"${quote(name)}" must be an integer from 1`);
   }
 }
 
@@ -142,8 +156,9 @@ function coerceScalar(value: unknown, type: ScalarFieldType, field: string): Cri
     if (typeof value === 'number') {
       return value;
     }
-    if (typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value))) {
-      return Number(value);
+    const parsed = parseNumber(value);
+    if (parsed !== null) {
+      return parsed;
     }
   }
   if (type === 'boolean') {
@@ -155,17 +170,12 @@ function coerceScalar(value: unknown, type: ScalarFieldType, field: string): Cri
     }
   }
   if (type === 'date') {
-    if (value instanceof Date) {
-      return value;
-    }
-    if (typeof value === 'string' || typeof value === 'number') {
-      const date = new Date(value);
-      if (!Number.isNaN(date.getTime())) {
-        return date;
-      }
+    const parsed = parseDate(value);
+    if (parsed !== null) {
+      return parsed;
     }
   }
-  throw new CriteriaError('INVALID_VALUE', `Field "${field}" needs a ${type} value`);
+  throw new CriteriaError('INVALID_VALUE', `Field "${quote(field)}" needs a ${type} value`);
 }
 
 function operatorName(node: FieldNode): FilterOperatorName {
@@ -204,16 +214,35 @@ export function defineCriteriaSchema<T>(
     }
   }
   const { defaultLimit, maxLimit } = definition;
-  assertLimit(defaultLimit, 'defaultLimit');
+  const maxOffset = definition.maxOffset ?? DEFAULT_MAX_OFFSET;
+  if (maxLimit === undefined) {
+    throw new CriteriaError('INVALID_SCHEMA', 'The schema needs "maxLimit"');
+  }
   assertLimit(maxLimit, 'maxLimit');
-  if (defaultLimit !== undefined && maxLimit !== undefined && defaultLimit > maxLimit) {
+  assertLimit(defaultLimit, 'defaultLimit');
+  assertLimit(maxOffset, 'maxOffset');
+  const limits = resolveLimits(definition.limits);
+  const tiebreaker: unknown = definition.tiebreaker;
+  if (
+    tiebreaker !== undefined &&
+    !(typeof tiebreaker === 'string' && fields.get(tiebreaker)?.sortable)
+  ) {
+    throw new CriteriaError(
+      'INVALID_SCHEMA',
+      '"tiebreaker" must be a sortable field of the schema',
+    );
+  }
+  if (defaultLimit !== undefined && defaultLimit > maxLimit) {
     throw new CriteriaError('INVALID_SCHEMA', '"defaultLimit" cannot be greater than "maxLimit"');
   }
 
   const specOf = (field: string): ResolvedField => {
     const spec = fields.get(field);
     if (spec === undefined) {
-      throw new CriteriaError('UNKNOWN_FIELD', `Field "${field}" cannot be used in a search`);
+      throw new CriteriaError(
+        'UNKNOWN_FIELD',
+        `Field "${quote(field)}" cannot be used in a search`,
+      );
     }
     return spec;
   };
@@ -227,7 +256,7 @@ export function defineCriteriaSchema<T>(
     if (!allowed) {
       throw new CriteriaError(
         'OPERATOR_NOT_ALLOWED',
-        `Operator "${operator}" is not allowed on field "${node.field}"`,
+        `Operator "${quote(operator)}" is not allowed on field "${quote(node.field)}"`,
       );
     }
     const type = elementType(spec.type);
@@ -267,29 +296,42 @@ export function defineCriteriaSchema<T>(
 
   const limitPagination = (pagination: Pagination | null): Pagination => {
     const requested = pagination?.limit ?? null;
-    if (requested !== null && maxLimit !== undefined && requested > maxLimit) {
+    if (requested !== null && requested > maxLimit) {
       throw new CriteriaError('LIMIT_EXCEEDED', `"limit" cannot be greater than ${maxLimit}`);
     }
-    return {
-      kind: 'offset',
-      limit: requested ?? defaultLimit ?? maxLimit ?? null,
-      offset: pagination?.offset ?? 0,
-    };
+    const offset = pagination?.offset ?? 0;
+    if (offset > maxOffset) {
+      throw new CriteriaError('LIMIT_EXCEEDED', `"offset" cannot be greater than ${maxOffset}`);
+    }
+    return { kind: 'offset', limit: requested ?? defaultLimit ?? maxLimit, offset };
   };
 
-  const build = (nodes: Required<CriteriaNodes>): Criteria<T> =>
-    Criteria.fromNodes<T>({
+  const withTiebreaker = (order: readonly OrderNode[]): readonly OrderNode[] =>
+    typeof tiebreaker === 'string' && !order.some((item) => item.field === tiebreaker)
+      ? [...order, { field: tiebreaker, direction: 'asc' }]
+      : order;
+
+  const build = (nodes: Required<CriteriaNodes>): Criteria<T> => {
+    assertWithinLimits(nodes.filter, nodes.order, limits);
+    return Criteria.fromNodes<T>({
       filter: nodes.filter === null ? null : coerceFilter(nodes.filter),
-      order: nodes.order.map((item) => {
-        if (!specOf(item.field).sortable) {
-          throw new CriteriaError('NOT_SORTABLE', `Field "${item.field}" cannot be sorted`);
-        }
-        return item;
-      }),
+      order: withTiebreaker(
+        nodes.order.map((item) => {
+          if (!specOf(item.field).sortable) {
+            throw new CriteriaError(
+              'NOT_SORTABLE',
+              `Field "${quote(item.field)}" cannot be sorted`,
+            );
+          }
+          return item;
+        }),
+      ),
       pagination: limitPagination(nodes.pagination),
     });
+  };
 
   const schema: CriteriaSchema<T> = {
+    limits,
     parse: (input) => {
       if (!isRecord(input)) {
         throw new CriteriaError('INVALID_FORMAT', 'The criteria input must be an object');

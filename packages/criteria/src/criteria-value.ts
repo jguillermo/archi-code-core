@@ -2,6 +2,18 @@ export type CriteriaScalar = string | number | boolean | Date;
 export type CriteriaValue = CriteriaScalar | null;
 export type RangeValue = string | number | Date;
 
+export function isDate(value: unknown): value is Date {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  try {
+    Date.prototype.getTime.call(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function rank(value: unknown): number {
   if (value == null) {
     return 0;
@@ -15,7 +27,7 @@ function rank(value: unknown): number {
   if (typeof value === 'boolean') {
     return 3;
   }
-  if (value instanceof Date) {
+  if (isDate(value)) {
     return 4;
   }
   return 5;
@@ -28,6 +40,25 @@ function sign(difference: number): number {
   return difference > 0 ? 1 : 0;
 }
 
+function codePointRank(unit: number): number {
+  if (unit < 0xd800) {
+    return unit;
+  }
+  return unit >= 0xe000 ? unit - 0x800 : unit + 0x2000;
+}
+
+export function compareText(left: string, right: string): number {
+  const length = Math.min(left.length, right.length);
+  for (let index = 0; index < length; index += 1) {
+    const leftUnit = left.charCodeAt(index);
+    const rightUnit = right.charCodeAt(index);
+    if (leftUnit !== rightUnit) {
+      return sign(codePointRank(leftUnit) - codePointRank(rightUnit));
+    }
+  }
+  return sign(left.length - right.length);
+}
+
 export function compareValues(left: unknown, right: unknown): number {
   const leftRank = rank(left);
   const rightRank = rank(right);
@@ -38,22 +69,19 @@ export function compareValues(left: unknown, right: unknown): number {
     return sign(left - right);
   }
   if (typeof left === 'string' && typeof right === 'string') {
-    if (left === right) {
-      return 0;
-    }
-    return left < right ? -1 : 1;
+    return compareText(left, right);
   }
   if (typeof left === 'boolean' && typeof right === 'boolean') {
     return sign(Number(left) - Number(right));
   }
-  if (left instanceof Date && right instanceof Date) {
+  if (isDate(left) && isDate(right)) {
     return sign(left.getTime() - right.getTime());
   }
   return 0;
 }
 
 export function valuesEqual(left: unknown, right: unknown): boolean {
-  if (left instanceof Date && right instanceof Date) {
+  if (isDate(left) && isDate(right)) {
     return left.getTime() === right.getTime();
   }
   return left === right;
@@ -70,19 +98,47 @@ export function isRangeValue(value: unknown): value is RangeValue {
   if (typeof value === 'number') {
     return Number.isFinite(value);
   }
-  return value instanceof Date && !Number.isNaN(value.getTime());
+  return isDate(value) && !Number.isNaN(value.getTime());
 }
 
 export function sameKind(left: unknown, right: unknown): boolean {
   return rank(left) === rank(right);
 }
 
+const DATE_SETTERS = [
+  'setTime',
+  'setMilliseconds',
+  'setUTCMilliseconds',
+  'setSeconds',
+  'setUTCSeconds',
+  'setMinutes',
+  'setUTCMinutes',
+  'setHours',
+  'setUTCHours',
+  'setDate',
+  'setUTCDate',
+  'setMonth',
+  'setUTCMonth',
+  'setFullYear',
+  'setUTCFullYear',
+  'setYear',
+];
+
+class ImmutableDate extends Date {}
+
+for (const setter of DATE_SETTERS) {
+  Object.defineProperty(ImmutableDate.prototype, setter, {
+    value: () => {
+      throw new TypeError('A criteria date cannot be changed');
+    },
+  });
+}
+Object.freeze(ImmutableDate.prototype);
+
 export function copyScalar<V extends CriteriaScalar>(value: V): V {
-  return (value instanceof Date ? new Date(value.getTime()) : value) as V;
+  return (isDate(value) ? Object.freeze(new ImmutableDate(value.getTime())) : value) as V;
 }
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
-  return (
-    value !== null && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)
-  );
+  return value !== null && typeof value === 'object' && !Array.isArray(value) && !isDate(value);
 }

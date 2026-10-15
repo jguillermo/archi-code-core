@@ -3,13 +3,12 @@
 The Criteria pattern for repositories, independent of any database. You describe a search (filters,
 order and pagination) with a typed object; the editor autocompletes the fields of your entity and
 offers only the operators that fit each field type. The result is an immutable `Criteria<T>` holding
-a plain tree of filter nodes that every adapter translates or runs. `@archi-code/criteria-memory`
-runs it over arrays in memory and defines the reference semantics; adapters for other engines
-(MongoDB, IndexedDB) implement the same contract.
+a plain tree of filter nodes that every adapter translates or runs. `@archi-code/criteria-adapters`
+runs it over arrays in memory (`/memory`, the reference semantics), on MongoDB (`/mongodb`) and on
+IndexedDB (`/indexeddb`), all checked against one shared contract.
 
-The package also turns a criteria into a URL-safe text and back, validates untrusted input with a
-schema (allowed fields, operators and limits) and ships the contract every adapter must pass. No
-runtime dependencies; CJS and ESM builds.
+The package also turns a criteria into a URL-safe text and back and validates untrusted input with
+a schema (allowed fields, operators and limits). No runtime dependencies; CJS and ESM builds.
 
 ## Installation
 
@@ -17,8 +16,10 @@ runtime dependencies; CJS and ESM builds.
 npm install @archi-code/criteria
 ```
 
-Requires Node.js 24 or later. The package has no side effects (`sideEffects: false`), so bundlers
-drop whatever you do not import.
+Requires Node.js 24 or later, or any current browser: the `browser` field and the `browser`
+condition of `exports` point to the ESM build, which only uses Web APIs (`TextEncoder`, `btoa`) and
+is checked in Chromium, Firefox and WebKit under a strict Content-Security-Policy. The package has
+no side effects (`sideEffects: false`), so bundlers drop whatever you do not import.
 
 ## Import
 
@@ -71,7 +72,8 @@ criteria.pagination; // { kind: 'offset', limit: 20, offset: 0 }
 ```
 
 Every part is optional: `Criteria.create()` matches everything, in no particular order, without
-limit. The criteria and its nodes are frozen; lists and dates are copied.
+limit. The criteria and its nodes are frozen; lists and dates are copied. The dates it holds are
+still `Date` objects but read-only: their setters (`setTime`, `setFullYear`…) throw `TypeError`.
 
 ### `where`
 
@@ -115,12 +117,24 @@ These rules are the same in every adapter (the contract checks them):
   missing; `ne`, `nin` and `NOT` also match null and missing.
 - `gt`, `gte`, `lt`, `lte` and `between` only match values of the same type, never null. `between`
   includes both ends.
-- Strings compare by code unit (binary order: `'B' < 'a' < 'Á'`); dates by time.
-- `contains`, `startsWith` and `endsWith` search literal text, not a pattern. `mode: 'insensitive'`
-  lowercases both sides; it only applies to these three operators.
+- Strings compare by Unicode code point, which is the binary order of UTF-8 (`'B' < 'a' < 'Á'`,
+  and `'\uFF71' < '😀'` even though JavaScript's `<` says otherwise); dates by time.
+  `compareText(a, b)` implements it.
+- `contains`, `startsWith` and `endsWith` search literal text, not a pattern, and need at least one
+  character (an empty text would match every string). `mode: 'insensitive'` compares with
+  Unicode simple case folding, like a regular expression with the `iu` flags (`'Ω'` matches `'ω'`,
+  the Kelvin sign matches `'k'`, but `'ß'` does not match `'ss'`); it only applies to these three
+  operators.
+- The values of one `in`, `nin`, `hasSome` or `hasEvery` share one type: `['1', 1]` throws.
 - `isEmpty: true` matches an empty list, not a missing one.
+- Scalar operators (`eq`, `ne`, ranges, `in`, `nin`, text) never match a field that holds a list,
+  neither positive nor negated (`eq: 'vip'` and `ne: 'vip'` both skip `['vip']`; use `has` or
+  `NOT`), and a dotted path reads a list element only by its index (`lines.0.sku`): `lines.sku`
+  reads as missing.
+- Only own properties are read, never inherited ones.
 - Ordering puts null and missing first in `asc` and last in `desc`; booleans sort `false` first. Add
-  a unique field (such as `id`) last when the order of ties matters.
+  a unique field (such as `id`) last when the order of ties matters (a schema does it for you with
+  `tiebreaker`).
 
 ### `orderBy`
 
@@ -133,8 +147,9 @@ Criteria.create<UserPrimitives>({ orderBy: [{ status: 'asc' }, { createdAt: 'des
 
 ### `limit` and `offset`
 
-`limit` is an integer from 1 and `offset` an integer from 0. Without `limit` the search returns
-every match.
+`limit` is an integer from 1 and `offset` an integer from 0, both safe integers
+(`Number.isSafeInteger`). Without `limit` the search returns every match. `page(page, perPage)`
+also throws when `(page - 1) * perPage` is not a safe integer.
 
 ## Changing a criteria
 
@@ -153,13 +168,16 @@ base.paginate({ limit: 10, offset: 30 }); // replaces the pagination
 base.page(3, 25).pagination; // { kind: 'offset', limit: 25, offset: 50 }
 ```
 
-`criteria.equals(other)` compares two criteria by content.
+`criteria.equals(other)` compares two criteria by meaning: the order of `AND`/`OR` conditions, the
+order of the values of a list and repeated conditions or values do not matter; the order of
+`orderBy` does.
 
 ## URL text: `toUrl` / `fromUrl`
 
 `toUrl()` turns a criteria into text that only uses `A-Z a-z 0-9 - _`, so it goes into a URL as
-is, with no escaping. `Criteria.fromUrl(text)` rebuilds it and validates it again. The same criteria
-always gives the same text, which also makes it a cache key.
+is, with no escaping. `Criteria.fromUrl(text)` rebuilds it and validates it again. The text keeps
+the order in which the conditions were written, so two equal criteria (`equals`) written in another
+order give different texts.
 
 ```ts
 const text = criteria.toUrl();
@@ -171,8 +189,9 @@ Criteria.fromUrl<UserPrimitives>(text).equals(criteria); // true
 ```
 
 Text from outside must be checked against a schema: `Criteria.fromUrl(text, userSchema)` or
-`userSchema.fromUrl(text)` (see below). Without one, `fromUrl` only checks that the criteria is
-well formed.
+`userSchema.fromUrl(text)` (see below). Without one, `fromUrl` and `fromJSON` only check that the
+criteria is well formed and within `DEFAULT_CRITERIA_LIMITS` (see "Limits"); any field can still be
+filtered.
 
 `toJSON()` / `Criteria.fromJSON(json, schema?)` do the same with the compact JSON form behind the
 text:
@@ -186,12 +205,12 @@ criteria.toJSON();
 
 A schema lists the fields a search may use, their type, the allowed operators and the limits.
 `parse` takes the input of a request (JSON body or parsed query) with the same shape as
-`Criteria.create`, converts text to the field type (`'18'` → `18`, `'true'` → `true`, ISO text or
-milliseconds → `Date`) and applies the limits:
+`Criteria.create`, converts text to the field type and applies the limits:
 
 ```ts
 const userSchema = defineCriteriaSchema<UserPrimitives>({
   fields: {
+    id: 'string',
     status: 'string',
     age: 'number',
     createdAt: 'date',
@@ -201,6 +220,7 @@ const userSchema = defineCriteriaSchema<UserPrimitives>({
   },
   defaultLimit: 20,
   maxLimit: 100,
+  tiebreaker: 'id',
 });
 
 const criteria = userSchema.parse({
@@ -220,32 +240,106 @@ userSchema.parse({ limit: 500 });
   type must match the entity (a compile error otherwise).
 - `operators` narrows the operators of the table above; `sortable: false` forbids ordering by the
   field (lists are never sortable).
-- `defaultLimit` applies when the input has no `limit` (or `maxLimit` when there is no default);
-  a `limit` above `maxLimit` throws.
+- `maxLimit` is required: every criteria a schema returns has a `limit`. `defaultLimit` applies
+  when the input has no `limit` (`maxLimit` when there is no default); a `limit` above `maxLimit`
+  throws.
+- `maxOffset` (default `10000`) caps `offset`: deep offsets make the database read and skip every
+  previous row.
+- `limits` overrides the complexity limits of the schema (see "Limits"); `schema.limits` holds the
+  resolved values.
+- `tiebreaker` names a unique sortable field of the schema (usually `'id'`). The schema adds it last
+  to every order, ascending, unless the input already orders by it, so offset pages never repeat or
+  skip rows that tie. Without `orderBy` the result is ordered by it alone.
 - `schema.check(criteria)` applies the same rules to a criteria you already have and
   `schema.fromUrl(text)` reads and checks a URL text.
 
+### Value conversion
+
+Text and numbers from a query string are converted strictly, the same in every JavaScript engine:
+
+| Field type | Accepted                                                                                 |
+| ---------- | ---------------------------------------------------------------------------------------- |
+| `string`   | text                                                                                     |
+| `number`   | a finite number, or decimal text such as `'18'`, `'-0.5'` (no `'0x10'`, `'1e3'`, `' 1'`) |
+| `boolean`  | `true`, `false`, `'true'`, `'false'`                                                     |
+| `date`     | a valid `Date`; integer milliseconds as a number (`1700000000000`); ISO text             |
+
+ISO text is either a date, read as UTC midnight (`'2024-01-01'`), or a date and time with a zone
+(`'2024-01-01T10:00Z'`, `'2024-01-01T10:00:30.5+02:00'`). A time without a zone
+(`'2024-01-01T10:00'`), dates that do not exist (`'2024-02-30'`) and any other text
+(`'March 7'`) throw `INVALID_VALUE`. Text with only digits is refused too (`'2024'`,
+`'1700000000000'`): it could be a year or milliseconds, so a query string sends dates as ISO text.
+
+### Limits
+
+A criteria that comes from outside is checked against limits, so a request cannot make the parser
+or the database do unbounded work. `DEFAULT_CRITERIA_LIMITS` applies to `Criteria.fromUrl` and
+`Criteria.fromJSON` without a schema and to every schema that does not override it:
+
+| Limit            | Default | Checks                                                   |
+| ---------------- | ------- | -------------------------------------------------------- |
+| `maxDepth`       | `16`    | levels of `AND`/`OR`/`NOT` nesting (at most `64`)        |
+| `maxNodes`       | `256`   | nodes of the filter tree, logical ones included          |
+| `maxListSize`    | `1000`  | values of one `in`, `nin`, `hasSome` or `hasEvery`       |
+| `maxTextLength`  | `1024`  | characters of a field name or a text value               |
+| `maxOrderFields` | `8`     | fields in `orderBy`                                      |
+| `maxUrlLength`   | `8192`  | characters of the text `fromUrl` receives, checked first |
+
+```ts
+const searchSchema = defineCriteriaSchema<UserPrimitives>({
+  fields: { status: 'string', tags: 'string[]' },
+  maxLimit: 50,
+  limits: { maxListSize: 20, maxDepth: 4 },
+});
+
+searchSchema.parse({ where: { tags: { hasSome: manyTags } } });
+// CriteriaError LIMIT_EXCEEDED: Field "tags" has more than 20 values
+```
+
+`Criteria.create` and the methods of a criteria built in code only refuse filters nested deeper than
+64 levels, so a large `in` built by the application (for example, a batch of ids) still works.
+Every limit throws `CriteriaError` with code `LIMIT_EXCEEDED`; input from outside never makes the
+package throw anything else.
+
 ## Errors: `CriteriaError`
 
-Every validation throws a `CriteriaError` (`name` `'CriteriaError'`) with a `code`:
+Every validation throws a `CriteriaError` (`name` `'CriteriaError'`) with a `code`. Messages
+quote at most 64 characters of the input. `error instanceof CriteriaError` also works when an
+application loads two copies of the package (its CommonJS and its ES module build, or two
+versions): the class recognizes the errors of every copy.
 
-| Code                   | When                                                                    |
-| ---------------------- | ----------------------------------------------------------------------- |
-| `INVALID_FORMAT`       | the input, a `where`, a filter or the JSON has the wrong shape          |
-| `INVALID_FIELD`        | empty field, empty segment, a segment starting with `$`, `__proto__`…   |
-| `INVALID_OPERATOR`     | unknown operator, or `mode` without a text operator                     |
-| `INVALID_VALUE`        | a value of the wrong type, `NaN`, an invalid `Date`, `NOT` with nothing |
-| `EMPTY_LIST`           | `in`, `nin`, `hasSome`, `hasEvery`, `AND` or `OR` with an empty list    |
-| `INVALID_RANGE`        | `between` with mixed types or `min` greater than `max`                  |
-| `INVALID_ORDER`        | a direction other than `asc`/`desc`, or a field ordered twice           |
-| `INVALID_PAGINATION`   | `limit` below 1, `offset` below 0, not integers                         |
-| `UNKNOWN_FIELD`        | (schema) the field is not in the schema                                 |
-| `OPERATOR_NOT_ALLOWED` | (schema) the operator is not allowed on the field                       |
-| `NOT_SORTABLE`         | (schema) the field cannot be sorted                                     |
-| `LIMIT_EXCEEDED`       | (schema) `limit` above `maxLimit`                                       |
-| `INVALID_SCHEMA`       | (schema) a wrong schema definition                                      |
-| `INVALID_TEXT`         | `fromUrl` got text that is not a criteria                               |
-| `UNSUPPORTED_VERSION`  | the JSON or text comes from an unknown format version                   |
+`new CriteriaError(code, message, { cause })` keeps `cause` like a native `Error` (a non-enumerable
+property, present only when given). `fromUrl` sets it on `INVALID_TEXT` to the error the text gave
+while decoding:
+
+```ts
+try {
+  Criteria.fromUrl('eyJ2Ijox');
+} catch (error) {
+  if (error instanceof CriteriaError) {
+    error.code; // 'INVALID_TEXT'
+    error.cause; // SyntaxError from JSON.parse
+  }
+}
+```
+
+| Code                   | When                                                                                                        |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `INVALID_FORMAT`       | the input, a `where`, a filter or the JSON has the wrong shape                                              |
+| `INVALID_FIELD`        | empty field, empty segment, a segment starting with `$`, `__proto__`…, a control character                  |
+| `INVALID_OPERATOR`     | unknown operator, or `mode` without a text operator                                                         |
+| `INVALID_VALUE`        | a value of the wrong type, `NaN`, an invalid `Date`, `NOT` with nothing, an empty text, a list mixing types |
+| `EMPTY_LIST`           | `in`, `nin`, `hasSome`, `hasEvery`, `AND` or `OR` with an empty list                                        |
+| `INVALID_RANGE`        | `between` with mixed types or `min` greater than `max`                                                      |
+| `INVALID_ORDER`        | a direction other than `asc`/`desc`, or a field ordered twice                                               |
+| `INVALID_PAGINATION`   | `limit` below 1, `offset` below 0, not safe integers                                                        |
+| `UNKNOWN_FIELD`        | (schema) the field is not in the schema                                                                     |
+| `OPERATOR_NOT_ALLOWED` | (schema) the operator is not allowed on the field                                                           |
+| `NOT_SORTABLE`         | (schema) the field cannot be sorted                                                                         |
+| `LIMIT_EXCEEDED`       | a limit of "Limits" passed, or (schema) `limit`/`offset` above the max                                      |
+| `INVALID_SCHEMA`       | (schema) a wrong schema definition                                                                          |
+| `INVALID_TEXT`         | `fromUrl` got text that is not a criteria                                                                   |
+| `UNSUPPORTED_VERSION`  | the JSON or text comes from an unknown format version                                                       |
 
 ## Writing an adapter
 
@@ -272,6 +366,9 @@ toText(criteria.filter); // 'status eq active AND age gte 18'
   rest as they are: `mapField({ id: '_id' }, 'id')` → `'_id'`.
 - `compareValues(a, b)` and `valuesEqual(a, b)` implement the ordering and the equality of the
   semantics above.
+- `isDate(value)` tells a `Date` apart even when it comes from another realm (an iframe, `vm`, a
+  structured clone made outside a test sandbox), where `instanceof Date` is `false`. Adapters use it
+  instead of `instanceof Date` for the values they read from their engine.
 - `Criteria.fromNodes({ filter, order, pagination })` builds a criteria from nodes and validates
   them.
 - An adapter returns a `SearchResult<T>`: `{ items, total? }`, with `total` (every match before
@@ -279,48 +376,34 @@ toText(criteria.filter); // 'status eq active AND age gte 18'
 
 ### The contract
 
-`runCriteriaContract(adapter)` loads `createContractDocuments()` through `adapter.setup` and runs
-every case of `CRITERIA_CONTRACT_CASES` through `adapter.search`. It resolves to the list of failures
-(empty when the adapter follows the semantics) and does not depend on a test runner:
-
-```ts
-import { runCriteriaContract } from '@archi-code/criteria';
-import type { ContractDocument } from '@archi-code/criteria';
-
-let documents: ContractDocument[] = [];
-const failures = await runCriteriaContract({
-  setup: (seed) => {
-    documents = seed;
-  },
-  search: (criteria, options) => searchMemory(documents, criteria, options),
-});
-// []
-```
+Every adapter must return the same results as `@archi-code/criteria-adapters/memory`, which
+implements the semantics above. `@archi-code/criteria-adapters` keeps one internal contract
+(documents, cases and expected results) that each of its adapters runs in its tests; a new engine
+joins that package and passes the same contract.
 
 ## Exports summary
 
-| Export                                                                                           | Kind     | Use                                                      |
-| ------------------------------------------------------------------------------------------------ | -------- | -------------------------------------------------------- |
-| `Criteria`                                                                                       | class    | `create`, `fromNodes`, `fromJSON`, `fromUrl` and methods |
-| `CriteriaError`                                                                                  | class    | Validation error with `code`                             |
-| `defineCriteriaSchema`                                                                           | function | Schema for input from outside                            |
-| `visitFilter`                                                                                    | function | Calls one visitor method per node kind                   |
-| `mapField`                                                                                       | function | Renames a field with a `FieldMap`                        |
-| `compareValues`, `valuesEqual`                                                                   | function | Ordering and equality of the semantics                   |
-| `runCriteriaContract`                                                                            | function | Runs the contract against an adapter                     |
-| `createContractDocuments`, `contractDay`                                                         | function | Contract documents and the date helper they use          |
-| `CRITERIA_CONTRACT_CASES`                                                                        | constant | Contract cases                                           |
-| `Where`, `FieldFilter`, `*Condition`                                                             | type     | Typed `where` and the operators of each field type       |
-| `OrderBy`, `OrderItem`, `SortDirection`                                                          | type     | Typed `orderBy`                                          |
-| `Path`, `PathValue`, `SortablePath`                                                              | type     | Paths of an entity and their value types                 |
-| `FilterNode` and its node types                                                                  | type     | The filter tree adapters read                            |
-| `OrderNode`, `Pagination`                                                                        | type     | Normalized order and pagination                          |
-| `CriteriaInput`, `CriteriaNodes`                                                                 | type     | Input of `create` and of `fromNodes`                     |
-| `CriteriaJson`, `EncodedScalar`                                                                  | type     | Compact JSON form                                        |
-| `CriteriaSchema`, `CriteriaSchemaDefinition`, `FieldSpec`, `FieldType`, `FilterOperatorName`     | type     | Schema definition                                        |
-| `SearchResult`, `SearchOptions`                                                                  | type     | Result and options every adapter shares                  |
-| `FieldMap`, `FilterVisitor`                                                                      | type     | Adapter helpers                                          |
-| `CriteriaContractAdapter`, `CriteriaContractCase`, `CriteriaContractFailure`, `ContractDocument` | type     | Contract                                                 |
+| Export                                                                                       | Kind     | Use                                                                         |
+| -------------------------------------------------------------------------------------------- | -------- | --------------------------------------------------------------------------- |
+| `Criteria`                                                                                   | class    | `create`, `fromNodes`, `fromJSON`, `fromUrl` and methods                    |
+| `CriteriaError`                                                                              | class    | Validation error with `code`                                                |
+| `DEFAULT_CRITERIA_LIMITS`                                                                    | constant | Limits for input from outside                                               |
+| `defineCriteriaSchema`                                                                       | function | Schema for input from outside                                               |
+| `visitFilter`                                                                                | function | Calls one visitor method per node kind                                      |
+| `mapField`                                                                                   | function | Renames a field with a `FieldMap`                                           |
+| `compareValues`, `compareText`, `valuesEqual`, `isDate`                                      | function | Ordering (code point order for text), equality and cross-realm `Date` check |
+| `Where`, `FieldFilter`, `*Condition`                                                         | type     | Typed `where` and the operators of each field type                          |
+| `OrderBy`, `OrderItem`, `SortDirection`                                                      | type     | Typed `orderBy`                                                             |
+| `Path`, `PathValue`, `SortablePath`                                                          | type     | Paths of an entity and their value types                                    |
+| `FilterNode` and its node types                                                              | type     | The filter tree adapters read                                               |
+| `OrderNode`, `Pagination`                                                                    | type     | Normalized order and pagination                                             |
+| `CriteriaInput`, `CriteriaNodes`                                                             | type     | Input of `create` and of `fromNodes`                                        |
+| `CriteriaJson`, `EncodedScalar`                                                              | type     | Compact JSON form                                                           |
+| `CriteriaSchema`, `CriteriaSchemaDefinition`, `FieldSpec`, `FieldType`, `FilterOperatorName` | type     | Schema definition                                                           |
+| `CriteriaLimits`                                                                             | type     | Complexity limits                                                           |
+| `CriteriaErrorCode`, `CriteriaErrorOptions`                                                  | type     | Error codes and the `cause` option                                          |
+| `SearchResult`, `SearchOptions`                                                              | type     | Result and options every adapter shares                                     |
+| `FieldMap`, `FilterVisitor`                                                                  | type     | Adapter helpers                                                             |
 
 ## AI assistant skill
 

@@ -1,12 +1,12 @@
 ---
 name: archi-code-criteria
-description: Builds database-independent search criteria with @archi-code/criteria (typed where, orderBy, limit/offset), sends them through URLs with toUrl/fromUrl, validates request input with defineCriteriaSchema and writes adapters that pass the criteria contract. Use it whenever the code imports @archi-code/criteria, when a repository needs search/filter/order/pagination, when request parameters become a search, or when writing a criteria adapter.
+description: Builds database-independent search criteria with @archi-code/criteria (typed where, orderBy, limit/offset), sends them through URLs with toUrl/fromUrl, validates request input with defineCriteriaSchema and writes adapters that follow the shared semantics. Use it whenever the code imports @archi-code/criteria, when a repository needs search/filter/order/pagination, when request parameters become a search, or when writing a criteria adapter.
 ---
 
 # archi-code-criteria
 
-Typed, immutable search criteria for repositories, independent of the database. Adapters such as
-`@archi-code/criteria-memory` run them.
+Typed, immutable search criteria for repositories, independent of the database. The adapters of
+`@archi-code/criteria-adapters` (`/memory`, `/mongodb`, `/indexeddb`) run them.
 
 ## Full API
 
@@ -22,7 +22,7 @@ folder.
 
 If they are installed in the project, use them together with this one:
 
-- `archi-code-criteria-memory`: runs criteria over arrays (in-memory repositories, tests).
+- `archi-code-criteria-adapters`: runs criteria in memory, on MongoDB or on IndexedDB.
 - `archi-code-domain`: aggregates whose primitives are the type the criteria searches on.
 
 ## Import
@@ -42,13 +42,18 @@ import type { SearchResult } from '@archi-code/criteria';
   error by changing the search, never with `as never`/`as any`.
 - `where` keys are joined with AND; use `OR`, `AND`, `NOT` for the rest. `undefined` values are
   ignored, so optional input can be passed directly.
-- Text operators (`contains`, `startsWith`, `endsWith`) take literal text; `mode: 'insensitive'`
+- Text operators (`contains`, `startsWith`, `endsWith`) take literal text; `mode: 'insensitive'` (Unicode simple case folding)
   only applies to them.
 - Input from a request (body, query, URL text) always goes through a schema:
-  `schema.parse(input)` or `schema.fromUrl(text)`. Map `CriteriaError` to HTTP 400.
+  `schema.parse(input)` or `schema.fromUrl(text)`. Map `CriteriaError` to HTTP 400: input from
+  outside only ever throws `CriteriaError`.
+- Every schema sets `maxLimit` (required). Tighten `maxOffset` and `limits` (`maxListSize`,
+  `maxDepth`…) to what the endpoint really needs instead of raising them.
+- Dates from a request are ISO text with a zone (`'2024-01-01T10:00Z'`) or a plain ISO date (UTC
+  midnight); milliseconds only as a JSON number, never as text (`'2024'` is refused).
 - A criteria is immutable: `and`, `orderBy`, `paginate` and `page` return a new one.
 - Adapters read `criteria.filter` by `kind` (with `visitFilter`), never with `instanceof`, and must
-  pass `runCriteriaContract`.
+  return the same results as `@archi-code/criteria-adapters/memory` for the same data.
 
 ## Recommended patterns
 
@@ -64,6 +69,7 @@ interface UserRepository {
 
 const userSchema = defineCriteriaSchema<UserPrimitives>({
   fields: {
+    id: 'string',
     status: 'string',
     age: 'number',
     createdAt: 'date',
@@ -71,6 +77,7 @@ const userSchema = defineCriteriaSchema<UserPrimitives>({
   },
   defaultLimit: 20,
   maxLimit: 100,
+  tiebreaker: 'id',
 });
 
 async function searchUsers(query: { q?: string }) {
@@ -109,8 +116,16 @@ const scoped = criteria.and({ tenantId: currentTenant });
 - Do not use `eq: undefined` to search for null: `undefined` is ignored; use `null` or
   `isNull: true`.
 - Do not expect `isEmpty: true` to match a missing list, nor `gt`/`lt` to match null.
-- Do not rely on the order of ties: add `{ id: 'asc' }` last.
+- Do not rely on the order of ties: give the schema a `tiebreaker` (`'id'`), or add `{ id: 'asc' }`
+  last in code.
+- Do not compare criteria with `toUrl()`: use `equals`, which ignores the order of the conditions.
+- Do not filter with an empty `contains`/`startsWith`/`endsWith` to mean "any": leave the condition
+  `undefined` instead.
 - Do not paginate without `limit` on large collections: without `limit` every match is returned
-  (schemas set `defaultLimit`).
+  (schemas always set one through `maxLimit`/`defaultLimit`).
+- Do not send local times without a zone (`'2024-01-01T10:00'`) nor free text dates: the schema
+  rejects them.
+- Do not raise `limits` or `maxOffset` to make a client request pass: change the request (page with
+  a filter, fewer values).
 - Do not invent operators, adapters or options (there is no `like`, `regex`, `groupBy` or cursor
   pagination): check the installed README.

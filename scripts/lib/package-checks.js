@@ -5,13 +5,23 @@ const path = require('path');
 
 const PACKAGE_CHECKS = path.join('test', 'dist', 'dist.check.js');
 
-function entryPoint(pkg, condition) {
-  const target = pkg.exports['.'][condition];
+function subpaths(pkg) {
+  return Object.keys(pkg.exports).filter((key) => key !== './package.json');
+}
+
+function entryPoint(pkg, condition, subpath = '.') {
+  const target = pkg.exports[subpath][condition];
   return typeof target === 'string' ? target : target.default;
 }
 
-function loadPackageChecks(root) {
-  const file = path.join(root, PACKAGE_CHECKS);
+function checksFile(subpath) {
+  return subpath === '.'
+    ? PACKAGE_CHECKS
+    : path.join('test', 'dist', `${subpath.slice(2)}.check.js`);
+}
+
+function loadPackageChecks(root, subpath = '.') {
+  const file = path.join(root, checksFile(subpath));
   return fs.existsSync(file) ? require(file) : {};
 }
 
@@ -31,4 +41,4 @@ async function runChecks(label, checks, fail) {
   return checks.length;
 }
 
-module.exports = { PACKAGE_CHECKS, entryPoint, loadPackageChecks, runChecks };
+module.exports = { PACKAGE_CHECKS, checksFile, entryPoint, loadPackageChecks, runChecks, subpaths };

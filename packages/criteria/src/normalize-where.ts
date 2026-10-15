@@ -1,4 +1,5 @@
-import { CriteriaError } from './criteria-error';
+import { CriteriaError, quote } from './criteria-error';
+import { assertDepth } from './criteria-limits';
 import { CriteriaScalar, isRecord } from './criteria-value';
 import { ComparisonOperator, FilterNode, TextOperator } from './filter-node';
 
@@ -11,10 +12,16 @@ function combine(nodes: FilterNode[]): FilterNode | null {
 
 function list(value: unknown, field: string, operator: string): CriteriaScalar[] {
   if (!Array.isArray(value)) {
-    throw new CriteriaError('INVALID_VALUE', `"${operator}" on "${field}" needs a list`);
+    throw new CriteriaError(
+      'INVALID_VALUE',
+      `"${quote(operator)}" on "${quote(field)}" needs a list`,
+    );
   }
   if (value.length === 0) {
-    throw new CriteriaError('EMPTY_LIST', `"${operator}" on "${field}" needs at least one value`);
+    throw new CriteriaError(
+      'EMPTY_LIST',
+      `"${quote(operator)}" on "${quote(field)}" needs at least one value`,
+    );
   }
   return [...value];
 }
@@ -43,7 +50,7 @@ function operatorNode(
       };
     case 'between': {
       if (!Array.isArray(value) || value.length !== 2) {
-        throw new CriteriaError('INVALID_VALUE', `"between" on "${field}" needs [min, max]`);
+        throw new CriteriaError('INVALID_VALUE', `"between" on "${quote(field)}" needs [min, max]`);
       }
       return { kind: 'between', field, min: value[0], max: value[1] };
     }
@@ -72,7 +79,10 @@ function operatorNode(
     case 'isEmpty':
       return { kind: 'arrayEmpty', field, value: value as boolean };
     default:
-      throw new CriteriaError('INVALID_OPERATOR', `Unknown operator "${operator}" on "${field}"`);
+      throw new CriteriaError(
+        'INVALID_OPERATOR',
+        `Unknown operator "${quote(operator)}" on "${quote(field)}"`,
+      );
   }
 }
 
@@ -84,13 +94,13 @@ function fieldCondition(field: string, condition: Record<string, unknown>): Filt
   if (mode !== undefined && mode !== 'sensitive' && mode !== 'insensitive') {
     throw new CriteriaError(
       'INVALID_VALUE',
-      `"mode" on "${field}" must be sensitive or insensitive`,
+      `"mode" on "${quote(field)}" must be sensitive or insensitive`,
     );
   }
   if (mode !== undefined && !entries.some(([operator]) => TEXT_KEYS.has(operator))) {
     throw new CriteriaError(
       'INVALID_OPERATOR',
-      `"mode" on "${field}" only applies to contains, startsWith and endsWith`,
+      `"mode" on "${quote(field)}" only applies to contains, startsWith and endsWith`,
     );
   }
   const nodes = entries
@@ -109,14 +119,14 @@ function fieldFilter(field: string, raw: unknown): FilterNode | null {
   return { kind: 'compare', field, operator: 'eq', value: raw as CriteriaScalar };
 }
 
-function logical(kind: 'AND' | 'OR', raw: unknown): FilterNode | null {
+function logical(kind: 'AND' | 'OR', raw: unknown, depth: number): FilterNode | null {
   if (!Array.isArray(raw)) {
     throw new CriteriaError('INVALID_FORMAT', `${kind} needs a list of conditions`);
   }
   if (raw.length === 0) {
     throw new CriteriaError('EMPTY_LIST', `${kind} needs at least one condition`);
   }
-  const children = raw.map((where: unknown) => normalizeWhere(where));
+  const children = raw.map((where: unknown) => normalizeWhere(where, depth + 1));
   if (kind === 'AND') {
     return combine(children.filter((child): child is FilterNode => child !== null));
   }
@@ -127,15 +137,16 @@ function logical(kind: 'AND' | 'OR', raw: unknown): FilterNode | null {
   return filters.length === 1 ? filters[0] : { kind: 'or', filters };
 }
 
-function negate(raw: unknown): FilterNode {
-  const filter = normalizeWhere(raw);
+function negate(raw: unknown, depth: number): FilterNode {
+  const filter = normalizeWhere(raw, depth + 1);
   if (filter === null) {
     throw new CriteriaError('INVALID_VALUE', 'NOT needs at least one condition');
   }
   return { kind: 'not', filter };
 }
 
-export function normalizeWhere(where: unknown): FilterNode | null {
+export function normalizeWhere(where: unknown, depth = 1): FilterNode | null {
+  assertDepth(depth);
   if (!isRecord(where)) {
     throw new CriteriaError('INVALID_FORMAT', '"where" must be an object');
   }
@@ -146,9 +157,9 @@ export function normalizeWhere(where: unknown): FilterNode | null {
     }
     const node =
       key === 'AND' || key === 'OR'
-        ? logical(key, raw)
+        ? logical(key, raw, depth)
         : key === 'NOT'
-          ? negate(raw)
+          ? negate(raw, depth)
           : fieldFilter(key, raw);
     if (node !== null) {
       nodes.push(node);

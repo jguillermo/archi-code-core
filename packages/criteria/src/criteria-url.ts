@@ -17,7 +17,9 @@ export function decodeUrlText(text: unknown): unknown {
     const binary = atob(base64 + '='.repeat((4 - (base64.length % 4)) % 4));
     const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
     return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
-  } catch {
-    throw new CriteriaError('INVALID_TEXT', 'The criteria text is not a valid criteria URL value');
+  } catch (cause) {
+    throw new CriteriaError('INVALID_TEXT', 'The criteria text is not a valid criteria URL value', {
+      cause,
+    });
   }
 }
