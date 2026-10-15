@@ -1,16 +1,16 @@
 ---
 name: archi-code-criteria
-description: Builds search criteria with @archi-code/criteria (simple and composite filters, ordering, pagination, grouping), serializes them to text and converts them to MongoDB queries. Use it whenever the code imports @archi-code/criteria, when writing a repository with search/filtering/ordering/pagination, translating request parameters into a SearchCriteriaDto or generating filter/sort/skip/limit for MongoDB.
+description: Builds database-independent search criteria with @archi-code/criteria (typed where, orderBy, limit/offset), sends them through URLs with toUrl/fromUrl, validates request input with defineCriteriaSchema and writes adapters that pass the criteria contract. Use it whenever the code imports @archi-code/criteria, when a repository needs search/filter/order/pagination, when request parameters become a search, or when writing a criteria adapter.
 ---
 
 # archi-code-criteria
 
-Search criteria DTOs that validate in the constructor (they throw `Error` when invalid), a JSON
-serializer and a MongoDB converter. No runtime dependencies.
+Typed, immutable search criteria for repositories, independent of the database. Adapters such as
+`@archi-code/criteria-memory` run them.
 
 ## Full API
 
-Before using a class, method, operator, option or type that does not appear in this skill, read
+Before using a method, option, operator or type that does not appear in this skill, read
 `node_modules/@archi-code/criteria/README.md`: it matches the installed version. Do not guess
 signatures or options. If the package is not installed: `npm install @archi-code/criteria`.
 
@@ -22,92 +22,95 @@ folder.
 
 If they are installed in the project, use them together with this one:
 
-- `archi-code-domain`: aggregates and value objects returned by the repository.
-- `archi-code-ephemeradb`: in-memory repository for tests.
+- `archi-code-criteria-memory`: runs criteria over arrays (in-memory repositories, tests).
+- `archi-code-domain`: aggregates whose primitives are the type the criteria searches on.
 
 ## Import
 
 ```ts
-import {
-  CompositeFilterDto,
-  FilterOperator,
-  MongoCriteriaConverter,
-  SearchCriteriaDto,
-  SearchOrderDto,
-  SearchPaginatorDto,
-  SimpleFilterDto,
-} from '@archi-code/criteria';
-import type { MongoQuery, SearchFilterDto } from '@archi-code/criteria';
+import { Criteria, CriteriaError, defineCriteriaSchema } from '@archi-code/criteria';
+import type { SearchResult } from '@archi-code/criteria';
 ```
-
-CJS: `const { SimpleFilterDto, FilterOperator } = require('@archi-code/criteria');`
-
-Only named exports from the package root; there is no default export and no subpaths.
 
 ## Rules
 
-- The DTOs (`SimpleFilterDto`, `CompositeFilterDto`, `SearchOrderDto`, `SearchPaginatorDto`,
-  `SearchGroupByDto`) validate in the constructor and throw `Error`; `SearchCriteriaDto` validates
-  nothing.
-- `SearchCriteriaDto(filters?, orders?, paginator?, groupBy?)` is positional: to skip a part, pass
-  `undefined`.
-- With numeric operators (`LT`, `LTE`, `GT`, `GTE`, `BETWEEN`) the value is converted with
-  `Number()`: `'18'` is stored as `18`.
-- Composite filters can be nested (a `CompositeFilterDto` inside another one).
-- The order of the `SearchOrderDto` array is the priority.
-- In `MongoCriteriaConverter`, `groupBy` is ignored; with no filters and no ordering it gives
-  `filter: {}` and `sort: {}`.
+- Type the criteria with the persisted/primitive shape of the entity (`Criteria<UserPrimitives>`),
+  never with an aggregate made of value objects.
+- The repository port receives a `Criteria<T>` and returns `SearchResult<T>`; the domain and the
+  application never import a database adapter.
+- Fields are typed paths (`'address.city'`); each field type only accepts its operators. Fix a type
+  error by changing the search, never with `as never`/`as any`.
+- `where` keys are joined with AND; use `OR`, `AND`, `NOT` for the rest. `undefined` values are
+  ignored, so optional input can be passed directly.
+- Text operators (`contains`, `startsWith`, `endsWith`) take literal text; `mode: 'insensitive'`
+  only applies to them.
+- Input from a request (body, query, URL text) always goes through a schema:
+  `schema.parse(input)` or `schema.fromUrl(text)`. Map `CriteriaError` to HTTP 400.
+- A criteria is immutable: `and`, `orderBy`, `paginate` and `page` return a new one.
+- Adapters read `criteria.filter` by `kind` (with `visitFilter`), never with `instanceof`, and must
+  pass `runCriteriaContract`.
 
 ## Recommended patterns
 
-Translating HTTP parameters into a criterion (the DTOs validate; catch the `Error` and return 400):
+Repository port and HTTP handler:
 
 ```ts
-function toCriteria(q: { status?: string; minAge?: string; page?: string; perPage?: string }) {
-  const filters: SearchFilterDto[] = [];
-  if (q.status) filters.push(new SimpleFilterDto('status', FilterOperator.EQ, q.status));
-  if (q.minAge) filters.push(new SimpleFilterDto('age', FilterOperator.GTE, q.minAge));
-  return new SearchCriteriaDto(
-    filters.length === 0
-      ? undefined
-      : filters.length === 1
-        ? filters[0]
-        : new CompositeFilterDto('and', filters),
-    new SearchOrderDto([{ field: 'createdAt', direction: 'desc' }]),
-    new SearchPaginatorDto(Number(q.page ?? 1), Number(q.perPage ?? 20)),
-  );
+interface UserRepository {
+  search(
+    criteria: Criteria<UserPrimitives>,
+    options?: { withTotal?: boolean },
+  ): Promise<SearchResult<UserPrimitives>>;
+}
+
+const userSchema = defineCriteriaSchema<UserPrimitives>({
+  fields: {
+    status: 'string',
+    age: 'number',
+    createdAt: 'date',
+    name: { type: 'string', operators: ['contains'] },
+  },
+  defaultLimit: 20,
+  maxLimit: 100,
+});
+
+async function searchUsers(query: { q?: string }) {
+  try {
+    const criteria = query.q ? userSchema.fromUrl(query.q) : userSchema.parse({});
+    return await users.search(criteria, { withTotal: true });
+  } catch (error) {
+    if (error instanceof CriteriaError) throw new BadRequest(error.code, error.message);
+    throw error;
+  }
 }
 ```
 
-MongoDB repository:
+Client side, sending a search through the URL:
 
 ```ts
-const { filter, sort, skip, limit } = new MongoCriteriaConverter().convert(criteria);
-// collection.find(filter).sort(sort).skip(skip).limit(limit)
+const criteria = Criteria.create<UserPrimitives>({
+  where: { status: 'active', age: { gte: 18 } },
+  orderBy: { createdAt: 'desc' },
+}).page(2, 20);
+fetch(`/users?q=${criteria.toUrl()}`);
 ```
 
-To tell filters apart while walking them, use `instanceof SimpleFilterDto` /
-`instanceof CompositeFilterDto`.
+Narrowing a criteria in the application layer (for example, by tenant):
+
+```ts
+const scoped = criteria.and({ tenantId: currentTenant });
+```
 
 ## What not to do
 
-- Do not create a `CompositeFilterDto` with an empty array: it throws. If there are no filters, pass
-  `undefined`.
-- Do not use `%` in `LIKE`/`ILIKE`: the value is a regular expression (`'^ana'`, `'ana$'`). Escape
-  special characters if the text comes from the user.
-- Do not use numeric operators (`GT`, `BETWEEN`...) with ISO dates or text: `Number()` gives `NaN`
-  and it throws. For dates, store/compare numbers (timestamps).
-- `BETWEEN` needs exactly `[min, max]`; with any other shape the constructor does not fail but
-  `convert` throws. Both ends are inclusive.
-- Do not expect `INARRAY` to work with `MongoCriteriaConverter`: it throws
-  `Operator inarray is not supported for Mongo conversion`.
-- The `id` field is renamed to `_id` only in the ordering, not in the filters.
-- `page` starts at 1, not 0; `page` and `perPage` are integers >= 1 (convert those from a query
-  string with `Number(...)`). `limit: 0` without a paginator means "no limit" in MongoDB.
-- Directions are lowercase `'asc'`/`'desc'` (not `'ASC'`, `1` or `-1`); logical operators are
-  `'and'`/`'or'` (there is no `'not'`).
-- `SearchQuerySerializer` has no instance: `SearchQuerySerializer.serialize(...)`, never `new`.
-- Do not build plain objects shaped like the DTOs to pass them to the converter: use the classes
-  (`convert` tells filters apart with `instanceof`).
-- Do not invent exports, operators or converters (there are no fluent builders, `Criteria`,
-  `Filter`, SQL/TypeORM/Prisma converters...): check the installed README.
+- Do not build `FilterNode` objects by hand in application code: use `Criteria.create`.
+- Do not trust `Criteria.fromUrl(text)` without a schema for input from outside: it only checks the
+  shape, any field could be filtered.
+- Do not write `%` or regular expressions in `contains`: the text is literal.
+- Do not use `eq: undefined` to search for null: `undefined` is ignored; use `null` or
+  `isNull: true`.
+- Do not expect `isEmpty: true` to match a missing list, nor `gt`/`lt` to match null.
+- Do not rely on the order of ties: add `{ id: 'asc' }` last.
+- Do not paginate without `limit` on large collections: without `limit` every match is returned
+  (schemas set `defaultLimit`).
+- Do not invent operators, adapters or options (there is no `like`, `regex`, `groupBy` or cursor
+  pagination): check the installed README.

@@ -29,6 +29,9 @@
     "check:crypto-tools": "npm run check:all -w @archi-code/crypto-tools",
     "check:ephemeradb": "npm run check:all -w @archi-code/ephemeradb",
     "check:test": "npm run check:all -w @archi-code/test",
+    "check:criteria-memory": "npm run check:all -w @archi-code/criteria-memory",
+    "check:criteria-mongodb": "npm run check:all -w @archi-code/criteria-mongodb",
+    "check:criteria-indexeddb": "npm run check:all -w @archi-code/criteria-indexeddb",
     "check:packages": "npm run check:all -ws",
     "pr:ready": "npm run fix && npm run check && git diff --exit-code"
   },

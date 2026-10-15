@@ -1,8 +1,15 @@
 # @archi-code/criteria
 
-Search criteria for repositories: filters (simple and composite), ordering, pagination and grouping
-as plain DTOs that validate themselves when constructed, a serializer to send them as text and a
-converter to MongoDB queries. No runtime dependencies; the package ships CJS and ESM builds.
+The Criteria pattern for repositories, independent of any database. You describe a search (filters,
+order and pagination) with a typed object; the editor autocompletes the fields of your entity and
+offers only the operators that fit each field type. The result is an immutable `Criteria<T>` holding
+a plain tree of filter nodes that every adapter translates or runs. `@archi-code/criteria-memory`
+runs it over arrays in memory and defines the reference semantics; adapters for other engines
+(MongoDB, IndexedDB) implement the same contract.
+
+The package also turns a criteria into a URL-safe text and back, validates untrusted input with a
+schema (allowed fields, operators and limits) and ships the contract every adapter must pass. No
+runtime dependencies; CJS and ESM builds.
 
 ## Installation
 
@@ -10,291 +17,310 @@ converter to MongoDB queries. No runtime dependencies; the package ships CJS and
 npm install @archi-code/criteria
 ```
 
-Requires Node.js 24 or later.
+Requires Node.js 24 or later. The package has no side effects (`sideEffects: false`), so bundlers
+drop whatever you do not import.
 
 ## Import
 
-ESM / TypeScript:
-
 ```ts
-import {
-  FilterOperator,
-  MongoCriteriaConverter,
-  SearchCriteriaDto,
-  SimpleFilterDto,
-} from '@archi-code/criteria';
+import { Criteria, CriteriaError, defineCriteriaSchema } from '@archi-code/criteria';
+import type { SearchResult, Where } from '@archi-code/criteria';
 ```
 
 CommonJS:
 
 ```js
-const { FilterOperator, SimpleFilterDto } = require('@archi-code/criteria');
-
-new SimpleFilterDto('age', FilterOperator.GT, 18).value; // 18
+const { Criteria } = require('@archi-code/criteria');
 ```
 
-The types (`LogicalOperator`, `SearchFilterDto`, `SearchOrderItemDto`, `MongoQuery`, `MongoFilter`,
-`MongoSort`, `MongoFilterOperator`) are imported with `import type`.
+## Which type to search on
 
-## Quick example
-
-```ts
-import {
-  FilterOperator,
-  MongoCriteriaConverter,
-  SearchCriteriaDto,
-  SearchOrderDto,
-  SearchPaginatorDto,
-  SimpleFilterDto,
-} from '@archi-code/criteria';
-
-const criteria = new SearchCriteriaDto(
-  new SimpleFilterDto('age', FilterOperator.GTE, 18),
-  new SearchOrderDto([{ field: 'name', direction: 'asc' }]),
-  new SearchPaginatorDto(2, 10),
-);
-
-new MongoCriteriaConverter().convert(criteria);
-// { filter: { age: { $gte: 18 } }, sort: { name: 1 }, skip: 10, limit: 10 }
-```
-
-## `SearchCriteriaDto`
-
-Groups the four parts of a search. All of them are optional and are passed by position:
+`T` is the plain, persisted shape of your entity (its primitives), not an aggregate built from value
+objects. With `@archi-code/domain` that is `PrimitiveTypes<User>` or your own `UserPrimitives`:
 
 ```ts
-new SearchCriteriaDto(filters?, orders?, paginator?, groupBy?);
-```
-
-| Property    | Type                 |
-| ----------- | -------------------- |
-| `filters`   | `SearchFilterDto`    |
-| `orders`    | `SearchOrderDto`     |
-| `paginator` | `SearchPaginatorDto` |
-| `groupBy`   | `SearchGroupByDto`   |
-
-To skip a part in the middle, pass `undefined`:
-`new SearchCriteriaDto(undefined, orders, paginator)`.
-
-## Filters
-
-`SearchFilterDto` is the type `SimpleFilterDto | CompositeFilterDto`.
-
-### `SimpleFilterDto`
-
-A condition on one field: `new SimpleFilterDto(field, operator, value)`. `value` is
-`string | number | (string | number)[]`.
-
-```ts
-const byStatus = new SimpleFilterDto('status', FilterOperator.EQ, 'active');
-byStatus.field; // 'status'
-byStatus.operator; // 'eq'
-byStatus.value; // 'active'
-```
-
-With the numeric operators (`lt`, `lte`, `gt`, `gte`, `between`) the value, or each element if it is
-an array, is converted with `Number()`, so you can pass whatever comes from a query string directly.
-If the result is `NaN`, it throws:
-
-```ts
-new SimpleFilterDto('age', FilterOperator.GT, '18').value; // 18
-
-new SimpleFilterDto('age', FilterOperator.GT, 'eighteen');
-// Error: SimpleFilterDto: Value "eighteen" must be a number
-```
-
-It also throws `Error` if `field` is empty (`SimpleFilterDto: "field" must be a non-empty string`),
-if the operator is not a `FilterOperator` (`SimpleFilterDto: Invalid operator "<op>"`) or if `value`
-is `undefined` (`SimpleFilterDto: "value" is required`).
-
-### Operators (`FilterOperator`)
-
-`FilterOperator` is a string `enum`:
-
-| Member    | Value       | Meaning                                       | MongoDB                                   |
-| --------- | ----------- | --------------------------------------------- | ----------------------------------------- |
-| `EQ`      | `'eq'`      | equal                                         | `{ field: value }`                        |
-| `NE`      | `'ne'`      | not equal                                     | `{ field: { $ne: value } }`               |
-| `LT`      | `'lt'`      | less than (numeric)                           | `{ field: { $lt: n } }`                   |
-| `LTE`     | `'lte'`     | less than or equal (numeric)                  | `{ field: { $lte: n } }`                  |
-| `GT`      | `'gt'`      | greater than (numeric)                        | `{ field: { $gt: n } }`                   |
-| `GTE`     | `'gte'`     | greater than or equal (numeric)               | `{ field: { $gte: n } }`                  |
-| `IN`      | `'in'`      | is in the list                                | `{ field: { $in: [...] } }`               |
-| `NIN`     | `'nin'`     | is not in the list                            | `{ field: { $nin: [...] } }`              |
-| `BETWEEN` | `'between'` | between two values, both inclusive (numeric)  | `{ field: { $gte: a, $lte: b } }`         |
-| `LIKE`    | `'like'`    | regular expression                            | `{ field: { $regex: v } }`                |
-| `ILIKE`   | `'ilike'`   | case-insensitive regular expression           | `{ field: { $regex: v, $options: 'i' } }` |
-| `INARRAY` | `'inarray'` | exists in the model, but not in the converter | throws `Error`                            |
-
-With `IN` and `NIN` a value that is not an array is wrapped in one (`'a'` → `['a']`). `LIKE` and
-`ILIKE` pass the value as is to `$regex`: it is a regular expression, not an SQL pattern with `%`.
-
-### `CompositeFilterDto`
-
-Joins filters with a logical operator (`LogicalOperator` = `'and' | 'or'`) and can be nested:
-
-```ts
-import type { SearchFilterDto } from '@archi-code/criteria';
-
-const filter: SearchFilterDto = new CompositeFilterDto('and', [
-  new SimpleFilterDto('status', FilterOperator.EQ, 'active'),
-  new CompositeFilterDto('or', [
-    new SimpleFilterDto('role', FilterOperator.IN, ['admin', 'editor']),
-    new SimpleFilterDto('age', FilterOperator.BETWEEN, [18, 65]),
-  ]),
-]);
-
-new MongoCriteriaConverter().convert(new SearchCriteriaDto(filter)).filter;
-// {
-//   $and: [
-//     { status: 'active' },
-//     { $or: [{ role: { $in: ['admin', 'editor'] } }, { age: { $gte: 18, $lte: 65 } }] },
-//   ],
-// }
-```
-
-It throws `Error` if the logical operator is neither `'and'` nor `'or'` or if `filters` is empty
-(`CompositeFilterDto: "filters" must be a non-empty array`).
-
-## Ordering: `SearchOrderDto`
-
-Takes an array of `SearchOrderItemDto` (`{ field: string; direction: 'asc' | 'desc' }`); the order
-of the array is the priority:
-
-```ts
-const orders = new SearchOrderDto([
-  { field: 'createdAt', direction: 'desc' },
-  { field: 'name', direction: 'asc' },
-]);
-
-orders.orders[0]; // { field: 'createdAt', direction: 'desc' }
-```
-
-It throws `Error` if it does not receive an array, if a `field` is empty or if `direction` is
-neither `'asc'` nor `'desc'`.
-
-## Pagination: `SearchPaginatorDto`
-
-`new SearchPaginatorDto(page, perPage)`: `page` starts at 1 and both must be positive integers.
-
-```ts
-const page = new SearchPaginatorDto(3, 25);
-page.page; // 3
-page.perPage; // 25
-
-new SearchPaginatorDto(0, 10);
-// Error: SearchPaginatorDto: "page" and "perPage" must be positive integers
-new SearchPaginatorDto(1.5, 10);
-// Error: SearchPaginatorDto: "page" and "perPage" must be integers
-```
-
-## Grouping: `SearchGroupByDto`
-
-Accepts one field or a list of fields and always exposes them as an array in `fields`:
-
-```ts
-new SearchGroupByDto('country').fields; // ['country']
-new SearchGroupByDto(['country', 'city']).fields; // ['country', 'city']
-```
-
-It throws `Error` with `null`/`undefined`, with anything that is not a string or an array, or if an
-element of the array is not a string. The MongoDB converter does not use `groupBy`; it stays
-available for your own repository and the serializer keeps it.
-
-## MongoDB conversion: `MongoCriteriaConverter`
-
-`convert(criteria)` returns a `MongoQuery`:
-
-```ts
-interface MongoQuery {
-  filter: MongoFilter;
-  sort: MongoSort; // Record<string, 1 | -1>
-  skip: number;
-  limit: number;
+interface UserPrimitives {
+  id: string;
+  name: string | null;
+  age?: number | null;
+  status: 'active' | 'pending' | 'blocked';
+  createdAt: Date;
+  tags: string[];
+  address?: { city: string; zip: string };
 }
 ```
 
-```ts
-import type { MongoQuery } from '@archi-code/criteria';
+Fields are the paths to its values, nested ones with dots (`'address.city'`), up to four levels.
+Values are `string`, `number`, `boolean`, `Date` or lists of them; methods are skipped.
 
-const converter = new MongoCriteriaConverter();
-
-const query: MongoQuery = converter.convert(
-  new SearchCriteriaDto(
-    new SimpleFilterDto('name', FilterOperator.ILIKE, '^ana'),
-    new SearchOrderDto([{ field: 'id', direction: 'desc' }]),
-    new SearchPaginatorDto(3, 20),
-  ),
-);
-// {
-//   filter: { name: { $regex: '^ana', $options: 'i' } },
-//   sort: { _id: -1 },
-//   skip: 40,
-//   limit: 20,
-// }
-
-converter.convert(new SearchCriteriaDto());
-// { filter: {}, sort: {}, skip: 0, limit: 0 }
-```
-
-- `skip = (page - 1) * perPage` and `limit = perPage`. Without a paginator, `skip` and `limit` are
-  `0` (in MongoDB `limit(0)` means no limit).
-- In the ordering, the `id` field is translated to `_id`. Not in the filters: filter by `_id` if that
-  is what you store.
-- `INARRAY` throws `Error: Operator inarray is not supported for Mongo conversion`, and `BETWEEN`
-  without an array of exactly two values throws
-  `Error: BETWEEN operator requires an array of two values for field <field>`.
-
-The package does not depend on the MongoDB driver: `filter`, `sort`, `skip` and `limit` are plain
-objects and numbers that you pass to the query yourself (`find`, `sort`, `skip`, `limit`).
-
-## Serialization: `SearchQuerySerializer`
-
-Static methods to send a criterion as text (for example, in a URL or in a message) and rebuild it
-with its classes and validations:
+## `Criteria.create`
 
 ```ts
-const text = SearchQuerySerializer.serialize(
-  new SearchCriteriaDto(
-    new SimpleFilterDto('age', FilterOperator.GTE, 18),
-    new SearchOrderDto([{ field: 'name', direction: 'asc' }]),
-    new SearchPaginatorDto(1, 10),
-    new SearchGroupByDto('country'),
-  ),
-);
-// '{"filters":{"type":"simple","field":"age","operator":"gte","value":18},"orders":[{"field":"name","direction":"asc"}],"paginator":{"page":1,"perPage":10},"groupBy":["country"]}'
+const criteria = Criteria.create<UserPrimitives>({
+  where: { status: 'active', age: { gte: 18 } },
+  orderBy: { createdAt: 'desc' },
+  limit: 20,
+});
 
-const restored = SearchQuerySerializer.deserialize(text);
-restored.filters instanceof SimpleFilterDto; // true
-restored.paginator?.perPage; // 10
-restored.groupBy?.fields; // ['country']
+criteria.filter;
+// { kind: 'and', filters: [
+//   { kind: 'compare', field: 'status', operator: 'eq', value: 'active' },
+//   { kind: 'compare', field: 'age', operator: 'gte', value: 18 } ] }
+criteria.order; // [{ field: 'createdAt', direction: 'desc' }]
+criteria.pagination; // { kind: 'offset', limit: 20, offset: 0 }
 ```
 
-Composite filters are serialized as `{ "type": "composite", "logicalOperator", "filters" }`. Missing
-parts are written as `null`. `deserialize` throws `Error: Invalid JSON string` if the text is not
-JSON and `Error: Unknown filter format` if a filter does not have `type` `'simple'` or
-`'composite'`; any other invalid data throws the error of the corresponding DTO.
+Every part is optional: `Criteria.create()` matches everything, in no particular order, without
+limit. The criteria and its nodes are frozen; lists and dates are copied.
+
+### `where`
+
+Each key is a field; its value is either a plain value (equality), `null` (the field is null or
+missing) or an object with operators. Several keys, or several operators on one field, are joined
+with AND. `AND`, `OR` (lists) and `NOT` combine conditions and can be nested.
+
+```ts
+Criteria.create<UserPrimitives>({
+  where: {
+    status: { in: ['active', 'pending'] },
+    age: { gte: 18, lt: 65 },
+    'address.city': 'Huelva',
+    name: { contains: 'an', mode: 'insensitive' },
+    OR: [{ tags: { has: 'vip' } }, { createdAt: { gt: new Date('2024-01-01') } }],
+    NOT: { tags: { isEmpty: true } },
+  },
+});
+```
+
+| Field type     | Operators                                                                                               |
+| -------------- | ------------------------------------------------------------------------------------------------------- |
+| string         | `eq` `ne` `gt` `gte` `lt` `lte` `between` `in` `nin` `contains` `startsWith` `endsWith` `mode` `isNull` |
+| number, `Date` | `eq` `ne` `gt` `gte` `lt` `lte` `between` `in` `nin` `isNull`                                           |
+| boolean        | `eq` `ne` `isNull`                                                                                      |
+| list (`E[]`)   | `has` (one value) `hasSome` (any of) `hasEvery` (all of) `isEmpty` `isNull`                             |
+
+A field of a union of string literals (`status`) only accepts those literals in `eq`, `ne`, `in` and
+`nin`. An operator that does not fit the field, an unknown field or a wrong value type is a
+compile error.
+
+Optional input: keys and operators whose value is `undefined` are ignored, so
+`{ age: { gte: query.minAge } }` filters only when `minAge` is set. A condition left without
+operators adds nothing; an `OR` with an empty branch matches everything.
+
+### Semantics
+
+These rules are the same in every adapter (the contract checks them):
+
+- A missing field is `null`. `isNull: true` (or `field: null`, or `eq: null`) matches null and
+  missing; `ne`, `nin` and `NOT` also match null and missing.
+- `gt`, `gte`, `lt`, `lte` and `between` only match values of the same type, never null. `between`
+  includes both ends.
+- Strings compare by code unit (binary order: `'B' < 'a' < 'Á'`); dates by time.
+- `contains`, `startsWith` and `endsWith` search literal text, not a pattern. `mode: 'insensitive'`
+  lowercases both sides; it only applies to these three operators.
+- `isEmpty: true` matches an empty list, not a missing one.
+- Ordering puts null and missing first in `asc` and last in `desc`; booleans sort `false` first. Add
+  a unique field (such as `id`) last when the order of ties matters.
+
+### `orderBy`
+
+One object or a list of objects; the order of the keys and of the list is the priority. Only
+fields with a single value can be sorted.
+
+```ts
+Criteria.create<UserPrimitives>({ orderBy: [{ status: 'asc' }, { createdAt: 'desc' }] });
+```
+
+### `limit` and `offset`
+
+`limit` is an integer from 1 and `offset` an integer from 0. Without `limit` the search returns
+every match.
+
+## Changing a criteria
+
+Every method returns a new `Criteria`:
+
+```ts
+const base = Criteria.create<UserPrimitives>({ where: { status: 'active' } });
+
+base.and({ age: { lt: 65 } }).filter;
+// { kind: 'and', filters: [
+//   { kind: 'compare', field: 'status', operator: 'eq', value: 'active' },
+//   { kind: 'compare', field: 'age', operator: 'lt', value: 65 } ] }
+
+base.orderBy({ name: 'asc' }); // replaces the order
+base.paginate({ limit: 10, offset: 30 }); // replaces the pagination
+base.page(3, 25).pagination; // { kind: 'offset', limit: 25, offset: 50 }
+```
+
+`criteria.equals(other)` compares two criteria by content.
+
+## URL text: `toUrl` / `fromUrl`
+
+`toUrl()` turns a criteria into text that only uses `A-Z a-z 0-9 - _`, so it goes into a URL as
+is, with no escaping. `Criteria.fromUrl(text)` rebuilds it and validates it again. The same criteria
+always gives the same text, which also makes it a cache key.
+
+```ts
+const text = criteria.toUrl();
+// 'eyJ2IjoxLCJmIjpbImFuZCIsW1siZXEiLCJzdGF0dXMiLCJhY3RpdmUiXSxbImd0ZSIsImFnZSIsMThdXV0sIm8iOltbImNyZWF0ZWRBdCIsLTFdXSwibCI6MjB9'
+
+fetch(`/users?q=${text}`);
+
+Criteria.fromUrl<UserPrimitives>(text).equals(criteria); // true
+```
+
+Text from outside must be checked against a schema: `Criteria.fromUrl(text, userSchema)` or
+`userSchema.fromUrl(text)` (see below). Without one, `fromUrl` only checks that the criteria is
+well formed.
+
+`toJSON()` / `Criteria.fromJSON(json, schema?)` do the same with the compact JSON form behind the
+text:
+
+```ts
+criteria.toJSON();
+// { v: 1, f: ['and', [['eq', 'status', 'active'], ['gte', 'age', 18]]], o: [['createdAt', -1]], l: 20 }
+```
+
+## Input from outside: `defineCriteriaSchema`
+
+A schema lists the fields a search may use, their type, the allowed operators and the limits.
+`parse` takes the input of a request (JSON body or parsed query) with the same shape as
+`Criteria.create`, converts text to the field type (`'18'` → `18`, `'true'` → `true`, ISO text or
+milliseconds → `Date`) and applies the limits:
+
+```ts
+const userSchema = defineCriteriaSchema<UserPrimitives>({
+  fields: {
+    status: 'string',
+    age: 'number',
+    createdAt: 'date',
+    tags: 'string[]',
+    name: { type: 'string', operators: ['contains', 'startsWith'] },
+    'address.city': { type: 'string', sortable: false },
+  },
+  defaultLimit: 20,
+  maxLimit: 100,
+});
+
+const criteria = userSchema.parse({
+  where: { age: { gte: '18' } },
+  orderBy: { createdAt: 'desc' },
+});
+criteria.filter; // { kind: 'compare', field: 'age', operator: 'gte', value: 18 }
+criteria.pagination; // { kind: 'offset', limit: 20, offset: 0 }
+
+userSchema.parse({ where: { password: 'x' } });
+// CriteriaError UNKNOWN_FIELD: Field "password" cannot be used in a search
+userSchema.parse({ limit: 500 });
+// CriteriaError LIMIT_EXCEEDED: "limit" cannot be greater than 100
+```
+
+- Field types: `'string'`, `'number'`, `'boolean'`, `'date'` and their lists (`'string[]'`…). The
+  type must match the entity (a compile error otherwise).
+- `operators` narrows the operators of the table above; `sortable: false` forbids ordering by the
+  field (lists are never sortable).
+- `defaultLimit` applies when the input has no `limit` (or `maxLimit` when there is no default);
+  a `limit` above `maxLimit` throws.
+- `schema.check(criteria)` applies the same rules to a criteria you already have and
+  `schema.fromUrl(text)` reads and checks a URL text.
+
+## Errors: `CriteriaError`
+
+Every validation throws a `CriteriaError` (`name` `'CriteriaError'`) with a `code`:
+
+| Code                   | When                                                                    |
+| ---------------------- | ----------------------------------------------------------------------- |
+| `INVALID_FORMAT`       | the input, a `where`, a filter or the JSON has the wrong shape          |
+| `INVALID_FIELD`        | empty field, empty segment, a segment starting with `$`, `__proto__`…   |
+| `INVALID_OPERATOR`     | unknown operator, or `mode` without a text operator                     |
+| `INVALID_VALUE`        | a value of the wrong type, `NaN`, an invalid `Date`, `NOT` with nothing |
+| `EMPTY_LIST`           | `in`, `nin`, `hasSome`, `hasEvery`, `AND` or `OR` with an empty list    |
+| `INVALID_RANGE`        | `between` with mixed types or `min` greater than `max`                  |
+| `INVALID_ORDER`        | a direction other than `asc`/`desc`, or a field ordered twice           |
+| `INVALID_PAGINATION`   | `limit` below 1, `offset` below 0, not integers                         |
+| `UNKNOWN_FIELD`        | (schema) the field is not in the schema                                 |
+| `OPERATOR_NOT_ALLOWED` | (schema) the operator is not allowed on the field                       |
+| `NOT_SORTABLE`         | (schema) the field cannot be sorted                                     |
+| `LIMIT_EXCEEDED`       | (schema) `limit` above `maxLimit`                                       |
+| `INVALID_SCHEMA`       | (schema) a wrong schema definition                                      |
+| `INVALID_TEXT`         | `fromUrl` got text that is not a criteria                               |
+| `UNSUPPORTED_VERSION`  | the JSON or text comes from an unknown format version                   |
+
+## Writing an adapter
+
+`criteria.filter` is a tree of plain nodes told apart by `kind` (never by class):
+`compare` (`eq` `ne` `gt` `gte` `lt` `lte`), `between`, `in`, `notIn`, `text`, `isNull`,
+`arrayContains` (`match: 'some' | 'every'`), `arrayEmpty`, `and`, `or` and `not`. `visitFilter`
+calls one method per kind; a visitor that misses a kind does not compile:
+
+```ts
+import { visitFilter } from '@archi-code/criteria';
+import type { FilterNode } from '@archi-code/criteria';
+
+const toText = (node: FilterNode): string =>
+  visitFilter(node, {
+    compare: (n) => `${n.field} ${n.operator} ${String(n.value)}`,
+    and: (n) => n.filters.map(toText).join(' AND '),
+    // ...one method per kind
+  });
+
+toText(criteria.filter); // 'status eq active AND age gte 18'
+```
+
+- `mapField(fields, field)` renames a field with a `FieldMap<T>` (`{ id: '_id' }`) and leaves the
+  rest as they are: `mapField({ id: '_id' }, 'id')` → `'_id'`.
+- `compareValues(a, b)` and `valuesEqual(a, b)` implement the ordering and the equality of the
+  semantics above.
+- `Criteria.fromNodes({ filter, order, pagination })` builds a criteria from nodes and validates
+  them.
+- An adapter returns a `SearchResult<T>`: `{ items, total? }`, with `total` (every match before
+  paginating) only when it receives `{ withTotal: true }` (`SearchOptions`).
+
+### The contract
+
+`runCriteriaContract(adapter)` loads `createContractDocuments()` through `adapter.setup` and runs
+every case of `CRITERIA_CONTRACT_CASES` through `adapter.search`. It resolves to the list of failures
+(empty when the adapter follows the semantics) and does not depend on a test runner:
+
+```ts
+import { runCriteriaContract } from '@archi-code/criteria';
+import type { ContractDocument } from '@archi-code/criteria';
+
+let documents: ContractDocument[] = [];
+const failures = await runCriteriaContract({
+  setup: (seed) => {
+    documents = seed;
+  },
+  search: (criteria, options) => searchMemory(documents, criteria, options),
+});
+// []
+```
 
 ## Exports summary
 
-| Export                   | Class / type | Use                                                                                      |
-| ------------------------ | ------------ | ---------------------------------------------------------------------------------------- |
-| `SearchCriteriaDto`      | class        | Filters, ordering, pagination and grouping of a search                                   |
-| `SimpleFilterDto`        | class        | One `field operator value` condition                                                     |
-| `CompositeFilterDto`     | class        | Filters joined with `'and'` / `'or'`, nestable                                           |
-| `FilterOperator`         | enum         | `eq`, `ne`, `lt`, `lte`, `gt`, `gte`, `in`, `nin`, `between`, `like`, `ilike`, `inarray` |
-| `SearchOrderDto`         | class        | Ordered list of `SearchOrderItemDto`                                                     |
-| `SearchPaginatorDto`     | class        | `page` (from 1) and `perPage`                                                            |
-| `SearchGroupByDto`       | class        | Grouping fields (`fields`)                                                               |
-| `SearchQuerySerializer`  | class        | `serialize(criteria)` / `deserialize(text)` (static)                                     |
-| `MongoCriteriaConverter` | class        | `convert(criteria)` → `MongoQuery`                                                       |
-| `LogicalOperator`        | type         | `'and' \| 'or'`                                                                          |
-| `SearchFilterDto`        | type         | `SimpleFilterDto \| CompositeFilterDto`                                                  |
-| `SearchOrderItemDto`     | interface    | `{ field: string; direction: 'asc' \| 'desc' }`                                          |
-| `MongoQuery`             | interface    | `{ filter, sort, skip, limit }`                                                          |
-| `MongoFilter`            | type         | Generated MongoDB filter                                                                 |
-| `MongoSort`              | type         | `Record<string, 1 \| -1>`                                                                |
-| `MongoFilterOperator`    | type         | `'$eq' \| '$ne' \| '$gt' \| '$gte' \| '$lt' \| '$lte' \| '$regex' \| '$in' \| '$nin'`    |
+| Export                                                                                           | Kind     | Use                                                      |
+| ------------------------------------------------------------------------------------------------ | -------- | -------------------------------------------------------- |
+| `Criteria`                                                                                       | class    | `create`, `fromNodes`, `fromJSON`, `fromUrl` and methods |
+| `CriteriaError`                                                                                  | class    | Validation error with `code`                             |
+| `defineCriteriaSchema`                                                                           | function | Schema for input from outside                            |
+| `visitFilter`                                                                                    | function | Calls one visitor method per node kind                   |
+| `mapField`                                                                                       | function | Renames a field with a `FieldMap`                        |
+| `compareValues`, `valuesEqual`                                                                   | function | Ordering and equality of the semantics                   |
+| `runCriteriaContract`                                                                            | function | Runs the contract against an adapter                     |
+| `createContractDocuments`, `contractDay`                                                         | function | Contract documents and the date helper they use          |
+| `CRITERIA_CONTRACT_CASES`                                                                        | constant | Contract cases                                           |
+| `Where`, `FieldFilter`, `*Condition`                                                             | type     | Typed `where` and the operators of each field type       |
+| `OrderBy`, `OrderItem`, `SortDirection`                                                          | type     | Typed `orderBy`                                          |
+| `Path`, `PathValue`, `SortablePath`                                                              | type     | Paths of an entity and their value types                 |
+| `FilterNode` and its node types                                                                  | type     | The filter tree adapters read                            |
+| `OrderNode`, `Pagination`                                                                        | type     | Normalized order and pagination                          |
+| `CriteriaInput`, `CriteriaNodes`                                                                 | type     | Input of `create` and of `fromNodes`                     |
+| `CriteriaJson`, `EncodedScalar`                                                                  | type     | Compact JSON form                                        |
+| `CriteriaSchema`, `CriteriaSchemaDefinition`, `FieldSpec`, `FieldType`, `FilterOperatorName`     | type     | Schema definition                                        |
+| `SearchResult`, `SearchOptions`                                                                  | type     | Result and options every adapter shares                  |
+| `FieldMap`, `FilterVisitor`                                                                      | type     | Adapter helpers                                          |
+| `CriteriaContractAdapter`, `CriteriaContractCase`, `CriteriaContractFailure`, `ContractDocument` | type     | Contract                                                 |
 
 ## AI assistant skill
 
@@ -311,20 +337,20 @@ mkdir -p .claude/skills/archi-code-criteria && cp node_modules/@archi-code/crite
 Invoke it with a request:
 
 ```text
-/archi-code-criteria create the GET /users endpoint with a filter by status and minimum age, ordering and pagination
+/archi-code-criteria add a search endpoint for users with filters by status and age, ordering and pagination
 ```
 
 Or ask for the task without naming it and Claude loads it on its own because it matches its
 description:
 
 ```text
-Implement the MongoDB orders repository with search by SearchCriteriaDto
+Add a search method to the orders repository that takes a criteria
 ```
 
 It also works to review code that already uses the package:
 
 ```text
-/archi-code-criteria review the repositories and flag filters that cannot be converted to MongoDB
+/archi-code-criteria review the repositories and flag searches that skip the schema
 ```
 
 With the skill loaded, Claude follows its rules, avoids the mistakes in its "What not to do" list

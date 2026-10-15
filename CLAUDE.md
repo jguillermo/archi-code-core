@@ -14,7 +14,7 @@ npm run check           # Root scripts (Prettier + node --test), editorconfig ov
 npm run fix             # Auto-fix lint and formatting
 npm run clean           # Remove all node_modules
 npm run check:packages  # Full gate (check:all) in every package
-npm run check:<name>    # Full gate in one package: validator, domain, criteria, crypto-tools, ephemeradb, test
+npm run check:<name>    # Full gate in one package: validator, domain, criteria, criteria-memory, criteria-mongodb, criteria-indexeddb, crypto-tools, ephemeradb, test
 npm run check:versions  # Every package version and internal dep is 0.0.0-development
 npm run check:audit     # npm audit of runtime deps + cargo audit of crypto-tools (network; CI audit.yml, weekly)
 npm run version         # Dry-run of the release: current and next version of each package, writes release-plan.json
@@ -113,14 +113,17 @@ npm workspaces monorepo publishing independent npm packages implementing DDD pat
 
 ### Packages and npm names
 
-| Directory      | npm name                   | Purpose                                                                                                                |
-| -------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `validation`   | `@archi-code/validation`   | Validators (TypeScript port of validator.js), `canBe*`/`to*` conversions, `@Validations` decorator                     |
-| `domain`       | `@archi-code/domain`       | DDD framework — aggregates, value objects, exceptions, domain events                                                   |
-| `criteria`     | `@archi-code/criteria`     | Search/filter/order/paginate query builders + MongoDB converter                                                        |
-| `crypto-tools` | `@archi-code/crypto-tools` | Crypto toolkit in one Rust→wasm module run in workers (web + Node): password, cipher, RSA, signature, hash, token, JWT |
-| `ephemeraDB`   | `@archi-code/ephemeradb`   | Async in-memory key-value store                                                                                        |
-| `test`         | `@archi-code/test`         | Test helpers: `DtoObjectMother`, `JsonCompare`, type assertions (`Expect`, `Equal`, `IsAny`…)                          |
+| Directory            | npm name                         | Purpose                                                                                                                |
+| -------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `validation`         | `@archi-code/validation`         | Validators (TypeScript port of validator.js), `canBe*`/`to*` conversions, `@Validations` decorator                     |
+| `domain`             | `@archi-code/domain`             | DDD framework — aggregates, value objects, exceptions, domain events                                                   |
+| `criteria`           | `@archi-code/criteria`           | Database-independent Criteria: typed `where`/`orderBy`/pagination, URL text, input schema, adapter contract            |
+| `criteria-memory`    | `@archi-code/criteria-memory`    | Criteria adapter over in-memory arrays; reference semantics of every adapter                                           |
+| `criteria-mongodb`   | `@archi-code/criteria-mongodb`   | Criteria adapter for MongoDB: translator to filter/sort/skip/limit and `searchMongo` (driver as optional peer)         |
+| `criteria-indexeddb` | `@archi-code/criteria-indexeddb` | Criteria adapter for IndexedDB object stores: index/key-range planner + in-memory check of the whole filter            |
+| `crypto-tools`       | `@archi-code/crypto-tools`       | Crypto toolkit in one Rust→wasm module run in workers (web + Node): password, cipher, RSA, signature, hash, token, JWT |
+| `ephemeraDB`         | `@archi-code/ephemeradb`         | Async in-memory key-value store                                                                                        |
+| `test`               | `@archi-code/test`               | Test helpers: `DtoObjectMother`, `JsonCompare`, type assertions (`Expect`, `Equal`, `IsAny`…)                          |
 
 ### Dependency graph
 
@@ -131,6 +134,10 @@ npm workspaces monorepo publishing independent npm packages implementing DDD pat
     └── @archi-code/test     (runtime: @archi-code/validation)
 
 @archi-code/criteria     (standalone — no runtime deps)
+    ↑
+    ├── @archi-code/criteria-memory  (runtime: @archi-code/criteria)
+    ├── @archi-code/criteria-mongodb (runtime: @archi-code/criteria; optional peer: mongodb)
+    └── @archi-code/criteria-indexeddb (runtime: @archi-code/criteria, @archi-code/criteria-memory)
 @archi-code/ephemeradb   (standalone — no runtime deps)
 @archi-code/crypto-tools (standalone — no npm deps; Rust crates compiled into one embedded wasm)
 ```
@@ -161,6 +168,24 @@ npm workspaces monorepo publishing independent npm packages implementing DDD pat
   has no fixed `rsa` release and is accepted in `rust/.cargo/audit.toml` (see README "Known risk").
 - Gate: `npm run check:crypto-tools` needs Rust (`rust/rust-toolchain.toml`), `wasm-pack` and the
   Playwright browsers; `check:audit` needs `cargo-audit`.
+
+### criteria packages internals
+
+- `@archi-code/criteria` holds no engine code. `Criteria.create<T>({ where, orderBy, limit, offset })`
+  takes a typed object (`Where<T>`: per `Path<T>` only the operators of its type) and normalizes it
+  into a frozen tree of plain `FilterNode`s told apart by `kind`; adapters read it with
+  `visitFilter`, never `instanceof`. `T` is the primitive shape of the entity.
+- `toUrl()`/`Criteria.fromUrl()` encode the compact JSON (`toJSON`, versioned `v: 1`) as base64url;
+  `defineCriteriaSchema` whitelists fields/operators, converts text input and applies limits.
+- The semantics (null/missing, binary string order, literal text) are fixed by `criteria-memory` and
+  checked by `runCriteriaContract` (`CRITERIA_CONTRACT_CASES` over `createContractDocuments()`),
+  which every adapter runs in its `test/` and in `dist.check.js`.
+- `criteria-mongodb` never imports the driver in `src/` (structural `MongoCollection`); its contract
+  spec runs on a real MongoDB through `mongodb-memory-server` (devDependency, downloads `mongod` on
+  first use).
+- `criteria-indexeddb` picks one key range from the required conditions (`planIndexedDbQuery`, pure)
+  and re-checks every record with `matchesFilter`; it is a plain ESM/CJS package (its dependencies
+  are bare imports, which `check-web`/`check-browser` do not support), tested with `fake-indexeddb`.
 
 ### domain package internals
 

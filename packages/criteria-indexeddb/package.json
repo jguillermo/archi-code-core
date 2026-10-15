@@ -1,0 +1,98 @@
+{
+  "name": "@archi-code/criteria-indexeddb",
+  "version": "0.0.0-development",
+  "keywords": [
+    "DDD",
+    "criteria",
+    "repository",
+    "indexeddb",
+    "browser"
+  ],
+  "author": "Jose Guillermo",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jguillermo/archi-code-core"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/cjs/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist/",
+    "SKILL.md"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "prebuild": "rm -rf dist || true",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "build:esm": "tsc -p tsconfig.esm.json && node ../../scripts/fix-esm.js",
+    "build": "npm run build:cjs && npm run build:esm",
+    "test": "jest",
+    "test:coverage": "jest --coverage",
+    "check:types": "tsc -p tsconfig.json --noEmit --incremental false",
+    "check:dist": "node ../../scripts/check-dist.js && node ../../scripts/check-types.js",
+    "check:editorconfig": "node ../../scripts/editorconfig.js",
+    "check:all": "npm run check:editorconfig && npm run check:prettier && npm run check:lint && npm run check:types && npm run test:coverage && npm run build && npm run check:dist",
+    "check:lint": "eslint src test --ext .ts",
+    "fix:lint": "eslint src test --ext .ts --fix",
+    "check:prettier": "prettier --check \"{src,test}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\" \"*.{json,md}\"",
+    "fix:prettier": "prettier --write \"{src,test}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\" \"*.{json,md}\""
+  },
+  "dependencies": {
+    "@archi-code/criteria": "0.0.0-development",
+    "@archi-code/criteria-memory": "0.0.0-development"
+  },
+  "devDependencies": {
+    "fake-indexeddb": "6.2.5"
+  },
+  "jest": {
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
+    "rootDir": ".",
+    "roots": [
+      "<rootDir>/src",
+      "<rootDir>/test"
+    ],
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.ts$": "ts-jest"
+    },
+    "collectCoverageFrom": [
+      "src/**/*.(t|j)s"
+    ],
+    "coverageDirectory": "./coverage",
+    "testEnvironment": "node",
+    "collectCoverage": false,
+    "injectGlobals": false,
+    "coverageThreshold": {
+      "global": {
+        "branches": 100,
+        "functions": 100,
+        "lines": 100,
+        "statements": 100
+      }
+    }
+  }
+}
