@@ -17,6 +17,9 @@
     },
     "@archi-code/validation": {
       "main": "3.0.0-alpha.4"
+    },
+    "@archi-code/criteria-adapters": {
+      "main": "3.0.0-alpha.1"
     }
   },
   "deploys": [
@@ -326,6 +329,18 @@
             "commits (minor)"
           ],
           "dependencies": {}
+        },
+        {
+          "name": "@archi-code/criteria-adapters",
+          "previous": null,
+          "version": "3.0.0-alpha.1",
+          "bump": "major",
+          "reasons": [
+            "completes the reset of the whole set (3.0.0-alpha.1)"
+          ],
+          "dependencies": {
+            "@archi-code/criteria": "3.0.0-alpha.5"
+          }
         }
       ]
     }
