@@ -1,25 +1,14 @@
-'use strict';
+import { createRequire } from 'node:module';
+import { describe, expect, test } from 'vitest';
 
-const { test, describe } = require('node:test');
-const assert = require('node:assert/strict');
-const { findNodeGlobal, webGlobals } = require('../lib/web-safety');
+const require = createRequire(import.meta.url);
+const { findNodeGlobal } = require('../lib/web-safety');
 
 describe('web-safety', () => {
   test('finds Node-only globals outside comments', () => {
-    assert.equal(findNodeGlobal('const fs = require("fs");'), 'require(');
-    assert.equal(findNodeGlobal('process.env.X'), 'process.');
-    assert.equal(findNodeGlobal('// process.env\n/* Buffer */ const x = 1;'), null);
-    assert.equal(findNodeGlobal('globalThis.process?.getBuiltinModule?.("x")'), null);
-  });
-
-  test('offers the standard Web APIs and no Node APIs', () => {
-    const globals = webGlobals();
-    const standard = ['TextEncoder', 'TextDecoder', 'crypto', 'atob', 'URL', 'setTimeout'];
-    for (const name of [...standard, 'Response', 'DecompressionStream']) {
-      assert.ok(globals[name], name);
-    }
-    for (const name of ['process', 'Buffer', 'require', 'Worker']) {
-      assert.equal(globals[name], undefined, name);
-    }
+    expect(findNodeGlobal('const fs = require("fs");')).toBe('require(');
+    expect(findNodeGlobal('process.env.X')).toBe('process.');
+    expect(findNodeGlobal('// process.env\n/* Buffer */ const x = 1;')).toBe(null);
+    expect(findNodeGlobal('globalThis.process?.getBuiltinModule?.("x")')).toBe(null);
   });
 });

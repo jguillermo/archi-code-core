@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { toArray, toBoolean, toEnum, toInteger, ConvertMessages } from '../../src/convert';
 
 describe('convert rules — { ok, value, error }', () => {

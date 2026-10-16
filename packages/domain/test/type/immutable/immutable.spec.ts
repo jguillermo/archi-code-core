@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { Immutable } from '../../../src/type/immutable/immutable';
 import { ImmutableDate } from '../../../src/type/immutable/immutable-date';
 

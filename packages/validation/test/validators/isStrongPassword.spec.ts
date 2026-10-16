@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import test from '../cross/support/testFunctions';
 import { validator } from '../../src/validators';
 import { test as sanitizerTest } from '../cross/support/sanitizerTest';

@@ -157,9 +157,17 @@ function reconcileWithNpm(branch, loaded, record) {
   throw new Error(`reconciliation with npm did not finish in ${MAX_RECONCILE_ROUNDS} rounds`);
 }
 
+function restoreManifest(pkg, manifestPath, original) {
+  fs.writeFileSync(manifestPath, original);
+  if (fs.readFileSync(manifestPath, 'utf8') !== original) {
+    throw new Error(`${pkg.dir}/package.json was not restored`);
+  }
+}
+
 function packVerified(pkg, destination, commit) {
   const manifestPath = path.join(ROOT, pkg.dir, 'package.json');
   const original = fs.readFileSync(manifestPath, 'utf8');
+  let tarball;
   try {
     const manifest = publishManifest(JSON.parse(original), pkg, commit);
     fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
@@ -169,7 +177,7 @@ function packVerified(pkg, destination, commit) {
         cwd: path.join(ROOT, pkg.dir),
       }),
     );
-    const tarball = path.join(destination, packed.filename);
+    tarball = path.join(destination, packed.filename);
     const published = JSON.parse(
       execFileSync('tar', ['-xzOf', tarball, 'package/package.json'], { encoding: 'utf8' }),
     );
@@ -180,13 +188,12 @@ function packVerified(pkg, destination, commit) {
     if (errors.length) {
       throw new Error(`the tarball of ${pkg.name} is not valid:\n  ${errors.join('\n  ')}`);
     }
-    return tarball;
-  } finally {
-    fs.writeFileSync(manifestPath, original);
-    if (fs.readFileSync(manifestPath, 'utf8') !== original) {
-      throw new Error(`${pkg.dir}/package.json was not restored`);
-    }
+  } catch (error) {
+    restoreManifest(pkg, manifestPath, original);
+    throw error;
   }
+  restoreManifest(pkg, manifestPath, original);
+  return tarball;
 }
 
 // A version that npm already has but does not serve yet (a previous run published it moments ago)

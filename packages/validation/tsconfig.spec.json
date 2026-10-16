@@ -1,8 +1,0 @@
-{
-  "extends": "./tsconfig.json",
-  "compilerOptions": {
-    "esModuleInterop": true,
-    "incremental": false
-  },
-  "include": ["src/**/*", "test/**/*"]
-}

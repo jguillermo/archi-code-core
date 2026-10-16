@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { Criteria } from '@archi-code/criteria';
 import { runCriteriaContract } from '../contract/run-criteria-contract';
 import type { ContractDocument } from '../contract/contract-documents';

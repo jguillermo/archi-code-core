@@ -1,5 +1,13 @@
 'use strict';
 
+const nodeBuild = () => require('../../dist/cjs/index.js');
+
+const URL_CRITERIA = {
+  where: { name: { startsWith: 'Ana' }, createdAt: { gte: new Date(0) } },
+  orderBy: { name: 'asc' },
+  limit: 5,
+};
+
 function smoke(m) {
   return [
     [
@@ -78,28 +86,6 @@ function crossBuild(cjs, esm) {
   ];
 }
 
-function web(m, node) {
-  return [
-    ...smoke(m),
-    [
-      'builds the same URL text as Node and reads the text Node builds',
-      () => {
-        const input = {
-          where: { name: { startsWith: 'Ana' }, createdAt: { gte: new Date(0) } },
-          orderBy: { name: 'asc' },
-          limit: 5,
-        };
-        const text = m.Criteria.create(input).toUrl();
-        return (
-          (text === node.Criteria.create(input).toUrl() &&
-            m.Criteria.fromUrl(text).equals(m.Criteria.create(input))) ||
-          `web ${text} differs from Node`
-        );
-      },
-    ],
-  ];
-}
-
 const STRICT_CSP = "default-src 'self'; script-src 'self'";
 
 async function everyFeatureInThePage(entry) {
@@ -141,7 +127,27 @@ function browser() {
   return [
     ['builds, sends, reads and checks criteria in a page', everyFeatureInThePage],
     ['works under a strict CSP without eval', everyFeatureInThePage, { csp: STRICT_CSP }],
+    [
+      'builds the same URL text as Node and reads the text Node builds',
+      async ({ entry, input }) => {
+        const m = await import(entry);
+        const criteria = m.Criteria.create(input.criteria);
+        return {
+          text: criteria.toUrl(),
+          readsNodeText: m.Criteria.fromUrl(input.nodeText).equals(criteria),
+        };
+      },
+      {
+        input: () => ({
+          criteria: URL_CRITERIA,
+          nodeText: nodeBuild().Criteria.create(URL_CRITERIA).toUrl(),
+        }),
+        verify: (result, input) =>
+          (result.text === input.nodeText && result.readsNodeText) ||
+          `web ${result.text} differs from Node ${input.nodeText}`,
+      },
+    ],
   ];
 }
 
-module.exports = { smoke, crossBuild, web, browser };
+module.exports = { smoke, crossBuild, browser };

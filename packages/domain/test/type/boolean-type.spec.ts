@@ -1,5 +1,4 @@
-import { describe, expect, it, jest } from '@jest/globals';
-import { expectTypeOf } from 'expect-type';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { Validations } from '@archi-code/validation';
 import type { ValidationResult } from '@archi-code/validation';
 import { BooleanType } from '../../src/type/boolean-type';
@@ -49,7 +48,7 @@ function requiredError(received: string): string {
 }
 
 function acceptedFlags() {
-  const isTrue = jest.fn((value: unknown) => value === true);
+  const isTrue = vi.fn((value: unknown) => value === true);
 
   @Validations([{ custom: 'isTrue', fn: isTrue }])
   class OptionalAccepted extends BooleanType {}
@@ -83,7 +82,7 @@ describe('BooleanType (optional)', () => {
   });
 
   describe('conversion', () => {
-    it.each(convertibleInputs)('%p → %p', (input, expected) => {
+    it.each(convertibleInputs)('%o → %o', (input, expected) => {
       expect(new BooleanType(input as boolean).value).toBe(expected);
     });
 
@@ -95,7 +94,7 @@ describe('BooleanType (optional)', () => {
       expect(new BooleanType().value).toBeNull();
     });
 
-    it.each(notConvertibleInputs)('%p throws TypePrimitiveException', (input, received) => {
+    it.each(notConvertibleInputs)('%o throws TypePrimitiveException', (input, received) => {
       const create = () => new BooleanType(input as boolean);
       expect(create).toThrow(TypePrimitiveException);
       expect(create).toThrow(primitiveError(received));
@@ -103,7 +102,7 @@ describe('BooleanType (optional)', () => {
   });
 
   describe('validate', () => {
-    it.each(convertibleInputs)('%p is valid as %p', (input, expected) => {
+    it.each(convertibleInputs)('%o is valid as %o', (input, expected) => {
       expect(new BooleanType(input as boolean).validate()).toEqual({
         ok: true,
         value: expected,
@@ -141,7 +140,7 @@ describe('BooleanType (optional)', () => {
       ['true', new BooleanType(true), false, 'true'],
       ['false', new BooleanType(false), false, 'false'],
       ['an empty value', new BooleanType(null), true, ''],
-    ])('%s → isNull %s, toString %p', (_, instance, isNull, text) => {
+    ])('%s → isNull %s, toString %o', (_, instance, isNull, text) => {
       expect(instance.isNull).toBe(isNull);
       expect(instance.toString).toBe(text);
     });
@@ -171,7 +170,7 @@ describe('Required(BooleanType)', () => {
   });
 
   describe('construction', () => {
-    it.each(convertibleInputs)('%p → %p', (input, expected) => {
+    it.each(convertibleInputs)('%o → %o', (input, expected) => {
       expect(new RequiredBoolean(input as boolean).value).toBe(expected);
     });
 
@@ -190,7 +189,7 @@ describe('Required(BooleanType)', () => {
   });
 
   describe('validate', () => {
-    it.each(convertibleInputs)('%p is valid as %p, false included', (input, expected) => {
+    it.each(convertibleInputs)('%o is valid as %o, false included', (input, expected) => {
       expect(new RequiredBoolean(input as boolean).validate()).toEqual({
         ok: true,
         value: expected,

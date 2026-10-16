@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import { scorePassword } from '../../src/helpers/scorePassword';
 
 describe('scorePassword — numeric score of a password', () => {

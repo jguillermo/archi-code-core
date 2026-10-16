@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { SECURITY_LEVEL_NAMES } from '../../src/level/security-level';
 
 describe('SECURITY_LEVEL_NAMES', () => {

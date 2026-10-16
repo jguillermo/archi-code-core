@@ -100,7 +100,7 @@ export function isPostalCode(value: unknown, options: IsPostalCodeOptions): bool
   }
   if (locale === 'any') {
     for (const key in patterns) {
-      // istanbul ignore else
+      /* v8 ignore else -- @preserve */
       if (Object.prototype.hasOwnProperty.call(patterns, key)) {
         const pattern = patterns[key];
         if (pattern.test(str)) {

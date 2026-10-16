@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { runInNewContext } from 'node:vm';
 import { compareText, compareValues, isDate, valuesEqual } from '../src/criteria-value';
 

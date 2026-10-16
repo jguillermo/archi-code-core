@@ -1,4 +1,4 @@
-import { describe, it, expect, jest } from '@jest/globals';
+import { describe, expect, it, vi } from 'vitest';
 import { Validations, ownValidations, keyOf } from '../../src/decorator/validations';
 import { ValidationConfigError } from '../../src/helpers/errors';
 import type { Validation } from '../../src/decorator/validations';
@@ -9,17 +9,14 @@ interface DecoratorModules {
   validate: typeof import('../../src/decorator/validate');
 }
 
-function loadAnotherCopy(): DecoratorModules {
-  let loaded: DecoratorModules | undefined;
-  jest.isolateModules(() => {
-    loaded = {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      validations: require('../../src/decorator/validations'),
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      validate: require('../../src/decorator/validate'),
-    };
-  });
-  return loaded as DecoratorModules;
+async function loadAnotherCopy(): Promise<DecoratorModules> {
+  vi.resetModules();
+  const loaded = {
+    validations: await import('../../src/decorator/validations'),
+    validate: await import('../../src/decorator/validate'),
+  };
+  vi.resetModules();
+  return loaded;
 }
 
 describe('Validations', () => {
@@ -170,8 +167,8 @@ describe('Validations', () => {
     expect(() => Validations([{ validator: 'isInt' }])({})).toThrow(ValidationConfigError);
   });
 
-  it('shares one registry between every copy of the module', () => {
-    const other = loadAnotherCopy();
+  it('shares one registry between every copy of the module', async () => {
+    const other = await loadAnotherCopy();
     expect(other.validations.ownValidations).toBe(ownValidations);
     expect(
       (globalThis as Record<symbol, unknown>)[Symbol.for('@archi-code/validation/decorator.v1')],

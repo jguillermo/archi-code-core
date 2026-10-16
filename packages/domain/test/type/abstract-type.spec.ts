@@ -1,5 +1,4 @@
-import { describe, expect, it, jest } from '@jest/globals';
-import { expectTypeOf } from 'expect-type';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { Validations } from '@archi-code/validation';
 import type { Validatable, ValidationResult } from '@archi-code/validation';
 import { AbstractType, Required } from '../../src/type/abstract-type';
@@ -36,7 +35,7 @@ class NoneAsNull extends AbstractType<string> {
 }
 
 function typeWithSpiedFilter() {
-  const filterSpy = jest.fn((value: unknown) => value);
+  const filterSpy = vi.fn((value: unknown) => value);
   class SpiedType extends AbstractType<string> {
     protected filter(value: unknown): string {
       return filterSpy(value) as string;
@@ -162,7 +161,7 @@ describe('AbstractType', () => {
       ['a string', new NullableString('abc'), 'abc'],
       ['a number', new PlainNumber(-1.5), '-1.5'],
       ['the filtered value', new TrimmedString('  abc  '), 'abc'],
-    ])('%s → %p', (_, instance, expected) => {
+    ])('%s → %o', (_, instance, expected) => {
       expect(instance.toString).toBe(expected);
     });
   });
@@ -188,7 +187,7 @@ describe('AbstractType', () => {
     });
 
     it('validates the filtered value, not the raw input', () => {
-      const isHello = jest.fn((value: unknown) => value === 'hello');
+      const isHello = vi.fn((value: unknown) => value === 'hello');
 
       @Validations([{ custom: 'isHello', fn: isHello }])
       class Greeting extends TrimmedString {}
@@ -220,7 +219,7 @@ describe('AbstractType', () => {
 
     describe('null value', () => {
       it('an optional type is ok without running its validations', () => {
-        const rule = jest.fn(() => false);
+        const rule = vi.fn(() => false);
 
         @Validations([{ custom: 'rule', fn: rule }])
         class Optional extends NullableString {}
@@ -232,7 +231,7 @@ describe('AbstractType', () => {
 
     describe('keeps nothing between calls', () => {
       function counterWithSpiedRule() {
-        const isNonNegative = jest.fn((value: unknown) => typeof value === 'number' && value >= 0);
+        const isNonNegative = vi.fn((value: unknown) => typeof value === 'number' && value >= 0);
 
         @Validations([{ custom: 'nonNegative', fn: isNonNegative }])
         class Counter extends AbstractType<number> {
@@ -297,8 +296,8 @@ describe('AbstractType', () => {
       };
 
       function ratingTypes() {
-        const isPositive = jest.fn((value: unknown) => typeof value === 'number' && value > 0);
-        const isEven = jest.fn((value: unknown) => typeof value === 'number' && value % 2 === 0);
+        const isPositive = vi.fn((value: unknown) => typeof value === 'number' && value > 0);
+        const isEven = vi.fn((value: unknown) => typeof value === 'number' && value % 2 === 0);
 
         @Validations([
           { custom: 'positive', fn: isPositive },
@@ -499,7 +498,7 @@ describe('AbstractType', () => {
     });
 
     it('throws RequiredValueException with the type name on construction, before any validation runs', () => {
-      const rule = jest.fn(() => false);
+      const rule = vi.fn(() => false);
 
       @Validations([{ custom: 'rule', fn: rule }])
       class Mandatory extends RequiredNumber {}
@@ -557,7 +556,7 @@ describe('AbstractType', () => {
     });
 
     it('fails only isRequired when the value becomes null, without running the other validations', () => {
-      const rule = jest.fn(() => true);
+      const rule = vi.fn(() => true);
 
       @Validations([{ custom: 'rule', fn: rule }])
       class Clearable extends RequiredNumber {

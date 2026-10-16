@@ -208,7 +208,7 @@ export function isMobilePhone(value: unknown, options?: IsMobilePhoneOptions): b
   }
   if (!locale || locale === 'any') {
     for (const key in phones) {
-      // istanbul ignore else
+      /* v8 ignore else -- @preserve */
       if (Object.prototype.hasOwnProperty.call(phones, key)) {
         const phone = phones[key];
         if (phone.test(s)) {

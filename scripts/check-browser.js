@@ -6,6 +6,7 @@ const http = require('http');
 const path = require('path');
 const crypto = require('crypto');
 const { loadPackageChecks, runChecks, subpaths } = require('./lib/package-checks');
+const { SPECIFIER_RE, findNodeGlobal } = require('./lib/web-safety');
 
 const ROOT = process.cwd();
 const pkg = require(path.join(ROOT, 'package.json'));
@@ -30,6 +31,53 @@ function esmEntry(manifest, subpath) {
   if (typeof target === 'string') return target;
   const pick = (condition) => (typeof condition === 'string' ? condition : condition?.default);
   return target ? (pick(target.browser) ?? pick(target.import) ?? null) : null;
+}
+
+function checkBrowserCondition() {
+  const browserCondition = pkg.exports['.']?.browser;
+  if (!pkg.browser && !browserCondition) return;
+  const webEntry = browserCondition?.default;
+  if (pkg.browser !== webEntry || !webEntry || !webEntry.startsWith('./dist/esm/')) {
+    fail(
+      `"browser" field and exports["."].browser.default must both point to the ESM build (got ${pkg.browser} / ${webEntry})`,
+    );
+  }
+  if (browserCondition.types !== webEntry.replace(/\.js$/, '.d.ts')) {
+    fail(
+      `exports["."].browser.types must be the declarations of the ESM build (got ${browserCondition.types})`,
+    );
+  }
+}
+
+function listJs(dir) {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) return listJs(full);
+    return entry.name.endsWith('.js') ? [full] : [];
+  });
+}
+
+function checkEsmBuild() {
+  const esmDir = path.join(ROOT, 'dist', 'esm');
+  if (!fs.existsSync(esmDir)) fail('dist/esm does not exist — run npm run build');
+  const dependencies = Object.keys(pkg.dependencies ?? {});
+  const isDependency = (specifier) =>
+    dependencies.some((name) => specifier === name || specifier.startsWith(`${name}/`));
+  for (const file of listJs(esmDir)) {
+    const rel = path.relative(ROOT, file);
+    const code = fs.readFileSync(file, 'utf8');
+    for (const match of code.matchAll(SPECIFIER_RE)) {
+      const specifier = match[2];
+      if (specifier.startsWith('.')) {
+        if (!specifier.endsWith('.js'))
+          fail(`${rel} imports "${specifier}" without a .js extension`);
+      } else if (!isDependency(specifier)) {
+        fail(`${rel} imports "${specifier}", which is not a runtime dependency a page can load`);
+      }
+    }
+    const nodeGlobal = findNodeGlobal(code);
+    if (nodeGlobal) fail(`${rel} uses the Node-only global "${nodeGlobal}"`);
+  }
 }
 
 function dependencyMounts(root, manifest, mounts = new Map()) {
@@ -145,6 +193,8 @@ function browserChecksByEntry() {
 }
 
 async function main() {
+  checkBrowserCondition();
+  checkEsmBuild();
   const checks = browserChecksByEntry();
   if (checks.length === 0) fail('no entry point has browser checks in test/dist');
   const pages = new Map(checks.map(({ options }, index) => [`/page-${index}.html`, options]));
@@ -163,13 +213,16 @@ async function main() {
         fail(`${name} cannot start (${e.message.split('\n')[0]}) — run npx playwright install`);
       }
       try {
-        const inPage = checks.map(({ name: check, run, entry }, index) => [
+        const inPage = checks.map(({ name: check, run, entry, options }, index) => [
           check,
           async () => {
             const page = await browser.newPage();
             try {
               await page.goto(`${origin}/page-${index}.html`);
-              return await page.evaluate(run, `${origin}/${entry.replace(/^\.\//, '')}`);
+              const url = `${origin}/${entry.replace(/^\.\//, '')}`;
+              const input = options.input ? await options.input() : undefined;
+              const result = await page.evaluate(run, options.input ? { entry: url, input } : url);
+              return options.verify ? await options.verify(result, input) : result;
             } finally {
               await page.close();
             }

@@ -1,3 +1,4 @@
+import { describe, it } from 'vitest';
 import assert from 'assert';
 import { validator } from '../../src/validators';
 import test from '../cross/support/testFunctions';

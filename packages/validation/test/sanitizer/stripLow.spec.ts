@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import * as sanitizer from '../../src/sanitizer';
 import { test } from '../cross/support/sanitizerTest';
 

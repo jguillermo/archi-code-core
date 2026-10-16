@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import { checkHost } from '../../src/helpers/checkHost';
 
 describe('#16 checkHost — stateful (g/y) regexes give stable results', () => {

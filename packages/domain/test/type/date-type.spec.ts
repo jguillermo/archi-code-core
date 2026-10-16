@@ -1,5 +1,4 @@
-import { describe, expect, it, jest } from '@jest/globals';
-import { expectTypeOf } from 'expect-type';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { Validations } from '@archi-code/validation';
 import type { ValidationResult } from '@archi-code/validation';
 import { CreatedAt, DateType, UpdatedAt } from '../../src/type/date-type';
@@ -45,7 +44,7 @@ function requiredError(received: string): string {
 }
 
 function datesIn2018() {
-  const isIn2018 = jest.fn((value: unknown) => (value as Date).getUTCFullYear() === 2018);
+  const isIn2018 = vi.fn((value: unknown) => (value as Date).getUTCFullYear() === 2018);
 
   @Validations([{ custom: 'isIn2018', fn: isIn2018 }])
   class OptionalIn2018 extends DateType {}
@@ -75,7 +74,7 @@ describe('DateType (optional)', () => {
   });
 
   describe('conversion', () => {
-    it.each(convertibleInputs)('%p → %p', (input, expected) => {
+    it.each(convertibleInputs)('%o → %o', (input, expected) => {
       const value = new DateType(input as Date).value;
       expect(value).toBeInstanceOf(Date);
       expect(value?.toISOString()).toBe(expected);
@@ -89,7 +88,7 @@ describe('DateType (optional)', () => {
       expect(new DateType().value).toBeNull();
     });
 
-    it.each(notConvertibleInputs)('%p throws TypePrimitiveException', (input, received) => {
+    it.each(notConvertibleInputs)('%o throws TypePrimitiveException', (input, received) => {
       const create = () => new DateType(input as Date);
       expect(create).toThrow(TypePrimitiveException);
       expect(create).toThrow(primitiveError(received));
@@ -127,7 +126,7 @@ describe('DateType (optional)', () => {
   });
 
   describe('validate', () => {
-    it.each(convertibleInputs)('%p is valid', (input) => {
+    it.each(convertibleInputs)('%o is valid', (input) => {
       const instance = new DateType(input as Date);
       expect(instance.validate()).toEqual({ ok: true, value: instance.value, errors: [] });
     });
@@ -162,7 +161,7 @@ describe('DateType (optional)', () => {
         '2018-03-23T16:02:15.000Z',
       ],
       ['an empty value', new DateType(null), true, ''],
-    ])('%s → isNull %s, toString %p', (_, instance, isNull, text) => {
+    ])('%s → isNull %s, toString %o', (_, instance, isNull, text) => {
       expect(instance.isNull).toBe(isNull);
       expect(instance.toString).toBe(text);
     });
@@ -190,7 +189,7 @@ describe('Required(DateType)', () => {
   });
 
   describe('construction', () => {
-    it.each(convertibleInputs)('%p → %p', (input, expected) => {
+    it.each(convertibleInputs)('%o → %o', (input, expected) => {
       expect(new RequiredDate(input as Date).value.toISOString()).toBe(expected);
     });
 
@@ -231,9 +230,9 @@ describe('CreatedAt', () => {
   });
 
   it('now creates it with the current date', () => {
-    jest.useFakeTimers({ now: new Date('2024-05-01T10:00:00.000Z') });
+    vi.useFakeTimers({ now: new Date('2024-05-01T10:00:00.000Z') });
     const createdAt = CreatedAt.now();
-    jest.useRealTimers();
+    vi.useRealTimers();
 
     expect(createdAt).toBeInstanceOf(CreatedAt);
     expect(createdAt.toString).toBe('2024-05-01T10:00:00.000Z');
@@ -250,9 +249,9 @@ describe('UpdatedAt', () => {
   });
 
   it('now creates it with the current date', () => {
-    jest.useFakeTimers({ now: new Date('2024-05-01T10:00:00.000Z') });
+    vi.useFakeTimers({ now: new Date('2024-05-01T10:00:00.000Z') });
     const updatedAt = UpdatedAt.now();
-    jest.useRealTimers();
+    vi.useRealTimers();
 
     expect(updatedAt).toBeInstanceOf(UpdatedAt);
     expect(updatedAt.toString).toBe('2024-05-01T10:00:00.000Z');
@@ -262,9 +261,9 @@ describe('UpdatedAt', () => {
     const updatedAt = new UpdatedAt(new Date('2020-01-01T00:00:00.000Z'));
     const before = updatedAt.validate();
 
-    jest.useFakeTimers({ now: new Date('2024-05-01T10:00:00.000Z') });
+    vi.useFakeTimers({ now: new Date('2024-05-01T10:00:00.000Z') });
     updatedAt.setNow();
-    jest.useRealTimers();
+    vi.useRealTimers();
 
     expect(updatedAt.toString).toBe('2024-05-01T10:00:00.000Z');
     expect(updatedAt.validate()).not.toBe(before);

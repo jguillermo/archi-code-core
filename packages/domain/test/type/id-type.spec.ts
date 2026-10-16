@@ -1,5 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
-import { expectTypeOf } from 'expect-type';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 import { IdType } from '../../src/type/id-type';
 import { UuidType } from '../../src/type/uuid-type';
 import { TypePrimitiveException } from '../../src/exceptions/domain/type-primitive.exception';

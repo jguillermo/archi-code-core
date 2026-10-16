@@ -1,5 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
-import { expectTypeOf } from 'expect-type';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 import { Validations, runValidations } from '@archi-code/validation';
 import { Required } from '../../../src/type/required/required';
 import { RequiredMark } from '../../../src/type/required/required-mark';

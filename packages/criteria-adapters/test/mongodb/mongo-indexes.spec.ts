@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Criteria } from '@archi-code/criteria';
 import { Collection, Document, MongoClient } from 'mongodb';
 import { MongoMemoryServer } from 'mongodb-memory-server';
@@ -28,7 +28,7 @@ describe('MongoCriteriaTranslator keeps indexes usable', () => {
 
   beforeAll(async () => {
     server = await MongoMemoryServer.create();
-    // Jest runs CommonJS without vm modules, so the driver's dynamic import('os') fails there.
+    // Passing os keeps the driver from loading it with a dynamic import inside the test runner.
     client = await MongoClient.connect(server.getUri(), { runtimeAdapters: { os } });
     accounts = client.db('criteria').collection('accounts');
     await accounts.insertMany(

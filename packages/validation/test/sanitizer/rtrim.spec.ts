@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import { loadWithoutNative, WHITESPACE_SAMPLES } from '../cross/support/withoutNative';
 import { describeGrowth, isLinear, measureGrowth } from '../cross/support/timing';
 import { rtrim } from '../../src/sanitizer/rtrim';

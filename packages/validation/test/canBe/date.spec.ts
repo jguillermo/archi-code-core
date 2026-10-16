@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { canBeDate } from '../../src/canBe';
 
 const VALID_DATES = [
@@ -110,29 +110,29 @@ const DATE_TIME_STRINGS = [
 
 describe('canBeDate', () => {
   it.each(DATE_TIME_STRINGS.map((v) => [v]))(
-    'returns false for date-time string (date part only by default): %p',
+    'returns false for date-time string (date part only by default): %o',
     (value) => {
       expect(canBeDate(value)).toBe(false);
     },
   );
 
-  it.each(VALID_DATES.map((v) => [v]))('returns true for valid date: %p', (value) => {
+  it.each(VALID_DATES.map((v) => [v]))('returns true for valid date: %o', (value) => {
     expect(canBeDate(value)).toBe(true);
   });
 
-  it.each(NON_DATE_TYPES.map((v) => [v]))('returns false for non-date type: %p', (value) => {
+  it.each(NON_DATE_TYPES.map((v) => [v]))('returns false for non-date type: %o', (value) => {
     expect(canBeDate(value)).toBe(false);
   });
 
   it.each(OUT_OF_RANGE_DATE_STRINGS.map((v) => [v]))(
-    'returns false for out-of-range date string: %p',
+    'returns false for out-of-range date string: %o',
     (value) => {
       expect(canBeDate(value)).toBe(false);
     },
   );
 
   it.each(WRONG_FORMAT_DATE_STRINGS.map((v) => [v]))(
-    'returns false for wrong-format date string: %p',
+    'returns false for wrong-format date string: %o',
     (value) => {
       expect(canBeDate(value)).toBe(false);
     },

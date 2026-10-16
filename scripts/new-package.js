@@ -22,7 +22,6 @@ function json(value) {
 function packageJson(folder) {
   const esm = { types: './dist/esm/index.d.ts', default: './dist/esm/index.js' };
   const cjs = { types: './dist/cjs/index.d.ts', default: './dist/cjs/index.js' };
-  const files = '{src,test}/**/*.{js,jsx,ts,tsx,json,css,scss,md}';
   return {
     name: `${SCOPE}/${folder}`,
     version: '0.0.0-development',
@@ -42,30 +41,12 @@ function packageJson(folder) {
       'build:cjs': 'tsc -p tsconfig.cjs.json',
       'build:esm': 'tsc -p tsconfig.esm.json && node ../../scripts/fix-esm.js',
       build: 'npm run build:cjs && npm run build:esm',
-      test: 'jest',
-      'test:coverage': 'jest --coverage',
+      test: 'vitest run',
+      'test:coverage': 'vitest run --coverage',
       'check:types': 'tsc -p tsconfig.json --noEmit --incremental false',
-      'check:dist': 'node ../../scripts/check-dist.js && node ../../scripts/check-types.js',
-      'check:editorconfig': 'node ../../scripts/editorconfig.js',
+      'check:dist': 'node ../../scripts/check-dist.js && attw --pack .',
       'check:all':
-        'npm run check:editorconfig && npm run check:prettier && npm run check:lint && npm run check:types && npm run test:coverage && npm run build && npm run check:dist',
-      'check:lint': 'eslint src test --ext .ts',
-      'fix:lint': 'eslint src test --ext .ts --fix',
-      'check:prettier': `prettier --check "${files}" "*.{json,md}"`,
-      'fix:prettier': `prettier --write "${files}" "*.{json,md}"`,
-    },
-    jest: {
-      moduleFileExtensions: ['js', 'json', 'ts'],
-      rootDir: '.',
-      roots: ['<rootDir>/src', '<rootDir>/test'],
-      testRegex: '.*\\.spec\\.ts$',
-      transform: { '^.+\\.ts$': 'ts-jest' },
-      collectCoverageFrom: ['src/**/*.(t|j)s'],
-      coverageDirectory: './coverage',
-      testEnvironment: 'node',
-      collectCoverage: false,
-      injectGlobals: false,
-      coverageThreshold: { global: { branches: 100, functions: 100, lines: 100, statements: 100 } },
+        'npm run check:types && npm run test:coverage && npm run build && npm run check:dist',
     },
   };
 }
@@ -205,9 +186,27 @@ function templates(folder, description) {
     LICENSE: fs.readFileSync(path.join(REPO, 'packages', 'domain', 'LICENSE'), 'utf8'),
     'README.md': readme(name, description),
     'SKILL.md': skill(name, description),
+    'vitest.config.mts': [
+      "import { defineConfig } from 'vitest/config';",
+      '',
+      'export default defineConfig({',
+      '  test: {',
+      "    environment: 'node',",
+      "    include: ['test/**/*.spec.ts'],",
+      '    globals: false,',
+      '    coverage: {',
+      "      provider: 'v8',",
+      "      include: ['src/**/*.ts'],",
+      "      reportsDirectory: './coverage',",
+      '      thresholds: { 100: true },',
+      '    },',
+      '  },',
+      '});',
+      '',
+    ].join('\n'),
     'src/index.ts': `export const PACKAGE_NAME = '${name}';\n`,
     'test/index.spec.ts': [
-      "import { describe, expect, it } from '@jest/globals';",
+      "import { describe, expect, it } from 'vitest';",
       "import * as api from '../src/index';",
       '',
       "const PUBLIC_API = ['PACKAGE_NAME'];",
@@ -236,9 +235,10 @@ function templates(folder, description) {
   };
 }
 
-function addRootCheckScript(folder) {
+function addToRootPackageJson(folder) {
   const file = path.join(REPO, 'package.json');
   const root = JSON.parse(fs.readFileSync(file, 'utf8'));
+  root.workspaces = [...root.workspaces, `packages/${folder}`];
   const scripts = {};
   for (const [key, value] of Object.entries(root.scripts)) {
     if (key === 'check:packages')
@@ -262,7 +262,7 @@ function main() {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, content);
   }
-  addRootCheckScript(folder);
+  addToRootPackageJson(folder);
   execFileSync(
     process.execPath,
     [

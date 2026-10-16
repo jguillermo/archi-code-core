@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { toBoolean, ConvertMessages } from '../../src/convert';
 import { converted, expectNotConvertible } from '../cross/support/convertHelpers';
 import type { Converted } from '../../src/convert';
@@ -132,8 +132,8 @@ describe('convert rules — { ok, value, error }', () => {
       [0, false],
       [' TRUE ', true],
       ['0', false],
-    ])('%p → %p', (input, expected) => expect(value(toBoolean(input))).toBe(expected));
-    it.each([[2], ['yes'], [null], [{}]])('%p → { ok: false, error }', (input) =>
+    ])('%o → %o', (input, expected) => expect(value(toBoolean(input))).toBe(expected));
+    it.each([[2], ['yes'], [null], [{}]])('%o → { ok: false, error }', (input) =>
       expect(toBoolean(input)).toEqual({ ok: false, value: null, error: ConvertMessages.BOOLEAN }),
     );
   });

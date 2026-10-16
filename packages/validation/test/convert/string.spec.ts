@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { toString, ConvertMessages } from '../../src/convert';
 import { converted, expectNotConvertible } from '../cross/support/convertHelpers';
 import type { Converted } from '../../src/convert';
@@ -248,7 +248,7 @@ describe('toString (convert module)', () => {
     assert.deepStrictEqual(toString(false), { ok: true, value: 'false', error: null });
   });
 
-  it.each([[null], [undefined], [NaN], [{}]])('%p → { ok: false, error }', (v) => {
+  it.each([[null], [undefined], [NaN], [{}]])('%o → { ok: false, error }', (v) => {
     assert.deepStrictEqual(toString(v), { ok: false, value: null, error: ConvertMessages.STRING });
   });
 });

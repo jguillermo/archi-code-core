@@ -1,21 +1,31 @@
-import { jest } from '@jest/globals';
+import { beforeAll, vi } from 'vitest';
 
 type StringMethod = 'trim' | 'trimStart' | 'trimEnd';
+type LoadedModule = Record<string, (...args: unknown[]) => unknown>;
 
 export function loadWithoutNative<T>(modulePath: string, methods: StringMethod[]): T {
-  const proto = String.prototype as unknown as Record<string, unknown>;
-  const saved = methods.map((m) => [m, proto[m]] as const);
-  let loaded: T | undefined;
-  try {
-    for (const m of methods) Reflect.deleteProperty(proto, m);
-    jest.isolateModules(() => {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      loaded = require(modulePath) as T;
-    });
-  } finally {
-    for (const [m, fn] of saved) proto[m] = fn;
-  }
-  return loaded as T;
+  let loaded: LoadedModule | undefined;
+  beforeAll(async () => {
+    const proto = String.prototype as unknown as Record<string, unknown>;
+    const saved = methods.map((m) => [m, proto[m]] as const);
+    try {
+      for (const m of methods) Reflect.deleteProperty(proto, m);
+      vi.resetModules();
+      loaded = (await import(/* @vite-ignore */ modulePath)) as LoadedModule;
+    } finally {
+      for (const [m, fn] of saved) proto[m] = fn;
+      vi.resetModules();
+    }
+  });
+  return new Proxy(
+    {},
+    {
+      get:
+        (_target, name: string) =>
+        (...args: unknown[]) =>
+          (loaded as LoadedModule)[name](...args),
+    },
+  ) as T;
 }
 
 export const WHITESPACE_SAMPLES: string[] = (() => {

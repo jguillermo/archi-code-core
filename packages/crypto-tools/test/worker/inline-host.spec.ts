@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { inlineWorkerFactory } from '../../src/worker/inline-host';
 import { compileWasm, wasmGlue } from '../../src/wasm/wasm-module';
 import { requester } from '../support/requests';

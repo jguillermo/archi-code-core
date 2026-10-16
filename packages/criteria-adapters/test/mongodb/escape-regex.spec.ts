@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { escapeRegex } from '../../src/mongodb/escape-regex';
 
 describe('escapeRegex', () => {

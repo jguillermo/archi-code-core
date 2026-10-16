@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { decodeBase64 } from '../../src/wasm/base64';
 
 describe('decodeBase64', () => {
@@ -8,7 +8,7 @@ describe('decodeBase64', () => {
     ['YWI=', [97, 98]],
     ['YWJj', [97, 98, 99]],
     ['+/8A', [251, 255, 0]],
-  ])('decodes %p', (text, bytes) => {
+  ])('decodes %o', (text, bytes) => {
     expect([...decodeBase64(text)]).toEqual(bytes);
   });
 

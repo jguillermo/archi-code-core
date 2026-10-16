@@ -1,7 +1,7 @@
-'use strict';
+import { createRequire } from 'node:module';
+import { describe, expect, test } from 'vitest';
 
-const { test, describe } = require('node:test');
-const assert = require('node:assert/strict');
+const require = createRequire(import.meta.url);
 const { topoSort } = require('../lib/topo-sort');
 
 describe('topoSort', () => {
@@ -12,10 +12,7 @@ describe('topoSort', () => {
       { name: 'c', internalDeps: [] },
     ];
     const result = topoSort(pkgs);
-    assert.deepEqual(
-      result.map((p) => p.name),
-      ['a', 'b', 'c'],
-    );
+    expect(result.map((p) => p.name)).toStrictEqual(['a', 'b', 'c']);
   });
 
   test('dependency comes before its dependent', () => {
@@ -25,7 +22,7 @@ describe('topoSort', () => {
     ];
     const result = topoSort(pkgs);
     const names = result.map((p) => p.name);
-    assert.ok(names.indexOf('@scope/common') < names.indexOf('@scope/app'));
+    expect(names.indexOf('@scope/common') < names.indexOf('@scope/app')).toBeTruthy();
   });
 
   test('transitive: A → B → C, C must be first', () => {
@@ -36,8 +33,8 @@ describe('topoSort', () => {
     ];
     const result = topoSort(pkgs);
     const names = result.map((p) => p.name);
-    assert.ok(names.indexOf('C') < names.indexOf('B'), 'C before B');
-    assert.ok(names.indexOf('B') < names.indexOf('A'), 'B before A');
+    expect(names.indexOf('C') < names.indexOf('B'), 'C before B').toBeTruthy();
+    expect(names.indexOf('B') < names.indexOf('A'), 'B before A').toBeTruthy();
   });
 
   test('diamond: D depends on B and C, both depend on A', () => {
@@ -49,10 +46,10 @@ describe('topoSort', () => {
     ];
     const result = topoSort(pkgs);
     const names = result.map((p) => p.name);
-    assert.ok(names.indexOf('A') < names.indexOf('B'), 'A before B');
-    assert.ok(names.indexOf('A') < names.indexOf('C'), 'A before C');
-    assert.ok(names.indexOf('B') < names.indexOf('D'), 'B before D');
-    assert.ok(names.indexOf('C') < names.indexOf('D'), 'C before D');
+    expect(names.indexOf('A') < names.indexOf('B'), 'A before B').toBeTruthy();
+    expect(names.indexOf('A') < names.indexOf('C'), 'A before C').toBeTruthy();
+    expect(names.indexOf('B') < names.indexOf('D'), 'B before D').toBeTruthy();
+    expect(names.indexOf('C') < names.indexOf('D'), 'C before D').toBeTruthy();
   });
 
   test('deps not in the list are ignored', () => {
@@ -61,7 +58,7 @@ describe('topoSort', () => {
       { name: 'lib', internalDeps: [] },
     ];
     const result = topoSort(pkgs);
-    assert.equal(result.length, 2);
+    expect(result.length).toBe(2);
   });
 
   test('throws on circular dependency', () => {
@@ -69,7 +66,7 @@ describe('topoSort', () => {
       { name: 'A', internalDeps: ['B'] },
       { name: 'B', internalDeps: ['A'] },
     ];
-    assert.throws(() => topoSort(pkgs), /Circular dependency detected/);
+    expect(() => topoSort(pkgs)).toThrow(/Circular dependency detected/);
   });
 
   test('a dependency shared by two packages is built before both', () => {
@@ -83,8 +80,8 @@ describe('topoSort', () => {
     ];
     const result = topoSort(pkgs);
     const names = result.map((p) => p.name);
-    assert.ok(names.indexOf('@archi-code/common') < names.indexOf('@archi-code/test'));
-    assert.ok(names.indexOf('@archi-code/common') < names.indexOf('@archi-code/domain'));
-    assert.ok(names.indexOf('@archi-code/test') < names.indexOf('@archi-code/domain'));
+    expect(names.indexOf('@archi-code/common') < names.indexOf('@archi-code/test')).toBeTruthy();
+    expect(names.indexOf('@archi-code/common') < names.indexOf('@archi-code/domain')).toBeTruthy();
+    expect(names.indexOf('@archi-code/test') < names.indexOf('@archi-code/domain')).toBeTruthy();
   });
 });

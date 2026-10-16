@@ -1,5 +1,4 @@
-import { describe, expect, it, jest } from '@jest/globals';
-import { expectTypeOf } from 'expect-type';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { Validations, isUUID } from '@archi-code/validation';
 import type { ValidationResult } from '@archi-code/validation';
 import { UuidType } from '../../src/type/uuid-type';
@@ -46,7 +45,7 @@ function requiredError(received: string): string {
 }
 
 function versionFourIds() {
-  const isV4 = jest.fn((value: unknown) => isUUID(value, { version: 4 }));
+  const isV4 = vi.fn((value: unknown) => isUUID(value, { version: 4 }));
 
   @Validations([{ custom: 'isV4', fn: isV4 }])
   class OptionalV4 extends UuidType {}
@@ -78,7 +77,7 @@ describe('UuidType (optional)', () => {
   });
 
   describe('conversion', () => {
-    it.each(convertibleInputs)('%p is kept as it is', (input) => {
+    it.each(convertibleInputs)('%o is kept as it is', (input) => {
       expect(new UuidType(input).value).toBe(input);
     });
 
@@ -90,7 +89,7 @@ describe('UuidType (optional)', () => {
       expect(new UuidType().value).toBeNull();
     });
 
-    it.each(notConvertibleInputs)('%p throws TypePrimitiveException', (input, received) => {
+    it.each(notConvertibleInputs)('%o throws TypePrimitiveException', (input, received) => {
       const create = () => new UuidType(input as string);
       expect(create).toThrow(TypePrimitiveException);
       expect(create).toThrow(primitiveError(received));
@@ -98,7 +97,7 @@ describe('UuidType (optional)', () => {
   });
 
   describe('validate', () => {
-    it.each(convertibleInputs)('%p is valid', (input) => {
+    it.each(convertibleInputs)('%o is valid', (input) => {
       expect(new UuidType(input).validate()).toEqual({ ok: true, value: input, errors: [] });
     });
 
@@ -133,7 +132,7 @@ describe('UuidType (optional)', () => {
     it.each([
       ['a value', new UuidType(V4), false, V4],
       ['an empty value', new UuidType(null), true, ''],
-    ])('%s → isNull %s, toString %p', (_, instance, isNull, text) => {
+    ])('%s → isNull %s, toString %o', (_, instance, isNull, text) => {
       expect(instance.isNull).toBe(isNull);
       expect(instance.toString).toBe(text);
     });
@@ -177,7 +176,7 @@ describe('Required(UuidType)', () => {
   });
 
   describe('construction', () => {
-    it.each(convertibleInputs)('%p is kept as it is', (input) => {
+    it.each(convertibleInputs)('%o is kept as it is', (input) => {
       expect(new RequiredUuid(input).value).toBe(input);
     });
 

@@ -1,5 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
-import { expectTypeOf } from 'expect-type';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 import { Criteria } from '../src/criteria';
 import { CriteriaError } from '../src/criteria-error';
 import { FilterNode } from '../src/filter-node';

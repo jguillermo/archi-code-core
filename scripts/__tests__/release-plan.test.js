@@ -1,7 +1,7 @@
-'use strict';
+import { createRequire } from 'node:module';
+import { describe, expect, test } from 'vitest';
 
-const { test, describe } = require('node:test');
-const assert = require('node:assert/strict');
+const require = createRequire(import.meta.url);
 const { buildPlan, classifyCommit } = require('../lib/release-plan');
 const { CHANNELS, channelFor, compareVersions, nextVersion } = require('../lib/versions');
 
@@ -76,7 +76,7 @@ function plan({ branch = 'main', packages, published = {}, commits = {} }) {
 
 describe('channelFor', () => {
   test('main publishes alpha prereleases under the main dist-tag', () => {
-    assert.deepEqual(channelFor('main'), {
+    expect(channelFor('main')).toStrictEqual({
       branch: 'main',
       prerelease: 'alpha',
       distTags: ['latest', 'main'],
@@ -84,7 +84,7 @@ describe('channelFor', () => {
   });
 
   test('release publishes stable versions under latest', () => {
-    assert.deepEqual(channelFor('release'), {
+    expect(channelFor('release')).toStrictEqual({
       branch: 'release',
       prerelease: null,
       distTags: ['latest'],
@@ -92,20 +92,20 @@ describe('channelFor', () => {
   });
 
   test('any other branch is rejected', () => {
-    assert.throws(() => channelFor('feature/x'), /does not publish/);
+    expect(() => channelFor('feature/x')).toThrow(/does not publish/);
   });
 });
 
 describe('classifyCommit', () => {
   test('feat is minor, fix and perf are patch', () => {
-    assert.equal(classifyCommit({ subject: 'feat(domain): add x' }).bump, 'minor');
-    assert.equal(classifyCommit({ subject: 'fix: y' }).bump, 'patch');
-    assert.equal(classifyCommit({ subject: 'perf(validation): z' }).bump, 'patch');
+    expect(classifyCommit({ subject: 'feat(domain): add x' }).bump).toBe('minor');
+    expect(classifyCommit({ subject: 'fix: y' }).bump).toBe('patch');
+    expect(classifyCommit({ subject: 'perf(validation): z' }).bump).toBe('patch');
   });
 
   test('chore, docs, test, style, ci, build, refactor and revert do not release', () => {
     for (const type of ['chore', 'docs', 'test', 'style', 'ci', 'build', 'refactor', 'revert']) {
-      assert.deepEqual(classifyCommit({ subject: `${type}: x` }), {
+      expect(classifyCommit({ subject: `${type}: x` })).toStrictEqual({
         bump: null,
         conventional: true,
       });
@@ -113,24 +113,23 @@ describe('classifyCommit', () => {
   });
 
   test('a bang or a BREAKING CHANGE footer is major', () => {
-    assert.equal(classifyCommit({ subject: 'feat!: drop x' }).bump, 'major');
-    assert.equal(classifyCommit({ subject: 'refactor(a)!: drop x' }).bump, 'major');
-    assert.equal(
-      classifyCommit({ subject: 'fix: x', body: 'BREAKING CHANGE: removed y' }).bump,
+    expect(classifyCommit({ subject: 'feat!: drop x' }).bump).toBe('major');
+    expect(classifyCommit({ subject: 'refactor(a)!: drop x' }).bump).toBe('major');
+    expect(classifyCommit({ subject: 'fix: x', body: 'BREAKING CHANGE: removed y' }).bump).toBe(
       'major',
     );
   });
 
   test('a non conventional commit counts as patch and is flagged', () => {
-    assert.deepEqual(classifyCommit({ subject: 'Remove commom (#9)' }), {
+    expect(classifyCommit({ subject: 'Remove commom (#9)' })).toStrictEqual({
       bump: 'patch',
       conventional: false,
     });
-    assert.deepEqual(classifyCommit({ subject: 'feature: unknown type' }), {
+    expect(classifyCommit({ subject: 'feature: unknown type' })).toStrictEqual({
       bump: 'patch',
       conventional: false,
     });
-    assert.equal(classifyCommit({ subject: 'fe' }).conventional, false);
+    expect(classifyCommit({ subject: 'fe' }).conventional).toBe(false);
   });
 });
 
@@ -139,7 +138,7 @@ describe('compareVersions', () => {
     const sorted = ['1.0.0', '1.0.0-alpha.10', '0.9.9', '1.0.0-alpha.2', '1.1.0-alpha.1'].sort(
       compareVersions,
     );
-    assert.deepEqual(sorted, [
+    expect(sorted).toStrictEqual([
       '0.9.9',
       '1.0.0-alpha.2',
       '1.0.0-alpha.10',
@@ -149,89 +148,78 @@ describe('compareVersions', () => {
   });
 
   test('rejects anything that is not X.Y.Z or X.Y.Z-id.N', () => {
-    assert.throws(() => compareVersions('1.0', '1.0.0'), /Invalid version/);
-    assert.throws(() => compareVersions('1.0.0-alpha', '1.0.0'), /Invalid version/);
+    expect(() => compareVersions('1.0', '1.0.0')).toThrow(/Invalid version/);
+    expect(() => compareVersions('1.0.0-alpha', '1.0.0')).toThrow(/Invalid version/);
   });
 });
 
 describe('nextVersion on main (alpha)', () => {
   test('first release is 1.0.0-alpha.1', () => {
-    assert.equal(
-      nextVersion({ current: null, lastStable: null, bump: 'minor', channel: MAIN }),
+    expect(nextVersion({ current: null, lastStable: null, bump: 'minor', channel: MAIN })).toBe(
       '1.0.0-alpha.1',
     );
   });
 
   test('an open alpha keeps its base and increments the number', () => {
     for (const bump of ['patch', 'minor', 'major']) {
-      assert.equal(
-        nextVersion({ current: '1.0.0-alpha.3', lastStable: null, bump, channel: MAIN }),
+      expect(nextVersion({ current: '1.0.0-alpha.3', lastStable: null, bump, channel: MAIN })).toBe(
         '1.0.0-alpha.4',
       );
     }
   });
 
   test('after a stable release a new alpha line starts from the bumped stable', () => {
-    assert.equal(
+    expect(
       nextVersion({ current: '1.2.0', lastStable: '1.2.0', bump: 'patch', channel: MAIN }),
-      '1.2.1-alpha.1',
-    );
-    assert.equal(
+    ).toBe('1.2.1-alpha.1');
+    expect(
       nextVersion({ current: '1.2.0', lastStable: '1.2.0', bump: 'minor', channel: MAIN }),
-      '1.3.0-alpha.1',
-    );
+    ).toBe('1.3.0-alpha.1');
   });
 
   test('an open alpha too small for the bump starts a new line', () => {
-    assert.equal(
+    expect(
       nextVersion({ current: '1.2.1-alpha.2', lastStable: '1.2.0', bump: 'minor', channel: MAIN }),
-      '1.3.0-alpha.1',
-    );
-    assert.equal(
+    ).toBe('1.3.0-alpha.1');
+    expect(
       nextVersion({ current: '1.3.0-alpha.2', lastStable: '1.2.0', bump: 'patch', channel: MAIN }),
-      '1.3.0-alpha.3',
-    );
+    ).toBe('1.3.0-alpha.3');
   });
 });
 
 describe('nextVersion on release (stable)', () => {
   test('first release without alphas is 1.0.0', () => {
-    assert.equal(
-      nextVersion({ current: null, lastStable: null, bump: 'patch', channel: RELEASE }),
+    expect(nextVersion({ current: null, lastStable: null, bump: 'patch', channel: RELEASE })).toBe(
       '1.0.0',
     );
   });
 
   test('the first stable promotes the open alpha', () => {
-    assert.equal(
+    expect(
       nextVersion({ current: '1.0.0-alpha.4', lastStable: null, bump: 'minor', channel: RELEASE }),
-      '1.0.0',
-    );
+    ).toBe('1.0.0');
   });
 
   test('later stables increment the last stable, promoting an alpha that covers the bump', () => {
-    assert.equal(
+    expect(
       nextVersion({ current: '1.2.0', lastStable: '1.2.0', bump: 'minor', channel: RELEASE }),
-      '1.3.0',
-    );
-    assert.equal(
+    ).toBe('1.3.0');
+    expect(
       nextVersion({
         current: '2.0.0-alpha.3',
         lastStable: '1.2.0',
         bump: 'minor',
         channel: RELEASE,
       }),
-      '2.0.0',
-    );
-    assert.equal(
+    ).toBe('2.0.0');
+    expect(
       nextVersion({
         current: '1.2.1-alpha.1',
         lastStable: '1.2.0',
         bump: 'major',
         channel: RELEASE,
       }),
-      '2.0.0',
-    );
+    ).toBe('2.0.0');
   });
 });
 
@@ -242,10 +230,10 @@ describe('buildPlan', () => {
       published: { a: { main: '1.0.0-alpha.1' }, b: { main: '1.0.0-alpha.1' } },
       commits: { a: ['fix: x'], b: ['chore: y', 'docs: z'] },
     });
-    assert.equal(byName.a.next, '1.0.0-alpha.2');
-    assert.deepEqual(byName.a.reasons, ['commits (patch)']);
-    assert.equal(byName.b.next, null);
-    assert.equal(byName.b.commits.length, 2);
+    expect(byName.a.next).toBe('1.0.0-alpha.2');
+    expect(byName.a.reasons).toStrictEqual(['commits (patch)']);
+    expect(byName.b.next).toBe(null);
+    expect(byName.b.commits.length).toBe(2);
   });
 
   test('a released dependency cascades a patch to its dependents, transitively', () => {
@@ -262,16 +250,13 @@ describe('buildPlan', () => {
       },
       commits: { [BASE]: ['feat: x'] },
     });
-    assert.deepEqual(
-      result.packages.map((p) => p.name),
-      [BASE, MID, APP],
-    );
-    assert.equal(byName[MID].next, '1.0.0-alpha.2');
-    assert.deepEqual(byName[MID].reasons, [`cascade: ${BASE} → 1.0.0-alpha.2`]);
-    assert.deepEqual(byName[MID].dependencies, { [BASE]: '1.0.0-alpha.2' });
-    assert.equal(byName[APP].next, '1.0.0-alpha.2');
-    assert.deepEqual(byName[APP].dependencies, { [MID]: '1.0.0-alpha.2' });
-    assert.deepEqual(result.errors, []);
+    expect(result.packages.map((p) => p.name)).toStrictEqual([BASE, MID, APP]);
+    expect(byName[MID].next).toBe('1.0.0-alpha.2');
+    expect(byName[MID].reasons).toStrictEqual([`cascade: ${BASE} → 1.0.0-alpha.2`]);
+    expect(byName[MID].dependencies).toStrictEqual({ [BASE]: '1.0.0-alpha.2' });
+    expect(byName[APP].next).toBe('1.0.0-alpha.2');
+    expect(byName[APP].dependencies).toStrictEqual({ [MID]: '1.0.0-alpha.2' });
+    expect(result.errors).toStrictEqual([]);
   });
 
   test('a dependent that releases on its own pins unchanged dependencies to their current version', () => {
@@ -280,8 +265,8 @@ describe('buildPlan', () => {
       published: { [APP]: { main: '1.0.0-alpha.1' }, [BASE]: { main: '1.0.0-alpha.5' } },
       commits: { [APP]: ['feat: x'] },
     });
-    assert.equal(byName[BASE].next, null);
-    assert.deepEqual(byName[APP].dependencies, { [BASE]: '1.0.0-alpha.5' });
+    expect(byName[BASE].next).toBe(null);
+    expect(byName[APP].dependencies).toStrictEqual({ [BASE]: '1.0.0-alpha.5' });
   });
 
   test('a dependency published after the dependent was cascades even if it is not in this plan', () => {
@@ -293,11 +278,11 @@ describe('buildPlan', () => {
       readCommits: () => [],
     });
     const app = result.packages.find((p) => p.name === APP);
-    assert.equal(app.next, '1.0.0-alpha.2');
-    assert.deepEqual(app.reasons, [
+    expect(app.next).toBe('1.0.0-alpha.2');
+    expect(app.reasons).toStrictEqual([
       `cascade: ${BASE} is at 1.0.0-alpha.3 and the published version pins 1.0.0-alpha.2`,
     ]);
-    assert.deepEqual(app.dependencies, { [BASE]: '1.0.0-alpha.3' });
+    expect(app.dependencies).toStrictEqual({ [BASE]: '1.0.0-alpha.3' });
   });
 
   test('a dependent already pinned to the current dependency does not release', () => {
@@ -308,7 +293,7 @@ describe('buildPlan', () => {
       state,
       readCommits: () => [],
     });
-    assert.equal(result.packages.find((p) => p.name === APP).next, null);
+    expect(result.packages.find((p) => p.name === APP).next).toBe(null);
   });
 
   test('without deploys the whole set is released at the next major, aligned', () => {
@@ -325,20 +310,17 @@ describe('buildPlan', () => {
         return [];
       },
     });
-    assert.deepEqual(
-      result.packages.map((p) => [p.name, p.current, p.next, p.bump]),
-      [
-        [BASE, '1.0.0-alpha.3', '2.0.0-alpha.1', 'major'],
-        [APP, '1.0.0-alpha.1', '2.0.0-alpha.1', 'major'],
-        [MID, null, '2.0.0-alpha.1', 'major'],
-      ],
-    );
-    assert.deepEqual(result.packages[1].reasons, [
+    expect(result.packages.map((p) => [p.name, p.current, p.next, p.bump])).toStrictEqual([
+      [BASE, '1.0.0-alpha.3', '2.0.0-alpha.1', 'major'],
+      [APP, '1.0.0-alpha.1', '2.0.0-alpha.1', 'major'],
+      [MID, null, '2.0.0-alpha.1', 'major'],
+    ]);
+    expect(result.packages[1].reasons).toStrictEqual([
       'breaking: releases.json without deploys, new major for the whole set (2.0.0-alpha.1)',
     ]);
-    assert.deepEqual(result.packages[1].dependencies, { [BASE]: '2.0.0-alpha.1' });
-    assert.deepEqual(calls, []);
-    assert.deepEqual(result.errors, []);
+    expect(result.packages[1].dependencies).toStrictEqual({ [BASE]: '2.0.0-alpha.1' });
+    expect(calls).toStrictEqual([]);
+    expect(result.errors).toStrictEqual([]);
   });
 
   test('a reset cut half way is finished by the next run for the packages no deploy records', () => {
@@ -359,16 +341,13 @@ describe('buildPlan', () => {
       },
       readCommits: () => [],
     });
-    assert.deepEqual(
-      result.packages.map((p) => [p.name, p.next, p.reasons]),
-      [
-        [BASE, null, []],
-        [APP, '2.0.0-alpha.1', ['completes the reset of the whole set (2.0.0-alpha.1)']],
-        [MID, '2.0.0-alpha.1', ['completes the reset of the whole set (2.0.0-alpha.1)']],
-      ],
-    );
-    assert.deepEqual(result.packages[1].dependencies, { [BASE]: '2.0.0-alpha.1' });
-    assert.equal(result.reset, '2.0.0-alpha.1');
+    expect(result.packages.map((p) => [p.name, p.next, p.reasons])).toStrictEqual([
+      [BASE, null, []],
+      [APP, '2.0.0-alpha.1', ['completes the reset of the whole set (2.0.0-alpha.1)']],
+      [MID, '2.0.0-alpha.1', ['completes the reset of the whole set (2.0.0-alpha.1)']],
+    ]);
+    expect(result.packages[1].dependencies).toStrictEqual({ [BASE]: '2.0.0-alpha.1' });
+    expect(result.reset).toBe('2.0.0-alpha.1');
   });
 
   test('the reset takes the highest major of any channel and is stable on release', () => {
@@ -378,7 +357,7 @@ describe('buildPlan', () => {
       state: { packages: { [BASE]: { release: '3.1.0', main: '3.2.0-alpha.1' } }, deploys: [] },
       readCommits: () => [],
     });
-    assert.equal(result.packages[0].next, '4.0.0');
+    expect(result.packages[0].next).toBe('4.0.0');
   });
 
   test('an empty releases.json starts every package at 1.0.0', () => {
@@ -388,7 +367,7 @@ describe('buildPlan', () => {
       state: { packages: {}, deploys: [] },
       readCommits: () => [],
     });
-    assert.equal(result.packages[0].next, '1.0.0-alpha.1');
+    expect(result.packages[0].next).toBe('1.0.0-alpha.1');
   });
 
   test('peer dependencies cascade too, dev dependencies do not', () => {
@@ -405,8 +384,8 @@ describe('buildPlan', () => {
       },
       commits: { [BASE]: ['fix: x'] },
     });
-    assert.equal(byName[PEER_USER].next, '1.0.1-alpha.1');
-    assert.equal(byName[DEV_USER].next, null);
+    expect(byName[PEER_USER].next).toBe('1.0.1-alpha.1');
+    expect(byName[DEV_USER].next).toBe(null);
   });
 
   test('non conventional commits produce a patch and a warning', () => {
@@ -415,24 +394,26 @@ describe('buildPlan', () => {
       published: { a: { main: '1.0.0-alpha.1' } },
       commits: { a: ['Remove commom (#9)'] },
     });
-    assert.equal(byName.a.next, '1.0.0-alpha.2');
-    assert.deepEqual(byName.a.warnings, [
+    expect(byName.a.next).toBe('1.0.0-alpha.2');
+    expect(byName.a.warnings).toStrictEqual([
       'non conventional commit counts as patch: Remove commom (#9)',
     ]);
   });
 
   test('commits are read since the newest publication on main and the last stable on release', () => {
     const published = { a: { release: '1.0.0', main: '1.1.0-alpha.10' } };
-    assert.deepEqual(plan({ packages: [pkg('a')], published }).calls, [['a', 'a@1.1.0-alpha.10']]);
-    assert.deepEqual(plan({ branch: 'release', packages: [pkg('a')], published }).calls, [
+    expect(plan({ packages: [pkg('a')], published }).calls).toStrictEqual([
+      ['a', 'a@1.1.0-alpha.10'],
+    ]);
+    expect(plan({ branch: 'release', packages: [pkg('a')], published }).calls).toStrictEqual([
       ['a', 'a@1.0.0'],
     ]);
-    assert.deepEqual(plan({ packages: [pkg('a')] }).calls, [['a', null]]);
+    expect(plan({ packages: [pkg('a')] }).calls).toStrictEqual([['a', null]]);
   });
 
   test('records the commit each package starts from', () => {
     const { byName } = plan({ packages: [pkg('a')], published: { a: { main: '1.0.0-alpha.1' } } });
-    assert.equal(byName.a.baseCommit, 'a@1.0.0-alpha.1');
+    expect(byName.a.baseCommit).toBe('a@1.0.0-alpha.1');
   });
 
   test('reports a dependency that is not a monorepo package', () => {
@@ -440,7 +421,7 @@ describe('buildPlan', () => {
       packages: [pkg('a', { '@archi-code/ghost': '0.0.0-development' })],
       commits: { a: ['fix: x'] },
     });
-    assert.deepEqual(result.errors, [
+    expect(result.errors).toStrictEqual([
       'a depends on @archi-code/ghost, which is not a package of the monorepo',
     ]);
   });
@@ -450,7 +431,7 @@ describe('buildPlan', () => {
       packages: [pkg('@archi-code/a', { uuid: '^9.0.0' })],
       commits: { '@archi-code/a': ['fix: x'] },
     });
-    assert.deepEqual(byName['@archi-code/a'].dependencies, {});
+    expect(byName['@archi-code/a'].dependencies).toStrictEqual({});
   });
 
   test('reports a computed version that does not move forward', () => {
@@ -460,28 +441,27 @@ describe('buildPlan', () => {
       published: { a: { main: '2.0.0-beta.1' } },
       commits: { a: ['fix: x'] },
     });
-    assert.deepEqual(result.errors, [
+    expect(result.errors).toStrictEqual([
       'a: the computed version 0.0.1-alpha.1 is not greater than 2.0.0-beta.1',
     ]);
   });
 
   test('a malformed published version aborts the plan when it has to bump', () => {
-    assert.throws(
-      () =>
-        plan({
-          packages: [pkg('a')],
-          published: { a: { main: 'v1' } },
-          commits: { a: ['fix: x'] },
-        }),
-      /Invalid version: "v1"/,
-    );
+    expect(() =>
+      plan({
+        packages: [pkg('a')],
+        published: { a: { main: 'v1' } },
+        commits: { a: ['fix: x'] },
+      }),
+    ).toThrow(/Invalid version: "v1"/);
   });
 
   test('carries the channel of the branch', () => {
     const { result } = plan({ branch: 'release', packages: [] });
-    assert.deepEqual(
-      { branch: result.branch, distTags: result.distTags, prerelease: result.prerelease },
-      { branch: 'release', distTags: ['latest'], prerelease: null },
-    );
+    expect({
+      branch: result.branch,
+      distTags: result.distTags,
+      prerelease: result.prerelease,
+    }).toStrictEqual({ branch: 'release', distTags: ['latest'], prerelease: null });
   });
 });

@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { FieldMap, mapField } from '../src/field-map';
 import { UserPrimitives } from './support/user';
 

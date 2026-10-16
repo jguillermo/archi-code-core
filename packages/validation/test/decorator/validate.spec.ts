@@ -1,5 +1,4 @@
-import { describe, it, expect, jest } from '@jest/globals';
-import { expectTypeOf } from 'expect-type';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { runValidations } from '../../src';
 import type { ValidationResult } from '../../src';
 import { Validations, ownValidations } from '../../src/decorator/validations';
@@ -209,7 +208,7 @@ describe('runValidations', () => {
 
   describe('custom validations', () => {
     it('calls fn once with the value as it was passed', () => {
-      const fn = jest.fn((_value: unknown) => true);
+      const fn = vi.fn((_value: unknown) => true);
       @Validations([{ custom: 'rule', fn }])
       class Target {}
       const value = { id: 1 };
@@ -389,7 +388,7 @@ describe('runValidations', () => {
 
   describe('what counts as a value', () => {
     it.each(missingValues)('%s is a missing value', (_, value) => {
-      const fn = jest.fn(() => false);
+      const fn = vi.fn(() => false);
       @Validations([{ custom: 'rule', fn }])
       class Optional {}
       expect(runValidations(Optional, value).ok).toBe(true);
@@ -397,7 +396,7 @@ describe('runValidations', () => {
     });
 
     it.each(presentValues)('%s is a value, so the validations run', (_, value) => {
-      const fn = jest.fn((_value: unknown) => false);
+      const fn = vi.fn((_value: unknown) => false);
       @Validations([{ custom: 'rule', fn }])
       class Optional {}
       expect(runValidations(Optional, value).errors).toEqual([customError('rule')]);
@@ -413,7 +412,7 @@ describe('runValidations', () => {
 
   describe('optional: isRequired is not declared', () => {
     it.each(missingValues)('is ok for %s without running any validation', (_, value) => {
-      const rule = jest.fn(() => false);
+      const rule = vi.fn(() => false);
       @Validations([{ validator: 'isEmail' }, { custom: 'rule', fn: rule }])
       class OptionalEmail {}
       expect(runValidations(OptionalEmail, value)).toEqual({ ok: true, value, errors: [] });
@@ -449,7 +448,7 @@ describe('runValidations', () => {
     });
 
     it('a custom named isRequired does not make the value required', () => {
-      const fn = jest.fn(() => false);
+      const fn = vi.fn(() => false);
       @Validations([{ custom: 'isRequired', fn }])
       class Target {}
       expect(runValidations(Target, null)).toEqual({ ok: true, value: null, errors: [] });
@@ -463,7 +462,7 @@ describe('runValidations', () => {
       it.each(missingValues)(
         'fails only isRequired for %s, running no other validation',
         (_, value) => {
-          const rule = jest.fn(() => false);
+          const rule = vi.fn(() => false);
           @Validations([
             { validator: 'isEmail' },
             { custom: 'rule', fn: rule },
@@ -504,7 +503,7 @@ describe('runValidations', () => {
       });
 
       it('fails isRequired declared by a parent, without running the subclass validations', () => {
-        const childRule = jest.fn(() => false);
+        const childRule = vi.fn(() => false);
         @Validations([{ validator: 'isRequired' }])
         class Required {}
         @Validations([{ custom: 'childRule', fn: childRule }])
@@ -514,7 +513,7 @@ describe('runValidations', () => {
       });
 
       it('fails isRequired declared by a subclass, without running the parent validations', () => {
-        const parentRule = jest.fn(() => false);
+        const parentRule = vi.fn(() => false);
         @Validations([{ custom: 'parentRule', fn: parentRule }, { validator: 'isEmail' }])
         class Email {}
         @Validations([{ validator: 'isRequired' }])

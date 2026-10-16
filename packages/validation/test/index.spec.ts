@@ -1,5 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
-import { expectTypeOf } from 'expect-type';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as api from '../src';

@@ -63,46 +63,10 @@
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "build:esm": "tsc -p tsconfig.esm.json && node ../../scripts/fix-esm.js",
     "build": "npm run build:cjs && npm run build:esm",
-    "test": "jest",
-    "test:coverage": "jest --coverage",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "check:types": "tsc -p tsconfig.json --noEmit --incremental false",
-    "check:dist": "node ../../scripts/check-dist.js && node ../../scripts/check-types.js && node --experimental-vm-modules --no-warnings ../../scripts/check-web.js && node ../../scripts/check-browser.js",
-    "check:editorconfig": "node ../../scripts/editorconfig.js",
-    "check:all": "npm run check:editorconfig && npm run check:prettier && npm run check:lint && npm run check:types && npm run test:coverage && npm run build && npm run check:dist",
-    "check:lint": "eslint src test --ext .ts",
-    "fix:lint": "eslint src test --ext .ts --fix",
-    "check:prettier": "prettier --check \"{src,test}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\" \"*.{json,md}\"",
-    "fix:prettier": "prettier --write \"{src,test}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\" \"*.{json,md}\""
-  },
-  "jest": {
-    "moduleFileExtensions": [
-      "js",
-      "json",
-      "ts"
-    ],
-    "rootDir": ".",
-    "roots": [
-      "<rootDir>/src",
-      "<rootDir>/test"
-    ],
-    "testRegex": ".*\\.spec\\.ts$",
-    "transform": {
-      "^.+\\.ts$": "ts-jest"
-    },
-    "collectCoverageFrom": [
-      "src/**/*.(t|j)s"
-    ],
-    "coverageDirectory": "./coverage",
-    "testEnvironment": "node",
-    "collectCoverage": false,
-    "injectGlobals": false,
-    "coverageThreshold": {
-      "global": {
-        "branches": 100,
-        "functions": 100,
-        "lines": 100,
-        "statements": 100
-      }
-    }
+    "check:dist": "node ../../scripts/check-dist.js && attw --pack . && node ../../scripts/check-browser.js",
+    "check:all": "npm run check:types && npm run test:coverage && npm run build && npm run check:dist"
   }
 }

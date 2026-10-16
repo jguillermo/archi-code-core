@@ -4,19 +4,33 @@ const tseslint = require('typescript-eslint');
 const prettierPlugin = require('eslint-plugin-prettier');
 const prettierConfig = require('eslint-config-prettier');
 const js = require('@eslint/js');
+const globals = require('globals');
+
+const TS_FILES = ['**/*.ts', '**/*.mts', '**/*.cts'];
+const onlyTs = (configs) => configs.map((config) => ({ ...config, files: TS_FILES }));
 
 module.exports = tseslint.config(
   // Ignore build artifacts and dependencies
-  { ignores: ['**/dist/**', '**/node_modules/**', '**/*.js', '**/*.generated.ts'] },
+  {
+    ignores: [
+      'dist/**',
+      'packages/*/dist/**',
+      '**/node_modules/**',
+      'coverage/**',
+      'packages/*/coverage/**',
+      '**/target/**',
+      '.idea/**',
+      'packages/crypto-tools/wasm/**',
+      '**/*.generated.ts',
+    ],
+  },
 
   // Base ESLint recommended rules
   js.configs.recommended,
 
-  // TypeScript strict preset (non-type-checked)
-  tseslint.configs.strict,
-
-  // TypeScript stylistic preset
-  tseslint.configs.stylistic,
+  // TypeScript strict and stylistic presets (non-type-checked), only for TypeScript files
+  onlyTs(tseslint.configs.strict),
+  onlyTs(tseslint.configs.stylistic),
 
   // Prettier formatting for every package source and test file
   {
@@ -126,5 +140,41 @@ module.exports = tseslint.config(
       ],
       'no-console': 'off',
     },
+  },
+
+  // JavaScript tooling: root scripts, build check hooks and this config (CommonJS on Node)
+  {
+    files: ['**/*.js'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'commonjs',
+      globals: globals.node,
+    },
+    rules: {
+      eqeqeq: ['error', 'always', { null: 'ignore' }],
+      'no-var': 'error',
+      'prefer-const': 'error',
+      'no-shadow': 'error',
+      'no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+          destructuredArrayIgnorePattern: '^_',
+        },
+      ],
+    },
+  },
+
+  // Root script tests are ES modules run by Vitest
+  {
+    files: ['scripts/__tests__/**/*.js'],
+    languageOptions: { sourceType: 'module' },
+  },
+
+  // Build check hooks: browser() page functions run inside real browser pages
+  {
+    files: ['packages/*/test/dist/**/*.js'],
+    languageOptions: { globals: { ...globals.node, ...globals.browser } },
   },
 );

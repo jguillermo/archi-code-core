@@ -24,8 +24,6 @@ folder.
 If they are installed in the project, use them together with this one:
 
 - `archi-code-validation`: available validators, their options and `@Validations` rules.
-- `archi-code-ephemeradb`: in-memory repositories for aggregate tests.
-- `archi-code-test`: comparing JSON and creating object mothers in tests.
 
 ## Import
 
@@ -169,6 +167,35 @@ class User extends AggregateRoot {
     return { id: this.id.value, name: this.name.value, updatedAt: this.updatedAt.value };
   }
 }
+```
+
+Tests with Vitest: a plain fixture factory in the project's `test/support/` and the native
+matchers. There is no archi-code test package; `toStrictEqual`, `toMatchObject`,
+`expect.stringMatching` and `expectTypeOf` cover it:
+
+```ts
+import { describe, expect, expectTypeOf, it } from 'vitest';
+
+const createUserPrimitives = (override: Partial<PrimitiveTypes<User>> = {}) => ({
+  id: '42e05ee0-ace6-4565-b86a-ffdb0590341e',
+  name: 'Ana',
+  updatedAt: new Date('2026-01-01T00:00:00Z'),
+  ...override,
+});
+
+describe('User', () => {
+  it('renames and records the event', () => {
+    const { id, name } = createUserPrimitives();
+    const user = User.create(id, name);
+    user.rename('Luis');
+    expect(user.toPrimitives()).toMatchObject({
+      id: expect.stringMatching(/^[0-9a-f-]{36}$/),
+      name: 'Luis',
+    });
+    expect(user.pullDomainEvents()).toMatchObject([{ userId: id, name: 'Luis' }]);
+    expectTypeOf(user.toPrimitives().name).toEqualTypeOf<string>();
+  });
+});
 ```
 
 Custom domain exception with its own code:

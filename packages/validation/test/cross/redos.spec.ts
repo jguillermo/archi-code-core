@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { validator } from '../../src/validators';
 import * as sanitizer from '../../src/sanitizer';
 import { describeGrowth, isLinear, measureGrowth } from './support/timing';

@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { Criteria } from '@archi-code/criteria';
 import type { FilterNode, TextOperator } from '@archi-code/criteria';
 import { matches, matchesFilter } from '../../src/memory/matches';

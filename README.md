@@ -12,8 +12,6 @@ Modules build.
 | [`@archi-code/domain`](packages/domain)             | Value objects, aggregates, domain events and exceptions                                     | [README](packages/domain/README.md) · [SKILL.md](packages/domain/SKILL.md)             |
 | [`@archi-code/criteria`](packages/criteria)         | Search criteria: filters, ordering, pagination and MongoDB conversion                       | [README](packages/criteria/README.md) · [SKILL.md](packages/criteria/SKILL.md)         |
 | [`@archi-code/crypto-tools`](packages/crypto-tools) | Passwords, encryption, RSA, signatures, hash/HMAC, tokens and JWT in workers (web and Node) | [README](packages/crypto-tools/README.md) · [SKILL.md](packages/crypto-tools/SKILL.md) |
-| [`@archi-code/ephemeradb`](packages/ephemeraDB)     | Asynchronous in-memory key-value store                                                      | [README](packages/ephemeraDB/README.md) · [SKILL.md](packages/ephemeraDB/SKILL.md)     |
-| [`@archi-code/test`](packages/test)                 | Test helpers: `DtoObjectMother`, `JsonCompare` and type assertions                          | [README](packages/test/README.md) · [SKILL.md](packages/test/SKILL.md)                 |
 
 ```bash
 npm install @archi-code/domain

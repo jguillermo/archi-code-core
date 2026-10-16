@@ -1,6 +1,16 @@
 'use strict';
 
 const SECRET = 'a-secret-key-with-more-than-32-characters';
+const FILE = [9, 8, 7];
+
+async function withNode(use) {
+  const node = require('../../dist/cjs/index.js');
+  try {
+    return await use(node);
+  } finally {
+    node.workers.terminate();
+  }
+}
 
 function smoke(m) {
   return [
@@ -74,54 +84,6 @@ function smoke(m) {
       () => {
         m.workers.terminate();
         return true;
-      },
-    ],
-  ];
-}
-
-function web(webModule, nodeModule) {
-  webModule.workers.configure({ mode: 'inline' });
-  return [
-    ['runs inline in a realm without workers', () => webModule.workers.runtime() === 'inline'],
-    [
-      'web encrypts what Node decrypts and the other way round',
-      async () => {
-        const fromWeb = await webModule.cipher.encrypt('hola', SECRET, { level: 'strong' });
-        const fromNode = await nodeModule.cipher.encrypt('adiós', SECRET, { level: 'cnsa' });
-        return (
-          (await nodeModule.cipher.decrypt(fromWeb, SECRET)) === 'hola' &&
-          (await webModule.cipher.decrypt(fromNode, SECRET)) === 'adiós'
-        );
-      },
-    ],
-    [
-      'web signs a file that Node verifies',
-      async () => {
-        const pair = await nodeModule.rsa.generateKeyPair({ level: 'basic' });
-        const file = new Uint8Array([9, 8, 7]);
-        const signed = await webModule.signature.sign(file, pair.privateKey);
-        return nodeModule.signature.verify(file, signed, pair.publicKey);
-      },
-    ],
-    [
-      'web hashes a password that Node verifies',
-      async () => {
-        const hash = await webModule.password.hash('secret', { algorithm: 'bcrypt', cost: 4 });
-        return nodeModule.password.verify('secret', hash);
-      },
-    ],
-    [
-      'web and Node agree on tokens, JWT and hashes',
-      async () => {
-        const encrypted = await webModule.token.encrypt({ id: 7 }, SECRET, { expiresIn: 60 });
-        const signed = await nodeModule.jwt.sign({ id: 8 }, SECRET, { expiresIn: 60 });
-        const digests = await Promise.all([webModule, nodeModule].map((m) => m.hash.digest('abc')));
-        const ok =
-          (await nodeModule.token.decrypt(encrypted, SECRET)).id === 7 &&
-          (await webModule.jwt.verify(signed, SECRET)).id === 8 &&
-          digests[0] === digests[1];
-        nodeModule.workers.terminate();
-        return ok;
       },
     ],
   ];
@@ -201,7 +163,91 @@ function browser() {
       },
       { csp: STRICT_CSP },
     ],
+    [
+      'web encrypts what Node decrypts and the other way round',
+      async ({ entry, input }) => {
+        const m = await import(entry);
+        return {
+          fromWeb: await m.cipher.encrypt('hola', input.secret, { level: 'strong' }),
+          decrypted: await m.cipher.decrypt(input.fromNode, input.secret),
+        };
+      },
+      {
+        input: () =>
+          withNode(async (node) => ({
+            secret: SECRET,
+            fromNode: await node.cipher.encrypt('adiós', SECRET, { level: 'cnsa' }),
+          })),
+        verify: (result) =>
+          withNode(async (node) => {
+            if (result.decrypted !== 'adiós') return `web decrypted ${result.decrypted}`;
+            const decrypted = await node.cipher.decrypt(result.fromWeb, SECRET);
+            return decrypted === 'hola' || `Node decrypted ${decrypted}`;
+          }),
+      },
+    ],
+    [
+      'web signs a file that Node verifies',
+      async ({ entry, input }) => {
+        const m = await import(entry);
+        return m.signature.sign(new Uint8Array(input.file), input.privateKey);
+      },
+      {
+        input: () =>
+          withNode(async (node) => ({
+            file: FILE,
+            ...(await node.rsa.generateKeyPair({ level: 'basic' })),
+          })),
+        verify: (signed, input) =>
+          withNode(
+            async (node) =>
+              (await node.signature.verify(new Uint8Array(FILE), signed, input.publicKey)) ||
+              'Node rejected the signature made in the page',
+          ),
+      },
+    ],
+    [
+      'web hashes a password that Node verifies',
+      async (entry) => {
+        const m = await import(entry);
+        return m.password.hash('secret', { algorithm: 'bcrypt', cost: 4 });
+      },
+      {
+        verify: (hash) =>
+          withNode(
+            async (node) =>
+              (await node.password.verify('secret', hash)) ||
+              `Node rejected the hash made in the page: ${hash}`,
+          ),
+      },
+    ],
+    [
+      'web and Node agree on tokens, JWT and hashes',
+      async ({ entry, input }) => {
+        const m = await import(entry);
+        return {
+          encrypted: await m.token.encrypt({ id: 7 }, input.secret, { expiresIn: 60 }),
+          jwtId: (await m.jwt.verify(input.signed, input.secret)).id,
+          digest: await m.hash.digest('abc'),
+        };
+      },
+      {
+        input: () =>
+          withNode(async (node) => ({
+            secret: SECRET,
+            signed: await node.jwt.sign({ id: 8 }, SECRET, { expiresIn: 60 }),
+          })),
+        verify: (result) =>
+          withNode(async (node) => {
+            if (result.jwtId !== 8) return `web read the Node JWT as id ${result.jwtId}`;
+            const token = await node.token.decrypt(result.encrypted, SECRET);
+            if (token.id !== 7) return `Node read the web token as id ${token.id}`;
+            const digest = await node.hash.digest('abc');
+            return result.digest === digest || `web digest ${result.digest}, Node ${digest}`;
+          }),
+      },
+    ],
   ];
 }
 
-module.exports = { smoke, web, browser };
+module.exports = { smoke, browser };

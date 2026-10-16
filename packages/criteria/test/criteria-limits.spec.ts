@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import {
   assertDepth,
   assertUrlLength,
@@ -72,7 +72,7 @@ describe('resolveLimits', () => {
     [{ maxNodes: '10' }],
     [{ maxNodes: Number.MAX_SAFE_INTEGER + 1 }],
     [{ maxDepth: MAX_FILTER_DEPTH + 1 }],
-  ])('rejects %p', (limits) => {
+  ])('rejects %o', (limits) => {
     expect(codeOf(() => resolveLimits(limits))).toBe('INVALID_SCHEMA');
   });
 });

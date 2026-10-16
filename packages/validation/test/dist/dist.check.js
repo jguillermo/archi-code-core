@@ -84,38 +84,79 @@ function outcome(fn, args) {
   }
 }
 
-function sameAsNode(name, webFn, nodeFn) {
-  if (!nodeFn) return `exists in the web build but not in the Node build`;
-  for (const input of WEB_INPUTS) {
-    for (const args of [[input], [input, 'en-US']]) {
-      const web = outcome(webFn, args);
-      const node = outcome(nodeFn, args);
-      if (web.error === 'ReferenceError' && node.error !== 'ReferenceError') {
-        return `(${JSON.stringify(args)}) uses an API missing in browsers (ReferenceError)`;
-      }
-      if (JSON.stringify(web) !== JSON.stringify(node)) {
-        return `(${JSON.stringify(args)}) differs: web=${JSON.stringify(web)} node=${JSON.stringify(node)}`;
-      }
+function nodeOutcomes(inputs) {
+  const node = require('../../dist/cjs/index.js');
+  return Object.fromEntries(
+    publicFunctions(node).map(([name, fn]) => [
+      name,
+      inputs.flatMap((input) => [outcome(fn, [input]), outcome(fn, [input, 'en-US'])]),
+    ]),
+  );
+}
+
+function sameAsNode(webOutcomes) {
+  const expected = nodeOutcomes(WEB_INPUTS);
+  const webNames = Object.keys(webOutcomes).sort();
+  const nodeNames = Object.keys(expected).sort();
+  if (webNames.join() !== nodeNames.join()) {
+    return `web exposes ${webNames.length} public functions, Node ${nodeNames.length}`;
+  }
+  for (const name of nodeNames) {
+    const index = webOutcomes[name].findIndex(
+      (result, i) => JSON.stringify(result) !== JSON.stringify(expected[name][i]),
+    );
+    if (index === -1) continue;
+    const args = [WEB_INPUTS[Math.floor(index / 2)], ...(index % 2 ? ['en-US'] : [])];
+    const web = webOutcomes[name][index];
+    if (web.error === 'ReferenceError') {
+      return `${name}(${JSON.stringify(args)}) uses an API missing in browsers (ReferenceError)`;
     }
+    return `${name}(${JSON.stringify(args)}) differs: web=${JSON.stringify(web)} node=${JSON.stringify(expected[name][index])}`;
   }
   return true;
 }
 
-function web(m, node) {
-  const nodeFns = new Map(publicFunctions(node));
-  const webFns = publicFunctions(m);
+async function webOutcomesInThePage({ entry, input }) {
+  const m = await import(entry);
+  const functionsOf = (object, prefix) =>
+    Object.entries(object)
+      .filter(([, fn]) => typeof fn === 'function')
+      .map(([name, fn]) => [`${prefix}${name}`, fn]);
+  const functions = [
+    ...functionsOf(m.validator, 'validator.'),
+    ...functionsOf(m, '').filter(([name]) => /^(to|canBe|anyToString$)/.test(name)),
+    ...functionsOf(m.sanitizer, 'sanitizer.'),
+  ];
+  const run = (fn, args) => {
+    try {
+      return { value: JSON.stringify(fn(...args)) };
+    } catch (e) {
+      return { error: e && e.name };
+    }
+  };
+  return Object.fromEntries(
+    functions.map(([name, fn]) => [
+      name,
+      input.flatMap((value) => [run(fn, [value]), run(fn, [value, 'en-US'])]),
+    ]),
+  );
+}
+
+function browser() {
   return [
-    ...smoke(m),
     [
-      'isLength graphemes (Intl.Segmenter)',
-      () => m.validator.isLength('👨‍👩‍👧', { max: 1, graphemes: true }) === true,
+      'isLength counts graphemes with Intl.Segmenter',
+      async (entry) => {
+        const m = await import(entry);
+        return m.validator.isLength('👨‍👩‍👧', { max: 1, graphemes: true }) === true;
+      },
     ],
     [
-      'exposes the same public functions as Node',
-      () => webFns.length === nodeFns.size || `web ${webFns.length}, Node ${nodeFns.size}`,
+      'every public function gives the same result as in Node',
+      webOutcomesInThePage,
+      { input: () => WEB_INPUTS, verify: sameAsNode },
     ],
-    ...webFns.map(([name, webFn]) => [name, () => sameAsNode(name, webFn, nodeFns.get(name))]),
   ];
 }
 
-module.exports = { smoke, crossBuild, web };
+module.exports = { smoke, crossBuild, browser };

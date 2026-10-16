@@ -1,14 +1,14 @@
-'use strict';
+import { createRequire } from 'node:module';
+import { describe, expect, test } from 'vitest';
 
-const { test, describe } = require('node:test');
-const assert = require('node:assert/strict');
+const require = createRequire(import.meta.url);
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync, spawnSync } = require('child_process');
 const { pathToFileURL } = require('url');
 
-const FIX_ESM = path.join(__dirname, '..', 'fix-esm.js');
+const FIX_ESM = path.join(import.meta.dirname, '..', 'fix-esm.js');
 const SHIM = "import { createRequire } from 'node:module';";
 
 function packageWith(files) {
@@ -38,12 +38,11 @@ describe('fix-esm', () => {
       'sub/b.js': 'export const b = 1;\n',
     });
     fixEsm(root);
-    assert.equal(
-      read(root, 'index.js'),
+    expect(read(root, 'index.js')).toBe(
       "export * from './a.js';\nexport { b } from './sub/index.js';\n",
     );
-    assert.equal(read(root, 'a.js'), "export const a = await import('./sub/b.js');\n");
-    assert.equal(read(root, 'sub/index.js'), "export * from './b.js';\n");
+    expect(read(root, 'a.js')).toBe("export const a = await import('./sub/b.js');\n");
+    expect(read(root, 'sub/index.js')).toBe("export * from './b.js';\n");
   });
 
   test('resolves "." and ".." to the directory index', () => {
@@ -54,8 +53,7 @@ describe('fix-esm', () => {
       'sub.js': 'export const decoy = 1;\n',
     });
     fixEsm(root);
-    assert.equal(
-      read(root, 'sub/index.js'),
+    expect(read(root, 'sub/index.js')).toBe(
       "export { a } from '../index.js';\nexport * from './index.js';\n",
     );
   });
@@ -67,8 +65,7 @@ describe('fix-esm', () => {
       'a.js': 'export {};\n',
     });
     fixEsm(root);
-    assert.equal(
-      read(root, 'index.d.ts'),
+    expect(read(root, 'index.d.ts')).toBe(
       'export type T = import(\'./a.js\').A;\nexport * from "./a.js";\n',
     );
   });
@@ -85,7 +82,7 @@ describe('fix-esm', () => {
     ].join('\n');
     const root = packageWith({ 'index.js': code, 'y.js': 'export const y = 1;\n' });
     fixEsm(root);
-    assert.equal(read(root, 'index.js'), code);
+    expect(read(root, 'index.js')).toBe(code);
   });
 
   test('adds the require shim only where require() is called, and only once', async () => {
@@ -96,23 +93,23 @@ describe('fix-esm', () => {
     fixEsm(root);
     const once = read(root, 'index.js');
     fixEsm(root);
-    assert.equal(read(root, 'index.js'), once);
-    assert.equal(once.split(SHIM).length, 2);
-    assert.ok(!read(root, 'text.js').includes(SHIM));
+    expect(read(root, 'index.js')).toBe(once);
+    expect(once.split(SHIM).length).toBe(2);
+    expect(!read(root, 'text.js').includes(SHIM)).toBeTruthy();
     const loaded = await import(pathToFileURL(path.join(root, 'dist', 'esm', 'index.js')).href);
-    assert.equal(typeof loaded.path.join, 'function');
+    expect(typeof loaded.path.join).toBe('function');
   });
 
   test('writes dist/esm/package.json with type module', () => {
     const root = packageWith({ 'index.js': 'export {};\n' });
     fixEsm(root);
-    assert.deepEqual(JSON.parse(read(root, 'package.json')), { type: 'module' });
+    expect(JSON.parse(read(root, 'package.json'))).toStrictEqual({ type: 'module' });
   });
 
   test('fails on a relative import that does not exist', () => {
     const root = packageWith({ 'index.js': "export * from './missing';\n" });
     const result = spawnSync(process.execPath, [FIX_ESM], { cwd: root, encoding: 'utf8' });
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /cannot resolve "\.\/missing"/);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toMatch(/cannot resolve "\.\/missing"/);
   });
 });

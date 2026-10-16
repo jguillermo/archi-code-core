@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { CriteriaError } from '../src/criteria-error';
 import { freezeFilter, freezeOrder, freezePagination } from '../src/freeze-nodes';
 

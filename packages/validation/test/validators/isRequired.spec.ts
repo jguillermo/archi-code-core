@@ -1,5 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
-import { expectTypeOf } from 'expect-type';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 import test from '../cross/support/testFunctions';
 import { isRequired } from '../../src/validators/isRequired';
 import { validator } from '../../src/validators';

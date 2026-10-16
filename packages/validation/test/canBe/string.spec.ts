@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { canBeString } from '../../src/canBe';
 
 describe('canBeString', () => {
@@ -34,7 +34,7 @@ describe('canBeString', () => {
     [Number.MAX_VALUE],
     [Number.MIN_VALUE],
     [Number.EPSILON],
-  ])('returns true for coercible to string: %p', (value) => {
+  ])('returns true for coercible to string: %o', (value) => {
     expect(canBeString(value)).toBe(true);
   });
 
@@ -67,7 +67,7 @@ describe('canBeString', () => {
     [new Error('data error')],
     [Promise.resolve('data promise')],
     [BigInt(42)],
-  ])('returns false for non-coercible: %p', (value) => {
+  ])('returns false for non-coercible: %o', (value) => {
     expect(canBeString(value)).toBe(false);
   });
 });

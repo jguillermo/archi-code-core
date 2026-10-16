@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import * as api from '../../src/mongodb/index';
 
 const PUBLIC_API = ['MongoCriteriaTranslator', 'escapeRegex', 'searchMongo'];

@@ -1,4 +1,4 @@
-import { describe, expect, it, jest } from '@jest/globals';
+import { describe, expect, it, vi } from 'vitest';
 import { TypeInput } from '../../../src/type/input/type-input';
 import { RequiredMark } from '../../../src/type/required/required-mark';
 import { RequiredValueException } from '../../../src/exceptions/domain/required-value.exception';
@@ -10,7 +10,7 @@ class Mandatory {
 }
 
 function filterReturning(result: unknown) {
-  return jest.fn((_value: unknown) => result);
+  return vi.fn((_value: unknown) => result);
 }
 
 describe('TypeInput', () => {
@@ -48,7 +48,7 @@ describe('TypeInput', () => {
       });
 
       it('propagates an error thrown by filter', () => {
-        const filter = jest.fn(() => {
+        const filter = vi.fn(() => {
           throw new Error('invalid input');
         });
         expect(() => TypeInput.accept(new Optional(), 'a', filter)).toThrow('invalid input');

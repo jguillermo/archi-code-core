@@ -1,0 +1,12 @@
+{
+  "Version": "v4.0.2",
+  "Exclude": [
+    "node_modules",
+    "dist",
+    "coverage",
+    "\\.git/",
+    "\\.idea",
+    "target",
+    "\\.generated\\.ts$"
+  ]
+}

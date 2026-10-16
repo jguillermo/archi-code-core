@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { CRITERIA_CONTRACT_CASES } from './contract-cases';
 import { ContractDocument } from './contract-documents';
 import { runCriteriaContract } from './run-criteria-contract';

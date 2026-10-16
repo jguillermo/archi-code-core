@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import type { Converted, ConvertMessage } from '../../src/convert';
 import {
   canBeArray,

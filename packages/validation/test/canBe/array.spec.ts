@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { canBeArray } from '../../src/canBe';
 
 describe('canBeArray', () => {
@@ -10,7 +10,7 @@ describe('canBeArray', () => {
     ['[]'],
     ['["a","b"]'],
     ['[{"key":1}]'],
-  ])('returns true for %p', (value) => {
+  ])('returns true for %o', (value) => {
     expect(canBeArray(value)).toBe(true);
   });
 
@@ -45,7 +45,7 @@ describe('canBeArray', () => {
     [new Error('data error')],
     [Promise.resolve('data promise')],
     [BigInt(42)],
-  ])('returns false for %p', (value) => {
+  ])('returns false for %o', (value) => {
     expect(canBeArray(value)).toBe(false);
   });
 });

@@ -1,7 +1,7 @@
-'use strict';
+import { createRequire } from 'node:module';
+import { describe, expect, test } from 'vitest';
 
-const { test, describe } = require('node:test');
-const assert = require('node:assert/strict');
+const require = createRequire(import.meta.url);
 const { manifestErrors, publishManifest } = require('../lib/publish-manifest');
 
 const DEV = '0.0.0-development';
@@ -23,15 +23,15 @@ const local = {
 describe('publishManifest', () => {
   test('writes the new version, the source commit and exact internal deps, nothing else', () => {
     const manifest = publishManifest(local, release, COMMIT);
-    assert.deepEqual(manifest, {
+    expect(manifest).toStrictEqual({
       name: '@archi-code/domain',
       version: '1.0.0-alpha.4',
       releaseCommit: COMMIT,
       dependencies: { '@archi-code/validation': '1.0.0-alpha.1', uuid: '^9.0.1' },
       devDependencies: { '@archi-code/test': DEV },
     });
-    assert.equal(local.version, DEV);
-    assert.equal(local.dependencies['@archi-code/validation'], DEV);
+    expect(local.version).toBe(DEV);
+    expect(local.dependencies['@archi-code/validation']).toBe(DEV);
   });
 
   test('pins internal peer dependencies too', () => {
@@ -40,12 +40,11 @@ describe('publishManifest', () => {
       release,
       COMMIT,
     );
-    assert.deepEqual(manifest.peerDependencies, { '@archi-code/validation': '1.0.0-alpha.1' });
+    expect(manifest.peerDependencies).toStrictEqual({ '@archi-code/validation': '1.0.0-alpha.1' });
   });
 
   test('throws when an internal dep has no exact version in the plan', () => {
-    assert.throws(
-      () => publishManifest({ ...local }, { ...release, dependencies: {} }, COMMIT),
+    expect(() => publishManifest({ ...local }, { ...release, dependencies: {} }, COMMIT)).toThrow(
       /there is no exact version for @archi-code\/validation/,
     );
   });
@@ -53,7 +52,9 @@ describe('publishManifest', () => {
 
 describe('manifestErrors', () => {
   test('a manifest built by publishManifest is valid', () => {
-    assert.deepEqual(manifestErrors(publishManifest(local, release, COMMIT), release, COMMIT), []);
+    expect(manifestErrors(publishManifest(local, release, COMMIT), release, COMMIT)).toStrictEqual(
+      [],
+    );
   });
 
   test('reports name, version, commit and any internal dep that is not the exact planned version', () => {
@@ -67,7 +68,7 @@ describe('manifestErrors', () => {
       release,
       COMMIT,
     );
-    assert.deepEqual(errors, [
+    expect(errors).toStrictEqual([
       'name "@archi-code/other" instead of "@archi-code/domain"',
       `version "${DEV}" instead of "1.0.0-alpha.4"`,
       `releaseCommit "undefined" instead of "${COMMIT}"`,

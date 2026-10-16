@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { ExceptionCode } from '../../../src/exceptions/exception-code';
 import { AggregateNotFoundException } from '../../../src/exceptions/domain/aggregate-not-found.exception';
 import { DomainException } from '../../../src/exceptions/domain/domain.exception';
@@ -41,7 +41,7 @@ describe('DomainException', () => {
     it.each([
       [null, 'Validation Error: Name is required, but received null.'],
       ['   ', 'Validation Error: Name is required, but received "   ".'],
-    ])('reports the type and the received value %p', (received, message) => {
+    ])('reports the type and the received value %o', (received, message) => {
       const exception = new RequiredValueException('Name', received);
 
       expect(exception).toBeInstanceOf(RequiredValueException);

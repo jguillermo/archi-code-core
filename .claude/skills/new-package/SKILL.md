@@ -16,11 +16,10 @@ Creates a package that follows `.claude/rules/packages.md`. Read that rule first
    ```
 
    It refuses an existing folder or an invalid name, writes the package (with an English `README.md`
-   and a `SKILL.md` named `archi-code-<folder>`), adds `check:<folder>` to the root `package.json`
+   and a `SKILL.md` named `archi-code-<folder>`), adds the folder to the root `workspaces` and `check:<folder>` to the root `package.json`
    and formats everything with Prettier.
 
-3. Run `npm install` at the root so the workspace is linked (`check-types` imports the package by
-   name). This updates `package-lock.json`.
+3. Run `npm install` at the root so the workspace is linked (`attw --pack .` packs it by name). This updates `package-lock.json`.
 4. Run `npm run check:<folder>`; it must pass before any real code is written.
 5. If the user described the package's code, replace the placeholder `PACKAGE_NAME` export with it
    and keep `test/index.spec.ts` (public API list), the specs mirroring `src/`, and

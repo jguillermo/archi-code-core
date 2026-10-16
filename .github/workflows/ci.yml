@@ -52,9 +52,9 @@ jobs:
       - name: Build packages in dependency order
         run: npm run build
 
-      # Shared scripts (prettier + node --test), editorconfig over the repo, then the same gate in
-      # every package (check:packages): editorconfig, prettier, eslint, tsc on src/test, jest with
-      # its coverage threshold, CJS+ESM build and dist checks.
+      # editorconfig, prettier and eslint over the whole repo, vitest of the shared scripts, then
+      # the same gate in every package (check:packages): tsc on src/test, vitest with its coverage
+      # threshold, CJS+ESM build and dist checks.
       - name: Root checks and full gate of every package
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

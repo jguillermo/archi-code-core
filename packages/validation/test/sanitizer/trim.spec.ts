@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import { loadWithoutNative, WHITESPACE_SAMPLES } from '../cross/support/withoutNative';
 import { trim } from '../../src/sanitizer/trim';
 import { test } from '../cross/support/sanitizerTest';

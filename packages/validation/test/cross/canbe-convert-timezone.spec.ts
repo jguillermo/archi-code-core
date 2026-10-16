@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from '@jest/globals';
+import { afterEach, describe, expect, it } from 'vitest';
 import timezone_mock from 'timezone-mock';
 import { canBeDate } from '../../src/canBe';
 import { toDate } from '../../src/convert';

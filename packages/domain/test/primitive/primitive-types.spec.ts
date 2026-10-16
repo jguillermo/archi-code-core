@@ -1,6 +1,5 @@
-import { describe, it } from '@jest/globals';
+import { describe, expectTypeOf, it } from 'vitest';
 import { PrimitiveTypes } from '../../src/primitive/primitive-types';
-import { expectTypeOf } from 'expect-type';
 import { AggregateRoot } from '../../src/aggregate/aggregate-root';
 import { IdType, NumberType, Required, StringType } from '../../src/type';
 
