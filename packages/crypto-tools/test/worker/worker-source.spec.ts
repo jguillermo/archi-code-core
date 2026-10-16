@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { workerSource } from '../../src/worker/worker-source';
 
 describe('workerSource', () => {

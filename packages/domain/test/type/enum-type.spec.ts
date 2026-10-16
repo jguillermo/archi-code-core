@@ -1,5 +1,4 @@
-import { describe, expect, it, jest } from '@jest/globals';
-import { expectTypeOf } from 'expect-type';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { Validations } from '@archi-code/validation';
 import type { ValidationResult } from '@archi-code/validation';
 import { EnumType } from '../../src/type/enum-type';
@@ -68,7 +67,7 @@ function requiredError(received: string): string {
 }
 
 function upStatuses() {
-  const isUp = jest.fn((value: unknown) => value === Status.UP);
+  const isUp = vi.fn((value: unknown) => value === Status.UP);
 
   @Validations([{ custom: 'isUp', fn: isUp }])
   class OptionalUp extends StatusType {}
@@ -101,11 +100,11 @@ describe('EnumType (optional)', () => {
   });
 
   describe('conversion', () => {
-    it.each([[Status.UP], [Status.DOWN]])('the string option %p is kept', (input) => {
+    it.each([[Status.UP], [Status.DOWN]])('the string option %o is kept', (input) => {
       expect(new StatusType(input).value).toBe(input);
     });
 
-    it.each([[Level.LOW], [Level.HIGH]])('the number option %p is kept', (input) => {
+    it.each([[Level.LOW], [Level.HIGH]])('the number option %o is kept', (input) => {
       expect(new LevelType(input).value).toBe(input);
     });
 
@@ -117,13 +116,13 @@ describe('EnumType (optional)', () => {
       expect(new StatusType().value).toBeNull();
     });
 
-    it.each(notStatusInputs)('%p is not a Status option', (input, received) => {
+    it.each(notStatusInputs)('%o is not a Status option', (input, received) => {
       const create = () => new StatusType(input as Status);
       expect(create).toThrow(TypePrimitiveException);
       expect(create).toThrow(statusError(received));
     });
 
-    it.each(notLevelInputs)('%p is not a Level option, its keys included', (input, received) => {
+    it.each(notLevelInputs)('%o is not a Level option, its keys included', (input, received) => {
       const create = () => new LevelType(input as Level);
       expect(create).toThrow(TypePrimitiveException);
       expect(create).toThrow(levelError(received));
@@ -131,7 +130,7 @@ describe('EnumType (optional)', () => {
   });
 
   describe('validate', () => {
-    it.each([[Status.UP], [Status.DOWN]])('%p is valid', (input) => {
+    it.each([[Status.UP], [Status.DOWN]])('%o is valid', (input) => {
       expect(new StatusType(input).validate()).toEqual({ ok: true, value: input, errors: [] });
     });
 
@@ -165,7 +164,7 @@ describe('EnumType (optional)', () => {
       ['a string option', new StatusType(Status.UP), false, 'up'],
       ['a number option', new LevelType(Level.HIGH), false, '2'],
       ['an empty value', new StatusType(null), true, ''],
-    ])('%s → isNull %s, toString %p', (_, instance, isNull, text) => {
+    ])('%s → isNull %s, toString %o', (_, instance, isNull, text) => {
       expect(instance.isNull).toBe(isNull);
       expect(instance.toString).toBe(text);
     });
@@ -193,7 +192,7 @@ describe('Required(EnumType)', () => {
   });
 
   describe('construction', () => {
-    it.each([[Status.UP], [Status.DOWN]])('%p is kept', (input) => {
+    it.each([[Status.UP], [Status.DOWN]])('%o is kept', (input) => {
       expect(new RequiredStatus(input).value).toBe(input);
     });
 

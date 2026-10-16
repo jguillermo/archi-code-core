@@ -1,4 +1,4 @@
-import { afterAll, afterEach, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { jwt } from '../../src/jwt/jwt';
 import { workers } from '../../src/worker/workers';
 import { basicKeyPair } from '../support/key-pairs';
@@ -12,7 +12,7 @@ describe('jwt', () => {
     workers.terminate();
   });
   afterEach(() => {
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 
   it('signs and verifies the payload', async () => {
@@ -51,9 +51,9 @@ describe('jwt', () => {
   });
 
   it('expires and checks issuer and audience', async () => {
-    jest.useFakeTimers({
+    vi.useFakeTimers({
       now: new Date('2030-01-01T00:00:00Z'),
-      doNotFake: ['setTimeout', 'setImmediate', 'queueMicrotask', 'nextTick'],
+      toFake: ['Date'],
     });
     const signed = await jwt.sign({ id: 7 }, SECRET, {
       expiresIn: 60,
@@ -67,7 +67,7 @@ describe('jwt', () => {
     await expect(jwt.verify(signed, SECRET, { issuer: 'other' })).rejects.toThrow(
       'JWT issuer is not other.',
     );
-    jest.setSystemTime(new Date('2030-01-01T00:01:00Z'));
+    vi.setSystemTime(new Date('2030-01-01T00:01:00Z'));
     await expect(jwt.verify(signed, SECRET)).rejects.toMatchObject({
       code: 'EXPIRED',
       message: 'JWT expired.',

@@ -1,5 +1,4 @@
-import { describe, expect, it, jest } from '@jest/globals';
-import { expectTypeOf } from 'expect-type';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { Validations } from '@archi-code/validation';
 import type { ValidationResult } from '@archi-code/validation';
 import { ArrayType } from '../../src/type/array-type';
@@ -68,7 +67,7 @@ function adultError(position: number) {
 }
 
 function nonEmptyAges() {
-  const hasItems = jest.fn((value: unknown) => Array.isArray(value) && value.length > 0);
+  const hasItems = vi.fn((value: unknown) => Array.isArray(value) && value.length > 0);
 
   @Validations([{ custom: 'hasItems', fn: hasItems }])
   class OptionalNonEmpty extends Ages {}
@@ -103,7 +102,7 @@ describe('ArrayType (optional)', () => {
   });
 
   describe('conversion', () => {
-    it.each(convertibleInputs)('%p → %p, each item converted', (input, expected) => {
+    it.each(convertibleInputs)('%o → %o, each item converted', (input, expected) => {
       expect(new Ages(input as number[]).value).toEqual(expected);
     });
 
@@ -115,7 +114,7 @@ describe('ArrayType (optional)', () => {
       expect(new Ages().value).toBeNull();
     });
 
-    it.each(notConvertibleInputs)('%p throws TypePrimitiveException', (input, received) => {
+    it.each(notConvertibleInputs)('%o throws TypePrimitiveException', (input, received) => {
       const create = () => new Ages(input as number[]);
       expect(create).toThrow(TypePrimitiveException);
       expect(create).toThrow(primitiveError(received));
@@ -139,7 +138,7 @@ describe('ArrayType (optional)', () => {
   });
 
   describe('validate', () => {
-    it.each(convertibleInputs)('%p is valid as %p', (input, expected) => {
+    it.each(convertibleInputs)('%o is valid as %o', (input, expected) => {
       expect(new Ages(input as number[]).validate()).toEqual({
         ok: true,
         value: expected,
@@ -303,7 +302,7 @@ describe('ArrayType (optional)', () => {
       ['a value', new Ages([18, 30]), false, '18, 30'],
       ['an empty array', new Ages([]), false, ''],
       ['an empty value', new Ages(null), true, ''],
-    ])('%s → isNull %s, toString %p', (_, instance, isNull, text) => {
+    ])('%s → isNull %s, toString %o', (_, instance, isNull, text) => {
       expect(instance.isNull).toBe(isNull);
       expect(instance.toString).toBe(text);
     });
@@ -349,7 +348,7 @@ describe('Required(ArrayType)', () => {
   });
 
   describe('construction', () => {
-    it.each(convertibleInputs)('%p → %p', (input, expected) => {
+    it.each(convertibleInputs)('%o → %o', (input, expected) => {
       expect(new RequiredAges(input as number[]).value).toEqual(expected);
     });
 

@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from '@jest/globals';
+import { afterAll, describe, expect, it } from 'vitest';
 import { constants, verify } from 'crypto';
 import { signature } from '../../src/signature/signature';
 import { workers } from '../../src/worker/workers';

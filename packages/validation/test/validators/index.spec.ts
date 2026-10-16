@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import assert from 'assert';
 import { validator } from '../../src/validators';
 import { locales as isPostalCodeLocales } from '../../src/validators/isPostalCode';

@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { runInNewContext } from 'vm';
 import { nowInSeconds, requireObject, requireText, toBytes, toJson } from '../../src/wasm/input';
 
@@ -7,7 +7,7 @@ describe('input', () => {
     expect([...toBytes('ñ')]).toEqual([195, 177]);
     const bytes = new Uint8Array([1, 2]);
     expect(toBytes(bytes)).toBe(bytes);
-    expect(toBytes(Buffer.from([3]))).toEqual(Buffer.from([3]));
+    expect(toBytes(Buffer.from([3]))).toStrictEqual(new Uint8Array([3]));
   });
 
   it('copies a view so the worker never receives the rest of its buffer', () => {

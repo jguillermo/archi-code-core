@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { Criteria } from '@archi-code/criteria';
 import type { CriteriaInput } from '@archi-code/criteria';
 import { IndexInfo, planIndexedDbQuery } from '../../src/indexeddb/plan-query';

@@ -1,5 +1,4 @@
-import { describe, it } from '@jest/globals';
-import { expectTypeOf } from 'expect-type';
+import { describe, expectTypeOf, it } from 'vitest';
 import { PrimitiveType } from '../../src/primitive/primitive-type';
 import {
   ArrayType,

@@ -1,4 +1,4 @@
-import { afterAll, afterEach, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import type { SecurityLevel } from '../../src/level/security-level';
 import { token } from '../../src/token/token';
 import { workers } from '../../src/worker/workers';
@@ -9,7 +9,7 @@ describe('token', () => {
     workers.terminate();
   });
   afterEach(() => {
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 
   it.each<[SecurityLevel, string]>([
@@ -34,13 +34,13 @@ describe('token', () => {
   });
 
   it('expires after the given seconds', async () => {
-    jest.useFakeTimers({
+    vi.useFakeTimers({
       now: new Date('2030-01-01T00:00:00Z'),
-      doNotFake: ['setTimeout', 'setImmediate', 'queueMicrotask', 'nextTick'],
+      toFake: ['Date'],
     });
     const encrypted = await token.encrypt({ id: 7 }, SECRET, { expiresIn: 60 });
     expect((await token.decrypt(encrypted, SECRET)).exp).toBe('2030-01-01T00:01:00Z');
-    jest.setSystemTime(new Date('2030-01-01T00:01:00Z'));
+    vi.setSystemTime(new Date('2030-01-01T00:01:00Z'));
     await expect(token.decrypt(encrypted, SECRET)).rejects.toMatchObject({
       code: 'EXPIRED',
       message: 'Token expired.',

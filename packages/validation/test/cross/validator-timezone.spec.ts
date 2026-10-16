@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from '@jest/globals';
+import { afterEach, describe, expect, it } from 'vitest';
 import timezone_mock from 'timezone-mock';
 import { validator } from '../../src/validators';
 

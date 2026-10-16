@@ -23,7 +23,7 @@ export interface IsCreditCardOptions {
 const allCards = (() => {
   const tmpCardsArray: RegExp[] = [];
   for (const cardProvider in cards) {
-    // istanbul ignore else
+    /* v8 ignore else -- @preserve */
     if (Object.prototype.hasOwnProperty.call(cards, cardProvider)) {
       tmpCardsArray.push(cards[cardProvider]);
     }

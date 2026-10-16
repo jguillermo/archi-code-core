@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { InfrastructureException } from '../../../src/exceptions/infrastructure/infrastructure.exception';
 import { ExceptionCode } from '../../../src/exceptions/exception-code';
 import { InternalErrorException } from '../../../src/exceptions/infrastructure/internal-error.exception';

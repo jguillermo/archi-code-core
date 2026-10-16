@@ -1,13 +1,13 @@
-'use strict';
+import { createRequire } from 'node:module';
+import { describe, expect, test } from 'vitest';
 
-const { test, describe } = require('node:test');
-const assert = require('node:assert/strict');
+const require = createRequire(import.meta.url);
 const { filesToCheck } = require('../pre-commit');
 
 describe('filesToCheck', () => {
   test('formats and lints package sources and specs', () => {
     const files = ['packages/domain/src/type/string-type.ts', 'packages/domain/test/index.spec.ts'];
-    assert.deepEqual(filesToCheck(files), { prettier: files, eslint: files });
+    expect(filesToCheck(files)).toStrictEqual({ prettier: files, eslint: files });
   });
 
   test('formats the same files as the gate, outside packages too', () => {
@@ -19,12 +19,12 @@ describe('filesToCheck', () => {
       'CLAUDE.md',
       '.claude/rules/packages.md',
     ];
-    assert.deepEqual(filesToCheck(files), { prettier: files, eslint: [] });
+    expect(filesToCheck(files)).toStrictEqual({ prettier: files, eslint: [] });
   });
 
   test('lints the validation benchmark', () => {
     const file = 'packages/validation/benchmark/run.ts';
-    assert.deepEqual(filesToCheck([file]), { prettier: [file], eslint: [file] });
+    expect(filesToCheck([file])).toStrictEqual({ prettier: [file], eslint: [file] });
   });
 
   test('skips files the gate does not format', () => {
@@ -35,6 +35,6 @@ describe('filesToCheck', () => {
       '.nvmrc',
       'packages/domain/test/dist/dist.check.js.snap',
     ];
-    assert.deepEqual(filesToCheck(files), { prettier: [], eslint: [] });
+    expect(filesToCheck(files)).toStrictEqual({ prettier: [], eslint: [] });
   });
 });

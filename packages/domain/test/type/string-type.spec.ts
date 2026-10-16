@@ -1,5 +1,4 @@
-import { describe, expect, it, jest } from '@jest/globals';
-import { expectTypeOf } from 'expect-type';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { Validations } from '@archi-code/validation';
 import type { ValidationResult } from '@archi-code/validation';
 import { StringType } from '../../src/type/string-type';
@@ -61,7 +60,7 @@ function requiredError(received: string): string {
 }
 
 function lengthCodes() {
-  const isShortCode = jest.fn(
+  const isShortCode = vi.fn(
     (value: unknown) => typeof value === 'string' && value.length >= 2 && value.length <= 5,
   );
 
@@ -95,7 +94,7 @@ describe('StringType (optional)', () => {
   });
 
   describe('conversion', () => {
-    it.each(convertibleInputs)('%p → %p', (input, expected) => {
+    it.each(convertibleInputs)('%o → %o', (input, expected) => {
       expect(new StringType(input as string).value).toBe(expected);
     });
 
@@ -107,7 +106,7 @@ describe('StringType (optional)', () => {
       expect(new StringType().value).toBeNull();
     });
 
-    it.each(notConvertibleInputs)('%p throws TypePrimitiveException', (input, received) => {
+    it.each(notConvertibleInputs)('%o throws TypePrimitiveException', (input, received) => {
       const create = () => new StringType(input as string);
       expect(create).toThrow(TypePrimitiveException);
       expect(create).toThrow(primitiveError(received));
@@ -115,7 +114,7 @@ describe('StringType (optional)', () => {
   });
 
   describe('validate', () => {
-    it.each(convertibleInputs)('%p is valid as %p', (input, expected) => {
+    it.each(convertibleInputs)('%o is valid as %o', (input, expected) => {
       expect(new StringType(input as string).validate()).toEqual({
         ok: true,
         value: expected,
@@ -152,7 +151,7 @@ describe('StringType (optional)', () => {
     it.each([
       ['a value', new StringType('Ana'), false, 'Ana'],
       ['an empty value', new StringType('  '), true, ''],
-    ])('%s → isNull %s, toString %p', (_, instance, isNull, text) => {
+    ])('%s → isNull %s, toString %o', (_, instance, isNull, text) => {
       expect(instance.isNull).toBe(isNull);
       expect(instance.toString).toBe(text);
     });
@@ -180,7 +179,7 @@ describe('Required(StringType)', () => {
   });
 
   describe('construction', () => {
-    it.each(convertibleInputs)('%p → %p', (input, expected) => {
+    it.each(convertibleInputs)('%o → %o', (input, expected) => {
       expect(new RequiredString(input as string).value).toBe(expected);
     });
 
@@ -197,7 +196,7 @@ describe('Required(StringType)', () => {
   });
 
   describe('validate', () => {
-    it.each(convertibleInputs)('%p is valid as %p', (input, expected) => {
+    it.each(convertibleInputs)('%o is valid as %o', (input, expected) => {
       expect(new RequiredString(input as string).validate()).toEqual({
         ok: true,
         value: expected,

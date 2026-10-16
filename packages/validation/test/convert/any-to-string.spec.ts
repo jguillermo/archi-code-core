@@ -1,4 +1,4 @@
-import { expect, it } from '@jest/globals';
+import { expect, it } from 'vitest';
 import { anyToString } from '../../src/convert/any-to-string';
 import { anyToString as anyToStringFromIndex, toString } from '../../src/convert';
 

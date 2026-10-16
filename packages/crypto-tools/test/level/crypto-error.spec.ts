@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { CRYPTO_ERROR_CODES, CryptoError } from '../../src/level/crypto-error';
 
 describe('CryptoError', () => {

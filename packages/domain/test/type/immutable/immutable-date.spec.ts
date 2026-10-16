@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { ImmutableDate } from '../../../src/type/immutable/immutable-date';
 
 const SETTERS: [string, (date: Date) => unknown][] = [

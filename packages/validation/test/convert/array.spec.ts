@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { toArray, ConvertMessages } from '../../src/convert';
 import { converted, expectNotConvertible } from '../cross/support/convertHelpers';
 import type { Converted } from '../../src/convert';

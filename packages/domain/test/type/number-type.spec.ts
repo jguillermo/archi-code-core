@@ -1,5 +1,4 @@
-import { describe, expect, it, jest } from '@jest/globals';
-import { expectTypeOf } from 'expect-type';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { Validations } from '@archi-code/validation';
 import type { ValidationResult } from '@archi-code/validation';
 import { NumberType } from '../../src/type/number-type';
@@ -54,7 +53,7 @@ function requiredError(received: string): string {
 }
 
 function positiveNumbers() {
-  const isPositive = jest.fn((value: unknown) => typeof value === 'number' && value > 0);
+  const isPositive = vi.fn((value: unknown) => typeof value === 'number' && value > 0);
 
   @Validations([{ custom: 'isPositive', fn: isPositive }])
   class OptionalPositive extends NumberType {}
@@ -86,7 +85,7 @@ describe('NumberType (optional)', () => {
   });
 
   describe('conversion', () => {
-    it.each(convertibleInputs)('%p → %p', (input, expected) => {
+    it.each(convertibleInputs)('%o → %o', (input, expected) => {
       expect(new NumberType(input as number).value).toBe(expected);
     });
 
@@ -98,7 +97,7 @@ describe('NumberType (optional)', () => {
       expect(new NumberType().value).toBeNull();
     });
 
-    it.each(notConvertibleInputs)('%p throws TypePrimitiveException', (input, received) => {
+    it.each(notConvertibleInputs)('%o throws TypePrimitiveException', (input, received) => {
       const create = () => new NumberType(input as number);
       expect(create).toThrow(TypePrimitiveException);
       expect(create).toThrow(primitiveError(received));
@@ -106,7 +105,7 @@ describe('NumberType (optional)', () => {
   });
 
   describe('validate', () => {
-    it.each(convertibleInputs)('%p is valid as %p', (input, expected) => {
+    it.each(convertibleInputs)('%o is valid as %o', (input, expected) => {
       expect(new NumberType(input as number).validate()).toEqual({
         ok: true,
         value: expected,
@@ -144,7 +143,7 @@ describe('NumberType (optional)', () => {
       ['a value', new NumberType(-1.5), false, '-1.5'],
       ['zero', new NumberType(0), false, '0'],
       ['an empty value', new NumberType(null), true, ''],
-    ])('%s → isNull %s, toString %p', (_, instance, isNull, text) => {
+    ])('%s → isNull %s, toString %o', (_, instance, isNull, text) => {
       expect(instance.isNull).toBe(isNull);
       expect(instance.toString).toBe(text);
     });
@@ -172,7 +171,7 @@ describe('Required(NumberType)', () => {
   });
 
   describe('construction', () => {
-    it.each(convertibleInputs)('%p → %p', (input, expected) => {
+    it.each(convertibleInputs)('%o → %o', (input, expected) => {
       expect(new RequiredNumber(input as number).value).toBe(expected);
     });
 
@@ -189,7 +188,7 @@ describe('Required(NumberType)', () => {
   });
 
   describe('validate', () => {
-    it.each(convertibleInputs)('%p is valid as %p', (input, expected) => {
+    it.each(convertibleInputs)('%o is valid as %o', (input, expected) => {
       expect(new RequiredNumber(input as number).validate()).toEqual({
         ok: true,
         value: expected,

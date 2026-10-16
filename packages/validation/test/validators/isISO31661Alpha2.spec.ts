@@ -1,3 +1,4 @@
+import { describe, it } from 'vitest';
 import test from '../cross/support/testFunctions';
 
 describe('isISO31661Alpha2', () => {

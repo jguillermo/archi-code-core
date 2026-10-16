@@ -1,8 +1,7 @@
-import { afterEach, describe, expect, it, jest } from '@jest/globals';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type * as WorkersModule from '../../src/worker/workers';
 import type { WorkerFactory } from '../../src/worker/worker-handle';
 import { fakeFactory, flush } from '../support/fake-handle';
-import { required } from '../support/required';
 
 interface Setup {
   browser?: WorkerFactory;
@@ -12,25 +11,24 @@ interface Setup {
 }
 
 async function loadWorkers(setup: Setup): Promise<typeof WorkersModule> {
-  let loaded: typeof WorkersModule | undefined;
-  await jest.isolateModulesAsync(async () => {
-    jest.doMock('../../src/worker/browser-host', () => ({
-      browserWorkerFactory: () => setup.browser,
+  vi.resetModules();
+  vi.doMock('../../src/worker/browser-host', () => ({
+    browserWorkerFactory: () => setup.browser,
+  }));
+  vi.doMock('../../src/worker/node-host', () => ({ nodeWorkerFactory: () => setup.node }));
+  if (setup.compile) {
+    const { compile, glue = 'glue' } = setup;
+    vi.doMock('../../src/wasm/wasm-module', () => ({
+      compileWasm: compile,
+      wasmGlue: () => glue,
     }));
-    jest.doMock('../../src/worker/node-host', () => ({ nodeWorkerFactory: () => setup.node }));
-    if (setup.compile) {
-      const { compile, glue = 'glue' } = setup;
-      jest.doMock('../../src/wasm/wasm-module', () => ({
-        compileWasm: compile,
-        wasmGlue: () => glue,
-      }));
-    }
-    loaded = await import('../../src/worker/workers');
-  });
-  jest.dontMock('../../src/worker/browser-host');
-  jest.dontMock('../../src/worker/node-host');
-  jest.dontMock('../../src/wasm/wasm-module');
-  return required(loaded);
+  }
+  const loaded = await import('../../src/worker/workers');
+  vi.doUnmock('../../src/worker/browser-host');
+  vi.doUnmock('../../src/worker/node-host');
+  vi.doUnmock('../../src/wasm/wasm-module');
+  vi.resetModules();
+  return loaded;
 }
 
 const compiled = () => Promise.resolve({});
@@ -137,7 +135,8 @@ describe('workers with the real runtime', () => {
 
 describe('workers pool', () => {
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it('spawns up to the configured size and then picks the least busy worker', async () => {
@@ -164,7 +163,7 @@ describe('workers pool', () => {
   });
 
   it('sizes the pool from the available cores', async () => {
-    jest.replaceProperty(globalThis, 'navigator', undefined as unknown as Navigator);
+    vi.stubGlobal('navigator', undefined);
     const { handles, factory } = fakeFactory();
     const { callCrypto } = await loadWorkers({ node: factory, compile: compiled });
     void callCrypto('jwtDecode', 'a');
@@ -239,7 +238,7 @@ describe('workers pool', () => {
   });
 
   it('falls back to a single inline runner with one warning', async () => {
-    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const { callCrypto, workers } = await loadWorkers({});
     workers.configure({ size: 3 });
     expect(workers.runtime()).toBe('inline');
@@ -252,7 +251,7 @@ describe('workers pool', () => {
   });
 
   it('times out the running call, then retries the queued ones in a new worker', async () => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     try {
       const { handles, factory } = fakeFactory();
       const { callCrypto, workers } = await loadWorkers({ node: factory, compile: compiled });
@@ -260,16 +259,16 @@ describe('workers pool', () => {
       const first = callCrypto('jwtDecode', 'a');
       const second = callCrypto('jwtDecode', 'b');
       const third = callCrypto('jwtDecode', 'c');
-      await jest.advanceTimersByTimeAsync(60);
+      await vi.advanceTimersByTimeAsync(60);
       handles[0].respond({ id: 1, ok: true, result: 'A' });
       await expect(first).resolves.toBe('A');
       const timedOut = expect(second).rejects.toMatchObject({
         code: 'TIMEOUT',
         message: 'Crypto call jwtDecode took longer than 100 ms.',
       });
-      await jest.advanceTimersByTimeAsync(60);
+      await vi.advanceTimersByTimeAsync(60);
       expect(handles).toHaveLength(1);
-      await jest.advanceTimersByTimeAsync(40);
+      await vi.advanceTimersByTimeAsync(40);
       await timedOut;
       expect(handles[0].terminated).toBe(true);
       expect(handles[1].requests()).toEqual([3]);
@@ -277,57 +276,57 @@ describe('workers pool', () => {
       await expect(third).resolves.toBe('C');
       expect(handles[1].alive).toEqual([true, false]);
     } finally {
-      jest.useRealTimers();
+      vi.useRealTimers();
     }
   });
 
   it('closes idle workers to give their memory back and starts new ones on demand', async () => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     try {
       const { handles, factory } = fakeFactory();
       const { callCrypto, workers } = await loadWorkers({ node: factory, compile: compiled });
       workers.configure({ size: 1, idleTimeout: 100 });
       const first = callCrypto('jwtDecode', 'a');
-      await jest.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(0);
       handles[0].respond({ id: 1, ok: true, result: 'A' });
       await expect(first).resolves.toBe('A');
-      await jest.advanceTimersByTimeAsync(60);
+      await vi.advanceTimersByTimeAsync(60);
       const second = callCrypto('jwtDecode', 'b');
-      await jest.advanceTimersByTimeAsync(60);
+      await vi.advanceTimersByTimeAsync(60);
       expect(handles[0].terminated).toBe(false);
       handles[0].respond({ id: 2, ok: true, result: 'B' });
       await expect(second).resolves.toBe('B');
-      await jest.advanceTimersByTimeAsync(100);
+      await vi.advanceTimersByTimeAsync(100);
       expect(handles[0].terminated).toBe(true);
       const third = callCrypto('jwtDecode', 'c');
-      await jest.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(0);
       expect(handles[1].requests()).toEqual([3]);
       handles[1].respond({ id: 3, ok: true, result: 'C' });
       await expect(third).resolves.toBe('C');
       workers.configure({ idleTimeout: Infinity });
       const fourth = callCrypto('jwtDecode', 'd');
-      await jest.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(0);
       handles[2].respond({ id: 4, ok: true, result: 'D' });
       await expect(fourth).resolves.toBe('D');
-      await jest.advanceTimersByTimeAsync(3_600_000);
+      await vi.advanceTimersByTimeAsync(3_600_000);
       expect(handles[2].terminated).toBe(false);
     } finally {
-      jest.useRealTimers();
+      vi.useRealTimers();
     }
   });
 
   it('never times out with an infinite timeout', async () => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     try {
       const { handles, factory } = fakeFactory();
       const { callCrypto, workers } = await loadWorkers({ node: factory, compile: compiled });
       workers.configure({ timeout: Infinity });
       const call = callCrypto('jwtDecode', 'a');
-      await jest.advanceTimersByTimeAsync(3_600_000);
+      await vi.advanceTimersByTimeAsync(3_600_000);
       handles[0].respond({ id: 1, ok: true, result: 'late' });
       await expect(call).resolves.toBe('late');
     } finally {
-      jest.useRealTimers();
+      vi.useRealTimers();
     }
   });
 
@@ -375,7 +374,7 @@ describe('workers pool', () => {
   });
 
   it('falls back to the calling thread when the page blocks workers', async () => {
-    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const blocked: WorkerFactory = {
       runtime: 'web-worker',
       create: () => {
@@ -393,7 +392,7 @@ describe('workers pool', () => {
   });
 
   it('falls back to the calling thread when a Web Worker fails before answering', async () => {
-    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const web = fakeFactory('web-worker');
     const { callCrypto, workers } = await loadWorkers({ browser: web.factory });
     const call = callCrypto('hashDigest', ABC, undefined, undefined);
@@ -410,7 +409,7 @@ describe('workers pool', () => {
   });
 
   it('keeps using Web Workers when one fails after it started', async () => {
-    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const web = fakeFactory('web-worker');
     const { callCrypto, workers } = await loadWorkers({ browser: web.factory, compile: compiled });
     workers.configure({ size: 1 });
@@ -480,7 +479,7 @@ describe('workers pool', () => {
         throw new Error('blocked');
       },
     };
-    jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const { callCrypto, workers } = await loadWorkers({ browser: blocked, compile: compiled });
     workers.configure({ mode: 'worker' });
     await expect(callCrypto('jwtDecode', 'a')).rejects.toMatchObject({
@@ -495,7 +494,7 @@ describe('workers pool', () => {
   });
 
   it('never arms a timeout for calls on the calling thread', async () => {
-    const timers = jest.spyOn(globalThis, 'setTimeout');
+    const timers = vi.spyOn(globalThis, 'setTimeout');
     const { callCrypto, workers } = await loadWorkers({});
     workers.configure({ mode: 'inline', timeout: 12_345, idleTimeout: Infinity });
     expect(await callCrypto('hashDigest', ABC, undefined, undefined)).toBe(SHA256_OF_ABC);
@@ -503,7 +502,7 @@ describe('workers pool', () => {
   });
 
   it('runs inline on request without warning', async () => {
-    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const { handles, factory } = fakeFactory();
     const { callCrypto, workers } = await loadWorkers({ node: factory });
     workers.configure({ mode: 'inline' });

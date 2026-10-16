@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from '@jest/globals';
+import { afterEach, describe, expect, it } from 'vitest';
 import { toDate, ConvertMessages } from '../../src/convert';
 import { converted, expectNotConvertible } from '../cross/support/convertHelpers';
 import type { Converted } from '../../src/convert';
@@ -228,7 +228,7 @@ describe('convert rules — { ok, value, error }', () => {
       ['01/02/2024'],
       [42],
       [new Date('x')],
-    ])('%p → { ok: false, error }', (input) =>
+    ])('%o → { ok: false, error }', (input) =>
       expect(toDate(input)).toEqual({ ok: false, value: null, error: ConvertMessages.DATE }),
     );
 
@@ -319,7 +319,7 @@ describe('toDate lax mode (ported from isAfter / isBefore)', () => {
     ['Sat Sep 10 2011 12:00:00 GMT+9999'],
     [42],
     [null],
-  ])('%p → undefined', (input) => expect(parseDateLax(input)).toBeUndefined());
+  ])('%o → undefined', (input) => expect(parseDateLax(input)).toBeUndefined());
 
   it('leap day handling', () => {
     expect(parseDateLax('2024-02-29')).toBeInstanceOf(Date);

@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { parseDate, parseNumber } from '../src/parse-scalar';
 
 describe('parseNumber', () => {
@@ -8,7 +8,7 @@ describe('parseNumber', () => {
     ['18', 18],
     ['-0.25', -0.25],
     ['007', 7],
-  ])('accepts %p', (value, expected) => {
+  ])('accepts %o', (value, expected) => {
     expect(parseNumber(value)).toBe(expected);
   });
 
@@ -26,7 +26,7 @@ describe('parseNumber', () => {
     ['9'.repeat(400)],
     [true],
     [null],
-  ])('rejects %p', (value) => {
+  ])('rejects %o', (value) => {
     expect(parseNumber(value)).toBeNull();
   });
 });
@@ -46,7 +46,7 @@ describe('parseDate', () => {
     [-86_400_000, '1969-12-31T00:00:00.000Z'],
     [0, '1970-01-01T00:00:00.000Z'],
     [new Date(Date.UTC(2024, 0, 1)), '2024-01-01T00:00:00.000Z'],
-  ])('accepts %p', (value, expected) => {
+  ])('accepts %o', (value, expected) => {
     expect(parseDate(value)?.toISOString()).toBe(expected);
   });
 
@@ -75,7 +75,7 @@ describe('parseDate', () => {
     [new Date(Number.NaN)],
     [true],
     [null],
-  ])('rejects %p', (value) => {
+  ])('rejects %o', (value) => {
     expect(parseDate(value)).toBeNull();
   });
 });

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, jest } from '@jest/globals';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { WorkerNotice } from '../../src/worker/crypto-functions';
 import { nodeWorkerFactory } from '../../src/worker/node-host';
 import { workerSource } from '../../src/worker/worker-source';
@@ -8,11 +8,12 @@ import { required } from '../support/required';
 
 describe('nodeWorkerFactory', () => {
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it('is not available outside Node', () => {
-    jest.replaceProperty(globalThis, 'process', undefined as unknown as NodeJS.Process);
+    vi.stubGlobal('process', undefined);
     expect(nodeWorkerFactory()).toBeUndefined();
   });
 

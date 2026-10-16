@@ -10,18 +10,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 npm run build           # Build all packages (CJS + ESM) in dependency order
 npm run test            # Run all tests
 npm run test:coverage   # Run tests with coverage
-npm run check           # Root scripts (Prettier + node --test), editorconfig over the repo, then check:all in every package
+npm run check           # Root scripts (Prettier + Vitest), editorconfig over the repo, then check:all in every package
 npm run fix             # Auto-fix lint and formatting
 npm run clean           # Remove all node_modules
 npm run check:packages  # Full gate (check:all) in every package
-npm run check:<name>    # Full gate in one package: validator, domain, criteria, criteria-adapters, crypto-tools, ephemeradb, test
+npm run check:<name>    # Full gate in one package: validator, domain, criteria, criteria-adapters, crypto-tools
 npm run check:versions  # Every package version and internal dep is 0.0.0-development
 npm run check:audit     # npm audit of runtime deps + cargo audit of crypto-tools (network; CI audit.yml, weekly)
 npm run version         # Dry-run of the release: current and next version of each package, writes release-plan.json
 npm run release         # Deploy (CI): publish the planned packages and record them in releases.json
 ```
 
-Every package's `check:all` runs the same gate: editorconfig-checker → prettier (`src`, `test` and the package's own `*.json`/`*.md`) → eslint → tsc (src + test) → jest with coverage → build (CJS + ESM) → dist check. CI on pull requests runs `npm run check` (and `.github/workflows/audit.yml` runs `npm run check:audit`, also every Monday); the release workflow (push to `main`/`release`, GitHub environment `deploy` with the `NPM_TOKEN` secret) only builds and publishes. The husky hooks stay fast and leave the full gate to CI: `pre-commit` runs `scripts/pre-commit.js` (Prettier and ESLint only on the staged files the gate checks) and `pre-push` runs `scripts/check-versions.js`.
+Every package's `check:all` runs the same gate: editorconfig-checker → prettier (`src`, `test` and the package's own `*.json`/`*.md`) → eslint → tsc (src + test) → vitest with coverage → build (CJS + ESM) → dist check. CI on pull requests runs `npm run check` (and `.github/workflows/audit.yml` runs `npm run check:audit`, also every Monday); the release workflow (push to `main`/`release`, GitHub environment `deploy` with the `NPM_TOKEN` secret) only builds and publishes. The husky hooks stay fast and leave the full gate to CI: `pre-commit` runs `scripts/pre-commit.js` (Prettier and ESLint only on the staged files the gate checks) and `pre-push` runs `scripts/check-versions.js`.
 
 The root `scripts/` holds only the general tools (packages have no `scripts/` folder); each package calls them as `node ../../scripts/<name>.js` and they act on the current package directory:
 
@@ -33,7 +33,7 @@ The root `scripts/` holds only the general tools (packages have no `scripts/` fo
 - `scripts/check-browser.js` — serves the package's `dist/` and runs the `browser` checks of `test/dist/dist.check.js` inside real Chromium, Firefox and WebKit pages through Playwright (root devDependency; `npx playwright install` once, `CHECK_BROWSERS=chromium` narrows it). Each check is `[name, pageFunction, { csp }?]`: the function runs in a page served with that Content-Security-Policy, receives the URL of the ESM entry and returns `true` or an error message. It runs the `browser` hooks of every entry point (`test/dist/<module>.check.js` for subpaths), serves the package's runtime `dependencies` (recursively) under `/node_modules/<name>/` with an inline import map (its hash is added to a page's `script-src`), and serves the package's `test/` helpers transpiled from TypeScript at `/test/<path>`, so a page can import a test harness such as a contract.
 - `scripts/embed-wasm.js` — turns a `wasm-pack --target no-modules` output into a generated `.ts` module (wasm gzipped as base64, decompressed with `DecompressionStream`, + glue as text) and refuses glue that needs Node or imports modules. `scripts/lib/web-safety.js` holds the checks it shares with `check-web.js`.
 
-Checks specific to one package's build live in that package, in `test/dist/dist.check.js` (every package has one; jest ignores it because it is not a `.spec.ts`). They must exercise the real API, not just load it. It may export `smoke(m)` (run on CJS and ESM), `crossBuild(cjs, esm)` (check-dist), `web(webModule, nodeModule)` (check-web) and `browser()` (check-browser); each returns `[name, check]` pairs where `check()` returns (or resolves to) `true` or an error message. `scripts/lib/package-checks.js` loads and runs them.
+Checks specific to one package's build live in that package, in `test/dist/dist.check.js` (every package has one; vitest ignores it because it is not a `.spec.ts`). They must exercise the real API, not just load it. It may export `smoke(m)` (run on CJS and ESM), `crossBuild(cjs, esm)` (check-dist), `web(webModule, nodeModule)` (check-web) and `browser()` (check-browser); each returns `[name, check]` pairs where `check()` returns (or resolves to) `true` or an error message. `scripts/lib/package-checks.js` loads and runs them.
 
 - Root `npm run check:scripts` / `fix:scripts` run Prettier over `scripts/`, the root `*.md` and `.claude/**/*.md`.
 
@@ -85,7 +85,7 @@ network) and `npm run release` (deploy) use the same plan:
 ```bash
 cd packages/<name> && npm run test                # Tests for one package
 cd packages/<name> && npm run build               # Build one package
-cd packages/<name> && npx jest test/path.spec.ts  # Run a single test file
+cd packages/<name> && npx vitest run test/path.spec.ts  # Run a single test file
 ```
 
 ### Build output structure (each package)
@@ -105,7 +105,7 @@ Each package's `package.json` entry points:
 
 ## Package standard
 
-Every package follows `.claude/rules/packages.md` (layout, `package.json`, tsconfig, Jest, tests, build checks, documentation, allowed extensions and a checklist). Each package ships an English `README.md` with its whole API and a light `SKILL.md` (Claude Code skill `archi-code-<name>`: rules, patterns and common mistakes; for the API it sends the assistant to the installed README) that consumers copy into `.claude/skills/`. Create new packages with `node scripts/new-package.js <folder> "<description>"` or the `/new-package` skill; the result passes `check:all` from the start.
+Every package follows `.claude/rules/packages.md` (layout, `package.json`, tsconfig, Vitest, tests, build checks, documentation, allowed extensions and a checklist). Each package ships an English `README.md` with its whole API and a light `SKILL.md` (Claude Code skill `archi-code-<name>`: rules, patterns and common mistakes; for the API it sends the assistant to the installed README) that consumers copy into `.claude/skills/`. Create new packages with `node scripts/new-package.js <folder> "<description>"` or the `/new-package` skill; the result passes `check:all` from the start.
 
 ## Architecture
 
@@ -120,22 +120,18 @@ npm workspaces monorepo publishing independent npm packages implementing DDD pat
 | `criteria`          | `@archi-code/criteria`          | Database-independent Criteria: typed `where`/`orderBy`/pagination, URL text, input schema with limits                       |
 | `criteria-adapters` | `@archi-code/criteria-adapters` | Criteria adapters as separate subpaths: `/memory` (reference semantics), `/mongodb`, `/indexeddb`; shared internal contract |
 | `crypto-tools`      | `@archi-code/crypto-tools`      | Crypto toolkit in one Rust→wasm module run in workers (web + Node): password, cipher, RSA, signature, hash, token, JWT      |
-| `ephemeraDB`        | `@archi-code/ephemeradb`        | Async in-memory key-value store                                                                                             |
-| `test`              | `@archi-code/test`              | Test helpers: `DtoObjectMother`, `JsonCompare`, type assertions (`Expect`, `Equal`, `IsAny`…)                               |
 
 ### Dependency graph
 
 ```
 @archi-code/validation  (zero runtime dependencies — foundation)
     ↑
-    ├── @archi-code/domain   (runtime: @archi-code/validation, uuid)
-    └── @archi-code/test     (runtime: @archi-code/validation)
+    └── @archi-code/domain   (runtime: @archi-code/validation, uuid)
 
 @archi-code/criteria     (standalone — no runtime deps)
     ↑
     └── @archi-code/criteria-adapters (runtime: @archi-code/criteria; optional peer: mongodb;
                                        subpaths /memory, /mongodb, /indexeddb → memory)
-@archi-code/ephemeradb   (standalone — no runtime deps)
 @archi-code/crypto-tools (standalone — no npm deps; Rust crates compiled into one embedded wasm)
 ```
 
@@ -213,7 +209,7 @@ npm workspaces monorepo publishing independent npm packages implementing DDD pat
   used as key ranges and a sorted walk that meets one sorts in memory (IndexedDB orders by UTF-16
   code unit). The package runs `check-browser` (not `check-web`, whose scan refuses the bare
   `@archi-code/criteria` import): `/memory` and `/indexeddb` run the whole contract in Chromium,
-  Firefox and WebKit, on each browser's real IndexedDB in three store layouts; jest uses
+  Firefox and WebKit, on each browser's real IndexedDB in three store layouts; vitest uses
   `fake-indexeddb`.
 
 ### domain package internals
@@ -248,8 +244,8 @@ tsconfig.json  (extends ../../tsconfig.base.json, includes src/ and test/)
 
 ### Testing
 
-- Jest + ts-jest. Coverage threshold: 100% (statements, branches, functions, lines) in every package. Each package's `test/index.spec.ts` pins its public API.
-- Specs import from `../src/...` and `@jest/globals`; no package depends on another for its tests. `@archi-code/test` (`DtoObjectMother`, `JsonCompare`) and `EphemeraDb` are helpers for the projects that consume these packages.
+- Vitest 5 everywhere: each package has its own complete `vitest.config.mts` (v8 coverage over `src/**/*.ts`, threshold 100% for statements, branches, functions and lines) and the root `vitest.config.mts` runs `scripts/__tests__` (`npm run test:scripts`). Each package's `test/index.spec.ts` pins its public API.
+- Nothing is global (`globals: false`): every spec imports from `vitest` what it uses (`describe`, `it`, `expect`, `vi`, `expectTypeOf`) and from `../src/...` the code under test; no package depends on another for its tests. Module isolation uses `vi.resetModules()` + `await import()`, globals are replaced with `vi.stubGlobal`, and coverage hints are `/* v8 ignore … -- @preserve */`.
 
 ## Known issues
 

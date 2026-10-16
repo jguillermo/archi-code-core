@@ -24,12 +24,13 @@ packages/<folder>/
 │   └── dist/dist.check.js   # build checks specific to this package
 ├── package.json
 ├── tsconfig.json  tsconfig.build.json  tsconfig.cjs.json  tsconfig.esm.json
+├── vitest.config.mts        # the package's complete Vitest config
 ├── .gitignore  LICENSE  README.md  SKILL.md
 ```
 
 - No `scripts/` folder inside a package: build and check tools live only in the root `scripts/`.
 - Folder name is lowercase kebab-case and equals the npm name: `packages/<folder>` → `@archi-code/<folder>`
-  (`ephemeraDB` and the `check:validator` root script are legacy exceptions; do not copy them).
+  (the `check:validator` root script is a legacy exception; do not copy it).
 
 ## package.json
 
@@ -57,19 +58,23 @@ packages/<folder>/
   (`tsc -p tsconfig.esm.json && node ../../scripts/fix-esm.js`), `build`, `test`, `test:coverage`,
   `check:types`, `check:dist` (`node ../../scripts/check-dist.js && node ../../scripts/check-types.js`),
   `check:editorconfig` (`node ../../scripts/editorconfig.js`), `check:lint` / `fix:lint` (`eslint src test --ext .ts`), `check:prettier` /
-  `fix:prettier` (`"{src,test}/**/*.{js,jsx,ts,tsx,json,css,scss,md}" "*.{json,md}"`) and
+  `fix:prettier` (`"{src,test}/**/*.{js,jsx,ts,tsx,json,css,scss,md}" "*.{json,md,mts}"`),
+  `test` (`vitest run`), `test:coverage` (`vitest run --coverage`) and
   `check:all`:
 
   ```
   check:editorconfig → check:prettier → check:lint → check:types → test:coverage → build → check:dist
   ```
 
-- `jest`: `rootDir` `.`, `roots` `["<rootDir>/src", "<rootDir>/test"]` (both: with only `test`,
-  files no test imports escape coverage), `testRegex` `.*\.spec\.ts$`, `collectCoverageFrom`
-  `["src/**/*.(t|j)s"]`, `coverageDirectory` `./coverage`, `injectGlobals` `false`.
+- Tests run on Vitest. `vitest.config.mts` is complete in every package (no shared base; Vitest
+  does not look for a config in parent folders): `environment` `'node'`, `include`
+  `['test/**/*.spec.ts']`, `globals` `false`, and `coverage` with `provider` `'v8'`, `include`
+  `['src/**/*.ts']` (without it, files no test imports escape coverage), `reportsDirectory`
+  `'./coverage'` and `thresholds` `{ 100: true }`.
 - Coverage threshold: 100% (statements, branches, functions, lines) in every package. Never delete
   code to reach it: cover it with a test, or mark a defensive branch no test can reach with
-  `// istanbul ignore`.
+  `/* v8 ignore next -- @preserve */` (or `if`/`else`; without `@preserve` the transform drops the
+  hint).
 - Runtime deps in `dependencies`; optional heavy libraries as optional `peerDependencies`.
 
 ## Documentation
@@ -123,7 +128,8 @@ people (and the AI assistants) that consume the package:
 
 ## Tests and build checks
 
-- Specs import from `../src/...` and use `@jest/globals`. No comments in code (see CLAUDE.md).
+- Specs import from `../src/...` and import from `vitest` every function they use (`describe`,
+  `it`, `expect`, `vi`, `expectTypeOf`…): nothing is global. No comments in code (see CLAUDE.md).
 - `test/dist/dist.check.js` (for `"."`; `test/dist/<module>.check.js` for each subpath module)
   exports `smoke(m)` (run on the CJS and the ESM build) and optionally
   `crossBuild(cjs, esm)` and `web(webModule, nodeModule)`; each returns `[name, check]` pairs whose
@@ -140,7 +146,7 @@ people (and the AI assistants) that consume the package:
 
 Only when the package needs them, and documented in its README:
 
-- Extra `compilerOptions` in `tsconfig.json` (e.g. `lib`) and a `tsconfig.spec.json` for ts-jest.
+- Extra `compilerOptions` in `tsconfig.json` (e.g. `lib`).
 - Extra folders (`benchmark/`, `docs/`): their paths in `check:prettier`/`fix:prettier` and
   `check:lint`/`fix:lint`, their own tsconfig type-checked in `check:types`, and one script to
   run them (e.g. `benchmark`).
@@ -188,8 +194,7 @@ Only when the package needs them, and documented in its README:
   imports out of `src/`, deep imports into another module and imports of the package itself. Test
   harnesses shared by the modules (such as a contract) live in `test/<name>/` and are never
   published. One README (a section per module) and one `SKILL.md` cover every module.
-- `jest.injectGlobals` `true`, only for a spec suite that cannot be edited and relies on Jest
-  globals (e.g. one ported from another project). New specs still import from `@jest/globals`.
+- Extra keys in `vitest.config.mts` (e.g. `coverage.exclude` for generated files).
 
 ## When adding a package
 
@@ -208,7 +213,8 @@ Only when the package needs them, and documented in its README:
 - [ ] `src/` imports each symbol from its declaring file, never through a re-exporting `index.ts`
       (subpath modules: across modules only through the module's `index.ts`).
 - [ ] `test/index.spec.ts` pins the public API; `test/dist/dist.check.js` exercises it.
-- [ ] `package.json` entry points, `exports`, `files`, `engines`, `scripts` and `jest` as above.
+- [ ] `package.json` entry points, `exports`, `files`, `engines` and `scripts` as above;
+      `vitest.config.mts` as above and every spec imports from `vitest`.
 - [ ] `version` and internal `@archi-code/*` deps are `0.0.0-development`.
 - [ ] The four tsconfig files as above.
 - [ ] `README.md`, `SKILL.md`, `LICENSE`, `.gitignore` present; README and skill cover the current

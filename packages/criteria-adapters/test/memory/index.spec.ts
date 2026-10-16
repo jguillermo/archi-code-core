@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import * as api from '../../src/memory/index';
 
 const PUBLIC_API = ['compareBy', 'matches', 'matchesFilter', 'readPath', 'searchMemory'];

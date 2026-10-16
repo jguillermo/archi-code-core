@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { AbstractException } from '../../src/exceptions/abstract.exception';
 import { ExceptionCode } from '../../src/exceptions/exception-code';
 

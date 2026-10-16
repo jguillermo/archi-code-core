@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { toFloat, ConvertMessages } from '../../src/convert';
 import { converted, expectNotConvertible } from '../cross/support/convertHelpers';
 import type { Converted } from '../../src/convert';
@@ -132,7 +132,7 @@ describe('convert rules — { ok, value, error }', () => {
       ['1e3', 1000],
       ['2E-2', 0.02],
       [3, 3],
-    ])('%p → %p', (input, expected) => expect(value(toFloat(input))).toBe(expected));
+    ])('%o → %o', (input, expected) => expect(value(toFloat(input))).toBe(expected));
     it.each([
       ['0x10'],
       ['0b101'],
@@ -144,7 +144,7 @@ describe('convert rules — { ok, value, error }', () => {
       ['1,5'],
       [NaN],
       [null],
-    ])('%p → { ok: false, error }', (input) =>
+    ])('%o → { ok: false, error }', (input) =>
       expect(toFloat(input)).toEqual({ ok: false, value: null, error: ConvertMessages.FLOAT }),
     );
   });

@@ -1,4 +1,4 @@
-import { expect } from '@jest/globals';
+import { expect } from 'vitest';
 import type { Converted, ConvertMessage } from '../../../src/convert';
 
 export function converted<T>(result: Converted<T>): T {

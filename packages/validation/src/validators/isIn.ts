@@ -17,7 +17,7 @@ export function isIn(value: unknown, options: IsInOptions): boolean {
   if (Object.prototype.toString.call(values) === '[object Array]') {
     const array: string[] = [];
     for (i in values as unknown[]) {
-      // istanbul ignore else
+      /* v8 ignore else -- @preserve */
       if ({}.hasOwnProperty.call(values, i)) {
         const item = toString((values as unknown as Record<string, unknown>)[i]);
         if (item.ok) array[i] = item.value;

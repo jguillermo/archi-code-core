@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from '@jest/globals';
+import { afterAll, describe, expect, it } from 'vitest';
 import { hash } from '../../src/hash/hash';
 import type { SecurityLevel } from '../../src/level/security-level';
 import { workers } from '../../src/worker/workers';

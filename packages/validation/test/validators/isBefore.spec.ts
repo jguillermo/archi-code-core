@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import { isBefore } from '../../src/validators/isBefore';
 
 describe('isBefore', () => {

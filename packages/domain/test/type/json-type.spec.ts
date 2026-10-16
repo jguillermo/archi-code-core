@@ -1,5 +1,4 @@
-import { describe, expect, it, jest } from '@jest/globals';
-import { expectTypeOf } from 'expect-type';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { Validations } from '@archi-code/validation';
 import type { ValidationResult } from '@archi-code/validation';
 import { JsonType } from '../../src/type/json-type';
@@ -54,7 +53,7 @@ function requiredError(received: string): string {
 }
 
 function darkSettings() {
-  const isDark = jest.fn((value: unknown) => (value as Settings).theme === 'dark');
+  const isDark = vi.fn((value: unknown) => (value as Settings).theme === 'dark');
 
   @Validations([{ custom: 'isDark', fn: isDark }])
   class OptionalDark extends SettingsType {}
@@ -92,7 +91,7 @@ describe('JsonType (optional)', () => {
   });
 
   describe('conversion', () => {
-    it.each(convertibleInputs)('%p → %p', (input, expected) => {
+    it.each(convertibleInputs)('%o → %o', (input, expected) => {
       expect(new SettingsType(input as Settings).value).toEqual(expected);
     });
 
@@ -113,7 +112,7 @@ describe('JsonType (optional)', () => {
       expect(new SettingsType().value).toBeNull();
     });
 
-    it.each(notConvertibleInputs)('%p throws TypePrimitiveException', (input, received) => {
+    it.each(notConvertibleInputs)('%o throws TypePrimitiveException', (input, received) => {
       const create = () => new SettingsType(input as Settings);
       expect(create).toThrow(TypePrimitiveException);
       expect(create).toThrow(primitiveError(received));
@@ -155,7 +154,7 @@ describe('JsonType (optional)', () => {
   });
 
   describe('validate', () => {
-    it.each(convertibleInputs)('%p is valid as %p', (input, expected) => {
+    it.each(convertibleInputs)('%o is valid as %o', (input, expected) => {
       expect(new SettingsType(input as Settings).validate()).toEqual({
         ok: true,
         value: expected,
@@ -192,7 +191,7 @@ describe('JsonType (optional)', () => {
     it.each([
       ['a value', new SettingsType({ theme: 'dark' }), false, '{"theme":"dark"}'],
       ['an empty value', new SettingsType(null), true, ''],
-    ])('%s → isNull %s, toString %p', (_, instance, isNull, text) => {
+    ])('%s → isNull %s, toString %o', (_, instance, isNull, text) => {
       expect(instance.isNull).toBe(isNull);
       expect(instance.toString).toBe(text);
     });
@@ -224,7 +223,7 @@ describe('Required(JsonType)', () => {
   });
 
   describe('construction', () => {
-    it.each(convertibleInputs)('%p → %p', (input, expected) => {
+    it.each(convertibleInputs)('%o → %o', (input, expected) => {
       expect(new RequiredSettings(input as Settings).value).toEqual(expected);
     });
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { CriteriaError, quote } from '../src/criteria-error';
 
 describe('CriteriaError', () => {
@@ -39,7 +39,7 @@ describe('CriteriaError', () => {
   });
 
   it.each([[new Error('plain')], [{ code: 'INVALID_FIELD' }], [null], ['INVALID_FIELD']])(
-    'does not recognize %p',
+    'does not recognize %o',
     (value) => {
       expect(value instanceof CriteriaError).toBe(false);
     },

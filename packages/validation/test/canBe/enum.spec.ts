@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { canBeEnum } from '../../src/canBe';
 
 const COLORS = ['red', 'green', 'blue'];
@@ -55,7 +55,7 @@ describe('canBeEnum', () => {
       [new Error('data error')],
       [Promise.resolve('data promise')],
       [BigInt(42)],
-    ])('returns false for %p', (value) => expect(canBeEnum(value, COLORS)).toBe(false));
+    ])('returns false for %o', (value) => expect(canBeEnum(value, COLORS)).toBe(false));
   });
 
   describe('empty options list', () => {

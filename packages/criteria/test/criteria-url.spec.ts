@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { Criteria } from '../src/criteria';
 import { CriteriaError } from '../src/criteria-error';
 import { DEFAULT_CRITERIA_LIMITS } from '../src/criteria-limits';

@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import test from '../cross/support/testFunctions';
 import { validator } from '../../src/validators';
 
@@ -352,7 +353,7 @@ describe('Validators', () => {
 });
 
 describe('#1 isEmail blacklisted_chars — taken literally, never as regex syntax', () => {
-  it.each(['\\', ']', '^', '-', '[', '.*'])('%p does not throw', (chars) => {
+  it.each(['\\', ']', '^', '-', '[', '.*'])('%s does not throw', (chars) => {
     expect(() => validator.isEmail('a@b.com', { blacklisted_chars: chars })).not.toThrow();
   });
   it('matches the literal characters only', () => {

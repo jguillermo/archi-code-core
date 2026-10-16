@@ -63,7 +63,7 @@ There is no default export and no subpaths (`@archi-code/crypto-tools/jwt` does 
      progress rejects them with `WORKER`.
    - A call that exceeds `timeout` rejects with `TIMEOUT` and the worker is replaced; a wasm trap
      rejects with `WORKER`. Idle workers close on their own after `idleTimeout`.
-   - A Node script exits on its own; in tests (Jest) or when shutting down a server call
+   - A Node script exits on its own; in tests (Vitest) or when shutting down a server call
      `workers.terminate()` (for example in `afterAll`).
    - If the app generates 4096-bit RSA keys or uses `cnsa` on slow devices, raise `timeout`.
    - In a browser with CSP: `script-src 'wasm-unsafe-eval'` and `worker-src blob:`. Without `blob:`

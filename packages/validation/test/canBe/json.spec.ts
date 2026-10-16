@@ -1,9 +1,9 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { canBeJson, canBeJsonObject } from '../../src/canBe';
 
 describe('canBeJson', () => {
   it.each([[{ name: 'John', age: 30 }], ['{"name": "John", "age": 30}']])(
-    'returns true for valid JSON object: %p',
+    'returns true for valid JSON object: %o',
     (value) => {
       expect(canBeJson(value)).toBe(true);
     },
@@ -64,7 +64,7 @@ describe('canBeJson', () => {
     ['42'],
     ['"hello"'],
     ['{}'],
-  ])('returns false for invalid JSON: %p', (value) => {
+  ])('returns false for invalid JSON: %o', (value) => {
     expect(canBeJson(value)).toBe(false);
   });
 });

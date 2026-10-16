@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { browserWorkerFactory } from '../../src/worker/browser-host';
 import type { WorkerNotice } from '../../src/worker/crypto-functions';
 import { workerSource } from '../../src/worker/worker-source';
@@ -17,7 +17,7 @@ describe('browserWorkerFactory', () => {
 
   afterEach(() => {
     delete scope.Worker;
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   it('is not available without Web Workers', () => {
@@ -69,7 +69,7 @@ describe('browserWorkerFactory', () => {
   });
 
   it('terminates the worker and releases its Blob URL', () => {
-    const revoke = jest.spyOn(URL, 'revokeObjectURL');
+    const revoke = vi.spyOn(URL, 'revokeObjectURL');
     const handle = required(browserWorkerFactory()).create(workerSource(wasmGlue()));
     handle.keepAlive(true);
     handle.terminate();

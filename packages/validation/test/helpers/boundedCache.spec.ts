@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import { BoundedCache } from '../../src/helpers/boundedCache';
 
 describe('B.3 hostile options', () => {

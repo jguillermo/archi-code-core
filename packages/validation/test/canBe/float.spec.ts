@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { canBeFloat } from '../../src/canBe';
 
 describe('canBeFloat', () => {
@@ -22,7 +22,7 @@ describe('canBeFloat', () => {
     [Number.MAX_VALUE],
     [Number.MIN_VALUE],
     [Number.EPSILON],
-  ])('returns true for numeric: %p', (value) => {
+  ])('returns true for numeric: %o', (value) => {
     expect(canBeFloat(value)).toBe(true);
   });
 
@@ -67,7 +67,7 @@ describe('canBeFloat', () => {
     [new Error('data error')],
     [Promise.resolve('data promise')],
     [BigInt(42)],
-  ])('returns false for non-numeric: %p', (value) => {
+  ])('returns false for non-numeric: %o', (value) => {
     expect(canBeFloat(value)).toBe(false);
   });
 });

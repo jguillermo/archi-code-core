@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Criteria } from '@archi-code/criteria';
 import { MongoClient } from 'mongodb';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
@@ -19,7 +19,7 @@ describe('searchMongo inside a transaction', () => {
       replSet: { count: 1 },
       instanceOpts: [{ args: ['--setParameter', 'enableTestCommands=1'] }],
     });
-    // Jest runs CommonJS without vm modules, so the driver's dynamic import('os') fails there.
+    // Passing os keeps the driver from loading it with a dynamic import inside the test runner.
     client = await MongoClient.connect(replicaSet.getUri(), { runtimeAdapters: { os } });
   }, 300_000);
 

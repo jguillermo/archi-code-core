@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { canBeInteger } from '../../src/canBe';
 
 describe('canBeInteger', () => {
@@ -13,7 +13,7 @@ describe('canBeInteger', () => {
     ['-7'],
     ['0'],
     ['  10  '],
-  ])('returns true for integer: %p', (value) => {
+  ])('returns true for integer: %o', (value) => {
     expect(canBeInteger(value)).toBe(true);
   });
 
@@ -55,7 +55,7 @@ describe('canBeInteger', () => {
     [new Error('data error')],
     [Promise.resolve('data promise')],
     [BigInt(42)],
-  ])('returns false for non-integer: %p', (value) => {
+  ])('returns false for non-integer: %o', (value) => {
     expect(canBeInteger(value)).toBe(false);
   });
 });

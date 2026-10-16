@@ -1,7 +1,7 @@
-'use strict';
+import { createRequire } from 'node:module';
+import { describe, expect, test } from 'vitest';
 
-const { test, describe } = require('node:test');
-const assert = require('node:assert/strict');
+const require = createRequire(import.meta.url);
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -48,7 +48,7 @@ const state = {
 
 describe('baselineFor', () => {
   test('on main it starts from the deploy that published the newest version', () => {
-    assert.deepEqual(baselineFor(state, '@archi-code/x', 'main'), {
+    expect(baselineFor(state, '@archi-code/x', 'main')).toStrictEqual({
       current: '1.1.0-alpha.2',
       lastStable: '1.0.0',
       commit: B,
@@ -57,13 +57,13 @@ describe('baselineFor', () => {
   });
 
   test('on release it starts from the deploy that published the last stable', () => {
-    assert.deepEqual(baselineFor(state, '@archi-code/x', 'release'), {
+    expect(baselineFor(state, '@archi-code/x', 'release')).toStrictEqual({
       current: '1.1.0-alpha.2',
       lastStable: '1.0.0',
       commit: A,
       dependencies: null,
     });
-    assert.deepEqual(baselineFor(state, '@archi-code/y', 'release'), {
+    expect(baselineFor(state, '@archi-code/y', 'release')).toStrictEqual({
       current: '1.0.0-alpha.3',
       lastStable: null,
       commit: null,
@@ -72,11 +72,11 @@ describe('baselineFor', () => {
   });
 
   test('a commit stored in the package entry wins over the commit of its deploy', () => {
-    assert.equal(baselineFor(state, '@archi-code/y', 'main').commit, C);
+    expect(baselineFor(state, '@archi-code/y', 'main').commit).toBe(C);
   });
 
   test('a package never published has no baseline', () => {
-    assert.deepEqual(baselineFor(state, '@archi-code/new', 'main'), {
+    expect(baselineFor(state, '@archi-code/new', 'main')).toStrictEqual({
       current: null,
       lastStable: null,
       commit: null,
@@ -96,11 +96,11 @@ describe('recording a deploy', () => {
       channel: 'main',
       entry: { name: '@archi-code/x', previous: '1.1.0-alpha.2', version: '1.1.0-alpha.3' },
     });
-    assert.deepEqual(next.packages, {
+    expect(next.packages).toStrictEqual({
       '@archi-code/x': { release: '1.0.0', main: '1.1.0-alpha.3' },
       '@archi-code/y': { main: '1.0.0-alpha.4' },
     });
-    assert.deepEqual(lastDeploy(next), {
+    expect(lastDeploy(next)).toStrictEqual({
       date: DATE,
       commit: C,
       channel: 'main',
@@ -109,29 +109,28 @@ describe('recording a deploy', () => {
         { name: '@archi-code/x', previous: '1.1.0-alpha.2', version: '1.1.0-alpha.3' },
       ],
     });
-    assert.equal(state.deploys.length, 2);
-    assert.deepEqual(stateErrors(next), []);
+    expect(state.deploys.length).toBe(2);
+    expect(stateErrors(next)).toStrictEqual([]);
   });
 
   test('an empty state has no last deploy', () => {
-    assert.equal(lastDeploy(emptyState()), null);
+    expect(lastDeploy(emptyState())).toBe(null);
   });
 
   test('lists every commit referenced by deploys and package entries once', () => {
-    assert.deepEqual(commitsInState(state).sort(), [A, B, C]);
+    expect(commitsInState(state).sort()).toStrictEqual([A, B, C]);
   });
 });
 
 describe('stateErrors', () => {
   test('a well formed state has no errors', () => {
-    assert.deepEqual(stateErrors(state), []);
+    expect(stateErrors(state)).toStrictEqual([]);
   });
 
   test('without deploys the current versions need no deploy that published them', () => {
-    assert.deepEqual(
+    expect(
       stateErrors({ packages: { '@archi-code/x': { main: '1.0.0-alpha.3' } }, deploys: [] }),
-      [],
-    );
+    ).toStrictEqual([]);
   });
 
   test('while a reset is unfinished, versions no deploy records are allowed', () => {
@@ -149,11 +148,10 @@ describe('stateErrors', () => {
         },
       ],
     };
-    assert.deepEqual(stateErrors(pending), []);
-    assert.deepEqual(
+    expect(stateErrors(pending)).toStrictEqual([]);
+    expect(
       stateErrors({ ...pending, deploys: [{ ...pending.deploys[0], reset: 'x' }] }),
-      ['deploys[0]: invalid reset "x"'],
-    );
+    ).toStrictEqual(['deploys[0]: invalid reset "x"']);
   });
 
   test('a deploy opened for a reset keeps its target version', () => {
@@ -163,15 +161,14 @@ describe('stateErrors', () => {
       channel: 'main',
       reset: '2.0.0-alpha.1',
     });
-    assert.equal(lastDeploy(opened).reset, '2.0.0-alpha.1');
-    assert.equal(
+    expect(lastDeploy(opened).reset).toBe('2.0.0-alpha.1');
+    expect(
       'reset' in lastDeploy(openDeploy(emptyState(), { date: DATE, commit: A, channel: 'main' })),
-      false,
-    );
+    ).toBe(false);
   });
 
   test('rejects a file without packages or deploys', () => {
-    assert.deepEqual(stateErrors({}), [
+    expect(stateErrors({})).toStrictEqual([
       `${STATE_FILE} must have "packages" (object) and "deploys" (list)`,
     ]);
   });
@@ -184,7 +181,7 @@ describe('stateErrors', () => {
         deploy(A, 'main', [{ version: 'x', commit: 'short' }]),
       ],
     });
-    assert.deepEqual(errors, [
+    expect(errors).toStrictEqual([
       'deploys[0]: invalid commit',
       'deploys[0]: invalid date',
       'deploys[0]: invalid channel "z"',
@@ -208,7 +205,7 @@ describe('stateErrors', () => {
         ]),
       ],
     });
-    assert.deepEqual(errors, [
+    expect(errors).toStrictEqual([
       '@archi-code/x (main): 1.0.0 should be a prerelease',
       '@archi-code/x (release): 1.0.0-alpha.1 should be stable',
       '@archi-code/x: unknown channel "beta"',
@@ -221,14 +218,14 @@ describe('stateErrors', () => {
 describe('file', () => {
   test('a missing file is an empty state, and what is written is read back', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'release-state-'));
-    assert.deepEqual(readState(root), emptyState());
+    expect(readState(root)).toStrictEqual(emptyState());
     writeState(root, state);
-    assert.deepEqual(readState(root), state);
-    assert.ok(fs.readFileSync(path.join(root, STATE_FILE), 'utf8').endsWith('}\n'));
+    expect(readState(root)).toStrictEqual(state);
+    expect(fs.readFileSync(path.join(root, STATE_FILE), 'utf8').endsWith('}\n')).toBeTruthy();
   });
 
   test('the releases.json of the repository is valid', () => {
-    const repository = readState(path.join(__dirname, '..', '..'));
-    assert.deepEqual(stateErrors(repository), []);
+    const repository = readState(path.join(import.meta.dirname, '..', '..'));
+    expect(stateErrors(repository)).toStrictEqual([]);
   });
 });

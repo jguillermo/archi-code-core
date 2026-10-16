@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { canBeBoolean } from '../../src/canBe';
 
 const VALID = [
@@ -64,11 +64,11 @@ const INVALID = [
 ];
 
 describe('canBeBoolean', () => {
-  it.each(VALID.map((v) => [v]))('returns true for %p', (value) => {
+  it.each(VALID.map((v) => [v]))('returns true for %o', (value) => {
     expect(canBeBoolean(value)).toBe(true);
   });
 
-  it.each(INVALID.map((v) => [v]))('returns false for %p', (value) => {
+  it.each(INVALID.map((v) => [v]))('returns false for %o', (value) => {
     expect(canBeBoolean(value)).toBe(false);
   });
 });
