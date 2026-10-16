@@ -10,8 +10,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 npm run build           # Build all packages (CJS + ESM) in dependency order
 npm run test            # Run all tests
 npm run test:coverage   # Run tests with coverage
-npm run check           # Root scripts (Prettier + Vitest), editorconfig over the repo, then check:all in every package
-npm run fix             # Auto-fix lint and formatting
+npm run check           # editorconfig, Prettier and ESLint over the whole repo, Vitest of scripts/, check:versions, then check:all in every package
+npm run check:format    # EditorConfig, Prettier and ESLint over the whole repo (one root config each)
+npm run fix:format      # eslint --fix and prettier --write over the whole repo
 npm run clean           # Remove all node_modules
 npm run check:packages  # Full gate (check:all) in every package
 npm run check:<name>    # Full gate in one package: validator, domain, criteria, criteria-adapters, crypto-tools
@@ -21,21 +22,19 @@ npm run version         # Dry-run of the release: current and next version of ea
 npm run release         # Deploy (CI): publish the planned packages and record them in releases.json
 ```
 
-Every package's `check:all` runs the same gate: editorconfig-checker → prettier (`src`, `test` and the package's own `*.json`/`*.md`) → eslint → tsc (src + test) → vitest with coverage → build (CJS + ESM) → dist check. CI on pull requests runs `npm run check` (and `.github/workflows/audit.yml` runs `npm run check:audit`, also every Monday); the release workflow (push to `main`/`release`, GitHub environment `deploy` with the `NPM_TOKEN` secret) only builds and publishes. The husky hooks stay fast and leave the full gate to CI: `pre-commit` runs `scripts/pre-commit.js` (Prettier and ESLint only on the staged files the gate checks) and `pre-push` runs `scripts/check-versions.js`.
+ESLint, Prettier and EditorConfig are global: one config at the root, run once over the whole repo by the root `check:format` (fixes: `fix:format`) (packages have no lint, format nor editorconfig scripts; `.claude/rules/tooling.md` explains the setup and how to verify it). Every package's `check:all` runs the same gate: tsc (src + test) → vitest with coverage → build (CJS + ESM) → dist check. CI on pull requests runs `npm run check` (and `.github/workflows/audit.yml` runs `npm run check:audit`, also every Monday); the release workflow (push to `main`/`release`, GitHub environment `deploy` with the `NPM_TOKEN` secret) only builds and publishes. The husky hooks only call npm scripts, never custom commands: `pre-commit` runs `npm run check:format` and `pre-push` runs `npm run check:versions`; the rest of the gate is left to CI.
 
 The root `scripts/` holds only the general tools (packages have no `scripts/` folder); each package calls them as `node ../../scripts/<name>.js` and they act on the current package directory:
 
 - `scripts/fix-esm.js` — adds `.js` to relative imports in `dist/esm`, gives files that call `require()` a `createRequire` shim (so optional deps loaded with `require` also work in ESM) and writes `dist/esm/package.json` (`type: module`).
 - `scripts/check-dist.js` — `main`/`module`/`types` exist, CJS and ESM load and expose the same exports, and the package documentation is valid and packed (`scripts/lib/package-docs.js`: `files` includes `SKILL.md`, the README mentions it, the `SKILL.md` frontmatter has exactly `name: archi-code-<name>` and `description`, and `npm pack` carries `README.md`, `LICENSE` and `SKILL.md`).
 - `scripts/check-types.js` — a throwaway TypeScript consumer imports the package by name from an ESM (`.mts`) and a CJS (`.cts`) file under `node16`, `nodenext` and `bundler` resolution. Each `exports` condition must carry its own `types` (`import` → `dist/esm`, `require` → `dist/cjs`).
-- `scripts/editorconfig.js` — runs editorconfig-checker with the shared excludes and the binary version pinned (`EC_VERSION`); the npm wrapper downloads the binary from GitHub, so `latest` would break when upstream renames its assets. Change the version only there.
+- `scripts/editorconfig.js` — runs editorconfig-checker over the repo with its excludes and the binary version pinned (`EC_VERSION`); the npm wrapper downloads the binary from GitHub, so `latest` would break when upstream renames its assets. Change the version only there.
 - `scripts/check-web.js` — `browser` field points to the ESM build, `dist/esm` has no bare imports nor Node-only globals, and the build loads in a realm with the standard Web APIs and without Node APIs.
 - `scripts/check-browser.js` — serves the package's `dist/` and runs the `browser` checks of `test/dist/dist.check.js` inside real Chromium, Firefox and WebKit pages through Playwright (root devDependency; `npx playwright install` once, `CHECK_BROWSERS=chromium` narrows it). Each check is `[name, pageFunction, { csp }?]`: the function runs in a page served with that Content-Security-Policy, receives the URL of the ESM entry and returns `true` or an error message. It runs the `browser` hooks of every entry point (`test/dist/<module>.check.js` for subpaths), serves the package's runtime `dependencies` (recursively) under `/node_modules/<name>/` with an inline import map (its hash is added to a page's `script-src`), and serves the package's `test/` helpers transpiled from TypeScript at `/test/<path>`, so a page can import a test harness such as a contract.
 - `scripts/embed-wasm.js` — turns a `wasm-pack --target no-modules` output into a generated `.ts` module (wasm gzipped as base64, decompressed with `DecompressionStream`, + glue as text) and refuses glue that needs Node or imports modules. `scripts/lib/web-safety.js` holds the checks it shares with `check-web.js`.
 
 Checks specific to one package's build live in that package, in `test/dist/dist.check.js` (every package has one; vitest ignores it because it is not a `.spec.ts`). They must exercise the real API, not just load it. It may export `smoke(m)` (run on CJS and ESM), `crossBuild(cjs, esm)` (check-dist), `web(webModule, nodeModule)` (check-web) and `browser()` (check-browser); each returns `[name, check]` pairs where `check()` returns (or resolves to) `true` or an error message. `scripts/lib/package-checks.js` loads and runs them.
-
-- Root `npm run check:scripts` / `fix:scripts` run Prettier over `scripts/`, the root `*.md` and `.claude/**/*.md`.
 
 ### Versions and release
 
@@ -236,6 +235,7 @@ tsconfig.json  (extends ../../tsconfig.base.json, includes src/ and test/)
 ### Code style
 
 - **Prettier**: single quotes, trailing commas, print width 100, 2-space indent, semicolons.
+- **Tooling check**: `.claude/rules/tooling.md` describes how ESLint, Prettier and EditorConfig are configured and the procedure to verify that they are well configured and working.
 - **ESLint**: TypeScript strict + Prettier enforced. `any` and `Function` types are allowed.
 - Test files: `*.spec.ts` convention. In every package `src/` holds only code and specs live in the package's `test/` folder, mirroring `src/`.
 - **Imports**: inside `src/`, import each symbol from the file that declares it, never through a re-exporting `index.ts` (see `.claude/rules/packages.md`).
@@ -246,9 +246,3 @@ tsconfig.json  (extends ../../tsconfig.base.json, includes src/ and test/)
 
 - Vitest 5 everywhere: each package has its own complete `vitest.config.mts` (v8 coverage over `src/**/*.ts`, threshold 100% for statements, branches, functions and lines) and the root `vitest.config.mts` runs `scripts/__tests__` (`npm run test:scripts`). Each package's `test/index.spec.ts` pins its public API.
 - Nothing is global (`globals: false`): every spec imports from `vitest` what it uses (`describe`, `it`, `expect`, `vi`, `expectTypeOf`) and from `../src/...` the code under test; no package depends on another for its tests. Module isolation uses `vi.resetModules()` + `await import()`, globals are replaced with `vi.stubGlobal`, and coverage hints are `/* v8 ignore … -- @preserve */`.
-
-## Known issues
-
-### 1. ESLint does not lint `scripts/*.js`
-
-`eslint.config.js` ignores every `**/*.js`, so the shared `scripts/` are only covered by Prettier (`check:scripts`) and editorconfig.

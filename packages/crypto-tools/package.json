@@ -76,11 +76,6 @@
     "check:audit": "cd rust && cargo audit",
     "check:types": "tsc -p tsconfig.json --noEmit --incremental false",
     "check:dist": "node ../../scripts/check-dist.js && node ../../scripts/check-types.js && node --experimental-vm-modules --no-warnings ../../scripts/check-web.js && node ../../scripts/check-browser.js",
-    "check:editorconfig": "node ../../scripts/editorconfig.js",
-    "check:all": "npm run check:editorconfig && npm run check:prettier && npm run check:lint && npm run check:rust && npm run build:wasm && npm run check:types && npm run test:coverage && npm run build && npm run check:dist",
-    "check:lint": "eslint src test --ext .ts",
-    "fix:lint": "eslint src test --ext .ts --fix",
-    "check:prettier": "prettier --check \"{src,test}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\" \"*.{json,md,mts}\"",
-    "fix:prettier": "prettier --write \"{src,test}/**/*.{js,jsx,ts,tsx,json,css,scss,md}\" \"*.{json,md,mts}\""
+    "check:all": "npm run check:rust && npm run build:wasm && npm run check:types && npm run test:coverage && npm run build && npm run check:dist"
   }
 }

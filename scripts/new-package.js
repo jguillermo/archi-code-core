@@ -22,7 +22,6 @@ function json(value) {
 function packageJson(folder) {
   const esm = { types: './dist/esm/index.d.ts', default: './dist/esm/index.js' };
   const cjs = { types: './dist/cjs/index.d.ts', default: './dist/cjs/index.js' };
-  const files = '{src,test}/**/*.{js,jsx,ts,tsx,json,css,scss,md}';
   return {
     name: `${SCOPE}/${folder}`,
     version: '0.0.0-development',
@@ -46,13 +45,8 @@ function packageJson(folder) {
       'test:coverage': 'vitest run --coverage',
       'check:types': 'tsc -p tsconfig.json --noEmit --incremental false',
       'check:dist': 'node ../../scripts/check-dist.js && node ../../scripts/check-types.js',
-      'check:editorconfig': 'node ../../scripts/editorconfig.js',
       'check:all':
-        'npm run check:editorconfig && npm run check:prettier && npm run check:lint && npm run check:types && npm run test:coverage && npm run build && npm run check:dist',
-      'check:lint': 'eslint src test --ext .ts',
-      'fix:lint': 'eslint src test --ext .ts --fix',
-      'check:prettier': `prettier --check "${files}" "*.{json,md,mts}"`,
-      'fix:prettier': `prettier --write "${files}" "*.{json,md,mts}"`,
+        'npm run check:types && npm run test:coverage && npm run build && npm run check:dist',
     },
   };
 }

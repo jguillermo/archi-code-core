@@ -57,14 +57,15 @@ packages/<folder>/
 - `scripts` — exactly these, with these values: `prebuild`, `build:cjs`, `build:esm`
   (`tsc -p tsconfig.esm.json && node ../../scripts/fix-esm.js`), `build`, `test`, `test:coverage`,
   `check:types`, `check:dist` (`node ../../scripts/check-dist.js && node ../../scripts/check-types.js`),
-  `check:editorconfig` (`node ../../scripts/editorconfig.js`), `check:lint` / `fix:lint` (`eslint src test --ext .ts`), `check:prettier` /
-  `fix:prettier` (`"{src,test}/**/*.{js,jsx,ts,tsx,json,css,scss,md}" "*.{json,md,mts}"`),
-  `test` (`vitest run`), `test:coverage` (`vitest run --coverage`) and
-  `check:all`:
+  `test` (`vitest run`), `test:coverage` (`vitest run --coverage`) and `check:all`:
 
   ```
-  check:editorconfig → check:prettier → check:lint → check:types → test:coverage → build → check:dist
+  check:types → test:coverage → build → check:dist
   ```
+
+- No lint, format nor editorconfig scripts and no `.prettierignore` in a package: ESLint, Prettier
+  and EditorConfig have one config at the root and run once over the whole repo from the root
+  `check:format` and fixed by `fix:format` (see `.claude/rules/tooling.md`).
 
 - Tests run on Vitest. `vitest.config.mts` is complete in every package (no shared base; Vitest
   does not look for a config in parent folders): `environment` `'node'`, `include`
@@ -147,10 +148,11 @@ people (and the AI assistants) that consume the package:
 Only when the package needs them, and documented in its README:
 
 - Extra `compilerOptions` in `tsconfig.json` (e.g. `lib`).
-- Extra folders (`benchmark/`, `docs/`): their paths in `check:prettier`/`fix:prettier` and
-  `check:lint`/`fix:lint`, their own tsconfig type-checked in `check:types`, and one script to
-  run them (e.g. `benchmark`).
-- Extra `.gitignore` lines, `.prettierignore`, `sideEffects`.
+- Extra folders (`benchmark/`, `docs/`): their own tsconfig type-checked in `check:types` and one
+  script to run them (e.g. `benchmark`); the root lint and format already cover them. Generated
+  output goes in the root ignore lists (`eslint.config.js`, `.prettierignore`,
+  `scripts/editorconfig.js`).
+- Extra `.gitignore` lines, `sideEffects`.
 - A web build: `browser` field + `browser` export condition (with its own `types`) +
   `sideEffects: false` + `check-web.js` and `check-browser.js` in `check:dist` + `web` and `browser`
   in `dist.check.js` (`browser()` returns
@@ -177,11 +179,11 @@ Only when the package needs them, and documented in its README:
   committed `Cargo.lock`, `rust-toolchain.toml` pinning the toolchain, `.cargo/config.toml`); `rustfmt`
   formats it and `.editorconfig` gives `*.rs` 4 spaces. `build:wasm` runs `wasm-pack --target no-modules`
   into `wasm/` (gitignored) and `node ../../scripts/embed-wasm.js` turns it into
-  `src/wasm/wasm-assets.generated.ts` (gitignored, in `.prettierignore`, ignored by ESLint, editorconfig
-  and coverage). `check:rust` (fmt, clippy on wasm32 and native, `cargo test`), `fix:rust` and `check:audit`
+  `src/wasm/wasm-assets.generated.ts` (gitignored, in the root `.prettierignore`, ignored by ESLint,
+  editorconfig and coverage). `check:rust` (fmt, clippy on wasm32 and native, `cargo test`), `fix:rust` and `check:audit`
   (`cargo audit`, accepted advisories in `rust/.cargo/audit.toml`) run inside `rust/` so rustup and
-  cargo find their config. `build` starts with `build:wasm` and `check:all` runs
-  `check:rust → build:wasm` right after `check:lint`. CI installs the toolchain and wasm-pack.
+  cargo find their config. `build` starts with `build:wasm` and `check:all` starts with
+  `check:rust → build:wasm`. CI installs the toolchain and wasm-pack.
 - Subpath modules, for a package that groups independent modules (only
   `criteria-adapters` today). Each module lives in `src/<module>/` with its own `index.ts`, its
   specs in `test/<module>/` (with its own `index.spec.ts` pinning that module's API) and its build

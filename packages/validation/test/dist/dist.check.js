@@ -88,13 +88,13 @@ function sameAsNode(name, webFn, nodeFn) {
   if (!nodeFn) return `exists in the web build but not in the Node build`;
   for (const input of WEB_INPUTS) {
     for (const args of [[input], [input, 'en-US']]) {
-      const web = outcome(webFn, args);
-      const node = outcome(nodeFn, args);
-      if (web.error === 'ReferenceError' && node.error !== 'ReferenceError') {
+      const webResult = outcome(webFn, args);
+      const nodeResult = outcome(nodeFn, args);
+      if (webResult.error === 'ReferenceError' && nodeResult.error !== 'ReferenceError') {
         return `(${JSON.stringify(args)}) uses an API missing in browsers (ReferenceError)`;
       }
-      if (JSON.stringify(web) !== JSON.stringify(node)) {
-        return `(${JSON.stringify(args)}) differs: web=${JSON.stringify(web)} node=${JSON.stringify(node)}`;
+      if (JSON.stringify(webResult) !== JSON.stringify(nodeResult)) {
+        return `(${JSON.stringify(args)}) differs: web=${JSON.stringify(webResult)} node=${JSON.stringify(nodeResult)}`;
       }
     }
   }

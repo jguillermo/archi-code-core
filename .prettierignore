@@ -1,2 +1,15 @@
 node_modules
-dist
+/dist
+packages/*/dist
+/coverage
+packages/*/coverage
+target
+.idea
+packages/crypto-tools/wasm
+packages/crypto-tools/src/wasm/*.generated.ts
+packages/crypto-tools/test/fixtures
+packages/validation/benchmark/best-scores.json
+packages/validation/benchmark/RESULTS.md
+package-lock.json
+releases.json
+.claude/settings.local.json
