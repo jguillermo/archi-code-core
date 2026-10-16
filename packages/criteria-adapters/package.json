@@ -86,12 +86,6 @@
       "optional": true
     }
   },
-  "devDependencies": {
-    "fake-indexeddb": "6.2.5",
-    "mongodb": "7.7.0",
-    "mongodb-memory-server": "11.3.0",
-    "mongodb-v6": "npm:mongodb@6.21.0"
-  },
   "scripts": {
     "prebuild": "rm -rf dist || true",
     "build:cjs": "tsc -p tsconfig.cjs.json",
@@ -100,7 +94,7 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "check:types": "tsc -p tsconfig.json --noEmit --incremental false",
-    "check:dist": "node ../../scripts/check-dist.js && node ../../scripts/check-types.js && node ../../scripts/check-browser.js",
+    "check:dist": "node ../../scripts/check-dist.js && attw --pack . && node ../../scripts/check-browser.js",
     "check:all": "npm run check:types && npm run test:coverage && npm run build && npm run check:dist"
   }
 }

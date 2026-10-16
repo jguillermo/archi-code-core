@@ -75,7 +75,7 @@
     "fix:rust": "cd rust && cargo fmt",
     "check:audit": "cd rust && cargo audit",
     "check:types": "tsc -p tsconfig.json --noEmit --incremental false",
-    "check:dist": "node ../../scripts/check-dist.js && node ../../scripts/check-types.js && node --experimental-vm-modules --no-warnings ../../scripts/check-web.js && node ../../scripts/check-browser.js",
+    "check:dist": "node ../../scripts/check-dist.js && attw --pack . && node ../../scripts/check-browser.js",
     "check:all": "npm run check:rust && npm run build:wasm && npm run check:types && npm run test:coverage && npm run build && npm run check:dist"
   }
 }

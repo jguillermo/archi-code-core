@@ -13,26 +13,4 @@ function findNodeGlobal(code) {
   return match ? match[0] : null;
 }
 
-function webGlobals() {
-  return {
-    TextEncoder,
-    TextDecoder,
-    URL,
-    URLSearchParams,
-    crypto: globalThis.crypto,
-    atob,
-    btoa,
-    structuredClone,
-    queueMicrotask,
-    setTimeout,
-    clearTimeout,
-    setInterval,
-    clearInterval,
-    console,
-    performance,
-    Response,
-    DecompressionStream,
-  };
-}
-
-module.exports = { SPECIFIER_RE, NODE_GLOBALS_RE, findNodeGlobal, webGlobals };
+module.exports = { SPECIFIER_RE, NODE_GLOBALS_RE, findNodeGlobal };

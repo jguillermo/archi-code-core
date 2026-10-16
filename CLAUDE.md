@@ -28,13 +28,11 @@ The root `scripts/` holds only the general tools (packages have no `scripts/` fo
 
 - `scripts/fix-esm.js` — adds `.js` to relative imports in `dist/esm`, gives files that call `require()` a `createRequire` shim (so optional deps loaded with `require` also work in ESM) and writes `dist/esm/package.json` (`type: module`).
 - `scripts/check-dist.js` — `main`/`module`/`types` exist, CJS and ESM load and expose the same exports, and the package documentation is valid and packed (`scripts/lib/package-docs.js`: `files` includes `SKILL.md`, the README mentions it, the `SKILL.md` frontmatter has exactly `name: archi-code-<name>` and `description`, and `npm pack` carries `README.md`, `LICENSE` and `SKILL.md`).
-- `scripts/check-types.js` — a throwaway TypeScript consumer imports the package by name from an ESM (`.mts`) and a CJS (`.cts`) file under `node16`, `nodenext` and `bundler` resolution. Each `exports` condition must carry its own `types` (`import` → `dist/esm`, `require` → `dist/cjs`).
-- `scripts/editorconfig.js` — runs editorconfig-checker over the repo with its excludes and the binary version pinned (`EC_VERSION`); the npm wrapper downloads the binary from GitHub, so `latest` would break when upstream renames its assets. Change the version only there.
-- `scripts/check-web.js` — `browser` field points to the ESM build, `dist/esm` has no bare imports nor Node-only globals, and the build loads in a realm with the standard Web APIs and without Node APIs.
-- `scripts/check-browser.js` — serves the package's `dist/` and runs the `browser` checks of `test/dist/dist.check.js` inside real Chromium, Firefox and WebKit pages through Playwright (root devDependency; `npx playwright install` once, `CHECK_BROWSERS=chromium` narrows it). Each check is `[name, pageFunction, { csp }?]`: the function runs in a page served with that Content-Security-Policy, receives the URL of the ESM entry and returns `true` or an error message. It runs the `browser` hooks of every entry point (`test/dist/<module>.check.js` for subpaths), serves the package's runtime `dependencies` (recursively) under `/node_modules/<name>/` with an inline import map (its hash is added to a page's `script-src`), and serves the package's `test/` helpers transpiled from TypeScript at `/test/<path>`, so a page can import a test harness such as a contract.
-- `scripts/embed-wasm.js` — turns a `wasm-pack --target no-modules` output into a generated `.ts` module (wasm gzipped as base64, decompressed with `DecompressionStream`, + glue as text) and refuses glue that needs Node or imports modules. `scripts/lib/web-safety.js` holds the checks it shares with `check-web.js`.
+- `attw --pack .` ([`@arethetypeswrong/cli`](https://github.com/arethetypeswrong/arethetypeswrong.github.io), root devDependency, part of every `check:dist`) — packs the package and checks that the types of every entry point resolve, in the right format, for node10, node16 (from CJS and from ESM) and bundler consumers. Each `exports` condition must carry its own `types` (`import` → `dist/esm`, `require` → `dist/cjs`).
+- `scripts/check-browser.js` — first checks the ESM build statically (the `browser` field and condition point to it with their own `types`; relative imports end in `.js`; bare imports only name runtime `dependencies`; no Node-only globals), then serves the package's `dist/` and runs the `browser` checks of `test/dist/dist.check.js` inside real Chromium, Firefox and WebKit pages through Playwright (root devDependency; `npx playwright install` once, `CHECK_BROWSERS=chromium` narrows it). Each check is `[name, pageFunction, { csp, input, verify }?]`: the function runs in a page served with that Content-Security-Policy, receives the URL of the ESM entry (or `{ entry, input }` when `input()` prepares data in Node) and returns `true` or an error message, or a value that `verify(result, input)` checks in Node (how web↔Node interoperability is tested: Node encrypts, the page decrypts, Node verifies what the page signed…). It runs the `browser` hooks of every entry point (`test/dist/<module>.check.js` for subpaths), serves the package's runtime `dependencies` (recursively) under `/node_modules/<name>/` with an inline import map (its hash is added to a page's `script-src`), and serves the package's `test/` helpers transpiled from TypeScript at `/test/<path>`, so a page can import a test harness such as a contract.
+- `scripts/embed-wasm.js` — turns a `wasm-pack --target no-modules` output into a generated `.ts` module (wasm gzipped as base64, decompressed with `DecompressionStream`, + glue as text) and refuses glue that needs Node or imports modules. `scripts/lib/web-safety.js` holds the checks it shares with `check-browser.js`.
 
-Checks specific to one package's build live in that package, in `test/dist/dist.check.js` (every package has one; vitest ignores it because it is not a `.spec.ts`). They must exercise the real API, not just load it. It may export `smoke(m)` (run on CJS and ESM), `crossBuild(cjs, esm)` (check-dist), `web(webModule, nodeModule)` (check-web) and `browser()` (check-browser); each returns `[name, check]` pairs where `check()` returns (or resolves to) `true` or an error message. `scripts/lib/package-checks.js` loads and runs them.
+Checks specific to one package's build live in that package, in `test/dist/dist.check.js` (every package has one; vitest ignores it because it is not a `.spec.ts`). They must exercise the real API, not just load it. It may export `smoke(m)` (run on CJS and ESM), `crossBuild(cjs, esm)` (check-dist) and `browser()` (check-browser); each returns `[name, check]` pairs where `check()` returns (or resolves to) `true` or an error message. `scripts/lib/package-checks.js` loads and runs them.
 
 ### Versions and release
 
@@ -108,7 +106,7 @@ Every package follows `.claude/rules/packages.md` (layout, `package.json`, tscon
 
 ## Architecture
 
-npm workspaces monorepo publishing independent npm packages implementing DDD patterns (released with `scripts/release.js`, see Versions and release; `scripts/build-all.js` builds them in dependency order). All packages compile to both CJS and ESM targeting ES2020.
+npm workspaces monorepo publishing independent npm packages implementing DDD patterns (released with `scripts/release.js`, see Versions and release; the root `workspaces` list them in dependency order, so `npm run build` = `npm run build -ws` builds each package after its internal deps, pinned by `scripts/__tests__/workspaces.test.js`). All packages compile to both CJS and ESM targeting ES2020. Each package declares only its runtime `dependencies` and `peerDependencies`; every devDependency (Vitest, test doubles, test databases, benchmark tools) lives in the root `package.json`.
 
 ### Packages and npm names
 
@@ -195,10 +193,10 @@ npm workspaces monorepo publishing independent npm packages implementing DDD pat
   simple case folding) are fixed by `/memory` and checked by the internal contract in
   `criteria-adapters/test/contract/` (`createContractDocuments()`, `CRITERIA_CONTRACT_CASES`,
   `runCriteriaContract`), which the spec of every adapter runs. It is never published.
-- `@archi-code/criteria` has the web build extension (`browser` field and condition, `check-web` and
-  `check-browser` in `check:dist`), so its smoke checks use `m.isDate`, never `instanceof Date`.
+- `@archi-code/criteria` has the web build extension (`browser` field and condition, `check-browser`
+  in `check:dist`), so its smoke checks use `m.isDate`, never `instanceof Date`.
 - `/mongodb` never imports the driver in `src/` (structural `MongoCollection`); its contract
-  spec runs on a real MongoDB through `mongodb-memory-server` (devDependency, downloads `mongod` on
+  spec runs on a real MongoDB through `mongodb-memory-server` (root devDependency, downloads `mongod` on
   first use into `~/.cache/mongodb-binaries`, which `ci.yml` caches) with the driver 7 and 6
   (`mongodb-v6` alias), and `mongo-indexes.spec.ts` checks with `explain` that the translated
   filters read only matching documents through an index. Converter errors become `CriteriaError`
@@ -206,8 +204,8 @@ npm workspaces monorepo publishing independent npm packages implementing DDD pat
 - `/indexeddb` picks one key range from the required conditions (`planIndexedDbQuery`, pure)
   and re-checks every record with `matchesFilter`; text bounds with code units from U+D800 are not
   used as key ranges and a sorted walk that meets one sorts in memory (IndexedDB orders by UTF-16
-  code unit). The package runs `check-browser` (not `check-web`, whose scan refuses the bare
-  `@archi-code/criteria` import): `/memory` and `/indexeddb` run the whole contract in Chromium,
+  code unit). The package runs `check-browser`, whose import map serves the bare
+  `@archi-code/criteria` import: `/memory` and `/indexeddb` run the whole contract in Chromium,
   Firefox and WebKit, on each browser's real IndexedDB in three store layouts; vitest uses
   `fake-indexeddb`.
 

@@ -56,7 +56,7 @@ packages/<folder>/
 
 - `scripts` — exactly these, with these values: `prebuild`, `build:cjs`, `build:esm`
   (`tsc -p tsconfig.esm.json && node ../../scripts/fix-esm.js`), `build`, `test`, `test:coverage`,
-  `check:types`, `check:dist` (`node ../../scripts/check-dist.js && node ../../scripts/check-types.js`),
+  `check:types`, `check:dist` (`node ../../scripts/check-dist.js && attw --pack .`),
   `test` (`vitest run`), `test:coverage` (`vitest run --coverage`) and `check:all`:
 
   ```
@@ -76,7 +76,11 @@ packages/<folder>/
   code to reach it: cover it with a test, or mark a defensive branch no test can reach with
   `/* v8 ignore next -- @preserve */` (or `if`/`else`; without `@preserve` the transform drops the
   hint).
-- Runtime deps in `dependencies`; optional heavy libraries as optional `peerDependencies`.
+- Runtime deps in `dependencies`; optional heavy libraries as optional `peerDependencies`. A
+  package declares no `devDependencies`: every dev and test tool (Vitest, test doubles, databases
+  for tests, benchmark libraries…) goes in the root `package.json` with an exact version, so each
+  package lists only what its code needs at run time (`scripts/__tests__/workspaces.test.js`
+  fails otherwise).
 
 ## Documentation
 
@@ -133,14 +137,13 @@ people (and the AI assistants) that consume the package:
   `it`, `expect`, `vi`, `expectTypeOf`…): nothing is global. No comments in code (see CLAUDE.md).
 - `test/dist/dist.check.js` (for `"."`; `test/dist/<module>.check.js` for each subpath module)
   exports `smoke(m)` (run on the CJS and the ESM build) and optionally
-  `crossBuild(cjs, esm)` and `web(webModule, nodeModule)`; each returns `[name, check]` pairs whose
+  `crossBuild(cjs, esm)` and `browser()`; each returns `[name, check]` pairs whose
   `check()` returns (or resolves to) `true` or an error message. The checks must call the real API
   (hash and verify, convert, persist and find…), not just test that it loads.
 - The root scripts check every package the same way, once per entry point in `exports`:
   `check-dist.js` (entry files exist, CJS and ESM load with the same exports, `smoke`/`crossBuild`,
-  no hook file for an entry that is not exported), `check-types.js` (a TypeScript consumer imports
-  every entry point from ESM and CJS under node16, nodenext and bundler, and from CommonJS under
-  node10) and `fix-esm.js` (full `.js` specifiers, `createRequire` shim for `require()` in ESM,
+  no hook file for an entry that is not exported), `attw --pack .` (the types of every entry point
+  resolve in the right format for node10, node16 from CJS and ESM, and bundler) and `fix-esm.js` (full `.js` specifiers, `createRequire` shim for `require()` in ESM,
   `dist/esm/package.json`).
 
 ## Allowed per-package extensions
@@ -151,17 +154,19 @@ Only when the package needs them, and documented in its README:
 - Extra folders (`benchmark/`, `docs/`): their own tsconfig type-checked in `check:types` and one
   script to run them (e.g. `benchmark`); the root lint and format already cover them. Generated
   output goes in the root ignore lists (`eslint.config.js`, `.prettierignore`,
-  `scripts/editorconfig.js`).
+  `.editorconfig-checker.json`).
 - Extra `.gitignore` lines, `sideEffects`.
 - A web build: `browser` field + `browser` export condition (with its own `types`) +
-  `sideEffects: false` + `check-web.js` and `check-browser.js` in `check:dist` + `web` and `browser`
-  in `dist.check.js` (`browser()` returns
-  `[name, pageFunction, { csp }?]`; each function runs in a real browser page and receives the URL of
-  the ESM entry). `check-browser.js` alone (without the rest of the web build) also fits a package
+  `sideEffects: false` + `check-browser.js` in `check:dist` + `browser` in `dist.check.js`
+  (`browser()` returns `[name, pageFunction, { csp, input, verify }?]`; each function runs in a real
+  browser page and receives the URL of the ESM entry, or `{ entry, input }` when `input()` prepares
+  data in Node; `verify(result, input)` checks in Node what the page returns, which is how web↔Node
+  interoperability is tested). `check-browser.js` alone (without the rest of the web build) also fits a package
   whose ESM build imports its runtime `dependencies` by name: it serves them through an import map,
   runs the `browser` hooks of every entry point and serves `test/` helpers transpiled at
-  `/test/<path>`. `check-web.js` loads the ESM build in a realm with the standard Web APIs
-  (`TextEncoder`, `crypto`, `atob`, timers…) and no Node APIs nor `Worker`. Its `exports["."]` may add a `node` condition (nested `import` /
+  `/test/<path>`. Before any page, it checks the ESM build statically: the `browser` field and
+  condition point to it, relative imports end in `.js`, bare imports only name runtime
+  `dependencies` and no Node-only global is used. Its `exports["."]` may add a `node` condition (nested `import` /
   `require`, each with its own `types`, so Node never takes the `browser` entry) and a last
   `default` pointing to the ESM build for resolvers that match no condition:
 
@@ -218,6 +223,8 @@ Only when the package needs them, and documented in its README:
 - [ ] `package.json` entry points, `exports`, `files`, `engines` and `scripts` as above;
       `vitest.config.mts` as above and every spec imports from `vitest`.
 - [ ] `version` and internal `@archi-code/*` deps are `0.0.0-development`.
+- [ ] Only `dependencies` / `peerDependencies` in the package; no `devDependencies` (they live in
+      the root `package.json`).
 - [ ] The four tsconfig files as above.
 - [ ] `README.md`, `SKILL.md`, `LICENSE`, `.gitignore` present; README and skill cover the current
       public API.

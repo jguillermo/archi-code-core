@@ -2,15 +2,19 @@
   "name": "root",
   "private": true,
   "workspaces": [
-    "packages/*"
+    "packages/validation",
+    "packages/domain",
+    "packages/criteria",
+    "packages/criteria-adapters",
+    "packages/crypto-tools"
   ],
   "scripts": {
-    "build": "node scripts/build-all.js",
+    "build": "npm run build -ws",
     "test": "npm run test -ws --if-present",
     "test:coverage": "npm run test:coverage -ws --if-present",
     "test:scripts": "vitest run",
     "check": "npm run check:format && npm run test:scripts && npm run check:versions && npm run check:packages",
-    "check:format": "node scripts/editorconfig.js && prettier --check . && eslint .",
+    "check:format": "EC_VERSION=v4.0.2 editorconfig-checker && prettier --check . && eslint .",
     "check:versions": "node scripts/check-versions.js",
     "check:audit": "npm audit --omit=dev && npm run check:audit -w @archi-code/crypto-tools",
     "fix:format": "eslint . --fix && prettier --write .",
@@ -28,6 +32,7 @@
     "pr:ready": "npm run fix:format && npm run check && git diff --exit-code"
   },
   "devDependencies": {
+    "@arethetypeswrong/cli": "0.18.5",
     "@eslint/js": "9.39.3",
     "@types/node": "24.19.2",
     "@typescript-eslint/eslint-plugin": "8.56.1",
@@ -37,10 +42,16 @@
     "eslint": "9.39.3",
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-prettier": "5.5.5",
+    "fake-indexeddb": "6.2.5",
     "globals": "17.13.0",
     "husky": "9.1.7",
+    "mongodb": "7.7.0",
+    "mongodb-memory-server": "11.3.0",
+    "mongodb-v6": "npm:mongodb@6.21.0",
     "playwright": "1.64.0",
     "prettier": "3.8.1",
+    "timezone-mock": "1.4.2",
+    "tinybench": "2.9.0",
     "ts-node": "10.9.2",
     "typescript": "5.9.3",
     "typescript-eslint": "8.56.1",

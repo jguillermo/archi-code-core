@@ -44,7 +44,7 @@ function packageJson(folder) {
       test: 'vitest run',
       'test:coverage': 'vitest run --coverage',
       'check:types': 'tsc -p tsconfig.json --noEmit --incremental false',
-      'check:dist': 'node ../../scripts/check-dist.js && node ../../scripts/check-types.js',
+      'check:dist': 'node ../../scripts/check-dist.js && attw --pack .',
       'check:all':
         'npm run check:types && npm run test:coverage && npm run build && npm run check:dist',
     },
@@ -235,9 +235,10 @@ function templates(folder, description) {
   };
 }
 
-function addRootCheckScript(folder) {
+function addToRootPackageJson(folder) {
   const file = path.join(REPO, 'package.json');
   const root = JSON.parse(fs.readFileSync(file, 'utf8'));
+  root.workspaces = [...root.workspaces, `packages/${folder}`];
   const scripts = {};
   for (const [key, value] of Object.entries(root.scripts)) {
     if (key === 'check:packages')
@@ -261,7 +262,7 @@ function main() {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, content);
   }
-  addRootCheckScript(folder);
+  addToRootPackageJson(folder);
   execFileSync(
     process.execPath,
     [

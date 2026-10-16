@@ -13,9 +13,9 @@ asked to audit the tooling.
 | ------------ | ---------------------------------------------------------------------------------------------------------------- |
 | ESLint 9     | `eslint.config.js` (flat config: `@eslint/js`, `typescript-eslint` strict + stylistic, `eslint-plugin-prettier`) |
 | Prettier 3   | `.prettierrc`, `.prettierignore`                                                                                 |
-| EditorConfig | `.editorconfig`; checker run by `scripts/editorconfig.js` (binary pinned in `EC_VERSION`, `EXCLUDES`)            |
+| EditorConfig | `.editorconfig`, `.editorconfig-checker.json` (`Version` and `Exclude`)                                          |
 
-- Only two root commands run them: `npm run check:format` runs `node scripts/editorconfig.js`,
+- Only two root commands run them: `npm run check:format` runs `EC_VERSION=v4.0.2 editorconfig-checker`,
   `prettier --check .` and `eslint .` in that order; `npm run fix:format` runs `eslint . --fix` and
   `prettier --write .` (EditorConfig has no auto-fix). There are no separate lint, prettier nor
   editorconfig scripts.
@@ -74,7 +74,7 @@ Run from the repo root. Every step lists the expected result; any other result i
    **Every tracked file is checked**: for each file of `git ls-files`, Prettier
    (`prettier.getFileInfo(file, { ignorePath: ['.gitignore', '.prettierignore'] })`), ESLint
    (`new ESLint().isPathIgnored(file)` / `calculateConfigForFile(file)`) and the editorconfig
-   checker (`node scripts/editorconfig.js -dry-run`) must skip only what this rule lists:
+   checker (`EC_VERSION=v4.0.2 npx editorconfig-checker -dry-run`) must skip only what this rule lists:
    Prettier skips `package-lock.json`, `releases.json` and `packages/crypto-tools/test/fixtures`
    plus kinds it has no parser for; ESLint checks every `.js`/`.ts`/`.mts`/`.cts` and only those;
    editorconfig skips only the lockfiles.
@@ -90,8 +90,10 @@ Run from the repo root. Every step lists the expected result; any other result i
    (`node -p "require('./package.json').devDependencies['<name>']"` for each).
 7. **Single source of truth**: ESLint stays on a flat config (`eslint.config.js`, no `.eslintrc*`),
    there is one Prettier config (`.prettierrc`, no `prettier` key in any `package.json`) and one
-   `.editorconfig` with `root = true`; `EC_VERSION` in `scripts/editorconfig.js` is the only place
-   the checker binary version is set.
+   `.editorconfig` with `root = true`. The checker version lives in `EC_VERSION` of `check:format`
+   (the binary the npm wrapper downloads; never `latest`, which broke CI when upstream renamed its
+   assets) and in `"Version"` of `.editorconfig-checker.json`; the binary refuses to run when they
+   differ, so change both together.
 
 ## Reporting
 
