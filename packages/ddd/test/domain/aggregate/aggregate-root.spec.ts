@@ -2,6 +2,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 import { AggregateRoot } from '../../../src/domain/aggregate/aggregate-root';
 import { EventBase } from '../../../src/domain/event/event-base';
 import type { EventMetadata } from '../../../src/domain/event/event-base';
+import { BooleanType } from '../../../src/domain/type/boolean-type';
 import { IdType } from '../../../src/domain/type/id-type';
 import { NumberType } from '../../../src/domain/type/number-type';
 import { Required } from '../../../src/domain/type/required/required';
@@ -13,6 +14,7 @@ class OrderId extends IdType {}
 class CustomerName extends Required(StringType) {}
 class Sku extends Required(StringType) {}
 class Quantity extends Required(NumberType) {}
+class Shipped extends Required(BooleanType) {}
 
 class OrderLine {
   constructor(
@@ -63,13 +65,13 @@ class Order extends AggregateRoot<OrderId, OrderEvent> {
     id: OrderId,
     readonly customer: CustomerName,
     private _lines: OrderLine[],
-    private _shipped: boolean,
+    private _shipped: Shipped,
   ) {
     super(id);
   }
 
   static place(id: string, customer: string): Order {
-    const order = new Order(new OrderId(id), new CustomerName(customer), [], false);
+    const order = new Order(new OrderId(id), new CustomerName(customer), [], new Shipped(false));
     order.record(new OrderPlaced(id, customer));
     return order;
   }
@@ -79,7 +81,7 @@ class Order extends AggregateRoot<OrderId, OrderEvent> {
       new OrderId(primitives.id),
       new CustomerName(primitives.customer),
       [],
-      primitives.shipped,
+      new Shipped(primitives.shipped),
     );
   }
 
@@ -88,7 +90,7 @@ class Order extends AggregateRoot<OrderId, OrderEvent> {
   }
 
   addLine(sku: string, quantity: number): void {
-    if (this._shipped) {
+    if (this._shipped.value) {
       throw new OrderAlreadyShippedException(this.id.value);
     }
     const line = new OrderLine(new IdType(IdType.random()), new Sku(sku), new Quantity(quantity));

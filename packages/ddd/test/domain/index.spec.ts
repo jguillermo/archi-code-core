@@ -42,6 +42,12 @@ describe('@archi-code/ddd/domain', () => {
     expect(domain.StringType).toBe(StringType);
   });
 
+  it('knows nothing about persistence: mappers and repositories live in infrastructure', () => {
+    expect(Object.keys(domain).filter((name) => /Mapper|Repository|Persist/.test(name))).toEqual(
+      [],
+    );
+  });
+
   it('exports every value as a class or function', () => {
     for (const name of PUBLIC_API) {
       expect(typeof domain[name as keyof typeof domain]).toBe('function');
@@ -51,6 +57,8 @@ describe('@archi-code/ddd/domain', () => {
   it('exports no exception: they live in @archi-code/ddd/exceptions', () => {
     expect(Object.keys(domain).filter((name) => name.endsWith('Exception'))).toEqual([]);
   });
+
+  it('exports the persistence contract types', () => {});
 
   it('exports the public types', () => {
     class Name extends domain.Required(domain.StringType) {}

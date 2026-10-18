@@ -7,8 +7,24 @@ import { ValidationException } from '../../exceptions/index';
 
 type JsonValue<T> = T extends Date ? string : T;
 
+const VALUE_OBJECT: unique symbol = Symbol.for('@archi-code/ddd/value-object.v1');
+
 export abstract class AbstractType<T> implements Validatable<T | null> {
   protected readonly _value: T | null;
+
+  static {
+    Object.defineProperty(this.prototype, VALUE_OBJECT, { value: true });
+  }
+
+  static [Symbol.hasInstance](candidate: unknown): boolean {
+    return (
+      Function.prototype[Symbol.hasInstance].call(this, candidate) ||
+      (this === AbstractType &&
+        typeof candidate === 'object' &&
+        candidate !== null &&
+        (candidate as Record<symbol, unknown>)[VALUE_OBJECT] === true)
+    );
+  }
 
   constructor(value: T | null = null) {
     this._value = TypeInput.accept(this, value, (input) => this.filter(input));

@@ -7,7 +7,14 @@ import type {
   AggregateRemover,
   AggregateSaver,
 } from '../../../src/application/ports/repository';
-import { AggregateRoot, EventBase, IdType, Required, StringType } from '../../../src/domain/index';
+import {
+  AggregateRoot,
+  BooleanType,
+  EventBase,
+  IdType,
+  Required,
+  StringType,
+} from '../../../src/domain/index';
 import {
   AggregateNotFoundException,
   ApplicationException,
@@ -21,6 +28,8 @@ class OrderId extends IdType {}
 
 @Validations([{ validator: 'isLength', properties: { min: 2 } }])
 class CustomerName extends Required(StringType) {}
+
+class Shipped extends Required(BooleanType) {}
 
 class OrderPlaced extends EventBase {
   constructor(
@@ -53,30 +62,34 @@ class Order extends AggregateRoot<OrderId, OrderEvent> {
   private constructor(
     id: OrderId,
     readonly customer: CustomerName,
-    private _shipped: boolean,
+    private _shipped: Shipped,
   ) {
     super(id);
   }
 
   static place(id: string, customer: string): Order {
-    const order = new Order(new OrderId(id), new CustomerName(customer).assertValid(), false);
+    const order = new Order(
+      new OrderId(id),
+      new CustomerName(customer).assertValid(),
+      new Shipped(false),
+    );
     order.record(new OrderPlaced(id, customer));
     return order;
   }
 
   static fromPrimitives(row: PrimitiveTypes<Order>): Order {
-    return new Order(new OrderId(row.id), new CustomerName(row.customer), row.shipped);
+    return new Order(new OrderId(row.id), new CustomerName(row.customer), new Shipped(row.shipped));
   }
 
-  get shipped(): boolean {
+  get shipped(): Shipped {
     return this._shipped;
   }
 
   ship(): void {
-    if (this._shipped) {
+    if (this._shipped.value) {
       throw new OrderAlreadyShippedException(this.id.value);
     }
-    this._shipped = true;
+    this._shipped = new Shipped(true);
     this.record(new OrderShipped(this.id.value));
   }
 
@@ -84,7 +97,7 @@ class Order extends AggregateRoot<OrderId, OrderEvent> {
     return {
       id: this.id.value,
       customer: this.customer.value,
-      shipped: this.shipped,
+      shipped: this.shipped.value,
     };
   }
 }

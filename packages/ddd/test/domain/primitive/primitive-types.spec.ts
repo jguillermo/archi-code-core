@@ -140,17 +140,41 @@ describe('PrimitiveTypes', () => {
     expect(primitives.createdAt.toISOString()).toBe('2026-01-10T08:00:00.000Z');
   });
 
-  it('an aggregate that tracks its own version for optimistic locking exposes it as a number', () => {
+  it('an aggregate that tracks its own version for optimistic locking keeps it as a value object', () => {
+    class Version extends Required(NumberType) {}
     class Invoice extends AggregateRoot {
       constructor(
         id: IdType,
-        readonly version: number,
+        readonly version: Version,
       ) {
         super(id);
       }
     }
 
     expectTypeOf<PrimitiveTypes<Invoice>>().toEqualTypeOf<{ id: string; version: number }>();
+  });
+
+  it('a getter that exposes a raw boolean makes its key never, so toPrimitives cannot be written', () => {
+    class Shipment extends AggregateRoot {
+      constructor(
+        id: IdType,
+        private _delivered: boolean,
+      ) {
+        super(id);
+      }
+
+      get delivered(): boolean {
+        return this._delivered;
+      }
+
+      toPrimitives(): PrimitiveTypes<Shipment> {
+        // @ts-expect-error a raw boolean is not a value object: its primitive is never
+        return { id: this.id.value, delivered: this.delivered };
+      }
+    }
+
+    expectTypeOf<PrimitiveTypes<Shipment>>().toEqualTypeOf<{ id: string; delivered: never }>();
+    expect(typeof Shipment.prototype.toPrimitives).toBe('function');
   });
 
   it('removes the leading underscore of private-looking public fields', () => {
@@ -365,22 +389,25 @@ describe('PrimitiveType: the primitive of one member', () => {
       expectTypeOf<PrimitiveType<OrderLine | null>>().toEqualTypeOf<OrderLinePrimitives | null>();
     });
 
-    it('a nested plain object becomes the object of its primitives', () => {
+    it('a nested plain object becomes the object of its primitives, its raw fields never', () => {
       expectTypeOf<PrimitiveType<{ city: string; zip: CustomerName }>>().toEqualTypeOf<{
-        city: string;
+        city: never;
         zip: string;
       }>();
     });
 
-    it('plain scalars such as a stock counter pass through as they are', () => {
-      expectTypeOf<PrimitiveType<number>>().toEqualTypeOf<number>();
-      expectTypeOf<PrimitiveType<string>>().toEqualTypeOf<string>();
-      expectTypeOf<PrimitiveType<boolean>>().toEqualTypeOf<boolean>();
-      expectTypeOf<PrimitiveType<Date>>().toEqualTypeOf<Date>();
+    it('raw scalars such as a stock counter kept as a number cannot be stored: they become never', () => {
+      expectTypeOf<PrimitiveType<number>>().toEqualTypeOf<never>();
+      expectTypeOf<PrimitiveType<string>>().toEqualTypeOf<never>();
+      expectTypeOf<PrimitiveType<boolean>>().toEqualTypeOf<never>();
+      expectTypeOf<PrimitiveType<Date>>().toEqualTypeOf<never>();
+    });
+
+    it('an absent optional child, null, is stored as null', () => {
       expectTypeOf<PrimitiveType<null>>().toEqualTypeOf<null>();
     });
 
-    it('values that are neither objects nor scalars cannot be stored and become never', () => {
+    it('values that are not value objects nor child entities become never', () => {
       expectTypeOf<PrimitiveType<undefined>>().toEqualTypeOf<never>();
       expectTypeOf<PrimitiveType<symbol>>().toEqualTypeOf<never>();
       expectTypeOf<PrimitiveType<bigint>>().toEqualTypeOf<never>();

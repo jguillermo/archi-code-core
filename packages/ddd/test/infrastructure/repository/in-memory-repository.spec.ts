@@ -1,4 +1,4 @@
-import { describe, expect, expectTypeOf, it } from 'vitest';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import type {
   AggregateFinder,
   AggregateRemover,
@@ -12,11 +12,11 @@ import {
   Required,
   StringType,
 } from '../../../src/domain/index';
-import { DomainException } from '../../../src/exceptions/index';
+import { AggregateMapper } from '../../../src/infrastructure/repository/aggregate-mapper';
+import { DomainException, InternalErrorException } from '../../../src/exceptions/index';
 import type { PrimitiveTypes } from '../../../src/domain/index';
 import { FixedClock } from '../../../src/infrastructure/clock/fixed-clock';
 import { InMemoryRepository } from '../../../src/infrastructure/repository/in-memory-repository';
-import type { AggregateMapper } from '../../../src/infrastructure/repository/in-memory-repository';
 
 class OrderId extends IdType {}
 class CustomerName extends Required(StringType) {}
@@ -102,10 +102,28 @@ class Order extends AggregateRoot<OrderId> {
   }
 }
 
-const orderMapper: AggregateMapper<Order, PrimitiveTypes<Order>> = {
-  toPrimitives: (order) => order.toPrimitives(),
-  fromPrimitives: (primitives) => Order.fromPrimitives(primitives),
-};
+class Draft extends AggregateRoot<OrderId> {
+  private constructor(
+    id: OrderId,
+    private _submitted: boolean,
+  ) {
+    super(id);
+  }
+
+  static start(id: string): Draft {
+    return new Draft(new OrderId(id), false);
+  }
+
+  static fromPrimitives(primitives: PrimitiveTypes<Draft>): Draft {
+    return new Draft(new OrderId(primitives.id), false);
+  }
+
+  toPrimitives(): PrimitiveTypes<Draft> {
+    return { id: this.id.value };
+  }
+}
+
+const orderMapper = AggregateMapper.of(Order);
 
 const orderId = '9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c';
 const otherOrderId = '3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f';
@@ -123,6 +141,20 @@ async function storedOrder(repository = orders()) {
 }
 
 describe('InMemoryRepository: the repository of a use case test or a prototype', () => {
+  it('is built from the mapper of the aggregate, so it never reads the order properties itself', () => {
+    expectTypeOf(orders()).toEqualTypeOf<InMemoryRepository<Order>>();
+  });
+
+  it('refuses to store a draft that keeps a raw boolean instead of a value object', async () => {
+    const drafts = new InMemoryRepository(AggregateMapper.of(Draft));
+    const save = drafts.save(Draft.start(orderId));
+    await expect(save).rejects.toThrow(InternalErrorException);
+    await expect(drafts.save(Draft.start(orderId))).rejects.toThrow(
+      'Failed, internal error: Draft._submitted is a boolean, not a value object',
+    );
+    expect(await drafts.findAll()).toEqual([]);
+  });
+
   it('can be injected wherever a use case asks for a finder, a saver or a remover of orders', () => {
     expectTypeOf(orders()).toMatchTypeOf<AggregateFinder<Order>>();
     expectTypeOf(orders()).toMatchTypeOf<AggregateSaver<Order>>();
@@ -188,14 +220,17 @@ describe('InMemoryRepository: the repository of a use case test or a prototype',
 
     it('changing the primitives the mapper produced after the save does not change the store', async () => {
       let written: PrimitiveTypes<Order> | undefined;
-      const repository = new InMemoryRepository<Order, PrimitiveTypes<Order>>({
-        toPrimitives: (order) => {
-          written = order.toPrimitives();
-          return written;
-        },
-        fromPrimitives: (primitives) => Order.fromPrimitives(primitives),
+      const toPrimitives = Order.prototype.toPrimitives;
+      const spy = vi.spyOn(Order.prototype, 'toPrimitives').mockImplementation(function (
+        this: Order,
+      ) {
+        const primitives = toPrimitives.call(this);
+        written = primitives;
+        return primitives;
       });
+      const repository = orders();
       await repository.save(Order.place(orderId, 'Ana', clock));
+      spy.mockRestore();
       (written as PrimitiveTypes<Order>).customer = 'Mallory';
       (written as PrimitiveTypes<Order>).lines.push('STOLEN-99');
       const loaded = (await repository.findById(new OrderId(orderId))) as Order;

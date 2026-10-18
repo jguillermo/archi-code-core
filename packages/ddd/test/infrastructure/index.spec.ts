@@ -1,17 +1,19 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import * as infrastructure from '../../src/infrastructure/index';
 import type {
-  AggregateMapper,
+  AggregateClass,
   EventFactory,
   EventHandler,
   HttpError,
   HttpErrorBody,
 } from '../../src/infrastructure/index';
-import { EventBase } from '../../src/domain/index';
+import { AggregateRoot, EventBase } from '../../src/domain/index';
 import type { SerializedEvent } from '../../src/domain/index';
 import { InMemoryRepository } from '../../src/infrastructure/repository/in-memory-repository';
+import { AggregateMapper } from '../../src/infrastructure/repository/aggregate-mapper';
 
 const PUBLIC_API = [
+  'AggregateMapper',
   'DomainEventRegistry',
   'FixedClock',
   'HttpErrorMapper',
@@ -35,6 +37,10 @@ describe('@archi-code/ddd/infrastructure', () => {
     expect(infrastructure.InMemoryRepository).toBe(InMemoryRepository);
   });
 
+  it('exports the aggregate mapper next to the repositories that use it', () => {
+    expect(infrastructure.AggregateMapper).toBe(AggregateMapper);
+  });
+
   it('exports every value as a class', () => {
     for (const name of PUBLIC_API) {
       expect(typeof infrastructure[name as keyof typeof infrastructure]).toBe('function');
@@ -42,10 +48,8 @@ describe('@archi-code/ddd/infrastructure', () => {
   });
 
   it('exports the public types', () => {
-    expectTypeOf<AggregateMapper<string, number>>().toEqualTypeOf<{
-      toPrimitives(aggregate: string): number;
-      fromPrimitives(primitives: number): string;
-    }>();
+    expectTypeOf<AggregateClass<AggregateRoot>>().toHaveProperty('fromPrimitives');
+    expectTypeOf<AggregateClass<AggregateRoot>>().toHaveProperty('name');
     expectTypeOf<EventHandler<OrderPlaced>>().toEqualTypeOf<
       (event: OrderPlaced) => Promise<void> | void
     >();

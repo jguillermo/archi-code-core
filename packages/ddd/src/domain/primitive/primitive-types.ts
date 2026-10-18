@@ -25,16 +25,16 @@ export type DataTypes<T> = Partial<PrimitiveTypes<T>>;
 
 type EnumPrimitive<V> = V extends string ? string : V extends number ? number : V;
 
-type Scalar = string | number | boolean | Date | null;
-
 export type PrimitiveType<T> = T extends (infer U)[]
   ? PrimitiveType<U>[]
   : T extends EnumType<any>
     ? EnumPrimitive<T['value']>
     : T extends AbstractType<any>
       ? T['value']
-      : T extends Scalar
-        ? T
-        : T extends object
-          ? PrimitiveTypes<T>
-          : never;
+      : T extends null
+        ? null
+        : T extends Date
+          ? never
+          : T extends object
+            ? PrimitiveTypes<T>
+            : never;

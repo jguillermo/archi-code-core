@@ -200,6 +200,34 @@ describe('AbstractType: writing a custom value object', () => {
     });
   });
 
+  describe('recognizing value objects built by another copy of the package (CJS and ESM side by side)', () => {
+    it('a value object of the other copy is still an AbstractType', async () => {
+      vi.resetModules();
+      const other = await import('../../../src/domain/type/string-type');
+      const otherBase = await import('../../../src/domain/type/abstract-type');
+      expect(otherBase.AbstractType).not.toBe(AbstractType);
+      expect(new other.StringType('Huelva')).toBeInstanceOf(AbstractType);
+      expect(new CountryCode('es')).toBeInstanceOf(otherBase.AbstractType);
+    });
+
+    it('only the base class matches by brand: concrete classes keep the normal instanceof', async () => {
+      vi.resetModules();
+      const other = await import('../../../src/domain/type/string-type');
+      const { StringType } = await import('../../../src/domain/type/string-type');
+      expect(new other.StringType('x')).toBeInstanceOf(StringType);
+      expect(new CountryCode('es')).not.toBeInstanceOf(StringType);
+      expect(new CountryCode('es')).not.toBeInstanceOf(ShippingCountry);
+    });
+
+    it.each([
+      ['null', null],
+      ['a raw text', 'ES'],
+      ['a plain object', { _value: 'ES' }],
+    ])('%s is not a value object', (_, candidate) => {
+      expect(candidate).not.toBeInstanceOf(AbstractType);
+    });
+  });
+
   describe('comparing two value objects', () => {
     it('two countries built from different spellings of the same code are equal', () => {
       expect(new CountryCode('es').equals(new CountryCode(' ES '))).toBe(true);

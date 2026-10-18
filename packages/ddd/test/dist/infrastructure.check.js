@@ -19,10 +19,11 @@ function orderModel() {
       return 'order.placed';
     }
   }
+  class CustomerName extends domain.Required(domain.StringType) {}
   class Order extends domain.AggregateRoot {
     constructor(id, customer) {
       super(new domain.IdType(id));
-      this.customer = customer;
+      this.customer = new CustomerName(customer);
     }
 
     static place(id, customer) {
@@ -30,21 +31,79 @@ function orderModel() {
       order.record(new OrderPlaced(id, customer));
       return order;
     }
+
+    static fromPrimitives(row) {
+      return new Order(row.id, row.customer);
+    }
+
+    toPrimitives() {
+      return { id: this.id.value, customer: this.customer.value };
+    }
   }
-  const mapper = {
-    toPrimitives: (order) => ({ id: order.id.value, customer: order.customer }),
-    fromPrimitives: (row) => new Order(row.id, row.customer),
-  };
-  return { Order, OrderPlaced, mapper };
+  return { Order, OrderPlaced };
 }
 
 function smoke(m) {
   return [
     [
+      'the aggregate mapper round-trips value objects and refuses raw state',
+      () => {
+        class CustomerName extends domain.Required(domain.StringType) {}
+        class Order extends domain.AggregateRoot {
+          constructor(id, customer) {
+            super(new domain.IdType(id));
+            this._customer = new CustomerName(customer);
+          }
+
+          static fromPrimitives(row) {
+            return new Order(row.id, row.customer);
+          }
+
+          get customer() {
+            return this._customer;
+          }
+
+          toPrimitives() {
+            return { id: this.id.value, customer: this.customer.value };
+          }
+        }
+        class Draft extends domain.AggregateRoot {
+          constructor(id) {
+            super(new domain.IdType(id));
+            this._submitted = false;
+          }
+
+          static fromPrimitives(row) {
+            return new Draft(row.id);
+          }
+
+          toPrimitives() {
+            return { id: this.id.value, submitted: false };
+          }
+        }
+        const mapper = m.AggregateMapper.of(Order);
+        const stored = mapper.toPrimitives(new Order(ORDER_ID, 'Ana'));
+        const loaded = mapper.fromPrimitives(stored);
+        let refused = '';
+        try {
+          m.AggregateMapper.of(Draft).toPrimitives(new Draft(ORDER_ID));
+        } catch (error) {
+          refused = error.message;
+        }
+        return (
+          (stored.customer === 'Ana' &&
+            loaded.customer.value === 'Ana' &&
+            refused ===
+              'Failed, internal error: Draft._submitted is a boolean, not a value object') ||
+          `unexpected mapper result: ${refused}`
+        );
+      },
+    ],
+    [
       'the in-memory repository saves, loads copies, overwrites and deletes',
       async () => {
-        const { Order, mapper } = orderModel();
-        const repository = new m.InMemoryRepository(mapper);
+        const { Order } = orderModel();
+        const repository = new m.InMemoryRepository(m.AggregateMapper.of(Order));
         const id = new domain.IdType(ORDER_ID);
         await repository.save(Order.place(ORDER_ID, 'Ana'));
         const first = await repository.findById(id);
@@ -54,9 +113,9 @@ function smoke(m) {
         await repository.delete(id);
         const deleted = await repository.findById(id);
         return (
-          (first.customer === 'Ana' &&
+          (first.customer.value === 'Ana' &&
             first !== second &&
-            overwritten.customer === 'Luis' &&
+            overwritten.customer.value === 'Luis' &&
             deleted === null) ||
           'unexpected in-memory repository behavior'
         );

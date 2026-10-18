@@ -1,17 +1,15 @@
-import type { AggregateFinder, AggregateRemover, AggregateSaver } from '../../application';
-import type { AggregateRoot } from '../../domain';
+import type { AggregateFinder, AggregateRemover, AggregateSaver } from '../../application/index';
+import type { AggregateRoot, PrimitiveTypes } from '../../domain/index';
+import type { AggregateMapper } from './aggregate-mapper';
 
-export interface AggregateMapper<Aggregate, Primitives> {
-  toPrimitives(aggregate: Aggregate): Primitives;
-  fromPrimitives(primitives: Primitives): Aggregate;
-}
-
-export class InMemoryRepository<Aggregate extends AggregateRoot<any, any>, Primitives>
+export class InMemoryRepository<
+  Aggregate extends AggregateRoot<any, any> & { toPrimitives(): PrimitiveTypes<Aggregate> },
+>
   implements AggregateFinder<Aggregate>, AggregateSaver<Aggregate>, AggregateRemover<Aggregate>
 {
-  private readonly rows = new Map<string, Primitives>();
+  private readonly rows = new Map<string, PrimitiveTypes<Aggregate>>();
 
-  constructor(private readonly mapper: AggregateMapper<Aggregate, Primitives>) {}
+  constructor(private readonly mapper: AggregateMapper<Aggregate>) {}
 
   async findById(id: Aggregate['id']): Promise<Aggregate | null> {
     const row = this.rows.get(id.toString());

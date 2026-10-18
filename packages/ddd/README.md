@@ -2,12 +2,12 @@
 
 Domain-Driven Design building blocks for TypeScript, one entry point per layer:
 
-| Entry point                      | Layer          | What it gives you                                                                                                        |
-| -------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `@archi-code/ddd/exceptions`     | Shared         | Exceptions of every layer with codes, causes and `instanceof` across builds                                              |
-| `@archi-code/ddd/domain`         | Domain         | Value objects, `Required(...)`, `AggregateRoot`, `EventBase`                                                             |
-| `@archi-code/ddd/application`    | Application    | `UseCase` and the ports: repository roles (`AggregateFinder`, `AggregateSaver`, `AggregateRemover`), `EventBus`, `Clock` |
-| `@archi-code/ddd/infrastructure` | Infrastructure | `InMemoryRepository`, `InMemoryEventBus`, `DomainEventRegistry`, `HttpErrorMapper`, `SystemClock`, `FixedClock`          |
+| Entry point                      | Layer          | What it gives you                                                                                                                  |
+| -------------------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `@archi-code/ddd/exceptions`     | Shared         | Exceptions of every layer with codes, causes and `instanceof` across builds                                                        |
+| `@archi-code/ddd/domain`         | Domain         | Value objects, `Required(...)`, `AggregateRoot`, `EventBase`                                                                       |
+| `@archi-code/ddd/application`    | Application    | `UseCase` and the ports: repository roles (`AggregateFinder`, `AggregateSaver`, `AggregateRemover`), `EventBus`, `Clock`           |
+| `@archi-code/ddd/infrastructure` | Infrastructure | `InMemoryRepository`, `AggregateMapper`, `InMemoryEventBus`, `DomainEventRegistry`, `HttpErrorMapper`, `SystemClock`, `FixedClock` |
 
 The layers only depend inwards: `exceptions` imports nothing, `domain` imports only `exceptions`,
 `application` imports `domain` and `exceptions`, and `infrastructure` imports all three. The
@@ -490,18 +490,18 @@ JSON.stringify(placed);
 
 Types to go from an aggregate (or any class with value objects) to its plain values:
 
-| Type                       | Result                                                                                                                                                                                                                  |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PrimitiveType<T>`         | Value object → its value (`T['value']`); enum → `string`/`number`; arrays item by item; `string`/`number`/`boolean`/`Date` as they are; any other object (a child entity) → its `PrimitiveTypes`; anything else `never` |
-| `PrimitiveTypes<T>`        | Object with each public non-method property of `T` as `PrimitiveType`, without the leading `_` of the name                                                                                                              |
-| `DataTypes<T>`             | `Partial<PrimitiveTypes<T>>`                                                                                                                                                                                            |
-| `Properties<T>`            | The public properties of `T` that are not methods                                                                                                                                                                       |
-| `PropertiesData<T>`        | `Required<Properties<T>>`                                                                                                                                                                                               |
-| `MutablePropertiesData<T>` | `PropertiesData<T>` without `readonly`                                                                                                                                                                                  |
-| `Methods<T>`               | Union of the names of the methods of `T`                                                                                                                                                                                |
-| `MethodsAndProperties<T>`  | `{ [key in keyof T]: T[key] }`                                                                                                                                                                                          |
-| `RequiredType<C>`          | Type of the class returned by `Required(C)`                                                                                                                                                                             |
-| `JsonTypeValue`            | `Record<string, any>`                                                                                                                                                                                                   |
+| Type                       | Result                                                                                                                                                                                                                                |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PrimitiveType<T>`         | Value object → its value (`T['value']`); enum → `string`/`number`; arrays item by item; `null` → `null`; any other object (a child entity) → its `PrimitiveTypes`; raw `string`/`number`/`boolean`/`Date` and anything else → `never` |
+| `PrimitiveTypes<T>`        | Object with each public non-method property of `T` as `PrimitiveType`, without the leading `_` of the name                                                                                                                            |
+| `DataTypes<T>`             | `Partial<PrimitiveTypes<T>>`                                                                                                                                                                                                          |
+| `Properties<T>`            | The public properties of `T` that are not methods                                                                                                                                                                                     |
+| `PropertiesData<T>`        | `Required<Properties<T>>`                                                                                                                                                                                                             |
+| `MutablePropertiesData<T>` | `PropertiesData<T>` without `readonly`                                                                                                                                                                                                |
+| `Methods<T>`               | Union of the names of the methods of `T`                                                                                                                                                                                              |
+| `MethodsAndProperties<T>`  | `{ [key in keyof T]: T[key] }`                                                                                                                                                                                                        |
+| `RequiredType<C>`          | Type of the class returned by `Required(C)`                                                                                                                                                                                           |
+| `JsonTypeValue`            | `Record<string, any>`                                                                                                                                                                                                                 |
 
 `PrimitiveTypes` only sees **public** members (`keyof`): `private` or `protected` properties do not
 appear. Expose the value objects with public `readonly` properties or with getters (see the full
@@ -613,13 +613,13 @@ adapter's `save` throw `ConcurrencyException(aggregateName, id, expectedVersion)
 
 Ready adapters for tests, prototypes and the edges of an API:
 
-| Export                           | What it is                                                                                                |
-| -------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `InMemoryRepository(mapper)`     | Finder, saver and remover over a `Map`, storing `mapper.toPrimitives(aggregate)` copies; adds `findAll()` |
-| `InMemoryEventBus`               | `EventBus` with `subscribe(eventName, handler)` (returns an unsubscribe function) and `published`         |
-| `DomainEventRegistry`            | `register(eventName, factory)` and `fromJSON(json)`: rebuilds events read from an outbox or a broker      |
-| `HttpErrorMapper(statusByCode?)` | `map(error)` → `{ status, body: { code, message, errors? } }`                                             |
-| `SystemClock`, `FixedClock(at)`  | `Clock` with the real time, and a test clock with `set(at)` and `advance(ms)`                             |
+| Export                                          | What it is                                                                                                |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `InMemoryRepository(AggregateMapper.of(Order))` | Finder, saver and remover over a `Map`, storing `mapper.toPrimitives(aggregate)` copies; adds `findAll()` |
+| `InMemoryEventBus`                              | `EventBus` with `subscribe(eventName, handler)` (returns an unsubscribe function) and `published`         |
+| `DomainEventRegistry`                           | `register(eventName, factory)` and `fromJSON(json)`: rebuilds events read from an outbox or a broker      |
+| `HttpErrorMapper(statusByCode?)`                | `map(error)` → `{ status, body: { code, message, errors? } }`                                             |
+| `SystemClock`, `FixedClock(at)`                 | `Clock` with the real time, and a test clock with `set(at)` and `advance(ms)`                             |
 
 `InMemoryRepository` stores a copy of the primitives on every `save` (the last save wins), finds
 ids whatever their case and returns copies, so changing a loaded aggregate does not touch the store
@@ -657,6 +657,128 @@ app.use((error, req, res, next) => {
 
 `fromJSON` throws `UnknownEventException` for a name nobody registered and
 `InternalErrorException` for text that is not a JSON object or has no `eventName`.
+
+## Persisting aggregates with `AggregateMapper`
+
+The domain knows nothing about persistence: a repository receives an aggregate and stores it.
+`AggregateMapper` lives here, in infrastructure, next to the repositories that use it. It relies on
+two things every aggregate has: everything it stores is a **value object** (no raw `string`,
+`number`, `boolean` or `Date` fields in its state), and it exposes `toPrimitives()` and
+`static fromPrimitives()`. The repository never reads the aggregate's fields: it only calls the
+mapper. Follow these rules for every
+aggregate:
+
+1. **State is value objects.** Each persisted field is a value object, a list of value objects or a
+   child entity (a plain class) whose fields are value objects too. A flag is
+   `class Shipped extends Required(BooleanType) {}`, never `boolean`; a moment is a `DateType` /
+   `CreatedAt`, never `Date`.
+2. **Private field + public getter with the same name without `_`** (`private _customer` +
+   `get customer()`), or a public `readonly customer`. No private state without its getter: the
+   primitives use those names.
+3. **Private constructor and two factories**: a business one (`Order.place(...)`) that validates
+   (`assertValid()`) and records events, and `static fromPrimitives(primitives: PrimitiveTypes<Order>)`
+   that rebuilds it from stored data, building each value object from its primitive and recording no
+   event.
+4. **`toPrimitives(): PrimitiveTypes<Order>`** returns only plain data: `vo.value` of each value
+   object and the primitives of each child entity, never a value object.
+5. **The repository receives `AggregateMapper.of(Order)`** and never touches the aggregate's fields.
+6. **One round-trip test per aggregate**: `Order.fromPrimitives(order.toPrimitives()).toPrimitives()`
+   equals `order.toPrimitives()`.
+
+The compiler enforces rules 1 and 4 on what is public: a getter that returns a raw `boolean` makes
+that key `never` in `PrimitiveTypes<Order>`, so `toPrimitives()` does not compile. `AggregateMapper`
+checks the rest at runtime on every `toPrimitives`, throwing `InternalErrorException`:
+
+| Mistake                                     | Message                                                                                |
+| ------------------------------------------- | -------------------------------------------------------------------------------------- |
+| A raw field, also inside a child entity     | `Order._shipped is a boolean, not a value object`                                      |
+| A private field without its key in the data | `Order._status is not in its primitives` (it would be lost when saving)                |
+| `toPrimitives()` returns a value object     | `Order.toPrimitives() returns a value object at primitives.customer; return its value` |
+
+```ts
+import {
+  AggregateRoot,
+  BooleanType,
+  CreatedAt,
+  IdType,
+  NumberType,
+  Required,
+  StringType,
+} from '@archi-code/ddd/domain';
+import type { PrimitiveTypes } from '@archi-code/ddd/domain';
+import { AggregateMapper } from '@archi-code/ddd/infrastructure';
+
+class OrderId extends IdType {}
+class CustomerName extends Required(StringType) {}
+class Shipped extends Required(BooleanType) {}
+class Sku extends Required(StringType) {}
+class Units extends Required(NumberType) {}
+
+class OrderLine {
+  constructor(
+    readonly id: IdType,
+    readonly sku: Sku,
+    readonly units: Units,
+  ) {}
+}
+
+class Order extends AggregateRoot<OrderId> {
+  private constructor(
+    id: OrderId,
+    private readonly _customer: CustomerName,
+    private _shipped: Shipped,
+    private _lines: OrderLine[],
+    private readonly _placedAt: CreatedAt,
+  ) {
+    super(id);
+  }
+
+  static fromPrimitives(primitives: PrimitiveTypes<Order>): Order {
+    return new Order(
+      new OrderId(primitives.id),
+      new CustomerName(primitives.customer),
+      new Shipped(primitives.shipped),
+      primitives.lines.map(
+        (line) => new OrderLine(new IdType(line.id), new Sku(line.sku), new Units(line.units)),
+      ),
+      new CreatedAt(primitives.placedAt),
+    );
+  }
+
+  get customer(): CustomerName {
+    return this._customer;
+  }
+
+  get shipped(): Shipped {
+    return this._shipped;
+  }
+
+  get lines(): OrderLine[] {
+    return [...this._lines];
+  }
+
+  get placedAt(): CreatedAt {
+    return this._placedAt;
+  }
+
+  toPrimitives(): PrimitiveTypes<Order> {
+    return {
+      id: this.id.value,
+      customer: this.customer.value,
+      shipped: this.shipped.value,
+      lines: this._lines.map((line) => ({
+        id: line.id.value,
+        sku: line.sku.value,
+        units: line.units.value,
+      })),
+      placedAt: this.placedAt.value,
+    };
+  }
+}
+
+const orders = AggregateMapper.of(Order); // AggregateMapper<Order>
+// new InMemoryRepository(orders), or your own adapter: rows = orders.toPrimitives(order)
+```
 
 # Exceptions: `@archi-code/ddd/exceptions`
 
@@ -747,6 +869,7 @@ error.description; // 'Domain Exception (DOM000), OrderCancelledException (ORD00
 import { Validations } from '@archi-code/validation';
 import {
   AggregateRoot,
+  BooleanType,
   CreatedAt,
   EventBase,
   IdType,
@@ -758,6 +881,7 @@ import type { EventMetadata, PrimitiveTypes } from '@archi-code/ddd/domain';
 import { UseCase } from '@archi-code/ddd/application';
 import type { AggregateFinder, AggregateSaver, Clock, EventBus } from '@archi-code/ddd/application';
 import {
+  AggregateMapper,
   FixedClock,
   HttpErrorMapper,
   InMemoryEventBus,
@@ -766,6 +890,7 @@ import {
 
 class UserId extends IdType {}
 class Name extends Required(StringType) {}
+class Blocked extends Required(BooleanType) {}
 
 @Validations([{ validator: 'isEmail' }])
 class Email extends Required(StringType) {}
@@ -811,7 +936,7 @@ class User extends AggregateRoot<UserId, UserEvent> {
     id: UserId,
     private _name: Name,
     readonly email: Email,
-    private _blocked: boolean,
+    private _blocked: Blocked,
     readonly createdAt: CreatedAt,
   ) {
     super(id);
@@ -822,7 +947,7 @@ class User extends AggregateRoot<UserId, UserEvent> {
       UserId.generate(),
       new Name(name),
       new Email(email).assertValid(),
-      false,
+      new Blocked(false),
       CreatedAt.now(clock),
     );
     user.record(new UserRegistered(user.id.value, email, { clock }));
@@ -834,7 +959,7 @@ class User extends AggregateRoot<UserId, UserEvent> {
       new UserId(primitives.id),
       new Name(primitives.name),
       new Email(primitives.email),
-      primitives.blocked,
+      new Blocked(primitives.blocked),
       new CreatedAt(primitives.createdAt),
     );
   }
@@ -843,12 +968,12 @@ class User extends AggregateRoot<UserId, UserEvent> {
     return this._name;
   }
 
-  get blocked(): boolean {
+  get blocked(): Blocked {
     return this._blocked;
   }
 
   rename(name: string, clock: Clock): void {
-    if (this._blocked) {
+    if (this._blocked.value) {
       throw new UserBlockedException(this.id.value);
     }
     this._name = new Name(name);
@@ -860,7 +985,7 @@ class User extends AggregateRoot<UserId, UserEvent> {
       id: this.id.value,
       name: this.name.value,
       email: this.email.value,
-      blocked: this.blocked,
+      blocked: this.blocked.value,
       createdAt: this.createdAt.value,
     };
   }
@@ -903,10 +1028,7 @@ class RenameUser extends UseCase<{ id: string; name: string }, void> {
   }
 }
 
-const users = new InMemoryRepository({
-  toPrimitives: (user: User) => user.toPrimitives(),
-  fromPrimitives: User.fromPrimitives,
-});
+const users = new InMemoryRepository(AggregateMapper.of(User));
 const bus = new InMemoryEventBus<UserEvent>();
 const clock = new FixedClock('2026-01-01T09:00:00Z');
 
@@ -967,10 +1089,10 @@ await new RegisterUser(users, bus, clock)
 
 `@archi-code/ddd/infrastructure`:
 
-| Export                                                                                                          | Kind    |
-| --------------------------------------------------------------------------------------------------------------- | ------- |
-| `InMemoryRepository`, `InMemoryEventBus`, `DomainEventRegistry`, `HttpErrorMapper`, `SystemClock`, `FixedClock` | classes |
-| `AggregateMapper`, `EventHandler`, `EventFactory`, `HttpError`, `HttpErrorBody`                                 | types   |
+| Export                                                                                                                             | Kind    |
+| ---------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `InMemoryRepository`, `AggregateMapper`, `InMemoryEventBus`, `DomainEventRegistry`, `HttpErrorMapper`, `SystemClock`, `FixedClock` | classes |
+| `AggregateClass`, `EventHandler`, `EventFactory`, `HttpError`, `HttpErrorBody`                                                     | types   |
 
 ## AI assistant skill
 

@@ -32,6 +32,7 @@ If they are installed in the project, use them together with this one:
 ```ts
 import {
   AggregateRoot,
+  BooleanType,
   CreatedAt,
   EventBase,
   IdType,
@@ -56,6 +57,7 @@ import type {
   EventBus,
 } from '@archi-code/ddd/application';
 import {
+  AggregateMapper,
   DomainEventRegistry,
   FixedClock,
   HttpErrorMapper,
@@ -110,6 +112,29 @@ const { Required, StringType } = require('@archi-code/ddd/domain');
   `readonly id`; do not redeclare it (no `_id` + getter). `equals` compares class and id only.
   Child entities (the lines of an order) are plain classes with a value object id, created and
   changed only through their aggregate.
+- **The domain knows nothing about persistence**: no mapper, repository nor storage concern in
+  domain code; a repository receives an aggregate and stores it. `AggregateMapper` is imported from
+  `@archi-code/ddd/infrastructure`.
+- **Aggregates and their primitives** (every aggregate follows these six rules so infrastructure can
+  store it):
+  1. All its state is value objects: each persisted field is a value object, a list of them or a
+     child entity (plain class) whose fields are value objects. A flag is
+     `class Shipped extends Required(BooleanType) {}`, never `boolean`; a moment is `DateType` /
+     `CreatedAt`, never `Date`.
+  2. Private field + public getter with the same name without `_` (or a public `readonly`). No
+     private state without its getter: the primitives use those names.
+  3. Private constructor and two factories: a business one that validates and records events, and
+     `static fromPrimitives(primitives: PrimitiveTypes<Order>)` that rebuilds each value object
+     from its primitive and records nothing.
+  4. `toPrimitives(): PrimitiveTypes<Order>` returns only plain data (`vo.value`, child primitives),
+     never a value object.
+  5. Repositories receive `AggregateMapper.of(Order)` and only call `toPrimitives` /
+     `fromPrimitives`; they never read the aggregate's fields.
+  6. One round-trip test per aggregate: `Order.fromPrimitives(order.toPrimitives()).toPrimitives()`
+     equals `order.toPrimitives()`.
+     The compiler rejects public raw state (`PrimitiveTypes` gives `never`); `AggregateMapper` throws
+     `InternalErrorException` at runtime for raw private state, private fields missing from the
+     primitives and value objects returned by `toPrimitives()`.
 - Aggregates extend `AggregateRoot<Id, Event>` and call `super(id)`. The base carries no version:
   an aggregate that needs optimistic concurrency declares its own `version`, exposes it in its
   primitives, and its adapter throws `ConcurrencyException(name, id, expectedVersion)` on a stale
@@ -123,8 +148,8 @@ const { Required, StringType } = require('@archi-code/ddd/domain');
   `toJSON()` (`eventName`, `eventId`, `aggregateId`, ISO `occurredOn` and the payload).
 - `PrimitiveTypes<T>` only sees **public** non-method members (it strips the leading `_`): expose
   VOs with public getters or public `readonly` properties. For an aggregate it includes `id`;
-  child entities become their primitives; plain `string`/`number`/`boolean`/`Date`
-  members pass through.
+  child entities become their primitives; raw `string`/`number`/`boolean`/`Date`
+  members become `never`.
 - Where to throw each exception:
   - Domain (aggregates, VOs, business rules): `DomainException` or a custom subclass with its own
     code; `ValidationException` (usually through `assertValid()`); `AggregateNotFoundException`
@@ -159,7 +184,7 @@ const { Required, StringType } = require('@archi-code/ddd/domain');
   exceptions and wraps any other error in `InternalErrorException` with `cause`.
 - A real repository implements the roles it supports (`AggregateFinder<A>`, `AggregateSaver<A>`,
   `AggregateRemover<A>`) and wraps driver errors in `InternalErrorException` with `cause`.
-  `InMemoryRepository(mapper)` is the reference for tests: it stores copies of the primitives (the
+  `InMemoryRepository(AggregateMapper.of(Order))` is the reference for tests: it stores copies of the primitives (the
   last save wins).
 - Consumers of an outbox or broker rebuild events with `DomainEventRegistry`: register a factory per
   `eventName` that passes the JSON as metadata (`new OrderPlaced(json.aggregateId, …, json)`).
@@ -200,6 +225,7 @@ class OrderId extends IdType {}
 class Sku extends Required(StringType) {}
 class Units extends Required(NumberType) {}
 class CustomerName extends Required(StringType) {}
+class Shipped extends Required(BooleanType) {}
 
 class OrderLine {
   constructor(
@@ -250,7 +276,7 @@ class Order extends AggregateRoot<OrderId, OrderEvent> {
     id: OrderId,
     readonly customer: CustomerName,
     private _lines: OrderLine[],
-    private _shipped: boolean,
+    private _shipped: Shipped,
     private _updatedAt: UpdatedAt,
     readonly createdAt: CreatedAt,
   ) {
@@ -262,7 +288,7 @@ class Order extends AggregateRoot<OrderId, OrderEvent> {
       new OrderId(id),
       new CustomerName(customer),
       [],
-      false,
+      new Shipped(false),
       UpdatedAt.now(),
       CreatedAt.now(),
     );
@@ -277,7 +303,7 @@ class Order extends AggregateRoot<OrderId, OrderEvent> {
       primitives.lines.map(
         (line) => new OrderLine(new IdType(line.id), new Sku(line.sku), new Units(line.units)),
       ),
-      primitives.shipped,
+      new Shipped(primitives.shipped),
       new UpdatedAt(primitives.updatedAt),
       new CreatedAt(primitives.createdAt),
     );
@@ -287,7 +313,7 @@ class Order extends AggregateRoot<OrderId, OrderEvent> {
     return [...this._lines];
   }
 
-  get shipped(): boolean {
+  get shipped(): Shipped {
     return this._shipped;
   }
 
@@ -296,7 +322,7 @@ class Order extends AggregateRoot<OrderId, OrderEvent> {
   }
 
   addLine(sku: string, units: number): void {
-    if (this._shipped) {
+    if (this._shipped.value) {
       throw new OrderShippedException(this.id.value);
     }
     const line = new OrderLine(new IdType(IdType.random()), new Sku(sku), new Units(units));
@@ -314,7 +340,7 @@ class Order extends AggregateRoot<OrderId, OrderEvent> {
         sku: line.sku.value,
         units: line.units.value,
       })),
-      shipped: this.shipped,
+      shipped: this.shipped.value,
       updatedAt: this.updatedAt.value,
       createdAt: this.createdAt.value,
     };
@@ -349,8 +375,10 @@ A real repository implements only the roles it supports and wraps driver errors 
 
 ```ts
 class MongoOrderRepository implements AggregateSaver<Order> {
+  private readonly mapper = AggregateMapper.of(Order);
+
   async save(order: Order): Promise<void> {
-    const data = order.toPrimitives();
+    const data = this.mapper.toPrimitives(order);
     try {
       await this.collection.replaceOne({ _id: data.id }, data, { upsert: true });
     } catch (error) {
@@ -363,10 +391,7 @@ class MongoOrderRepository implements AggregateSaver<Order> {
 Wiring and tests with the in-memory adapters, a fixed clock and the HTTP mapper:
 
 ```ts
-const orders = new InMemoryRepository({
-  toPrimitives: (order: Order) => order.toPrimitives(),
-  fromPrimitives: Order.fromPrimitives,
-});
+const orders = new InMemoryRepository(AggregateMapper.of(Order));
 const bus = new InMemoryEventBus<OrderEvent>();
 await orders.save(Order.place(orderId, 'Ana'));
 await new AddOrderLine(orders, bus).execute({ orderId, sku: 'TORCH-01', units: 2 });
@@ -440,6 +465,16 @@ describe('Order', () => {
 - Using `Required(StringType)` directly as a property type instead of a named subclass.
 - Declaring `private readonly _id` + `get id()` in an aggregate: the id goes to `super(id)`.
 - Looking for an `Entity` base class: there is none; child entities are plain classes.
+- Raw state in an aggregate (`private _shipped: boolean`, `private _at: Date`, a `string` field):
+  wrap it in a value object.
+- A private field without its public getter: it would be lost when saving (`AggregateMapper` throws
+  `… is not in its primitives`).
+- `toPrimitives()` returning value objects instead of `vo.value`.
+- A repository that reads aggregate fields or builds rows by hand: use `AggregateMapper.of(Order)`.
+- Importing `AggregateMapper` (or any persistence concern) into domain code: it belongs to
+  infrastructure.
+- Passing `{ toPrimitives, fromPrimitives }` objects to `InMemoryRepository`: pass
+  `AggregateMapper.of(Order)`.
 - Looking for `version` in `AggregateRoot`: there is none; declare it in the aggregate that needs
   optimistic concurrency.
 - Creating events without the aggregate id (`super()`), or generating `eventId`/`occurredOn`
