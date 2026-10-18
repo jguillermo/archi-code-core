@@ -1,13 +1,17 @@
 import { anyToString, runValidations } from '@archi-code/validation';
 import type { Validatable, ValidatedClass, ValidationResult } from '@archi-code/validation';
 import { TypeInput } from './input/type-input';
+import { ValueEquality } from './equality/value-equality';
 import type { ValueOf } from './required/required-mark';
+import { ValidationException } from '../exceptions/domain/validation.exception';
 
 export { Required } from './required/required';
 export type { RequiredType } from './required/required';
 
+type JsonValue<T> = T extends Date ? string : T;
+
 export abstract class AbstractType<T> implements Validatable<T | null> {
-  protected _value: T | null;
+  protected readonly _value: T | null;
 
   constructor(value: T | null = null) {
     this._value = TypeInput.accept(this, value, (input) => this.filter(input));
@@ -21,14 +25,38 @@ export abstract class AbstractType<T> implements Validatable<T | null> {
     return this._value === null;
   }
 
-  get toString(): string {
+  toString(): string {
     return this.isNull ? '' : anyToString(this._value);
+  }
+
+  toJSON(): ValueOf<JsonValue<T>, this> {
+    const value = this._value;
+    return (value instanceof Date ? value.toISOString() : value) as ValueOf<JsonValue<T>, this>;
+  }
+
+  equals(other: unknown): boolean {
+    return (
+      typeof other === 'object' &&
+      other !== null &&
+      other.constructor === this.constructor &&
+      ValueEquality.equals(this._value, (other as AbstractType<unknown>)._value)
+    );
   }
 
   validate(): ValidationResult<ValueOf<T, this>> {
     return runValidations(this.constructor as ValidatedClass, this._value) as ValidationResult<
       ValueOf<T, this>
     >;
+  }
+
+  assertValid(): this {
+    const result = this.validate();
+    if (!result.ok) {
+      throw new ValidationException(
+        result.errors.map((error) => `${this.constructor.name}: ${error.message}`),
+      );
+    }
+    return this;
   }
 
   protected abstract filter(value: unknown): T | null;

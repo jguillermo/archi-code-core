@@ -20,40 +20,39 @@ const SETTERS: [string, (date: Date) => unknown][] = [
   ['setYear', (date) => (date as unknown as { setYear(year: number): number }).setYear(2020)],
 ];
 
-const ISO = '2018-03-23T16:02:15.000Z';
+const SHIPPED_AT = '2018-03-23T16:02:15.000Z';
 
 describe('ImmutableDate', () => {
-  it('is a Date with the same instant as the given one', () => {
-    const date = new ImmutableDate(new Date(ISO));
+  it('is a Date for the same instant, so it serializes like any date in an API response', () => {
+    const date = new ImmutableDate(new Date(SHIPPED_AT));
     expect(date).toBeInstanceOf(Date);
-    expect(date.toISOString()).toBe(ISO);
-    expect(JSON.stringify(date)).toBe(`"${ISO}"`);
+    expect(date.toISOString()).toBe(SHIPPED_AT);
+    expect(JSON.stringify({ shippedAt: date })).toBe(`{"shippedAt":"${SHIPPED_AT}"}`);
   });
 
-  it('is a copy of the given Date', () => {
-    const source = new Date(ISO);
+  it('is a copy, so the caller changing its own Date later does not move the shipment', () => {
+    const source = new Date(SHIPPED_AT);
     const date = new ImmutableDate(source);
     source.setUTCFullYear(2020);
     expect(date).not.toBe(source);
-    expect(date.toISOString()).toBe(ISO);
+    expect(date.toISOString()).toBe(SHIPPED_AT);
   });
 
-  it.each(SETTERS)('%s throws and leaves the date unchanged', (setter, change) => {
-    const date = new ImmutableDate(new Date(ISO));
+  it.each(SETTERS)('%s throws and leaves the shipment date unchanged', (setter, change) => {
+    const date = new ImmutableDate(new Date(SHIPPED_AT));
     expect(() => change(date)).toThrow(
       new TypeError(`Cannot call ${setter}: the date is immutable`),
     );
-    expect(date.toISOString()).toBe(ISO);
+    expect(date.toISOString()).toBe(SHIPPED_AT);
   });
 
-  it('is frozen, so no properties can be added', () => {
-    const date = new ImmutableDate(new Date(ISO));
-    expect(Object.isFrozen(date)).toBe(true);
+  it('is frozen, so no properties can be attached to it', () => {
+    expect(Object.isFrozen(new ImmutableDate(new Date(SHIPPED_AT)))).toBe(true);
   });
 
-  it('can be copied into a regular, mutable Date', () => {
-    const copy = new Date(new ImmutableDate(new Date(ISO)));
-    copy.setUTCFullYear(2020);
-    expect(copy.getUTCFullYear()).toBe(2020);
+  it('a report that needs to shift the date copies it into a regular Date', () => {
+    const copy = new Date(new ImmutableDate(new Date(SHIPPED_AT)));
+    copy.setUTCDate(copy.getUTCDate() + 7);
+    expect(copy.toISOString()).toBe('2018-03-30T16:02:15.000Z');
   });
 });

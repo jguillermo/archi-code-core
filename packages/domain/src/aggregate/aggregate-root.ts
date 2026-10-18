@@ -1,14 +1,30 @@
-import { EventBase } from '../event/event-base';
+import { Entity } from '../entity/entity';
+import type { EventBase } from '../event/event-base';
+import type { AbstractType } from '../type/abstract-type';
+import type { IdType } from '../type/id-type';
+import { TypePrimitiveException } from '../exceptions/domain/type-primitive.exception';
 
-export abstract class AggregateRoot {
-  private domainEvents: EventBase[] = [];
+export abstract class AggregateRoot<
+  Id extends AbstractType<any> = IdType,
+  Event extends EventBase = EventBase,
+> extends Entity<Id> {
+  readonly version: number;
+  private domainEvents: Event[] = [];
 
-  protected record<T extends EventBase>(event: T): void {
+  constructor(id: Id, version = 0) {
+    super(id);
+    if (!Number.isSafeInteger(version) || version < 0) {
+      throw new TypePrimitiveException('version (a non-negative integer)', version);
+    }
+    this.version = version;
+  }
+
+  protected record(event: Event): void {
     this.domainEvents.push(event);
   }
 
-  public pullDomainEvents(): EventBase[] {
-    const events: EventBase[] = [...this.domainEvents];
+  pullDomainEvents(): Event[] {
+    const events = [...this.domainEvents];
     this.domainEvents = [];
     return events;
   }

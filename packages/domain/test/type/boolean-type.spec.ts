@@ -5,206 +5,254 @@ import { BooleanType } from '../../src/type/boolean-type';
 import { AbstractType, Required } from '../../src/type/abstract-type';
 import { TypePrimitiveException } from '../../src/exceptions/domain/type-primitive.exception';
 import { RequiredValueException } from '../../src/exceptions/domain/required-value.exception';
+import { ValidationException } from '../../src/exceptions/domain/validation.exception';
 
-class RequiredBoolean extends Required(BooleanType) {}
+class AcceptsMarketing extends BooleanType {}
+class IsGift extends BooleanType {}
+class EmailVerified extends Required(BooleanType) {}
 
-const convertibleInputs: [unknown, boolean][] = [
-  [true, true],
-  [false, false],
-  [1, true],
-  [0, false],
-  ['true', true],
-  ['false', false],
-  ['TRUE', true],
-  [' False ', false],
-  ['1', true],
-  ['0', false],
+@Validations([{ custom: 'isAccepted', fn: (value) => value === true, message: 'Must be accepted' }])
+class AcceptsTerms extends Required(BooleanType) {}
+
+const formInputs: [string, unknown, boolean][] = [
+  ['a checked checkbox from a JSON body', true, true],
+  ['an unchecked checkbox from a JSON body', false, false],
+  ['a 1 stored by a legacy database', 1, true],
+  ['a 0 stored by a legacy database', 0, false],
+  ['"true" from a query string', 'true', true],
+  ['"false" from a query string', 'false', false],
+  ['"TRUE" from a CSV import', 'TRUE', true],
+  ['" False " with spaces from a CSV import', ' False ', false],
+  ['"1" from a form post', '1', true],
+  ['"0" from a form post', '0', false],
 ];
 
-const emptyInputs: [string, unknown][] = [
-  ['null', null],
-  ['undefined', undefined],
-  ['an empty string', ''],
-  ['only spaces', '   '],
+const blankFormFields: [string, unknown][] = [
+  ['a field sent as null', null],
+  ['a field left out of the request', undefined],
+  ['an empty form value', ''],
+  ['a form value with only spaces', '   '],
 ];
 
-const notConvertibleInputs: [unknown, string][] = [
-  ['yes', '"yes"'],
-  ['no', '"no"'],
-  ['abc', '"abc"'],
-  [2, '2'],
-  [-1, '-1'],
-  [NaN, 'NaN'],
-  [{ a: 1 }, '{"a":1}'],
-  [[], '[]'],
+const brokenClientInputs: [string, unknown, string][] = [
+  ['"yes"', 'yes', '"yes"'],
+  ['"no"', 'no', '"no"'],
+  ['a word', 'abc', '"abc"'],
+  ['the number 2', 2, '2'],
+  ['the number -1', -1, '-1'],
+  ['NaN', NaN, 'NaN'],
+  ['an object', { a: 1 }, '{"a":1}'],
+  ['an empty list', [], '[]'],
 ];
 
 function primitiveError(received: string): string {
   return `Validation Error: Expected a valid Boolean, but received ${received}.`;
 }
 
-function requiredError(received: string): string {
-  return `Validation Error: RequiredBoolean is required, but received ${received}.`;
+function requiredError(typeName: string, received: string): string {
+  return `Validation Error: ${typeName} is required, but received ${received}.`;
 }
 
-function acceptedFlags() {
+function thrownBy(run: () => unknown): unknown {
+  try {
+    run();
+  } catch (error) {
+    return error;
+  }
+  return undefined;
+}
+
+function consents() {
   const isTrue = vi.fn((value: unknown) => value === true);
 
   @Validations([{ custom: 'isTrue', fn: isTrue }])
-  class OptionalAccepted extends BooleanType {}
+  class AcceptsCookies extends BooleanType {}
 
   @Validations([{ custom: 'isTrue', fn: isTrue }])
-  class RequiredAccepted extends Required(BooleanType) {}
+  class AcceptsPrivacyPolicy extends Required(BooleanType) {}
 
-  return { OptionalAccepted, RequiredAccepted, isTrue };
+  return { AcceptsCookies, AcceptsPrivacyPolicy, isTrue };
 }
 
 const isTrueError = { custom: 'isTrue', message: 'Value does not satisfy isTrue' };
 
-describe('BooleanType (optional)', () => {
-  describe('typing', () => {
-    it('is an AbstractType of boolean that takes a boolean, null or nothing and holds boolean | null', () => {
-      expectTypeOf<BooleanType>().toMatchTypeOf<AbstractType<boolean>>();
-      expectTypeOf<ConstructorParameters<typeof BooleanType>>().toEqualTypeOf<
+describe('BooleanType', () => {
+  describe('an optional marketing consent', () => {
+    it('is typed as boolean | null, built from a boolean, null or nothing', () => {
+      expectTypeOf<AcceptsMarketing>().toMatchTypeOf<AbstractType<boolean>>();
+      expectTypeOf<ConstructorParameters<typeof AcceptsMarketing>>().toEqualTypeOf<
         [value?: boolean | null]
       >();
-      expectTypeOf<BooleanType['value']>().toEqualTypeOf<boolean | null>();
-      expectTypeOf<BooleanType['validate']>().toEqualTypeOf<
+      expectTypeOf<AcceptsMarketing['value']>().toEqualTypeOf<boolean | null>();
+      expectTypeOf<AcceptsMarketing['validate']>().toEqualTypeOf<
         () => ValidationResult<boolean | null>
       >();
     });
 
-    it('its value cannot be used as a plain boolean', () => {
+    it('cannot be used as a plain boolean without checking for null', () => {
       // @ts-expect-error an optional value may be null
-      const flag: boolean = new BooleanType(true).value;
+      const flag: boolean = new AcceptsMarketing(true).value;
       expect(flag).toBe(true);
     });
-  });
 
-  describe('conversion', () => {
-    it.each(convertibleInputs)('%o → %o', (input, expected) => {
-      expect(new BooleanType(input as boolean).value).toBe(expected);
-    });
-
-    it.each(emptyInputs)('%s → null', (_, input) => {
-      expect(new BooleanType(input as boolean).value).toBeNull();
-    });
-
-    it('no value → null', () => {
-      expect(new BooleanType().value).toBeNull();
-    });
-
-    it.each(notConvertibleInputs)('%o throws TypePrimitiveException', (input, received) => {
-      const create = () => new BooleanType(input as boolean);
-      expect(create).toThrow(TypePrimitiveException);
-      expect(create).toThrow(primitiveError(received));
-    });
-  });
-
-  describe('validate', () => {
-    it.each(convertibleInputs)('%o is valid as %o', (input, expected) => {
-      expect(new BooleanType(input as boolean).validate()).toEqual({
+    it.each(formInputs)('turns %s into a boolean', (_, input, expected) => {
+      expect(new AcceptsMarketing(input as boolean).value).toBe(expected);
+      expect(new AcceptsMarketing(input as boolean).validate()).toEqual({
         ok: true,
         value: expected,
         errors: [],
       });
     });
 
-    it.each(emptyInputs)('%s is valid as null', (_, input) => {
-      expect(new BooleanType(input as boolean).validate()).toEqual({
+    it.each(blankFormFields)('stores %s as null, meaning "not answered yet"', (_, input) => {
+      expect(new AcceptsMarketing(input as boolean).value).toBeNull();
+      expect(new AcceptsMarketing(input as boolean).validate()).toEqual({
         ok: true,
         value: null,
         errors: [],
       });
     });
 
-    it('runs its validations on a value', () => {
-      const { OptionalAccepted } = acceptedFlags();
-      expect(new OptionalAccepted(true).validate()).toEqual({ ok: true, value: true, errors: [] });
-      expect(new OptionalAccepted(false).validate().errors).toEqual([isTrueError]);
+    it('is null when the question was never asked', () => {
+      expect(new AcceptsMarketing().value).toBeNull();
     });
 
-    it.each(emptyInputs)('%s is valid without running its validations', (_, input) => {
-      const { OptionalAccepted, isTrue } = acceptedFlags();
-      expect(new OptionalAccepted(input as boolean).validate()).toEqual({
-        ok: true,
-        value: null,
-        errors: [],
-      });
-      expect(isTrue).not.toHaveBeenCalled();
-    });
+    it.each(brokenClientInputs)(
+      'rejects %s sent by a broken client with TypePrimitiveException',
+      (_, input, received) => {
+        const create = () => new AcceptsMarketing(input as boolean);
+        expect(create).toThrow(TypePrimitiveException);
+        expect(create).toThrow(primitiveError(received));
+      },
+    );
   });
 
-  describe('isNull / toString', () => {
-    it.each([
-      ['true', new BooleanType(true), false, 'true'],
-      ['false', new BooleanType(false), false, 'false'],
-      ['an empty value', new BooleanType(null), true, ''],
-    ])('%s → isNull %s, toString %o', (_, instance, isNull, text) => {
-      expect(instance.isNull).toBe(isNull);
-      expect(instance.toString).toBe(text);
-    });
-  });
-});
-
-describe('Required(BooleanType)', () => {
-  describe('typing', () => {
-    it('takes only a boolean and holds a boolean', () => {
-      expectTypeOf<ConstructorParameters<typeof RequiredBoolean>>().toEqualTypeOf<
-        [value: boolean]
-      >();
-      expectTypeOf<RequiredBoolean['value']>().toEqualTypeOf<boolean>();
-      expectTypeOf<RequiredBoolean['validate']>().toEqualTypeOf<() => ValidationResult<boolean>>();
+  describe('a required email verified flag', () => {
+    it('is typed as boolean and built only from a boolean', () => {
+      expectTypeOf<ConstructorParameters<typeof EmailVerified>>().toEqualTypeOf<[value: boolean]>();
+      expectTypeOf<EmailVerified['value']>().toEqualTypeOf<boolean>();
+      expectTypeOf<EmailVerified['validate']>().toEqualTypeOf<() => ValidationResult<boolean>>();
     });
 
-    it('does not accept a missing value or a value of another type', () => {
+    it('does not compile without a flag, but still throws if one sneaks in at runtime', () => {
       // @ts-expect-error a required boolean needs a value
-      expect(() => new RequiredBoolean()).toThrow(RequiredValueException);
+      expect(() => new EmailVerified()).toThrow(RequiredValueException);
       // @ts-expect-error a required boolean does not accept null
-      expect(() => new RequiredBoolean(null)).toThrow(RequiredValueException);
+      expect(() => new EmailVerified(null)).toThrow(RequiredValueException);
       // @ts-expect-error a required boolean does not accept undefined
-      expect(() => new RequiredBoolean(undefined)).toThrow(RequiredValueException);
+      expect(() => new EmailVerified(undefined)).toThrow(RequiredValueException);
       // @ts-expect-error a required boolean does not accept a string
-      expect(new RequiredBoolean('true').value).toBe(true);
-    });
-  });
-
-  describe('construction', () => {
-    it.each(convertibleInputs)('%o → %o', (input, expected) => {
-      expect(new RequiredBoolean(input as boolean).value).toBe(expected);
+      expect(new EmailVerified('true').value).toBe(true);
     });
 
-    it.each(emptyInputs)('%s throws RequiredValueException', (_, input) => {
-      const received = typeof input === 'string' ? `"${input}"` : 'null';
-      const create = () => new RequiredBoolean(input as boolean);
-      expect(create).toThrow(RequiredValueException);
-      expect(create).toThrow(requiredError(received));
-    });
-
-    it('throws TypePrimitiveException for a value that cannot be converted', () => {
-      expect(() => new RequiredBoolean('yes' as unknown as boolean)).toThrow(
-        primitiveError('"yes"'),
-      );
-    });
-  });
-
-  describe('validate', () => {
-    it.each(convertibleInputs)('%o is valid as %o, false included', (input, expected) => {
-      expect(new RequiredBoolean(input as boolean).validate()).toEqual({
+    it.each(formInputs)('turns %s into a flag, false included', (_, input, expected) => {
+      expect(new EmailVerified(input as boolean).value).toBe(expected);
+      expect(new EmailVerified(input as boolean).validate()).toEqual({
         ok: true,
         value: expected,
         errors: [],
       });
     });
 
-    it('runs its validations on a value', () => {
-      const { RequiredAccepted } = acceptedFlags();
-      expect(new RequiredAccepted(true).validate()).toEqual({ ok: true, value: true, errors: [] });
-      expect(new RequiredAccepted(false).validate().errors).toEqual([isTrueError]);
+    it.each(blankFormFields)(
+      'rejects %s with a RequiredValueException naming the type',
+      (_, input) => {
+        const received = typeof input === 'string' ? `"${input}"` : 'null';
+        const create = () => new EmailVerified(input as boolean);
+        expect(create).toThrow(RequiredValueException);
+        expect(create).toThrow(requiredError('EmailVerified', received));
+      },
+    );
+
+    it('rejects "yes" with TypePrimitiveException', () => {
+      expect(() => new EmailVerified('yes' as unknown as boolean)).toThrow(primitiveError('"yes"'));
     });
 
-    it('does not make BooleanType required', () => {
+    it('does not make the plain BooleanType required', () => {
       expect(new BooleanType(null).validate()).toEqual({ ok: true, value: null, errors: [] });
+    });
+  });
+
+  describe('consents that must be given', () => {
+    it('an optional cookie consent must be true once answered', () => {
+      const { AcceptsCookies } = consents();
+      expect(new AcceptsCookies(true).validate()).toEqual({ ok: true, value: true, errors: [] });
+      expect(new AcceptsCookies(false).validate().errors).toEqual([isTrueError]);
+    });
+
+    it.each(blankFormFields)(
+      'an unanswered cookie consent (%s) is valid without running the rule',
+      (_, input) => {
+        const { AcceptsCookies, isTrue } = consents();
+        expect(new AcceptsCookies(input as boolean).validate()).toEqual({
+          ok: true,
+          value: null,
+          errors: [],
+        });
+        expect(isTrue).not.toHaveBeenCalled();
+      },
+    );
+
+    it('a required privacy policy consent of false is present but breaks the rule', () => {
+      const { AcceptsPrivacyPolicy } = consents();
+      expect(new AcceptsPrivacyPolicy(true).validate()).toEqual({
+        ok: true,
+        value: true,
+        errors: [],
+      });
+      expect(new AcceptsPrivacyPolicy(false).validate().errors).toEqual([isTrueError]);
+    });
+
+    it('signing up with the terms accepted passes assertValid', () => {
+      const terms = new AcceptsTerms(true);
+      expect(terms.assertValid()).toBe(terms);
+    });
+
+    it('signing up without accepting the terms throws ValidationException', () => {
+      const assertValid = () => new AcceptsTerms(false).assertValid();
+      expect(assertValid).toThrow(ValidationException);
+      expect(assertValid).toThrow('Validation failed, AcceptsTerms: Must be accepted');
+      expect(thrownBy(assertValid)).toMatchObject({ errors: ['AcceptsTerms: Must be accepted'] });
+    });
+  });
+
+  describe('comparing flags', () => {
+    it('two consents with the same answer are equal', () => {
+      expect(
+        new AcceptsMarketing(true).equals(new AcceptsMarketing('true' as unknown as boolean)),
+      ).toBe(true);
+    });
+
+    it('two consents with different answers are not equal', () => {
+      expect(new AcceptsMarketing(true).equals(new AcceptsMarketing(false))).toBe(false);
+    });
+
+    it('a marketing consent and a gift flag with the same answer are not equal', () => {
+      expect(new AcceptsMarketing(true).equals(new IsGift(true))).toBe(false);
+    });
+
+    it('two unanswered consents are equal', () => {
+      expect(new AcceptsMarketing().equals(new AcceptsMarketing(null))).toBe(true);
+    });
+  });
+
+  describe('showing and serializing a flag', () => {
+    it.each([
+      ['true', new AcceptsMarketing(true), 'true'],
+      ['false', new AcceptsMarketing(false), 'false'],
+      ['an unanswered consent', new AcceptsMarketing(null), ''],
+    ])('toString() of %s gives %o', (_, flag, text) => {
+      expect(flag.toString()).toBe(text);
+    });
+
+    it('can be used in a template literal for an audit log line', () => {
+      expect(`marketing=${new AcceptsMarketing(false)}`).toBe('marketing=false');
+    });
+
+    it('serializes to its plain value inside an API response', () => {
+      expect(JSON.stringify({ verified: new EmailVerified(false), gift: new IsGift() })).toBe(
+        '{"verified":false,"gift":null}',
+      );
     });
   });
 });

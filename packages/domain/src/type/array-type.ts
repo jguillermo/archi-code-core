@@ -2,6 +2,7 @@ import { toArray } from '@archi-code/validation';
 import type { ValidationError, ValidationResult } from '@archi-code/validation';
 import { AbstractType } from './abstract-type';
 import { Immutable } from './immutable/immutable';
+import { ValueEquality } from './equality/value-equality';
 import type { ValueOf } from './required/required-mark';
 import { TypePrimitiveException } from '../exceptions/domain/type-primitive.exception';
 
@@ -16,31 +17,27 @@ export abstract class ArrayType<Item extends AbstractType<any>> extends Abstract
     return (this._value ?? []).map((value) => this.createItem(value));
   }
 
-  get toString(): string {
-    return this.items.map((item) => item.toString).join(', ');
+  toString(): string {
+    return this.items.map((item) => item.toString()).join(', ');
   }
 
   hasItem(value: ItemValue<Item>): boolean {
     const itemValue = this.createItem(value).value;
-    return (this._value ?? []).some((current) => Object.is(current, itemValue));
+    return (this._value ?? []).some((current) => ValueEquality.equals(current, itemValue));
   }
 
-  addItem(value: ItemValue<Item>): void {
-    this._value = Immutable.freeze([...(this._value ?? []), this.createItem(value).value]);
+  withItem(value: ItemValue<Item>): this {
+    return this.copyWith([...(this._value ?? []), value]);
   }
 
-  setItem(value: ItemValue<Item>): void {
-    if (!this.hasItem(value)) {
-      this.addItem(value);
-    }
-  }
-
-  removeItem(value: ItemValue<Item>): void {
+  withoutItem(value: ItemValue<Item>): this {
     if (this._value === null) {
-      return;
+      return this;
     }
     const itemValue = this.createItem(value).value;
-    this._value = Immutable.freeze(this._value.filter((current) => !Object.is(current, itemValue)));
+    return this.copyWith(
+      this._value.filter((current) => !ValueEquality.equals(current, itemValue)),
+    );
   }
 
   protected filter(value: unknown): ItemValue<Item>[] {
@@ -69,5 +66,10 @@ export abstract class ArrayType<Item extends AbstractType<any>> extends Abstract
       value: own.value,
       errors: Object.freeze([...own.errors, ...itemErrors]),
     });
+  }
+
+  private copyWith(values: unknown[]): this {
+    const SameType = this.constructor as new (value: unknown) => this;
+    return new SameType(values);
   }
 }

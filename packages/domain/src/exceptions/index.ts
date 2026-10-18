@@ -1,4 +1,5 @@
 export * from './abstract.exception';
+export * from './exception-code';
 export * from './domain/aggregate-not-found.exception';
 export * from './application/application.exception';
 export * from './infrastructure/infrastructure.exception';

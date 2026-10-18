@@ -4,16 +4,18 @@ import { Immutable } from './immutable/immutable';
 import { Required } from './required/required';
 import { TypePrimitiveException } from '../exceptions/domain/type-primitive.exception';
 
+const TIME_WITHOUT_ZONE = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?$/;
+
 export class DateType extends AbstractType<Date> {
   protected filter(value: unknown): Date {
     const converted = toDate(value, { iso: true });
-    if (!converted.ok) {
+    if (!converted.ok || (typeof value === 'string' && TIME_WITHOUT_ZONE.test(value))) {
       throw new TypePrimitiveException('Date', value);
     }
     return Immutable.date(converted.value);
   }
 
-  get toString(): string {
+  toString(): string {
     return this._value === null ? '' : this._value.toISOString();
   }
 }
@@ -27,9 +29,5 @@ export class CreatedAt extends Required(DateType) {
 export class UpdatedAt extends Required(DateType) {
   static now(): UpdatedAt {
     return new UpdatedAt(new Date());
-  }
-
-  setNow(): void {
-    this._value = Immutable.date(new Date());
   }
 }

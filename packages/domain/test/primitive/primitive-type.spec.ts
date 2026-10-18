@@ -1,108 +1,143 @@
 import { describe, expectTypeOf, it } from 'vitest';
 import { PrimitiveType } from '../../src/primitive/primitive-type';
-import {
-  ArrayType,
-  BooleanType,
-  CreatedAt,
-  DateType,
-  EnumType,
-  IdType,
-  JsonType,
-  NumberType,
-  Required,
-  StringType,
-  UpdatedAt,
-  UuidType,
-} from '../../src/type';
+import { ArrayType } from '../../src/type/array-type';
+import { BooleanType } from '../../src/type/boolean-type';
+import { CreatedAt, DateType, UpdatedAt } from '../../src/type/date-type';
+import { EnumType } from '../../src/type/enum-type';
+import { IdType } from '../../src/type/id-type';
+import { JsonType } from '../../src/type/json-type';
+import { NumberType } from '../../src/type/number-type';
+import { Required } from '../../src/type/required/required';
+import { StringType } from '../../src/type/string-type';
+import { UuidType } from '../../src/type/uuid-type';
+import { Entity } from '../../src/entity/entity';
 
-class RequiredBoolean extends Required(BooleanType) {}
-class RequiredDate extends Required(DateType) {}
-class RequiredNumber extends Required(NumberType) {}
-class RequiredString extends Required(StringType) {}
-class RequiredUuid extends Required(UuidType) {}
+enum OrderStatus {
+  Pending = 'pending',
+  Paid = 'paid',
+}
+
+enum Priority {
+  Low = 1,
+  High = 2,
+}
+
+class CustomerName extends Required(StringType) {}
+class Nickname extends StringType {}
+class Quantity extends Required(NumberType) {}
+class Discount extends NumberType {}
+class Gift extends Required(BooleanType) {}
+class DeliveredAt extends DateType {}
+class PaidAt extends Required(DateType) {}
+class TrackingCode extends UuidType {}
+class OrderId extends IdType {}
+
+class Status extends EnumType<OrderStatus> {
+  protected getEnum(): typeof OrderStatus {
+    return OrderStatus;
+  }
+}
+class RequiredStatus extends Required(Status) {}
+
+class PriorityLevel extends EnumType<Priority> {
+  protected getEnum(): typeof Priority {
+    return Priority;
+  }
+}
+class RequiredPriority extends Required(PriorityLevel) {}
+
+interface ShippingAddress {
+  city: string;
+  zip: string;
+}
+class Address extends JsonType<ShippingAddress> {}
+class RequiredAddress extends Required(Address) {}
+
+class Tags extends ArrayType<CustomerName> {
+  protected createItem(value: unknown): CustomerName {
+    return new CustomerName(value as string);
+  }
+}
+class RequiredTags extends Required(Tags) {}
+
+class OrderLine extends Entity {
+  constructor(
+    id: IdType,
+    readonly quantity: Quantity,
+    readonly discount: Discount,
+  ) {
+    super(id);
+  }
+}
 
 describe('PrimitiveType', () => {
-  it('a scalar type is its value, T when required and T | null when optional', () => {
-    expectTypeOf<PrimitiveType<RequiredBoolean>>().toEqualTypeOf<boolean>();
+  it('a required value object is the plain value a repository stores', () => {
+    expectTypeOf<PrimitiveType<CustomerName>>().toEqualTypeOf<string>();
+    expectTypeOf<PrimitiveType<Quantity>>().toEqualTypeOf<number>();
+    expectTypeOf<PrimitiveType<Gift>>().toEqualTypeOf<boolean>();
+    expectTypeOf<PrimitiveType<PaidAt>>().toEqualTypeOf<Date>();
+    expectTypeOf<PrimitiveType<OrderId>>().toEqualTypeOf<string>();
+  });
+
+  it('an optional value object may be stored as null', () => {
+    expectTypeOf<PrimitiveType<Nickname>>().toEqualTypeOf<string | null>();
+    expectTypeOf<PrimitiveType<Discount>>().toEqualTypeOf<number | null>();
+    expectTypeOf<PrimitiveType<DeliveredAt>>().toEqualTypeOf<Date | null>();
+    expectTypeOf<PrimitiveType<TrackingCode>>().toEqualTypeOf<string | null>();
     expectTypeOf<PrimitiveType<BooleanType>>().toEqualTypeOf<boolean | null>();
-    expectTypeOf<PrimitiveType<RequiredDate>>().toEqualTypeOf<Date>();
-    expectTypeOf<PrimitiveType<DateType>>().toEqualTypeOf<Date | null>();
-    expectTypeOf<PrimitiveType<RequiredNumber>>().toEqualTypeOf<number>();
-    expectTypeOf<PrimitiveType<NumberType>>().toEqualTypeOf<number | null>();
-    expectTypeOf<PrimitiveType<RequiredString>>().toEqualTypeOf<string>();
-    expectTypeOf<PrimitiveType<StringType>>().toEqualTypeOf<string | null>();
-    expectTypeOf<PrimitiveType<RequiredUuid>>().toEqualTypeOf<string>();
-    expectTypeOf<PrimitiveType<UuidType>>().toEqualTypeOf<string | null>();
   });
 
-  it('an array of types is the array of their primitives', () => {
-    expectTypeOf<PrimitiveType<RequiredString[]>>().toEqualTypeOf<string[]>();
-    expectTypeOf<PrimitiveType<StringType[]>>().toEqualTypeOf<(string | null)[]>();
-  });
-
-  it('IdType, CreatedAt and UpdatedAt are required', () => {
-    expectTypeOf<PrimitiveType<IdType>>().toEqualTypeOf<string>();
-    expectTypeOf<PrimitiveType<IdType[]>>().toEqualTypeOf<string[]>();
+  it('the creation and update dates are always present', () => {
     expectTypeOf<PrimitiveType<CreatedAt>>().toEqualTypeOf<Date>();
     expectTypeOf<PrimitiveType<UpdatedAt>>().toEqualTypeOf<Date>();
   });
 
-  it('an enum type is widened to string or number', () => {
-    enum Status {
-      UP = 'up',
-      DOWN = 'down',
-    }
-    enum Level {
-      LOW = 1,
-      HIGH = 2,
-    }
-    class StatusType extends EnumType<Status> {
-      protected getEnum(): typeof Status {
-        return Status;
-      }
-    }
-    class LevelType extends EnumType<Level> {
-      protected getEnum(): typeof Level {
-        return Level;
-      }
-    }
-    class RequiredStatus extends Required(StatusType) {}
-    class RequiredLevel extends Required(LevelType) {}
-
+  it('an enum is stored as the plain text or number of its column', () => {
     expectTypeOf<PrimitiveType<RequiredStatus>>().toEqualTypeOf<string>();
-    expectTypeOf<PrimitiveType<StatusType>>().toEqualTypeOf<string | null>();
-    expectTypeOf<PrimitiveType<RequiredLevel>>().toEqualTypeOf<number>();
-    expectTypeOf<PrimitiveType<LevelType>>().toEqualTypeOf<number | null>();
+    expectTypeOf<PrimitiveType<Status>>().toEqualTypeOf<string | null>();
+    expectTypeOf<PrimitiveType<RequiredPriority>>().toEqualTypeOf<number>();
+    expectTypeOf<PrimitiveType<PriorityLevel>>().toEqualTypeOf<number | null>();
+  });
+
+  it('a JSON value object is stored as its document', () => {
+    expectTypeOf<PrimitiveType<RequiredAddress>>().toEqualTypeOf<ShippingAddress>();
+    expectTypeOf<PrimitiveType<Address>>().toEqualTypeOf<ShippingAddress | null>();
+  });
+
+  it('an array value object is stored as the list of its item values', () => {
+    expectTypeOf<PrimitiveType<RequiredTags>>().toEqualTypeOf<string[]>();
+    expectTypeOf<PrimitiveType<Tags>>().toEqualTypeOf<string[] | null>();
+  });
+
+  it('a plain list of value objects becomes a list of values, item by item', () => {
+    expectTypeOf<PrimitiveType<CustomerName[]>>().toEqualTypeOf<string[]>();
+    expectTypeOf<PrimitiveType<Nickname[]>>().toEqualTypeOf<(string | null)[]>();
     expectTypeOf<PrimitiveType<RequiredStatus[]>>().toEqualTypeOf<string[]>();
+    expectTypeOf<PrimitiveType<OrderId[][]>>().toEqualTypeOf<string[][]>();
   });
 
-  it('a json type is its object', () => {
-    interface Settings {
-      theme: string;
+  it('a child entity becomes the object of its primitives, also in a list', () => {
+    interface OrderLinePrimitives {
+      id: string;
+      quantity: number;
+      discount: number | null;
     }
-    class SettingsType extends JsonType<Settings> {}
-    class RequiredSettings extends Required(SettingsType) {}
 
-    expectTypeOf<PrimitiveType<RequiredSettings>>().toEqualTypeOf<Settings>();
-    expectTypeOf<PrimitiveType<SettingsType>>().toEqualTypeOf<Settings | null>();
-    expectTypeOf<PrimitiveType<RequiredSettings[]>>().toEqualTypeOf<Settings[]>();
+    expectTypeOf<PrimitiveType<OrderLine>>().toEqualTypeOf<OrderLinePrimitives>();
+    expectTypeOf<PrimitiveType<OrderLine[]>>().toEqualTypeOf<OrderLinePrimitives[]>();
   });
 
-  it('an array type is the array of its item values', () => {
-    class Ages extends ArrayType<RequiredNumber> {
-      protected createItem(value: unknown): RequiredNumber {
-        return new RequiredNumber(value as number);
-      }
-    }
-    class RequiredAges extends Required(Ages) {}
-    class Nicknames extends ArrayType<StringType> {
-      protected createItem(value: unknown): StringType {
-        return new StringType(value as string);
-      }
-    }
+  it('plain scalars such as the aggregate version pass through as they are', () => {
+    expectTypeOf<PrimitiveType<number>>().toEqualTypeOf<number>();
+    expectTypeOf<PrimitiveType<string>>().toEqualTypeOf<string>();
+    expectTypeOf<PrimitiveType<boolean>>().toEqualTypeOf<boolean>();
+    expectTypeOf<PrimitiveType<Date>>().toEqualTypeOf<Date>();
+    expectTypeOf<PrimitiveType<null>>().toEqualTypeOf<null>();
+  });
 
-    expectTypeOf<PrimitiveType<RequiredAges>>().toEqualTypeOf<number[]>();
-    expectTypeOf<PrimitiveType<Ages>>().toEqualTypeOf<number[] | null>();
-    expectTypeOf<PrimitiveType<Nicknames>>().toEqualTypeOf<(string | null)[] | null>();
+  it('anything else cannot be stored and becomes never', () => {
+    expectTypeOf<PrimitiveType<Map<string, number>>>().toEqualTypeOf<never>();
+    expectTypeOf<PrimitiveType<{ city: string }>>().toEqualTypeOf<never>();
+    expectTypeOf<PrimitiveType<() => void>>().toEqualTypeOf<never>();
   });
 });

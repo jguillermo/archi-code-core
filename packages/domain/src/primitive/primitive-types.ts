@@ -1,7 +1,7 @@
 import { PrimitiveType } from './primitive-type';
 
 export type Methods<T> = {
-  [P in keyof T]: T[P] extends Function ? P : never;
+  [P in keyof T]-?: T[P] extends Function ? P : never;
 }[keyof T];
 
 export type MethodsAndProperties<T> = { [key in keyof T]: T[key] };

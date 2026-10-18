@@ -1,36 +1,43 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { InfrastructureException } from '../../../src/exceptions/infrastructure/infrastructure.exception';
-import { ExceptionCode } from '../../../src/exceptions/exception-code';
-import { InternalErrorException } from '../../../src/exceptions/infrastructure/internal-error.exception';
+import { AbstractException } from '../../../src/exceptions/abstract.exception';
+import { ApplicationException } from '../../../src/exceptions/application/application.exception';
 
-describe('Exceptions', () => {
-  describe('InfrastructureException', () => {
-    describe('InfrastructureException', () => {
-      it('should create an instance with correct properties', () => {
-        const message = 'Infrastructure error';
-        const exception = new InfrastructureException(message);
+class MailServerUnavailableException extends InfrastructureException {
+  constructor(cause: unknown) {
+    super('The mail server did not answer', ['MAIL503'], { cause });
+  }
+}
 
-        expect(exception).toBeInstanceOf(InfrastructureException);
-        expect(exception.message).toBe(message);
-        expect(exception.code).toEqual(ExceptionCode.InfrastructureException);
-        expect(exception.description).toEqual('Infrastructure Exception (INF000)');
-        expect(exception.timestamp).toBeInstanceOf(Date);
-      });
-    });
+describe('InfrastructureException', () => {
+  it('reports an adapter failure with the code INF000', () => {
+    const exception = new InfrastructureException('The cache is not reachable');
 
-    describe('InternalErrorException', () => {
-      it('should create an instance with correct properties', () => {
-        const message = 'Internal error';
-        const exception = new InternalErrorException(message);
+    expect(exception).toBeInstanceOf(AbstractException);
+    expect(exception.name).toBe('InfrastructureException');
+    expect(exception.code).toBe('INF000');
+    expect(exception.description).toBe('Infrastructure Exception (INF000)');
+  });
 
-        expect(exception).toBeInstanceOf(InternalErrorException);
-        expect(exception.message).toBe(`Failed, internal error: ${message}`);
-        expect(exception.code).toEqual(ExceptionCode.InternalError);
-        expect(exception.description).toEqual(
-          'Infrastructure Exception (INF000), Internal Error (INF001)',
-        );
-        expect(exception.timestamp).toBeInstanceOf(Date);
-      });
-    });
+  it('lets an adapter throw its own exception keeping the client error as cause', () => {
+    const smtpError = Object.assign(new Error('connect ETIMEDOUT'), { code: 'ETIMEDOUT' });
+    const exception = new MailServerUnavailableException(smtpError);
+
+    expect(exception).toBeInstanceOf(InfrastructureException);
+    expect(exception.code).toBe('MAIL503');
+    expect(exception.cause).toBe(smtpError);
+    expect(exception.description).toBe(
+      'Infrastructure Exception (INF000), MailServerUnavailableException (MAIL503)',
+    );
+  });
+
+  it('is recognized when thrown by the other build, and is not an application exception', async () => {
+    vi.resetModules();
+    const otherCopy =
+      await import('../../../src/exceptions/infrastructure/infrastructure.exception');
+    const thrownByOtherCopy = new otherCopy.InfrastructureException('The cache is not reachable');
+
+    expect(thrownByOtherCopy instanceof InfrastructureException).toBe(true);
+    expect(thrownByOtherCopy instanceof ApplicationException).toBe(false);
   });
 });

@@ -3,10 +3,11 @@ import { Validations, runValidations } from '@archi-code/validation';
 import { Required } from '../../../src/type/required/required';
 import { RequiredMark } from '../../../src/type/required/required-mark';
 import { AbstractType } from '../../../src/type/abstract-type';
+import { RequiredValueException } from '../../../src/exceptions/domain/required-value.exception';
 
-class Amount extends AbstractType<number> {
-  static zero(): Amount {
-    return new Amount(0);
+class AmountInCents extends AbstractType<number> {
+  static zero(): AmountInCents {
+    return new AmountInCents(0);
   }
 
   protected filter(value: number): number {
@@ -14,74 +15,88 @@ class Amount extends AbstractType<number> {
   }
 }
 
-class RequiredAmount extends Required(Amount) {}
+class InvoiceTotal extends Required(AmountInCents) {}
+
+const isRequiredError = { validator: 'isRequired', message: 'Value does not satisfy isRequired' };
 
 describe('Required', () => {
-  describe('typing', () => {
-    it('asks for T in the constructor and holds T', () => {
-      expectTypeOf<ConstructorParameters<typeof RequiredAmount>>().toEqualTypeOf<[value: number]>();
-      expectTypeOf<RequiredAmount['value']>().toEqualTypeOf<number>();
+  describe('turning an optional amount into a required invoice total', () => {
+    it('asks for a number in the constructor and holds a number', () => {
+      expectTypeOf<ConstructorParameters<typeof InvoiceTotal>>().toEqualTypeOf<[value: number]>();
+      expectTypeOf<InvoiceTotal['value']>().toEqualTypeOf<number>();
     });
 
-    it('keeps the instance and static members of the wrapped type', () => {
-      expectTypeOf<RequiredAmount>().toMatchTypeOf<Amount>();
-      expectTypeOf(RequiredAmount.zero).toEqualTypeOf<() => Amount>();
+    it('keeps the members of the optional amount, its static factories included', () => {
+      expectTypeOf<InvoiceTotal>().toMatchTypeOf<AmountInCents>();
+      expectTypeOf(InvoiceTotal.zero).toEqualTypeOf<() => AmountInCents>();
+      expect(InvoiceTotal.zero().value).toBe(0);
     });
 
-    it('does not change the wrapped type', () => {
-      expectTypeOf<ConstructorParameters<typeof Amount>>().toEqualTypeOf<[value?: number | null]>();
-      expectTypeOf<Amount['value']>().toEqualTypeOf<number | null>();
+    it('leaves the optional amount optional', () => {
+      expectTypeOf<ConstructorParameters<typeof AmountInCents>>().toEqualTypeOf<
+        [value?: number | null]
+      >();
+      expectTypeOf<AmountInCents['value']>().toEqualTypeOf<number | null>();
+      expect(new AmountInCents().value).toBeNull();
+      expect(runValidations(AmountInCents, null).ok).toBe(true);
+    });
+
+    it('an invoice total is still an amount for code that expects one', () => {
+      const total = new InvoiceTotal(1500);
+      expect(total).toBeInstanceOf(InvoiceTotal);
+      expect(total).toBeInstanceOf(AmountInCents);
+    });
+
+    it('throws RequiredValueException naming the invoice total when the amount is missing', () => {
+      expect(() => new InvoiceTotal(null as unknown as number)).toThrow(RequiredValueException);
+      expect(() => new InvoiceTotal(null as unknown as number)).toThrow(
+        'Validation Error: InvoiceTotal is required, but received null.',
+      );
     });
   });
 
-  describe('runtime', () => {
-    it('returns a subclass of the wrapped type', () => {
-      const amount = new RequiredAmount(1);
-      expect(amount).toBeInstanceOf(RequiredAmount);
-      expect(amount).toBeInstanceOf(Amount);
-      expect(RequiredAmount.zero().value).toBe(0);
+  describe('a more specific total built on a required one', () => {
+    it('is required too, both in its type and when built', () => {
+      class TaxedInvoiceTotal extends InvoiceTotal {}
+
+      expectTypeOf<ConstructorParameters<typeof TaxedInvoiceTotal>>().toEqualTypeOf<
+        [value: number]
+      >();
+      expect(RequiredMark.isMarked(new TaxedInvoiceTotal(1))).toBe(true);
+      expect(() => new TaxedInvoiceTotal(null as unknown as number)).toThrow(
+        'Validation Error: TaxedInvoiceTotal is required, but received null.',
+      );
+    });
+  });
+
+  describe('the isRequired validation', () => {
+    it('is declared on the required class, not on the optional one', () => {
+      expect(runValidations(InvoiceTotal, null).errors).toEqual([isRequiredError]);
+      expect(runValidations(AmountInCents, null).ok).toBe(true);
+      expect(RequiredMark.isMarked(new InvoiceTotal(1))).toBe(true);
+      expect(RequiredMark.isMarked(new AmountInCents(1))).toBe(false);
     });
 
-    it('marks the subclass as required, and its own subclasses too', () => {
-      class Child extends RequiredAmount {}
-
-      expect(RequiredMark.isMarked(new RequiredAmount(1))).toBe(true);
-      expect(RequiredMark.isMarked(new Child(1))).toBe(true);
-    });
-
-    it('declares the isRequired validation on the subclass, not on the wrapped type', () => {
-      const requiredError = {
-        validator: 'isRequired',
-        message: 'Value does not satisfy isRequired',
-      };
-      expect(runValidations(RequiredAmount, null).errors).toEqual([requiredError]);
-      expect(runValidations(Amount, null).ok).toBe(true);
-    });
-
-    it('fails only isRequired for null, without running the validations of the wrapped type', () => {
+    it('reports only isRequired for a missing value, and the amount rules for a present one', () => {
       @Validations([{ custom: 'positive', fn: (value) => typeof value === 'number' && value > 0 }])
-      class Positive extends Amount {}
-      class RequiredPositive extends Required(Positive) {}
+      class PositiveAmount extends AmountInCents {}
+      class PaymentAmount extends Required(PositiveAmount) {}
 
-      expect(runValidations(RequiredPositive, null).errors).toEqual([
-        { validator: 'isRequired', message: 'Value does not satisfy isRequired' },
-      ]);
-      expect(runValidations(RequiredPositive, -1).errors).toEqual([
+      expect(runValidations(PaymentAmount, null).errors).toEqual([isRequiredError]);
+      expect(runValidations(PaymentAmount, -1).errors).toEqual([
         { custom: 'positive', message: 'Value does not satisfy positive' },
       ]);
     });
+  });
 
-    it('does not mark the wrapped type', () => {
-      expect(RequiredMark.isMarked(new Amount(1))).toBe(false);
+  describe('each call', () => {
+    it('creates a new class, so two required totals do not share state', () => {
+      expect(Required(AmountInCents)).not.toBe(Required(AmountInCents));
     });
 
-    it('creates a new class on each call', () => {
-      expect(Required(Amount)).not.toBe(Required(Amount));
-    });
-
-    it('puts the mark on the prototype as a read-only, hidden property', () => {
+    it('hides the mark: it is read-only and never serialized', () => {
       const descriptor = Object.getOwnPropertyDescriptor(
-        Object.getPrototypeOf(RequiredAmount.prototype),
+        Object.getPrototypeOf(InvoiceTotal.prototype),
         RequiredMark.symbol,
       );
 
@@ -91,8 +106,8 @@ describe('Required', () => {
         enumerable: false,
         configurable: false,
       });
-      expect(Object.keys(new RequiredAmount(1))).not.toContain(RequiredMark.symbol);
-      expect(JSON.stringify(new RequiredAmount(1))).not.toContain('required');
+      expect(Object.keys(new InvoiceTotal(1))).not.toContain(RequiredMark.symbol);
+      expect(JSON.stringify({ total: new InvoiceTotal(1500) })).toBe('{"total":1500}');
     });
   });
 });

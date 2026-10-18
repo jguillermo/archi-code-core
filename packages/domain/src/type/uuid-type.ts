@@ -19,6 +19,6 @@ export class UuidType extends AbstractType<string> {
     if (!converted.ok || !isUUID(converted.value)) {
       throw new TypePrimitiveException('UUID', value);
     }
-    return converted.value;
+    return converted.value.toLowerCase();
   }
 }

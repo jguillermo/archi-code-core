@@ -5,218 +5,309 @@ import { EnumType } from '../../src/type/enum-type';
 import { AbstractType, Required } from '../../src/type/abstract-type';
 import { TypePrimitiveException } from '../../src/exceptions/domain/type-primitive.exception';
 import { RequiredValueException } from '../../src/exceptions/domain/required-value.exception';
+import { ValidationException } from '../../src/exceptions/domain/validation.exception';
 
-enum Status {
-  UP = 'up',
-  DOWN = 'down',
+enum OrderStatusOption {
+  PENDING = 'pending',
+  SHIPPED = 'shipped',
 }
 
-enum Level {
+enum PaymentStatusOption {
+  PENDING = 'pending',
+  PAID = 'paid',
+}
+
+enum PriorityOption {
   LOW = 1,
   HIGH = 2,
 }
 
-class StatusType extends EnumType<Status> {
-  protected getEnum(): typeof Status {
-    return Status;
+class OrderStatus extends Required(
+  class extends EnumType<OrderStatusOption> {
+    protected getEnum(): typeof OrderStatusOption {
+      return OrderStatusOption;
+    }
+  },
+) {}
+
+class ReturnStatus extends EnumType<OrderStatusOption> {
+  protected getEnum(): typeof OrderStatusOption {
+    return OrderStatusOption;
   }
 }
 
-class LevelType extends EnumType<Level> {
-  protected getEnum(): typeof Level {
-    return Level;
+class PaymentStatus extends EnumType<PaymentStatusOption> {
+  protected getEnum(): typeof PaymentStatusOption {
+    return PaymentStatusOption;
   }
 }
 
-class RequiredStatus extends Required(StatusType) {}
+class TicketPriority extends EnumType<PriorityOption> {
+  protected getEnum(): typeof PriorityOption {
+    return PriorityOption;
+  }
+}
 
-const emptyInputs: [string, unknown][] = [
-  ['null', null],
-  ['undefined', undefined],
-  ['an empty string', ''],
-  ['only spaces', '   '],
+const blankFormFields: [string, unknown][] = [
+  ['a field sent as null', null],
+  ['a field left out of the request', undefined],
+  ['an empty select', ''],
+  ['a select with only spaces', '   '],
 ];
 
-const notStatusInputs: [unknown, string][] = [
-  ['UP', '"UP"'],
-  ['Up', '"Up"'],
-  [' up ', '" up "'],
-  ['left', '"left"'],
-  [1, '1'],
-  [true, 'true'],
-  [{ a: 1 }, '{"a":1}'],
+const unknownStatuses: [string, unknown, string][] = [
+  ['the key in capitals', 'PENDING', '"PENDING"'],
+  ['a capitalized option', 'Pending', '"Pending"'],
+  ['an option with spaces', ' pending ', '" pending "'],
+  ['a status that does not exist', 'lost', '"lost"'],
+  ['a number', 1, '1'],
+  ['a boolean', true, 'true'],
+  ['an object', { a: 1 }, '{"a":1}'],
 ];
 
-const notLevelInputs: [unknown, string][] = [
-  ['1', '"1"'],
-  ['LOW', '"LOW"'],
-  [3, '3'],
-  [0, '0'],
+const unknownPriorities: [string, unknown, string][] = [
+  ['"1" from a query string', '1', '"1"'],
+  ['the key name', 'LOW', '"LOW"'],
+  ['a level that does not exist', 3, '3'],
+  ['zero', 0, '0'],
 ];
 
 function statusError(received: string): string {
-  return `Validation Error: Expected one of [up, down], but received ${received}.`;
+  return `Validation Error: Expected one of [pending, shipped], but received ${received}.`;
 }
 
-function levelError(received: string): string {
+function priorityError(received: string): string {
   return `Validation Error: Expected one of [1, 2], but received ${received}.`;
 }
 
-function requiredError(received: string): string {
-  return `Validation Error: RequiredStatus is required, but received ${received}.`;
+function thrownBy(run: () => unknown): unknown {
+  try {
+    run();
+  } catch (error) {
+    return error;
+  }
+  return undefined;
 }
 
-function upStatuses() {
-  const isUp = vi.fn((value: unknown) => value === Status.UP);
+function shippableStatuses() {
+  const isShipped = vi.fn((value: unknown) => value === OrderStatusOption.SHIPPED);
 
-  @Validations([{ custom: 'isUp', fn: isUp }])
-  class OptionalUp extends StatusType {}
+  @Validations([{ custom: 'isShipped', fn: isShipped }])
+  class DeliveredReturnStatus extends ReturnStatus {}
 
-  @Validations([{ custom: 'isUp', fn: isUp }])
-  class RequiredUp extends Required(StatusType) {}
+  @Validations([{ custom: 'isShipped', fn: isShipped }])
+  class InvoiceableStatus extends OrderStatus {}
 
-  return { OptionalUp, RequiredUp, isUp };
+  return { DeliveredReturnStatus, InvoiceableStatus, isShipped };
 }
 
-const isUpError = { custom: 'isUp', message: 'Value does not satisfy isUp' };
+const isShippedError = { custom: 'isShipped', message: 'Value does not satisfy isShipped' };
 
-describe('EnumType (optional)', () => {
-  describe('typing', () => {
-    it('is an AbstractType of its enum that takes an option, null or nothing and holds it or null', () => {
-      expectTypeOf<StatusType>().toMatchTypeOf<AbstractType<Status>>();
-      expectTypeOf<ConstructorParameters<typeof StatusType>>().toEqualTypeOf<
-        [value?: Status | null]
+describe('EnumType', () => {
+  describe('an optional return status (string enum)', () => {
+    it('is typed as its enum | null, built from an option, null or nothing', () => {
+      expectTypeOf<ReturnStatus>().toMatchTypeOf<AbstractType<OrderStatusOption>>();
+      expectTypeOf<ConstructorParameters<typeof ReturnStatus>>().toEqualTypeOf<
+        [value?: OrderStatusOption | null]
       >();
-      expectTypeOf<StatusType['value']>().toEqualTypeOf<Status | null>();
-      expectTypeOf<StatusType['validate']>().toEqualTypeOf<() => ValidationResult<Status | null>>();
-      expectTypeOf<LevelType['value']>().toEqualTypeOf<Level | null>();
+      expectTypeOf<ReturnStatus['value']>().toEqualTypeOf<OrderStatusOption | null>();
+      expectTypeOf<ReturnStatus['validate']>().toEqualTypeOf<
+        () => ValidationResult<OrderStatusOption | null>
+      >();
     });
 
-    it('its value cannot be used as a plain option', () => {
+    it('cannot be used as a plain option without checking for null', () => {
       // @ts-expect-error an optional value may be null
-      const status: Status = new StatusType(Status.UP).value;
-      expect(status).toBe(Status.UP);
-    });
-  });
-
-  describe('conversion', () => {
-    it.each([[Status.UP], [Status.DOWN]])('the string option %o is kept', (input) => {
-      expect(new StatusType(input).value).toBe(input);
+      const status: OrderStatusOption = new ReturnStatus(OrderStatusOption.PENDING).value;
+      expect(status).toBe(OrderStatusOption.PENDING);
     });
 
-    it.each([[Level.LOW], [Level.HIGH]])('the number option %o is kept', (input) => {
-      expect(new LevelType(input).value).toBe(input);
-    });
+    it.each([[OrderStatusOption.PENDING], [OrderStatusOption.SHIPPED]])(
+      'keeps the option %o read from the database',
+      (option) => {
+        expect(new ReturnStatus(option).value).toBe(option);
+        expect(new ReturnStatus(option).validate()).toEqual({
+          ok: true,
+          value: option,
+          errors: [],
+        });
+      },
+    );
 
-    it.each(emptyInputs)('%s → null', (_, input) => {
-      expect(new StatusType(input as Status).value).toBeNull();
-    });
-
-    it('no value → null', () => {
-      expect(new StatusType().value).toBeNull();
-    });
-
-    it.each(notStatusInputs)('%o is not a Status option', (input, received) => {
-      const create = () => new StatusType(input as Status);
-      expect(create).toThrow(TypePrimitiveException);
-      expect(create).toThrow(statusError(received));
-    });
-
-    it.each(notLevelInputs)('%o is not a Level option, its keys included', (input, received) => {
-      const create = () => new LevelType(input as Level);
-      expect(create).toThrow(TypePrimitiveException);
-      expect(create).toThrow(levelError(received));
-    });
-  });
-
-  describe('validate', () => {
-    it.each([[Status.UP], [Status.DOWN]])('%o is valid', (input) => {
-      expect(new StatusType(input).validate()).toEqual({ ok: true, value: input, errors: [] });
-    });
-
-    it.each(emptyInputs)('%s is valid as null', (_, input) => {
-      expect(new StatusType(input as Status).validate()).toEqual({
+    it.each(blankFormFields)('stores %s as null, meaning "no return"', (_, input) => {
+      expect(new ReturnStatus(input as OrderStatusOption).value).toBeNull();
+      expect(new ReturnStatus(input as OrderStatusOption).validate()).toEqual({
         ok: true,
         value: null,
         errors: [],
       });
     });
 
-    it('runs its validations on a value', () => {
-      const { OptionalUp } = upStatuses();
-      expect(new OptionalUp(Status.UP).validate().ok).toBe(true);
-      expect(new OptionalUp(Status.DOWN).validate().errors).toEqual([isUpError]);
+    it('is null when there is no return', () => {
+      expect(new ReturnStatus().value).toBeNull();
     });
 
-    it.each(emptyInputs)('%s is valid without running its validations', (_, input) => {
-      const { OptionalUp, isUp } = upStatuses();
-      expect(new OptionalUp(input as Status).validate()).toEqual({
-        ok: true,
-        value: null,
-        errors: [],
-      });
-      expect(isUp).not.toHaveBeenCalled();
-    });
+    it.each(unknownStatuses)(
+      'rejects %s with TypePrimitiveException listing the options',
+      (_, input, received) => {
+        const create = () => new ReturnStatus(input as OrderStatusOption);
+        expect(create).toThrow(TypePrimitiveException);
+        expect(create).toThrow(statusError(received));
+      },
+    );
   });
 
-  describe('isNull / toString', () => {
-    it.each([
-      ['a string option', new StatusType(Status.UP), false, 'up'],
-      ['a number option', new LevelType(Level.HIGH), false, '2'],
-      ['an empty value', new StatusType(null), true, ''],
-    ])('%s → isNull %s, toString %o', (_, instance, isNull, text) => {
-      expect(instance.isNull).toBe(isNull);
-      expect(instance.toString).toBe(text);
+  describe('a ticket priority (numeric enum)', () => {
+    it('is typed as its enum | null', () => {
+      expectTypeOf<TicketPriority['value']>().toEqualTypeOf<PriorityOption | null>();
     });
+
+    it.each([[PriorityOption.LOW], [PriorityOption.HIGH]])('keeps the level %o', (option) => {
+      expect(new TicketPriority(option).value).toBe(option);
+    });
+
+    it.each(unknownPriorities)(
+      'rejects %s, since only the numeric values are options',
+      (_, input, received) => {
+        const create = () => new TicketPriority(input as PriorityOption);
+        expect(create).toThrow(TypePrimitiveException);
+        expect(create).toThrow(priorityError(received));
+      },
+    );
   });
-});
 
-describe('Required(EnumType)', () => {
-  describe('typing', () => {
-    it('takes only an option and holds an option', () => {
-      expectTypeOf<ConstructorParameters<typeof RequiredStatus>>().toEqualTypeOf<[value: Status]>();
-      expectTypeOf<RequiredStatus['value']>().toEqualTypeOf<Status>();
-      expectTypeOf<RequiredStatus['validate']>().toEqualTypeOf<() => ValidationResult<Status>>();
+  describe('a required order status', () => {
+    it('is typed as its enum and built only from an option', () => {
+      expectTypeOf<ConstructorParameters<typeof OrderStatus>>().toEqualTypeOf<
+        [value: OrderStatusOption]
+      >();
+      expectTypeOf<OrderStatus['value']>().toEqualTypeOf<OrderStatusOption>();
+      expectTypeOf<OrderStatus['validate']>().toEqualTypeOf<
+        () => ValidationResult<OrderStatusOption>
+      >();
     });
 
-    it('does not accept a missing value or a value of another type', () => {
+    it('does not compile without a status, but still throws if one sneaks in at runtime', () => {
       // @ts-expect-error a required option needs a value
-      expect(() => new RequiredStatus()).toThrow(RequiredValueException);
+      expect(() => new OrderStatus()).toThrow(RequiredValueException);
       // @ts-expect-error a required option does not accept null
-      expect(() => new RequiredStatus(null)).toThrow(RequiredValueException);
+      expect(() => new OrderStatus(null)).toThrow(RequiredValueException);
       // @ts-expect-error a required option does not accept undefined
-      expect(() => new RequiredStatus(undefined)).toThrow(RequiredValueException);
+      expect(() => new OrderStatus(undefined)).toThrow(RequiredValueException);
       // @ts-expect-error a required option does not accept a plain string
-      expect(new RequiredStatus('up').value).toBe(Status.UP);
+      expect(new OrderStatus('pending').value).toBe(OrderStatusOption.PENDING);
+    });
+
+    it.each(blankFormFields)(
+      'rejects %s with a RequiredValueException naming the type',
+      (_, input) => {
+        const received = typeof input === 'string' ? `"${input}"` : 'null';
+        const create = () => new OrderStatus(input as OrderStatusOption);
+        expect(create).toThrow(RequiredValueException);
+        expect(create).toThrow(
+          `Validation Error: OrderStatus is required, but received ${received}.`,
+        );
+      },
+    );
+
+    it('rejects a status that does not exist with TypePrimitiveException', () => {
+      expect(() => new OrderStatus('lost' as OrderStatusOption)).toThrow(statusError('"lost"'));
     });
   });
 
-  describe('construction', () => {
-    it.each([[Status.UP], [Status.DOWN]])('%o is kept', (input) => {
-      expect(new RequiredStatus(input).value).toBe(input);
+  describe('statuses that must be shipped', () => {
+    it('an optional return status must be shipped once set', () => {
+      const { DeliveredReturnStatus } = shippableStatuses();
+      expect(new DeliveredReturnStatus(OrderStatusOption.SHIPPED).validate().ok).toBe(true);
+      expect(new DeliveredReturnStatus(OrderStatusOption.PENDING).validate().errors).toEqual([
+        isShippedError,
+      ]);
     });
 
-    it.each(emptyInputs)('%s throws RequiredValueException', (_, input) => {
-      const received = typeof input === 'string' ? `"${input}"` : 'null';
-      const create = () => new RequiredStatus(input as Status);
-      expect(create).toThrow(RequiredValueException);
-      expect(create).toThrow(requiredError(received));
+    it.each(blankFormFields)(
+      'an unset return status (%s) is valid without running the rule',
+      (_, input) => {
+        const { DeliveredReturnStatus, isShipped } = shippableStatuses();
+        expect(new DeliveredReturnStatus(input as OrderStatusOption).validate()).toEqual({
+          ok: true,
+          value: null,
+          errors: [],
+        });
+        expect(isShipped).not.toHaveBeenCalled();
+      },
+    );
+
+    it('invoicing a pending order throws ValidationException', () => {
+      const { InvoiceableStatus } = shippableStatuses();
+      const shipped = new InvoiceableStatus(OrderStatusOption.SHIPPED);
+      expect(shipped.assertValid()).toBe(shipped);
+
+      const assertValid = () => new InvoiceableStatus(OrderStatusOption.PENDING).assertValid();
+      expect(assertValid).toThrow(ValidationException);
+      expect(thrownBy(assertValid)).toMatchObject({
+        message: 'Validation failed, InvoiceableStatus: Value does not satisfy isShipped',
+        errors: ['InvoiceableStatus: Value does not satisfy isShipped'],
+      });
     });
 
-    it('throws TypePrimitiveException for a value that is not an option', () => {
-      expect(() => new RequiredStatus('left' as Status)).toThrow(statusError('"left"'));
+    it('does not make the plain enum type required', () => {
+      expect(new ReturnStatus(null).validate()).toEqual({ ok: true, value: null, errors: [] });
     });
   });
 
-  describe('validate', () => {
-    it('runs its validations on a value', () => {
-      const { RequiredUp } = upStatuses();
-      expect(new RequiredUp(Status.UP).validate().ok).toBe(true);
-      expect(new RequiredUp(Status.DOWN).validate().errors).toEqual([isUpError]);
+  describe('comparing statuses', () => {
+    it('two order statuses with the same option are equal', () => {
+      expect(
+        new OrderStatus(OrderStatusOption.SHIPPED).equals(
+          new OrderStatus(OrderStatusOption.SHIPPED),
+        ),
+      ).toBe(true);
     });
 
-    it('does not make the enum type required', () => {
-      expect(new StatusType(null).validate()).toEqual({ ok: true, value: null, errors: [] });
+    it('two order statuses with different options are not equal', () => {
+      expect(
+        new OrderStatus(OrderStatusOption.SHIPPED).equals(
+          new OrderStatus(OrderStatusOption.PENDING),
+        ),
+      ).toBe(false);
+    });
+
+    it('a return status and a payment status both "pending" are not equal', () => {
+      expect(
+        new ReturnStatus(OrderStatusOption.PENDING).equals(
+          new PaymentStatus(PaymentStatusOption.PENDING),
+        ),
+      ).toBe(false);
+    });
+
+    it('two unset return statuses are equal', () => {
+      expect(new ReturnStatus().equals(new ReturnStatus(null))).toBe(true);
+    });
+  });
+
+  describe('showing and serializing a status', () => {
+    it.each([
+      ['a string option', new ReturnStatus(OrderStatusOption.SHIPPED), 'shipped'],
+      ['a number option', new TicketPriority(PriorityOption.HIGH), '2'],
+      ['an unset status', new ReturnStatus(null), ''],
+    ])('toString() of %s gives %o', (_, status, text) => {
+      expect(status.toString()).toBe(text);
+    });
+
+    it('can be used in a template literal for a notification', () => {
+      expect(`Your order is ${new OrderStatus(OrderStatusOption.SHIPPED)}`).toBe(
+        'Your order is shipped',
+      );
+    });
+
+    it('serializes to its plain value inside an API response', () => {
+      expect(
+        JSON.stringify({
+          status: new OrderStatus(OrderStatusOption.PENDING),
+          priority: new TicketPriority(PriorityOption.LOW),
+          returnStatus: new ReturnStatus(),
+        }),
+      ).toBe('{"status":"pending","priority":1,"returnStatus":null}');
     });
   });
 });

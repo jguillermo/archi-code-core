@@ -1,11 +1,33 @@
 import { ExceptionCode } from './exception-code';
+import { ExceptionBrand } from './brand/exception-brand';
+import { Immutable } from '../type/immutable/immutable';
+
+export interface ExceptionOptions {
+  cause?: unknown;
+}
 
 export abstract class AbstractException extends Error {
+  declare readonly cause?: unknown;
   private readonly exceptionCodes: (ExceptionCode | string)[];
   public readonly code: ExceptionCode | string;
   public readonly timestamp: Date;
 
-  constructor(message: string, exceptionCodes: (ExceptionCode | string)[]) {
+  static {
+    ExceptionBrand.brandClass(this, ExceptionBrand.anyCode);
+  }
+
+  static [Symbol.hasInstance](candidate: unknown): boolean {
+    return (
+      Function.prototype[Symbol.hasInstance].call(this, candidate) ||
+      ExceptionBrand.matches(this, candidate)
+    );
+  }
+
+  constructor(
+    message: string,
+    exceptionCodes: (ExceptionCode | string)[],
+    options: ExceptionOptions = {},
+  ) {
     super(message);
     this.name = this.constructor.name;
     this.exceptionCodes = exceptionCodes;
@@ -13,7 +35,15 @@ export abstract class AbstractException extends Error {
       exceptionCodes.length > 0
         ? exceptionCodes[exceptionCodes.length - 1]
         : ExceptionCode.ErrorException;
-    this.timestamp = new Date();
+    this.timestamp = Immutable.date(new Date());
+    if ('cause' in options) {
+      Object.defineProperty(this, 'cause', {
+        value: options.cause,
+        writable: true,
+        configurable: true,
+      });
+    }
+    ExceptionBrand.brandInstance(this, exceptionCodes);
     Error.captureStackTrace?.(this, this.constructor);
   }
 
@@ -31,14 +61,15 @@ export abstract class AbstractException extends Error {
   public get description(): string {
     return this.exceptionCodes
       .map((code) => {
-        const codeString = AbstractException.ExceptionCodeStrings[code] ?? this.name;
+        const codeString =
+          AbstractException.ExceptionCodeStrings[code as ExceptionCode] ?? this.name;
         return `${codeString} (${code})`;
       })
       .join(', ');
   }
 
   print(): string {
-    return `[${this.description}]: ${this.message}, ${this.timestamp}`;
+    return `[${this.description}]: ${this.message}, ${this.timestamp.toISOString()}`;
   }
 
   toJSON(): {

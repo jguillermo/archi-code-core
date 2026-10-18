@@ -3,592 +3,392 @@ import { Validations } from '@archi-code/validation';
 import type { Validatable, ValidationResult } from '@archi-code/validation';
 import { AbstractType, Required } from '../../src/type/abstract-type';
 import { RequiredValueException } from '../../src/exceptions/domain/required-value.exception';
+import { TypePrimitiveException } from '../../src/exceptions/domain/type-primitive.exception';
+import { ValidationException } from '../../src/exceptions/domain/validation.exception';
 
-class NullableString extends AbstractType<string> {
-  protected filter(value: string): string {
-    return value;
+class CountryCode extends AbstractType<string> {
+  static spain(): CountryCode {
+    return new CountryCode('ES');
+  }
+
+  protected filter(value: unknown): string {
+    if (typeof value !== 'string' || !/^[a-z]{2}$/i.test(value.trim())) {
+      throw new TypePrimitiveException('CountryCode', value);
+    }
+    return value.trim().toUpperCase();
   }
 }
 
-class PlainNumber extends AbstractType<number> {
-  static zero(): PlainNumber {
-    return new PlainNumber(0);
-  }
+class BillingCountry extends Required(CountryCode) {}
 
-  protected filter(value: number): number {
-    return value;
-  }
-}
+class ShippingCountry extends CountryCode {}
 
-class RequiredNumber extends Required(PlainNumber) {}
-
-class TrimmedString extends AbstractType<string> {
-  protected filter(value: string): string {
-    return value.trim();
+class Discount extends AbstractType<number> {
+  protected filter(value: unknown): number | null {
+    return value === 'none' ? null : Number(value);
   }
 }
 
-class NoneAsNull extends AbstractType<string> {
-  protected filter(value: string): string | null {
-    return value === 'none' ? null : value;
+class RequiredDiscount extends Required(Discount) {}
+
+class GeoPoint extends AbstractType<{ lat: number; lng: number }> {
+  protected filter(value: unknown): { lat: number; lng: number } {
+    return Object.freeze({ ...(value as { lat: number; lng: number }) });
   }
 }
 
-function typeWithSpiedFilter() {
-  const filterSpy = vi.fn((value: unknown) => value);
-  class SpiedType extends AbstractType<string> {
+@Validations([{ validator: 'isEmail' }])
+class Email extends AbstractType<string> {
+  protected filter(value: unknown): string {
+    return String(value).trim().toLowerCase();
+  }
+}
+
+class CustomerEmail extends Required(Email) {}
+
+class Deadline extends AbstractType<Date> {
+  protected filter(value: unknown): Date {
+    return new Date(value as string);
+  }
+}
+
+function spiedCountryCode() {
+  const filterSpy = vi.fn((value: unknown) => String(value));
+  class SpiedCountry extends AbstractType<string> {
     protected filter(value: unknown): string {
-      return filterSpy(value) as string;
+      return filterSpy(value);
     }
   }
-  return { SpiedType, filterSpy };
+  return { SpiedCountry, filterSpy };
 }
 
 const valid = <T>(value: T) => ({ ok: true, value, errors: [] });
 
-function requiredError(typeName: string, received: string): string {
-  return `Validation Error: ${typeName} is required, but received ${received}.`;
-}
-
-describe('AbstractType', () => {
+describe('AbstractType: writing a custom value object', () => {
   describe('typing', () => {
-    it('an optional type takes T, null or nothing and its value is T | null', () => {
-      expectTypeOf<ConstructorParameters<typeof PlainNumber>>().toEqualTypeOf<
-        [value?: number | null]
+    it('an optional value object takes T, null or nothing and exposes T | null', () => {
+      expectTypeOf<ConstructorParameters<typeof CountryCode>>().toEqualTypeOf<
+        [value?: string | null]
       >();
-      expectTypeOf<PlainNumber['value']>().toEqualTypeOf<number | null>();
-      expectTypeOf<PlainNumber['validate']>().toEqualTypeOf<
-        () => ValidationResult<number | null>
+      expectTypeOf<CountryCode['value']>().toEqualTypeOf<string | null>();
+      expectTypeOf<CountryCode['toJSON']>().toEqualTypeOf<() => string | null>();
+      expectTypeOf<CountryCode['validate']>().toEqualTypeOf<
+        () => ValidationResult<string | null>
       >();
-      expectTypeOf<PlainNumber>().toMatchTypeOf<Validatable<number | null>>();
+      expectTypeOf<CountryCode>().toMatchTypeOf<Validatable<string | null>>();
     });
 
-    it('a required type takes only T and its value is T', () => {
-      expectTypeOf<ConstructorParameters<typeof RequiredNumber>>().toEqualTypeOf<[value: number]>();
-      expectTypeOf<RequiredNumber['value']>().toEqualTypeOf<number>();
-      expectTypeOf<RequiredNumber['validate']>().toEqualTypeOf<() => ValidationResult<number>>();
-      expectTypeOf<RequiredNumber>().toMatchTypeOf<Validatable<number>>();
+    it('a required value object takes only T and exposes T', () => {
+      expectTypeOf<ConstructorParameters<typeof BillingCountry>>().toEqualTypeOf<[value: string]>();
+      expectTypeOf<BillingCountry['value']>().toEqualTypeOf<string>();
+      expectTypeOf<BillingCountry['toJSON']>().toEqualTypeOf<() => string>();
+      expectTypeOf<BillingCountry['assertValid']>().toEqualTypeOf<() => BillingCountry>();
+      expectTypeOf<BillingCountry>().toMatchTypeOf<Validatable<string>>();
     });
 
-    it('a required type does not accept a missing value or a value of another type', () => {
-      // @ts-expect-error a required type needs a value
-      expect(() => new RequiredNumber()).toThrow(RequiredValueException);
-      // @ts-expect-error a required type does not accept null
-      expect(() => new RequiredNumber(null)).toThrow(RequiredValueException);
-      // @ts-expect-error a required type does not accept undefined
-      expect(() => new RequiredNumber(undefined)).toThrow(RequiredValueException);
-      // @ts-expect-error a required number does not accept a string
-      expect(() => new RequiredNumber('1')).not.toThrow();
-    });
-
-    it('the value of an optional type cannot be used as a plain T', () => {
+    it('the value of an optional value object cannot be used where a plain T is expected', () => {
       // @ts-expect-error an optional value may be null
-      const text: string = new NullableString('abc').value;
-      expect(text).toBe('abc');
+      const code: string = new CountryCode('es').value;
+      expect(code).toBe('ES');
     });
 
-    it('isNull and toString are typed', () => {
-      expectTypeOf<PlainNumber['isNull']>().toEqualTypeOf<boolean>();
-      expectTypeOf<PlainNumber['toString']>().toEqualTypeOf<string>();
-    });
-  });
-
-  describe('construction', () => {
-    it('passes the given value to filter exactly once', () => {
-      const { SpiedType, filterSpy } = typeWithSpiedFilter();
-      new SpiedType('abc');
-      expect(filterSpy).toHaveBeenCalledTimes(1);
-      expect(filterSpy).toHaveBeenCalledWith('abc');
+    it('exposes isNull, toString(), equals() and assertValid()', () => {
+      expectTypeOf<CountryCode['isNull']>().toEqualTypeOf<boolean>();
+      expectTypeOf<CountryCode['toString']>().toEqualTypeOf<() => string>();
+      expectTypeOf<CountryCode['equals']>().toEqualTypeOf<(other: unknown) => boolean>();
+      expectTypeOf<CountryCode['assertValid']>().toEqualTypeOf<() => CountryCode>();
     });
 
-    it.each([
-      ['no value', []],
-      ['null', [null]],
-      ['undefined', [undefined]],
-      ['an empty string', ['']],
-      ['a blank string', [' \t\n ']],
-    ])('does not call filter for %s and stores null', (_, args) => {
-      const { SpiedType, filterSpy } = typeWithSpiedFilter();
-      const instance = new SpiedType(...(args as [string | null]));
-      expect(filterSpy).not.toHaveBeenCalled();
-      expect(instance.value).toBeNull();
-    });
-
-    it.each([
-      ['0', 0],
-      ['false', false],
-      ['NaN', NaN],
-    ])('keeps the falsy value %s', (_, input) => {
-      const { SpiedType } = typeWithSpiedFilter();
-      expect(new SpiedType(input as unknown as string).value).toBe(input);
-    });
-
-    it('passes a string with content to filter as it is', () => {
-      const { SpiedType, filterSpy } = typeWithSpiedFilter();
-      new SpiedType(' a ');
-      expect(filterSpy).toHaveBeenCalledWith(' a ');
-    });
-
-    it('stores what filter returns, not the raw input', () => {
-      expect(new TrimmedString('  abc  ').value).toBe('abc');
-      expect(new NoneAsNull('none').value).toBeNull();
-    });
-
-    it('propagates an error thrown by filter', () => {
-      class Rejecting extends AbstractType<string> {
-        protected filter(): string {
-          throw new Error('invalid input');
+    it('the stored value cannot be reassigned from a subclass', () => {
+      class Resettable extends CountryCode {
+        reset(): void {
+          // @ts-expect-error the value of a value object is readonly
+          this._value = null;
         }
       }
-      expect(() => new Rejecting('abc')).toThrow('invalid input');
+      expect(typeof Resettable.prototype.reset).toBe('function');
     });
   });
 
-  describe('isNull', () => {
+  describe('building it from user input', () => {
+    it('a country typed in a form as " es " is stored as "ES"', () => {
+      expect(new CountryCode(' es ').value).toBe('ES');
+    });
+
+    it('passes the raw input to filter exactly once', () => {
+      const { SpiedCountry, filterSpy } = spiedCountryCode();
+      new SpiedCountry(' pt ');
+      expect(filterSpy).toHaveBeenCalledTimes(1);
+      expect(filterSpy).toHaveBeenCalledWith(' pt ');
+    });
+
     it.each([
-      ['null', new NullableString(null), true],
-      ['a value', new NullableString('abc'), false],
-      ['a falsy value', new PlainNumber(0), false],
-      ['a value filtered to null', new NoneAsNull('none'), true],
-    ])('%s → isNull %s', (_, instance, expected) => {
-      expect(instance.isNull).toBe(expected);
+      ['a field that was not sent', []],
+      ['a JSON null', [null]],
+      ['an undefined property', [undefined]],
+      ['an empty text box', ['']],
+      ['a text box with only spaces and line breaks', [' \t\n ']],
+    ])('%s is stored as null without calling filter', (_, args) => {
+      const { SpiedCountry, filterSpy } = spiedCountryCode();
+      const country = new SpiedCountry(...(args as [string | null]));
+      expect(country.value).toBeNull();
+      expect(filterSpy).not.toHaveBeenCalled();
     });
-  });
 
-  describe('toString', () => {
     it.each([
-      ['null', new NullableString(null), ''],
-      ['a string', new NullableString('abc'), 'abc'],
-      ['a number', new PlainNumber(-1.5), '-1.5'],
-      ['the filtered value', new TrimmedString('  abc  '), 'abc'],
-    ])('%s → %o', (_, instance, expected) => {
-      expect(instance.toString).toBe(expected);
+      ['a zero discount', 0, 0],
+      ['a discount sent as false by a checkbox', false, 0],
+    ])('keeps %s: falsy input is still a value', (_, input, expected) => {
+      expect(new Discount(input as unknown as number).value).toBe(expected);
+    });
+
+    it('stores what filter returns, so filter can turn a sentinel like "none" into null', () => {
+      expect(new Discount('none' as unknown as number).value).toBeNull();
+    });
+
+    it('rejects input filter does not understand, with the exception filter throws', () => {
+      const create = () => new CountryCode('Spain');
+      expect(create).toThrow(TypePrimitiveException);
+      expect(create).toThrow(
+        'Validation Error: Expected a valid CountryCode, but received "Spain".',
+      );
+    });
+
+    it('keeps static factories of the custom type', () => {
+      expect(CountryCode.spain().value).toBe('ES');
     });
   });
 
-  describe('validate', () => {
-    @Validations([{ validator: 'isEmail' }])
-    class Email extends NullableString {}
-
-    it('is ok with the value when it satisfies the validations', () => {
-      expect(new Email('user@example.com').validate()).toEqual(valid('user@example.com'));
+  describe('reading it', () => {
+    it.each([
+      ['a country that was not given', new CountryCode(), true, ''],
+      ['a country', new CountryCode('fr'), false, 'FR'],
+      ['a zero discount', new Discount(0), false, '0'],
+      ['a negative discount', new Discount(-1.5), false, '-1.5'],
+      [
+        'a discount turned into null by filter',
+        new Discount('none' as unknown as number),
+        true,
+        '',
+      ],
+    ])('%s → isNull %s, toString() %o', (_, valueObject, isNull, text) => {
+      expect(valueObject.isNull).toBe(isNull);
+      expect(valueObject.toString()).toBe(text);
     });
 
-    it('is not ok with the value and the errors when it does not', () => {
-      expect(new Email('x').validate()).toEqual({
+    it('can be written into a log line or a message with a template literal', () => {
+      const country = new CountryCode('it');
+      expect(`Shipping to ${country}`).toBe('Shipping to IT');
+      expect(String(new CountryCode())).toBe('');
+    });
+
+    it('is serialized as its plain value in an API response', () => {
+      const body = {
+        billing: new BillingCountry('es'),
+        shipping: new ShippingCountry(),
+        location: new GeoPoint({ lat: 37.26, lng: -6.95 }),
+        deadline: new Deadline(new Date('2026-05-01T12:00:00Z')),
+      };
+      expect(JSON.parse(JSON.stringify(body))).toEqual({
+        billing: 'ES',
+        shipping: null,
+        location: { lat: 37.26, lng: -6.95 },
+        deadline: '2026-05-01T12:00:00.000Z',
+      });
+      expectTypeOf<Deadline['toJSON']>().toEqualTypeOf<() => string | null>();
+    });
+  });
+
+  describe('comparing two value objects', () => {
+    it('two countries built from different spellings of the same code are equal', () => {
+      expect(new CountryCode('es').equals(new CountryCode(' ES '))).toBe(true);
+    });
+
+    it('two countries with different codes are not equal', () => {
+      expect(new CountryCode('es').equals(new CountryCode('pt'))).toBe(false);
+    });
+
+    it('two empty optional countries of the same class are equal', () => {
+      expect(new ShippingCountry().equals(new ShippingCountry(null))).toBe(true);
+    });
+
+    it('a billing country and a shipping country with the same code are different concepts', () => {
+      expect(new BillingCountry('es').equals(new ShippingCountry('es'))).toBe(false);
+      expect(new ShippingCountry('es').equals(new CountryCode('es'))).toBe(false);
+    });
+
+    it('compares structured values by content, not by reference', () => {
+      const office = new GeoPoint({ lat: 37.26, lng: -6.95 });
+      expect(office.equals(new GeoPoint({ lng: -6.95, lat: 37.26 }))).toBe(true);
+      expect(office.equals(new GeoPoint({ lat: 37.26, lng: -6.9 }))).toBe(false);
+    });
+
+    it.each([
+      ['null', null],
+      ['undefined', undefined],
+      ['the raw code', 'ES'],
+      ['a plain object with the same value', { _value: 'ES' }],
+    ])('a country is never equal to %s', (_, other) => {
+      expect(new CountryCode('es').equals(other)).toBe(false);
+    });
+  });
+
+  describe('validate(): checking business rules declared with @Validations', () => {
+    it('a well formed email is ok and returns the stored value', () => {
+      expect(new Email(' Ana@Example.com ').validate()).toEqual(valid('ana@example.com'));
+    });
+
+    it('a malformed email is not ok and lists why', () => {
+      expect(new Email('ana').validate()).toEqual({
         ok: false,
-        value: 'x',
+        value: 'ana',
         errors: [{ validator: 'isEmail', message: 'Value does not satisfy isEmail' }],
       });
     });
 
-    it('is ok when the type declares no validations', () => {
-      expect(new NullableString('anything').validate()).toEqual(valid('anything'));
+    it('a value object without declared validations is always ok', () => {
+      expect(new CountryCode('es').validate()).toEqual(valid('ES'));
     });
 
-    it('validates the filtered value, not the raw input', () => {
-      const isHello = vi.fn((value: unknown) => value === 'hello');
+    it('an optional email that was not given is ok without running its validations', () => {
+      const isCorporate = vi.fn(() => false);
 
-      @Validations([{ custom: 'isHello', fn: isHello }])
-      class Greeting extends TrimmedString {}
+      @Validations([{ custom: 'isCorporate', fn: isCorporate }])
+      class WorkEmail extends Email {}
 
-      expect(new Greeting('  hello  ').validate()).toEqual(valid('hello'));
-      expect(isHello).toHaveBeenCalledWith('hello');
+      expect(new WorkEmail('').validate()).toEqual(valid(null));
+      expect(isCorporate).not.toHaveBeenCalled();
     });
 
-    it('runs the validations of the concrete class, inherited ones included', () => {
-      @Validations([{ validator: 'isAlpha' }])
-      class Letters extends Email {}
+    it('validates the filtered value, not what the user typed', () => {
+      const isLowercase = vi.fn((value: unknown) => value === String(value).toLowerCase());
 
-      expect(new Letters('x').validate().errors).toEqual([
+      @Validations([{ custom: 'isLowercase', fn: isLowercase }])
+      class NormalizedEmail extends Email {}
+
+      expect(new NormalizedEmail(' ANA@EXAMPLE.COM ').validate().ok).toBe(true);
+      expect(isLowercase).toHaveBeenCalledWith('ana@example.com');
+    });
+
+    it('a subclass adds its rules after the inherited ones', () => {
+      @Validations([
+        { custom: 'isCorporate', fn: (value) => String(value).endsWith('@acme.example') },
+      ])
+      class WorkEmail extends CustomerEmail {}
+
+      expect(new WorkEmail('ana').validate().errors).toEqual([
         { validator: 'isEmail', message: 'Value does not satisfy isEmail' },
+        { custom: 'isCorporate', message: 'Value does not satisfy isCorporate' },
       ]);
-      expect(new Letters('user1@example.com').validate().errors).toEqual([
-        { validator: 'isAlpha', message: 'Value does not satisfy isAlpha' },
+      expect(new WorkEmail('ana@gmail.com').validate().errors).toEqual([
+        { custom: 'isCorporate', message: 'Value does not satisfy isCorporate' },
       ]);
     });
 
-    it.each([
-      ['with a value', () => new Email('x').validate()],
-      ['of an optional null', () => new NullableString(null).validate()],
-    ])('the result %s is frozen', (_, run) => {
-      const result = run();
-      expect(Object.isFrozen(result)).toBe(true);
-      expect(Object.isFrozen(result.errors)).toBe(true);
+    it('does not run the rules when the value object is built', () => {
+      const isPositive = vi.fn(() => true);
+
+      @Validations([{ custom: 'isPositive', fn: isPositive }])
+      class PositiveDiscount extends Discount {}
+
+      new PositiveDiscount(5);
+      expect(isPositive).not.toHaveBeenCalled();
     });
 
-    describe('null value', () => {
-      it('an optional type is ok without running its validations', () => {
-        const rule = vi.fn(() => false);
-
-        @Validations([{ custom: 'rule', fn: rule }])
-        class Optional extends NullableString {}
-
-        expect(new Optional(null).validate()).toEqual(valid(null));
-        expect(rule).not.toHaveBeenCalled();
-      });
+    it('runs the rules on every call and returns a new frozen result each time', () => {
+      const email = new Email('ana');
+      const first = email.validate();
+      const second = email.validate();
+      expect(second).not.toBe(first);
+      expect(second).toEqual(first);
+      expect(Object.isFrozen(first)).toBe(true);
+      expect(Object.isFrozen(first.errors)).toBe(true);
     });
 
-    describe('keeps nothing between calls', () => {
-      function counterWithSpiedRule() {
-        const isNonNegative = vi.fn((value: unknown) => typeof value === 'number' && value >= 0);
-
-        @Validations([{ custom: 'nonNegative', fn: isNonNegative }])
-        class Counter extends AbstractType<number> {
-          protected filter(value: number): number {
-            return value;
-          }
-
-          change(value: number | null): void {
-            this._value = value;
-          }
-        }
-
-        return { Counter, isNonNegative };
-      }
-
-      it('does not run the validations on construction', () => {
-        const { Counter, isNonNegative } = counterWithSpiedRule();
-        new Counter(1);
-        expect(isNonNegative).not.toHaveBeenCalled();
-      });
-
-      it('runs the validations on every call and returns a new result', () => {
-        const { Counter, isNonNegative } = counterWithSpiedRule();
-        const counter = new Counter(1);
-        const first = counter.validate();
-        const second = counter.validate();
-        expect(second).not.toBe(first);
-        expect(second).toEqual(first);
-        expect(isNonNegative).toHaveBeenCalledTimes(2);
-      });
-
-      it('validates the current value after it changes', () => {
-        const { Counter } = counterWithSpiedRule();
-        const counter = new Counter(1);
-        expect(counter.validate().ok).toBe(true);
-        counter.change(-1);
-        expect(counter.validate()).toEqual({
-          ok: false,
-          value: -1,
-          errors: [{ custom: 'nonNegative', message: 'Value does not satisfy nonNegative' }],
-        });
-        counter.change(null);
-        expect(counter.validate()).toEqual(valid(null));
-      });
-
-      it('stores no validation state in the instance', () => {
-        const { Counter } = counterWithSpiedRule();
-        const counter = new Counter(1);
-        counter.validate();
-        counter.change(null);
-        counter.validate();
-        expect(Object.keys(counter)).toEqual(['_value']);
-      });
-    });
-
-    describe('optional and required', () => {
-      const positiveError = { custom: 'positive', message: 'Value does not satisfy positive' };
-      const evenError = { custom: 'even', message: 'Must be even' };
-      const isRequiredError = {
-        validator: 'isRequired',
-        message: 'Value does not satisfy isRequired',
-      };
-
-      function ratingTypes() {
-        const isPositive = vi.fn((value: unknown) => typeof value === 'number' && value > 0);
-        const isEven = vi.fn((value: unknown) => typeof value === 'number' && value % 2 === 0);
-
-        @Validations([
-          { custom: 'positive', fn: isPositive },
-          { custom: 'even', fn: isEven, message: 'Must be even' },
-        ])
-        class Rating extends AbstractType<number> {
-          protected filter(value: number): number | null {
-            return value === -999 ? null : value;
-          }
-
-          change(value: number | null): void {
-            this._value = value;
-          }
-        }
-
-        class RequiredRating extends Required(Rating) {}
-
-        return { Rating, RequiredRating, isPositive, isEven };
-      }
-
-      describe('optional type', () => {
-        it.each([
-          ['no value', []],
-          ['null', [null]],
-          ['undefined', [undefined]],
-          ['an empty string', ['']],
-          ['a blank string', ['   ']],
-        ])('is ok with %s, without running its validations', (_, args) => {
-          const { Rating, isPositive, isEven } = ratingTypes();
-          const rating = new Rating(...(args as unknown as [number]));
-          expect(rating.validate()).toEqual(valid(null));
-          expect(isPositive).not.toHaveBeenCalled();
-          expect(isEven).not.toHaveBeenCalled();
-        });
-
-        it('is ok without running its validations when filter turns the value into null', () => {
-          const { Rating, isPositive } = ratingTypes();
-          expect(new Rating(-999).validate()).toEqual(valid(null));
-          expect(isPositive).not.toHaveBeenCalled();
-        });
-
-        it('is ok without running its validations when the value becomes null', () => {
-          const { Rating, isPositive } = ratingTypes();
-          const rating = new Rating(-1);
-          rating.change(null);
-          expect(rating.validate()).toEqual(valid(null));
-          expect(isPositive).not.toHaveBeenCalled();
-        });
-
-        it('is ok with a value that satisfies every validation', () => {
-          const { Rating, isPositive, isEven } = ratingTypes();
-          expect(new Rating(4).validate()).toEqual(valid(4));
-          expect(isPositive).toHaveBeenCalledWith(4);
-          expect(isEven).toHaveBeenCalledWith(4);
-        });
-
-        it('runs every validation on a value and reports each failure in order', () => {
-          const { Rating } = ratingTypes();
-          expect(new Rating(-3).validate()).toEqual({
-            ok: false,
-            value: -3,
-            errors: [positiveError, evenError],
-          });
-          expect(new Rating(3).validate().errors).toEqual([evenError]);
-        });
-
-        it('runs its validations on a falsy value', () => {
-          const { Rating, isPositive } = ratingTypes();
-          expect(new Rating(0).validate().errors).toEqual([positiveError]);
-          expect(isPositive).toHaveBeenCalledWith(0);
-        });
-      });
-
-      describe('required type', () => {
-        it('is ok with a value that satisfies every validation, without reporting isRequired', () => {
-          const { RequiredRating } = ratingTypes();
-          expect(new RequiredRating(4).validate()).toEqual(valid(4));
-        });
-
-        it('runs every validation of the wrapped type on a value and reports each failure', () => {
-          const { RequiredRating, isPositive, isEven } = ratingTypes();
-          expect(new RequiredRating(-3).validate()).toEqual({
-            ok: false,
-            value: -3,
-            errors: [positiveError, evenError],
-          });
-          expect(isPositive).toHaveBeenCalledWith(-3);
-          expect(isEven).toHaveBeenCalledWith(-3);
-        });
-
-        it('a falsy value is present: it passes isRequired and runs the other validations', () => {
-          const { RequiredRating } = ratingTypes();
-          expect(new RequiredRating(0).validate().errors).toEqual([positiveError]);
-        });
-
-        it('fails only isRequired when the value becomes null, running no other validation', () => {
-          const { RequiredRating, isPositive, isEven } = ratingTypes();
-          const rating = new RequiredRating(4);
-          rating.change(null);
-          expect(rating.validate()).toEqual({ ok: false, value: null, errors: [isRequiredError] });
-          expect(isPositive).not.toHaveBeenCalled();
-          expect(isEven).not.toHaveBeenCalled();
-        });
-
-        it('is valid again once the value is set back', () => {
-          const { RequiredRating } = ratingTypes();
-          const rating = new RequiredRating(4);
-          rating.change(null);
-          expect(rating.validate().ok).toBe(false);
-          rating.change(6);
-          expect(rating.validate()).toEqual(valid(6));
-        });
-
-        it('returns a frozen result when it fails isRequired', () => {
-          const { RequiredRating } = ratingTypes();
-          const rating = new RequiredRating(4);
-          rating.change(null);
-          const result = rating.validate();
-          expect(Object.isFrozen(result)).toBe(true);
-          expect(Object.isFrozen(result.errors)).toBe(true);
-          expect(Object.isFrozen(result.errors[0])).toBe(true);
-        });
-
-        it('runs the validations of the wrapped type first, then its own', () => {
-          const { RequiredRating } = ratingTypes();
-
-          @Validations([
-            { custom: 'small', fn: (value) => typeof value === 'number' && value < 10 },
-          ])
-          class SmallRating extends RequiredRating {}
-
-          expect(new SmallRating(11).validate().errors).toEqual([
-            evenError,
-            { custom: 'small', message: 'Value does not satisfy small' },
-          ]);
-        });
-
-        it('reports the isRequired message redeclared by a subclass', () => {
-          const { RequiredRating } = ratingTypes();
-
-          @Validations([{ validator: 'isRequired', message: 'Rating is required' }])
-          class NamedRating extends RequiredRating {}
-
-          const rating = new NamedRating(4);
-          rating.change(null);
-          expect(rating.validate().errors).toEqual([
-            { validator: 'isRequired', message: 'Rating is required' },
-          ]);
-        });
-
-        it('a subclass of a required type is required in validate too', () => {
-          const { RequiredRating } = ratingTypes();
-          class ChildRating extends RequiredRating {}
-          const rating = new ChildRating(4);
-          rating.change(null);
-          expect(rating.validate().errors).toEqual([isRequiredError]);
-        });
-      });
-
-      describe('the same value in both', () => {
-        it.each([
-          ['a valid value', 4, true, true],
-          ['an invalid value', -3, false, false],
-        ])('%s gives the same result', (_, value, optionalOk, requiredOk) => {
-          const { Rating, RequiredRating } = ratingTypes();
-          expect(new Rating(value).validate().ok).toBe(optionalOk);
-          expect(new RequiredRating(value).validate().ok).toBe(requiredOk);
-          expect(new RequiredRating(value).validate()).toEqual(new Rating(value).validate());
-        });
-
-        it('null is ok when optional and fails isRequired when required', () => {
-          const { Rating, RequiredRating } = ratingTypes();
-          const optional = new Rating(4);
-          const required = new RequiredRating(4);
-          optional.change(null);
-          required.change(null);
-          expect(optional.validate()).toEqual(valid(null));
-          expect(required.validate()).toEqual({
-            ok: false,
-            value: null,
-            errors: [isRequiredError],
-          });
-        });
-      });
+    it('keeps no validation state in the instance', () => {
+      const email = new Email('ana');
+      email.validate();
+      expect(Object.keys(email)).toEqual(['_value']);
     });
   });
 
-  describe('Required', () => {
-    it.each([
-      ['null', null],
-      ['a blank string', '   '],
-    ])('does not call filter when the value is %s', (_, input) => {
-      const { SpiedType, filterSpy } = typeWithSpiedFilter();
-      class RequiredSpied extends Required(SpiedType) {}
+  describe('assertValid(): building an always-valid value object in one line', () => {
+    it('returns the same instance when every rule passes, so it can be chained', () => {
+      const email = new CustomerEmail('ana@example.com');
+      expect(email.assertValid()).toBe(email);
+      expect(new CustomerEmail('luis@example.com').assertValid().value).toBe('luis@example.com');
+    });
 
-      expect(() => new RequiredSpied(input as string)).toThrow(RequiredValueException);
+    it('throws ValidationException naming the value object and each broken rule', () => {
+      @Validations([{ validator: 'isLength', properties: { min: 6 } }])
+      class SignUpEmail extends CustomerEmail {}
+
+      const signUp = () => new SignUpEmail('a@b').assertValid();
+      expect(signUp).toThrow(ValidationException);
+      expect(signUp).toThrow(
+        'Validation failed, SignUpEmail: Value does not satisfy isEmail, SignUpEmail: Value does not satisfy isLength',
+      );
+      try {
+        signUp();
+      } catch (error) {
+        expect((error as ValidationException).errors).toEqual([
+          'SignUpEmail: Value does not satisfy isEmail',
+          'SignUpEmail: Value does not satisfy isLength',
+        ]);
+      }
+    });
+
+    it('an optional email that was not given passes', () => {
+      expect(new Email().assertValid().value).toBeNull();
+    });
+  });
+
+  describe('Required(...): a value object that must always have a value', () => {
+    it('a missing billing country throws RequiredValueException with the class name', () => {
+      // @ts-expect-error a required value object needs a value
+      expect(() => new BillingCountry()).toThrow(RequiredValueException);
+      expect(() => new BillingCountry('  ')).toThrow(
+        'Validation Error: BillingCountry is required, but received "  ".',
+      );
+    });
+
+    it('does not call filter for a missing value', () => {
+      const { SpiedCountry, filterSpy } = spiedCountryCode();
+      class RequiredSpied extends Required(SpiedCountry) {}
+      expect(() => new RequiredSpied(null as unknown as string)).toThrow(RequiredValueException);
       expect(filterSpy).not.toHaveBeenCalled();
     });
 
-    it('throws RequiredValueException with the type name on construction, before any validation runs', () => {
-      const rule = vi.fn(() => false);
-
-      @Validations([{ custom: 'rule', fn: rule }])
-      class Mandatory extends RequiredNumber {}
-
-      expect(() => new Mandatory(null as unknown as number)).toThrow(
-        requiredError('Mandatory', 'null'),
+    it('throws when filter turns the input into null, reporting what was received', () => {
+      expect(() => new RequiredDiscount('none' as unknown as number)).toThrow(
+        'Validation Error: RequiredDiscount is required, but received "none".',
       );
-      expect(rule).not.toHaveBeenCalled();
     });
 
-    it('a value is valid, falsy ones included', () => {
-      expect(new RequiredNumber(1).validate()).toEqual(valid(1));
-      expect(new RequiredNumber(0).validate()).toEqual(valid(0));
+    it('throws before any declared rule runs', () => {
+      const isCorporate = vi.fn(() => true);
+
+      @Validations([{ custom: 'isCorporate', fn: isCorporate }])
+      class WorkEmail extends CustomerEmail {}
+
+      expect(() => new WorkEmail(null as unknown as string)).toThrow(RequiredValueException);
+      expect(isCorporate).not.toHaveBeenCalled();
     });
 
-    it('a value runs the validations', () => {
-      @Validations([{ custom: 'positive', fn: (value) => typeof value === 'number' && value > 0 }])
-      class Positive extends RequiredNumber {}
+    it('a zero discount is a present value', () => {
+      expect(new RequiredDiscount(0).validate()).toEqual(valid(0));
+    });
 
-      expect(new Positive(1).validate()).toEqual(valid(1));
-      expect(new Positive(-1).validate().errors).toEqual([
-        { custom: 'positive', message: 'Value does not satisfy positive' },
+    it('keeps the wrapped type: instanceof, static factories and validations', () => {
+      expect(new BillingCountry('es')).toBeInstanceOf(CountryCode);
+      expect(BillingCountry.spain().value).toBe('ES');
+      expect(new CustomerEmail('ana').validate().errors).toEqual([
+        { validator: 'isEmail', message: 'Value does not satisfy isEmail' },
       ]);
-    });
-
-    it.each([
-      ['a blank string', '   ', '"   "'],
-      ['a value that filter turns into null', 'none', '"none"'],
-    ])('throws for %s, reporting the raw input', (_, input, received) => {
-      class RequiredNone extends Required(NoneAsNull) {}
-
-      expect(() => new RequiredNone(input)).toThrow(requiredError('RequiredNone', received));
-    });
-
-    it('a subclass is required too', () => {
-      class Child extends RequiredNumber {}
-
-      expectTypeOf<ConstructorParameters<typeof Child>>().toEqualTypeOf<[value: number]>();
-      expectTypeOf<Child['value']>().toEqualTypeOf<number>();
-      expect(() => new Child(null as unknown as number)).toThrow(requiredError('Child', 'null'));
-    });
-
-    it('asks for a value even when the wrapped type has a default', () => {
-      class DefaultedNumber extends PlainNumber {
-        constructor(value: number | null = 0) {
-          super(value);
-        }
-      }
-      class RequiredDefaulted extends Required(DefaultedNumber) {}
-
-      expectTypeOf<ConstructorParameters<typeof RequiredDefaulted>>().toEqualTypeOf<
-        [value: number]
-      >();
-      expect(new RequiredDefaulted(5).validate()).toEqual(valid(5));
-    });
-
-    it('fails only isRequired when the value becomes null, without running the other validations', () => {
-      const rule = vi.fn(() => true);
-
-      @Validations([{ custom: 'rule', fn: rule }])
-      class Clearable extends RequiredNumber {
-        clear(): void {
-          this._value = null;
-        }
-      }
-      const clearable = new Clearable(1);
-      clearable.clear();
-
-      expect(clearable.validate()).toEqual({
-        ok: false,
-        value: null,
-        errors: [{ validator: 'isRequired', message: 'Value does not satisfy isRequired' }],
-      });
-      expect(rule).not.toHaveBeenCalled();
     });
 
     it('does not make the wrapped type required', () => {
-      expect(new PlainNumber(null).validate()).toEqual(valid(null));
-    });
-
-    it('keeps the wrapped type: instanceof, static members and validations', () => {
-      @Validations([{ validator: 'isEmail' }])
-      class Email extends NullableString {}
-      class RequiredEmail extends Required(Email) {}
-
-      expect(new RequiredNumber(1)).toBeInstanceOf(PlainNumber);
-      expect(RequiredNumber.zero().value).toBe(0);
-      expect(new RequiredEmail('x').validate().errors).toEqual([
-        { validator: 'isEmail', message: 'Value does not satisfy isEmail' },
-      ]);
+      expect(new CountryCode(null).validate()).toEqual(valid(null));
     });
   });
 });
