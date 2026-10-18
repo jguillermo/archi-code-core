@@ -65,6 +65,15 @@ function spiedCountryCode() {
 
 const valid = <T>(value: T) => ({ ok: true, value, errors: [] });
 
+function issuesOf(build: () => unknown): unknown {
+  try {
+    build();
+  } catch (error) {
+    return (error as ValidationException).errors;
+  }
+  return undefined;
+}
+
 describe('AbstractType: writing a custom value object', () => {
   describe('typing', () => {
     it('an optional value object takes T, null or nothing and exposes T | null', () => {
@@ -83,7 +92,6 @@ describe('AbstractType: writing a custom value object', () => {
       expectTypeOf<ConstructorParameters<typeof BillingCountry>>().toEqualTypeOf<[value: string]>();
       expectTypeOf<BillingCountry['value']>().toEqualTypeOf<string>();
       expectTypeOf<BillingCountry['toJSON']>().toEqualTypeOf<() => string>();
-      expectTypeOf<BillingCountry['assertValid']>().toEqualTypeOf<() => BillingCountry>();
       expectTypeOf<BillingCountry>().toMatchTypeOf<Validatable<string>>();
     });
 
@@ -93,11 +101,11 @@ describe('AbstractType: writing a custom value object', () => {
       expect(code).toBe('ES');
     });
 
-    it('exposes isNull, toString(), equals() and assertValid()', () => {
+    it('exposes isNull, toString() and equals(), and no assertValid()', () => {
       expectTypeOf<CountryCode['isNull']>().toEqualTypeOf<boolean>();
       expectTypeOf<CountryCode['toString']>().toEqualTypeOf<() => string>();
       expectTypeOf<CountryCode['equals']>().toEqualTypeOf<(other: unknown) => boolean>();
-      expectTypeOf<CountryCode['assertValid']>().toEqualTypeOf<() => CountryCode>();
+      expectTypeOf<CountryCode>().not.toHaveProperty('assertValid');
     });
 
     it('the stored value cannot be reassigned from a subclass', () => {
@@ -262,40 +270,57 @@ describe('AbstractType: writing a custom value object', () => {
     });
   });
 
-  describe('validate(): checking business rules declared with @Validations', () => {
-    it('a well formed email is ok and returns the stored value', () => {
-      expect(new Email(' Ana@Example.com ').validate()).toEqual(valid('ana@example.com'));
+  describe('always valid: the constructor checks the rules declared with @Validations', () => {
+    it('a well formed email is built and validate() confirms it', () => {
+      const email = new Email(' Ana@Example.com ');
+      expect(email.value).toBe('ana@example.com');
+      expect(email.validate()).toEqual(valid('ana@example.com'));
     });
 
-    it('a malformed email is not ok and lists why', () => {
-      expect(new Email('ana').validate()).toEqual({
-        ok: false,
-        value: 'ana',
-        errors: [{ validator: 'isEmail', message: 'Value does not satisfy isEmail' }],
-      });
+    it('a malformed email cannot be built: ValidationException names the class and the rule', () => {
+      const build = () => new Email('ana');
+      expect(build).toThrow(ValidationException);
+      expect(build).toThrow('Validation failed, Email: Value does not satisfy isEmail');
+      expect(issuesOf(build)).toEqual([
+        { field: null, message: 'Email: Value does not satisfy isEmail' },
+      ]);
     });
 
-    it('a value object without declared validations is always ok', () => {
+    it('reports every broken rule at once, not only the first one', () => {
+      @Validations([{ validator: 'isLength', properties: { min: 6 } }])
+      class SignUpEmail extends CustomerEmail {}
+
+      const signUp = () => new SignUpEmail('a@b');
+      expect(signUp).toThrow(
+        'Validation failed, SignUpEmail: Value does not satisfy isEmail, SignUpEmail: Value does not satisfy isLength',
+      );
+      expect(issuesOf(signUp)).toEqual([
+        { field: null, message: 'SignUpEmail: Value does not satisfy isEmail' },
+        { field: null, message: 'SignUpEmail: Value does not satisfy isLength' },
+      ]);
+    });
+
+    it('a value object without declared validations is always built', () => {
       expect(new CountryCode('es').validate()).toEqual(valid('ES'));
     });
 
-    it('an optional email that was not given is ok without running its validations', () => {
+    it('an optional email that was not given is built without running its validations', () => {
       const isCorporate = vi.fn(() => false);
 
       @Validations([{ custom: 'isCorporate', fn: isCorporate }])
       class WorkEmail extends Email {}
 
-      expect(new WorkEmail('').validate()).toEqual(valid(null));
+      expect(new WorkEmail('').value).toBeNull();
       expect(isCorporate).not.toHaveBeenCalled();
     });
 
-    it('validates the filtered value, not what the user typed', () => {
+    it('checks the filtered value, not what the user typed', () => {
       const isLowercase = vi.fn((value: unknown) => value === String(value).toLowerCase());
 
       @Validations([{ custom: 'isLowercase', fn: isLowercase }])
       class NormalizedEmail extends Email {}
 
-      expect(new NormalizedEmail(' ANA@EXAMPLE.COM ').validate().ok).toBe(true);
+      expect(new NormalizedEmail(' ANA@EXAMPLE.COM ').value).toBe('ana@example.com');
       expect(isLowercase).toHaveBeenCalledWith('ana@example.com');
     });
 
@@ -305,27 +330,29 @@ describe('AbstractType: writing a custom value object', () => {
       ])
       class WorkEmail extends CustomerEmail {}
 
-      expect(new WorkEmail('ana').validate().errors).toEqual([
-        { validator: 'isEmail', message: 'Value does not satisfy isEmail' },
-        { custom: 'isCorporate', message: 'Value does not satisfy isCorporate' },
+      expect(issuesOf(() => new WorkEmail('ana'))).toEqual([
+        { field: null, message: 'WorkEmail: Value does not satisfy isEmail' },
+        { field: null, message: 'WorkEmail: Value does not satisfy isCorporate' },
       ]);
-      expect(new WorkEmail('ana@gmail.com').validate().errors).toEqual([
-        { custom: 'isCorporate', message: 'Value does not satisfy isCorporate' },
+      expect(issuesOf(() => new WorkEmail('ana@gmail.com'))).toEqual([
+        { field: null, message: 'WorkEmail: Value does not satisfy isCorporate' },
       ]);
+      expect(new WorkEmail('ana@acme.example').value).toBe('ana@acme.example');
     });
 
-    it('does not run the rules when the value object is built', () => {
+    it('runs the rules once when the value object is built', () => {
       const isPositive = vi.fn(() => true);
 
       @Validations([{ custom: 'isPositive', fn: isPositive }])
       class PositiveDiscount extends Discount {}
 
       new PositiveDiscount(5);
-      expect(isPositive).not.toHaveBeenCalled();
+      expect(isPositive).toHaveBeenCalledTimes(1);
+      expect(isPositive).toHaveBeenCalledWith(5);
     });
 
-    it('runs the rules on every call and returns a new frozen result each time', () => {
-      const email = new Email('ana');
+    it('validate() runs the rules again on every call and returns a new frozen result', () => {
+      const email = new Email('ana@example.com');
       const first = email.validate();
       const second = email.validate();
       expect(second).not.toBe(first);
@@ -335,40 +362,9 @@ describe('AbstractType: writing a custom value object', () => {
     });
 
     it('keeps no validation state in the instance', () => {
-      const email = new Email('ana');
+      const email = new Email('ana@example.com');
       email.validate();
       expect(Object.keys(email)).toEqual(['_value']);
-    });
-  });
-
-  describe('assertValid(): building an always-valid value object in one line', () => {
-    it('returns the same instance when every rule passes, so it can be chained', () => {
-      const email = new CustomerEmail('ana@example.com');
-      expect(email.assertValid()).toBe(email);
-      expect(new CustomerEmail('luis@example.com').assertValid().value).toBe('luis@example.com');
-    });
-
-    it('throws ValidationException naming the value object and each broken rule', () => {
-      @Validations([{ validator: 'isLength', properties: { min: 6 } }])
-      class SignUpEmail extends CustomerEmail {}
-
-      const signUp = () => new SignUpEmail('a@b').assertValid();
-      expect(signUp).toThrow(ValidationException);
-      expect(signUp).toThrow(
-        'Validation failed, SignUpEmail: Value does not satisfy isEmail, SignUpEmail: Value does not satisfy isLength',
-      );
-      try {
-        signUp();
-      } catch (error) {
-        expect((error as ValidationException).errors).toEqual([
-          'SignUpEmail: Value does not satisfy isEmail',
-          'SignUpEmail: Value does not satisfy isLength',
-        ]);
-      }
-    });
-
-    it('an optional email that was not given passes', () => {
-      expect(new Email().assertValid().value).toBeNull();
     });
   });
 
@@ -411,8 +407,8 @@ describe('AbstractType: writing a custom value object', () => {
     it('keeps the wrapped type: instanceof, static factories and validations', () => {
       expect(new BillingCountry('es')).toBeInstanceOf(CountryCode);
       expect(BillingCountry.spain().value).toBe('ES');
-      expect(new CustomerEmail('ana').validate().errors).toEqual([
-        { validator: 'isEmail', message: 'Value does not satisfy isEmail' },
+      expect(issuesOf(() => new CustomerEmail('ana'))).toEqual([
+        { field: null, message: 'CustomerEmail: Value does not satisfy isEmail' },
       ]);
     });
 

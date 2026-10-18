@@ -73,14 +73,30 @@ function smoke(m) {
       },
     ],
     [
-      'validate and assertValid',
+      'validate, and ValueObjects.build reports every invalid field at once',
       () => {
+        class OrderId extends m.IdType {}
+        class Customer extends m.Required(m.StringType) {}
         const result = new m.StringType('abc').validate();
+        const built = m.ValueObjects.build({
+          orderId: () => new OrderId(ORDER_ID),
+          customer: () => new Customer('Ana'),
+        });
+        let issues = [];
+        try {
+          m.ValueObjects.build({
+            orderId: () => new OrderId('not-an-id'),
+            customer: () => new Customer(''),
+          });
+        } catch (error) {
+          issues = error.errors.map((issue) => issue.field);
+        }
         return (
-          result.ok === true &&
-          result.value === 'abc' &&
-          result.errors.length === 0 &&
-          new m.StringType('abc').assertValid().value === 'abc'
+          (result.ok === true &&
+            built.orderId.value === ORDER_ID &&
+            built.customer.value === 'Ana' &&
+            issues.join(',') === 'orderId,customer') ||
+          `unexpected fields ${issues.join(',')}`
         );
       },
     ],

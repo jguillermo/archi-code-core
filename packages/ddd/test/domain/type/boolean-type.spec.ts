@@ -75,7 +75,13 @@ function consents() {
   return { AcceptsCookies, AcceptsPrivacyPolicy, isTrue };
 }
 
-const isTrueError = { custom: 'isTrue', message: 'Value does not satisfy isTrue' };
+function issuesOf(build: () => unknown): unknown {
+  return (thrownBy(build) as ValidationException).errors;
+}
+
+const isTrueBroken = (type: string) => [
+  { field: null, message: `${type}: Value does not satisfy isTrue` },
+];
 
 describe('BooleanType', () => {
   describe('an optional marketing consent', () => {
@@ -175,10 +181,10 @@ describe('BooleanType', () => {
   });
 
   describe('consents that must be given', () => {
-    it('an optional cookie consent must be true once answered', () => {
+    it('an optional cookie consent cannot be built as false once answered', () => {
       const { AcceptsCookies } = consents();
       expect(new AcceptsCookies(true).validate()).toEqual({ ok: true, value: true, errors: [] });
-      expect(new AcceptsCookies(false).validate().errors).toEqual([isTrueError]);
+      expect(issuesOf(() => new AcceptsCookies(false))).toEqual(isTrueBroken('AcceptsCookies'));
     });
 
     it.each(blankFormFields)(
@@ -194,26 +200,29 @@ describe('BooleanType', () => {
       },
     );
 
-    it('a required privacy policy consent of false is present but breaks the rule', () => {
+    it('a required privacy policy consent of false is present but cannot be built', () => {
       const { AcceptsPrivacyPolicy } = consents();
       expect(new AcceptsPrivacyPolicy(true).validate()).toEqual({
         ok: true,
         value: true,
         errors: [],
       });
-      expect(new AcceptsPrivacyPolicy(false).validate().errors).toEqual([isTrueError]);
+      expect(issuesOf(() => new AcceptsPrivacyPolicy(false))).toEqual(
+        isTrueBroken('AcceptsPrivacyPolicy'),
+      );
     });
 
-    it('signing up with the terms accepted passes assertValid', () => {
-      const terms = new AcceptsTerms(true);
-      expect(terms.assertValid()).toBe(terms);
+    it('signing up with the terms accepted builds the consent', () => {
+      expect(new AcceptsTerms(true).value).toBe(true);
     });
 
     it('signing up without accepting the terms throws ValidationException', () => {
-      const assertValid = () => new AcceptsTerms(false).assertValid();
-      expect(assertValid).toThrow(ValidationException);
-      expect(assertValid).toThrow('Validation failed, AcceptsTerms: Must be accepted');
-      expect(thrownBy(assertValid)).toMatchObject({ errors: ['AcceptsTerms: Must be accepted'] });
+      const signUp = () => new AcceptsTerms(false);
+      expect(signUp).toThrow(ValidationException);
+      expect(signUp).toThrow('Validation failed, AcceptsTerms: Must be accepted');
+      expect(issuesOf(signUp)).toEqual([
+        { field: null, message: 'AcceptsTerms: Must be accepted' },
+      ]);
     });
   });
 

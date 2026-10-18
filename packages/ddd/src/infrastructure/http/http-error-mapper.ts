@@ -9,11 +9,12 @@ import {
   TypePrimitiveException,
   ValidationException,
 } from '../../exceptions';
+import type { ValidationIssue } from '../../exceptions';
 
 export interface HttpErrorBody {
   code: string;
   message: string;
-  errors?: readonly string[];
+  errors?: readonly ValidationIssue[];
 }
 
 export interface HttpError {

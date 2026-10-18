@@ -49,7 +49,9 @@ function crossBuild(cjs, esm) {
       'recognize exceptions thrown by the other build',
       () => {
         const notFound = new esm.AggregateNotFoundException('Order', ORDER_ID);
-        const invalid = new cjs.ValidationException(['Email: Value does not satisfy isEmail']);
+        const invalid = new cjs.ValidationException([
+          { field: 'email', message: 'Email: Value does not satisfy isEmail' },
+        ]);
         const conflict = new esm.ConcurrencyException('Order', ORDER_ID, 3);
         return (
           (notFound instanceof cjs.AggregateNotFoundException &&

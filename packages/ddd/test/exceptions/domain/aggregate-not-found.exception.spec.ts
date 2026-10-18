@@ -56,7 +56,9 @@ describe('AggregateNotFoundException', () => {
 
   it('lets an HTTP error mapper turn it into a 404 by its code', () => {
     expect(toHttpStatus(new AggregateNotFoundException('User', 'u-404'))).toBe(404);
-    expect(toHttpStatus(new ValidationException(['Email: invalid']))).toBe(422);
+    expect(
+      toHttpStatus(new ValidationException([{ field: null, message: 'Email: invalid' }])),
+    ).toBe(422);
     expect(toHttpStatus(new DomainException('Stock cannot be negative'))).toBe(400);
     expect(toHttpStatus(new Error('boom'))).toBe(500);
   });

@@ -4,7 +4,8 @@ import { AbstractType } from './abstract-type';
 import { Immutable } from './immutable/immutable';
 import { ValueEquality } from './equality/value-equality';
 import type { ValueOf } from './required/required-mark';
-import { TypePrimitiveException } from '../../exceptions/index';
+import { ValueObjects } from './value-objects/value-objects';
+import { TypePrimitiveException, ValidationException } from '../../exceptions/index';
 
 type ItemValue<Item extends AbstractType<any>> = Item['value'];
 
@@ -45,11 +46,21 @@ export abstract class ArrayType<Item extends AbstractType<any>> extends Abstract
     if (!converted.ok) {
       throw new TypePrimitiveException('Array', value);
     }
-    return Immutable.freeze(converted.value.map((item) => this.createItem(item).value));
+    try {
+      return Immutable.freeze(
+        ValueObjects.buildList(converted.value, (item) => this.createItem(item).value),
+      );
+    } catch (error) {
+      if (error instanceof ValidationException) {
+        throw new ValidationException([...this.brokenRules(converted.value), ...error.errors]);
+      }
+      throw error;
+    }
   }
 
   validate(): ValidationResult<ValueOf<ItemValue<Item>[], this>> {
     const own = super.validate();
+    /* v8 ignore start -- @preserve */
     const itemErrors = (this._value ?? []).flatMap((itemValue, index) =>
       this.createItem(itemValue)
         .validate()
@@ -66,6 +77,7 @@ export abstract class ArrayType<Item extends AbstractType<any>> extends Abstract
       value: own.value,
       errors: Object.freeze([...own.errors, ...itemErrors]),
     });
+    /* v8 ignore stop -- @preserve */
   }
 
   private copyWith(values: unknown[]): this {

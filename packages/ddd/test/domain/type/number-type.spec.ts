@@ -80,7 +80,13 @@ function positiveAmounts() {
   return { TipAmount, OrderTotal, isPositive };
 }
 
-const positiveError = { custom: 'isPositive', message: 'Value does not satisfy isPositive' };
+function issuesOf(build: () => unknown): unknown {
+  return (thrownBy(build) as ValidationException).errors;
+}
+
+const isPositiveBroken = (type: string) => [
+  { field: null, message: `${type}: Value does not satisfy isPositive` },
+];
 
 describe('NumberType', () => {
   describe('an optional discount percent', () => {
@@ -180,10 +186,10 @@ describe('NumberType', () => {
   });
 
   describe('amounts that must be positive', () => {
-    it('an optional tip accepts a positive amount and reports a negative one', () => {
+    it('an optional tip accepts a positive amount and refuses a negative one', () => {
       const { TipAmount } = positiveAmounts();
       expect(new TipAmount(1).validate()).toEqual({ ok: true, value: 1, errors: [] });
-      expect(new TipAmount(-1).validate().errors).toEqual([positiveError]);
+      expect(issuesOf(() => new TipAmount(-1))).toEqual(isPositiveBroken('TipAmount'));
     });
 
     it.each(blankFormFields)('a tip left as %s is valid without running the rule', (_, input) => {
@@ -196,10 +202,10 @@ describe('NumberType', () => {
       expect(isPositive).not.toHaveBeenCalled();
     });
 
-    it('a required order total of zero is present but breaks the rule', () => {
+    it('a required order total of zero is present but cannot be built', () => {
       const { OrderTotal } = positiveAmounts();
       expect(new OrderTotal(1).validate()).toEqual({ ok: true, value: 1, errors: [] });
-      expect(new OrderTotal(0).validate().errors).toEqual([positiveError]);
+      expect(issuesOf(() => new OrderTotal(0))).toEqual(isPositiveBroken('OrderTotal'));
     });
   });
 
@@ -207,16 +213,15 @@ describe('NumberType', () => {
     it('a quantity "3" from a query string becomes 3 and passes', () => {
       const quantity = new Quantity('3' as unknown as number);
       expect(quantity.value).toBe(3);
-      expect(quantity.assertValid()).toBe(quantity);
     });
 
     it('a fractional quantity throws ValidationException listing the error', () => {
-      const assertValid = () => new Quantity(1.5).assertValid();
-      expect(assertValid).toThrow(ValidationException);
-      expect(assertValid).toThrow('Validation failed, Quantity: Value does not satisfy isInt');
-      expect(thrownBy(assertValid)).toMatchObject({
-        errors: ['Quantity: Value does not satisfy isInt'],
-      });
+      const addLine = () => new Quantity(1.5);
+      expect(addLine).toThrow(ValidationException);
+      expect(addLine).toThrow('Validation failed, Quantity: Value does not satisfy isInt');
+      expect(issuesOf(addLine)).toEqual([
+        { field: null, message: 'Quantity: Value does not satisfy isInt' },
+      ]);
     });
   });
 

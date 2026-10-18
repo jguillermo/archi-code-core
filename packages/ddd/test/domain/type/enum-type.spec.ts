@@ -92,6 +92,10 @@ function thrownBy(run: () => unknown): unknown {
   return undefined;
 }
 
+function issuesOf(build: () => unknown): unknown {
+  return (thrownBy(build) as ValidationException).errors;
+}
+
 function shippableStatuses() {
   const isShipped = vi.fn((value: unknown) => value === OrderStatusOption.SHIPPED);
 
@@ -103,8 +107,6 @@ function shippableStatuses() {
 
   return { DeliveredReturnStatus, InvoiceableStatus, isShipped };
 }
-
-const isShippedError = { custom: 'isShipped', message: 'Value does not satisfy isShipped' };
 
 describe('EnumType', () => {
   describe('an optional return status (string enum)', () => {
@@ -225,11 +227,11 @@ describe('EnumType', () => {
   });
 
   describe('statuses that must be shipped', () => {
-    it('an optional return status must be shipped once set', () => {
+    it('an optional return status cannot be built unless it is shipped', () => {
       const { DeliveredReturnStatus } = shippableStatuses();
       expect(new DeliveredReturnStatus(OrderStatusOption.SHIPPED).validate().ok).toBe(true);
-      expect(new DeliveredReturnStatus(OrderStatusOption.PENDING).validate().errors).toEqual([
-        isShippedError,
+      expect(issuesOf(() => new DeliveredReturnStatus(OrderStatusOption.PENDING))).toEqual([
+        { field: null, message: 'DeliveredReturnStatus: Value does not satisfy isShipped' },
       ]);
     });
 
@@ -248,14 +250,15 @@ describe('EnumType', () => {
 
     it('invoicing a pending order throws ValidationException', () => {
       const { InvoiceableStatus } = shippableStatuses();
-      const shipped = new InvoiceableStatus(OrderStatusOption.SHIPPED);
-      expect(shipped.assertValid()).toBe(shipped);
+      expect(new InvoiceableStatus(OrderStatusOption.SHIPPED).value).toBe(
+        OrderStatusOption.SHIPPED,
+      );
 
-      const assertValid = () => new InvoiceableStatus(OrderStatusOption.PENDING).assertValid();
-      expect(assertValid).toThrow(ValidationException);
-      expect(thrownBy(assertValid)).toMatchObject({
+      const invoice = () => new InvoiceableStatus(OrderStatusOption.PENDING);
+      expect(invoice).toThrow(ValidationException);
+      expect(thrownBy(invoice)).toMatchObject({
         message: 'Validation failed, InvoiceableStatus: Value does not satisfy isShipped',
-        errors: ['InvoiceableStatus: Value does not satisfy isShipped'],
+        errors: [{ field: null, message: 'InvoiceableStatus: Value does not satisfy isShipped' }],
       });
     });
 

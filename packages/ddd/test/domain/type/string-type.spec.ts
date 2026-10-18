@@ -89,7 +89,9 @@ function couponCodes() {
   return { CouponCode, ReferralCode, isShortCode };
 }
 
-const shortCodeError = { custom: 'isShortCode', message: 'Value does not satisfy isShortCode' };
+function issuesOf(build: () => unknown): unknown {
+  return (thrownBy(build) as ValidationException).errors;
+}
 
 describe('StringType', () => {
   describe('an optional nickname', () => {
@@ -194,10 +196,12 @@ describe('StringType', () => {
   });
 
   describe('a coupon code with its own rule', () => {
-    it('accepts a short code and reports a long one', () => {
+    it('accepts a short code and refuses to build a long one', () => {
       const { CouponCode } = couponCodes();
       expect(new CouponCode('abc').validate()).toEqual({ ok: true, value: 'abc', errors: [] });
-      expect(new CouponCode('123456').validate().errors).toEqual([shortCodeError]);
+      expect(issuesOf(() => new CouponCode('123456'))).toEqual([
+        { field: null, message: 'CouponCode: Value does not satisfy isShortCode' },
+      ]);
     });
 
     it.each(blankFormFields)(
@@ -216,23 +220,24 @@ describe('StringType', () => {
     it('a required referral code runs the same rule', () => {
       const { ReferralCode } = couponCodes();
       expect(new ReferralCode('abc').validate()).toEqual({ ok: true, value: 'abc', errors: [] });
-      expect(new ReferralCode('123456').validate().errors).toEqual([shortCodeError]);
+      expect(issuesOf(() => new ReferralCode('123456'))).toEqual([
+        { field: null, message: 'ReferralCode: Value does not satisfy isShortCode' },
+      ]);
     });
   });
 
-  describe('an email checked before saving a customer', () => {
-    it('returns the same instance when the email is valid', () => {
-      const email = new Email('ana@example.com');
-      expect(email.assertValid()).toBe(email);
+  describe('an email that is always valid', () => {
+    it('is built when the email is valid', () => {
+      expect(new Email('ana@example.com').value).toBe('ana@example.com');
     });
 
-    it('throws ValidationException naming the type and listing the errors', () => {
-      const assertValid = () => new Email('not-an-email').assertValid();
-      expect(assertValid).toThrow(ValidationException);
-      expect(assertValid).toThrow('Validation failed, Email: Value does not satisfy isEmail');
-      expect(thrownBy(assertValid)).toMatchObject({
-        errors: ['Email: Value does not satisfy isEmail'],
-      });
+    it('cannot be built from a malformed email: ValidationException names the type', () => {
+      const build = () => new Email('not-an-email');
+      expect(build).toThrow(ValidationException);
+      expect(build).toThrow('Validation failed, Email: Value does not satisfy isEmail');
+      expect(issuesOf(build)).toEqual([
+        { field: null, message: 'Email: Value does not satisfy isEmail' },
+      ]);
     });
   });
 

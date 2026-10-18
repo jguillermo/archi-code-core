@@ -202,15 +202,11 @@ describe('UuidType', () => {
       expect(new PaymentToken(token).validate()).toEqual({ ok: true, value: token, errors: [] });
     });
 
-    it('a payment token derived from a name is reported by validate', () => {
-      expect(new PaymentToken(UuidType.fromValue('order-1')).validate().errors).toEqual([
-        { custom: 'isVersion4', message: 'A payment token must be a random (version 4) UUID' },
-      ]);
-    });
-
-    it('assertValid throws ValidationException for a derived payment token', () => {
-      expect(() => new PaymentToken(UuidType.fromValue('order-1')).assertValid()).toThrow(
-        ValidationException,
+    it('a payment token derived from a name cannot be built: ValidationException', () => {
+      const derived = () => new PaymentToken(UuidType.fromValue('order-1'));
+      expect(derived).toThrow(ValidationException);
+      expect(derived).toThrow(
+        'Validation failed, PaymentToken: A payment token must be a random (version 4) UUID',
       );
     });
 

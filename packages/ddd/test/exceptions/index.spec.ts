@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import * as exceptions from '../../src/exceptions/index';
-import type { ExceptionOptions } from '../../src/exceptions/index';
+import type { ExceptionOptions, ValidationIssue } from '../../src/exceptions/index';
 import { AggregateNotFoundException } from '../../src/exceptions/domain/aggregate-not-found.exception';
 import { ExceptionCode } from '../../src/exceptions/exception-code';
 
@@ -40,7 +40,11 @@ describe('@archi-code/ddd/exceptions', () => {
     expect(Object.keys(exceptions)).not.toContain('ExceptionBrand');
   });
 
-  it('exports the options type', () => {
+  it('exports the options type and the field error of a ValidationException', () => {
     expectTypeOf<ExceptionOptions>().toEqualTypeOf<{ cause?: unknown }>();
+    expectTypeOf<ValidationIssue>().toEqualTypeOf<{
+      readonly field: string | null;
+      readonly message: string;
+    }>();
   });
 });

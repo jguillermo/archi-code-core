@@ -1,6 +1,6 @@
 ---
 name: archi-code-ddd
-description: Rules, patterns and common mistakes for writing TypeScript code with @archi-code/ddd (archi-code DDD by layer - where each class goes and what it may import; domain value objects, Required(...), AggregateRoot with identity and events, EventBase, repository contracts and exceptions; application UseCase with toCommand/handle, EventListener with @ListensTo and the ports EventBus/Clock; infrastructure InMemoryRepository, EventDispatcher, InMemoryEventBus, DomainEventRegistry, HttpErrorMapper and clocks). Use it when creating or changing value objects, entities, aggregates, events, domain services, use cases, listeners, repositories or adapters, deciding in which layer a class goes, mapping errors to HTTP, or whenever the code imports @archi-code/ddd.
+description: Rules, patterns and common mistakes for writing TypeScript code with @archi-code/ddd (archi-code DDD by layer - where each class goes and what it may import; domain value objects, Required(...), ValueObjects.build, AggregateRoot with identity and events, EventBase, repository contracts and exceptions; application UseCase with toCommand/handle, EventListener with @ListensTo and the ports EventBus/Clock; infrastructure InMemoryRepository, EventDispatcher, InMemoryEventBus, DomainEventRegistry, HttpErrorMapper and clocks). Use it when creating or changing value objects, entities, aggregates, events, domain services, use cases, listeners, repositories or adapters, deciding in which layer a class goes, mapping errors to HTTP, or whenever the code imports @archi-code/ddd.
 ---
 
 # archi-code-ddd
@@ -43,6 +43,7 @@ import {
   Required,
   StringType,
   UpdatedAt,
+  ValueObjects,
 } from '@archi-code/ddd/domain';
 import {
   AggregateNotFoundException,
@@ -114,11 +115,21 @@ const { Required, StringType } = require('@archi-code/ddd/domain');
 - A domain VO is always a named subclass (`class Email extends ...`): the name appears in the error
   messages, and `equals` compares the class too (`BillingCountry('ES')` is not a
   `ShippingCountry('ES')`).
-- Construction only converts (or throws `TypePrimitiveException`). `@Validations` rules are checked
-  by `validate()` (never throws, returns `{ ok, value, errors }`) or by `assertValid()` (returns the
-  same instance or throws `ValidationException` whose `errors` are `'<Class>: <message>'`). Use
-  `new Email(input).assertValid()` where the domain needs an always-valid VO; use `validate()` to
-  collect every error of a form.
+- **A value object that exists is valid.** The constructor converts (or throws
+  `TypePrimitiveException`), checks `Required` (or throws `RequiredValueException`) and runs every
+  `@Validations` rule, throwing one `ValidationException` with all the broken rules
+  (`errors: [{ field: null, message: '<Class>: <message>' }]`). There is no `assertValid()`;
+  `validate()` only re-runs the rules and is always ok on a built VO.
+- **Report every field, never only the first.** Build the value objects of an input with
+  `ValueObjects.build({ field: () => new X(input.field), … })`: it runs every factory and throws one
+  `ValidationException` whose `errors` carry the `field` of each problem (required, conversion,
+  rules or any `DomainException`); `ValueObjects.buildList(list, (item) => …)` names list items by
+  position (`lines.1.units`). It returns the command typed field by field.
+- **Which layer validates what:** the input adapter checks only the shape of the request (it parses,
+  a field is a string), never a business rule; value objects check each value (built in
+  `toCommand`); the aggregate checks invariants over several values; a domain service checks rules
+  over several aggregates; the use case checks authorization. The input of a use case arrives
+  unvalidated on purpose: every adapter goes through it.
 - `@Validations` is imported from `@archi-code/validation`; a validator's parameters go in a single
   `properties` object. Subclasses inherit validations, and one with the same name replaces the
   parent's.
@@ -183,7 +194,7 @@ const { Required, StringType } = require('@archi-code/ddd/domain');
   members become `never`.
 - Where to throw each exception:
   - Domain (aggregates, VOs, business rules): `DomainException` or a custom subclass with its own
-    code; `ValidationException` (usually through `assertValid()`); `AggregateNotFoundException`
+    code; `ValidationException` (thrown by value objects and `ValueObjects.build`); `AggregateNotFoundException`
     when the repository does not find the aggregate.
   - Use cases: `ApplicationException`.
   - Adapters (DB, network…): `InfrastructureException` / `InternalErrorException`, always with
@@ -210,9 +221,9 @@ const { Required, StringType } = require('@archi-code/ddd/domain');
   an adapter implements each role it supports.
 - Use cases extend `UseCase<Input, Command, Output>`, receive ports by constructor
   (`AggregateSaver<Order>`, `EventBus<OrderEvent>`, `Clock`) and are called with `execute(input)`.
-  They implement two steps: `protected toCommand(input)` builds and validates the value objects
-  (`assertValid()`) and returns the command (one value object, or a small interface of value
-  objects); `protected handle(command)` works only with value objects. `UseCase` has no helpers:
+  They implement two steps: `protected toCommand(input)` builds the value objects with
+  `ValueObjects.build` and returns the command (a small interface of value objects, or one value
+  object built with `new`); `protected handle(command)` works only with value objects. `UseCase` has no helpers:
   write every step in `handle` (load with `findById` and throw `AggregateNotFoundException` when it
   is `null`, change the aggregate, `save`, then `publish(aggregate.pullDomainEvents())`). Let errors
   propagate: `execute` keeps package exceptions and wraps any other error (also from `toCommand`)
@@ -243,7 +254,7 @@ class Name extends Required(StringType) {} // value: string; constructor demands
 class FullName extends Name {} // still required
 ```
 
-Always-valid value objects with `@Validations` + `assertValid()`:
+Always-valid value objects: `@Validations` rules run in the constructor:
 
 ```ts
 @Validations([{ validator: 'isEmail' }])
@@ -255,11 +266,19 @@ class Email extends Required(StringType) {}
 ])
 class Quantity extends NumberType {}
 
-const email = new Email(input).assertValid();
+new Email('ana@example.com').value; // 'ana@example.com'
+new Email('x');
 // ValidationException: Validation failed, Email: Value does not satisfy isEmail
 
-new Quantity(3).validate();
-// { ok: false, value: 3, errors: [{ custom: 'isEven', message: 'Must be even' }] }
+new Quantity(-3);
+// ValidationException: Validation failed, Quantity: Value does not satisfy isInt, Quantity: Must be even
+
+const command = ValueObjects.build({
+  email: () => new Email(input.email),
+  quantity: () => new Quantity(input.quantity),
+});
+// input { email: 'x', quantity: 3 } → one ValidationException with every field:
+// errors: [{ field: 'email', message: 'Email: …' }, { field: 'quantity', message: 'Quantity: Must be even' }]
 ```
 
 Aggregate with typed id, child entities and events:
@@ -407,11 +426,11 @@ class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand, void>
   }
 
   protected toCommand(input: AddOrderLineInput): AddOrderLineCommand {
-    return {
-      orderId: new OrderId(input.orderId),
-      sku: new Sku(input.sku).assertValid(),
-      units: new Units(input.units).assertValid(),
-    };
+    return ValueObjects.build({
+      orderId: () => new OrderId(input.orderId),
+      sku: () => new Sku(input.sku),
+      units: () => new Units(input.units),
+    });
   }
 
   protected async handle(command: AddOrderLineCommand): Promise<void> {
@@ -443,7 +462,10 @@ class PrepareShipment extends UseCase<
   }
 
   protected toCommand(input: { orderId: string; sku: string }): { orderId: OrderId; sku: Sku } {
-    return { orderId: new OrderId(input.orderId), sku: new Sku(input.sku) };
+    return ValueObjects.build({
+      orderId: () => new OrderId(input.orderId),
+      sku: () => new Sku(input.sku),
+    });
   }
 
   protected async handle(command: { orderId: OrderId; sku: Sku }): Promise<void> {
@@ -572,9 +594,13 @@ describe('Order', () => {
   returned instance (`this._tags = this._tags.withItem('x')`).
 - Ignoring what `withItem`/`withoutItem` return: the original does not change.
 - Comparing VOs or entities with `===`: use `equals()`.
-- Expecting the constructor to fail because of an `@Validations` rule: it only fails on conversion or
-  on an empty value in `Required`. Chain `assertValid()` or call `validate()`.
-- Throwing `ValidationException` by hand from `validate()` errors when `assertValid()` does it.
+- Calling `assertValid()`: it does not exist; the constructor already throws `ValidationException`.
+- Building the value objects of an input one after another with `new` in `toCommand`: the first
+  invalid field hides the rest. Use `ValueObjects.build` so every field is reported.
+- Repeating a value object's rule in the request schema or the controller (`isEmail` in a DTO
+  validator): the adapter checks only the shape; the value object owns the rule.
+- Catching the `ValidationException` of a value object to keep an invalid value, or creating
+  `ValidationException` by hand from `validate()` results.
 - Sending local date-times without a zone (`'2024-01-31T10:00:00'`) to `DateType`: they are rejected.
 - Passing unconverted values with their static type (`new NumberType('1.5')`): type error; conversion
   is for `any`/`unknown` input.

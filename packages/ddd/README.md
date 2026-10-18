@@ -166,8 +166,7 @@ the browser? of the server?). Send it with `Z` or an offset, or send only the da
 | `toString()`    | `string`              | Text of the value; `''` if it is `null`. `DateType` gives ISO 8601, `JsonType` the JSON |
 | `toJSON()`      | `T \| null` (or `T`)  | The value, so `JSON.stringify` writes the plain value                                   |
 | `equals(other)` | `boolean`             | Same class and same value (dates by instant, arrays and objects by content)             |
-| `validate()`    | `ValidationResult<T>` | Runs the validations declared with `@Validations`; never throws                         |
-| `assertValid()` | `this`                | Same instance if `validate()` is ok; otherwise throws `ValidationException`             |
+| `validate()`    | `ValidationResult<T>` | Runs the `@Validations` rules again; never throws (always ok on a built value object)   |
 
 ```ts
 class City extends StringType {}
@@ -208,15 +207,17 @@ new Name('  ');
 object is also required (`class FullName extends Name {}`). `Required(...)` accepts any subclass of
 `AbstractType`, including your own and abstract ones (`Required(StatusType)`, `Required(Tags)`).
 
-`Required(...)` also declares the `isRequired` validation, so `validate()` on a required type
-includes it too.
+`Required(...)` also declares the `isRequired` validation, so the rules of a required type include
+it too.
 
-### Validations
+### Validations: always valid from the constructor
 
 Validations are declared with `@Validations` from `@archi-code/validation` (that package's `is*`
-validators or `custom` validations with their own function). `validate()` does not throw: it returns
-a frozen `{ ok, value, errors }`. An optional, empty value object is valid without running its
-validations.
+validators or `custom` validations with their own function). The constructor runs them after the
+conversion, so **a value object that exists is valid**: there is no invalid `Email` to pass around,
+whether it was built by a use case, an aggregate, `fromPrimitives` or a test. When rules are broken
+it throws `ValidationException` with **every** broken rule, each prefixed with the class name. An
+optional, empty value object is built without running its rules.
 
 ```ts
 import { Validations } from '@archi-code/validation';
@@ -225,17 +226,15 @@ import { NumberType, Required, StringType } from '@archi-code/ddd/domain';
 @Validations([{ validator: 'isEmail' }])
 class Email extends Required(StringType) {}
 
-new Email('x').validate();
-// { ok: false, value: 'x', errors: [{ validator: 'isEmail', message: 'Value does not satisfy isEmail' }] }
-new Email('ana@example.com').validate();
-// { ok: true, value: 'ana@example.com', errors: [] }
+new Email('ana@example.com').value; // 'ana@example.com'
+new Email('x');
+// ValidationException: Validation failed, Email: Value does not satisfy isEmail
+// error.errors: [{ field: null, message: 'Email: Value does not satisfy isEmail' }]
 
 @Validations([{ validator: 'isLength', properties: { min: 3, max: 20 } }])
 class Username extends StringType {}
 
-new Username().validate(); // { ok: true, value: null, errors: [] }
-new Username('ab').validate();
-// { ok: false, value: 'ab', errors: [{ validator: 'isLength', message: 'Value does not satisfy isLength' }] }
+new Username().value; // null: an optional, empty value runs no rule
 
 @Validations([
   { validator: 'isInt', properties: { min: 0 } },
@@ -243,26 +242,77 @@ new Username('ab').validate();
 ])
 class Quantity extends NumberType {}
 
-new Quantity(3).validate();
-// { ok: false, value: 3, errors: [{ custom: 'isEven', message: 'Must be even' }] }
+new Quantity(-3);
+// ValidationException: Validation failed, Quantity: Value does not satisfy isInt, Quantity: Must be even
 ```
 
 A subclass inherits its parent's validations; if it declares the same validation, it replaces it.
 Validator names and their `properties` are in the `@archi-code/validation` documentation.
+`validate()` runs the rules again and returns a frozen `{ ok, value, errors }` without throwing;
+on a value object that was built it is always `ok`.
 
-To build a value object that is always valid, chain `assertValid()`: it returns the same instance
-or throws `ValidationException` with one entry per broken rule, prefixed with the class name:
+### Building every value object of an input at once: `ValueObjects.build`
+
+The constructor of each value object stops at its own errors. To report **every field** of an
+input (a form, a JSON body, a message) at once, build the value objects with
+`ValueObjects.build`: it runs every factory, even after one fails, and throws one
+`ValidationException` whose `errors` name the field of each problem. It collects the three ways a
+value can be wrong: empty in a required type (`RequiredValueException`), not convertible
+(`TypePrimitiveException`) and broken rules (`ValidationException`), plus any other
+`DomainException` a factory throws. Any other error is a bug and goes through untouched.
+`ValueObjects.buildList` does the same for a list and names each item by its position, so nested
+inputs get paths such as `lines.1.units`.
 
 ```ts
-const email = new Email('ana@example.com').assertValid(); // Email
+import { IdType, NumberType, Required, StringType, ValueObjects } from '@archi-code/ddd/domain';
 
-new Email('x').assertValid();
-// ValidationException: Validation failed, Email: Value does not satisfy isEmail
-// error.errors: ['Email: Value does not satisfy isEmail']
+class OrderId extends IdType {}
+class Sku extends Required(StringType) {}
+
+@Validations([
+  { validator: 'isInt', properties: { min: 1, max: 20 }, message: 'From 1 to 20 units' },
+])
+class Units extends Required(NumberType) {}
+
+const command = ValueObjects.build({
+  orderId: () => new OrderId(input.orderId),
+  email: () => new Email(input.email),
+  lines: () =>
+    ValueObjects.buildList(input.lines, (line) =>
+      ValueObjects.build({ sku: () => new Sku(line.sku), units: () => new Units(line.units) }),
+    ),
+});
+// command: { orderId: OrderId; email: Email; lines: { sku: Sku; units: Units }[] }
+
+// with input = { orderId: 'x', email: 'ana', lines: [{ sku: 'TORCH-01', units: 2 }, { sku: '', units: 0 }] }:
+// ValidationException, error.errors:
+// [
+//   { field: 'orderId', message: 'Validation Error: Expected a valid UUID, but received "x".' },
+//   { field: 'email', message: 'Email: Value does not satisfy isEmail' },
+//   { field: 'lines.1.sku', message: 'Validation Error: Sku is required, but received "".' },
+//   { field: 'lines.1.units', message: 'Units: From 1 to 20 units' },
+// ]
 ```
 
-`validate()` stays available to collect errors without throwing, for example to show every error of
-a form at once.
+`HttpErrorMapper` answers it with a 422 whose body carries the same `errors`, so a client can mark
+each input.
+
+### Which layer validates what
+
+The input that reaches a use case is not validated yet, and that is on purpose: every adapter
+(HTTP, a queue, a CLI, a test) goes through the use case, so the rules live in one place.
+
+| What                                                      | Where                                                                       |
+| --------------------------------------------------------- | --------------------------------------------------------------------------- |
+| The shape of the request (it parses, a field is a string) | The input adapter (controller, consumer); no business rule                  |
+| One value: required, convertible, its rules               | The value object's constructor, through `ValueObjects.build` in `toCommand` |
+| Rules over several values of one aggregate (invariants)   | The aggregate's methods, with a `DomainException`                           |
+| Rules over several aggregates                             | A domain service                                                            |
+| Whether the caller may run the action                     | The use case (application)                                                  |
+
+Do not repeat a value object's rule in the request schema: the adapter checks that the email is a
+string, `Email` checks that it is an email. Invariants run after the fields are valid, because they
+need valid value objects to be evaluated.
 
 ### Immutability
 
@@ -424,17 +474,20 @@ fewer.toString(); // 'ddd, node'
 const unique = tags.hasItem('ddd') ? tags : tags.withItem('ddd'); // add only if missing
 
 new Tags('["a1","b2"]' as any).value; // ['a1', 'b2']
-new Tags(['ok', '']);
-// RequiredValueException: Validation Error: Tag is required, but received "".
 new Tags('abc' as any);
 // TypePrimitiveException: Validation Error: Expected a valid Array, but received "abc".
 ```
 
-`validate()` on an `ArrayType` adds each item's errors with its position:
+An `ArrayType` builds every item and reports, at once, the rules of the list (`field: null`) and
+the errors of each item with its position (`field: '1'`, from 0):
 
 ```ts
-new Tags(['ok', 'x']).validate();
-// { ok: false, value: ['ok', 'x'], errors: [{ validator: 'isLength', message: 'Item 2: Value does not satisfy isLength' }] }
+new Tags(['ok', 'x', '']);
+// ValidationException, error.errors:
+// [
+//   { field: '1', message: 'Tag: Value does not satisfy isLength' },
+//   { field: '2', message: 'Validation Error: Tag is required, but received "".' },
+// ]
 ```
 
 ### Custom value objects with `AbstractType`
@@ -604,9 +657,10 @@ Two rules shape every use case:
 A use case has two steps, and `execute(input)` (which always returns a promise) runs them in
 order:
 
-1. `protected toCommand(input: Input): Command` builds and validates the value objects the action
-   needs (`new OrderId(input.orderId)`, `new Email(input.email).assertValid()`). If the input does
-   not make valid value objects it throws, and `handle` never runs.
+1. `protected toCommand(input: Input): Command` builds the value objects the action needs with
+   `ValueObjects.build({ orderId: () => new OrderId(input.orderId), email: () => new Email(input.email) })`
+   (one value object alone can be built with `new`). If any field is invalid it throws one
+   `ValidationException` listing every field, and `handle` never runs.
 2. `protected handle(command: Command)` (sync or async) coordinates the action with value objects
    only: load the aggregate, call its business method, save it, publish
    `aggregate.pullDomainEvents()`.
@@ -711,7 +765,7 @@ Ready adapters for tests, prototypes and the edges of an API:
 | `EventDispatcher(listeners?)`                   | Groups listeners by their `@ListensTo` event; `add(listener)`, `listenersOf(name)`, `dispatch(event)`     |
 | `InMemoryEventBus(dispatcher?)`                 | `EventBus` that records `published` and hands every event to its dispatcher, in the same process          |
 | `DomainEventRegistry`                           | `register(EventClass, factory)` and `fromJSON(json)`: rebuilds events read from an outbox or a broker     |
-| `HttpErrorMapper(statusByCode?)`                | `map(error)` → `{ status, body: { code, message, errors? } }`                                             |
+| `HttpErrorMapper(statusByCode?)`                | `map(error)` → `{ status, body: { code, message, errors? } }` (`errors`: `{ field, message }[]`)          |
 | `SystemClock`, `FixedClock(at)`                 | `Clock` with the real time, and a test clock with `set(at)` and `advance(ms)`                             |
 
 `InMemoryRepository` stores a copy of the primitives on every `save` (the last save wins), finds
@@ -794,9 +848,10 @@ aggregate:
    `get customer()`), or a public `readonly customer`. No private state without its getter: the
    primitives use those names.
 3. **Private constructor and two factories**: a business one (`Order.place(...)`) that validates
-   (`assertValid()`) and records events, and `static fromPrimitives(primitives: PrimitiveTypes<Order>)`
+   its invariants and records events, and `static fromPrimitives(primitives: PrimitiveTypes<Order>)`
    that rebuilds it from stored data, building each value object from its primitive and recording no
-   event.
+   event. Because value objects validate in their constructor, a corrupt row fails right there
+   instead of entering the model.
 4. **`toPrimitives(): PrimitiveTypes<Order>`** returns only plain data: `vo.value` of each value
    object and the primitives of each child entity, never a value object.
 5. **The repository receives `AggregateMapper.of(Order)`** and never touches the aggregate's fields.
@@ -916,7 +971,7 @@ All of them extend `AbstractException` (which extends `Error`) and have:
 | Class                        | Extends                   | Constructor                                | Codes              | Message                                                                           |
 | ---------------------------- | ------------------------- | ------------------------------------------ | ------------------ | --------------------------------------------------------------------------------- |
 | `DomainException`            | `AbstractException`       | `(message, exceptionCodes = [], options?)` | `DOM000` + yours   | `message`                                                                         |
-| `ValidationException`        | `DomainException`         | `(errors: string[])`, keeps `errors`       | `DOM000`, `DOM001` | `Validation failed, <errors joined with ", ">`                                    |
+| `ValidationException`        | `DomainException`         | `(errors: ValidationIssue[])`, keeps them  | `DOM000`, `DOM001` | `Validation failed, <field: message, joined with ", ">`                           |
 | `AggregateNotFoundException` | `DomainException`         | `(entity: string, id: string)`             | `DOM000`, `DOM002` | `<entity> with ID <id> not found.`                                                |
 | `TypePrimitiveException`     | `DomainException`         | `(expectedType, receivedValue, template?)` | `DOM000`, `DOM003` | `Validation Error: Expected a valid <expectedType>, but received <value>.`        |
 | `RequiredValueException`     | `DomainException`         | `(typeName, receivedValue)`                | `DOM000`, `DOM004` | `Validation Error: <typeName> is required, but received <value>.`                 |
@@ -993,6 +1048,7 @@ import {
   IdType,
   Required,
   StringType,
+  ValueObjects,
 } from '@archi-code/ddd/domain';
 import { AggregateNotFoundException, DomainException } from '@archi-code/ddd/exceptions';
 import type {
@@ -1120,7 +1176,10 @@ class RegisterUser extends UseCase<{ name: string; email: string }, RegisterUser
   }
 
   protected toCommand(input: { name: string; email: string }): RegisterUserCommand {
-    return { name: new Name(input.name), email: new Email(input.email).assertValid() };
+    return ValueObjects.build({
+      name: () => new Name(input.name),
+      email: () => new Email(input.email),
+    });
   }
 
   protected async handle(command: RegisterUserCommand): Promise<string> {
@@ -1166,7 +1225,7 @@ class SendWelcomeEmail extends UseCase<{ email: string }, Email, void> {
   }
 
   protected toCommand(input: { email: string }): Email {
-    return new Email(input.email).assertValid();
+    return new Email(input.email);
   }
 
   protected handle(email: Email): void {
@@ -1211,7 +1270,7 @@ await new RenameUser(users, bus, clock)
 await new RegisterUser(users, bus, clock)
   .execute({ name: 'Eva', email: 'x' })
   .catch((error) => errors.map(error));
-// { status: 422, body: { code: 'DOM001', message: 'Validation failed, Email: …', errors: ['Email: Value does not satisfy isEmail'] } }
+// { status: 422, body: { code: 'DOM001', message: 'Validation failed, email: Email: …', errors: [{ field: 'email', message: 'Email: Value does not satisfy isEmail' }] } }
 ```
 
 ## Exports
@@ -1225,7 +1284,7 @@ await new RegisterUser(users, bus, clock)
 | `ValidationException`, `AggregateNotFoundException`, `TypePrimitiveException`, `RequiredValueException`, `InternalErrorException` | classes        |
 | `ConcurrencyException`, `UnknownEventException`                                                                                   | classes        |
 | `ExceptionCode`                                                                                                                   | enum           |
-| `ExceptionOptions`                                                                                                                | type           |
+| `ExceptionOptions`, `ValidationIssue` (`{ field: string \| null; message }`)                                                      | types          |
 
 `@archi-code/ddd/domain`:
 
@@ -1236,6 +1295,7 @@ await new RegisterUser(users, bus, clock)
 | `EnumType`, `ArrayType`                                                                    | abstract classes   |
 | `CreatedAt`, `UpdatedAt`, `IdType`                                                         | classes (required) |
 | `Required`                                                                                 | function           |
+| `ValueObjects` (`build`, `buildList`)                                                      | class              |
 | `AggregateRoot`, `EventBase`                                                               | abstract classes   |
 | `AggregateFinder`, `AggregateSaver`, `AggregateRemover`                                    | types (contracts)  |
 | `RequiredType`, `JsonTypeValue`, `PrimitiveType`, `PrimitiveTypes`, `DataTypes`            | types              |

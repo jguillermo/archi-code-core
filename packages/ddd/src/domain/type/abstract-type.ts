@@ -4,6 +4,7 @@ import { TypeInput } from './input/type-input';
 import { ValueEquality } from './equality/value-equality';
 import type { ValueOf } from './required/required-mark';
 import { ValidationException } from '../../exceptions/index';
+import type { ValidationIssue } from '../../exceptions/index';
 
 type JsonValue<T> = T extends Date ? string : T;
 
@@ -28,6 +29,10 @@ export abstract class AbstractType<T> implements Validatable<T | null> {
 
   constructor(value: T | null = null) {
     this._value = TypeInput.accept(this, value, (input) => this.filter(input));
+    const brokenRules = this.brokenRules(this._value);
+    if (brokenRules.length > 0) {
+      throw new ValidationException(brokenRules);
+    }
   }
 
   get value(): ValueOf<T, this> {
@@ -62,14 +67,11 @@ export abstract class AbstractType<T> implements Validatable<T | null> {
     >;
   }
 
-  assertValid(): this {
-    const result = this.validate();
-    if (!result.ok) {
-      throw new ValidationException(
-        result.errors.map((error) => `${this.constructor.name}: ${error.message}`),
-      );
-    }
-    return this;
+  protected brokenRules(value: unknown): ValidationIssue[] {
+    return runValidations(this.constructor as ValidatedClass, value).errors.map((error) => ({
+      field: null,
+      message: `${this.constructor.name}: ${error.message}`,
+    }));
   }
 
   protected abstract filter(value: unknown): T | null;

@@ -90,7 +90,9 @@ function spanishAddresses() {
   return { InvoiceAddress, DeliveryAddress, hasZip };
 }
 
-const zipError = { custom: 'hasZip', message: 'Zip code is required' };
+function issuesOf(build: () => unknown): unknown {
+  return (thrownBy(build) as ValidationException).errors;
+}
 
 describe('JsonType', () => {
   describe('an optional billing address', () => {
@@ -233,9 +235,9 @@ describe('JsonType', () => {
       expect(
         new InvoiceAddress({ street: 'Gran Vía 1', city: 'Huelva', zip: '21001' }).validate().ok,
       ).toBe(true);
-      expect(
-        new InvoiceAddress({ street: 'Gran Vía 1', city: 'Huelva' }).validate().errors,
-      ).toEqual([zipError]);
+      expect(issuesOf(() => new InvoiceAddress({ street: 'Gran Vía 1', city: 'Huelva' }))).toEqual([
+        { field: null, message: 'InvoiceAddress: Zip code is required' },
+      ]);
     });
 
     it.each(blankFormFields)(
@@ -254,14 +256,13 @@ describe('JsonType', () => {
     it('shipping to an address without zip throws ValidationException', () => {
       const { DeliveryAddress } = spanishAddresses();
       const complete = new DeliveryAddress({ street: 'Gran Vía 1', city: 'Huelva', zip: '21001' });
-      expect(complete.assertValid()).toBe(complete);
+      expect(complete.value).toEqual({ street: 'Gran Vía 1', city: 'Huelva', zip: '21001' });
 
-      const assertValid = () =>
-        new DeliveryAddress({ street: 'Gran Vía 1', city: 'Huelva' }).assertValid();
-      expect(assertValid).toThrow(ValidationException);
-      expect(thrownBy(assertValid)).toMatchObject({
+      const ship = () => new DeliveryAddress({ street: 'Gran Vía 1', city: 'Huelva' });
+      expect(ship).toThrow(ValidationException);
+      expect(thrownBy(ship)).toMatchObject({
         message: 'Validation failed, DeliveryAddress: Zip code is required',
-        errors: ['DeliveryAddress: Zip code is required'],
+        errors: [{ field: null, message: 'DeliveryAddress: Zip code is required' }],
       });
     });
 

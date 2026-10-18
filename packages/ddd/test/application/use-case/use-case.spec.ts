@@ -9,6 +9,7 @@ import {
   IdType,
   Required,
   StringType,
+  ValueObjects,
 } from '../../../src/domain/index';
 import {
   AggregateNotFoundException,
@@ -158,10 +159,10 @@ class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, { orderId: 
   }
 
   protected toCommand(input: PlaceOrderInput): PlaceOrderCommand {
-    return {
-      orderId: new OrderId(input.orderId),
-      customer: new CustomerName(input.customer).assertValid(),
-    };
+    return ValueObjects.build({
+      orderId: () => new OrderId(input.orderId),
+      customer: () => new CustomerName(input.customer),
+    });
   }
 
   protected async handle(command: PlaceOrderCommand): Promise<{ orderId: string }> {
@@ -302,14 +303,31 @@ describe('UseCase: an application service a controller or a message handler call
       expect(bus.published).toEqual([]);
     });
 
-    it('lets ValidationException from assertValid reach the controller as it is', async () => {
+    it('lets ValidationException from the value objects reach the controller as it is', async () => {
       const { placeOrder, orders } = setup();
       const error = await rejection(placeOrder.execute({ orderId, customer: 'A' }));
       expect(error).toBeInstanceOf(ValidationException);
       expect((error as ValidationException).errors).toEqual([
-        'CustomerName: Value does not satisfy isLength',
+        { field: 'customer', message: 'CustomerName: Value does not satisfy isLength' },
       ]);
       expect(orders.rows.size).toBe(0);
+    });
+
+    it('reports every invalid field of the input at once, never only the first one', async () => {
+      const { placeOrder, log } = setup();
+      const error = await rejection(placeOrder.execute({ orderId: 'not-an-id', customer: '' }));
+      expect(error).toBeInstanceOf(ValidationException);
+      expect((error as ValidationException).errors).toEqual([
+        {
+          field: 'orderId',
+          message: 'Validation Error: Expected a valid UUID, but received "not-an-id".',
+        },
+        {
+          field: 'customer',
+          message: 'Validation Error: CustomerName is required, but received "".',
+        },
+      ]);
+      expect(log).toEqual([]);
     });
   });
 

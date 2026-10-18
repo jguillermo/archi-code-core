@@ -8,6 +8,7 @@ import type {
 } from '../../src/infrastructure/index';
 import { AggregateRoot, EventBase } from '../../src/domain/index';
 import type { SerializedEvent } from '../../src/domain/index';
+import type { ValidationIssue } from '../../src/exceptions/index';
 import { InMemoryRepository } from '../../src/infrastructure/repository/in-memory-repository';
 import { AggregateMapper } from '../../src/infrastructure/repository/aggregate-mapper';
 
@@ -54,7 +55,7 @@ describe('@archi-code/ddd/infrastructure', () => {
     expectTypeOf<HttpErrorBody>().toEqualTypeOf<{
       code: string;
       message: string;
-      errors?: readonly string[];
+      errors?: readonly ValidationIssue[];
     }>();
     expectTypeOf<HttpError>().toEqualTypeOf<{ status: number; body: HttpErrorBody }>();
   });

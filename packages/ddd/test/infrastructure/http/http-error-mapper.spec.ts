@@ -57,13 +57,13 @@ describe('HttpErrorMapper: the error handler of an HTTP controller', () => {
     });
 
     it('a sign-up with a malformed email is a 422 listing every broken rule', () => {
-      const error = thrownBy(() => new Email('ana').assertValid());
+      const error = thrownBy(() => new Email('ana'));
       expect(mapper.map(error)).toEqual({
         status: 422,
         body: {
           code: 'DOM001',
           message: 'Validation failed, Email: Value does not satisfy isEmail',
-          errors: ['Email: Value does not satisfy isEmail'],
+          errors: [{ field: null, message: 'Email: Value does not satisfy isEmail' }],
         },
       });
     });
@@ -174,23 +174,29 @@ describe('HttpErrorMapper: the error handler of an HTTP controller', () => {
     const otherCopy = await import('../../../src/exceptions/index');
     expect(otherCopy.AggregateNotFoundException).not.toBe(AggregateNotFoundException);
     expect(mapper.map(new otherCopy.AggregateNotFoundException('Order', orderId)).status).toBe(404);
-    expect(mapper.map(new otherCopy.ValidationException(['Email: invalid']))).toEqual({
+    expect(
+      mapper.map(
+        new otherCopy.ValidationException([{ field: 'email', message: 'Email: invalid' }]),
+      ),
+    ).toEqual({
       status: 422,
       body: {
         code: 'DOM001',
-        message: 'Validation failed, Email: invalid',
-        errors: ['Email: invalid'],
+        message: 'Validation failed, email: Email: invalid',
+        errors: [{ field: 'email', message: 'Email: invalid' }],
       },
     });
     expect(mapper.map(new otherCopy.ConcurrencyException('Order', orderId, 2)).status).toBe(409);
   });
 
-  it('keeps the list of a ValidationException built by hand', () => {
-    expect(mapper.map(new ValidationException(['name: too short', 'age: negative']))).toMatchObject(
-      {
-        status: 422,
-        body: { errors: ['name: too short', 'age: negative'] },
-      },
-    );
+  it('keeps every field of a sign-up form so the client can mark each input', () => {
+    const issues = [
+      { field: 'name', message: 'CustomerName: too short' },
+      { field: 'age', message: 'Age: negative' },
+    ];
+    expect(mapper.map(new ValidationException(issues))).toMatchObject({
+      status: 422,
+      body: { errors: issues },
+    });
   });
 });

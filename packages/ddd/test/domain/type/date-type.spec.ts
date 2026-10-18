@@ -218,18 +218,10 @@ describe('DateType', () => {
       });
     });
 
-    it('a birth date in the future is reported, not thrown, by validate', () => {
-      expect(new BirthDate(new Date('2030-01-01T00:00:00Z')).validate()).toEqual({
-        ok: false,
-        value: new Date('2030-01-01T00:00:00Z'),
-        errors: [{ custom: 'isNotInTheFuture', message: 'A birth date cannot be in the future' }],
-      });
-    });
-
-    it('assertValid turns a birth date in the future into a ValidationException', () => {
-      const birthDate = new BirthDate(new Date('2030-01-01T00:00:00Z'));
-      expect(() => birthDate.assertValid()).toThrow(ValidationException);
-      expect(() => birthDate.assertValid()).toThrow(
+    it('a birth date in the future cannot be built: ValidationException', () => {
+      const register = () => new BirthDate(new Date('2030-01-01T00:00:00Z'));
+      expect(register).toThrow(ValidationException);
+      expect(register).toThrow(
         'Validation failed, BirthDate: A birth date cannot be in the future',
       );
     });

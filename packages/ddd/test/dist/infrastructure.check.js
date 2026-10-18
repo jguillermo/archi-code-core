@@ -178,7 +178,9 @@ function crossBuild(cjs) {
       async () => {
         const esmExceptions = await import(esmExceptionsUrl);
         const mapped = new cjs.HttpErrorMapper().map(
-          new esmExceptions.ValidationException(['Email: Value does not satisfy isEmail']),
+          new esmExceptions.ValidationException([
+            { field: 'email', message: 'Email: Value does not satisfy isEmail' },
+          ]),
         );
         return mapped.status === 422 || `unexpected status ${mapped.status}`;
       },
