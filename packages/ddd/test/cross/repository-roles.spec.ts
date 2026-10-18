@@ -1,13 +1,13 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
+import { UseCase } from '../../src/application/index';
+import { AggregateRoot, IdType, Required, StringType } from '../../src/domain/index';
+import { AggregateNotFoundException } from '../../src/exceptions/index';
 import type {
   AggregateFinder,
   AggregateRemover,
   AggregateSaver,
-} from '../../../src/application/ports/repository';
-import { UseCase } from '../../../src/application/use-case/use-case';
-import { AggregateRoot, IdType, Required, StringType } from '../../../src/domain/index';
-import { AggregateNotFoundException } from '../../../src/exceptions/index';
-import type { PrimitiveTypes } from '../../../src/domain/index';
+  PrimitiveTypes,
+} from '../../src/domain/index';
 
 class CustomerId extends IdType {}
 class CustomerName extends Required(StringType) {}
@@ -50,7 +50,7 @@ class KeyValueCustomerRepository
 
 const customerId = '0f8c2b6e-3c1a-4c55-9a4e-0d6c1b2f7a10';
 
-describe('Repository roles: the ports a use case loads, saves and deletes aggregates through', () => {
+describe('Repository roles: the domain contracts a use case loads, saves and deletes aggregates through', () => {
   it('is typed by the aggregate and its id type', () => {
     expectTypeOf<AggregateFinder<Customer>['findById']>().toEqualTypeOf<
       (id: CustomerId) => Promise<Customer | null>
@@ -88,39 +88,58 @@ describe('Repository roles: the ports a use case loads, saves and deletes aggreg
   });
 
   describe('interface segregation: each use case asks only for the role it uses', () => {
-    class RegisterCustomer extends UseCase<{ id: string; name: string }, void> {
+    interface RegisterCustomerCommand {
+      id: CustomerId;
+      name: CustomerName;
+    }
+
+    class RegisterCustomer extends UseCase<
+      { id: string; name: string },
+      RegisterCustomerCommand,
+      void
+    > {
       constructor(private readonly customers: AggregateSaver<Customer>) {
         super();
       }
 
-      protected async handle(input: { id: string; name: string }): Promise<void> {
-        await this.customers.save(
-          new Customer(new CustomerId(input.id), new CustomerName(input.name)),
-        );
+      protected toCommand(input: { id: string; name: string }): RegisterCustomerCommand {
+        return { id: new CustomerId(input.id), name: new CustomerName(input.name) };
+      }
+
+      protected async handle(command: RegisterCustomerCommand): Promise<void> {
+        await this.customers.save(new Customer(command.id, command.name));
       }
     }
 
-    class GetCustomerName extends UseCase<{ id: string }, string> {
+    class LookUpCustomerName extends UseCase<{ id: string }, CustomerId, string> {
       constructor(private readonly customers: AggregateFinder<Customer>) {
         super();
       }
 
-      protected async handle(input: { id: string }): Promise<string> {
-        const customer = await this.customers.findById(new CustomerId(input.id));
+      protected toCommand(input: { id: string }): CustomerId {
+        return new CustomerId(input.id);
+      }
+
+      protected async handle(id: CustomerId): Promise<string> {
+        const customer = await this.customers.findById(id);
         if (customer === null) {
-          throw new AggregateNotFoundException('Customer', input.id);
+          throw new AggregateNotFoundException('Customer', id.value);
         }
         return customer.name.value;
       }
     }
 
-    class ForgetCustomer extends UseCase<{ id: string }, void> {
+    class ForgetCustomer extends UseCase<{ id: string }, CustomerId, void> {
       constructor(private readonly customers: AggregateRemover<Customer>) {
         super();
       }
 
-      protected async handle(input: { id: string }): Promise<void> {
-        await this.customers.delete(new CustomerId(input.id));
+      protected toCommand(input: { id: string }): CustomerId {
+        return new CustomerId(input.id);
+      }
+
+      protected async handle(id: CustomerId): Promise<void> {
+        await this.customers.delete(id);
       }
     }
 
@@ -139,7 +158,7 @@ describe('Repository roles: the ports a use case loads, saves and deletes aggreg
       const finder: AggregateFinder<Customer> = {
         findById: async (id) => new Customer(id, new CustomerName('Ana')),
       };
-      expect(await new GetCustomerName(finder).execute({ id: customerId })).toBe('Ana');
+      expect(await new LookUpCustomerName(finder).execute({ id: customerId })).toBe('Ana');
       expect('save' in finder).toBe(false);
       // @ts-expect-error a finder exposes no save
       expect(() => finder.save).toBeDefined();
@@ -159,9 +178,9 @@ describe('Repository roles: the ports a use case loads, saves and deletes aggreg
     it('one full repository adapter serves every role', async () => {
       const repository = new KeyValueCustomerRepository();
       await new RegisterCustomer(repository).execute({ id: customerId, name: 'Ana' });
-      expect(await new GetCustomerName(repository).execute({ id: customerId })).toBe('Ana');
+      expect(await new LookUpCustomerName(repository).execute({ id: customerId })).toBe('Ana');
       await new ForgetCustomer(repository).execute({ id: customerId });
-      await expect(new GetCustomerName(repository).execute({ id: customerId })).rejects.toThrow(
+      await expect(new LookUpCustomerName(repository).execute({ id: customerId })).rejects.toThrow(
         AggregateNotFoundException,
       );
     });

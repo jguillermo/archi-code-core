@@ -1,5 +1,10 @@
-import type { AggregateFinder, AggregateRemover, AggregateSaver } from '../../application/index';
-import type { AggregateRoot, PrimitiveTypes } from '../../domain/index';
+import type {
+  AggregateFinder,
+  AggregateRemover,
+  AggregateRoot,
+  AggregateSaver,
+  PrimitiveTypes,
+} from '../../domain/index';
 import type { AggregateMapper } from './aggregate-mapper';
 
 export class InMemoryRepository<

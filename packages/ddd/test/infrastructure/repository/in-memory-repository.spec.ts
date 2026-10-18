@@ -1,9 +1,5 @@
 import { describe, expect, expectTypeOf, it, vi } from 'vitest';
-import type {
-  AggregateFinder,
-  AggregateRemover,
-  AggregateSaver,
-} from '../../../src/application/index';
+import type { AggregateFinder, AggregateRemover, AggregateSaver } from '../../../src/domain/index';
 import {
   AggregateRoot,
   CreatedAt,

@@ -88,9 +88,7 @@ function smoke(m) {
       'aggregate records events with metadata',
       () => {
         class OrderPlaced extends m.EventBase {
-          eventName() {
-            return 'order.placed';
-          }
+          static eventName = 'order.placed';
         }
         class Order extends m.AggregateRoot {
           static place(id) {

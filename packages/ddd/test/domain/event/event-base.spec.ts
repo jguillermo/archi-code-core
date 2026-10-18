@@ -4,8 +4,11 @@ import type { EventMetadata, SerializedEvent } from '../../../src/domain/event/e
 import { NumberType } from '../../../src/domain/type/number-type';
 import { RequiredValueException } from '../../../src/exceptions/domain/required-value.exception';
 import { TypePrimitiveException } from '../../../src/exceptions/domain/type-primitive.exception';
+import { InternalErrorException } from '../../../src/exceptions/infrastructure/internal-error.exception';
 
 class PaymentCaptured extends EventBase {
+  static readonly eventName = 'payment.captured';
+
   constructor(
     orderId: string,
     readonly amount: number,
@@ -14,22 +17,16 @@ class PaymentCaptured extends EventBase {
   ) {
     super(orderId, metadata);
   }
-
-  eventName(): string {
-    return 'payment.captured';
-  }
 }
 
 class StockReserved extends EventBase {
+  static readonly eventName = 'stock.reserved';
+
   constructor(
     productId: string,
     readonly units: NumberType,
   ) {
     super(productId);
-  }
-
-  eventName(): string {
-    return 'stock.reserved';
   }
 }
 
@@ -38,6 +35,32 @@ const eventId = '1d2e3f4a-5b6c-4d7e-8f9a-0b1c2d3e4f5a';
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 describe('EventBase: a fact the domain publishes', () => {
+  describe('its name', () => {
+    it('is declared once on the class, so listeners and registries refer to it without an instance', () => {
+      expect(PaymentCaptured.eventName).toBe('payment.captured');
+      expect(new PaymentCaptured(orderId, 10, 'EUR').eventName()).toBe('payment.captured');
+    });
+
+    it('is inherited by a subclass that does not declare its own', () => {
+      class CardPaymentCaptured extends PaymentCaptured {}
+      expect(new CardPaymentCaptured(orderId, 10, 'EUR').eventName()).toBe('payment.captured');
+    });
+
+    it.each([
+      ['without a static eventName', class OrderArchived extends EventBase {}],
+      [
+        'with a blank static eventName',
+        class OrderArchived extends EventBase {
+          static readonly eventName = '  ';
+        },
+      ],
+    ])('refuses to create an event %s, a mistake in the code', (_, OrderArchived) => {
+      const create = () => new OrderArchived(orderId);
+      expect(create).toThrow(InternalErrorException);
+      expect(create).toThrow('OrderArchived must declare a static eventName');
+    });
+  });
+
   describe('when an aggregate records it', () => {
     it('gets a new random event id, so consumers can drop duplicates', () => {
       const first = new PaymentCaptured(orderId, 49.9, 'EUR');

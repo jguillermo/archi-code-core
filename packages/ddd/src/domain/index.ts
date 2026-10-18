@@ -2,3 +2,6 @@ export * from './event/event-base';
 export * from './aggregate/aggregate-root';
 export * from './type';
 export * from './primitive/primitive-types';
+export type { AggregateFinder } from './repository/aggregate-finder';
+export type { AggregateSaver } from './repository/aggregate-saver';
+export type { AggregateRemover } from './repository/aggregate-remover';

@@ -2,18 +2,18 @@
 
 Domain-Driven Design building blocks for TypeScript, one entry point per layer:
 
-| Entry point                      | Layer          | What it gives you                                                                                                                  |
-| -------------------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `@archi-code/ddd/exceptions`     | Shared         | Exceptions of every layer with codes, causes and `instanceof` across builds                                                        |
-| `@archi-code/ddd/domain`         | Domain         | Value objects, `Required(...)`, `AggregateRoot`, `EventBase`                                                                       |
-| `@archi-code/ddd/application`    | Application    | `UseCase` and the ports: repository roles (`AggregateFinder`, `AggregateSaver`, `AggregateRemover`), `EventBus`, `Clock`           |
-| `@archi-code/ddd/infrastructure` | Infrastructure | `InMemoryRepository`, `AggregateMapper`, `InMemoryEventBus`, `DomainEventRegistry`, `HttpErrorMapper`, `SystemClock`, `FixedClock` |
+| Entry point                      | Layer          | What it gives you                                                                                                                                     |
+| -------------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@archi-code/ddd/exceptions`     | Shared         | Exceptions of every layer with codes, causes and `instanceof` across builds                                                                           |
+| `@archi-code/ddd/domain`         | Domain         | Value objects, `Required(...)`, `AggregateRoot`, `EventBase` and the repository contracts (`AggregateFinder`, `AggregateSaver`, `AggregateRemover`)   |
+| `@archi-code/ddd/application`    | Application    | `UseCase`, `EventListener`, `@ListensTo` and the ports `EventBus` and `Clock`                                                                         |
+| `@archi-code/ddd/infrastructure` | Infrastructure | `InMemoryRepository`, `AggregateMapper`, `EventDispatcher`, `InMemoryEventBus`, `DomainEventRegistry`, `HttpErrorMapper`, `SystemClock`, `FixedClock` |
 
 The layers only depend inwards: `exceptions` imports nothing, `domain` imports only `exceptions`,
 `application` imports `domain` and `exceptions`, and `infrastructure` imports all three. The
 exceptions are a module of their own because every layer throws them: a use case wraps unknown
 errors in an infrastructure exception, an adapter throws a domain `AggregateNotFoundException`. Import each file of your project from the layer it
-belongs to and the same rule holds in your code. Conversions and validations come from
+belongs to and the same rule holds in your code (see [Architecture rules](#architecture-rules)). Conversions and validations come from
 [`@archi-code/validation`](https://www.npmjs.com/package/@archi-code/validation). The package is
 published with CJS and ESM builds.
 
@@ -34,7 +34,7 @@ npm install @archi-code/ddd
 
 ### TypeScript decorators
 
-`@Validations` works with both TypeScript decorator modes:
+`@Validations` and `@ListensTo` work with both TypeScript decorator modes:
 
 - **Standard** (TypeScript 5+ without `experimentalDecorators`): no configuration needed.
 - **Legacy**: `"experimentalDecorators": true` in `tsconfig.json`.
@@ -50,8 +50,9 @@ There is no root entry point: import from the layer.
 // ESM
 import { AggregateRoot, EventBase, IdType, Required, StringType } from '@archi-code/ddd/domain';
 import { DomainException, ExceptionCode } from '@archi-code/ddd/exceptions';
-import { UseCase } from '@archi-code/ddd/application';
-import type { AggregateSaver, EventBus } from '@archi-code/ddd/application';
+import type { AggregateSaver } from '@archi-code/ddd/domain';
+import { EventListener, ListensTo, UseCase } from '@archi-code/ddd/application';
+import type { EventBus } from '@archi-code/ddd/application';
 import { InMemoryRepository, HttpErrorMapper } from '@archi-code/ddd/infrastructure';
 ```
 
@@ -67,6 +68,39 @@ subpaths also resolve with `"moduleResolution": "node"` (through `typesVersions`
 Both builds can be loaded in the same process (for example a CommonJS application that uses an ESM
 library built on this package): the exceptions of one build are `instanceof` the classes of the other
 (see [Exceptions](#exceptions-archi-codedddexceptions)).
+
+## Architecture rules
+
+Every class of a project built on this package goes in exactly one layer. The table says where,
+what it may import and what it must never do; the package itself is organized the same way.
+
+| Class                                      | Layer          | Responsibility                                                                     | May depend on                                              | Never                                                                        |
+| ------------------------------------------ | -------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Value object (`extends StringType`…)       | domain         | One concept of the business; converts and validates its own value                  | other value objects, `@archi-code/validation`, exceptions  | mutate, know about storage or transport                                      |
+| Aggregate (`extends AggregateRoot`)        | domain         | Business rules and invariants; records an event for every fact                     | its value objects, child entities, events, domain services | read a repository, publish events, use `new Date()`                          |
+| Child entity                               | domain         | A part of an aggregate with its own id (an order line)                             | value objects                                              | be loaded or saved on its own                                                |
+| Domain event (`extends EventBase`)         | domain         | A fact that happened, named in the past (`OrderPlaced`), with `static eventName`   | value objects (to validate its data)                       | carry behavior, reference infrastructure                                     |
+| Repository contract (`AggregateFinder`…)   | domain         | What the domain needs to load, save or delete an aggregate, one role per interface | the aggregate                                              | be implemented in the domain, become an all-in-one `Repository`              |
+| Domain service                             | domain         | A business rule that spans several aggregates or fits none                         | aggregates, value objects, repository contracts            | I/O, transactions, publishing events                                         |
+| Use case (`extends UseCase`)               | application    | One business action: input → command of value objects → change one aggregate       | domain, application ports, exceptions                      | import another use case or a listener, persist or call the network by itself |
+| Listener (`extends EventListener`)         | application    | What happens after an event: turns it into the input of one use case               | one use case (by constructor), the event                   | hold business rules, save aggregates, call several use cases                 |
+| Port (`EventBus`, `Clock`)                 | application    | A technical capability the application needs, as a type                            | domain types                                               | contain code                                                                 |
+| Adapter (repository, bus, mapper, clock…)  | infrastructure | Implements a contract with a database, a queue, a broker, HTTP or memory           | domain, application, exceptions, drivers                   | contain business rules                                                       |
+| Wiring (controllers, workers, composition) | infrastructure | Builds adapters, use cases and listeners and calls `execute`                       | everything                                                 | be imported by the domain or the application                                 |
+
+Dependencies only point inwards: `domain` imports only `exceptions` (the shared module every layer
+throws from), `application` imports `domain` and `exceptions`, and `infrastructure` imports all of
+them. The application never imports infrastructure and the domain never imports the application.
+
+Logic that two use cases share never goes in a use case: a business rule becomes a method of the
+aggregate or a domain service, and a technical step becomes a port. Use cases never call each
+other: when an action must follow another, the first records an event and a listener runs the
+second.
+
+Naming: use cases are a verb and a noun of the business (`PlaceOrder`, `ShipOrder`), never CRUD
+or technical names (`UpdateOrder`, `OrderService`); events are facts in the past
+(`OrderPlaced`, `PaymentCaptured`); listeners are `<Action>On<Event>`
+(`ReserveStockOnOrderPlaced`), where `<Action>` names the use case they run.
 
 # Domain layer: `@archi-code/ddd/domain`
 
@@ -443,7 +477,10 @@ To restrict an existing type, it is enough to extend it and declare `@Validation
 - Child entities of an aggregate (the lines of an order) are plain classes with a value object id:
   the aggregate root is the only one with a base class, and the only one repositories load and
   save.
-- `EventBase`: abstract class for events; implement `eventName(): string`. `new (aggregateId,
+- `EventBase`: abstract class for events; declare `static readonly eventName = '<context>.<fact>'`
+  (listeners and registries refer to the event by its class, without an instance; `eventName()`
+  returns it, and a subclass inherits it). Creating an event whose class has no non-blank
+  `eventName` throws `InternalErrorException`. `new (aggregateId,
 metadata?)` sets `aggregateId`, a new `eventId` (UUID v4) and an immutable `occurredOn`. Pass
   `{ clock }` (any `{ now(): Date }`, such as the `Clock` port) to take the moment from it; without
   a clock it is the system time. When you rebuild an event read from an outbox or a broker, pass
@@ -458,16 +495,14 @@ import type { EventMetadata } from '@archi-code/ddd/domain';
 class OrderId extends IdType {}
 
 class OrderPlaced extends EventBase {
+  static readonly eventName = 'order.placed';
+
   constructor(
     orderId: string,
     readonly customer: string,
     metadata?: EventMetadata,
   ) {
     super(orderId, metadata);
-  }
-
-  eventName(): string {
-    return 'order.placed';
   }
 }
 
@@ -521,60 +556,11 @@ type PersonPrimitives = PrimitiveTypes<Person>; // { name: string; nickname: str
 type PersonData = DataTypes<Person>; // { name?: string; nickname?: string | null }
 ```
 
-# Application layer: `@archi-code/ddd/application`
+## Repository contracts
 
-## `UseCase<Input, Output>`
-
-Two rules shape every use case:
-
-- **It does one thing.** One business action per class and one `handle`: it changes one aggregate
-  and saves it once. A flow with several actions is several use cases, chained by domain events or
-  called in order by whoever orchestrates them, never one use case whose input switches between
-  behaviors.
-- **It has a business name.** A verb and a noun a domain expert would say: `PlaceOrder`,
-  `ShipOrder`, `CancelSubscription`, `ApproveRefund`. Not `OrderService`, `UpdateOrder`,
-  `SaveUser` or `ProcessData`.
-
-Implement `protected handle(input)` (sync or async) and call `execute(input)`, which always
-returns a promise:
-
-- Exceptions of the package (`DomainException`, `ValidationException`, `ApplicationException`,
-  `AggregateNotFoundException`…) pass through as they are, so the caller can map them.
-- Anything else (a driver error, a `TypeError`, a thrown string) is wrapped in
-  `InternalErrorException` with the original as `cause` and the use case name in the message:
-  `Failed, internal error: PlaceOrder: connection reset`.
-
-`UseCase` does nothing else: loading, checking, saving and publishing are written in `handle`,
-so every step of the use case is visible in one place:
-
-```ts
-class ShipOrder extends UseCase<{ orderId: string }, void> {
-  constructor(
-    private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
-    private readonly bus: EventBus<OrderEvent>,
-  ) {
-    super();
-  }
-
-  protected async handle(input: { orderId: string }): Promise<void> {
-    const order = await this.orders.findById(new OrderId(input.orderId));
-    if (order === null) {
-      throw new AggregateNotFoundException('Order', input.orderId);
-    }
-    order.ship();
-    await this.orders.save(order);
-    await this.bus.publish(order.pullDomainEvents());
-  }
-}
-```
-
-Save before publishing, and publish what `pullDomainEvents()` returns, so a failed save publishes
-nothing and events are never sent twice.
-
-## Ports
-
-Interfaces your infrastructure implements (types only, nothing to instantiate). The repository is
-split by role, following the interface segregation principle:
+The domain declares what it needs to load, save and delete aggregates; infrastructure implements
+it (types only, nothing to instantiate). The repository is split by role, following the interface
+segregation principle:
 
 ```ts
 interface AggregateFinder<Aggregate extends AggregateRoot<any, any>> {
@@ -588,7 +574,121 @@ interface AggregateSaver<Aggregate extends AggregateRoot<any, any>> {
 interface AggregateRemover<Aggregate extends AggregateRoot<any, any>> {
   delete(id: Aggregate['id']): Promise<void>;
 }
+```
 
+A use case asks only for the roles it uses: registering needs `AggregateSaver<User>`, a query needs
+`AggregateFinder<User>`, renaming needs `AggregateFinder<User> & AggregateSaver<User>`. Its
+dependencies then say what it can do, and a test double implements one method. There is no
+all-in-one `Repository` contract: the adapter implements the roles it supports
+(`class MongoUserRepository implements AggregateFinder<User>, AggregateSaver<User>, AggregateRemover<User>`)
+and the same instance is passed to every use case.
+
+The aggregate carries no version. If an aggregate needs optimistic concurrency, model the version
+in it (a `readonly version` your aggregate declares and exposes in its primitives) and let its
+adapter's `save` throw `ConcurrencyException(aggregateName, id, expectedVersion)` on a stale write.
+
+# Application layer: `@archi-code/ddd/application`
+
+## `UseCase<Input, Command, Output>`
+
+Two rules shape every use case:
+
+- **It does one thing.** One business action per class and one `handle`: it changes one aggregate
+  and saves it once. A flow with several actions is several use cases, chained by domain events or
+  called in order by whoever orchestrates them, never one use case whose input switches between
+  behaviors.
+- **It has a business name.** A verb and a noun a domain expert would say: `PlaceOrder`,
+  `ShipOrder`, `CancelSubscription`, `ApproveRefund`. Not `OrderService`, `UpdateOrder`,
+  `SaveUser` or `ProcessData`.
+
+A use case has two steps, and `execute(input)` (which always returns a promise) runs them in
+order:
+
+1. `protected toCommand(input: Input): Command` builds and validates the value objects the action
+   needs (`new OrderId(input.orderId)`, `new Email(input.email).assertValid()`). If the input does
+   not make valid value objects it throws, and `handle` never runs.
+2. `protected handle(command: Command)` (sync or async) coordinates the action with value objects
+   only: load the aggregate, call its business method, save it, publish
+   `aggregate.pullDomainEvents()`.
+
+Errors of both steps are treated the same way:
+
+- Exceptions of the package (`DomainException`, `ValidationException`, `ApplicationException`,
+  `AggregateNotFoundException`…) pass through as they are, so the caller can map them.
+- Anything else (a driver error, a `TypeError`, a thrown string) is wrapped in
+  `InternalErrorException` with the original as `cause` and the use case name in the message:
+  `Failed, internal error: PlaceOrder: connection reset`.
+
+`UseCase` does nothing else: loading, checking, saving and publishing are written in `handle`,
+so every step of the use case is visible in one place:
+
+```ts
+class ShipOrder extends UseCase<{ orderId: string }, OrderId, void> {
+  constructor(
+    private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
+    private readonly bus: EventBus<OrderEvent>,
+  ) {
+    super();
+  }
+
+  protected toCommand(input: { orderId: string }): OrderId {
+    return new OrderId(input.orderId);
+  }
+
+  protected async handle(orderId: OrderId): Promise<void> {
+    const order = await this.orders.findById(orderId);
+    if (order === null) {
+      throw new AggregateNotFoundException('Order', orderId.value);
+    }
+    order.ship();
+    await this.orders.save(order);
+    await this.bus.publish(order.pullDomainEvents());
+  }
+}
+```
+
+Save before publishing, and publish what `pullDomainEvents()` returns, so a failed save publishes
+nothing and events are never sent twice. A command with several values is a small interface of
+value objects (`interface PlaceOrderCommand { orderId: OrderId; customer: CustomerName }`); a
+use case never imports another use case.
+
+## Listeners: `EventListener` and `@ListensTo`
+
+A listener is what the application does when an event happens. It extends
+`EventListener<Event>`, implements `handle(event)` (sync or async) and is subscribed with
+`@ListensTo(EventClass)`, which stores the event's `static eventName` on the listener class. A
+listener listens to exactly one event (decorating it twice throws `ApplicationException`) and any
+number of listeners may listen to the same event. A subclass does not inherit the subscription.
+
+Its name is `<Action>On<Event>`, and its body only turns the event into the input of the one use
+case it receives by constructor:
+
+```ts
+import { EventListener, ListensTo } from '@archi-code/ddd/application';
+
+@ListensTo(OrderPlaced)
+class ReserveStockOnOrderPlaced extends EventListener<OrderPlaced> {
+  constructor(private readonly reserveStock: ReserveStock) {
+    super();
+  }
+
+  async handle(event: OrderPlaced): Promise<void> {
+    await this.reserveStock.execute({ orderId: event.aggregateId });
+  }
+}
+```
+
+`ListensTo.eventOf(listener)` returns the event name a listener instance is subscribed to (and
+throws `ApplicationException` when its class has no `@ListensTo`). The mark is kept under a
+`Symbol.for` key, so a listener decorated with one build (CJS or ESM) is read by the other.
+Neither the aggregates nor the use cases know the listeners: only infrastructure (the
+`EventDispatcher`) brings them together.
+
+## Ports
+
+Technical capabilities the application needs and infrastructure implements (types only):
+
+```ts
 interface EventBus<Event extends EventBase = EventBase> {
   publish(events: readonly Event[]): Promise<void>;
 }
@@ -598,16 +698,8 @@ interface Clock {
 }
 ```
 
-A use case asks only for the roles it uses: registering needs `AggregateSaver<User>`, a query needs
-`AggregateFinder<User>`, renaming needs `AggregateFinder<User> & AggregateSaver<User>`. Its
-dependencies then say what it can do, and a test double implements one method. There is no
-all-in-one `Repository` port: the adapter implements the roles it supports
-(`class MongoUserRepository implements AggregateFinder<User>, AggregateSaver<User>, AggregateRemover<User>`)
-and the same instance is passed to every use case.
-
-The aggregate carries no version. If an aggregate needs optimistic concurrency, model the version
-in it (a `readonly version` your aggregate declares and exposes in its primitives) and let its
-adapter's `save` throw `ConcurrencyException(aggregateName, id, expectedVersion)` on a stale write.
+The application only knows `EventBus.publish`: whether events go to memory, a queue, an outbox
+table or a broker is decided in infrastructure.
 
 # Infrastructure layer: `@archi-code/ddd/infrastructure`
 
@@ -616,8 +708,9 @@ Ready adapters for tests, prototypes and the edges of an API:
 | Export                                          | What it is                                                                                                |
 | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | `InMemoryRepository(AggregateMapper.of(Order))` | Finder, saver and remover over a `Map`, storing `mapper.toPrimitives(aggregate)` copies; adds `findAll()` |
-| `InMemoryEventBus`                              | `EventBus` with `subscribe(eventName, handler)` (returns an unsubscribe function) and `published`         |
-| `DomainEventRegistry`                           | `register(eventName, factory)` and `fromJSON(json)`: rebuilds events read from an outbox or a broker      |
+| `EventDispatcher(listeners?)`                   | Groups listeners by their `@ListensTo` event; `add(listener)`, `listenersOf(name)`, `dispatch(event)`     |
+| `InMemoryEventBus(dispatcher?)`                 | `EventBus` that records `published` and hands every event to its dispatcher, in the same process          |
+| `DomainEventRegistry`                           | `register(EventClass, factory)` and `fromJSON(json)`: rebuilds events read from an outbox or a broker     |
 | `HttpErrorMapper(statusByCode?)`                | `map(error)` → `{ status, body: { code, message, errors? } }`                                             |
 | `SystemClock`, `FixedClock(at)`                 | `Clock` with the real time, and a test clock with `set(at)` and `advance(ms)`                             |
 
@@ -639,11 +732,36 @@ until you save it.
 Every 5xx answer has the message `Internal server error`: messages of infrastructure errors (SQL,
 hosts, secrets…) never reach the client. Unknown errors get the code `E000`.
 
+`EventDispatcher` runs every listener of an event one after another, in the order they were
+added, and rejects with the first error. It is the piece every distribution strategy shares:
+`InMemoryEventBus` dispatches right after `publish`, and an outbox worker or a queue consumer
+rebuilds each message with `DomainEventRegistry` and dispatches it:
+
+```ts
+import {
+  DomainEventRegistry,
+  EventDispatcher,
+  InMemoryEventBus,
+} from '@archi-code/ddd/infrastructure';
+
+const listeners = new EventDispatcher([
+  new ReserveStockOnOrderPlaced(reserveStock),
+  new NotifyCustomerOnOrderPlaced(notifyCustomer),
+]);
+
+const bus = new InMemoryEventBus<OrderEvent>(listeners); // in-process delivery
+
+queue.onMessage(async (body) => listeners.dispatch(events.fromJSON(body))); // queue delivery
+```
+
+`EventDispatcher` throws `ApplicationException` for a listener without `@ListensTo`, when the
+application starts.
+
 ```ts
 import { DomainEventRegistry, HttpErrorMapper } from '@archi-code/ddd/infrastructure';
 
 const events = new DomainEventRegistry<OrderEvent>().register(
-  'order.placed',
+  OrderPlaced,
   (json) => new OrderPlaced(json.aggregateId, json.customer as string, json),
 );
 const event = events.fromJSON(outboxRow.payload); // OrderPlaced with the stored eventId and occurredOn
@@ -877,11 +995,17 @@ import {
   StringType,
 } from '@archi-code/ddd/domain';
 import { AggregateNotFoundException, DomainException } from '@archi-code/ddd/exceptions';
-import type { EventMetadata, PrimitiveTypes } from '@archi-code/ddd/domain';
-import { UseCase } from '@archi-code/ddd/application';
-import type { AggregateFinder, AggregateSaver, Clock, EventBus } from '@archi-code/ddd/application';
+import type {
+  AggregateFinder,
+  AggregateSaver,
+  EventMetadata,
+  PrimitiveTypes,
+} from '@archi-code/ddd/domain';
+import { EventListener, ListensTo, UseCase } from '@archi-code/ddd/application';
+import type { Clock, EventBus } from '@archi-code/ddd/application';
 import {
   AggregateMapper,
+  EventDispatcher,
   FixedClock,
   HttpErrorMapper,
   InMemoryEventBus,
@@ -896,6 +1020,8 @@ class Blocked extends Required(BooleanType) {}
 class Email extends Required(StringType) {}
 
 class UserRegistered extends EventBase {
+  static readonly eventName = 'user.registered';
+
   constructor(
     userId: string,
     readonly email: string,
@@ -903,23 +1029,17 @@ class UserRegistered extends EventBase {
   ) {
     super(userId, metadata);
   }
-
-  eventName(): string {
-    return 'user.registered';
-  }
 }
 
 class UserRenamed extends EventBase {
+  static readonly eventName = 'user.renamed';
+
   constructor(
     userId: string,
     readonly name: string,
     metadata?: EventMetadata,
   ) {
     super(userId, metadata);
-  }
-
-  eventName(): string {
-    return 'user.renamed';
   }
 }
 
@@ -942,15 +1062,9 @@ class User extends AggregateRoot<UserId, UserEvent> {
     super(id);
   }
 
-  static register(name: string, email: string, clock: Clock): User {
-    const user = new User(
-      UserId.generate(),
-      new Name(name),
-      new Email(email).assertValid(),
-      new Blocked(false),
-      CreatedAt.now(clock),
-    );
-    user.record(new UserRegistered(user.id.value, email, { clock }));
+  static register(name: Name, email: Email, clock: Clock): User {
+    const user = new User(UserId.generate(), name, email, new Blocked(false), CreatedAt.now(clock));
+    user.record(new UserRegistered(user.id.value, email.value, { clock }));
     return user;
   }
 
@@ -972,12 +1086,12 @@ class User extends AggregateRoot<UserId, UserEvent> {
     return this._blocked;
   }
 
-  rename(name: string, clock: Clock): void {
+  rename(name: Name, clock: Clock): void {
     if (this._blocked.value) {
       throw new UserBlockedException(this.id.value);
     }
-    this._name = new Name(name);
-    this.record(new UserRenamed(this.id.value, name, { clock }));
+    this._name = name;
+    this.record(new UserRenamed(this.id.value, name.value, { clock }));
   }
 
   toPrimitives(): PrimitiveTypes<User> {
@@ -991,7 +1105,12 @@ class User extends AggregateRoot<UserId, UserEvent> {
   }
 }
 
-class RegisterUser extends UseCase<{ name: string; email: string }, string> {
+interface RegisterUserCommand {
+  name: Name;
+  email: Email;
+}
+
+class RegisterUser extends UseCase<{ name: string; email: string }, RegisterUserCommand, string> {
   constructor(
     private readonly users: AggregateSaver<User>,
     private readonly bus: EventBus<UserEvent>,
@@ -1000,15 +1119,24 @@ class RegisterUser extends UseCase<{ name: string; email: string }, string> {
     super();
   }
 
-  protected async handle(input: { name: string; email: string }): Promise<string> {
-    const user = User.register(input.name, input.email, this.clock);
+  protected toCommand(input: { name: string; email: string }): RegisterUserCommand {
+    return { name: new Name(input.name), email: new Email(input.email).assertValid() };
+  }
+
+  protected async handle(command: RegisterUserCommand): Promise<string> {
+    const user = User.register(command.name, command.email, this.clock);
     await this.users.save(user);
     await this.bus.publish(user.pullDomainEvents());
     return user.id.value;
   }
 }
 
-class RenameUser extends UseCase<{ id: string; name: string }, void> {
+interface RenameUserCommand {
+  id: UserId;
+  name: Name;
+}
+
+class RenameUser extends UseCase<{ id: string; name: string }, RenameUserCommand, void> {
   constructor(
     private readonly users: AggregateFinder<User> & AggregateSaver<User>,
     private readonly bus: EventBus<UserEvent>,
@@ -1017,19 +1145,51 @@ class RenameUser extends UseCase<{ id: string; name: string }, void> {
     super();
   }
 
-  protected async handle(input: { id: string; name: string }): Promise<void> {
-    const user = await this.users.findById(new UserId(input.id));
+  protected toCommand(input: { id: string; name: string }): RenameUserCommand {
+    return { id: new UserId(input.id), name: new Name(input.name) };
+  }
+
+  protected async handle(command: RenameUserCommand): Promise<void> {
+    const user = await this.users.findById(command.id);
     if (user === null) {
-      throw new AggregateNotFoundException('User', input.id);
+      throw new AggregateNotFoundException('User', command.id.value);
     }
-    user.rename(input.name, this.clock);
+    user.rename(command.name, this.clock);
     await this.users.save(user);
     await this.bus.publish(user.pullDomainEvents());
   }
 }
 
+class SendWelcomeEmail extends UseCase<{ email: string }, Email, void> {
+  constructor(private readonly outbox: string[]) {
+    super();
+  }
+
+  protected toCommand(input: { email: string }): Email {
+    return new Email(input.email).assertValid();
+  }
+
+  protected handle(email: Email): void {
+    this.outbox.push(`Welcome, ${email.value}`);
+  }
+}
+
+@ListensTo(UserRegistered)
+class SendWelcomeEmailOnUserRegistered extends EventListener<UserRegistered> {
+  constructor(private readonly sendWelcomeEmail: SendWelcomeEmail) {
+    super();
+  }
+
+  async handle(event: UserRegistered): Promise<void> {
+    await this.sendWelcomeEmail.execute({ email: event.email });
+  }
+}
+
+const emails: string[] = [];
 const users = new InMemoryRepository(AggregateMapper.of(User));
-const bus = new InMemoryEventBus<UserEvent>();
+const bus = new InMemoryEventBus<UserEvent>(
+  new EventDispatcher([new SendWelcomeEmailOnUserRegistered(new SendWelcomeEmail(emails))]),
+);
 const clock = new FixedClock('2026-01-01T09:00:00Z');
 
 const id = await new RegisterUser(users, bus, clock).execute({
@@ -1039,6 +1199,7 @@ const id = await new RegisterUser(users, bus, clock).execute({
 await new RenameUser(users, bus, clock).execute({ id, name: 'Ana María' });
 
 bus.published.map((event) => event.eventName()); // ['user.registered', 'user.renamed']
+emails; // ['Welcome, ana@example.com']
 (await users.findById(new UserId(id)))?.toPrimitives();
 // { id, name: 'Ana María', email: 'ana@example.com', blocked: false, createdAt: 2026-01-01T09:00:00.000Z }
 
@@ -1076,23 +1237,25 @@ await new RegisterUser(users, bus, clock)
 | `CreatedAt`, `UpdatedAt`, `IdType`                                                         | classes (required) |
 | `Required`                                                                                 | function           |
 | `AggregateRoot`, `EventBase`                                                               | abstract classes   |
+| `AggregateFinder`, `AggregateSaver`, `AggregateRemover`                                    | types (contracts)  |
 | `RequiredType`, `JsonTypeValue`, `PrimitiveType`, `PrimitiveTypes`, `DataTypes`            | types              |
-| `EventMetadata`, `SerializedEvent`                                                         | types              |
+| `EventMetadata`, `SerializedEvent`, `EventClass`                                           | types              |
 | `Properties`, `PropertiesData`, `MutablePropertiesData`, `Methods`, `MethodsAndProperties` | types              |
 
 `@archi-code/ddd/application`:
 
-| Export                                                                       | Kind           |
-| ---------------------------------------------------------------------------- | -------------- |
-| `UseCase`                                                                    | abstract class |
-| `AggregateFinder`, `AggregateSaver`, `AggregateRemover`, `EventBus`, `Clock` | types (ports)  |
+| Export                     | Kind             |
+| -------------------------- | ---------------- |
+| `UseCase`, `EventListener` | abstract classes |
+| `ListensTo`                | decorator        |
+| `EventBus`, `Clock`        | types (ports)    |
 
 `@archi-code/ddd/infrastructure`:
 
-| Export                                                                                                                             | Kind    |
-| ---------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| `InMemoryRepository`, `AggregateMapper`, `InMemoryEventBus`, `DomainEventRegistry`, `HttpErrorMapper`, `SystemClock`, `FixedClock` | classes |
-| `AggregateClass`, `EventHandler`, `EventFactory`, `HttpError`, `HttpErrorBody`                                                     | types   |
+| Export                                                                                                                                                | Kind    |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `InMemoryRepository`, `AggregateMapper`, `EventDispatcher`, `InMemoryEventBus`, `DomainEventRegistry`, `HttpErrorMapper`, `SystemClock`, `FixedClock` | classes |
+| `AggregateClass`, `EventFactory`, `HttpError`, `HttpErrorBody`                                                                                        | types   |
 
 ## AI assistant skill
 

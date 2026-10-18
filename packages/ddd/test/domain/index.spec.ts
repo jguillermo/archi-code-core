@@ -1,7 +1,12 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import * as domain from '../../src/domain/index';
 import type {
+  AggregateFinder,
+  AggregateRemover,
+  AggregateRoot,
+  AggregateSaver,
   DataTypes,
+  EventClass,
   EventMetadata,
   JsonTypeValue,
   PrimitiveType,
@@ -42,7 +47,7 @@ describe('@archi-code/ddd/domain', () => {
     expect(domain.StringType).toBe(StringType);
   });
 
-  it('knows nothing about persistence: mappers and repositories live in infrastructure', () => {
+  it('knows nothing about persistence: mappers and repository adapters live in infrastructure', () => {
     expect(Object.keys(domain).filter((name) => /Mapper|Repository|Persist/.test(name))).toEqual(
       [],
     );
@@ -58,7 +63,18 @@ describe('@archi-code/ddd/domain', () => {
     expect(Object.keys(domain).filter((name) => name.endsWith('Exception'))).toEqual([]);
   });
 
-  it('exports the persistence contract types', () => {});
+  it('exports the repository contracts as types, one per role', () => {
+    expectTypeOf<keyof AggregateFinder<AggregateRoot>>().toEqualTypeOf<'findById'>();
+    expectTypeOf<keyof AggregateSaver<AggregateRoot>>().toEqualTypeOf<'save'>();
+    expectTypeOf<keyof AggregateRemover<AggregateRoot>>().toEqualTypeOf<'delete'>();
+    expectTypeOf<AggregateSaver<AggregateRoot>['save']>().toEqualTypeOf<
+      (aggregate: AggregateRoot) => Promise<void>
+    >();
+  });
+
+  it('exports the type of an event class, which carries its static eventName', () => {
+    expectTypeOf<EventClass>().toHaveProperty('eventName').toEqualTypeOf<string>();
+  });
 
   it('exports the public types', () => {
     class Name extends domain.Required(domain.StringType) {}

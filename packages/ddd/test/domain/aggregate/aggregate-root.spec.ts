@@ -25,6 +25,8 @@ class OrderLine {
 }
 
 class OrderPlaced extends EventBase {
+  static readonly eventName = 'order.placed';
+
   constructor(
     orderId: string,
     readonly customer: string,
@@ -32,23 +34,17 @@ class OrderPlaced extends EventBase {
   ) {
     super(orderId, metadata);
   }
-
-  eventName(): string {
-    return 'order.placed';
-  }
 }
 
 class OrderLineAdded extends EventBase {
+  static readonly eventName = 'order.line_added';
+
   constructor(
     orderId: string,
     readonly sku: string,
     readonly quantity: number,
   ) {
     super(orderId);
-  }
-
-  eventName(): string {
-    return 'order.line_added';
   }
 }
 

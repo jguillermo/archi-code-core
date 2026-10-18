@@ -1,14 +1,17 @@
 ---
 name: archi-code-ddd
-description: Rules, patterns and common mistakes for writing TypeScript code with @archi-code/ddd (archi-code DDD by layer - domain value objects, Required(...), AggregateRoot with identity and events, EventBase and exceptions; application UseCase and ports Repository/EventBus/Clock; infrastructure InMemoryRepository, InMemoryEventBus, DomainEventRegistry, HttpErrorMapper and clocks). Use it when creating or changing value objects, entities, aggregates, events, use cases, repositories or adapters, mapping errors to HTTP, or whenever the code imports @archi-code/ddd.
+description: Rules, patterns and common mistakes for writing TypeScript code with @archi-code/ddd (archi-code DDD by layer - where each class goes and what it may import; domain value objects, Required(...), AggregateRoot with identity and events, EventBase, repository contracts and exceptions; application UseCase with toCommand/handle, EventListener with @ListensTo and the ports EventBus/Clock; infrastructure InMemoryRepository, EventDispatcher, InMemoryEventBus, DomainEventRegistry, HttpErrorMapper and clocks). Use it when creating or changing value objects, entities, aggregates, events, domain services, use cases, listeners, repositories or adapters, deciding in which layer a class goes, mapping errors to HTTP, or whenever the code imports @archi-code/ddd.
 ---
 
 # archi-code-ddd
 
 `@archi-code/ddd` is archi-code's Domain-Driven Design package for TypeScript, one entry point per
-layer: `@archi-code/ddd/exceptions` (the exceptions every layer throws), `@archi-code/ddd/domain` (value objects, aggregates, events),
-`@archi-code/ddd/application` (`UseCase` and the ports `AggregateFinder`, `AggregateSaver`, `AggregateRemover`, `EventBus`, `Clock`) and
-`@archi-code/ddd/infrastructure` (in-memory adapters, event registry, HTTP error mapper, clocks).
+layer: `@archi-code/ddd/exceptions` (the exceptions every layer throws), `@archi-code/ddd/domain`
+(value objects, aggregates, events and the repository contracts `AggregateFinder`,
+`AggregateSaver`, `AggregateRemover`), `@archi-code/ddd/application` (`UseCase`,
+`EventListener`, `@ListensTo` and the ports `EventBus`, `Clock`) and
+`@archi-code/ddd/infrastructure` (in-memory adapters, event dispatcher and registry, HTTP error
+mapper, clocks).
 
 ## Full API
 
@@ -47,18 +50,19 @@ import {
   ExceptionCode,
   InternalErrorException,
 } from '@archi-code/ddd/exceptions';
-import type { EventMetadata, PrimitiveTypes } from '@archi-code/ddd/domain';
-import { UseCase } from '@archi-code/ddd/application';
 import type {
   AggregateFinder,
   AggregateRemover,
   AggregateSaver,
-  Clock,
-  EventBus,
-} from '@archi-code/ddd/application';
+  EventMetadata,
+  PrimitiveTypes,
+} from '@archi-code/ddd/domain';
+import { EventListener, ListensTo, UseCase } from '@archi-code/ddd/application';
+import type { Clock, EventBus } from '@archi-code/ddd/application';
 import {
   AggregateMapper,
   DomainEventRegistry,
+  EventDispatcher,
   FixedClock,
   HttpErrorMapper,
   InMemoryEventBus,
@@ -73,10 +77,35 @@ const { Required, StringType } = require('@archi-code/ddd/domain');
 
 ## Rules
 
+### Where each class goes
+
+| Class                                    | Layer          | May depend on                                             | Never                                                            |
+| ---------------------------------------- | -------------- | --------------------------------------------------------- | ---------------------------------------------------------------- |
+| Value object                             | domain         | other value objects, `@archi-code/validation`, exceptions | mutate, know about storage or transport                          |
+| Aggregate root, child entity             | domain         | value objects, child entities, events, domain services    | read a repository, publish, `new Date()`                         |
+| Domain event (`OrderPlaced`)             | domain         | value objects                                             | behavior, infrastructure                                         |
+| Repository contract (`AggregateFinder`…) | domain         | the aggregate                                             | an implementation in the domain, an all-in-one `Repository`      |
+| Domain service                           | domain         | aggregates, value objects, repository contracts           | I/O, transactions, publishing                                    |
+| Use case (`PlaceOrder`)                  | application    | domain, `EventBus`, `Clock`, exceptions                   | import another use case or a listener, persist or call a network |
+| Listener (`ReserveStockOnOrderPlaced`)   | application    | one use case (by constructor), the event                  | business rules, saving aggregates, calling several use cases     |
+| Port (`EventBus`, `Clock`)               | application    | domain types                                              | code                                                             |
+| Adapter, dispatcher, mapper, clock       | infrastructure | domain, application, exceptions, drivers                  | business rules                                                   |
+| Wiring (controllers, workers)            | infrastructure | everything                                                | being imported by the domain or the application                  |
+
+- Dependencies only point inwards: the domain imports only `/domain` and `/exceptions`, the
+  application adds `/application`, and only infrastructure imports `/infrastructure`. Keep the
+  same folders (`domain/`, `application/`, `infrastructure/`) and the same direction in the
+  project, and check them with an import test like the package's own.
 - Import from the layer, never from the package root (there is none): exceptions always come from
-  `@archi-code/ddd/exceptions` (never from `/domain`); domain code imports `/domain` and
-  `/exceptions`, use cases add `/application`, adapters and wiring add `/infrastructure`. Keep the
-  same direction in the project's folders.
+  `@archi-code/ddd/exceptions` (never from `/domain`).
+- Logic two use cases share never goes in a use case: a business rule becomes a method of the
+  aggregate or a domain service; a technical step becomes a port. When an action must follow
+  another, the first records an event and a listener runs the second.
+- Names: use cases are business verbs (`PlaceOrder`), events are facts in the past
+  (`OrderPlaced`), listeners are `<Action>On<Event>` (`ReserveStockOnOrderPlaced`, where
+  `<Action>` is the use case it runs).
+
+### Domain, application and infrastructure
 
 - Value objects are **optional by default** (`value: T | null`). `Required(XType)` makes them
   required: the constructor demands `T` and, if it receives an empty value (`null`, `undefined` or a
@@ -141,7 +170,9 @@ const { Required, StringType } = require('@archi-code/ddd/domain');
   save.
 - `record(event)` is `protected`; `pullDomainEvents()` returns the events (typed `Event[]`) in order
   and empties the list. Pull them after persisting, to publish.
-- Events extend `EventBase`, implement `eventName()` and call `super(aggregateId, metadata)`. The
+- Events extend `EventBase`, declare `static readonly eventName = '<context>.<fact>'` and call
+  `super(aggregateId, metadata)`; `event.eventName()` returns it. Listeners and registries refer to
+  the event by its class (`@ListensTo(OrderPlaced)`, `register(OrderPlaced, …)`). The
   base sets `eventId` (UUID v4) and `occurredOn` (immutable `Date`, from `metadata.clock` when
   given, otherwise the system time); pass `{ eventId, occurredOn }` only when rebuilding an event
   read from an outbox or a broker. Serialize with `JSON.stringify` /
@@ -172,22 +203,35 @@ const { Required, StringType } = require('@archi-code/ddd/domain');
   `RegisterUser`, `ApproveRefund`. Never technical or CRUD names (`CreateOrder` when the business
   says "place", `UpdateOrder`, `SaveUser`, `OrderService`, `OrderManager`, `ProcessOrder`,
   `HandleData`, `OrderUseCase`).
-- Interface segregation: a use case depends only on the repository roles it uses —
+- The repository contracts belong to the domain (`import type { AggregateSaver } from
+'@archi-code/ddd/domain'`). Interface segregation: a use case depends only on the repository roles it uses —
   `AggregateFinder<A>` (`findById`), `AggregateSaver<A>` (`save`), `AggregateRemover<A>`
   (`delete`), combined with `&` when it needs several. There is no all-in-one `Repository` port:
   an adapter implements each role it supports.
-- Use cases extend `UseCase<Input, Output>`, receive ports by constructor (`AggregateSaver<Order>`,
-  `EventBus<OrderEvent>`, `Clock`), implement `protected handle(input)` and are called with
-  `execute(input)`. `UseCase` has no helpers: write every step in `handle` (load with
-  `findById` and throw `AggregateNotFoundException` when it is `null`, change the aggregate, `save`,
-  then `publish(aggregate.pullDomainEvents())`). Let errors propagate: `execute` keeps package
-  exceptions and wraps any other error in `InternalErrorException` with `cause`.
+- Use cases extend `UseCase<Input, Command, Output>`, receive ports by constructor
+  (`AggregateSaver<Order>`, `EventBus<OrderEvent>`, `Clock`) and are called with `execute(input)`.
+  They implement two steps: `protected toCommand(input)` builds and validates the value objects
+  (`assertValid()`) and returns the command (one value object, or a small interface of value
+  objects); `protected handle(command)` works only with value objects. `UseCase` has no helpers:
+  write every step in `handle` (load with `findById` and throw `AggregateNotFoundException` when it
+  is `null`, change the aggregate, `save`, then `publish(aggregate.pullDomainEvents())`). Let errors
+  propagate: `execute` keeps package exceptions and wraps any other error (also from `toCommand`)
+  in `InternalErrorException` with `cause`.
+- A use case never imports nor calls another use case.
+- Listeners extend `EventListener<Event>`, are decorated with `@ListensTo(EventClass)` (one event
+  per listener, any number of listeners per event), receive the one use case they run by
+  constructor and their `handle(event)` only maps the event to that use case's input.
+- Listeners are wired in infrastructure: `new EventDispatcher([...listeners])`, given to
+  `new InMemoryEventBus(dispatcher)` for in-process delivery, or called with
+  `dispatcher.dispatch(registry.fromJSON(message))` by a queue or outbox consumer. The application
+  only knows `EventBus.publish`.
 - A real repository implements the roles it supports (`AggregateFinder<A>`, `AggregateSaver<A>`,
   `AggregateRemover<A>`) and wraps driver errors in `InternalErrorException` with `cause`.
   `InMemoryRepository(AggregateMapper.of(Order))` is the reference for tests: it stores copies of the primitives (the
   last save wins).
 - Consumers of an outbox or broker rebuild events with `DomainEventRegistry`: register a factory per
-  `eventName` that passes the JSON as metadata (`new OrderPlaced(json.aggregateId, …, json)`).
+  event class that passes the JSON as metadata
+  (`register(OrderPlaced, (json) => new OrderPlaced(json.aggregateId, …, json))`).
 
 ## Recommended patterns
 
@@ -236,6 +280,8 @@ class OrderLine {
 }
 
 class OrderPlaced extends EventBase {
+  static readonly eventName = 'order.placed';
+
   constructor(
     orderId: string,
     readonly customer: string,
@@ -243,23 +289,18 @@ class OrderPlaced extends EventBase {
   ) {
     super(orderId, metadata);
   }
-
-  eventName(): string {
-    return 'order.placed';
-  }
 }
 
 class OrderLineAdded extends EventBase {
+  static readonly eventName = 'order.line_added';
+
   constructor(
     orderId: string,
     readonly sku: string,
     readonly units: number,
+    metadata?: EventMetadata,
   ) {
-    super(orderId);
-  }
-
-  eventName(): string {
-    return 'order.line_added';
+    super(orderId, metadata);
   }
 }
 
@@ -283,16 +324,9 @@ class Order extends AggregateRoot<OrderId, OrderEvent> {
     super(id);
   }
 
-  static place(id: string, customer: string): Order {
-    const order = new Order(
-      new OrderId(id),
-      new CustomerName(customer),
-      [],
-      new Shipped(false),
-      UpdatedAt.now(),
-      CreatedAt.now(),
-    );
-    order.record(new OrderPlaced(id, customer));
+  static place(id: OrderId, customer: CustomerName): Order {
+    const order = new Order(id, customer, [], new Shipped(false), UpdatedAt.now(), CreatedAt.now());
+    order.record(new OrderPlaced(id.value, customer.value));
     return order;
   }
 
@@ -321,14 +355,14 @@ class Order extends AggregateRoot<OrderId, OrderEvent> {
     return this._updatedAt;
   }
 
-  addLine(sku: string, units: number): void {
+  addLine(sku: Sku, units: Units): void {
     if (this._shipped.value) {
       throw new OrderShippedException(this.id.value);
     }
-    const line = new OrderLine(new IdType(IdType.random()), new Sku(sku), new Units(units));
+    const line = new OrderLine(new IdType(IdType.random()), sku, units);
     this._lines = [...this._lines, line];
     this._updatedAt = UpdatedAt.now();
-    this.record(new OrderLineAdded(this.id.value, sku, units));
+    this.record(new OrderLineAdded(this.id.value, sku.value, units.value));
   }
 
   toPrimitives(): PrimitiveTypes<Order> {
@@ -348,10 +382,23 @@ class Order extends AggregateRoot<OrderId, OrderEvent> {
 }
 ```
 
-Use case with ports, loading, saving and publishing:
+Use case: the input becomes a command of value objects, then `handle` loads, changes, saves and
+publishes:
 
 ```ts
-class AddOrderLine extends UseCase<{ orderId: string; sku: string; units: number }, void> {
+interface AddOrderLineInput {
+  orderId: string;
+  sku: string;
+  units: number;
+}
+
+interface AddOrderLineCommand {
+  orderId: OrderId;
+  sku: Sku;
+  units: Units;
+}
+
+class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand, void> {
   constructor(
     private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
     private readonly bus: EventBus<OrderEvent>,
@@ -359,14 +406,59 @@ class AddOrderLine extends UseCase<{ orderId: string; sku: string; units: number
     super();
   }
 
-  protected async handle(input: { orderId: string; sku: string; units: number }): Promise<void> {
-    const order = await this.orders.findById(new OrderId(input.orderId));
+  protected toCommand(input: AddOrderLineInput): AddOrderLineCommand {
+    return {
+      orderId: new OrderId(input.orderId),
+      sku: new Sku(input.sku).assertValid(),
+      units: new Units(input.units).assertValid(),
+    };
+  }
+
+  protected async handle(command: AddOrderLineCommand): Promise<void> {
+    const order = await this.orders.findById(command.orderId);
     if (order === null) {
-      throw new AggregateNotFoundException('Order', input.orderId);
+      throw new AggregateNotFoundException('Order', command.orderId.value);
     }
-    order.addLine(input.sku, input.units);
+    order.addLine(command.sku, command.units);
     await this.orders.save(order);
     await this.bus.publish(order.pullDomainEvents());
+  }
+}
+```
+
+Listener: named `<Action>On<Event>`, subscribed with `@ListensTo`, runs one use case:
+
+```ts
+interface Warehouse {
+  prepare(orderId: OrderId, sku: Sku): Promise<void>;
+}
+
+class PrepareShipment extends UseCase<
+  { orderId: string; sku: string },
+  { orderId: OrderId; sku: Sku },
+  void
+> {
+  constructor(private readonly warehouse: Warehouse) {
+    super();
+  }
+
+  protected toCommand(input: { orderId: string; sku: string }): { orderId: OrderId; sku: Sku } {
+    return { orderId: new OrderId(input.orderId), sku: new Sku(input.sku) };
+  }
+
+  protected async handle(command: { orderId: OrderId; sku: Sku }): Promise<void> {
+    await this.warehouse.prepare(command.orderId, command.sku);
+  }
+}
+
+@ListensTo(OrderLineAdded)
+class PrepareShipmentOnOrderLineAdded extends EventListener<OrderLineAdded> {
+  constructor(private readonly prepareShipment: PrepareShipment) {
+    super();
+  }
+
+  async handle(event: OrderLineAdded): Promise<void> {
+    await this.prepareShipment.execute({ orderId: event.aggregateId, sku: event.sku });
   }
 }
 ```
@@ -392,10 +484,19 @@ Wiring and tests with the in-memory adapters, a fixed clock and the HTTP mapper:
 
 ```ts
 const orders = new InMemoryRepository(AggregateMapper.of(Order));
-const bus = new InMemoryEventBus<OrderEvent>();
-await orders.save(Order.place(orderId, 'Ana'));
+const listeners = new EventDispatcher([
+  new PrepareShipmentOnOrderLineAdded(new PrepareShipment(warehouse)),
+]);
+const bus = new InMemoryEventBus<OrderEvent>(listeners);
+await orders.save(Order.place(new OrderId(orderId), new CustomerName('Ana')));
 await new AddOrderLine(orders, bus).execute({ orderId, sku: 'TORCH-01', units: 2 });
-bus.published; // events in order
+bus.published; // events in order; PrepareShipment already ran
+
+const registry = new DomainEventRegistry<OrderEvent>().register(
+  OrderLineAdded,
+  (json) => new OrderLineAdded(json.aggregateId, json.sku as string, json.units as number, json),
+);
+await listeners.dispatch(registry.fromJSON(queueMessage)); // same listeners, fed by a queue
 
 const errors = new HttpErrorMapper({ ORD001: 409 });
 const { status, body } = errors.map(caughtError);
@@ -413,8 +514,8 @@ const orderId = '9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c';
 
 describe('Order', () => {
   it('a customer adds a torch to a new order and the warehouse is told about it', () => {
-    const order = Order.place(orderId, 'Ana');
-    order.addLine('TORCH-01', 2);
+    const order = Order.place(new OrderId(orderId), new CustomerName('Ana'));
+    order.addLine(new Sku('TORCH-01'), new Units(2));
     expect(order.toPrimitives()).toMatchObject({
       id: orderId,
       lines: [{ sku: 'TORCH-01', units: 2 }],
@@ -428,6 +529,21 @@ describe('Order', () => {
 ```
 
 ## What not to do
+
+- Putting a class in the wrong layer: a repository implementation, a mapper or a driver in the
+  domain; a listener or an event bus implementation in the domain; a use case importing
+  `/infrastructure`; business rules in an adapter or a controller.
+- A use case that imports, extends or calls another use case, or a base use case with shared
+  helpers: move the rule to the aggregate or a domain service, or chain them with an event and a
+  listener.
+- Building value objects inside `handle` from raw input, or passing raw strings to aggregates
+  from a use case: build them in `toCommand`.
+- A listener without `@ListensTo`, decorated with two events, or one that holds business rules,
+  saves aggregates or calls several use cases.
+- Subscribing listeners by a text name or calling them from a use case: the dispatcher in
+  infrastructure finds them by `@ListensTo`.
+- Declaring `eventName()` as a method in an event: declare `static readonly eventName`.
+- Importing the repository contracts from `@archi-code/ddd/application`: they live in `/domain`.
 
 - Do not invent API: there is no root `@archi-code/ddd` import, no `toPrimitives()` in the base
   classes, no generic `ValueObject`, no `setNow()`, `addItem()`, `setItem()` or `removeItem()`.

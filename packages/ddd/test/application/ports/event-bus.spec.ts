@@ -4,22 +4,18 @@ import { EventBase } from '../../../src/domain/index';
 import type { SerializedEvent } from '../../../src/domain/index';
 
 class OrderPlaced extends EventBase {
+  static readonly eventName = 'order.placed';
+
   constructor(
     orderId: string,
     readonly customer: string,
   ) {
     super(orderId);
   }
-
-  eventName(): string {
-    return 'order.placed';
-  }
 }
 
 class OrderCancelled extends EventBase {
-  eventName(): string {
-    return 'order.cancelled';
-  }
+  static readonly eventName = 'order.cancelled';
 }
 
 class OutboxEventBus implements EventBus<OrderPlaced | OrderCancelled> {

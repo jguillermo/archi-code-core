@@ -137,6 +137,32 @@ describe('layer boundaries: exceptions ← domain ← application ← infrastruc
     expect(packages).toEqual([]);
   });
 
+  it('declares the repository contracts in the domain and the technical ports in the application, as types only', () => {
+    const contracts = Array.from(imports.keys()).filter(
+      (file) => file.startsWith('domain/repository/') || file.startsWith('application/ports/'),
+    );
+    expect(contracts.length).toBeGreaterThan(0);
+    const withRuntimeCode = contracts.filter((file) =>
+      /^export\s+(?!interface\b|type\b)/m.test(fs.readFileSync(path.join(SRC, file), 'utf8')),
+    );
+    expect(withRuntimeCode).toEqual([]);
+  });
+
+  it('a use case never imports another use case nor a listener', () => {
+    const coupled = Array.from(imports.entries()).flatMap(([file, { relative }]) =>
+      file.startsWith('application/use-case/')
+        ? relative
+            .filter(
+              (target) =>
+                (target.startsWith('application/use-case/') && target !== file) ||
+                target.startsWith('application/listener/'),
+            )
+            .map((target) => `${file} -> ${target}`)
+        : [],
+    );
+    expect(coupled).toEqual([]);
+  });
+
   it('has no import cycles', () => {
     expect(findCycles()).toEqual([]);
   });

@@ -3,7 +3,6 @@ import * as infrastructure from '../../src/infrastructure/index';
 import type {
   AggregateClass,
   EventFactory,
-  EventHandler,
   HttpError,
   HttpErrorBody,
 } from '../../src/infrastructure/index';
@@ -15,6 +14,7 @@ import { AggregateMapper } from '../../src/infrastructure/repository/aggregate-m
 const PUBLIC_API = [
   'AggregateMapper',
   'DomainEventRegistry',
+  'EventDispatcher',
   'FixedClock',
   'HttpErrorMapper',
   'InMemoryEventBus',
@@ -23,9 +23,7 @@ const PUBLIC_API = [
 ];
 
 class OrderPlaced extends EventBase {
-  eventName(): string {
-    return 'order.placed';
-  }
+  static readonly eventName = 'order.placed';
 }
 
 describe('@archi-code/ddd/infrastructure', () => {
@@ -50,9 +48,6 @@ describe('@archi-code/ddd/infrastructure', () => {
   it('exports the public types', () => {
     expectTypeOf<AggregateClass<AggregateRoot>>().toHaveProperty('fromPrimitives');
     expectTypeOf<AggregateClass<AggregateRoot>>().toHaveProperty('name');
-    expectTypeOf<EventHandler<OrderPlaced>>().toEqualTypeOf<
-      (event: OrderPlaced) => Promise<void> | void
-    >();
     expectTypeOf<EventFactory<OrderPlaced>>().toEqualTypeOf<
       (serialized: SerializedEvent) => OrderPlaced
     >();

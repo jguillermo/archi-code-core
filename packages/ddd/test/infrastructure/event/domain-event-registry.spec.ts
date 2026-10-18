@@ -10,6 +10,8 @@ import type { EventMetadata, SerializedEvent } from '../../../src/domain/index';
 import { DomainEventRegistry } from '../../../src/infrastructure/event/domain-event-registry';
 
 class OrderPlaced extends EventBase {
+  static readonly eventName = 'order.placed';
+
   constructor(
     orderId: string,
     readonly customer: string,
@@ -17,23 +19,17 @@ class OrderPlaced extends EventBase {
   ) {
     super(orderId, metadata);
   }
-
-  eventName(): string {
-    return 'order.placed';
-  }
 }
 
 class OrderShipped extends EventBase {
+  static readonly eventName = 'order.shipped';
+
   constructor(
     orderId: string,
     readonly carrier: string,
     metadata?: EventMetadata,
   ) {
     super(orderId, metadata);
-  }
-
-  eventName(): string {
-    return 'order.shipped';
   }
 }
 
@@ -44,8 +40,8 @@ const eventId = '1d2e3f4a-5b6c-4d7e-8f9a-0b1c2d3e4f5a';
 
 function orderEvents() {
   return new DomainEventRegistry<OrderEvent>()
-    .register('order.placed', (e) => new OrderPlaced(e.aggregateId, e.customer as string, e))
-    .register('order.shipped', (e) => new OrderShipped(e.aggregateId, e.carrier as string, e));
+    .register(OrderPlaced, (e) => new OrderPlaced(e.aggregateId, e.customer as string, e))
+    .register(OrderShipped, (e) => new OrderShipped(e.aggregateId, e.carrier as string, e));
 }
 
 describe('DomainEventRegistry: rebuilding events read from an outbox or a broker', () => {
@@ -75,9 +71,18 @@ describe('DomainEventRegistry: rebuilding events read from an outbox or a broker
     expect(rebuilt).toMatchObject({ eventId, carrier: 'SEUR' });
   });
 
+  it('registers each event by its class, under its static eventName', () => {
+    const registry = new DomainEventRegistry<OrderEvent>().register(
+      OrderShipped,
+      (e) => new OrderShipped(e.aggregateId, e.carrier as string, e),
+    );
+    expect(registry.has(OrderShipped.eventName)).toBe(true);
+    expect(registry.has('OrderShipped')).toBe(false);
+  });
+
   it('registers events one after another in a single expression', () => {
     const registry = new DomainEventRegistry();
-    expect(registry.register('order.placed', (e) => new OrderPlaced(e.aggregateId, 'x'))).toBe(
+    expect(registry.register(OrderPlaced, (e) => new OrderPlaced(e.aggregateId, 'x'))).toBe(
       registry,
     );
   });
@@ -90,7 +95,7 @@ describe('DomainEventRegistry: rebuilding events read from an outbox or a broker
 
   it('refuses to register the same event twice, a wiring mistake at start-up', () => {
     const register = () =>
-      orderEvents().register('order.placed', (e) => new OrderPlaced(e.aggregateId, 'x'));
+      orderEvents().register(OrderPlaced, (e) => new OrderPlaced(e.aggregateId, 'x'));
     expect(register).toThrow(InfrastructureException);
     expect(register).toThrow('Event "order.placed" is already registered.');
   });

@@ -2,11 +2,6 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 import { Validations } from '@archi-code/validation';
 import { UseCase } from '../../../src/application/use-case/use-case';
 import type { EventBus } from '../../../src/application/ports/event-bus';
-import type {
-  AggregateFinder,
-  AggregateRemover,
-  AggregateSaver,
-} from '../../../src/application/ports/repository';
 import {
   AggregateRoot,
   BooleanType,
@@ -22,7 +17,12 @@ import {
   InternalErrorException,
   ValidationException,
 } from '../../../src/exceptions/index';
-import type { PrimitiveTypes } from '../../../src/domain/index';
+import type {
+  AggregateFinder,
+  AggregateRemover,
+  AggregateSaver,
+  PrimitiveTypes,
+} from '../../../src/domain/index';
 
 class OrderId extends IdType {}
 
@@ -32,22 +32,18 @@ class CustomerName extends Required(StringType) {}
 class Shipped extends Required(BooleanType) {}
 
 class OrderPlaced extends EventBase {
+  static readonly eventName = 'order.placed';
+
   constructor(
     orderId: string,
     readonly customer: string,
   ) {
     super(orderId);
   }
-
-  eventName(): string {
-    return 'order.placed';
-  }
 }
 
 class OrderShipped extends EventBase {
-  eventName(): string {
-    return 'order.shipped';
-  }
+  static readonly eventName = 'order.shipped';
 }
 
 type OrderEvent = OrderPlaced | OrderShipped;
@@ -67,13 +63,9 @@ class Order extends AggregateRoot<OrderId, OrderEvent> {
     super(id);
   }
 
-  static place(id: string, customer: string): Order {
-    const order = new Order(
-      new OrderId(id),
-      new CustomerName(customer).assertValid(),
-      new Shipped(false),
-    );
-    order.record(new OrderPlaced(id, customer));
+  static place(id: OrderId, customer: CustomerName): Order {
+    const order = new Order(id, customer, new Shipped(false));
+    order.record(new OrderPlaced(id.value, customer.value));
     return order;
   }
 
@@ -150,7 +142,14 @@ interface PlaceOrderInput {
   customer: string;
 }
 
-class PlaceOrder extends UseCase<PlaceOrderInput, { orderId: string }> {
+interface PlaceOrderCommand {
+  orderId: OrderId;
+  customer: CustomerName;
+}
+
+class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, { orderId: string }> {
+  readonly handled: PlaceOrderCommand[] = [];
+
   constructor(
     private readonly orders: AggregateSaver<Order>,
     private readonly bus: EventBus<OrderEvent>,
@@ -158,15 +157,23 @@ class PlaceOrder extends UseCase<PlaceOrderInput, { orderId: string }> {
     super();
   }
 
-  protected async handle(input: PlaceOrderInput): Promise<{ orderId: string }> {
-    const order = Order.place(input.orderId, input.customer);
+  protected toCommand(input: PlaceOrderInput): PlaceOrderCommand {
+    return {
+      orderId: new OrderId(input.orderId),
+      customer: new CustomerName(input.customer).assertValid(),
+    };
+  }
+
+  protected async handle(command: PlaceOrderCommand): Promise<{ orderId: string }> {
+    this.handled.push(command);
+    const order = Order.place(command.orderId, command.customer);
     await this.orders.save(order);
     await this.bus.publish(order.pullDomainEvents());
     return { orderId: order.id.value };
   }
 }
 
-class ShipOrder extends UseCase<{ orderId: string }, void> {
+class ShipOrder extends UseCase<{ orderId: string }, OrderId, void> {
   constructor(
     private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
     private readonly bus: EventBus<OrderEvent>,
@@ -174,10 +181,14 @@ class ShipOrder extends UseCase<{ orderId: string }, void> {
     super();
   }
 
-  protected async handle(input: { orderId: string }): Promise<void> {
-    const order = await this.orders.findById(new OrderId(input.orderId));
+  protected toCommand(input: { orderId: string }): OrderId {
+    return new OrderId(input.orderId);
+  }
+
+  protected async handle(orderId: OrderId): Promise<void> {
+    const order = await this.orders.findById(orderId);
     if (order === null) {
-      throw new AggregateNotFoundException('Order', input.orderId);
+      throw new AggregateNotFoundException('Order', orderId.value);
     }
     order.ship();
     await this.orders.save(order);
@@ -185,13 +196,30 @@ class ShipOrder extends UseCase<{ orderId: string }, void> {
   }
 }
 
-class Throwing extends UseCase<unknown, never> {
+class Throwing extends UseCase<unknown, unknown, never> {
   constructor(private readonly thrown: unknown) {
     super();
   }
 
+  protected toCommand(input: unknown): unknown {
+    return input;
+  }
+
   protected async handle(): Promise<never> {
     throw this.thrown;
+  }
+}
+
+class RefundPayment extends UseCase<{ amount: string }, number, number> {
+  protected toCommand(input: { amount: string }): number {
+    if (Number.isNaN(Number(input.amount))) {
+      throw new Error(`"${input.amount}" is not an amount`);
+    }
+    return Number(input.amount);
+  }
+
+  protected handle(amount: number): number {
+    return amount;
   }
 }
 
@@ -239,7 +267,10 @@ describe('UseCase: an application service a controller or a message handler call
     it('handle is only reachable through execute', async () => {
       const { placeOrder } = setup();
       // @ts-expect-error handle is protected: callers go through execute
-      await placeOrder.handle({ orderId, customer: 'Ana' });
+      await placeOrder.handle({
+        orderId: new OrderId(orderId),
+        customer: new CustomerName('Ana'),
+      });
       expect(true).toBe(true);
     });
   });
@@ -279,6 +310,43 @@ describe('UseCase: an application service a controller or a message handler call
         'CustomerName: Value does not satisfy isLength',
       ]);
       expect(orders.rows.size).toBe(0);
+    });
+  });
+
+  describe('building the command from the input', () => {
+    it('hands handle value objects, never the raw input', async () => {
+      const { placeOrder } = setup();
+      await placeOrder.execute({ orderId: orderId.toUpperCase(), customer: 'Ana' });
+      const [command] = placeOrder.handled;
+      expect(command.orderId).toBeInstanceOf(OrderId);
+      expect(command.orderId.value).toBe(orderId);
+      expect(command.customer).toBeInstanceOf(CustomerName);
+    });
+
+    it('never reaches handle when the input does not make valid value objects', async () => {
+      const { placeOrder, log } = setup();
+      await expect(placeOrder.execute({ orderId: 'not-an-id', customer: 'Ana' })).rejects.toThrow(
+        'Expected a valid UUID',
+      );
+      expect(placeOrder.handled).toEqual([]);
+      expect(log).toEqual([]);
+    });
+
+    it('wraps a raw error thrown while building the command, naming the use case', async () => {
+      const error = await rejection(new RefundPayment().execute({ amount: 'ten' }));
+      expect(error).toBeInstanceOf(InternalErrorException);
+      expect((error as InternalErrorException).message).toBe(
+        'Failed, internal error: RefundPayment: "ten" is not an amount',
+      );
+    });
+
+    it('passes a command that is not an object straight to handle', async () => {
+      expect(await new RefundPayment().execute({ amount: '12.5' })).toBe(12.5);
+    });
+
+    it('toCommand is only reachable through execute', () => {
+      // @ts-expect-error toCommand is protected: callers go through execute
+      expect(new RefundPayment().toCommand({ amount: '1' })).toBe(1);
     });
   });
 

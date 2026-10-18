@@ -2,6 +2,7 @@
 
 const path = require('path');
 
+const application = require(path.resolve(__dirname, '../../dist/cjs/application/index.js'));
 const domain = require(path.resolve(__dirname, '../../dist/cjs/domain/index.js'));
 const exceptions = require(path.resolve(__dirname, '../../dist/cjs/exceptions/index.js'));
 const esmExceptionsUrl = path.resolve(__dirname, '../../dist/esm/exceptions/index.js');
@@ -10,13 +11,11 @@ const ORDER_ID = '9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c';
 
 function orderModel() {
   class OrderPlaced extends domain.EventBase {
+    static eventName = 'order.placed';
+
     constructor(id, customer, metadata) {
       super(id, metadata);
       this.customer = customer;
-    }
-
-    eventName() {
-      return 'order.placed';
     }
   }
   class CustomerName extends domain.Required(domain.StringType) {}
@@ -125,15 +124,20 @@ function smoke(m) {
       'events go through the bus and come back from their JSON',
       async () => {
         const { Order, OrderPlaced } = orderModel();
-        const bus = new m.InMemoryEventBus();
         const received = [];
-        bus.subscribe('order.placed', (event) => {
-          received.push(event.customer);
-        });
+        class ConfirmOrderOnOrderPlaced extends application.EventListener {
+          handle(event) {
+            received.push(event.customer);
+          }
+        }
+        application.ListensTo(OrderPlaced)(ConfirmOrderOnOrderPlaced);
+        const bus = new m.InMemoryEventBus(
+          new m.EventDispatcher([new ConfirmOrderOnOrderPlaced()]),
+        );
         const events = Order.place(ORDER_ID, 'Ana').pullDomainEvents();
         await bus.publish(events);
         const registry = new m.DomainEventRegistry().register(
-          'order.placed',
+          OrderPlaced,
           (json) => new OrderPlaced(json.aggregateId, json.customer, json),
         );
         const rebuilt = registry.fromJSON(JSON.stringify(events[0]));

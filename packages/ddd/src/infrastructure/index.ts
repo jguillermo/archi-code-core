@@ -4,7 +4,7 @@ export { InMemoryRepository } from './repository/in-memory-repository';
 export { AggregateMapper } from './repository/aggregate-mapper';
 export type { AggregateClass } from './repository/aggregate-mapper';
 export { InMemoryEventBus } from './event/in-memory-event-bus';
-export type { EventHandler } from './event/in-memory-event-bus';
+export { EventDispatcher } from './event/event-dispatcher';
 export { DomainEventRegistry } from './event/domain-event-registry';
 export type { EventFactory } from './event/domain-event-registry';
 export { HttpErrorMapper } from './http/http-error-mapper';

@@ -2,15 +2,19 @@ import {
   InfrastructureException,
   InternalErrorException,
   UnknownEventException,
-} from '../../exceptions';
-import type { EventBase, SerializedEvent } from '../../domain';
+} from '../../exceptions/index';
+import type { EventBase, EventClass, SerializedEvent } from '../../domain/index';
 
 export type EventFactory<Event extends EventBase> = (serialized: SerializedEvent) => Event;
 
 export class DomainEventRegistry<Event extends EventBase = EventBase> {
   private readonly factories = new Map<string, EventFactory<Event>>();
 
-  register(eventName: string, factory: EventFactory<Event>): this {
+  register<Registered extends Event>(
+    event: EventClass<Registered>,
+    factory: EventFactory<Registered>,
+  ): this {
+    const { eventName } = event;
     if (this.factories.has(eventName)) {
       throw new InfrastructureException(`Event "${eventName}" is already registered.`);
     }

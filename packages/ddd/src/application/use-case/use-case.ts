@@ -1,10 +1,10 @@
 import { anyToString } from '@archi-code/validation';
 import { AbstractException, InternalErrorException } from '../../exceptions/index';
 
-export abstract class UseCase<Input, Output> {
+export abstract class UseCase<Input, Command, Output> {
   async execute(input: Input): Promise<Output> {
     try {
-      return await this.handle(input);
+      return await this.handle(this.toCommand(input));
     } catch (error) {
       if (error instanceof AbstractException) {
         throw error;
@@ -15,7 +15,9 @@ export abstract class UseCase<Input, Output> {
     }
   }
 
-  protected abstract handle(input: Input): Promise<Output> | Output;
+  protected abstract toCommand(input: Input): Command;
+
+  protected abstract handle(command: Command): Promise<Output> | Output;
 
   private static describe(error: unknown): string {
     return error instanceof Error ? error.message : anyToString(error);

@@ -9,9 +9,7 @@ const ORDER_ID = '9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c';
 
 function orderModel() {
   class OrderPlaced extends domain.EventBase {
-    eventName() {
-      return 'order.placed';
-    }
+    static eventName = 'order.placed';
   }
   class Order extends domain.AggregateRoot {
     static place(id) {
@@ -20,7 +18,7 @@ function orderModel() {
       return order;
     }
   }
-  return { Order };
+  return { Order, OrderPlaced };
 }
 
 function smoke(m) {
@@ -44,8 +42,12 @@ function smoke(m) {
           },
         };
         class PlaceOrder extends m.UseCase {
-          async handle(input) {
-            const order = Order.place(input.id);
+          toCommand(input) {
+            return new domain.IdType(input.id);
+          }
+
+          async handle(id) {
+            const order = Order.place(id.value);
             await repository.save(order);
             await bus.publish(order.pullDomainEvents());
             return order.id.value;
@@ -67,15 +69,23 @@ function smoke(m) {
           delete: async () => {},
         };
         class ShipOrder extends m.UseCase {
-          async handle(input) {
-            const order = await repository.findById(new domain.IdType(input.id));
+          toCommand(input) {
+            return new domain.IdType(input.id);
+          }
+
+          async handle(id) {
+            const order = await repository.findById(id);
             if (order === null) {
-              throw new exceptions.AggregateNotFoundException('Order', input.id);
+              throw new exceptions.AggregateNotFoundException('Order', id.value);
             }
             return order;
           }
         }
         class Broken extends m.UseCase {
+          toCommand(input) {
+            return input;
+          }
+
           async handle() {
             throw new Error('connection reset');
           }
@@ -87,6 +97,25 @@ function smoke(m) {
             broken instanceof exceptions.InternalErrorException &&
             broken.message === 'Failed, internal error: Broken: connection reset') ||
           `unexpected ${missing} / ${broken}`
+        );
+      },
+    ],
+    [
+      'a listener marked with ListensTo is read back by the event name',
+      async () => {
+        const { OrderPlaced } = orderModel();
+        const received = [];
+        class ConfirmOrderOnOrderPlaced extends m.EventListener {
+          handle(event) {
+            received.push(event.aggregateId);
+          }
+        }
+        m.ListensTo(OrderPlaced)(ConfirmOrderOnOrderPlaced);
+        const listener = new ConfirmOrderOnOrderPlaced();
+        await listener.handle(new OrderPlaced(ORDER_ID));
+        return (
+          (m.ListensTo.eventOf(listener) === 'order.placed' && received[0] === ORDER_ID) ||
+          `unexpected ${m.ListensTo.eventOf(listener)} / ${received}`
         );
       },
     ],
