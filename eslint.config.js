@@ -22,6 +22,7 @@ module.exports = tseslint.config(
       '.idea/**',
       'packages/crypto-tools/wasm/**',
       '**/*.generated.ts',
+      'packages/ddd/ddd-skills/**',
     ],
   },
 

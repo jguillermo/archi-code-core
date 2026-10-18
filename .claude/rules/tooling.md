@@ -34,7 +34,8 @@ asked to audit the tooling.
   `packages/*/test/dist/*.check.js` also get the browser globals (their `browser()` page functions
   run in real pages).
 - The three ignore the same generated output: `packages/*/dist`, `packages/*/coverage`,
-  `**/target`, `node_modules`, `.idea`, `packages/crypto-tools/wasm` and `*.generated.ts`. Build
+  `**/target`, `node_modules`, `.idea`, `packages/crypto-tools/wasm` and `*.generated.ts`, plus
+  `packages/ddd/ddd-skills` (a DDD skill suite kept as it is written). Build
   output is anchored to `packages/*/`: a bare `dist` pattern in `.prettierignore` (gitignore
   syntax) also matches `test/dist/` and silently drops the `*.check.js` hooks. Prettier also skips
   `package-lock.json`, `releases.json` (written by the release in CI), `.claude/settings.local.json`,

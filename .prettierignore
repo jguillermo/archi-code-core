@@ -8,6 +8,7 @@ target
 packages/crypto-tools/wasm
 packages/crypto-tools/src/wasm/*.generated.ts
 packages/crypto-tools/test/fixtures
+packages/ddd/ddd-skills
 packages/validation/benchmark/best-scores.json
 packages/validation/benchmark/RESULTS.md
 package-lock.json
