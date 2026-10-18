@@ -99,7 +99,7 @@ function smoke(m) {
       },
     ],
     [
-      'the in-memory repository saves, loads copies, overwrites and deletes',
+      'the in-memory repository saves, loads copies, checks versions and deletes',
       async () => {
         const { Order } = orderModel();
         const repository = new m.InMemoryRepository(m.AggregateMapper.of(Order));
@@ -107,14 +107,22 @@ function smoke(m) {
         await repository.save(Order.place(ORDER_ID, 'Ana'));
         const first = await repository.findById(id);
         const second = await repository.findById(id);
-        await repository.save(Order.place(ORDER_ID, 'Luis'));
-        const overwritten = await repository.findById(id);
+        await repository.save(first);
+        let conflict = null;
+        try {
+          await repository.save(second);
+        } catch (error) {
+          conflict = error;
+        }
+        const stored = await repository.findById(id);
         await repository.delete(id);
         const deleted = await repository.findById(id);
         return (
           (first.customer.value === 'Ana' &&
             first !== second &&
-            overwritten.customer.value === 'Luis' &&
+            first.version === 2 &&
+            stored.version === 2 &&
+            conflict instanceof exceptions.ConcurrencyException &&
             deleted === null) ||
           'unexpected in-memory repository behavior'
         );

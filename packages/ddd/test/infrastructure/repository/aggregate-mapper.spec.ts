@@ -249,6 +249,23 @@ describe('AggregateMapper: the only bridge between an aggregate and its stored p
       expect(mapper.fromPrimitives(row).placedAt.toString()).toBe('2026-03-01T09:30:00.000Z');
     });
 
+    it('gives the rebuilt order the version the repository stored next to the primitives', () => {
+      const mapper = AggregateMapper.of(Order);
+      const stored = mapper.toPrimitives(shippedOrderWithCoupon());
+      expect(mapper.fromPrimitives(stored, 3).version).toBe(3);
+      expect(mapper.fromPrimitives(stored).version).toBe(0);
+    });
+
+    it('never writes the version into the primitives: the repository stores it apart', () => {
+      const order = shippedOrderWithCoupon();
+      order.markPersisted();
+      expect(AggregateMapper.of(Order).toPrimitives(order)).not.toHaveProperty('version');
+    });
+
+    it('names the aggregate it maps, for the messages of its repository', () => {
+      expect(AggregateMapper.of(Order).aggregateName).toBe('Order');
+    });
+
     it('records no events when it rebuilds an order', () => {
       const mapper = AggregateMapper.of(Order);
       const loaded = mapper.fromPrimitives(mapper.toPrimitives(shippedOrderWithCoupon()));

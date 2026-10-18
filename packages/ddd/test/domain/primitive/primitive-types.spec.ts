@@ -126,6 +126,8 @@ const storedOrder: OrderPrimitives = {
   createdAt: new Date('2026-01-10T08:00:00.000Z'),
 };
 
+class InvoiceTotal extends Required(NumberType) {}
+
 describe('PrimitiveTypes', () => {
   it('describes the row a repository stores for an aggregate, with its id', () => {
     expectTypeOf<PrimitiveTypes<Order>>().toEqualTypeOf<OrderPrimitives>();
@@ -140,18 +142,26 @@ describe('PrimitiveTypes', () => {
     expect(primitives.createdAt.toISOString()).toBe('2026-01-10T08:00:00.000Z');
   });
 
-  it('an aggregate that tracks its own version for optimistic locking keeps it as a value object', () => {
-    class Version extends Required(NumberType) {}
+  it('leaves out the version every aggregate inherits: the repository stores it apart', () => {
     class Invoice extends AggregateRoot {
       constructor(
         id: IdType,
-        readonly version: Version,
+        readonly total: InvoiceTotal,
       ) {
         super(id);
       }
     }
 
-    expectTypeOf<PrimitiveTypes<Invoice>>().toEqualTypeOf<{ id: string; version: number }>();
+    expectTypeOf<Invoice['version']>().toEqualTypeOf<number>();
+    expectTypeOf<PrimitiveTypes<Invoice>>().toEqualTypeOf<{ id: string; total: number }>();
+  });
+
+  it('keeps a version member of a child entity, which is plain state of the aggregate', () => {
+    class Revision {
+      constructor(readonly version: InvoiceTotal) {}
+    }
+
+    expectTypeOf<PrimitiveTypes<Revision>>().toEqualTypeOf<{ version: number }>();
   });
 
   it('a getter that exposes a raw boolean makes its key never, so toPrimitives cannot be written', () => {

@@ -23,7 +23,11 @@ export class AggregateMapper<
     return primitives;
   }
 
-  fromPrimitives(primitives: PrimitiveTypes<Aggregate>): Aggregate {
-    return this.aggregateClass.fromPrimitives(primitives);
+  get aggregateName(): string {
+    return this.aggregateClass.name;
+  }
+
+  fromPrimitives(primitives: PrimitiveTypes<Aggregate>, version = 0): Aggregate {
+    return this.aggregateClass.fromPrimitives(primitives).restoreVersion(version);
   }
 }

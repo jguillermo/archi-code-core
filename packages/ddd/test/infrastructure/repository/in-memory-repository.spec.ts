@@ -9,7 +9,11 @@ import {
   StringType,
 } from '../../../src/domain/index';
 import { AggregateMapper } from '../../../src/infrastructure/repository/aggregate-mapper';
-import { DomainException, InternalErrorException } from '../../../src/exceptions/index';
+import {
+  ConcurrencyException,
+  DomainException,
+  InternalErrorException,
+} from '../../../src/exceptions/index';
 import type { PrimitiveTypes } from '../../../src/domain/index';
 import { FixedClock } from '../../../src/infrastructure/clock/fixed-clock';
 import { InMemoryRepository } from '../../../src/infrastructure/repository/in-memory-repository';
@@ -162,6 +166,7 @@ describe('InMemoryRepository: the repository of a use case test or a prototype',
       const repository = await storedOrder();
       const loaded = await repository.findById(new OrderId(orderId));
       expect(loaded).toBeInstanceOf(Order);
+      expect(loaded?.version).toBe(1);
       expect(loaded?.toPrimitives()).toEqual({
         id: orderId,
         customer: 'Ana',
@@ -183,25 +188,71 @@ describe('InMemoryRepository: the repository of a use case test or a prototype',
       expect(reloaded.lines.map((line) => line.value)).toEqual(['TORCH-01']);
     });
 
-    it('when two users edit the same order, the last save wins: there is no version check', async () => {
+    it('when two users edit the same order, the second save is rejected instead of overwriting the first', async () => {
       const repository = await storedOrder();
       const byAna = (await repository.findById(new OrderId(orderId))) as Order;
       const byLuis = (await repository.findById(new OrderId(orderId))) as Order;
       byAna.ship();
       await repository.save(byAna);
       byLuis.addLine('HELMET-02');
-      await repository.save(byLuis);
+
+      const saveByLuis = repository.save(byLuis);
+      await expect(saveByLuis).rejects.toThrow(ConcurrencyException);
+      await expect(repository.save(byLuis)).rejects.toThrow(
+        `Order with ID ${orderId} was changed by someone else: expected version 1.`,
+      );
       const stored = (await repository.findById(new OrderId(orderId))) as Order;
-      expect(stored.status.value).toBe('placed');
-      expect(stored.lines.map((line) => line.value)).toEqual(['TORCH-01', 'HELMET-02']);
+      expect(stored.status.value).toBe('shipped');
+      expect(stored.lines.map((line) => line.value)).toEqual(['TORCH-01']);
+      expect(byLuis.version).toBe(1);
     });
 
-    it('a new order with an id already stored replaces the previous one', async () => {
+    it('after a conflict, reloading the order and repeating the change succeeds', async () => {
       const repository = await storedOrder();
-      await repository.save(Order.place(orderId, 'Luis', clock));
+      const byAna = (await repository.findById(new OrderId(orderId))) as Order;
+      const byLuis = (await repository.findById(new OrderId(orderId))) as Order;
+      byAna.ship();
+      await repository.save(byAna);
+      byLuis.addLine('HELMET-02');
+      await expect(repository.save(byLuis)).rejects.toThrow(ConcurrencyException);
+
+      const reloaded = (await repository.findById(new OrderId(orderId))) as Order;
+      expect(reloaded.version).toBe(2);
+      expect(() => reloaded.addLine('HELMET-02')).toThrow(OrderShippedException);
+    });
+
+    it('the same order can be saved twice in a row: the version follows each save', async () => {
+      const repository = orders();
+      const order = Order.place(orderId, 'Ana', clock);
+      await repository.save(order);
+      order.addLine('TORCH-01');
+      await repository.save(order);
+      expect(order.version).toBe(2);
+      expect((await repository.findById(new OrderId(orderId)))?.version).toBe(2);
+    });
+
+    it('a new order with an id already stored is rejected, it does not replace the stored one', async () => {
+      const repository = await storedOrder();
+      await expect(repository.save(Order.place(orderId, 'Luis', clock))).rejects.toThrow(
+        `Order with ID ${orderId} was changed by someone else: expected version 0.`,
+      );
       const stored = (await repository.findById(new OrderId(orderId))) as Order;
-      expect(stored.customer.value).toBe('Luis');
+      expect(stored.customer.value).toBe('Ana');
       expect(await repository.findAll()).toHaveLength(1);
+    });
+
+    it('an order loaded with a version that was never stored is rejected', async () => {
+      const repository = orders();
+      const forged = Order.place(orderId, 'Ana', clock).restoreVersion(4);
+      await expect(repository.save(forged)).rejects.toThrow(ConcurrencyException);
+      expect(await repository.findAll()).toEqual([]);
+    });
+
+    it('a rejected save does not move the version of the aggregate', async () => {
+      const repository = await storedOrder();
+      const duplicate = Order.place(orderId, 'Luis', clock);
+      await expect(repository.save(duplicate)).rejects.toThrow(ConcurrencyException);
+      expect(duplicate.version).toBe(0);
     });
   });
 
@@ -261,6 +312,14 @@ describe('InMemoryRepository: the repository of a use case test or a prototype',
       const all = await repository.findAll();
       expect(all.map((order) => order.customer.value).sort()).toEqual(['Ana', 'Luis']);
       expect(all.every((order) => order instanceof Order)).toBe(true);
+    });
+
+    it('lists every order with the version it was stored with', async () => {
+      const repository = await storedOrder();
+      const second = Order.place(otherOrderId, 'Luis', clock);
+      await repository.save(second);
+      await repository.save(second);
+      expect((await repository.findAll()).map((order) => order.version)).toEqual([1, 2]);
     });
 
     it('lists nothing in an empty store', async () => {

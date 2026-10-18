@@ -47,6 +47,7 @@ import {
 } from '@archi-code/ddd/domain';
 import {
   AggregateNotFoundException,
+  ConcurrencyException,
   DomainException,
   ExceptionCode,
   InternalErrorException,
@@ -175,10 +176,18 @@ const { Required, StringType } = require('@archi-code/ddd/domain');
      The compiler rejects public raw state (`PrimitiveTypes` gives `never`); `AggregateMapper` throws
      `InternalErrorException` at runtime for raw private state, private fields missing from the
      primitives and value objects returned by `toPrimitives()`.
-- Aggregates extend `AggregateRoot<Id, Event>` and call `super(id)`. The base carries no version:
-  an aggregate that needs optimistic concurrency declares its own `version`, exposes it in its
-  primitives, and its adapter throws `ConcurrencyException(name, id, expectedVersion)` on a stale
-  save.
+- Aggregates extend `AggregateRoot<Id, Event>` and call `super(id)`. **Every aggregate has a
+  `version`** for optimistic concurrency: `0` when new, the stored one when loaded, `+1` after each
+  save. The aggregate never declares, stores nor maps it (it is not a field nor in
+  `PrimitiveTypes`); only repositories touch it.
+- **Every repository checks the version** (contract): load with
+  `mapper.fromPrimitives(row, storedVersion)`; save a new aggregate (`version === 0`) as version 1
+  and treat an existing id as a conflict; save an existing one only where the stored version still
+  equals `aggregate.version`, storing `aggregate.version + 1` next to (never inside) the
+  primitives; when nothing was written throw
+  `ConcurrencyException(mapper.aggregateName, id, aggregate.version)` (HTTP 409); after a write
+  call `aggregate.markPersisted()`. After a conflict, reload and repeat the command only if it is
+  safe against the new state; otherwise report it to the user.
 - `record(event)` is `protected`; `pullDomainEvents()` returns the events (typed `Event[]`) in order
   and empties the list. Pull them after persisting, to publish.
 - Events extend `EventBase`, declare `static readonly eventName = '<context>.<fact>'` and call
@@ -238,8 +247,8 @@ const { Required, StringType } = require('@archi-code/ddd/domain');
   only knows `EventBus.publish`.
 - A real repository implements the roles it supports (`AggregateFinder<A>`, `AggregateSaver<A>`,
   `AggregateRemover<A>`) and wraps driver errors in `InternalErrorException` with `cause`.
-  `InMemoryRepository(AggregateMapper.of(Order))` is the reference for tests: it stores copies of the primitives (the
-  last save wins).
+  `InMemoryRepository(AggregateMapper.of(Order))` is the reference for tests: it stores copies of
+  the primitives with their version and follows the same concurrency contract.
 - Consumers of an outbox or broker rebuild events with `DomainEventRegistry`: register a factory per
   event class that passes the JSON as metadata
   (`register(OrderPlaced, (json) => new OrderPlaced(json.aggregateId, …, json))`).
@@ -485,19 +494,38 @@ class PrepareShipmentOnOrderLineAdded extends EventListener<OrderLineAdded> {
 }
 ```
 
-A real repository implements only the roles it supports and wraps driver errors with their cause:
+A real repository implements only the roles it supports, checks the version and wraps driver
+errors with their cause:
 
 ```ts
-class MongoOrderRepository implements AggregateSaver<Order> {
+class MongoOrderRepository implements AggregateFinder<Order>, AggregateSaver<Order> {
   private readonly mapper = AggregateMapper.of(Order);
 
+  async findById(id: OrderId): Promise<Order | null> {
+    const document = await this.collection.findOne({ _id: id.value });
+    if (document === null) {
+      return null;
+    }
+    const { _id, version, ...primitives } = document;
+    return this.mapper.fromPrimitives(primitives, version);
+  }
+
   async save(order: Order): Promise<void> {
-    const data = this.mapper.toPrimitives(order);
+    const data = { ...this.mapper.toPrimitives(order), version: order.version + 1 };
+    let written: boolean;
     try {
-      await this.collection.replaceOne({ _id: data.id }, data, { upsert: true });
+      written =
+        order.version === 0
+          ? await this.insertUnlessTaken(data)
+          : (await this.collection.replaceOne({ _id: data.id, version: order.version }, data))
+              .matchedCount === 1;
     } catch (error) {
       throw new InternalErrorException('saving order', { cause: error });
     }
+    if (!written) {
+      throw new ConcurrencyException(this.mapper.aggregateName, order.id.value, order.version);
+    }
+    order.markPersisted();
   }
 }
 ```
@@ -617,8 +645,15 @@ describe('Order', () => {
   infrastructure.
 - Passing `{ toPrimitives, fromPrimitives }` objects to `InMemoryRepository`: pass
   `AggregateMapper.of(Order)`.
-- Looking for `version` in `AggregateRoot`: there is none; declare it in the aggregate that needs
-  optimistic concurrency.
+- Declaring a `version` field in an aggregate, or putting it in `toPrimitives()`: the base already
+  has it, and the repository stores it next to the primitives.
+- A repository that saves with `upsert` and no version condition, or `InMemoryRepository`
+  behavior expected as "last save wins": a stale save must throw `ConcurrencyException`.
+- Forgetting `markPersisted()` after a successful write (the next save of the same object becomes a
+  false conflict), or `mapper.fromPrimitives(row)` without the stored version (every load looks
+  new, and the first save conflicts).
+- Calling `restoreVersion()` or `markPersisted()` from domain or application code: they are for
+  repositories.
 - Creating events without the aggregate id (`super()`), or generating `eventId`/`occurredOn`
   yourself for a new event: the base does it.
 - Wrapping an error in `InternalErrorException` without `{ cause: error }`.

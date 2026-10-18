@@ -527,6 +527,12 @@ To restrict an existing type, it is enough to extend it and declare `@Validation
   attributes are. `Id` may be any value object (`IdType`, a `Required(StringType)` code…); `record(event)` is `protected`; `pullDomainEvents()` returns the events typed as `Event[]`, in order, and empties
   the list. Pending events are not an enumerable property: they never show up in
   `JSON.stringify(aggregate)`, `{ ...aggregate }` or `Object.keys`.
+- Every aggregate has a `version` for optimistic concurrency (see
+  [Optimistic concurrency](#optimistic-concurrency)): `0` for a new one, the stored version for a
+  loaded one, one more after each successful save. The aggregate does nothing with it: it keeps
+  calling `super(id)`, and the version is neither a field, nor in its primitives, nor in its JSON.
+  Only repositories touch it, with `restoreVersion(version)` when they load and `markPersisted()`
+  after they save.
 - Child entities of an aggregate (the lines of an order) are plain classes with a value object id:
   the aggregate root is the only one with a base class, and the only one repositories load and
   save.
@@ -636,9 +642,71 @@ all-in-one `Repository` contract: the adapter implements the roles it supports
 (`class MongoUserRepository implements AggregateFinder<User>, AggregateSaver<User>, AggregateRemover<User>`)
 and the same instance is passed to every use case.
 
-The aggregate carries no version. If an aggregate needs optimistic concurrency, model the version
-in it (a `readonly version` your aggregate declares and exposes in its primitives) and let its
-adapter's `save` throw `ConcurrencyException(aggregateName, id, expectedVersion)` on a stale write.
+### Optimistic concurrency
+
+Two users load the same order, both change it and both save: without a check, the second save
+silently erases the first. `AggregateRoot` carries the version that prevents it, and every
+repository follows the same contract:
+
+| Moment                       | The repository                                                                                            |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Load                         | Rebuilds with `mapper.fromPrimitives(row, storedVersion)`, so `aggregate.version` is the version it read  |
+| Save a new aggregate         | `aggregate.version` is `0`: inserts with version `1`; if the id already exists, it is a conflict          |
+| Save an existing aggregate   | Writes only where the stored version still equals `aggregate.version`, and stores `aggregate.version + 1` |
+| Nothing written (stale data) | Throws `ConcurrencyException(mapper.aggregateName, id, aggregate.version)` (HTTP 409)                     |
+| Written                      | Calls `aggregate.markPersisted()`, so the same object can be changed and saved again                      |
+
+The version lives next to the primitives (a `version` column or field), never inside them. After a
+`ConcurrencyException`, reload the aggregate and run the command again (only if it is safe to
+repeat against the new state), or tell the user that someone else changed it. If a transaction is
+rolled back after `markPersisted()`, discard the object and load it again.
+
+```ts
+import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
+import { ConcurrencyException, InternalErrorException } from '@archi-code/ddd/exceptions';
+import { AggregateMapper } from '@archi-code/ddd/infrastructure';
+
+class MongoOrderRepository implements AggregateFinder<Order>, AggregateSaver<Order> {
+  private readonly mapper = AggregateMapper.of(Order);
+
+  async findById(id: OrderId): Promise<Order | null> {
+    const document = await this.collection.findOne({ _id: id.value });
+    if (document === null) {
+      return null;
+    }
+    const { _id, version, ...primitives } = document;
+    return this.mapper.fromPrimitives(primitives, version);
+  }
+
+  async save(order: Order): Promise<void> {
+    const data = { ...this.mapper.toPrimitives(order), version: order.version + 1 };
+    const written =
+      order.version === 0
+        ? await this.insert(data)
+        : (await this.collection.replaceOne({ _id: data.id, version: order.version }, data))
+            .matchedCount === 1;
+    if (!written) {
+      throw new ConcurrencyException(this.mapper.aggregateName, order.id.value, order.version);
+    }
+    order.markPersisted();
+  }
+
+  private async insert(data: OrderDocument): Promise<boolean> {
+    try {
+      await this.collection.insertOne({ _id: data.id, ...data });
+      return true;
+    } catch (error) {
+      if (isDuplicateKey(error)) {
+        return false;
+      }
+      throw new InternalErrorException('saving order', { cause: error });
+    }
+  }
+}
+```
+
+In SQL the same check is `UPDATE orders SET …, version = version + 1 WHERE id = $1 AND version = $2`
+and zero updated rows means a conflict.
 
 # Application layer: `@archi-code/ddd/application`
 
@@ -759,18 +827,33 @@ table or a broker is decided in infrastructure.
 
 Ready adapters for tests, prototypes and the edges of an API:
 
-| Export                                          | What it is                                                                                                |
-| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `InMemoryRepository(AggregateMapper.of(Order))` | Finder, saver and remover over a `Map`, storing `mapper.toPrimitives(aggregate)` copies; adds `findAll()` |
-| `EventDispatcher(listeners?)`                   | Groups listeners by their `@ListensTo` event; `add(listener)`, `listenersOf(name)`, `dispatch(event)`     |
-| `InMemoryEventBus(dispatcher?)`                 | `EventBus` that records `published` and hands every event to its dispatcher, in the same process          |
-| `DomainEventRegistry`                           | `register(EventClass, factory)` and `fromJSON(json)`: rebuilds events read from an outbox or a broker     |
-| `HttpErrorMapper(statusByCode?)`                | `map(error)` → `{ status, body: { code, message, errors? } }` (`errors`: `{ field, message }[]`)          |
-| `SystemClock`, `FixedClock(at)`                 | `Clock` with the real time, and a test clock with `set(at)` and `advance(ms)`                             |
+| Export                                          | What it is                                                                                            |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `InMemoryRepository(AggregateMapper.of(Order))` | Finder, saver and remover over a `Map` of primitives and versions; checks versions; adds `findAll()`  |
+| `EventDispatcher(listeners?)`                   | Groups listeners by their `@ListensTo` event; `add(listener)`, `listenersOf(name)`, `dispatch(event)` |
+| `InMemoryEventBus(dispatcher?)`                 | `EventBus` that records `published` and hands every event to its dispatcher, in the same process      |
+| `DomainEventRegistry`                           | `register(EventClass, factory)` and `fromJSON(json)`: rebuilds events read from an outbox or a broker |
+| `HttpErrorMapper(statusByCode?)`                | `map(error)` → `{ status, body: { code, message, errors? } }` (`errors`: `{ field, message }[]`)      |
+| `SystemClock`, `FixedClock(at)`                 | `Clock` with the real time, and a test clock with `set(at)` and `advance(ms)`                         |
 
-`InMemoryRepository` stores a copy of the primitives on every `save` (the last save wins), finds
-ids whatever their case and returns copies, so changing a loaded aggregate does not touch the store
-until you save it.
+`InMemoryRepository` follows the [optimistic concurrency](#optimistic-concurrency) contract like a
+real adapter: it stores a copy of the primitives with their version, rejects a stale save (or a new
+aggregate whose id is already stored) with `ConcurrencyException`, and calls `markPersisted()` on
+success. It finds ids whatever their case and returns copies, so changing a loaded aggregate does
+not touch the store until you save it.
+
+```ts
+const orders = new InMemoryRepository(AggregateMapper.of(Order));
+await orders.save(Order.place(new OrderId(id), new CustomerName('Ana')));
+
+const byAna = await orders.findById(new OrderId(id)); // version 1
+const byLuis = await orders.findById(new OrderId(id)); // version 1
+byAna.ship();
+await orders.save(byAna); // stored as version 2; byAna.version is 2
+byLuis.addLine(new Sku('TORCH-01'), new Units(1));
+await orders.save(byLuis);
+// ConcurrencyException: Order with ID … was changed by someone else: expected version 1.
+```
 
 `HttpErrorMapper` statuses, overridable by code (`new HttpErrorMapper({ ORD001: 403 })`):
 
@@ -950,7 +1033,9 @@ class Order extends AggregateRoot<OrderId> {
 }
 
 const orders = AggregateMapper.of(Order); // AggregateMapper<Order>
-// new InMemoryRepository(orders), or your own adapter: rows = orders.toPrimitives(order)
+orders.aggregateName; // 'Order'
+// new InMemoryRepository(orders), or your own adapter:
+// write orders.toPrimitives(order) with order.version + 1, read orders.fromPrimitives(row, row.version)
 ```
 
 # Exceptions: `@archi-code/ddd/exceptions`

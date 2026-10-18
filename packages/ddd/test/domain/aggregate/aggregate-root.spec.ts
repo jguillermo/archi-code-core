@@ -8,6 +8,7 @@ import { NumberType } from '../../../src/domain/type/number-type';
 import { Required } from '../../../src/domain/type/required/required';
 import { StringType } from '../../../src/domain/type/string-type';
 import { DomainException } from '../../../src/exceptions/domain/domain.exception';
+import { InternalErrorException } from '../../../src/exceptions/infrastructure/internal-error.exception';
 import type { PrimitiveTypes } from '../../../src/domain/primitive/primitive-types';
 
 class OrderId extends IdType {}
@@ -179,16 +180,58 @@ describe('AggregateRoot: an order that records what happened to it', () => {
   });
 
   describe('persistence', () => {
-    it('its primitives are what the repository stores: id and public state, no version', () => {
+    it('its primitives are what the repository stores: id and public state, never the version', () => {
       expectTypeOf<PrimitiveTypes<Order>>().toEqualTypeOf<{
         id: string;
         customer: string;
         lines: { id: string; sku: string; quantity: number }[];
       }>();
     });
+  });
 
-    it('has no version of its own: an aggregate that needs one declares it', () => {
-      expect('version' in Order.place(orderId, 'Ana')).toBe(false);
+  describe('version for optimistic concurrency', () => {
+    it('a new order starts at version 0, before it is ever saved', () => {
+      expect(Order.place(orderId, 'Ana').version).toBe(0);
+    });
+
+    it('each successful save the repository confirms moves the version one step', () => {
+      const order = Order.place(orderId, 'Ana');
+      order.markPersisted();
+      order.addLine('TORCH-01', 2);
+      order.markPersisted();
+      expect(order.version).toBe(2);
+    });
+
+    it('a loaded order gets back the version the repository stored, and returns itself', () => {
+      const loaded = Order.fromPrimitives({ id: orderId, customer: 'Ana', shipped: false });
+      expect(loaded.restoreVersion(7)).toBe(loaded);
+      expect(loaded.version).toBe(7);
+    });
+
+    it.each([-1, 1.5, Number.NaN, Number.MAX_SAFE_INTEGER + 1])(
+      'refuses to restore the impossible version %s, a sign of a corrupt row',
+      (version) => {
+        const order = Order.place(orderId, 'Ana');
+        expect(() => order.restoreVersion(version)).toThrow(InternalErrorException);
+        expect(() => order.restoreVersion(version)).toThrow(
+          `Failed, internal error: Order cannot be restored with version ${version}`,
+        );
+        expect(order.version).toBe(0);
+      },
+    );
+
+    it('keeps the version out of the state, so mappers and serializers never see it', () => {
+      const order = Order.place(orderId, 'Ana');
+      order.markPersisted();
+      expect(Object.keys(order)).not.toContain('persistedVersion');
+      expect(JSON.stringify(order)).not.toContain('ersion');
+    });
+
+    it('cannot be assigned from outside: only the repository moves it, through its methods', () => {
+      const order = Order.place(orderId, 'Ana');
+      // @ts-expect-error version is read-only
+      expect(() => (order.version = 3)).toThrow(TypeError);
+      expect(order.version).toBe(0);
     });
   });
 
