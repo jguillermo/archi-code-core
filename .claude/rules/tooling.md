@@ -57,12 +57,12 @@ Run from the repo root. Every step lists the expected result; any other result i
    prints nothing).
    `scripts/new-package.js` generates none of them.
 3. **Each tool detects violations** (probe through stdin or the scratchpad, never in the repo):
-   - `printf 'var x = 1 == 2;\n' | npx eslint --stdin --stdin-filename packages/domain/src/probe.ts`
+   - `printf 'var x = 1 == 2;\n' | npx eslint --stdin --stdin-filename packages/ddd/src/domain/probe.ts`
      reports `no-var`, `eqeqeq` and `prettier/prettier`.
    - `printf 'var x = 1 == 2;\n' | npx eslint --stdin --stdin-filename scripts/probe.js` reports
      `no-var`, `eqeqeq` and `no-unused-vars`; `document` is undefined there (`no-undef`) but allowed
      in `packages/<pkg>/test/dist/probe.check.js`.
-   - `printf 'const a = "x"\n' | npx prettier --stdin-filepath packages/domain/src/probe.ts`
+   - `printf 'const a = "x"\n' | npx prettier --stdin-filepath packages/ddd/src/domain/probe.ts`
      prints `const a = 'x';`.
    - A file with trailing spaces, a tab indent, CRLF and no final newline, next to a copy of
      `.editorconfig` in the scratchpad, makes

@@ -37,7 +37,7 @@ const { Criteria } = require('@archi-code/criteria');
 ## Which type to search on
 
 `T` is the plain, persisted shape of your entity (its primitives), not an aggregate built from value
-objects. With `@archi-code/domain` that is `PrimitiveTypes<User>` or your own `UserPrimitives`:
+objects. With `@archi-code/ddd` that is `PrimitiveTypes<User>` or your own `UserPrimitives`:
 
 ```ts
 interface UserPrimitives {

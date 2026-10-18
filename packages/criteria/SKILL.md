@@ -23,7 +23,7 @@ folder.
 If they are installed in the project, use them together with this one:
 
 - `archi-code-criteria-adapters`: runs criteria in memory, on MongoDB or on IndexedDB.
-- `archi-code-domain`: aggregates whose primitives are the type the criteria searches on.
+- `archi-code-ddd`: aggregates whose primitives are the type the criteria searches on.
 
 ## Import
 

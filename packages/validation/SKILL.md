@@ -25,7 +25,7 @@ folder.
 
 If they are installed in the project, use them together with this one:
 
-- `archi-code-domain`: value objects from `@archi-code/domain` that declare their rules with `@Validations`.
+- `archi-code-ddd`: value objects from `@archi-code/ddd/domain` that declare their rules with `@Validations`.
 
 ## Import
 

@@ -22,7 +22,7 @@ in that folder.
 ## Related skills
 
 - `archi-code-criteria`: builds the criteria, schemas for request input and URL texts.
-- `archi-code-domain`: aggregates whose primitives are stored in the repository.
+- `archi-code-ddd`: aggregates whose primitives are stored in the repository, and the `Repository` port they implement.
 
 ## Import
 

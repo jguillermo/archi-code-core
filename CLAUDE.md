@@ -15,7 +15,7 @@ npm run check:format    # EditorConfig, Prettier and ESLint over the whole repo 
 npm run fix:format      # eslint --fix and prettier --write over the whole repo
 npm run clean           # Remove all node_modules
 npm run check:packages  # Full gate (check:all) in every package
-npm run check:<name>    # Full gate in one package: validator, domain, criteria, criteria-adapters, crypto-tools
+npm run check:<name>    # Full gate in one package: validator, ddd, criteria, criteria-adapters, crypto-tools
 npm run check:versions  # Every package version and internal dep is 0.0.0-development
 npm run check:audit     # npm audit of runtime deps + cargo audit of crypto-tools (network; CI audit.yml, weekly)
 npm run version         # Dry-run of the release: current and next version of each package, writes release-plan.json
@@ -113,7 +113,7 @@ npm workspaces monorepo publishing independent npm packages implementing DDD pat
 | Directory           | npm name                        | Purpose                                                                                                                     |
 | ------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `validation`        | `@archi-code/validation`        | Validators (TypeScript port of validator.js), `canBe*`/`to*` conversions, `@Validations` decorator                          |
-| `domain`            | `@archi-code/domain`            | DDD framework — value objects, entities, aggregates, exceptions, domain events                                              |
+| `ddd`               | `@archi-code/ddd`               | DDD by layer as subpaths: `/exceptions`, `/domain` (value objects, aggregates, events), `/application`, `/infrastructure`   |
 | `criteria`          | `@archi-code/criteria`          | Database-independent Criteria: typed `where`/`orderBy`/pagination, URL text, input schema with limits                       |
 | `criteria-adapters` | `@archi-code/criteria-adapters` | Criteria adapters as separate subpaths: `/memory` (reference semantics), `/mongodb`, `/indexeddb`; shared internal contract |
 | `crypto-tools`      | `@archi-code/crypto-tools`      | Crypto toolkit in one Rust→wasm module run in workers (web + Node): password, cipher, RSA, signature, hash, token, JWT      |
@@ -123,7 +123,8 @@ npm workspaces monorepo publishing independent npm packages implementing DDD pat
 ```
 @archi-code/validation  (zero runtime dependencies — foundation)
     ↑
-    └── @archi-code/domain   (runtime: @archi-code/validation, uuid)
+    └── @archi-code/ddd      (runtime: @archi-code/validation, uuid;
+                              subpaths /exceptions ← /domain ← /application ← /infrastructure)
 
 @archi-code/criteria     (standalone — no runtime deps)
     ↑
@@ -209,19 +210,20 @@ npm workspaces monorepo publishing independent npm packages implementing DDD pat
   Firefox and WebKit, on each browser's real IndexedDB in three store layouts; vitest uses
   `fake-indexeddb`.
 
-### domain package internals
+### ddd package internals
 
-The core DDD package. Key concepts:
+The DDD package, split into four subpath modules (no `"."` entry, `typesVersions` for `moduleResolution: node`): `src/exceptions/` (imports nothing; a shared module because every layer throws them, user rule), `src/domain/` (imports `exceptions`), `src/application/` (imports `domain`, `exceptions`) and `src/infrastructure/` (imports all three), each crossing into another only through its `index.ts`; `test/cross/module-boundaries.spec.ts` fixes that graph, the allowed packages (`@archi-code/validation`, `uuid`) and forbids cycles, also type-only ones. Build hooks live in `test/dist/<module>.check.js`. Key concepts of `domain`:
 
-- **`Entity<Id>`** (`entity/entity.ts`) — `readonly id` passed to `super(id)`; `equals` = same class + `id.equals`.
-- **`AggregateRoot<Id, Event>`** (`aggregate/aggregate-root.ts`) — An `Entity` with `readonly version` (`super(id, version = 0)`, non-negative safe integer, for optimistic concurrency) and domain events via `record()` (protected) / `pullDomainEvents()` (typed `Event[]`).
+- **`AggregateRoot<Id, Event>`** (`aggregate/aggregate-root.ts`) — `readonly id` (`super(id)`), `equals` (same class + `id.equals`) and domain events, no version; there is no `Entity` base class (user rule: child entities are plain classes) (user rule: an aggregate that needs optimistic concurrency declares its own) via `record()` (protected) / `pullDomainEvents()` (typed `Event[]`).
 - **`AbstractType<T>`** (`type/abstract-type.ts`) — Base for all value objects: `value`, `isNull`, `toString()` (a method), `toJSON()` (plain value, dates as ISO), `equals()` (same constructor + `ValueEquality`: dates by instant, arrays/objects by content, `0 == -0`, `NaN == NaN`), `validate()` and `assertValid()` (throws `ValidationException` with `'<Class>: <message>'` entries). `_value` is `protected readonly`: value objects never change; `ArrayType.withItem/withoutItem` return a new instance (`new this.constructor(values)`). Delegates by composition to static classes: `TypeInput` (`type/input/`: empty input → null, `filter`, required check), `RequiredMark` (`type/required/`), `Immutable` (`type/immutable/`) and `ValueEquality` (`type/equality/`). Helpers are grouped as one static class per folder, never loose functions; `Required(...)` is the only function. `Required(...)` declares `@Validations([{ validator: 'isRequired' }])`. `validate()` keeps no state: it only calls the `@archi-code/validation` validator and returns its result.
 - **Value objects** — `StringType`, `NumberType`, `BooleanType`, `DateType`, `UuidType`, `EnumType`, `JsonType`, `ArrayType` (`type/<name>-type.ts`). Optional by default (`T | null`); `Required(XType)` makes the constructor ask for `T` and throws `RequiredValueException` when empty. Conversions come from `@archi-code/validation`; validations are declared with its `@Validations`. `DateType` rejects date-times without a zone; `UuidType`/`IdType` store lowercase. `CreatedAt`, `UpdatedAt` and `IdType` are required types.
-- **Exceptions** — `AbstractException` → `DomainException` / `ApplicationException` / `InfrastructureException`. Specifics: `ValidationException` (keeps `errors`), `AggregateNotFoundException`, `TypePrimitiveException`, `RequiredValueException`, `InternalErrorException`. Constructors take `{ cause }`; codes in the exported `ExceptionCode` enum. Every built-in class is branded with its code (`exceptions/brand/exception-brand.ts`, `Symbol.for` keys) and its `Symbol.hasInstance` also matches instances from the other build (CJS/ESM); user subclasses only match natively.
-- **`EventBase`** (`event/event-base.ts`) — `super(aggregateId, { eventId?, occurredOn? })`: sets `aggregateId` (required), `eventId` (UUID v4 via `IdType`) and an immutable `occurredOn`; must implement `eventName()`; `toJSON()` writes `eventName`, `eventId`, `aggregateId`, ISO `occurredOn`, then the payload.
-- **`PrimitiveType`** — value objects → value, enums → `string`/`number`, `Entity` → its `PrimitiveTypes`, scalars (`string`/`number`/`boolean`/`Date`) pass through, anything else `never`.
-- **Tests** — `src/` holds only code; every spec lives in `packages/domain/test/`, mirroring the `src/` folder tree (`src/type/string-type.ts` → `test/type/string-type.spec.ts`).
-- **Gate** — `npm run check:domain` (root): the common `check:all` gate with 100% coverage; `test/dist/dist.check.js` smoke-tests value objects, aggregates, events and exceptions in both builds, and `crossBuild` checks exception `instanceof` across CJS/ESM. Specs describe real usage situations (orders, customers, payments…), not abstract fixtures.
+- **Exceptions** (`src/exceptions/`, not exported by `/domain`) — `AbstractException` → `DomainException` / `ApplicationException` / `InfrastructureException`. Specifics: `ValidationException` (keeps `errors`), `AggregateNotFoundException`, `TypePrimitiveException`, `RequiredValueException`, `InternalErrorException`. Constructors take `{ cause }`; codes in the exported `ExceptionCode` enum. Every built-in class is branded with its code (`exceptions/brand/exception-brand.ts`, `Symbol.for` keys) and its `Symbol.hasInstance` also matches instances from the other build (CJS/ESM); user subclasses only match natively.
+- **`EventBase`** (`event/event-base.ts`) — `super(aggregateId, { eventId?, occurredOn?, clock? })`: sets `aggregateId` (required), `eventId` (UUID v4 via `IdType`) and an immutable `occurredOn` (stored value, else `clock.now()`, else system time; the clock is not kept); must implement `eventName()`; `toJSON()` writes `eventName`, `eventId`, `aggregateId`, ISO `occurredOn`, then the payload.
+- **Application** (`src/application/`) — `UseCase<Input, Output>`: `execute(input)` calls `protected handle(input)` (sync or async), keeps package exceptions and wraps any other error in `InternalErrorException` with `cause`; it has no helpers (loading, saving and publishing are written in `handle`, user rule). User rules for use cases, stated in the README and SKILL: each does one thing (one business action, one aggregate saved once) and is named after the business action (`PlaceOrder`, `ShipOrder`), never technical/CRUD names (`OrderService`, `UpdateOrder`). Ports are types only, the repository segregated by role (interface segregation, user rule): `AggregateFinder<A>` (`findById`), `AggregateSaver<A>` (`save`), `AggregateRemover<A>` (`delete`); there is no all-in-one `Repository` (user rule): adapters implement the roles they support and use cases ask only for the roles they use. Also `EventBus`, `Clock`.
+- **Infrastructure** (`src/infrastructure/`) — `InMemoryRepository(mapper)` (stores `structuredClone`d primitives, last save wins, case-insensitive ids), `InMemoryEventBus` (`subscribe`, `published`), `DomainEventRegistry` (`register`/`fromJSON`, `UnknownEventException`), `HttpErrorMapper` (400/404/409/422/500, generic message on 5xx, overrides by code), `SystemClock`, `FixedClock`.
+- **`PrimitiveType`** — value objects → value, enums → `string`/`number`, scalars (`string`/`number`/`boolean`/`Date`) pass through, any other object (child entities) → its `PrimitiveTypes`, anything else `never`.
+- **Tests** — `src/` holds only code; every spec lives in `packages/ddd/test/`, mirroring the `src/` folder tree (`src/domain/type/string-type.ts` → `test/domain/type/string-type.spec.ts`).
+- **Gate** — `npm run check:ddd` (root): the common `check:all` gate with 100% coverage; `test/dist/{exceptions,domain,application,infrastructure}.check.js` smoke-test each module in both builds; `crossBuild` checks exception `instanceof` and the HTTP mapper across CJS/ESM. Specs describe real usage situations (orders, customers, payments…), not abstract fixtures.
 
 ### TypeScript config hierarchy (per package)
 

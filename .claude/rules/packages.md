@@ -97,7 +97,7 @@ people (and the AI assistants) that consume the package:
   review of existing code) and a `### Keeping it up to date` subsection (copy it again after updating
   the package, commit `.claude/skills/`). Nothing about the internal gate or the release.
 - `SKILL.md` is a light Claude Code skill: a YAML frontmatter with exactly `name`
-  (`archi-code-<npm name without scope>`, e.g. `archi-code-domain`) and `description` (what it does
+  (`archi-code-<npm name without scope>`, e.g. `archi-code-ddd`) and `description` (what it does
   and when to use it), then the title `# archi-code-<name>` and only what rarely changes, in this
   order: `## Full API` (sends the assistant to `node_modules/@archi-code/<name>/README.md`, the
   installed version, before using anything the skill does not show, with
@@ -189,8 +189,8 @@ Only when the package needs them, and documented in its README:
   (`cargo audit`, accepted advisories in `rust/.cargo/audit.toml`) run inside `rust/` so rustup and
   cargo find their config. `build` starts with `build:wasm` and `check:all` starts with
   `check:rust → build:wasm`. CI installs the toolchain and wasm-pack.
-- Subpath modules, for a package that groups independent modules (only
-  `criteria-adapters` today). Each module lives in `src/<module>/` with its own `index.ts`, its
+- Subpath modules, for a package that groups independent modules (`criteria-adapters`
+  and `ddd` today). Each module lives in `src/<module>/` with its own `index.ts`, its
   specs in `test/<module>/` (with its own `index.spec.ts` pinning that module's API) and its build
   hooks in `test/dist/<module>.check.js`. `exports` lists only `"./<module>"` entries (each with
   `import`/`require` and their `types`) and `"./package.json"`; there is no `"."`, no `main`/`module`/
