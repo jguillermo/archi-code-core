@@ -2,7 +2,7 @@
 
 ## Fase 0. Red de seguridad
 
-* Tests de caracterización del comportamiento actual en la zona a cambiar: fijan lo que hace hoy, aunque esté mal, para detectar cambios no deseados `[Fuera de los libros]`. Cuando el código ya usa el paquete, se escriben sobre `InMemoryRepository(AggregateMapper.of(Order))`, `InMemoryTransactionRunner` y `FixedClock`, y comprueban lo que transportó el canal (`InMemoryEventChannel.sent`).
+* Tests de caracterización del comportamiento actual en la zona a cambiar: fijan lo que hace hoy, aunque esté mal, para detectar cambios no deseados `[Fuera de los libros]`. Cuando el código ya usa el paquete, se escriben sobre `InMemoryRepository(AggregateMapper.of(Order))` y `FixedClock`, y comprueban lo que transportó el canal (`InMemoryEventChannel.sent`).
 * Reglas automáticas de dependencias (`ddd-skills/ddd-arquitectura/GUIA.md`) en modo aviso, para medir sin bloquear.
 
 ## Fase 1. Proteger el código nuevo
@@ -64,8 +64,9 @@ Orden recomendado `[Fuera de los libros, basado en dependencias entre reglas]`:
 2. Introducir value objects para los primitivos más usados: `Money` como `Composite({ amount: Cents, currency: Currency })`, identificadores `class OrderId extends IdType<'OrderId'>` (la marca hace que no se confundan ids de agregados distintos), estados `extends Required(StatusType)` sobre `EnumType`.
 3. Sustituir setters por métodos de negocio con nombres del lenguaje (`ship`, `addLine`) que comprueban la invariante y llaman a `record()`, moviendo la lógica desde los casos de uso; partir los casos de uso CRUD (`UpdateOrder`) en uno por acción (`ShipOrder`, `AddOrderLine`).
 4. Partir agregados grandes con el procedimiento de `ddd-skills/ddd-agregados/GUIA.md` (plazos de consistencia).
-5. Donde hoy un caso de uso guarda varios agregados: guardar uno, publicar su evento y ejecutar el resto con un listener `<Action>On<Event>`; en producción, un `EventChannel` durable (outbox) para que el evento no se pierda.
-6. Separar consultas de lectura (interfaz en `application/`, implementada en `infrastructure/` sobre la base de datos) si los repositorios han crecido en métodos.
+5. Donde hoy un caso de uso guarda varios agregados: guardar uno, publicar su evento y ejecutar el resto con un listener `<Action>On<Event>`; si el evento no puede perderse, el repositorio lo escribe junto al agregado en la misma escritura atómica (outbox) y un relay lo entrega por un `EventChannel`.
+6. Donde un caso de uso o servicio de aplicación abre o maneja transacciones, o recibe un runner de transacciones o una unidad de trabajo: mover la transacción al adaptador del repositorio, que hace atómico cada `save`/`remove` (una escritura de un documento o, si el agregado ocupa varias tablas, una transacción de base de datos dentro de `save`/`remove`), y dejar el caso de uso con solo roles de repositorio, `EventBus` y `Clock` `[Fuera de los libros: convención de @archi-code/ddd]`.
+7. Separar consultas de lectura (interfaz en `application/`, implementada en `infrastructure/` sobre la base de datos) si los repositorios han crecido en métodos.
 
 ## Despliegue
 

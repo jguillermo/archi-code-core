@@ -37,6 +37,11 @@ NOT_A_REPOSITORY = {"events", "eventbus", "bus", "outbox", "inbox", "list", "set
 ARCHI_OUTER_LAYER_RE = re.compile(r"""['"]@archi-code/ddd/(application|infrastructure)['"]""")
 NEW_DATE_RE = re.compile(r"\bnew\s+Date\s*\(\s*\)")
 TRANSACTION_START_RE = re.compile(r"(\$transaction|\.transaction|\btx\.run|\.run|runInTransaction|withTransaction)\s*\(")
+# La transacción es del adaptador del repositorio: dominio y aplicación no abren, reciben ni manejan transacciones
+TRANSACTION_HANDLING_RE = re.compile(
+    r"\b(TransactionRunner|TransactionManager|UnitOfWork|unitOfWork|startSession|startTransaction|commitTransaction|"
+    r"abortTransaction|withTransaction|runInTransaction|inTransaction)\b|\$transaction\b|['\"`]\s*(BEGIN|COMMIT|ROLLBACK)\b"
+)
 
 
 def iter_ts_files(root: Path):
@@ -82,6 +87,14 @@ def transaction_blocks(text: str):
                     break
             j += 1
         yield m.start(), text[i:j + 1]
+
+
+def class_spans(text: str):
+    """Devuelve (inicio, fin, nombre) de cada clase: desde su declaración hasta la siguiente o el final."""
+    starts = [(m.start(), m.group(1)) for m in CLASS_RE.finditer(text)]
+    for k, (start, name) in enumerate(starts):
+        end = starts[k + 1][0] if k + 1 < len(starts) else len(text)
+        yield start, end, name
 
 
 def line_of(text: str, idx: int) -> int:
@@ -162,12 +175,33 @@ def scan(root: Path, domain_dir: str):
         for m in REPO_CLASS_RE.finditer(text):
             repos.append((m.group(1), str(path.relative_to(root))))
 
+        multi_save_blocks = []
         if not is_test:
             for start, block in transaction_blocks(text):
                 saved = {m.group(1).lower() for m in SAVE_CALL_RE.finditer(block)} - NOT_A_REPOSITORY
                 if len(saved) >= 2:
+                    multi_save_blocks.append(start)
                     add("varios-agregados-en-una-transaccion", "alta", path, line_of(text, start),
                         f"el mismo bloque transaccional guarda con {sorted(saved)}")
+
+        if zone in (domain_dir, "application") and not is_test:
+            m = TRANSACTION_HANDLING_RE.search(text)
+            if m is None:
+                m = next((TRANSACTION_START_RE.search(text, s) for s, _ in transaction_blocks(text)), None)
+            if m is not None:
+                rule = "transaccion-en-dominio" if zone == domain_dir else "transaccion-en-aplicacion"
+                severity = "alta" if zone == domain_dir else "media"
+                add(rule, severity, path, line_of(text, m.start()),
+                    f"maneja transacciones ({m.group(0).strip()[:40]}); muévelo al adaptador del repositorio")
+
+        if zone == "application" and not is_test:
+            for start, end, name in class_spans(text):
+                if any(start <= b < end for b in multi_save_blocks):
+                    continue
+                saved = {m.group(1).lower() for m in SAVE_CALL_RE.finditer(text, start, end)} - NOT_A_REPOSITORY
+                if len(saved) >= 2:
+                    add("caso-de-uso-guarda-varios-agregados", "alta", path, line_of(text, start),
+                        f"{name} guarda con {sorted(saved)}")
 
         if not is_test and zone in ("application", None):
             for cm in CLASS_RE.finditer(text):

@@ -175,7 +175,7 @@ Decisiones visibles:
 import { ValueObjects } from '@archi-code/ddd/domain';
 import type { AggregateSaver } from '@archi-code/ddd/domain';
 import { UseCase } from '@archi-code/ddd/application';
-import type { Clock, EventBus, TransactionRunner } from '@archi-code/ddd/application';
+import type { Clock, EventBus } from '@archi-code/ddd/application';
 import type { ProductPricing } from '../../domain/catalog/ProductPricing';
 import { CustomerId } from '../../domain/customer/CustomerId';
 import { Order, OrderEvent, OrderId } from '../../domain/order/Order';
@@ -201,7 +201,6 @@ export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, stri
     private readonly orders: AggregateSaver<Order>,
     private readonly pricing: ProductPricing,
     private readonly events: EventBus<OrderEvent>,
-    private readonly transactions: TransactionRunner,
     private readonly clock: Clock,
   ) {
     super();
@@ -233,23 +232,21 @@ export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, stri
         new OrderLine({ sku: product.sku, quantity: item.quantity, unitPrice: product.unitPrice }),
       );
     }
-    return this.transactions.run(async () => {
-      const order = Order.place(
-        command.orderId,
-        command.customerId,
-        new OrderLines({ items: lines }),
-        command.shippingAddress,
-        this.clock,
-      );
-      await this.orders.save(order);
-      await this.events.publish(order.pullDomainEvents());
-      return order.id.value;
-    });
+    const order = Order.place(
+      command.orderId,
+      command.customerId,
+      new OrderLines({ items: lines }),
+      command.shippingAddress,
+      this.clock,
+    );
+    await this.orders.save(order);
+    await this.events.publish(order.pullDomainEvents());
+    return order.id.value;
   }
 }
 ```
 
-El precio se copia en la línea del pedido: Ventas guarda el estado remoto **mínimo** que necesita y deja de depender de Catálogo para ese pedido [IDDD cap. 3]. La consulta a Catálogo va antes de `transactions.run`, para no tener una transacción abierta mientras se espera a la red `[Fuera de los libros]`. `ProductNotSellable` es una `DomainException` de Ventas con código propio (`ORD003`), que `HttpErrorMapper` responde con 422.
+El precio se copia en la línea del pedido: Ventas guarda el estado remoto **mínimo** que necesita y deja de depender de Catálogo para ese pedido [IDDD cap. 3]. La consulta a Catálogo va antes de crear y guardar el pedido; como la transacción solo existe dentro del `save` del repositorio, nunca queda una abierta mientras se espera a la red `[Fuera de los libros: convención de @archi-code/ddd]`. `ProductNotSellable` es una `DomainException` de Ventas con código propio (`ORD003`), que `HttpErrorMapper` responde con 422.
 
 ## ACL con un webhook entrante
 
@@ -362,7 +359,7 @@ const warehouseBus = new DomainEventBus<StockReserved>(
 );
 await warehouseBus.subscribe(
   new RegisterStockReservationOnStockReserved(
-    new RegisterStockReservation(orders, salesBus, transactions, clock),
+    new RegisterStockReservation(orders, salesBus, clock),
   ),
 );
 ```
@@ -395,7 +392,7 @@ export class InMemoryProductPricing implements ProductPricing {
 }
 ```
 
-Con ella, `PlaceOrder` se prueba con `new InMemoryRepository(AggregateMapper.of(Order))`, `new InMemoryTransactionRunner([orders])`, un `DomainEventBus` sobre `InMemoryEventChannel` y `new FixedClock('2026-03-01T09:30:00Z')`, comprobando `channel.sent` y lo guardado.
+Con ella, `PlaceOrder` se prueba con `new InMemoryRepository(AggregateMapper.of(Order))`, un `DomainEventBus` sobre `InMemoryEventChannel` y `new FixedClock('2026-03-01T09:30:00Z')`, comprobando `channel.sent` y lo guardado.
 
 ## Errores frecuentes
 

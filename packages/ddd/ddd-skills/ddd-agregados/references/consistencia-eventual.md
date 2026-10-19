@@ -2,13 +2,13 @@
 
 ## Mecanismo básico
 
-Un método de comando del agregado publica (o registra) un evento de dominio. Uno o varios suscriptores asíncronos lo reciben; cada uno carga **otro** agregado y ejecuta su comportamiento en **su propia transacción** [IDDD cap. 10; Destilado cap. 5].
+Un método de comando del agregado publica (o registra) un evento de dominio. Uno o varios suscriptores asíncronos lo reciben; cada uno carga **otro** agregado y ejecuta su comportamiento en **su propia transacción** [IDDD cap. 10; Destilado cap. 5]. Con el paquete, esa transacción es el `save` atómico del repositorio de ese otro agregado `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 El suscriptor puede estar en el mismo contexto (en el ejemplo del libro, `Sprint` reacciona a `BacklogItemCommitted` creando un `CommittedBacklogItem`) o en otro. Para el mismo contexto no hace falta un middleware de mensajería, aunque es fácil usarlo si ya existe [Destilado cap. 5].
 
 ## Fallos y reintentos
 
-* Si el suscriptor falla por concurrencia, no confirma el mensaje; el mecanismo lo reenvía y se reintenta en una nueva transacción, hasta lograrlo o hasta un límite de reintentos [IDDD cap. 10].
+* Si el suscriptor falla por concurrencia, no confirma el mensaje; el mecanismo lo reenvía y se reintenta en una nueva transacción (con el paquete, el caso de uso vuelve a cargar y a guardar en la nueva entrega; no reintenta por su cuenta), hasta lograrlo o hasta un límite de reintentos [IDDD cap. 10].
 * Si falla del todo: compensar o, como mínimo, informar del fallo para intervención [IDDD cap. 10]. Con el paquete, los reintentos y el límite son del `EventChannel` que implementes (por ejemplo, una cola con reintentos y una dead-letter donde quedan los mensajes que agotan el límite); `InMemoryEventChannel` no reintenta: el error del listener llega a quien llamó a `publish` `[Fuera de los libros: convención de @archi-code/ddd]`.
 * El suscriptor debe ser idempotente: la mensajería entrega al menos una vez [Destilado cap. 4].
 
@@ -42,13 +42,13 @@ export class StockReserved extends EventBase {
 }
 ```
 
-El caso de uso registra el hecho: un agregado, una transacción, y si el pedido no existe (es de otro canal) vuelve sin error:
+El caso de uso registra el hecho: un agregado, un `save` atómico, y si el pedido no existe (es de otro canal) vuelve sin error:
 
 ```ts
 import { ValueObjects } from '@archi-code/ddd/domain';
 import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
 import { UseCase } from '@archi-code/ddd/application';
-import type { Clock, EventBus, TransactionRunner } from '@archi-code/ddd/application';
+import type { Clock, EventBus } from '@archi-code/ddd/application';
 
 interface StockReservationInput {
   orderId: string;
@@ -68,7 +68,6 @@ export class RegisterStockReservation extends UseCase<
   constructor(
     private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
     private readonly events: EventBus<OrderEvent>,
-    private readonly transactions: TransactionRunner,
     private readonly clock: Clock,
   ) {
     super();
@@ -81,16 +80,14 @@ export class RegisterStockReservation extends UseCase<
     });
   }
 
-  protected handle(command: StockReservationCommand): Promise<void> {
-    return this.transactions.run(async () => {
-      const order = await this.orders.findById(command.orderId);
-      if (order === null) {
-        return;
-      }
-      order.registerStockReservation(command.reservationId, this.clock);
-      await this.orders.save(order);
-      await this.events.publish(order.pullDomainEvents());
-    });
+  protected async handle(command: StockReservationCommand): Promise<void> {
+    const order = await this.orders.findById(command.orderId);
+    if (order === null) {
+      return;
+    }
+    order.registerStockReservation(command.reservationId, this.clock);
+    await this.orders.save(order);
+    await this.events.publish(order.pullDomainEvents());
   }
 }
 ```
@@ -125,11 +122,9 @@ import {
   FixedClock,
   InMemoryEventChannel,
   InMemoryRepository,
-  InMemoryTransactionRunner,
 } from '@archi-code/ddd/infrastructure';
 
 const orders = new InMemoryRepository(AggregateMapper.of(Order));
-const transactions = new InMemoryTransactionRunner([orders]);
 const registry = new EventRegistry<OrderEvent | StockReserved>().register(
   StockReserved,
   (json) =>
@@ -139,7 +134,7 @@ const channel = new InMemoryEventChannel();
 const bus = new DomainEventBus<OrderEvent | StockReserved>(channel, registry);
 await bus.subscribe(
   new RegisterStockReservationOnStockReserved(
-    new RegisterStockReservation(orders, bus, transactions, new FixedClock('2026-03-01T09:30:00Z')),
+    new RegisterStockReservation(orders, bus, new FixedClock('2026-03-01T09:30:00Z')),
   ),
 );
 ```

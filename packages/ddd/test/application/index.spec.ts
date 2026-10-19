@@ -8,7 +8,6 @@ import type {
   LogContext,
   Logger,
   LogLevel,
-  TransactionRunner,
 } from '../../src/application/index';
 import { EventListener } from '../../src/application/event/event-listener';
 import { ListensTo } from '../../src/application/event/listens-to';
@@ -38,6 +37,10 @@ describe('@archi-code/ddd/application', () => {
     );
   });
 
+  it('exports no transaction port: transactions are a concern of each repository', () => {
+    expect(Object.keys(application).filter((name) => /Transaction/.test(name))).toEqual([]);
+  });
+
   it('exports the ports as types', () => {
     expectTypeOf<Clock>().toEqualTypeOf<{ now(): Date }>();
     expectTypeOf<EventBus['publish']>().toEqualTypeOf<
@@ -50,8 +53,5 @@ describe('@archi-code/ddd/application', () => {
     }>();
     expectTypeOf<LogLevel>().toEqualTypeOf<'debug' | 'info' | 'warn' | 'error'>();
     expectTypeOf<Logger['warn']>().toEqualTypeOf<(message: string, context?: LogContext) => void>();
-    expectTypeOf<TransactionRunner['run']>().toEqualTypeOf<
-      <Result>(work: () => Promise<Result>) => Promise<Result>
-    >();
   });
 });

@@ -1,75 +1,28 @@
-# Transacciones en Node sin meterlas en el dominio
+# La transacción es del repositorio
 
-El dominio nunca es el lugar para gestionar transacciones; sus operaciones son demasiado finas y no deben saber que existen. Las gestiona la capa de aplicación, a menudo con una fachada transaccional o de forma declarativa [IDDD cap. 12; PHP: Repositories, "Managing Transactions"].
+El dominio nunca es el lugar para gestionar transacciones; sus operaciones son demasiado finas y no deben saber que existen. Los libros las sitúan en la capa de aplicación, a menudo con una fachada transaccional o de forma declarativa [IDDD cap. 12; PHP: Repositories, "Managing Transactions"].
 
-## El puerto TransactionRunner
+Con el paquete la transacción baja un nivel más: es del repositorio, igual que todo lo demás de la persistencia `[Fuera de los libros: convención de @archi-code/ddd]`. La aplicación nunca abre, une ni cierra transacciones y no hay ningún puerto para hacerlo. Un caso de uso recibe solo los roles del repositorio que usa (`AggregateFinder`, `AggregateSaver`, `AggregateRemover`), el `EventBus`, el `Clock` y sus puertos propios; nunca una dependencia `transactions`, `unitOfWork` o parecida.
 
-El paquete declara el puerto; el proyecto no escribe el suyo:
+## Por qué basta con el repositorio
 
-```ts
-import type { TransactionRunner } from '@archi-code/ddd/application';
-```
+Un caso de uso modifica un solo agregado y lo guarda una vez [IDDD cap. 10]. El agregado es el límite de consistencia, así que la "transacción por agregado" de los libros se traduce en **una escritura atómica por agregado, garantizada por el repositorio** `[Fuera de los libros: convención de @archi-code/ddd]`. No queda nada que la aplicación tenga que envolver: cargar es una lectura, y `save` o `remove` es una sola escritura atómica.
 
-* `run<Result>(work: () => Promise<Result>): Promise<Result>` abre la transacción, ejecuta `work`, confirma y devuelve su resultado, o revierte y relanza si `work` lanza. Un `run` dentro de otro se une al abierto.
-* `inTransaction(): boolean` dice si hay una transacción abierta en el flujo asíncrono actual.
-* No hay `current()` en el puerto `[Fuera de los libros: convención de @archi-code/ddd]`: la conexión o la sesión en curso es un detalle de tu adaptador, que solo usan los repositorios del mismo adaptador. Los casos de uso solo ven `run` e `inTransaction()`.
+Lo que hace el adaptador del repositorio, y nadie más:
 
-## Adaptador con MongoDB y AsyncLocalStorage
+* Que cada `save` y cada `remove` sea atómico. En MongoDB, un documento por agregado: una sola escritura, atómica por sí misma. Si el agregado ocupa varias tablas SQL, el repositorio abre la transacción de la base de datos **dentro** de `save`/`remove`, con su propia conexión o sesión, y la confirma o la revierte antes de volver.
+* La comprobación optimista de la versión: una versión almacenada distinta de `order.version` (o un id ya ocupado al dar de alta) es `ConcurrencyException(mapper.aggregateName, order.id.value, order.version)`.
+* La conexión, la sesión y el pool.
+* Envolver los errores del driver en `InternalErrorException` con `{ cause }`.
+* `markPersisted()` tras escribir con éxito y, al cargar, `restoreVersion` a través de `mapper.fromPrimitives(row, version)`.
 
-`[Fuera de los libros: técnica de Node]`
+## Varias tablas en PostgreSQL
 
-Código del proyecto en `infrastructure/persistence/`; `MongoOrderRepository` (en `ddd-skills/ddd-repositorios-persistencia/references/implementacion-ts.md`) pasa `{ session: transactions.current() }` a cada operación:
+`[Fuera de los libros: esquema propio siguiendo IDDD cap. 6]`
 
-```ts
-import { AsyncLocalStorage } from 'node:async_hooks';
-import type { ClientSession, MongoClient } from 'mongodb';
-import type { TransactionRunner } from '@archi-code/ddd/application';
-
-export class MongoTransactionRunner implements TransactionRunner {
-  private readonly sessions = new AsyncLocalStorage<ClientSession>();
-
-  constructor(private readonly client: MongoClient) {}
-
-  inTransaction(): boolean {
-    return this.sessions.getStore() !== undefined;
-  }
-
-  current(): ClientSession | undefined {
-    return this.sessions.getStore();
-  }
-
-  async run<Result>(work: () => Promise<Result>): Promise<Result> {
-    if (this.inTransaction()) {
-      return work();
-    }
-    const session = this.client.startSession();
-    try {
-      session.startTransaction();
-      const result = await this.sessions.run(session, work);
-      await session.commitTransaction();
-      return result;
-    } catch (error) {
-      if (session.inTransaction()) {
-        await session.abortTransaction();
-      }
-      throw error;
-    } finally {
-      await session.endSession();
-    }
-  }
-}
-```
-
-Las transacciones de MongoDB necesitan un replica set. No uses `session.withTransaction(work)` aquí: reintenta `work` entero ante errores transitorios, y con él el `publish` de los eventos.
-
-## Adaptador con PostgreSQL
-
-El mismo patrón con `BEGIN`/`COMMIT` sobre una conexión del pool. `SqlConnection` y `PgPool` describen, de forma estructural, los métodos de `pg` que usa:
+Si las líneas del pedido viven en su propia tabla, guardar el pedido son varias sentencias, y el repositorio las agrupa en una transacción de la base de datos dentro de `save`. `SqlConnection` y `PgPool` describen, de forma estructural, los métodos de `pg` que usa; en `infrastructure/persistence/pg-pool.ts`:
 
 ```ts
-import { AsyncLocalStorage } from 'node:async_hooks';
-import type { TransactionRunner } from '@archi-code/ddd/application';
-
 export interface SqlConnection {
   query<Row>(text: string, values?: unknown[]): Promise<{ rows: Row[]; rowCount: number | null }>;
 }
@@ -77,52 +30,145 @@ export interface SqlConnection {
 export interface PgPool extends SqlConnection {
   connect(): Promise<SqlConnection & { release(destroy?: boolean): void }>;
 }
+```
 
-export class PgTransactionRunner implements TransactionRunner {
-  private readonly connections = new AsyncLocalStorage<SqlConnection>();
+```sql
+CREATE TABLE orders (
+  id           UUID        PRIMARY KEY,
+  version      INT         NOT NULL,
+  customer_id  UUID        NOT NULL,
+  status       TEXT        NOT NULL,
+  data         JSONB       NOT NULL
+);
+
+CREATE TABLE order_lines (
+  order_id     UUID        NOT NULL REFERENCES orders (id) ON DELETE CASCADE,
+  position     INT         NOT NULL,
+  sku          TEXT        NOT NULL,
+  quantity     INT         NOT NULL,
+  unit_price   JSONB       NOT NULL,
+  PRIMARY KEY (order_id, position)
+);
+```
+
+En `infrastructure/persistence/postgres-order-repository.ts`:
+
+```ts
+import type { AggregateFinder, AggregateSaver, PrimitiveTypes } from '@archi-code/ddd/domain';
+import { ConcurrencyException, InternalErrorException } from '@archi-code/ddd/exceptions';
+import { AggregateMapper } from '@archi-code/ddd/infrastructure';
+import { Order, OrderId } from '../../domain/order/order';
+import type { PgPool } from './pg-pool';
+
+type OrderPrimitives = PrimitiveTypes<Order>;
+
+interface OrderRow {
+  version: number;
+  data: Omit<OrderPrimitives, 'lines'>;
+  items: OrderPrimitives['lines']['items'];
+}
+
+export class PostgresOrderRepository implements AggregateFinder<Order>, AggregateSaver<Order> {
+  private readonly mapper = AggregateMapper.of(Order);
 
   constructor(private readonly pool: PgPool) {}
 
-  inTransaction(): boolean {
-    return this.connections.getStore() !== undefined;
+  async findById(id: OrderId): Promise<Order | null> {
+    const { rows } = await this.pool.query<OrderRow>(
+      `SELECT o.version, o.data,
+              COALESCE(
+                json_agg(
+                  json_build_object('sku', l.sku, 'quantity', l.quantity, 'unitPrice', l.unit_price)
+                  ORDER BY l.position
+                ) FILTER (WHERE l.order_id IS NOT NULL),
+                '[]'
+              ) AS items
+         FROM orders o
+         LEFT JOIN order_lines l ON l.order_id = o.id
+        WHERE o.id = $1
+        GROUP BY o.id`,
+      [id.value],
+    );
+    const row = rows[0];
+    return row ? this.mapper.fromPrimitives({ ...row.data, lines: { items: row.items } }, row.version) : null;
   }
 
-  current(): SqlConnection {
-    return this.connections.getStore() ?? this.pool;
-  }
-
-  async run<Result>(work: () => Promise<Result>): Promise<Result> {
-    if (this.inTransaction()) {
-      return work();
-    }
-    const connection = await this.pool.connect();
+  async save(order: Order): Promise<void> {
+    const { lines, ...data } = this.mapper.toPrimitives(order);
+    const client = await this.pool.connect();
     let broken = false;
     try {
-      await connection.query('BEGIN');
-      const result = await this.connections.run(connection, work);
-      await connection.query('COMMIT');
-      return result;
+      await client.query('BEGIN');
+      const { rowCount } =
+        order.version === 0
+          ? await client.query(
+              'INSERT INTO orders (id, version, customer_id, status, data) VALUES ($1, 1, $2, $3, $4) ON CONFLICT (id) DO NOTHING',
+              [data.id, data.customerId, data.status, data],
+            )
+          : await client.query(
+              'UPDATE orders SET version = version + 1, status = $3, data = $4 WHERE id = $1 AND version = $2',
+              [data.id, order.version, data.status, data],
+            );
+      if (rowCount === 0) {
+        throw new ConcurrencyException(this.mapper.aggregateName, order.id.value, order.version);
+      }
+      await client.query('DELETE FROM order_lines WHERE order_id = $1', [data.id]);
+      for (const [position, line] of lines.items.entries()) {
+        await client.query(
+          'INSERT INTO order_lines (order_id, position, sku, quantity, unit_price) VALUES ($1, $2, $3, $4, $5)',
+          [data.id, position, line.sku, line.quantity, line.unitPrice],
+        );
+      }
+      await client.query('COMMIT');
     } catch (error) {
-      await connection.query('ROLLBACK').catch(() => {
+      await client.query('ROLLBACK').catch(() => {
         broken = true;
       });
-      throw error;
+      if (error instanceof ConcurrencyException) {
+        throw error;
+      }
+      throw new InternalErrorException(`writing order ${order.id.value}`, { cause: error });
     } finally {
-      connection.release(broken);
+      client.release(broken);
     }
+    order.markPersisted();
   }
 }
 ```
 
-`current()` fuera de una transacción devuelve el pool, para lecturas sueltas. Si el `ROLLBACK` falla (la conexión se cayó), se relanza el error del trabajo, no el del `ROLLBACK`, y `release(true)` destruye la conexión en vez de devolver al pool una con la transacción a medias.
+* La transacción empieza y termina dentro de `save`: el caso de uso solo ve una escritura que se hace entera o no se hace.
+* El `UPDATE` con `version = $2` bloquea la fila del pedido hasta el `COMMIT`; otro `save` del mismo pedido espera y después no casa ninguna fila, así que recibe `ConcurrencyException`.
+* `markPersisted()` se llama solo después del `COMMIT`: si la transacción se revierte, el objeto conserva su versión y el caso de uso puede descartarlo y volver a cargarlo.
+* Si el `ROLLBACK` falla (la conexión se cayó), se relanza el error del trabajo, no el del `ROLLBACK`, y `release(true)` destruye la conexión en vez de devolver al pool una con la transacción a medias.
+* La lectura es una sola sentencia, así que ve el pedido y sus líneas en el mismo instante.
+* Un `remove` sigue el mismo patrón: `DELETE FROM orders WHERE id = $1 AND version = $2` dentro de su propia transacción (las líneas caen con `ON DELETE CASCADE`).
+
+Con MongoDB no hace falta nada de esto: el pedido es un documento y `replaceOne` lo escribe de forma atómica (`MongoOrderRepository` en `ddd-skills/ddd-repositorios-persistencia/references/implementacion-ts.md`).
+
+## Eventos y guardado
+
+El caso de uso guarda y después publica: `await this.orders.save(order)` y `await this.events.publish(order.pullDomainEvents())`. Si `publish` falla después de `save`, el cambio queda guardado y el evento puede perderse.
+
+Cuando un evento no puede perderse, el repositorio escribe el agregado y sus eventos pendientes en la misma escritura atómica (una bandeja de salida, *outbox*, dentro del mismo documento o en la misma transacción de `save`), y un proceso aparte (*relay*) los entrega después a través de un `EventChannel` `[Fuera de los libros: convención de @archi-code/ddd]`. En el repositorio de PostgreSQL de arriba es una sentencia más antes del `COMMIT`:
+
+```ts
+for (const event of order.pullDomainEvents()) {
+  await client.query('INSERT INTO order_outbox (event_id, body) VALUES ($1, $2)', [
+    event.eventId,
+    event.toJSON(),
+  ]);
+}
+```
+
+El repositorio toma los eventos con `pullDomainEvents()`, así que el `publish` posterior del caso de uso recibe una lista vacía y no envía nada: los casos de uso no cambian. Es persistencia, así que pertenece al adaptador del repositorio.
 
 ## Uso en un caso de uso
 
-El caso de uso abre la transacción con el puerto y dentro carga, cambia, guarda y publica. Si el comando es seguro de repetir contra el estado recargado, la aplicación puede reintentar una o dos veces ante `ConcurrencyException`; si no, el conflicto llega al usuario como 409 [IDDD cap. 10; IDDD apéndice A]. Cada intento es un `run` nuevo que vuelve a cargar el agregado, y nunca se reintenta dentro de una transacción exterior (`inTransaction()` tras el fallo): un `run` anidado se une a ella, así que reintenta quien la abrió o la reentrega del canal.
+El caso de uso carga, cambia, guarda y publica, sin abrir nada. Si el comando es seguro de repetir contra el estado recargado, la aplicación puede reintentar una o dos veces ante `ConcurrencyException`; si no, el conflicto llega al usuario como 409 [IDDD cap. 10; IDDD apéndice A]. Cada intento vuelve a cargar y vuelve a guardar dentro de `handle`, en un bucle con límite `[Fuera de los libros: convención de @archi-code/ddd]`. Un caso de uso que ejecuta un listener no reintenta por su cuenta: reintenta la reentrega del canal.
 
 ```ts
 import { UseCase } from '@archi-code/ddd/application';
-import type { Clock, EventBus, TransactionRunner } from '@archi-code/ddd/application';
+import type { Clock, EventBus } from '@archi-code/ddd/application';
 import { ValueObjects } from '@archi-code/ddd/domain';
 import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
 import { AggregateNotFoundException, ConcurrencyException } from '@archi-code/ddd/exceptions';
@@ -147,7 +193,6 @@ export class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand
   constructor(
     private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
     private readonly events: EventBus<OrderEvent>,
-    private readonly transactions: TransactionRunner,
     private readonly clock: Clock,
   ) {
     super();
@@ -167,44 +212,43 @@ export class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand
 
   protected async handle(command: AddOrderLineCommand): Promise<void> {
     for (let attempt = 1; ; attempt += 1) {
-      try {
-        return await this.transactions.run(async () => {
-          const order = await this.orders.findById(command.orderId);
-          if (order === null) {
-            throw new AggregateNotFoundException('Order', command.orderId.value);
-          }
-          order.addLine(command.line, this.clock);
-          await this.orders.save(order);
-          await this.events.publish(order.pullDomainEvents());
-        });
-      } catch (error) {
-        const retry =
-          error instanceof ConcurrencyException &&
-          attempt < ATTEMPTS &&
-          !this.transactions.inTransaction();
-        if (!retry) {
-          throw error;
-        }
+      const order = await this.orders.findById(command.orderId);
+      if (order === null) {
+        throw new AggregateNotFoundException('Order', command.orderId.value);
       }
+      order.addLine(command.line, this.clock);
+      try {
+        await this.orders.save(order);
+      } catch (error) {
+        if (error instanceof ConcurrencyException && attempt < ATTEMPTS) {
+          continue;
+        }
+        throw error;
+      }
+      await this.events.publish(order.pullDomainEvents());
+      return;
     }
   }
 }
 ```
 
-`AggregateNotFoundException` la lanza el caso de uso, no el repositorio: `findById` devuelve `null`.
+`AggregateNotFoundException` la lanza el caso de uso, no el repositorio: `findById` devuelve `null`. Solo se reintenta el `save`: un error de `publish` no vuelve a guardar el pedido.
 
 ## En tests
 
-`InMemoryTransactionRunner` (de `@archi-code/ddd/infrastructure`) implementa el puerto en memoria: recibe los participantes que debe restaurar (`InMemoryRepository` lo es) y, si el trabajo lanza, los devuelve al estado de antes en orden inverso. `committed` y `rolledBack` cuentan las transacciones; un `run` dentro de otro se une, y dos que se solapan en el tiempo esperan su turno. `new InMemoryTransactionRunner()` sin participantes sirve cuando no hay nada que revertir. En `test/contexts/sales/application/transactions.spec.ts`:
+Los tests de la aplicación usan `InMemoryRepository(AggregateMapper.of(Order))` y un `DomainEventBus` sobre `InMemoryEventChannel`; no hay nada que revertir ni que contar, porque cada `save` del repositorio en memoria es atómico y comprueba la versión igual que uno real. En `test/contexts/sales/application/add-order-line.spec.ts`:
 
 ```ts
 import { describe, expect, it } from 'vitest';
 import {
   AggregateMapper,
+  DomainEventBus,
+  EventRegistry,
   FixedClock,
+  InMemoryEventChannel,
   InMemoryRepository,
-  InMemoryTransactionRunner,
 } from '@archi-code/ddd/infrastructure';
+import { AddOrderLine } from '../../../../src/contexts/sales/application/add-order-line/add-order-line';
 import {
   CustomerId,
   Order,
@@ -212,12 +256,18 @@ import {
   OrderLines,
   ShippingAddress,
 } from '../../../../src/contexts/sales/domain/order/order';
+import type { OrderEvent } from '../../../../src/contexts/sales/domain/order/order';
 
-describe('A transaction that fails', () => {
-  it('leaves the order as it was before the work started', async () => {
+describe('Two customers add a line to the same order at once', () => {
+  it('the second one retries with the reloaded order and both lines are kept', async () => {
     const clock = new FixedClock('2026-03-01T09:30:00Z');
     const orders = new InMemoryRepository(AggregateMapper.of(Order));
-    const transactions = new InMemoryTransactionRunner([orders]);
+    const channel = new InMemoryEventChannel();
+    const addOrderLine = new AddOrderLine(
+      orders,
+      new DomainEventBus<OrderEvent>(channel, new EventRegistry<OrderEvent>()),
+      clock,
+    );
     const order = Order.place(
       OrderId.generate(),
       CustomerId.generate(),
@@ -227,16 +277,22 @@ describe('A transaction that fails', () => {
       ShippingAddress.fromPrimitives({ street: 'Calle Mayor 1', city: 'Huelva', country: 'ES' }),
       clock,
     );
+    await orders.save(order);
+    const unitPrice = { amount: 1990, currency: 'EUR' };
 
-    await expect(
-      transactions.run(async () => {
-        await orders.save(order);
-        throw new Error('payment gateway down');
-      }),
-    ).rejects.toThrow('payment gateway down');
+    await Promise.all([
+      addOrderLine.execute({ orderId: order.id.value, sku: 'HELMET-02', quantity: 1, unitPrice }),
+      addOrderLine.execute({ orderId: order.id.value, sku: 'GLOVES-03', quantity: 1, unitPrice }),
+    ]);
 
-    expect(await orders.findById(order.id)).toBeNull();
-    expect(transactions.rolledBack).toBe(1);
+    const stored = await orders.findById(order.id);
+    expect(stored?.toPrimitives().lines.items).toHaveLength(3);
+    expect(channel.sent).toMatchObject([
+      { eventName: 'OrderLineAdded', sku: 'HELMET-02' },
+      { eventName: 'OrderLineAdded', sku: 'GLOVES-03' },
+    ]);
   });
 });
 ```
+
+Los dos casos de uso cargan el pedido en la versión 1; el primero guarda, el segundo recibe `ConcurrencyException`, vuelve a cargar y guarda sobre la versión 2. La atomicidad de un repositorio real (sus varias tablas, su outbox) se prueba en su propio spec, con la suite de contrato de `ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md` contra la base de datos de verdad.

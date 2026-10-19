@@ -10,7 +10,7 @@
 
 * El paquete no trae event store, repositorios con Event Sourcing, snapshots ni proyecciones con checkpoint: se construyen en la infraestructura del proyecto sobre sus clases, y solo si la tabla de decisión de esta guía lo justifica.
 * La `version` de `AggregateRoot` crece 1 por guardado, no por evento: un agregado con Event Sourcing lleva su propia versión de stream (`streamVersion()`), se reconstruye con `fromHistory` a partir de los eventos que reconstruye `EventRegistry` y no usa `AggregateMapper` ni `toPrimitives()`/`fromPrimitives()`.
-* El contrato del stream (`load`/`append`) lo declara el dominio y no es `AggregateFinder`/`AggregateSaver`; el reintento ante `ConcurrencyException` va en el `handle` del caso de uso, cada intento en un `transactions.run` nuevo.
+* El contrato del stream (`load`/`append`) lo declara el dominio y no es `AggregateFinder`/`AggregateSaver`; su adaptador es responsable de la persistencia: anexa los eventos de un `append` en una sola escritura atómica con la versión esperada y lanza `ConcurrencyException` si otro escribió antes. La aplicación no abre transacciones; el reintento ante `ConcurrencyException` va en el `handle` del caso de uso, cada intento vuelve a cargar y vuelve a anexar.
 * Una proyección es un `EventListener` con `@ListensTo(Event, { consumer })` que llama a un puerto de proyección (no a un caso de uso), idempotente por `eventId`; un `EventChannel` no guarda historial, así que reconstruirla exige un log de eventos propio (con Event Sourcing, el propio event store).
 * Una consulta de lectura es una interfaz en `application/` implementada en infraestructura directamente sobre la base de datos.
 
@@ -53,8 +53,8 @@ Guía completa en `ddd-skills/ddd-event-sourcing-cqrs/references/event-sourcing-
 2. Cargar: leer el stream del agregado, reconstruir cada evento con `EventRegistry.fromJSON` y aplicarlos en orden (`Payment.fromHistory`).
 3. Ejecutar el comando: genera eventos nuevos, que `pullDomainEvents()` devuelve como cambios pendientes.
 4. Guardar: anexar los cambios con la **versión esperada** del stream (`streamVersion()`); si otro escribió antes, conflicto (`ConcurrencyException`) [IDDD apéndice A].
-5. Ante conflicto: reintentar recargando y reejecutando, o propagar al cliente [IDDD apéndice A]. Con el paquete, el bucle va en el `handle` del caso de uso, cada intento en un `transactions.run` nuevo.
-6. Publicar: un proceso en segundo plano lee lo anexado y lo publica [IDDD apéndice A]. Con el paquete, el caso de uso publica con `EventBus` y un `EventChannel` duradero entrega después del commit.
+5. Ante conflicto: reintentar recargando y reejecutando, o propagar al cliente [IDDD apéndice A]. Con el paquete, el bucle va en el `handle` del caso de uso, con un límite de intentos, y cada intento vuelve a cargar el stream y vuelve a anexar; un caso de uso que lanza un listener no reintenta por sí mismo, lo hace la reentrega del canal.
+6. Publicar: un proceso en segundo plano lee lo anexado y lo publica [IDDD apéndice A]. Con el paquete, el caso de uso publica con `EventBus` después de `append`; para no perder eventos si `publish` falla, el propio event store hace de bandeja (el `append` atómico ya los guardó) y un reenviador los entrega por un `EventChannel`.
 
 Rendimiento: caché de streams en memoria (los eventos son inmutables) y **snapshots** para streams largos [IDDD apéndice A; Destilado cap. 6].
 

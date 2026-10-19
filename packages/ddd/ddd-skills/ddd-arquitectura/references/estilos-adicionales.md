@@ -30,9 +30,9 @@ Más detalle en `ddd-skills/ddd-event-sourcing-cqrs/GUIA.md`.
 
 ## Arquitectura dirigida por eventos
 
-Contextos que se comunican publicando y consumiendo eventos de dominio. Es la base de la integración robusta descrita en `ddd-skills/ddd-context-mapping/GUIA.md` y del diseño de `ddd-skills/ddd-eventos-dominio/GUIA.md`. Dentro de un contexto, los eventos también desacoplan efectos secundarios del caso de uso: el caso de uso llama a `events.publish(order.pullDomainEvents())` dentro de `transactions.run` y un listener (`PrepareShipmentOnOrderLineAdded`) ejecuta la acción siguiente.
+Contextos que se comunican publicando y consumiendo eventos de dominio. Es la base de la integración robusta descrita en `ddd-skills/ddd-context-mapping/GUIA.md` y del diseño de `ddd-skills/ddd-eventos-dominio/GUIA.md`. Dentro de un contexto, los eventos también desacoplan efectos secundarios del caso de uso: el caso de uso llama a `events.publish(order.pullDomainEvents())` después de `await this.orders.save(order)` y un listener (`PrepareShipmentOnOrderLineAdded`) ejecuta la acción siguiente.
 
-Con el paquete, la tecnología es un `EventChannel` del proyecto (`RabbitMqEventChannel`, una tabla outbox que se entrega tras el commit…) bajo el mismo `DomainEventBus`; en tests, `InMemoryEventChannel`. Hacia otros contextos no viaja `event.toJSON()` de la clase de dominio: el adaptador que habla con el broker lo traduce a un contrato publicado y versionado (`sales.order.OrderPlaced`) [IDDD cap. 13], algo que el paquete no da y escribe el proyecto. `[Fuera de los libros: convención de @archi-code/ddd]`
+Con el paquete, la tecnología es un `EventChannel` del proyecto (`RabbitMqEventChannel`, un relay que entrega el outbox que el repositorio escribió junto al agregado…) bajo el mismo `DomainEventBus`; en tests, `InMemoryEventChannel`. Hacia otros contextos no viaja `event.toJSON()` de la clase de dominio: el adaptador que habla con el broker lo traduce a un contrato publicado y versionado (`sales.order.OrderPlaced`) [IDDD cap. 13], algo que el paquete no da y escribe el proyecto. `[Fuera de los libros: convención de @archi-code/ddd]`
 
 ## Event Sourcing
 

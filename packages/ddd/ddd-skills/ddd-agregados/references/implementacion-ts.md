@@ -29,7 +29,7 @@ La clase completa está en la sección 3. Lo que da la base:
 
 Sin `markPersisted`, el objeto en memoria conservaría la versión antigua tras guardar y un segundo `save` del mismo objeto (por ejemplo, dos comandos seguidos en el mismo proceso) daría un falso conflicto de concurrencia `[Fuera de los libros]`. `InMemoryRepository` y los repositorios que sigan el contrato lo llaman siempre.
 
-Por qué registrar en vez de publicar: IDDD publica desde el agregado con un publicador estático [IDDD cap. 8]. Registrar y dejar que la aplicación publique en la misma transacción no requiere un singleton global en el dominio y, con un canal duradero (outbox), evita entregar eventos de cambios que luego se revierten. *DDD in PHP* discute ambas variantes [PHP: Domain Events]. Con el paquete, el caso de uso llama a `events.publish(order.pullDomainEvents())` dentro de `transactions.run`, nunca después; si los eventos solo deben entregarse tras confirmar, se implementa un `EventChannel` duradero y el caso de uso no cambia `[Fuera de los libros: convención de @archi-code/ddd]`.
+Por qué registrar en vez de publicar: IDDD publica desde el agregado con un publicador estático [IDDD cap. 8]. Registrar y dejar que la aplicación publique no requiere un singleton global en el dominio y, con una bandeja de salida (outbox), evita entregar eventos de cambios que no llegaron a guardarse. *DDD in PHP* discute ambas variantes [PHP: Domain Events]. Con el paquete, el caso de uso llama a `await this.orders.save(order)` y después a `events.publish(order.pullDomainEvents())`; la aplicación no abre transacciones, porque la transacción es del repositorio. Si `publish` falla tras `save`, el evento puede perderse; cuando eso no es admisible, el repositorio guarda el agregado y sus eventos pendientes en la misma escritura atómica (outbox) y un proceso aparte los entrega por un `EventChannel`, y el caso de uso no cambia `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ## 2. Construcción paso a paso
 
@@ -502,7 +502,7 @@ El caso de uso construye los valores en `toCommand` y se los pasa al agregado en
 import { ValueObjects } from '@archi-code/ddd/domain';
 import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
 import { UseCase } from '@archi-code/ddd/application';
-import type { Clock, EventBus, TransactionRunner } from '@archi-code/ddd/application';
+import type { Clock, EventBus } from '@archi-code/ddd/application';
 
 interface PaymentAuthorizationInput {
   orderId: string;
@@ -525,7 +525,6 @@ export class RegisterPaymentAuthorization extends UseCase<
   constructor(
     private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
     private readonly events: EventBus<OrderEvent>,
-    private readonly transactions: TransactionRunner,
     private readonly clock: Clock,
   ) {
     super();
@@ -543,16 +542,14 @@ export class RegisterPaymentAuthorization extends UseCase<
     });
   }
 
-  protected handle(command: PaymentAuthorizationCommand): Promise<void> {
-    return this.transactions.run(async () => {
-      const order = await this.orders.findById(command.orderId);
-      if (order === null) {
-        return;
-      }
-      order.registerPaymentAuthorization(command.authorization, this.clock);
-      await this.orders.save(order);
-      await this.events.publish(order.pullDomainEvents());
-    });
+  protected async handle(command: PaymentAuthorizationCommand): Promise<void> {
+    const order = await this.orders.findById(command.orderId);
+    if (order === null) {
+      return;
+    }
+    order.registerPaymentAuthorization(command.authorization, this.clock);
+    await this.orders.save(order);
+    await this.events.publish(order.pullDomainEvents());
   }
 }
 ```
@@ -577,7 +574,7 @@ UPDATE orders
 
 Si la sentencia no afecta a ninguna fila, el repositorio lanza `ConcurrencyException(mapper.aggregateName, order.id.value, order.version)` (de `@archi-code/ddd/exceptions`, HTTP 409 con `HttpErrorMapper`); si escribe, llama a `order.markPersisted()`. `InMemoryRepository(AggregateMapper.of(Order))` cumple ese contrato en los tests; el repositorio real y su suite de contrato están en `ddd-repositorios-persistencia`.
 
-Reintentar automáticamente solo es seguro si el comando es idempotente o se vuelve a evaluar contra el estado recargado: con el paquete, un bucle en `handle` alrededor de todo `transactions.run`, de modo que cada intento sea una transacción nueva que vuelve a cargar el agregado (unos pocos intentos y después se relanza) `[Fuera de los libros: convención de @archi-code/ddd]`.
+Reintentar automáticamente solo es seguro si el comando es idempotente o se vuelve a evaluar contra el estado recargado: con el paquete, un bucle con límite en `handle` en el que cada intento vuelve a cargar el agregado y vuelve a guardarlo (unos pocos intentos y después se relanza); un caso de uso que ejecuta un listener no reintenta por su cuenta, lo hace la reentrega del canal `[Fuera de los libros: convención de @archi-code/ddd]`. Ejemplo en `ddd-skills/ddd-repositorios-persistencia/references/transacciones-ts.md`.
 
 ## 6. Variante funcional
 

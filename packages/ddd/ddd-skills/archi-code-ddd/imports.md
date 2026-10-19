@@ -58,7 +58,6 @@ import type {
   LogContext,
   Logger,
   LogLevel,
-  TransactionRunner,
 } from '@archi-code/ddd/application';
 import {
   AggregateMapper,
@@ -70,7 +69,6 @@ import {
   InMemoryEventChannel,
   InMemoryLogger,
   InMemoryRepository,
-  InMemoryTransactionRunner,
   SilentLogger,
   SystemClock,
 } from '@archi-code/ddd/infrastructure';
@@ -79,7 +77,6 @@ import type {
   ChannelSubscription,
   EventChannel,
   Subscription,
-  TransactionParticipant,
 } from '@archi-code/ddd/infrastructure';
 import { Validations } from '@archi-code/validation';
 ```

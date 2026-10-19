@@ -38,8 +38,7 @@ src/
           OrderSummaries.ts        (consulta de lectura: interfaz + DTOs)
       infrastructure/
         persistence/
-          MongoOrderRepository.ts  (AggregateFinder/AggregateSaver/AggregateRemover + AggregateMapper.of(Order))
-          MongoTransactionRunner.ts (implements TransactionRunner)
+          MongoOrderRepository.ts  (AggregateFinder/AggregateSaver/AggregateRemover + AggregateMapper.of(Order); cada save/remove es atómico)
           MongoOrderSummaries.ts
         catalog/                   (ACL hacia Catálogo: CatalogHttpProductPricing, CatalogTranslator)
         warehouse/
@@ -59,11 +58,11 @@ src/
 test/
   contexts/sales/
     domain/                        (tests unitarios y de aceptación del modelo)
-    application/                   (casos de uso con InMemoryRepository, InMemoryTransactionRunner, InMemoryEventChannel)
+    application/                   (casos de uso con InMemoryRepository, InMemoryEventChannel)
     infrastructure/                (integración con BD real o contenedor)
 ```
 
-Lo que no aparece porque lo da `@archi-code/ddd`: clases base (`AggregateRoot`, `Entity`, `EventBase`, los tipos de value object, `Composite`), una interfaz `OrderRepository` (los roles `AggregateFinder`, `AggregateSaver` y `AggregateRemover` vienen de `@archi-code/ddd/domain`), un `OrderMapper` (el repositorio usa `AggregateMapper.of(Order)`), un publicador de eventos (`DomainEventBus` implementa `EventBus`) y los puertos `Clock` y `TransactionRunner`.
+Lo que no aparece porque lo da `@archi-code/ddd`: clases base (`AggregateRoot`, `Entity`, `EventBase`, los tipos de value object, `Composite`), una interfaz `OrderRepository` (los roles `AggregateFinder`, `AggregateSaver` y `AggregateRemover` vienen de `@archi-code/ddd/domain`), un `OrderMapper` (el repositorio usa `AggregateMapper.of(Order)`), un publicador de eventos (`DomainEventBus` implementa `EventBus`) y el puerto `Clock`. Tampoco hay un runner de transacciones ni una unidad de trabajo: la transacción es del repositorio `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 Decisiones:
 * Los tests de aceptación del modelo están junto al contexto, aunque en carpeta `test/` espejo [Destilado cap. 2 pide tenerlos con el código del contexto; la carpeta espejo mantiene esa correspondencia].
@@ -99,7 +98,7 @@ Reglas de encaje:
 |---|---|---|---|
 | Entrada (driving) | HTTP `POST /orders`, consumidor de `StockReserved` | El caso de uso es la API de entrada (`execute(input)`) | `interfaces/` |
 | Salida de dominio | `AggregateFinder<Order>`, `AggregateSaver<Order>` (del paquete); `ProductPricing` (tuyo) | `@archi-code/ddd/domain`; `domain/` | `infrastructure/` (`MongoOrderRepository`, `CatalogHttpProductPricing`) |
-| Salida de aplicación | `EventBus`, `Clock`, `TransactionRunner`, `Logger` (del paquete); `Warehouse` (tuyo) | `@archi-code/ddd/application`; `application/` | `DomainEventBus` sobre tu `EventChannel`, `SystemClock`, tu `MongoTransactionRunner`, `ConsoleLogger` o tu adaptador; `HttpWarehouse` |
+| Salida de aplicación | `EventBus`, `Clock`, `Logger` (del paquete); `Warehouse` (tuyo) | `@archi-code/ddd/application`; `application/` | `DomainEventBus` sobre tu `EventChannel`, `SystemClock`, `ConsoleLogger` o tu adaptador; `HttpWarehouse` |
 
 En IDDD los puertos no se implementan "a mano": el puerto es HTTP o el bus de mensajes, y el adaptador es el controlador o el listener que traduce a la API de aplicación [IDDD cap. 4]. El interior se diseña por casos de uso, no por número de clientes [IDDD cap. 4].
 
@@ -124,7 +123,6 @@ import { PrepareShipment } from './application/prepare-shipment/PrepareShipment'
 import { PrepareShipmentOnOrderLineAdded } from './application/prepare-shipment/PrepareShipmentOnOrderLineAdded';
 import { MongoOrderRepository } from './infrastructure/persistence/MongoOrderRepository';
 import type { OrderDocument } from './infrastructure/persistence/MongoOrderRepository';
-import { MongoTransactionRunner } from './infrastructure/persistence/MongoTransactionRunner';
 import { HttpWarehouse } from './infrastructure/warehouse/HttpWarehouse';
 import type { HttpClient } from './infrastructure/warehouse/HttpWarehouse';
 import { RabbitMqEventChannel } from './infrastructure/messaging/RabbitMqEventChannel';
@@ -142,11 +140,7 @@ export async function composeSales(
   deps: { amqp: AmqpChannel; http: HttpClient; logger: Logger },
 ) {
   const mongo = await new MongoClient(config.mongoUrl).connect();
-  const transactions = new MongoTransactionRunner(mongo);
-  const orders = new MongoOrderRepository(
-    mongo.db().collection<OrderDocument>('orders'),
-    transactions,
-  );
+  const orders = new MongoOrderRepository(mongo.db().collection<OrderDocument>('orders'));
   const clock = new SystemClock();
 
   const registry = new EventRegistry<OrderEvent>()
@@ -179,8 +173,8 @@ export async function composeSales(
     deps.logger,
   );
 
-  const placeOrder = new PlaceOrder(orders, bus, transactions, clock);
-  const addOrderLine = new AddOrderLine(orders, bus, transactions, clock);
+  const placeOrder = new PlaceOrder(orders, bus, clock);
+  const addOrderLine = new AddOrderLine(orders, bus, clock);
   const prepareShipment = new PrepareShipment(
     new HttpWarehouse(deps.http, config.warehouseBaseUrl),
   );
@@ -204,9 +198,10 @@ export async function composeSales(
 
 Qué hace cada pieza:
 * Del paquete, en `@archi-code/ddd/infrastructure`: `EventRegistry` (reconstruye cada evento desde su JSON; la factoría pasa el JSON como metadata para conservar `eventId` y `occurredOn`), `DomainEventBus` (implementa `EventBus`, lo único que reciben los casos de uso; su `subscribe(listener)` solo lo llama el composition root), `SystemClock` (implementa `Clock`) y `HttpErrorMapper` (códigos propios como `ORD001` se sobrescriben por código).
-* Código del proyecto sobre los puertos del paquete `[Fuera de los libros: convención de @archi-code/ddd]`: `MongoOrderRepository` (roles de repositorio + `AggregateMapper.of(Order)` + control de `version`, ver `ddd-skills/ddd-repositorios-persistencia/GUIA.md`), `MongoTransactionRunner` (implementa `TransactionRunner`: `run(work)` abre una sesión con transacción y la deja disponible a los repositorios, una ejecución anidada se une a la exterior, `inTransaction()`), `RabbitMqEventChannel` (implementa `EventChannel`, ver `ddd-skills/ddd-eventos-dominio/GUIA.md`) y `HttpWarehouse` (implementa el puerto `Warehouse`).
+* Código del proyecto sobre los puertos del paquete `[Fuera de los libros: convención de @archi-code/ddd]`: `MongoOrderRepository` (roles de repositorio + `AggregateMapper.of(Order)` + control de `version`; responsable de toda la persistencia: cada `save`/`remove` es una escritura atómica de un documento, y si un agregado ocupara varias tablas SQL abriría y cerraría la transacción de la base de datos dentro de `save`/`remove`; ver `ddd-skills/ddd-repositorios-persistencia/GUIA.md`), `RabbitMqEventChannel` (implementa `EventChannel`, ver `ddd-skills/ddd-eventos-dominio/GUIA.md`) y `HttpWarehouse` (implementa el puerto `Warehouse`).
 * Cada listener se suscribe con `bus.subscribe(listener)`, que lee su `@ListensTo(OrderLineAdded, { consumer: 'prepare-shipment-on-order-line-added' })` y rechaza un evento que el registro no sabe reconstruir.
 * Cambiar RabbitMQ por un outbox o por memoria cambia solo la línea del canal.
+* Ni los casos de uso ni los repositorios reciben un runner de transacciones: el composition root no construye ninguno.
 
 Por qué sin contenedor: en TypeScript las interfaces desaparecen en tiempo de ejecución y los contenedores necesitan tokens o decoradores. Para la mayoría de contextos, construir el grafo a mano es más legible y no mete decoradores de inyección en el dominio `[Fuera de los libros]`. Si usas NestJS, sus módulos y proveedores van en `interfaces/` e `infrastructure/`; el dominio sigue sin decoradores salvo `@Validations` de `@archi-code/validation` en los value objects.
 
@@ -222,7 +217,6 @@ import {
   FixedClock,
   InMemoryEventChannel,
   InMemoryRepository,
-  InMemoryTransactionRunner,
 } from '@archi-code/ddd/infrastructure';
 import { Order } from '@sales/domain/order/Order';
 import { OrderLineAdded } from '@sales/domain/order/events';
@@ -235,7 +229,6 @@ import type { Warehouse } from '@sales/application/prepare-shipment/Warehouse';
 
 export async function salesForTests(warehouse: Warehouse) {
   const orders = new InMemoryRepository(AggregateMapper.of(Order));
-  const transactions = new InMemoryTransactionRunner([orders]);
   const channel = new InMemoryEventChannel();
   const registry = new EventRegistry<OrderEvent>().register(
     OrderLineAdded,
@@ -255,13 +248,13 @@ export async function salesForTests(warehouse: Warehouse) {
   return {
     orders,
     channel,
-    placeOrder: new PlaceOrder(orders, bus, transactions, clock),
-    addOrderLine: new AddOrderLine(orders, bus, transactions, clock),
+    placeOrder: new PlaceOrder(orders, bus, clock),
+    addOrderLine: new AddOrderLine(orders, bus, clock),
   };
 }
 ```
 
-El test comprueba lo que causó el listener (el `Warehouse` de prueba) y lo que llevó el canal (`channel.sent`), nunca que el listener fue llamado. `InMemoryTransactionRunner([orders])` restaura el repositorio cuando el trabajo lanza; `InMemoryRepository` solo es para tests y prototipos.
+El test comprueba lo que causó el listener (el `Warehouse` de prueba) y lo que llevó el canal (`channel.sent`), nunca que el listener fue llamado. `InMemoryRepository` (cada `save` y `remove` atómico, con comprobación de versión) solo es para tests y prototipos.
 
 ## Controlador como adaptador de entrada
 

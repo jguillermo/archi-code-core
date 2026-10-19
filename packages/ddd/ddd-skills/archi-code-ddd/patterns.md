@@ -174,7 +174,6 @@ class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand, void>
   constructor(
     private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
     private readonly events: EventBus<OrderEvent>,
-    private readonly transactions: TransactionRunner,
     private readonly clock: Clock,
   ) {
     super();
@@ -188,16 +187,14 @@ class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand, void>
     });
   }
 
-  protected handle(command: AddOrderLineCommand): Promise<void> {
-    return this.transactions.run(async () => {
-      const order = await this.orders.findById(command.orderId);
-      if (order === null) {
-        throw new AggregateNotFoundException('Order', command.orderId.value);
-      }
-      order.addLine(command.sku, command.quantity, this.clock);
-      await this.orders.save(order);
-      await this.events.publish(order.pullDomainEvents());
-    });
+  protected async handle(command: AddOrderLineCommand): Promise<void> {
+    const order = await this.orders.findById(command.orderId);
+    if (order === null) {
+      throw new AggregateNotFoundException('Order', command.orderId.value);
+    }
+    order.addLine(command.sku, command.quantity, this.clock);
+    await this.orders.save(order);
+    await this.events.publish(order.pullDomainEvents());
   }
 }
 ```
@@ -290,11 +287,10 @@ class MongoOrderRepository
 }
 ```
 
-Wiring and tests with the in-memory adapters (transaction, event channel) and the HTTP mapper:
+Wiring and tests with the in-memory adapters (repository, event channel) and the HTTP mapper:
 
 ```ts
 const orders = new InMemoryRepository(AggregateMapper.of(Order));
-const transactions = new InMemoryTransactionRunner([orders]);
 const registry = new EventRegistry<OrderEvent>().register(
   OrderLineAdded,
   (json) => new OrderLineAdded(json.aggregateId, json.sku as string, json.quantity as number, json),
@@ -305,7 +301,7 @@ await bus.subscribe(new PrepareShipmentOnOrderLineAdded(new PrepareShipment(ware
 
 const clock = new FixedClock('2026-03-01T09:30:00Z');
 await orders.save(Order.place(new OrderId(orderId), new CustomerName('Ana'), clock));
-await new AddOrderLine(orders, bus, transactions, clock).execute({
+await new AddOrderLine(orders, bus, clock).execute({
   orderId,
   sku: 'TORCH-01',
   quantity: 2,
@@ -329,14 +325,13 @@ describe('Adding a line to an order', () => {
       prepare: async (orderId, sku) => void prepared.push(`${orderId.value}:${sku.value}`),
     };
     const orders = new InMemoryRepository(AggregateMapper.of(Order));
-    const transactions = new InMemoryTransactionRunner([orders]);
     const channel = new InMemoryEventChannel();
     const bus = new DomainEventBus<OrderEvent>(channel, registry);
     await bus.subscribe(new PrepareShipmentOnOrderLineAdded(new PrepareShipment(warehouse)));
     const clock = new FixedClock('2026-03-01T09:30:00Z');
     await orders.save(Order.place(new OrderId(orderId), new CustomerName('Ana'), clock));
 
-    await new AddOrderLine(orders, bus, transactions, clock).execute({
+    await new AddOrderLine(orders, bus, clock).execute({
       orderId,
       sku: 'TORCH-01',
       quantity: 2,
@@ -556,16 +551,14 @@ is missing instead of making the channel redeliver forever:
 class RegisterReservation extends UseCase<ReservationInput, ReservationCommand, void> {
   // constructor and toCommand as in AddOrderLine
 
-  protected handle(command: ReservationCommand): Promise<void> {
-    return this.transactions.run(async () => {
-      const order = await this.orders.findById(command.orderId);
-      if (order === null) {
-        return;
-      }
-      order.registerStockReservation(command.reservationId, this.clock);
-      await this.orders.save(order);
-      await this.events.publish(order.pullDomainEvents());
-    });
+  protected async handle(command: ReservationCommand): Promise<void> {
+    const order = await this.orders.findById(command.orderId);
+    if (order === null) {
+      return;
+    }
+    order.registerStockReservation(command.reservationId, this.clock);
+    await this.orders.save(order);
+    await this.events.publish(order.pullDomainEvents());
   }
 }
 ```

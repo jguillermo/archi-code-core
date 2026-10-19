@@ -2,7 +2,7 @@
 
 > Parte del skill `archi-code-ddd`: léela solo cuando ese skill te dirija aquí. Los ejemplos están escritos con la API de `@archi-code/ddd` (las clases de su `src`) y se copian tal cual; las guías son la fuente de verdad: el paquete solo se aparta de ellas donde lo marca `[Fuera de los libros: convención de @archi-code/ddd]`, y cualquier otra discrepancia es un defecto del paquete.
 >
-> **Cuándo consultar esta guía.** Repositorios DDD y persistencia de agregados en TypeScript/Node. Cubre un repositorio por agregado, repositorios orientados a colección frente a orientados a persistencia (save), interfaz en el dominio e implementación en infraestructura, mappers entre filas o documentos y el modelo, concurrencia optimista, transacciones gestionadas fuera del dominio, consultas y "use case optimal queries", diferencias con un DAO, implementaciones en memoria y tests de contrato. Consúltala siempre que haya que guardar o cargar agregados, integrar Prisma, TypeORM, Drizzle, MikroORM, pg o MongoDB con un modelo de dominio, diseñar métodos find/save, gestionar transacciones, o cuando el ORM esté dictando la forma de las clases del dominio, aunque no se mencione "repository".
+> **Cuándo consultar esta guía.** Repositorios DDD y persistencia de agregados en TypeScript/Node. Cubre un repositorio por agregado, repositorios orientados a colección frente a orientados a persistencia (save), interfaz en el dominio e implementación en infraestructura, mappers entre filas o documentos y el modelo, concurrencia optimista, la transacción como responsabilidad del repositorio, consultas y "use case optimal queries", diferencias con un DAO, implementaciones en memoria y tests de contrato. Consúltala siempre que haya que guardar o cargar agregados, integrar Prisma, TypeORM, Drizzle, MikroORM, pg o MongoDB con un modelo de dominio, diseñar métodos find/save, gestionar transacciones, o cuando el ORM esté dictando la forma de las clases del dominio, aunque no se mencione "repository".
 
 ## Con @archi-code/ddd
 
@@ -13,9 +13,9 @@
 * El repositorio no lee campos del agregado: mapea con `AggregateMapper.of(Order)` (`toPrimitives(order)` y `fromPrimitives(row, version)`), que exige que el agregado tenga `toPrimitives()` y `static fromPrimitives()`.
 * La versión de concurrencia optimista vive en la base `AggregateRoot` (`version`, `restoreVersion()`, `markPersisted()`): el agregado no la declara ni la mapea, y solo los repositorios la tocan. Un conflicto es `ConcurrencyException(mapper.aggregateName, id, version, { cause })` (HTTP 409).
 * `remove(aggregate)` recibe el agregado cargado y comprueba su versión como `save`: borrar un agregado que otro cambió después de cargarlo es `ConcurrencyException`.
-* El repositorio no publica eventos: lo hace el caso de uso con `events.publish(order.pullDomainEvents())` dentro de la transacción.
-* El puerto `TransactionRunner` (`@archi-code/ddd/application`) tiene solo `run(work)` e `inTransaction()`; la conexión o sesión en curso (`current()`) es un método de tu adaptador, que solo usan tus repositorios.
-* La referencia para tests es `InMemoryRepository(AggregateMapper.of(Order))` con `InMemoryTransactionRunner([orders])`; su `findAll()` existe solo como comodidad de los tests y un repositorio real no lo tiene.
+* El repositorio no publica eventos: lo hace el caso de uso con `events.publish(order.pullDomainEvents())` después de `save`.
+* La transacción es del repositorio: no hay puerto de transacciones en `@archi-code/ddd/application` y la aplicación nunca abre, une ni cierra una. Cada `save`/`remove` es una escritura atómica, y si el agregado ocupa varias tablas el repositorio abre y confirma la transacción de la base de datos dentro de ese método, con su propia conexión o sesión.
+* La referencia para tests es `InMemoryRepository(AggregateMapper.of(Order))` con un `DomainEventBus` sobre `InMemoryEventChannel`; su `findAll()` existe solo como comodidad de los tests y un repositorio real no lo tiene.
 
 Un repositorio da la ilusión de una colección en memoria con todos los agregados de un tipo, con una interfaz conocida para añadir, quitar y seleccionar. **Solo los agregados tienen repositorio**, normalmente uno por tipo de agregado [IDDD cap. 12, citando a Evans].
 
@@ -26,8 +26,8 @@ Un repositorio da la ilusión de una colección en memoria con todos los agregad
 2. **La interfaz vive en el dominio** con lenguaje del dominio; la implementación, en infraestructura [IDDD cap. 4 y cap. 12; PHP: Repositories]. Con el paquete, los contratos ya están en `@archi-code/ddd/domain` y tu adaptador (`MongoOrderRepository`) vive en `infrastructure/persistence/`.
 3. **Devuelve agregados completos** (o value objects para consultas concretas), nunca filas, DTOs del ORM ni partes que la raíz no permita alcanzar [IDDD cap. 12].
 4. **No es un DAO.** Un DAO se expresa en términos de tablas y CRUD; un repositorio, en términos de colección de agregados. Operaciones CRUD de grano fino sobre partes del agregado rompen su encapsulación [IDDD cap. 12; PHP: Repositories].
-5. **El dominio no gestiona transacciones.** Las controla la capa de aplicación [IDDD cap. 12; Destilado cap. 2].
-6. **Una transacción, un agregado.** Que funcione en tests no significa que funcione en producción con concurrencia [IDDD cap. 12].
+5. **El dominio no gestiona transacciones** [IDDD cap. 12; Destilado cap. 2]. Los libros las controlan desde la capa de aplicación; con el paquete las controla el repositorio, dentro de `save`/`remove`, y la aplicación tampoco las ve `[Fuera de los libros: convención de @archi-code/ddd]`.
+6. **Una escritura atómica, un agregado.** La "transacción por agregado" de los libros es aquí una escritura atómica por agregado, garantizada por el repositorio. Que funcione en tests no significa que funcione en producción con concurrencia [IDDD cap. 12].
 7. **Nada de lógica de negocio en procedimientos almacenados** salvo requisito no funcional que lo exija; saca la lógica del modelo y de su lenguaje [IDDD cap. 12].
 
 ## Paso 1. Elegir el estilo
@@ -53,14 +53,13 @@ Un caso de uso pide exactamente los roles que usa. Constructor de `AddOrderLine`
 
 ```ts
 import { UseCase } from '@archi-code/ddd/application';
-import type { Clock, EventBus, TransactionRunner } from '@archi-code/ddd/application';
+import type { Clock, EventBus } from '@archi-code/ddd/application';
 import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
 
 export class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand, void> {
   constructor(
     private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
     private readonly events: EventBus<OrderEvent>,
-    private readonly transactions: TransactionRunner,
     private readonly clock: Clock,
   ) {
     super();
@@ -78,12 +77,12 @@ Guía completa con MongoDB, PostgreSQL y Prisma en `ddd-skills/ddd-repositorios-
 
 * El agregado se convierte en datos planos y vuelve a construirse con sus value objects [IDDD cap. 6]: el repositorio usa `AggregateMapper.of(Order)`, que llama a `order.toPrimitives()` (y comprueba en tiempo de ejecución que no falte estado privado ni se devuelvan value objects) y a `Order.fromPrimitives(primitives)` más `restoreVersion(version)`.
 * La **versión** se comprueba al guardar y al borrar (concurrencia optimista) [IDDD cap. 10]: se guarda junto a los primitivos, nunca dentro, y tras escribir el repositorio llama a `order.markPersisted()`.
-* Los **eventos** no los guarda el repositorio: el caso de uso los publica con `EventBus.publish` dentro de la transacción; si deben guardarse con el agregado y entregarse tras el commit, el `EventChannel` es duradero (outbox, `ddd-skills/ddd-eventos-dominio/GUIA.md`).
+* Los **eventos** los publica el caso de uso con `EventBus.publish` después de `save`. Si un evento no puede perderse, el repositorio escribe el agregado y sus eventos pendientes en la misma escritura atómica (outbox) y un proceso aparte los entrega después por un `EventChannel` (`ddd-skills/ddd-repositorios-persistencia/references/transacciones-ts.md`, `ddd-skills/ddd-eventos-dominio/GUIA.md`).
 * El **esquema** sirve al modelo, no al revés [IDDD cap. 6]. Un agregado pequeño encaja a menudo en un documento, o en una fila con una columna `jsonb` para sus value objects.
 
 ## Paso 4. Transacciones
 
-La aplicación abre y cierra la transacción con el puerto `TransactionRunner` (`run(work)`; un `run` anidado se une al abierto; `inTransaction()` dice si hay uno); el repositorio usa la conexión de la transacción en curso a través de su adaptador (`MongoTransactionRunner.current()`). En Node, `AsyncLocalStorage` permite hacerlo sin pasar la conexión por todos los métodos `[Fuera de los libros]`. En tests, `InMemoryTransactionRunner([orders])` restaura el repositorio en memoria si el trabajo lanza. Patrón en `ddd-skills/ddd-repositorios-persistencia/references/transacciones-ts.md`.
+La transacción es del repositorio, como todo lo demás de la persistencia `[Fuera de los libros: convención de @archi-code/ddd]`. La aplicación no abre, une ni cierra transacciones: el caso de uso carga, llama al método de negocio, `await this.orders.save(order)` y después `await this.events.publish(order.pullDomainEvents())`. El adaptador garantiza que cada `save`/`remove` es atómico (un documento en MongoDB; varias tablas SQL en una transacción que abre y confirma o revierte dentro del propio `save`, con su conexión), comprueba la versión (`ConcurrencyException`), gestiona la conexión, la sesión y el pool, y envuelve los errores del driver en `InternalErrorException` con `{ cause }`. Un conflicto se reintenta en `handle` volviendo a cargar y a guardar, con un límite y solo para comandos seguros de repetir. En tests basta `InMemoryRepository(AggregateMapper.of(Order))`. Patrón y ejemplos en `ddd-skills/ddd-repositorios-persistencia/references/transacciones-ts.md`.
 
 ## Paso 5. Consultas
 
@@ -106,7 +105,8 @@ Un mismo conjunto de tests de contrato, en `test/support/` del proyecto, se ejec
 * El repositorio devuelve tipos de Prisma, documentos de MongoDB o filas.
 * Decoradores `@Entity` del ORM en clases del dominio.
 * `updateStatus(id, status)` en el repositorio: CRUD de grano fino que salta al agregado.
-* El repositorio hace `BEGIN`/`COMMIT` o `startTransaction()` por su cuenta.
+* El caso de uso recibe una dependencia `transactions`, `unitOfWork` o parecida, o abre `BEGIN`/`COMMIT` o `startTransaction()`: la transacción es del repositorio.
+* Un repositorio que reparte un agregado en varias tablas sin agrupar sus sentencias en una transacción dentro de `save`.
 * Docenas de métodos `findByXAndYOrderByZ` para pantallas.
 * El repositorio lee campos del agregado o construye filas a mano en vez de usar `AggregateMapper.of(Order)`.
 * `save` con `upsert` sin condición de versión, `fromPrimitives(row)` sin la versión almacenada o `markPersisted()` olvidado tras escribir.

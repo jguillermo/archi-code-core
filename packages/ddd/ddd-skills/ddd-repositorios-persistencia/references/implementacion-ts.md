@@ -29,7 +29,7 @@ const primitives: PrimitiveTypes<Order> = {
 
 Un documento (o una fila) por agregado: lectura rápida, sin joins, y la versión protege todo el agregado [IDDD cap. 10]. La versión se guarda **junto a** los primitivos, nunca dentro: el agregado no la declara y `PrimitiveTypes` la deja fuera `[Fuera de los libros: convención de @archi-code/ddd]`.
 
-Convención de versiones del paquete: un agregado nuevo tiene `version` 0; al insertarlo se guarda con 1 y `markPersisted()` lo lleva a 1. Cada actualización exige que la versión almacenada coincida con `order.version`, guarda `order.version + 1` y llama a `markPersisted()`. Al cargar, `mapper.fromPrimitives(primitives, storedVersion)` llama a `restoreVersion(storedVersion)`. Si la transacción se revierte después de `markPersisted()`, descarta el objeto y vuelve a cargarlo.
+Convención de versiones del paquete: un agregado nuevo tiene `version` 0; al insertarlo se guarda con 1 y `markPersisted()` lo lleva a 1. Cada actualización exige que la versión almacenada coincida con `order.version`, guarda `order.version + 1` y llama a `markPersisted()`. Al cargar, `mapper.fromPrimitives(primitives, storedVersion)` llama a `restoreVersion(storedVersion)`. El repositorio llama a `markPersisted()` solo cuando la escritura se completó (en SQL, tras el `COMMIT`); si `save` lanza, el objeto conserva su versión y el caso de uso lo descarta y vuelve a cargarlo.
 
 ## Mapper
 
@@ -43,7 +43,7 @@ No se escribe: el paquete lo da. `AggregateMapper.of(Order)` (de `@archi-code/dd
 
 ## Repositorio con MongoDB
 
-Un documento por agregado es el encaje natural de un almacén orientado a agregados [IDDD cap. 12]. El repositorio implementa los tres roles, usa la sesión de la transacción en curso (`MongoTransactionRunner.current()`, en `ddd-skills/ddd-repositorios-persistencia/references/transacciones-ts.md`) y envuelve los errores de escritura del driver con su causa:
+Un documento por agregado es el encaje natural de un almacén orientado a agregados [IDDD cap. 12]. Cada `save` y cada `remove` es una sola operación sobre un documento, atómica por sí misma, así que no necesita sesión ni transacción: la transacción es del repositorio y aquí no hace falta abrir ninguna (`ddd-skills/ddd-repositorios-persistencia/references/transacciones-ts.md`) `[Fuera de los libros: convención de @archi-code/ddd]`. El repositorio implementa los tres roles y envuelve los errores de escritura del driver con su causa:
 
 ```ts
 import { MongoServerError } from 'mongodb';
@@ -57,28 +57,20 @@ import type {
 import { ConcurrencyException, InternalErrorException } from '@archi-code/ddd/exceptions';
 import { AggregateMapper } from '@archi-code/ddd/infrastructure';
 import { Order, OrderId } from '../../domain/order/order';
-import type { MongoTransactionRunner } from './mongo-transaction-runner';
 
 export type OrderDocument = PrimitiveTypes<Order> & { _id: string; version: number };
 
 const DUPLICATE_KEY = 11000;
-const WRITE_CONFLICT = 112;
 
 export class MongoOrderRepository
   implements AggregateFinder<Order>, AggregateSaver<Order>, AggregateRemover<Order>
 {
   private readonly mapper = AggregateMapper.of(Order);
 
-  constructor(
-    private readonly collection: Collection<OrderDocument>,
-    private readonly transactions: MongoTransactionRunner,
-  ) {}
+  constructor(private readonly collection: Collection<OrderDocument>) {}
 
   async findById(id: OrderId): Promise<Order | null> {
-    const document = await this.collection.findOne(
-      { _id: id.value },
-      { session: this.transactions.current() },
-    );
+    const document = await this.collection.findOne({ _id: id.value });
     if (document === null) {
       return null;
     }
@@ -92,16 +84,14 @@ export class MongoOrderRepository
       _id: order.id.value,
       version: order.version + 1,
     };
-    const session = this.transactions.current();
     const written = await this.write(order, async () => {
       if (order.version === 0) {
-        await this.collection.insertOne(document, { session });
+        await this.collection.insertOne(document);
         return true;
       }
       const { matchedCount } = await this.collection.replaceOne(
         { _id: document._id, version: order.version },
         document,
-        { session },
       );
       return matchedCount === 1;
     });
@@ -113,15 +103,11 @@ export class MongoOrderRepository
 
   async remove(order: Order): Promise<void> {
     const filter = { _id: order.id.value };
-    const session = this.transactions.current();
     const removed = await this.write(order, async () => {
       if (order.version === 0) {
-        return (await this.collection.countDocuments(filter, { session, limit: 1 })) === 0;
+        return (await this.collection.countDocuments(filter, { limit: 1 })) === 0;
       }
-      const { deletedCount } = await this.collection.deleteOne(
-        { ...filter, version: order.version },
-        { session },
-      );
+      const { deletedCount } = await this.collection.deleteOne({ ...filter, version: order.version });
       return deletedCount === 1;
     });
     if (!removed) {
@@ -133,10 +119,7 @@ export class MongoOrderRepository
     try {
       return await operation();
     } catch (error) {
-      if (
-        error instanceof MongoServerError &&
-        (error.code === DUPLICATE_KEY || error.code === WRITE_CONFLICT)
-      ) {
+      if (error instanceof MongoServerError && error.code === DUPLICATE_KEY) {
         throw new ConcurrencyException(this.mapper.aggregateName, order.id.value, order.version, {
           cause: error,
         });
@@ -149,7 +132,7 @@ export class MongoOrderRepository
 
 * Alta (`version === 0`): `insertOne`; un `_id` ya ocupado (error 11000) es `ConcurrencyException` con el error del driver como `cause`.
 * Cambio: `replaceOne` con la condición `{ _id, version: order.version }`; si no casa ningún documento, otro guardó antes.
-* Dentro de una transacción, un cambio que otro confirmó después de que esta empezara no llega como "ningún documento casa": el servidor rechaza la escritura con `WriteConflict` (error 112), que también es `ConcurrencyException`. Así el caso de uso puede reintentar con una transacción nueva y `HttpErrorMapper` responde 409, no 500.
+* Un conflicto es `ConcurrencyException`: el caso de uso puede reintentar volviendo a cargar y a guardar, y `HttpErrorMapper` responde 409, no 500.
 * Borrado: `deleteOne` con la misma condición. Un agregado que nunca se guardó (versión 0) no tiene nada que borrar, salvo que su id ya esté ocupado: entonces es un conflicto, igual que en `InMemoryRepository`.
 * Cualquier otro error del driver al escribir es `InternalErrorException` con el error como `cause`.
 * Cuidado con la serialización: IDDD advierte de que en estos almacenes hay que cuidar el formato serializado, que no es gratis [IDDD cap. 12]. Los primitivos son datos planos y `Date`, que el driver guarda tal cual.
@@ -168,14 +151,14 @@ CREATE TABLE orders (
 );
 ```
 
-`data` guarda `PrimitiveTypes<Order>` entero; las columnas sueltas (`customer_id`, `status`) se duplican solo para indexar las consultas de lectura. `PgTransactionRunner` y su `SqlConnection` (la interfaz estructural de los métodos de `pg` que usa) están en `ddd-skills/ddd-repositorios-persistencia/references/transacciones-ts.md`. Este adaptador solo implementa los roles que soporta:
+`data` guarda `PrimitiveTypes<Order>` entero; las columnas sueltas (`customer_id`, `status`) se duplican solo para indexar las consultas de lectura. Todo el agregado cabe en una fila, así que cada `save` es una sola sentencia, atómica por sí misma, sobre el pool. `PgPool` (la interfaz estructural de los métodos de `pg` que usa) y la variante con las líneas en otra tabla, donde el repositorio abre y confirma una transacción dentro de `save`, están en `ddd-skills/ddd-repositorios-persistencia/references/transacciones-ts.md`. Este adaptador solo implementa los roles que soporta:
 
 ```ts
 import type { AggregateFinder, AggregateSaver, PrimitiveTypes } from '@archi-code/ddd/domain';
-import { ConcurrencyException } from '@archi-code/ddd/exceptions';
+import { ConcurrencyException, InternalErrorException } from '@archi-code/ddd/exceptions';
 import { AggregateMapper } from '@archi-code/ddd/infrastructure';
 import { Order, OrderId } from '../../domain/order/order';
-import type { PgTransactionRunner } from './pg-transaction-runner';
+import type { PgPool } from './pg-pool';
 
 interface OrderRow {
   version: number;
@@ -185,31 +168,31 @@ interface OrderRow {
 export class PostgresOrderRepository implements AggregateFinder<Order>, AggregateSaver<Order> {
   private readonly mapper = AggregateMapper.of(Order);
 
-  constructor(private readonly transactions: PgTransactionRunner) {}
+  constructor(private readonly pool: PgPool) {}
 
   async findById(id: OrderId): Promise<Order | null> {
-    const { rows } = await this.transactions
-      .current()
-      .query<OrderRow>('SELECT version, data FROM orders WHERE id = $1', [id.value]);
+    const { rows } = await this.pool.query<OrderRow>(
+      'SELECT version, data FROM orders WHERE id = $1',
+      [id.value],
+    );
     return rows[0] ? this.mapper.fromPrimitives(rows[0].data, rows[0].version) : null;
   }
 
   async save(order: Order): Promise<void> {
     const primitives = this.mapper.toPrimitives(order);
-    const { rowCount } =
+    const write =
       order.version === 0
-        ? await this.transactions
-            .current()
-            .query(
-              'INSERT INTO orders (id, version, customer_id, status, data) VALUES ($1, 1, $2, $3, $4) ON CONFLICT (id) DO NOTHING',
-              [primitives.id, primitives.customerId, primitives.status, primitives],
-            )
-        : await this.transactions
-            .current()
-            .query(
-              'UPDATE orders SET version = version + 1, status = $3, data = $4 WHERE id = $1 AND version = $2',
-              [primitives.id, order.version, primitives.status, primitives],
-            );
+        ? this.pool.query(
+            'INSERT INTO orders (id, version, customer_id, status, data) VALUES ($1, 1, $2, $3, $4) ON CONFLICT (id) DO NOTHING',
+            [primitives.id, primitives.customerId, primitives.status, primitives],
+          )
+        : this.pool.query(
+            'UPDATE orders SET version = version + 1, status = $3, data = $4 WHERE id = $1 AND version = $2',
+            [primitives.id, order.version, primitives.status, primitives],
+          );
+    const { rowCount } = await write.catch((error: unknown) => {
+      throw new InternalErrorException(`writing order ${order.id.value}`, { cause: error });
+    });
     if (rowCount === 0) {
       throw new ConcurrencyException(this.mapper.aggregateName, order.id.value, order.version);
     }
@@ -223,9 +206,9 @@ Al leer `data` de `jsonb`, `paymentAuthorization.expiresAt` llega como texto ISO
 ## Con Prisma
 
 `[Fuera de los libros]`
-* El esquema de Prisma y su cliente viven en infraestructura. El repositorio implementa `AggregateFinder<Order>` y `AggregateSaver<Order>`, recibe el `PrismaClient` (o la transacción interactiva `tx` a través de su runner) y devuelve agregados con `mapper.fromPrimitives(row.data, row.version)`, nunca modelos de Prisma.
+* El esquema de Prisma y su cliente viven en infraestructura. El repositorio implementa `AggregateFinder<Order>` y `AggregateSaver<Order>`, recibe el `PrismaClient` y devuelve agregados con `mapper.fromPrimitives(row.data, row.version)`, nunca modelos de Prisma.
 * La concurrencia optimista con Prisma: `updateMany({ where: { id, version: order.version }, data: { ..., version: { increment: 1 } } })`; si `count === 0`, `ConcurrencyException(mapper.aggregateName, order.id.value, order.version)`; si no, `order.markPersisted()`.
-* Las transacciones interactivas (`prisma.$transaction(async (tx) => ...)`) las abre la capa de aplicación a través de tu propio adaptador del puerto `TransactionRunner`.
+* Si el agregado ocupa varios modelos de Prisma, el repositorio agrupa sus escrituras con `prisma.$transaction(async (tx) => ...)` dentro de su propio `save`; la aplicación nunca la abre `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ## Consultas de lectura
 

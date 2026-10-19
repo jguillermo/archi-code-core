@@ -1,6 +1,6 @@
 ---
 name: archi-code-ddd
-description: The single entry point for Domain-Driven Design with @archi-code/ddd. It routes every DDD question to the guide suite shipped in the package (integration between contexts, architecture, value objects and entities, aggregates, domain events, repositories, application services, event sourcing and CQRS, audits) and gives the rules, patterns and common mistakes for TypeScript code with @archi-code/ddd - where each class goes and what it may import, value objects, Composite, Specification, Entity, AggregateRoot, EventBase, repository roles, exceptions, UseCase, the event contract (EventListener, @ListensTo, DomainEventBus, event channels), ports, transactions and HttpErrorMapper. Use it whenever someone applies DDD, designs or reviews a domain model, integrates contexts, writes or changes value objects, aggregates, events, use cases, listeners, repositories or adapters, decides which layer a class belongs to, or whenever the code imports @archi-code/ddd.
+description: The single entry point for Domain-Driven Design with @archi-code/ddd. It routes every DDD question to the guide suite shipped in the package (integration between contexts, architecture, value objects and entities, aggregates, domain events, repositories, application services, event sourcing and CQRS, audits) and gives the rules, patterns and common mistakes for TypeScript code with @archi-code/ddd - where each class goes and what it may import, value objects, Composite, Specification, Entity, AggregateRoot, EventBase, repository roles, exceptions, UseCase, the event contract (EventListener, @ListensTo, DomainEventBus, event channels), ports, persistence owned by the repository and HttpErrorMapper. Use it whenever someone applies DDD, designs or reviews a domain model, integrates contexts, writes or changes value objects, aggregates, events, use cases, listeners, repositories or adapters, decides which layer a class belongs to, or whenever the code imports @archi-code/ddd.
 ---
 
 # archi-code-ddd
@@ -10,8 +10,8 @@ layer: `@archi-code/ddd/exceptions` (the exceptions every layer throws), `@archi
 (value objects, `Composite`, `Immutable`, `Specification`, `Entity`, `AggregateRoot`, `EventBase`
 and the repository contracts `AggregateFinder`, `AggregateSaver`, `AggregateRemover`),
 `@archi-code/ddd/application` (`UseCase`, the event contract to listen, `EventListener` and
-`@ListensTo`, and to publish, `EventBus`, and the ports `Clock`, `TransactionRunner`, `Logger`) and
-`@archi-code/ddd/infrastructure` (aggregate mapper, in-memory repository, transaction runner, the
+`@ListensTo`, and to publish, `EventBus`, and the ports `Clock`, `Logger`) and
+`@archi-code/ddd/infrastructure` (aggregate mapper, in-memory repository, the
 event wiring `DomainEventBus`, `EventRegistry` and the `EventChannel` port, in-memory event
 channel, HTTP error mapper, clocks, loggers).
 
@@ -76,11 +76,11 @@ How to use it, for every design question or task:
 4. **Audits of code built on this package** (`ddd-auditoria-refactorizacion`): apply its checklist
    and also every item of `ddd-skills/archi-code-ddd/what-not-to-do.md`. Its scanner needs Python 3:
    `python3 -I "$(dirname "$(node -p "require.resolve('@archi-code/ddd/package.json')")")/ddd-skills/ddd-auditoria-refactorizacion/scripts/scan_ddd_smells.py" <folder>`.
-   It flags any two receivers written inside the same transaction block (`this.orders.save(…)` and
-   `this.invoices.save(…)` or `remove(…)`), domain code importing `@archi-code/ddd/application` or
-   `/infrastructure`, and `new Date()` in domain or application code; its findings are hints to
-   confirm by reading the code, and a use case that saves through a helper or outside a
-   `run(...)` block still needs a manual check. Without Python, apply the checklist by hand. For
+   It flags a use case that saves two aggregates (`this.orders.save(…)` and `this.invoices.save(…)`
+   or `remove(…)`), transactions handled in the domain or the application (they belong to the
+   repository), domain code importing `@archi-code/ddd/application` or `/infrastructure`, and
+   `new Date()` in domain or application code; its findings are hints to confirm by reading the
+   code, and a use case that saves through a helper still needs a manual check. Without Python, apply the checklist by hand. For
    the import direction, use `ddd-skills/ddd-arquitectura/assets/dependency-cruiser.cjs`.
 5. Keep the suite's conventions: say which rule comes from which book and mark what does not come
    from them.

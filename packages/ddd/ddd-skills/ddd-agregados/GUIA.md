@@ -13,7 +13,7 @@
 * Las identidades nuevas salen del value object (`OrderId.generate()`), no del repositorio.
 * Los métodos del dominio reciben `clock: { now(): Date }` y lo pasan a los eventos (`{ clock }`).
 * La variante funcional (estado inmutable + funciones que devuelven `[estado, eventos]`) no la da el paquete: necesita clases `AggregateRoot`, `PrimitiveTypes` y `AggregateMapper`.
-* El agregado registra sus eventos con `record()` y el caso de uso los publica con `events.publish(order.pullDomainEvents())` dentro de `transactions.run`, no después; entregarlos solo tras confirmar es cosa de un `EventChannel` duradero.
+* El agregado registra sus eventos con `record()` y el caso de uso, tras `await this.orders.save(order)`, los publica con `events.publish(order.pullDomainEvents())`. La aplicación no abre transacciones: la transacción es del repositorio, que hace atómico cada `save`; si un evento no puede perderse, el repositorio lo guarda con el agregado en la misma escritura (outbox) y un proceso aparte lo entrega por un `EventChannel`.
 * Una política se parte en un listener `<Acción>On<Evento>` con `@ListensTo` y el caso de uso que ejecuta.
 
 Un agregado es un grupo de entidades y value objects con una entidad raíz que lo nombra y lo controla, y que forma un **límite de consistencia transaccional**: al confirmar la transacción, todo lo de dentro cumple las reglas del negocio [Destilado cap. 5]. No es un grafo de objetos cómodo de navegar; es una decisión sobre consistencia [IDDD cap. 10].
@@ -28,7 +28,7 @@ Un agregado es un grupo de entidades y value objects con una entidad raíz que l
 3. **Referencia a otros agregados solo por su identidad.** `productId: ProductId`, nunca `product: Product`.
 4. **Actualiza otros agregados con consistencia eventual.** Un agregado publica un evento de dominio; un suscriptor modifica el otro en **otra** transacción.
 
-Corolario operativo: **una transacción modifica una sola instancia de agregado** [Destilado cap. 5; IDDD cap. 10]. Eso implica que cada petición de usuario debería ejecutar un comando sobre un agregado [IDDD cap. 10].
+Corolario operativo: **una transacción modifica una sola instancia de agregado** [Destilado cap. 5; IDDD cap. 10]. Eso implica que cada petición de usuario debería ejecutar un comando sobre un agregado [IDDD cap. 10]. Con el paquete, esa transacción es una escritura atómica por agregado que garantiza el repositorio en su `save`; el caso de uso carga un agregado y lo guarda una vez `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ## Flujo de diseño
 
@@ -93,7 +93,7 @@ Solo con un buen motivo. IDDD cita cuatro [IDDD cap. 10]:
 * Un agregado con colecciones que crecen sin límite (`Product.backlogItems` con miles de elementos) [Destilado cap. 5; IDDD cap. 10].
 * Fallos frecuentes por concurrencia en un agregado concreto.
 * Propiedades que son otro agregado completo (`order.customer.address.city`).
-* Servicios de aplicación que guardan dos o más agregados en la misma transacción "porque sí".
+* Servicios de aplicación que guardan dos o más agregados en el mismo caso de uso "porque sí", o que reciben una dependencia `transactions`/`unitOfWork` para agruparlos.
 * Un agregado que recibe un repositorio por constructor.
 * Setters públicos o un `update(dto)` genérico [Destilado cap. 5].
 * Lógica de negocio en servicios de aplicación o en clases `Helper`/`Utils` [Destilado cap. 5].

@@ -47,11 +47,10 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   cases behave the same on every channel.
 - A use case run by a listener that throws `AggregateNotFoundException` or a business error: the
   channel redelivers it forever; return, or record an event that compensates.
-- Retrying a `ConcurrencyException` with the same loaded aggregate, inside the transaction that
-  failed, without a limit, or for a command that is not safe to repeat: each attempt is a new
-  `transactions.run` that loads again, and only for commands safe to repeat. A use case never
-  calls itself nor another use case to retry, and one whose `run` joins an outer transaction
-  never retries: the caller or the channel's redelivery tries again.
+- Retrying a `ConcurrencyException` with the same loaded aggregate, without a limit, or for a
+  command that is not safe to repeat: each attempt loads again and saves again, and only for
+  commands safe to repeat. A use case never calls itself nor another use case to retry, and one run
+  by a listener never retries: the channel's redelivery tries again.
 - A read query that loads aggregates through `AggregateFinder`, or a repository method that
   returns DTOs: reads go straight to the database through an application interface.
 - Importing `@archi-code/ddd/infrastructure` from domain code, or `application` from the domain.
@@ -60,14 +59,13 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
 - Catching errors inside `handle` just to rethrow them as `ApplicationException`: let them
   propagate; `execute` keeps package exceptions and wraps the rest.
 - Calling `bus.publish` before `repository.save`, or publishing without `pullDomainEvents()`.
-- Publishing after `transactions.run(...)` returns: publish inside the transaction, and when the
-  events must be delivered only after the commit, use a durable `EventChannel` (an outbox table)
-  instead of changing the use case.
-- Opening transactions (`BEGIN`/`COMMIT`) in a repository or in the domain, or saving two
-  aggregates in one `run` without one of the exceptions IDDD ch. 10 accepts, written down as a
-  decision: the use case owns one transaction for one aggregate.
-- Relying on `InMemoryEventChannel` delivering before the commit in production code: it delivers
-  as soon as `publish` is called; a durable channel delivers after the commit.
+- Opening, joining or closing transactions in a use case, a listener or the domain, or passing a
+  transaction runner, unit of work, session or connection to them: the repository makes each
+  `save`/`remove` atomic and handles everything about persistence.
+- Saving two aggregates in one use case without one of the exceptions IDDD ch. 10 accepts,
+  written down as a decision: one use case saves one aggregate once.
+- Changing the use case so events are not lost between `save` and `publish`: the repository stores
+  them with the aggregate in the same atomic write (an outbox) and a relay delivers them.
 - A listener that breaks when a channel delivers the same event twice: delivery is at least once;
   skip an `eventId` already processed.
 - Sending `event.toJSON()` of a domain event to another context: translate it to a published,

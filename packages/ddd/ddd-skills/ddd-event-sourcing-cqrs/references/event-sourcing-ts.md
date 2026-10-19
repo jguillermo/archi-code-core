@@ -1,6 +1,6 @@
 # Event Sourcing en TypeScript
 
-`@archi-code/ddd` no trae event store, repositorios con Event Sourcing ni snapshots: todo lo de esta referencia es código del proyecto escrito sobre las clases del paquete (`AggregateRoot`, `EventBase`, `EventRegistry`, `UseCase`, `EventBus`, `TransactionRunner`, `ConcurrencyException`). Úsalo solo en los agregados que la tabla de decisión de `ddd-skills/ddd-event-sourcing-cqrs/GUIA.md` justifique.
+`@archi-code/ddd` no trae event store, repositorios con Event Sourcing ni snapshots: todo lo de esta referencia es código del proyecto escrito sobre las clases del paquete (`AggregateRoot`, `EventBase`, `EventRegistry`, `UseCase`, `EventBus`, `ConcurrencyException`). Úsalo solo en los agregados que la tabla de decisión de `ddd-skills/ddd-event-sourcing-cqrs/GUIA.md` justifique.
 
 ## Eventos del stream
 
@@ -238,7 +238,7 @@ export interface PaymentStream {
 }
 ```
 
-La infraestructura lo implementa: reconstruye cada fila con `EventRegistry.fromJSON` (que conserva `eventId` y `occurredOn` y congela el evento) y traduce la violación de la clave primaria a `ConcurrencyException`.
+La infraestructura lo implementa: reconstruye cada fila con `EventRegistry.fromJSON` (que conserva `eventId` y `occurredOn` y congela el evento), anexa todos los eventos de un `append` en una sola transacción que abre y cierra con su propia conexión, y traduce la violación de la clave primaria a `ConcurrencyException`. Como cualquier repositorio del paquete, el stream es responsable de todo lo de persistencia: la escritura atómica del stream con su versión esperada, la conexión y los errores del driver `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ```ts
 import type { SerializedEvent } from '@archi-code/ddd/domain';
@@ -272,27 +272,29 @@ export const paymentEvents = new EventRegistry<PaymentEvent>()
   )
   .register(PaymentCaptured, (json) => new PaymentCaptured(json.aggregateId, json));
 
-interface SqlConnection {
+interface SqlClient {
   query<Row>(text: string, values: readonly unknown[]): Promise<{ rows: Row[] }>;
 }
 
-interface PgTransactions {
-  current(): SqlConnection;
+interface PoolClient extends SqlClient {
+  release(): void;
+}
+
+interface Pool extends SqlClient {
+  connect(): Promise<PoolClient>;
 }
 
 export class PgPaymentStream implements PaymentStream {
   constructor(
-    private readonly transactions: PgTransactions,
+    private readonly pool: Pool,
     private readonly registry: EventRegistry<PaymentEvent>,
   ) {}
 
   async load(id: PaymentId): Promise<Payment | null> {
-    const { rows } = await this.transactions
-      .current()
-      .query<{ body: SerializedEvent }>(
-        'SELECT body FROM event_streams WHERE stream_id = $1 ORDER BY version',
-        [id.value],
-      );
+    const { rows } = await this.pool.query<{ body: SerializedEvent }>(
+      'SELECT body FROM event_streams WHERE stream_id = $1 ORDER BY version',
+      [id.value],
+    );
     if (rows.length === 0) {
       return null;
     }
@@ -304,42 +306,44 @@ export class PgPaymentStream implements PaymentStream {
 
   async append(payment: Payment, changes: readonly PaymentEvent[]): Promise<void> {
     const expected = payment.streamVersion();
+    const client = await this.pool.connect();
     try {
+      await client.query('BEGIN', []);
       for (const [index, event] of changes.entries()) {
-        await this.transactions
-          .current()
-          .query('INSERT INTO event_streams (stream_id, version, body) VALUES ($1, $2, $3)', [
-            payment.id.value,
-            expected + index + 1,
-            JSON.stringify(event.toJSON()),
-          ]);
+        await client.query(
+          'INSERT INTO event_streams (stream_id, version, body) VALUES ($1, $2, $3)',
+          [payment.id.value, expected + index + 1, JSON.stringify(event.toJSON())],
+        );
       }
+      await client.query('COMMIT', []);
     } catch (error) {
+      await client.query('ROLLBACK', []);
       if ((error as { code?: string }).code === '23505') {
         throw new ConcurrencyException('Payment', payment.id.value, expected, { cause: error });
       }
       throw new InternalErrorException('appending payment events', { cause: error });
+    } finally {
+      client.release();
     }
   }
 }
 ```
 
-`PgTransactions` es tu adaptador del puerto `TransactionRunner` (el que abre la transacción con `run` y guarda su conexión en un `AsyncLocalStorage`): el paquete solo define `run` e `inTransaction()`, y `current()` se queda dentro de tu infraestructura. `'23505'` es el código de violación de unicidad de PostgreSQL; con otro motor, comprueba el suyo.
+`Pool` y `SqlClient` son la parte de `pg` que usa el adaptador, declarada de forma estructural. La transacción empieza y termina dentro de `append`: o entran todos los eventos del cambio o ninguno, y la aplicación no ve ninguna transacción. `'23505'` es el código de violación de unicidad de PostgreSQL; con otro motor, comprueba el suyo.
 
 ## Caso de uso y reintento
 
-El caso de uso carga, decide, anexa y publica dentro de `transactions.run`. Ante un conflicto puede reintentar recargando y reejecutando el comando contra el estado nuevo, como propone IDDD [IDDD apéndice A]; si el comando ya no es válido, el error de negocio sale normalmente. `[Fuera de los libros: convención de @archi-code/ddd]` El stream solo carga y anexa; el bucle de reintento va en el `handle` del caso de uso, cada intento en un `transactions.run` nuevo, unos pocos intentos y después relanza la `ConcurrencyException` (HTTP 409 con `HttpErrorMapper`). Si el `run` se une a una transacción exterior, no reintentes: deja que el conflicto suba.
+El caso de uso carga, decide, anexa y publica; no abre transacciones ni recibe un puerto para ello. Ante un conflicto puede reintentar recargando y reejecutando el comando contra el estado nuevo, como propone IDDD [IDDD apéndice A]; si el comando ya no es válido, el error de negocio sale normalmente. `[Fuera de los libros: convención de @archi-code/ddd]` El stream solo carga y anexa; el bucle de reintento va en el `handle` del caso de uso, cada intento vuelve a cargar y vuelve a anexar, unos pocos intentos y después relanza la `ConcurrencyException` (HTTP 409 con `HttpErrorMapper`). Reintenta solo comandos seguros de repetir; un caso de uso que lanza un listener no lleva este bucle: el reintento lo hace la reentrega del canal.
 
 ```ts
 import { UseCase } from '@archi-code/ddd/application';
-import type { Clock, EventBus, TransactionRunner } from '@archi-code/ddd/application';
+import type { Clock, EventBus } from '@archi-code/ddd/application';
 import { AggregateNotFoundException, ConcurrencyException } from '@archi-code/ddd/exceptions';
 
 export class CapturePayment extends UseCase<{ paymentId: string }, PaymentId, void> {
   constructor(
     private readonly payments: PaymentStream,
     private readonly events: EventBus<PaymentEvent>,
-    private readonly transactions: TransactionRunner,
     private readonly clock: Clock,
   ) {
     super();
@@ -352,16 +356,15 @@ export class CapturePayment extends UseCase<{ paymentId: string }, PaymentId, vo
   protected async handle(paymentId: PaymentId): Promise<void> {
     for (let attempt = 1; ; attempt += 1) {
       try {
-        return await this.transactions.run(async () => {
-          const payment = await this.payments.load(paymentId);
-          if (payment === null) {
-            throw new AggregateNotFoundException('Payment', paymentId.value);
-          }
-          payment.capture(this.clock);
-          const changes = payment.pullDomainEvents();
-          await this.payments.append(payment, changes);
-          await this.events.publish(changes);
-        });
+        const payment = await this.payments.load(paymentId);
+        if (payment === null) {
+          throw new AggregateNotFoundException('Payment', paymentId.value);
+        }
+        payment.capture(this.clock);
+        const changes = payment.pullDomainEvents();
+        await this.payments.append(payment, changes);
+        await this.events.publish(changes);
+        return;
       } catch (error) {
         if (!(error instanceof ConcurrencyException) || attempt === 3) {
           throw error;
@@ -372,23 +375,17 @@ export class CapturePayment extends UseCase<{ paymentId: string }, PaymentId, vo
 }
 ```
 
-Publicar: IDDD publica con un proceso en segundo plano que lee lo anexado [IDDD apéndice A]. Con el paquete, el caso de uso solo ve el puerto `EventBus`; el `DomainEventBus` de la composición envía a un `EventChannel`. Para entregar solo lo confirmado, ese canal es duradero: escribe en la transacción del runner y un reenviador entrega después del commit. Con Event Sourcing el propio `event_streams` puede hacer de bandeja: el reenviador lee por `global_seq` y entrega los `SerializedEvent` a los manejadores que registró `receive`. Los casos de uso no cambian.
+Publicar: IDDD publica con un proceso en segundo plano que lee lo anexado [IDDD apéndice A]. Con el paquete, el caso de uso solo ve el puerto `EventBus`; el `DomainEventBus` de la composición envía a un `EventChannel`. Si `publish` falla después de `append`, los eventos ya están en el stream pero no se entregan. Para no perder ninguno, el propio `event_streams` hace de bandeja, porque `append` ya los guardó en su escritura atómica: un reenviador lee por `global_seq` y entrega los `SerializedEvent` a los manejadores que registró `receive`, y el canal que recibe el bus del caso de uso no escribe nada en su `send` (los eventos ya están guardados) y delega `receive` en el canal del reenviador. Es persistencia y entrega, así que vive en la infraestructura; los casos de uso no cambian `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ## Pruebas en memoria
 
-Una implementación en memoria del stream que participa en `InMemoryTransactionRunner` (implementa `TransactionParticipant`: `snapshot()` devuelve la función que restaura) sirve como doble de pruebas y como referencia del contrato:
+Una implementación en memoria del stream sirve como doble de pruebas y como referencia del contrato; anexa todos los cambios de una vez o ninguno, como `PgPaymentStream`:
 
 ```ts
-import {
-  DomainEventBus,
-  FixedClock,
-  InMemoryEventChannel,
-  InMemoryTransactionRunner,
-} from '@archi-code/ddd/infrastructure';
-import type { TransactionParticipant } from '@archi-code/ddd/infrastructure';
+import { DomainEventBus, FixedClock, InMemoryEventChannel } from '@archi-code/ddd/infrastructure';
 
-export class InMemoryPaymentStream implements PaymentStream, TransactionParticipant {
-  private streams = new Map<string, readonly SerializedEvent[]>();
+export class InMemoryPaymentStream implements PaymentStream {
+  private readonly streams = new Map<string, readonly SerializedEvent[]>();
 
   constructor(private readonly registry: EventRegistry<PaymentEvent>) {}
 
@@ -410,18 +407,10 @@ export class InMemoryPaymentStream implements PaymentStream, TransactionParticip
     }
     this.streams.set(payment.id.value, [...stream, ...changes.map((event) => event.toJSON())]);
   }
-
-  snapshot(): () => void {
-    const copy = new Map(this.streams);
-    return () => {
-      this.streams = copy;
-    };
-  }
 }
 
 const clock = new FixedClock('2026-10-19T09:30:00Z');
 const payments = new InMemoryPaymentStream(paymentEvents);
-const transactions = new InMemoryTransactionRunner([payments]);
 const channel = new InMemoryEventChannel();
 const bus = new DomainEventBus<PaymentEvent>(channel, paymentEvents);
 
@@ -439,7 +428,7 @@ payment.authorize(
 );
 await payments.append(payment, payment.pullDomainEvents());
 
-await new CapturePayment(payments, bus, transactions, clock).execute({
+await new CapturePayment(payments, bus, clock).execute({
   paymentId: paymentId.value,
 });
 channel.sent.map((event) => event.eventName); // ['PaymentCaptured']

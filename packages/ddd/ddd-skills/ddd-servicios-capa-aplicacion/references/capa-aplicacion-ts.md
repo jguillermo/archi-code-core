@@ -8,7 +8,7 @@ Un caso de uso extiende `UseCase<Input, Command, Output>` de `@archi-code/ddd/ap
 import { ValueObjects } from '@archi-code/ddd/domain';
 import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
 import { UseCase } from '@archi-code/ddd/application';
-import type { Clock, EventBus, TransactionRunner } from '@archi-code/ddd/application';
+import type { Clock, EventBus } from '@archi-code/ddd/application';
 import { AggregateNotFoundException, NotAllowedException } from '@archi-code/ddd/exceptions';
 
 export interface SalesPermissions {
@@ -33,7 +33,6 @@ export class CancelOrder extends UseCase<CancelOrderInput, CancelOrderCommand, v
   constructor(
     private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
     private readonly events: EventBus<OrderEvent>,
-    private readonly transactions: TransactionRunner,
     private readonly permissions: SalesPermissions,
     private readonly clock: Clock,
   ) {
@@ -48,28 +47,27 @@ export class CancelOrder extends UseCase<CancelOrderInput, CancelOrderCommand, v
     });
   }
 
-  protected handle(command: CancelOrderCommand): Promise<void> {
-    return this.transactions.run(async () => {
-      if (!(await this.permissions.canCancelOrders(command.requester))) {
-        throw new NotAllowedException(`Customer ${command.requester.value} may not cancel orders`);
-      }
-      const order = await this.orders.findById(command.orderId);
-      if (order === null) {
-        throw new AggregateNotFoundException('Order', command.orderId.value);
-      }
-      this.cancellation.cancel(order, command.requester, command.reason, this.clock);
-      await this.orders.save(order);
-      await this.events.publish(order.pullDomainEvents());
-    });
+  protected async handle(command: CancelOrderCommand): Promise<void> {
+    if (!(await this.permissions.canCancelOrders(command.requester))) {
+      throw new NotAllowedException(`Customer ${command.requester.value} may not cancel orders`);
+    }
+    const order = await this.orders.findById(command.orderId);
+    if (order === null) {
+      throw new AggregateNotFoundException('Order', command.orderId.value);
+    }
+    this.cancellation.cancel(order, command.requester, command.reason, this.clock);
+    await this.orders.save(order);
+    await this.events.publish(order.pullDomainEvents());
   }
 }
 ```
 
 Autorizar, cargar, invocar el dominio, guardar y publicar, y ninguna regla de negocio: que solo el cliente del pedido pueda cancelarlo lo comprueba el servicio de dominio `OrderCancellation`, y que no esté ya cancelado, `order.cancel`. Coincide con la forma de IDDD: parámetros, repositorio, comando sobre el agregado [IDDD cap. 4] y con la anatomía de *DDD in PHP* [PHP: Application].
 
-* El caso de uso pide solo los roles de repositorio que usa (`AggregateFinder<Order> & AggregateSaver<Order>`), los puertos `EventBus`, `TransactionRunner` y `Clock` del paquete, y los puertos de aplicación propios (`SalesPermissions`).
+* El caso de uso pide solo los roles de repositorio que usa (`AggregateFinder<Order> & AggregateSaver<Order>`), los puertos `EventBus` y `Clock` del paquete, y los puertos de aplicación propios (`SalesPermissions`). Nunca una dependencia de transacciones (un runner de transacciones o una unidad de trabajo): no existe puerto de transacciones `[Fuera de los libros: convención de @archi-code/ddd]`.
 * `UseCase` no trae ayudas (`findOrFail`, `saveAndPublish`): todos los pasos se escriben en `handle` `[Fuera de los libros: convención de @archi-code/ddd]`.
-* Se guarda antes de publicar, y se publica lo que devuelve `pullDomainEvents()`, dentro de `transactions.run`.
+* Se guarda antes de publicar, y se publica lo que devuelve `pullDomainEvents()`.
+* La aplicación nunca abre, une ni cierra transacciones. IDDD pone el control de la transacción en el servicio de aplicación [IDDD cap. 14]; con el paquete esa responsabilidad pasa al adaptador del repositorio, que hace atómico cada `save` y `remove` (una escritura de documento en Mongo; si el agregado ocupa varias tablas SQL, abre y confirma o deshace una transacción de la base de datos dentro de `save`/`remove`, con su propia conexión o sesión), comprueba la versión y envuelve los errores del driver en `InternalErrorException` con `{ cause }` `[Fuera de los libros: convención de @archi-code/ddd]`. Ver `ddd-skills/ddd-repositorios-persistencia/references/transacciones-ts.md`.
 
 ## Entrada
 
@@ -95,16 +93,16 @@ Para pantallas, mejor una consulta de lectura aparte que devuelve un DTO sin pas
 
 ## Command bus
 
-*DDD in PHP* presenta el bus de comandos (Tactician) para enlazar cada comando con su manejador; los objetos request se parecen ya a comandos [PHP: Application]. El paquete no trae bus de comandos `[Fuera de los libros: convención de @archi-code/ddd]`: el composition root construye cada caso de uso y se lo pasa al punto de entrada, que llama a `execute(input)`. Lo común a todos los casos de uso ya está en `UseCase.execute` (dejar pasar las excepciones del paquete y envolver cualquier otro error en `InternalErrorException` con `cause`), y la transacción es explícita en cada `handle`.
+*DDD in PHP* presenta el bus de comandos (Tactician) para enlazar cada comando con su manejador; los objetos request se parecen ya a comandos [PHP: Application]. El paquete no trae bus de comandos `[Fuera de los libros: convención de @archi-code/ddd]`: el composition root construye cada caso de uso y se lo pasa al punto de entrada, que llama a `execute(input)`. Lo común a todos los casos de uso ya está en `UseCase.execute` (dejar pasar las excepciones del paquete y envolver cualquier otro error en `InternalErrorException` con `cause`), y la atomicidad de cada escritura es del repositorio.
 
 ## Eventos en la capa de aplicación
 
 * La aplicación puede registrar suscriptores para guardar y reenviar eventos, dejando el dominio libre de mensajería [IDDD cap. 4]. Con el paquete, los suscriptores son listeners (`EventListener` con `@ListensTo`) que el composition root conecta con `bus.subscribe(listener)`; cada uno ejecuta un solo caso de uso.
-* Con outbox, los eventos se guardan en la transacción y la publicación ocurre fuera (`ddd-skills/ddd-eventos-dominio/GUIA.md`). Con el paquete, siempre el caso de uso: `events.publish(order.pullDomainEvents())` dentro de `transactions.run`; el outbox es un `EventChannel` duradero (escribe en la transacción del runner y reparte tras el commit) que se pasa a `DomainEventBus`, sin cambiar los casos de uso `[Fuera de los libros: convención de @archi-code/ddd]`.
+* Con outbox, los eventos se guardan en la transacción y la publicación ocurre fuera (`ddd-skills/ddd-eventos-dominio/GUIA.md`). Con el paquete, el caso de uso siempre llama a `events.publish(order.pullDomainEvents())` después de `save`; si `publish` falla después de `save`, el evento puede perderse. Cuando un evento no puede perderse, el repositorio escribe el agregado y sus eventos pendientes en la misma escritura atómica (un outbox dentro del mismo documento o en la misma transacción de base de datos de `save`) y un relay los entrega después por un `EventChannel`; los casos de uso no cambian `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ## Conflictos de concurrencia
 
-Cada repositorio comprueba la versión del agregado y lanza `ConcurrencyException` (409) si otro lo cambió después de cargarlo. Si el comando es seguro de repetir sobre el nuevo estado, el caso de uso puede reintentarlo [IDDD cap. 10; IDDD apéndice A]: un bucle en `handle` alrededor de todo `transactions.run`, de modo que cada intento es una transacción nueva que vuelve a cargar el agregado; pocos intentos y después se relanza. Si el caso de uso corre dentro de otra transacción (`inTransaction()`), su `run` se une a ella y no reintenta: reintenta quien lo llamó o la reentrega del canal.
+Cada repositorio comprueba la versión del agregado y lanza `ConcurrencyException` (409) si otro lo cambió después de cargarlo. Si el comando es seguro de repetir sobre el nuevo estado, el caso de uso puede reintentarlo [IDDD cap. 10; IDDD apéndice A]: un bucle en `handle` en el que cada intento vuelve a cargar el agregado y vuelve a guardarlo; pocos intentos y después se relanza. Un caso de uso que ejecuta un listener no reintenta por sí mismo: reintenta la reentrega del canal.
 
 ```ts
 import { ConcurrencyException, DomainException } from '@archi-code/ddd/exceptions';
@@ -126,7 +124,6 @@ export class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand
     private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
     private readonly pricing: ProductPricing,
     private readonly events: EventBus<OrderEvent>,
-    private readonly transactions: TransactionRunner,
     private readonly clock: Clock,
   ) {
     super();
@@ -146,20 +143,18 @@ export class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand
       throw new ProductNotSellable(sku.value);
     }
     const line = new OrderLine({ sku, quantity, unitPrice });
-    const attempts = this.transactions.inTransaction() ? 1 : ATTEMPTS;
     for (let attempt = 1; ; attempt += 1) {
       try {
-        return await this.transactions.run(async () => {
-          const order = await this.orders.findById(orderId);
-          if (order === null) {
-            throw new AggregateNotFoundException('Order', orderId.value);
-          }
-          order.addLine(line, this.clock);
-          await this.orders.save(order);
-          await this.events.publish(order.pullDomainEvents());
-        });
+        const order = await this.orders.findById(orderId);
+        if (order === null) {
+          throw new AggregateNotFoundException('Order', orderId.value);
+        }
+        order.addLine(line, this.clock);
+        await this.orders.save(order);
+        await this.events.publish(order.pullDomainEvents());
+        return;
       } catch (error) {
-        if (!(error instanceof ConcurrencyException) || attempt === attempts) {
+        if (!(error instanceof ConcurrencyException) || attempt === ATTEMPTS) {
           throw error;
         }
       }
@@ -168,7 +163,7 @@ export class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand
 }
 ```
 
-`ProductPricing` es un puerto de dominio (la interfaz en `domain/` con value objects, implementada en infraestructura por la capa anticorrupción) y `ProductNotSellable` una regla de dominio. `AddOrderLineInput` (`orderId`, `sku`, `quantity` como primitivos) y `AddOrderLineCommand` (`OrderId`, `Sku`, `Quantity`) siguen el patrón de `CancelOrder`. Nunca se reintenta con el agregado ya cargado ni dentro de la transacción que falló, y un caso de uso nunca se llama a sí mismo ni a otro para reintentar.
+`ProductPricing` es un puerto de dominio (la interfaz en `domain/` con value objects, implementada en infraestructura por la capa anticorrupción) y `ProductNotSellable` una regla de dominio. `AddOrderLineInput` (`orderId`, `sku`, `quantity` como primitivos) y `AddOrderLineCommand` (`OrderId`, `Sku`, `Quantity`) siguen el patrón de `CancelOrder`. Nunca se reintenta con el agregado ya cargado, y un caso de uso nunca se llama a sí mismo ni a otro para reintentar.
 
 ## Errores
 
@@ -216,7 +211,7 @@ La identidad del solicitante sale del token (`request.auth`), nunca del cuerpo.
 
 ## Tests
 
-Con los adaptadores en memoria del paquete: `InMemoryRepository(AggregateMapper.of(Order))`, `InMemoryTransactionRunner([orders])` (deshace los cambios del repositorio si el trabajo lanza; `committed` y `rolledBack` cuentan los resultados) y `DomainEventBus` sobre `InMemoryEventChannel` (`channel.sent` lista lo publicado). Los puertos propios se sustituyen por objetos simples.
+Con los adaptadores en memoria del paquete: `InMemoryRepository(AggregateMapper.of(Order))` (cada `save` y `remove` es atómico y comprueba la versión) y `DomainEventBus` sobre `InMemoryEventChannel` (`channel.sent` lista lo publicado). Los puertos propios se sustituyen por objetos simples.
 
 ```ts
 import { describe, expect, it } from 'vitest';
@@ -228,18 +223,16 @@ import {
   FixedClock,
   InMemoryEventChannel,
   InMemoryRepository,
-  InMemoryTransactionRunner,
 } from '@archi-code/ddd/infrastructure';
 
 const clock = new FixedClock('2026-03-01T09:30:00Z');
 
 function salesWith(permissions: SalesPermissions) {
   const orders = new InMemoryRepository(AggregateMapper.of(Order));
-  const transactions = new InMemoryTransactionRunner([orders]);
   const channel = new InMemoryEventChannel();
   const events = new DomainEventBus<OrderEvent>(channel, new EventRegistry<OrderEvent>());
-  const cancelOrder = new CancelOrder(orders, events, transactions, permissions, clock);
-  return { orders, transactions, channel, cancelOrder };
+  const cancelOrder = new CancelOrder(orders, events, permissions, clock);
+  return { orders, channel, cancelOrder };
 }
 
 const everyoneMayCancel: SalesPermissions = { canCancelOrders: async () => true };
@@ -258,14 +251,13 @@ describe('Cancelling an order', () => {
   });
 
   it('a customer whose account may not cancel orders is refused', async () => {
-    const { orders, transactions, channel, cancelOrder } = salesWith(nobodyMayCancel);
+    const { orders, channel, cancelOrder } = salesWith(nobodyMayCancel);
     await orders.save(aPendingOrderOf(laura));
 
     await expect(
       cancelOrder.execute({ orderId, requesterId: laura, reason: 'Wrong size' }),
     ).rejects.toThrow(NotAllowedException);
     expect(channel.sent).toEqual([]);
-    expect(transactions.rolledBack).toBe(1);
   });
 });
 ```

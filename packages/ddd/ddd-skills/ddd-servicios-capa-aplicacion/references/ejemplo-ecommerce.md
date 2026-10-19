@@ -126,7 +126,7 @@ export class OrderCancellation {
 import { ValueObjects } from '@archi-code/ddd/domain';
 import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
 import { UseCase } from '@archi-code/ddd/application';
-import type { Clock, EventBus, TransactionRunner } from '@archi-code/ddd/application';
+import type { Clock, EventBus } from '@archi-code/ddd/application';
 import { AggregateNotFoundException } from '@archi-code/ddd/exceptions';
 
 export interface PlaceOrderInput {
@@ -147,7 +147,6 @@ export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, stri
     private readonly orders: AggregateSaver<Order>,
     private readonly pricing: ProductPricing,
     private readonly events: EventBus<OrderEvent>,
-    private readonly transactions: TransactionRunner,
     private readonly clock: Clock,
   ) {
     super();
@@ -182,23 +181,21 @@ export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, stri
       }),
     );
     const lines = new OrderLines({ items });
-    return this.transactions.run(async () => {
-      const order = customer.placeOrder(
-        OrderId.generate(),
-        lines,
-        command.shippingAddress,
-        this.clock,
-      );
-      await this.orders.save(order);
-      await this.events.publish(order.pullDomainEvents());
-      return order.id.value;
-    });
+    const order = customer.placeOrder(
+      OrderId.generate(),
+      lines,
+      command.shippingAddress,
+      this.clock,
+    );
+    await this.orders.save(order);
+    await this.events.publish(order.pullDomainEvents());
+    return order.id.value;
   }
 }
 ```
 
 * Las lecturas de otros agregados y contextos (`Customer`, precios) van antes de invocar al dominio [IDDD cap. 10].
-* `Customer` actúa como fábrica (comprueba que no está bloqueado) pero no se modifica ni se guarda: el caso de uso pide `AggregateFinder<Customer>` y `AggregateSaver<Order>`, y solo se guarda `Order`: una transacción, un agregado.
+* `Customer` actúa como fábrica (comprueba que no está bloqueado) pero no se modifica ni se guarda: el caso de uso pide `AggregateFinder<Customer>` y `AggregateSaver<Order>`, y solo se guarda `Order`: una escritura atómica, un agregado; que esa escritura sea atómica lo garantiza el repositorio, no el caso de uso `[Fuera de los libros: convención de @archi-code/ddd]`.
 * El id nuevo sale del value object (`OrderId.generate()`), no del repositorio.
 * `toCommand` informa de todos los campos a la vez, también los de cada línea (`lines.0.quantity`).
 
@@ -212,7 +209,7 @@ Una reacción a un evento es un listener `<Acción>On<Evento>`, decorado con `@L
 import { EventBase, ValueObjects } from '@archi-code/ddd/domain';
 import type { AggregateFinder, AggregateSaver, EventMetadata } from '@archi-code/ddd/domain';
 import { EventListener, ListensTo, UseCase } from '@archi-code/ddd/application';
-import type { Clock, EventBus, TransactionRunner } from '@archi-code/ddd/application';
+import type { Clock, EventBus } from '@archi-code/ddd/application';
 
 export class StockReserved extends EventBase {
   static readonly eventName = 'StockReserved';
@@ -244,7 +241,6 @@ export class RegisterReservation extends UseCase<
   constructor(
     private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
     private readonly events: EventBus<OrderEvent>,
-    private readonly transactions: TransactionRunner,
     private readonly clock: Clock,
   ) {
     super();
@@ -257,16 +253,14 @@ export class RegisterReservation extends UseCase<
     });
   }
 
-  protected handle(command: RegisterReservationCommand): Promise<void> {
-    return this.transactions.run(async () => {
-      const order = await this.orders.findById(command.orderId);
-      if (order === null) {
-        return;
-      }
-      order.registerStockReservation(command.reservationId, this.clock);
-      await this.orders.save(order);
-      await this.events.publish(order.pullDomainEvents());
-    });
+  protected async handle(command: RegisterReservationCommand): Promise<void> {
+    const order = await this.orders.findById(command.orderId);
+    if (order === null) {
+      return;
+    }
+    order.registerStockReservation(command.reservationId, this.clock);
+    await this.orders.save(order);
+    await this.events.publish(order.pullDomainEvents());
   }
 }
 
@@ -298,7 +292,6 @@ import {
   FixedClock,
   InMemoryEventChannel,
   InMemoryRepository,
-  InMemoryTransactionRunner,
 } from '@archi-code/ddd/infrastructure';
 
 const clock = new FixedClock('2026-03-01T09:30:00Z');
@@ -307,7 +300,6 @@ const reservationId = '0f1e2d3c-4b5a-4968-8776-655443322110';
 describe('Registering the stock reservation of an order', () => {
   it('the order keeps the reservation the warehouse made, also when it is delivered twice', async () => {
     const orders = new InMemoryRepository(AggregateMapper.of(Order));
-    const transactions = new InMemoryTransactionRunner([orders]);
     const registry = new EventRegistry<StockReserved>().register(
       StockReserved,
       (json) => new StockReserved(json.aggregateId, json.orderId as string, json),
@@ -317,7 +309,7 @@ describe('Registering the stock reservation of an order', () => {
     const sales = new DomainEventBus<OrderEvent>(channel, new EventRegistry<OrderEvent>());
     await bus.subscribe(
       new RegisterReservationOnStockReserved(
-        new RegisterReservation(orders, sales, transactions, clock),
+        new RegisterReservation(orders, sales, clock),
       ),
     );
     await orders.save(aPendingOrderOf(laura));

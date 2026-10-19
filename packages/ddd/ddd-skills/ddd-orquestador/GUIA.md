@@ -20,7 +20,7 @@ Lee el `GUIA.md` correspondiente antes de escribir o revisar el código y despu�
 | Valor o entidad, ids, primitivos, validación, Specification | `ddd-skills/ddd-value-objects-entidades/GUIA.md` |
 | Qué va junto, invariantes, transacciones, concurrencia, fábricas | `ddd-skills/ddd-agregados/GUIA.md` |
 | Eventos, mensajería, outbox, idempotencia, versiones | `ddd-skills/ddd-eventos-dominio/GUIA.md` |
-| Cargar y guardar agregados, mappers, transacciones, tests de repositorio | `ddd-skills/ddd-repositorios-persistencia/GUIA.md` |
+| Cargar y guardar agregados, mappers, transacciones (son del repositorio), tests de repositorio | `ddd-skills/ddd-repositorios-persistencia/GUIA.md` |
 | Servicios de dominio, casos de uso, dónde va la lógica, autorización | `ddd-skills/ddd-servicios-capa-aplicacion/GUIA.md` |
 | Historial completo, read models, CQRS, Event Sourcing | `ddd-skills/ddd-event-sourcing-cqrs/GUIA.md` |
 | Revisar o migrar código existente | `ddd-skills/ddd-auditoria-refactorizacion/GUIA.md` |

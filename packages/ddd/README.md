@@ -2,12 +2,12 @@
 
 Domain-Driven Design building blocks for TypeScript, one entry point per layer:
 
-| Entry point                      | Layer          | What it gives you                                                                                                                                                                                               |
-| -------------------------------- | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@archi-code/ddd/exceptions`     | Shared         | Exceptions of every layer with codes, causes and `instanceof` across builds                                                                                                                                     |
-| `@archi-code/ddd/domain`         | Domain         | Value objects, `Required(...)`, `Composite(...)`, `Immutable`, `Entity`, `AggregateRoot`, `EventBase`, `Specification` and the repository contracts (`AggregateFinder`, `AggregateSaver`, `AggregateRemover`)   |
-| `@archi-code/ddd/application`    | Application    | `UseCase`, the event contract (`EventListener`, `@ListensTo` to listen, `EventBus` to publish) and the ports `Clock`, `TransactionRunner` and `Logger`                                                          |
-| `@archi-code/ddd/infrastructure` | Infrastructure | `InMemoryRepository`, `AggregateMapper`, the event wiring (`DomainEventBus`, `EventRegistry`, the `EventChannel` port, `InMemoryEventChannel`), `InMemoryTransactionRunner`, `HttpErrorMapper`, clocks, loggers |
+| Entry point                      | Layer          | What it gives you                                                                                                                                                                                             |
+| -------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@archi-code/ddd/exceptions`     | Shared         | Exceptions of every layer with codes, causes and `instanceof` across builds                                                                                                                                   |
+| `@archi-code/ddd/domain`         | Domain         | Value objects, `Required(...)`, `Composite(...)`, `Immutable`, `Entity`, `AggregateRoot`, `EventBase`, `Specification` and the repository contracts (`AggregateFinder`, `AggregateSaver`, `AggregateRemover`) |
+| `@archi-code/ddd/application`    | Application    | `UseCase`, the event contract (`EventListener`, `@ListensTo` to listen, `EventBus` to publish) and the ports `Clock` and `Logger`                                                                             |
+| `@archi-code/ddd/infrastructure` | Infrastructure | `InMemoryRepository`, `AggregateMapper`, the event wiring (`DomainEventBus`, `EventRegistry`, the `EventChannel` port, `InMemoryEventChannel`), `HttpErrorMapper`, clocks, loggers                            |
 
 The layers only depend inwards: `exceptions` imports nothing, `domain` imports only `exceptions`,
 `application` imports `domain` and `exceptions`, and `infrastructure` imports all three. The
@@ -74,25 +74,25 @@ library built on this package): the exceptions of one build are `instanceof` the
 Every class of a project built on this package goes in exactly one layer. The table says where,
 what it may import and what it must never do; the package itself is organized the same way.
 
-| Class                                                                                               | Layer          | Responsibility                                                                                     | May depend on                                                                 | Never                                                                        |
-| --------------------------------------------------------------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| Value object (`extends StringType`…)                                                                | domain         | One concept of the business; converts and validates its own value                                  | other value objects, `@archi-code/validation`, exceptions                     | mutate, know about storage or transport                                      |
-| Aggregate (`extends AggregateRoot`)                                                                 | domain         | Business rules and invariants; records an event for every fact                                     | its value objects, child entities, events, domain services, domain ports      | read a repository, publish events, use `new Date()`                          |
-| Composite value object (`Composite({...})`)                                                         | domain         | Several values that only make sense together (money, a date range, an order line)                  | value objects, other composites                                               | change, hold an id, be loaded or saved on its own                            |
-| Child entity (`extends Entity`)                                                                     | domain         | A part of an aggregate with its own id; value objects and business methods only the root calls     | value objects                                                                 | setters, be called from outside its aggregate, be loaded or saved on its own |
-| Specification (`extends Specification`)                                                             | domain         | A named business rule that validates, selects or builds; combinable                                | value objects, aggregates, data already loaded                                | read a repository, protect an aggregate invariant                            |
-| Domain event (`extends EventBase`)                                                                  | domain         | A fact that happened, named in the past (`OrderPlaced`, `'OrderPlaced'`), with primitive data      | value objects (to take its primitives from them)                              | carry behavior or value objects, reference infrastructure                    |
-| Repository contract (`AggregateFinder`…)                                                            | domain         | Only gets and persists aggregates, one role per interface; no business logic                       | the aggregate                                                                 | be implemented in the domain, hold rules, answer business queries            |
-| Domain service                                                                                      | domain         | A business rule that spans several aggregates or fits none                                         | aggregates, value objects, `AggregateFinder` (to read), domain ports          | I/O, saving, transactions, publishing                                        |
-| Domain port (`ProductPricing`)                                                                      | domain         | What the model needs from another context or an external service, in its own words                 | value objects of this context                                                 | contain code, expose the other system's model                                |
-| Use case (`extends UseCase`)                                                                        | application    | One business action: input → command of value objects → change one aggregate                       | domain, application ports, exceptions                                         | import another use case or a listener, persist or call the network by itself |
-| Listener (`extends EventListener`)                                                                  | application    | What happens after an event: turns it into the input of one use case; lives next to that use case  | one use case (by constructor), the event                                      | hold business rules, save aggregates, call several use cases                 |
-| Application port (`EventBus`, `Clock`, `TransactionRunner`, `Logger`, your own such as `Warehouse`) | application    | A technical capability the application needs, as a type                                            | domain types                                                                  | contain code                                                                 |
-| Read query (`OrderSummaries`)                                                                       | application    | An interface that answers a screen or a list with DTOs or ids, outside the aggregates              | domain types, DTOs                                                            | load aggregates, go through a repository, change data                        |
-| Adapter (repository, outbox, read query, clock…)                                                    | infrastructure | Implements a contract with a database, a queue, a broker, HTTP or memory                           | domain, application, exceptions, drivers                                      | contain business rules                                                       |
-| Anti-corruption layer (adapter + translator)                                                        | infrastructure | Implements a domain port by calling another context or service and translating its model into ours | domain, application, exceptions, clients                                      | leak the other model into the domain, hold business rules                    |
-| Entry point (controller, message consumer, CLI)                                                     | interfaces     | Turns HTTP, a message or a command line into the input of a use case, and back                     | application, exceptions, `HttpErrorMapper` (domain types only if unavoidable) | hold business rules, use a repository or another adapter directly            |
-| Composition root (`composition.ts`)                                                                 | (per context)  | Reads the configuration, builds adapters, use cases and entry points                               | everything                                                                    | be imported by the domain, the application or the interfaces                 |
+| Class                                                                          | Layer          | Responsibility                                                                                     | May depend on                                                                 | Never                                                                        |
+| ------------------------------------------------------------------------------ | -------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Value object (`extends StringType`…)                                           | domain         | One concept of the business; converts and validates its own value                                  | other value objects, `@archi-code/validation`, exceptions                     | mutate, know about storage or transport                                      |
+| Aggregate (`extends AggregateRoot`)                                            | domain         | Business rules and invariants; records an event for every fact                                     | its value objects, child entities, events, domain services, domain ports      | read a repository, publish events, use `new Date()`                          |
+| Composite value object (`Composite({...})`)                                    | domain         | Several values that only make sense together (money, a date range, an order line)                  | value objects, other composites                                               | change, hold an id, be loaded or saved on its own                            |
+| Child entity (`extends Entity`)                                                | domain         | A part of an aggregate with its own id; value objects and business methods only the root calls     | value objects                                                                 | setters, be called from outside its aggregate, be loaded or saved on its own |
+| Specification (`extends Specification`)                                        | domain         | A named business rule that validates, selects or builds; combinable                                | value objects, aggregates, data already loaded                                | read a repository, protect an aggregate invariant                            |
+| Domain event (`extends EventBase`)                                             | domain         | A fact that happened, named in the past (`OrderPlaced`, `'OrderPlaced'`), with primitive data      | value objects (to take its primitives from them)                              | carry behavior or value objects, reference infrastructure                    |
+| Repository contract (`AggregateFinder`…)                                       | domain         | Only gets and persists aggregates, one role per interface; no business logic                       | the aggregate                                                                 | be implemented in the domain, hold rules, answer business queries            |
+| Domain service                                                                 | domain         | A business rule that spans several aggregates or fits none                                         | aggregates, value objects, `AggregateFinder` (to read), domain ports          | I/O, saving, transactions, publishing                                        |
+| Domain port (`ProductPricing`)                                                 | domain         | What the model needs from another context or an external service, in its own words                 | value objects of this context                                                 | contain code, expose the other system's model                                |
+| Use case (`extends UseCase`)                                                   | application    | One business action: input → command of value objects → change one aggregate                       | domain, application ports, exceptions                                         | import another use case or a listener, persist or call the network by itself |
+| Listener (`extends EventListener`)                                             | application    | What happens after an event: turns it into the input of one use case; lives next to that use case  | one use case (by constructor), the event                                      | hold business rules, save aggregates, call several use cases                 |
+| Application port (`EventBus`, `Clock`, `Logger`, your own such as `Warehouse`) | application    | A technical capability the application needs, as a type                                            | domain types                                                                  | contain code                                                                 |
+| Read query (`OrderSummaries`)                                                  | application    | An interface that answers a screen or a list with DTOs or ids, outside the aggregates              | domain types, DTOs                                                            | load aggregates, go through a repository, change data                        |
+| Adapter (repository, outbox, read query, clock…)                               | infrastructure | Implements a contract with a database, a queue, a broker, HTTP or memory                           | domain, application, exceptions, drivers                                      | contain business rules                                                       |
+| Anti-corruption layer (adapter + translator)                                   | infrastructure | Implements a domain port by calling another context or service and translating its model into ours | domain, application, exceptions, clients                                      | leak the other model into the domain, hold business rules                    |
+| Entry point (controller, message consumer, CLI)                                | interfaces     | Turns HTTP, a message or a command line into the input of a use case, and back                     | application, exceptions, `HttpErrorMapper` (domain types only if unavoidable) | hold business rules, use a repository or another adapter directly            |
+| Composition root (`composition.ts`)                                            | (per context)  | Reads the configuration, builds adapters, use cases and entry points                               | everything                                                                    | be imported by the domain, the application or the interfaces                 |
 
 Dependencies only point inwards. Your domain imports only `@archi-code/ddd/domain`,
 `@archi-code/ddd/exceptions` and `@archi-code/validation`; the application adds
@@ -1059,12 +1059,10 @@ repository follows the same contract:
 The version lives next to the primitives (a `version` column or field), never inside them. After a
 `ConcurrencyException`, either tell the user that someone else changed it, or run the command
 again, which loads the aggregate again. The use case may retry by itself when its command is safe
-to repeat against the new state [IDDD ch. 10; IDDD appendix A]: each attempt is a whole new
-`transactions.run` that loads the aggregate again, written in `handle` (there is no helper), and
-it never calls another use case. That holds only when `handle` is not already inside another
-`run`: a nested run joins the outer transaction, so a use case run inside another transaction
-does not retry; it lets the conflict propagate and the caller (or the channel's redelivery) tries
-again:
+to repeat against the new state [IDDD ch. 10; IDDD appendix A]: each attempt loads the aggregate
+again and saves it again, written in `handle` (there is no helper), and it never calls another use
+case. A use case run by a listener does not retry by itself: it lets the conflict propagate and the
+channel's redelivery tries again:
 
 ```ts
 import { UseCase } from '@archi-code/ddd/application';
@@ -1083,22 +1081,20 @@ interface AddOrderLineCommand {
 }
 
 class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand, void> {
-  // constructor (orders, events, transactions, clock) as in "Transactions";
+  // constructor (orders, events, clock) as in "Persistence belongs to the repository";
   // toCommand builds orderId, sku and quantity with ValueObjects.build;
   // Order, OrderLine, Sku and Quantity as in "Persisting aggregates with AggregateMapper"
 
   protected async handle(command: AddOrderLineCommand): Promise<void> {
     for (let attempt = 1; ; attempt += 1) {
       try {
-        return await this.transactions.run(async () => {
-          const order = await this.orders.findById(command.orderId);
-          if (order === null) {
-            throw new AggregateNotFoundException('Order', command.orderId.value);
-          }
-          order.addLine(new OrderLine({ sku: command.sku, quantity: command.quantity }));
-          await this.orders.save(order);
-          await this.events.publish(order.pullDomainEvents());
-        });
+        const order = await this.orders.findById(command.orderId);
+        if (order === null) {
+          throw new AggregateNotFoundException('Order', command.orderId.value);
+        }
+        order.addLine(new OrderLine({ sku: command.sku, quantity: command.quantity }));
+        await this.orders.save(order);
+        return await this.events.publish(order.pullDomainEvents());
       } catch (error) {
         if (!(error instanceof ConcurrencyException) || attempt === 3) {
           throw error;
@@ -1111,8 +1107,6 @@ class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand, void>
 
 A command that is not safe to repeat (it would charge twice, or the user decided on data that
 changed) does not retry: the `ConcurrencyException` reaches the entry point (HTTP 409).
-
-If a transaction is rolled back after `markPersisted()`, discard the object and load it again.
 
 ```ts
 import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
@@ -1249,8 +1243,8 @@ order:
    `ValidationException` listing every field, and `handle` never runs.
 2. `protected handle(command: Command)` (sync or async) coordinates the action with value objects
    only: load the aggregate, call its business method, save it, publish
-   `aggregate.pullDomainEvents()`. When the project uses transactions, these steps go inside
-   `transactions.run(...)` (see [Transactions](#transactions)).
+   `aggregate.pullDomainEvents()`. It never opens a transaction: each write is made atomic by the
+   repository (see [Persistence belongs to the repository](#persistence-belongs-to-the-repository)).
 
 Errors of both steps are treated the same way:
 
@@ -1751,11 +1745,6 @@ interface Clock {
   now(): Date;
 }
 
-interface TransactionRunner {
-  run<Result>(work: () => Promise<Result>): Promise<Result>;
-  inTransaction(): boolean;
-}
-
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 type LogContext = Readonly<Record<string, unknown>>;
 
@@ -1767,10 +1756,8 @@ interface Logger {
 }
 ```
 
-`inTransaction()` tells whether the calling code runs inside an open `run` (a database adapter
-answers it from the same `AsyncLocalStorage` it uses to share the connection). The books' runner
-also exposes `current()`, the connection of the open transaction; here that stays inside your
-adapter. How a transaction is opened is decided in infrastructure.
+There is no transaction port: transactions are a persistence concern, and persistence belongs to
+the repository (see [Persistence belongs to the repository](#persistence-belongs-to-the-repository)).
 
 `Logger` is the contract any logging library implements: four levels, each taking a stable
 message and an optional structured context. `console` and winston already have this shape; pino
@@ -1778,20 +1765,20 @@ message and an optional structured context. `console` and winston already have t
 by constructor, like any port; the domain never logs (it records events or throws). See
 [Logging](#logging) for the providers this package ships and where it logs on its own.
 
-## Transactions
+## Persistence belongs to the repository
 
-A use case changes one aggregate in one transaction [IDDD ch. 8 and 10]: it wraps load, change,
-save and publish in `transactions.run`:
+A use case changes one aggregate and saves it once [IDDD ch. 10]. It never opens, joins nor closes
+a transaction, and receives no transaction port: it loads, calls the business method, saves and
+publishes.
 
 ```ts
 import { UseCase } from '@archi-code/ddd/application';
-import type { Clock, EventBus, TransactionRunner } from '@archi-code/ddd/application';
+import type { Clock, EventBus } from '@archi-code/ddd/application';
 
 class ShipOrder extends UseCase<{ orderId: string }, OrderId, void> {
   constructor(
     private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
     private readonly events: EventBus<OrderEvent>,
-    private readonly transactions: TransactionRunner,
     private readonly clock: Clock,
   ) {
     super();
@@ -1801,36 +1788,37 @@ class ShipOrder extends UseCase<{ orderId: string }, OrderId, void> {
     return new OrderId(input.orderId);
   }
 
-  protected handle(orderId: OrderId): Promise<void> {
-    return this.transactions.run(async () => {
-      const order = await this.orders.findById(orderId);
-      if (order === null) {
-        throw new AggregateNotFoundException('Order', orderId.value);
-      }
-      order.ship(this.clock);
-      await this.orders.save(order);
-      await this.events.publish(order.pullDomainEvents());
-    });
+  protected async handle(orderId: OrderId): Promise<void> {
+    const order = await this.orders.findById(orderId);
+    if (order === null) {
+      throw new AggregateNotFoundException('Order', orderId.value);
+    }
+    order.ship(this.clock);
+    await this.orders.save(order);
+    await this.events.publish(order.pullDomainEvents());
   }
 }
 ```
 
-- **`InMemoryTransactionRunner(participants)`** takes a snapshot of each participant
-  (`InMemoryRepository` or anything with `snapshot(): () => void`) when a transaction starts and
-  restores them, in reverse order, if the work throws; `committed` and `rolledBack` count the
-  outcomes, and `inTransaction()` tells whether a `run` is open. A `run` inside another (in the
-  same async flow, tracked with `AsyncLocalStorage`) joins it; runs that overlap in time (two
-  `execute` calls not awaited one after the other) wait their turn, so each one commits or rolls
-  back only its own work. It is meant for tests and prototypes. After a rollback, discard the
-  aggregates you held: their version already moved. A nested `run` joins only when it starts in
-  the same async flow: a work that awaits a `run` started from a detached context (a callback
-  bound with `AsyncResource.bind`, a handler of another event loop resource) waits for itself and
-  never ends.
-- **Events and the commit**: the in-memory channel delivers as soon as `publish` is called, inside
-  the transaction. When the events must be stored in the same transaction as the aggregate and
-  delivered only after the commit [Destilado ch. 6; IDDD ch. 8], implement a durable channel (an
-  outbox table written in the transaction of the runner, relayed after the commit) behind the same
-  `EventChannel` port; use cases do not change.
+The repository is responsible for the transaction and for everything else about persistence:
+
+- **Atomic writes**: each `save` and `remove` writes the whole aggregate or nothing. One document
+  per aggregate is one atomic write; an aggregate spread over several tables is written inside a
+  database transaction that the repository opens and commits (or rolls back) within `save` itself,
+  with its own connection.
+- **Concurrency**: it checks the stored version and throws `ConcurrencyException` (see
+  [Optimistic concurrency](#optimistic-concurrency)), calls `markPersisted()` after a write and
+  passes the stored version to `mapper.fromPrimitives(row, version)` on load.
+- **Connections and errors**: pools, sessions and driver retries stay inside the adapter, and driver
+  errors are wrapped in `InternalErrorException` with `{ cause }`.
+- **Events that must not be lost**: `publish` runs after `save`, so a failure in between loses the
+  events. When that matters, the repository writes the pending events in the same atomic write as
+  the aggregate (an outbox in the same document or in the same database transaction of `save`) and
+  a relay delivers them through an `EventChannel` [Destilado ch. 6; IDDD ch. 8]; use cases do not
+  change.
+
+`InMemoryRepository` follows the same contract for tests and prototypes: every `save` and `remove`
+is applied whole or not at all.
 
 ## Event Sourcing and CQRS: only for a concrete risk
 
@@ -1864,7 +1852,6 @@ Ready adapters for tests, prototypes and the edges of an API:
 | `ConsoleLogger({ level?, clock? }?)`            | `Logger` that writes one JSON line per entry from `level` up (`info` by default)                                        |
 | `InMemoryLogger`, `SilentLogger`                | `Logger` that keeps `entries` for tests, and one that writes nothing (the default of every piece that logs)             |
 | `SystemClock`, `FixedClock(at)`                 | `Clock` with the real time, and a test clock with `set(at)` and `advance(ms)`                                           |
-| `InMemoryTransactionRunner(participants?)`      | `TransactionRunner` that restores its participants when the work throws; `committed`, `rolledBack`, `inTransaction()`   |
 
 `InMemoryRepository` follows the [optimistic concurrency](#optimistic-concurrency) contract like a
 real adapter: it stores a copy of the primitives with their version, rejects a stale save (or a new
@@ -2558,27 +2545,27 @@ await new RegisterUser(users, bus, clock)
 
 `@archi-code/ddd/application`:
 
-| Export                                 | Kind                             |
-| -------------------------------------- | -------------------------------- |
-| `UseCase`, `EventListener`             | abstract classes                 |
-| `ListensTo`                            | decorator                        |
-| `ListensToOptions`                     | type (`{ consumer }`)            |
-| `ListenerSubscription`                 | type (`{ eventName, consumer }`) |
-| `EventBus`                             | type (event port)                |
-| `Clock`, `TransactionRunner`, `Logger` | types (ports)                    |
-| `LogLevel`, `LogContext`               | types (logger port)              |
+| Export                     | Kind                             |
+| -------------------------- | -------------------------------- |
+| `UseCase`, `EventListener` | abstract classes                 |
+| `ListensTo`                | decorator                        |
+| `ListensToOptions`         | type (`{ consumer }`)            |
+| `ListenerSubscription`     | type (`{ eventName, consumer }`) |
+| `EventBus`                 | type (event port)                |
+| `Clock`, `Logger`          | types (ports)                    |
+| `LogLevel`, `LogContext`   | types (logger port)              |
 
 `@archi-code/ddd/infrastructure`:
 
-| Export                                                                                                                                       | Kind                   |
-| -------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
-| `InMemoryRepository`, `AggregateMapper`, `InMemoryEventChannel`, `InMemoryTransactionRunner`, `HttpErrorMapper`, `SystemClock`, `FixedClock` | classes                |
-| `ConsoleLogger`, `InMemoryLogger`, `SilentLogger`                                                                                            | classes (loggers)      |
-| `DomainEventBus`, `EventRegistry`                                                                                                            | classes (event wiring) |
-| `EventChannel`, `ChannelHandler`, `ChannelSubscription`                                                                                      | types (channel port)   |
-| `Subscription`, `EventFactory`                                                                                                               | types                  |
-| `AggregateClass`, `HttpError`, `HttpErrorBody`, `TransactionParticipant`, `InMemoryEventChannelOptions`                                      | types                  |
-| `HttpErrorMapperOptions`, `ConsoleLoggerOptions`, `LogEntry`                                                                                 | types                  |
+| Export                                                                                                          | Kind                   |
+| --------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| `InMemoryRepository`, `AggregateMapper`, `InMemoryEventChannel`, `HttpErrorMapper`, `SystemClock`, `FixedClock` | classes                |
+| `ConsoleLogger`, `InMemoryLogger`, `SilentLogger`                                                               | classes (loggers)      |
+| `DomainEventBus`, `EventRegistry`                                                                               | classes (event wiring) |
+| `EventChannel`, `ChannelHandler`, `ChannelSubscription`                                                         | types (channel port)   |
+| `Subscription`, `EventFactory`                                                                                  | types                  |
+| `AggregateClass`, `HttpError`, `HttpErrorBody`, `InMemoryEventChannelOptions`                                   | types                  |
+| `HttpErrorMapperOptions`, `ConsoleLoggerOptions`, `LogEntry`                                                    | types                  |
 
 ## AI assistant skill
 

@@ -13,7 +13,6 @@ import type {
   InMemoryEventChannelOptions,
   LogEntry,
   Subscription,
-  TransactionParticipant,
 } from '../../src/infrastructure/index';
 import { AggregateRoot } from '../../src/domain/index';
 import type { EventBase, SerializedEvent } from '../../src/domain/index';
@@ -34,7 +33,6 @@ const PUBLIC_API = [
   'InMemoryEventChannel',
   'InMemoryLogger',
   'InMemoryRepository',
-  'InMemoryTransactionRunner',
   'SilentLogger',
   'SystemClock',
 ];
@@ -76,7 +74,6 @@ describe('@archi-code/ddd/infrastructure', () => {
       errors?: readonly ValidationIssue[];
     }>();
     expectTypeOf<HttpError>().toEqualTypeOf<{ status: number; body: HttpErrorBody }>();
-    expectTypeOf<TransactionParticipant>().toEqualTypeOf<{ snapshot(): () => void }>();
     expectTypeOf<EventChannel['send']>().toEqualTypeOf<
       (events: readonly SerializedEvent[]) => Promise<void>
     >();

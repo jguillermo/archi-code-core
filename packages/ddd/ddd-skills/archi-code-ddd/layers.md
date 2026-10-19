@@ -128,11 +128,10 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   where the stored version still equals `aggregate.version`, or throws `ConcurrencyException`
   (someone changed or removed it after it was loaded) [IDDD ch. 10].
   After a conflict, the use case may repeat its own work when the command is safe against the new
-  state [IDDD ch. 10; IDDD appendix A]: a loop in `handle` around the whole `transactions.run`, so
-  each attempt is a new transaction that loads the aggregate again (a few attempts, then rethrow);
-  otherwise the conflict reaches the user (409). A nested `run` joins the outer transaction, so a
-  use case run inside another transaction does not retry: the caller or the channel's redelivery
-  tries again.
+  state [IDDD ch. 10; IDDD appendix A]: a loop in `handle` where each attempt loads the aggregate
+  again and saves it again (a few attempts, then rethrow); otherwise the conflict reaches the user
+  (409). A use case run by a listener does not retry by itself: the channel's redelivery tries
+  again.
 - `record(event)` is `protected` and deep-freezes the event (facts never change [IDDD ch. 8]); `pullDomainEvents()` returns the events (typed `Event[]`) in order
   and empties the list. Pull them after persisting, to publish. `DomainEventBus.publish` does not freeze
   them again: it only sends the `toJSON()` of each event to the channel.
@@ -189,15 +188,14 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   (`remove`), combined with `&` when it needs several. There is no all-in-one `Repository` port:
   an adapter implements each role it supports.
 - Use cases extend `UseCase<Input, Command, Output>`, receive ports by constructor
-  (`AggregateSaver<Order>`, `EventBus<OrderEvent>`, `TransactionRunner`, `Clock`) and are called
+  (`AggregateSaver<Order>`, `EventBus<OrderEvent>`, `Clock`) and are called
   with `execute(input)`.
   They implement two steps: `protected toCommand(input)` builds the value objects with
   `ValueObjects.build` and returns the command (a small interface of value objects, or one value
   object built with `new`); `protected handle(command)` works only with value objects. `UseCase` has no helpers:
   write every step in `handle` (load with `findById` and throw `AggregateNotFoundException` when it
   is `null` — or return, in a use case a listener runs —, change the aggregate, `save`, then
-  `publish(aggregate.pullDomainEvents())`), all of
-  them inside `transactions.run(async () => …)` when the project has transactions. Let errors
+  `publish(aggregate.pullDomainEvents())`); it never opens a transaction. Let errors
   propagate: `execute` keeps package exceptions and wraps any other error (also from `toCommand`)
   in `InternalErrorException` with `cause`.
 - A use case never imports nor calls another use case, and **returns an id, a DTO or nothing**,
@@ -224,13 +222,15 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   `Required(NumberType)` with `isInt`), never a decimal amount; it is exact up to
   `Number.MAX_SAFE_INTEGER` cents (the books use `bigint`, `[Fuera de los libros: convención de
   @archi-code/ddd]`); rounding is explicit.
-- **Transactions belong to the application** [IDDD ch. 12]: the use case opens the transaction
-  with the `TransactionRunner` port (`run(work)`; a nested run joins the outer one;
-  `inTransaction()` tells whether one is open) and publishes inside it. Neither the domain nor a
-  repository opens a transaction. The in-memory channel delivers as soon as `publish` is called;
-  when events must be stored with the aggregate and delivered after the commit [Destilado ch. 6;
-  IDDD ch. 8], implement a durable `EventChannel` (an outbox table written in the runner's
-  transaction and relayed after the commit): use cases do not change.
+- **The repository owns the transaction and everything about persistence** (`[Fuera de los
+  libros: convención de @archi-code/ddd]`; IDDD ch. 14 gives it to the application service): there
+  is no transaction port, and neither the domain nor the application opens, joins or closes a
+  transaction. Each `save`/`remove` is atomic: one document per aggregate is one write; an
+  aggregate over several tables is written in a database transaction the repository opens and
+  commits inside `save`. The repository also checks the version, manages connections and sessions
+  and wraps driver errors. When events must not be lost between `save` and `publish` [Destilado
+  ch. 6; IDDD ch. 8], the repository stores them in the same atomic write (an outbox) and a relay
+  delivers them through an `EventChannel`: use cases do not change.
 - **Events have a schema version** (`static readonly eventVersion = 2` when their data changes
   incompatibly; 1 by default, written in `toJSON()`); an `EventRegistry` factory reads older
   stored versions from `json.eventVersion`.
@@ -264,9 +264,8 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   `new DomainEventBus(channel, registry, logger)` (listener failures, subscriptions, what was
   published) and `new HttpErrorMapper({ statusByCode, logger })` (5xx as `error`, 4xx at `debug`):
   each error is logged once, where it is handled, never logged and rethrown in every layer.
-- Tests use `InMemoryTransactionRunner([repository])` (restores it when the work throws;
-  `committed`/`rolledBack`; a run inside another joins it, and runs that overlap in time wait
-  their turn) and `new DomainEventBus(new InMemoryEventChannel(), registry)` (`channel.sent` lists
+- Tests use `InMemoryRepository(AggregateMapper.of(Order))` and
+  `new DomainEventBus(new InMemoryEventChannel(), registry)` (`channel.sent` lists
   what was published; `{ delivery: 'parallel' }` runs the listeners of an event together).
 - Listeners extend `EventListener<Event>`, are decorated with `@ListensTo(EventClass, { consumer })`
   (one event per listener, any number of listeners per event; `consumer` is a stable name, unique

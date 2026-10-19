@@ -10,7 +10,7 @@
 * Nada de cadenas de peticiones síncronas bloqueantes entre contextos [Destilado cap. 4].
 
 ## Arquitectura
-* Dominio libre de tecnología; transacciones en la capa de aplicación [Destilado cap. 2; IDDD cap. 12].
+* Dominio libre de tecnología; los libros ponen las transacciones en la capa de aplicación [Destilado cap. 2; IDDD cap. 12]. Con el paquete, la transacción y todo lo de persistencia son del adaptador del repositorio; la aplicación no abre, une ni cierra transacciones `[Fuera de los libros: convención de @archi-code/ddd]`.
 * Hexagonal con inversión de dependencias [IDDD cap. 4].
 * Servicios de aplicación finos [IDDD cap. 4 y cap. 14].
 * No exponer el modelo directamente por REST [IDDD cap. 4].
@@ -23,11 +23,11 @@
 * Identidad temprana si hay eventos de creación [IDDD cap. 5].
 * El modelo de datos se subordina al de dominio [IDDD cap. 6].
 * Agregados: invariantes reales dentro, pequeños, referencias por identidad, consistencia eventual fuera [Destilado cap. 5; IDDD cap. 10].
-* Una transacción, un agregado [Destilado cap. 5; IDDD cap. 10].
+* Una transacción, un agregado [Destilado cap. 5; IDDD cap. 10]. Con el paquete: una escritura atómica por agregado, garantizada por el repositorio en cada `save`/`remove` `[Fuera de los libros: convención de @archi-code/ddd]`.
 * "¿De quién es el trabajo?" para desempatar [IDDD cap. 10].
 * No inyectar repositorios en agregados [IDDD cap. 10].
 * Eventos en pasado, con lo necesario, sin estado completo [Destilado cap. 6].
-* Agregado y evento en la misma transacción; publicar después [Destilado cap. 6; IDDD cap. 8].
+* Agregado y evento en la misma transacción; publicar después [Destilado cap. 6; IDDD cap. 8]. Con el paquete, si el evento no puede perderse, el repositorio escribe el agregado y sus eventos pendientes en la misma escritura atómica (outbox) y un relay los entrega por un `EventChannel` `[Fuera de los libros: convención de @archi-code/ddd]`.
 * Un repositorio por agregado; no es un DAO [IDDD cap. 12].
 * Servicio de dominio solo si la operación no encaja en una entidad o valor; sin estado [IDDD cap. 7].
 * Métodos que revelan intención; funciones sin efectos secundarios [IDDD cap. 5 y cap. 6].

@@ -2,17 +2,17 @@
 
 > Parte del skill `archi-code-ddd`: léela solo cuando ese skill te dirija aquí. Los ejemplos están escritos con la API de `@archi-code/ddd` (las clases de su `src`) y se copian tal cual; las guías son la fuente de verdad: el paquete solo se aparta de ellas donde lo marca `[Fuera de los libros: convención de @archi-code/ddd]`, y cualquier otra discrepancia es un defecto del paquete.
 >
-> **Cuándo consultar esta guía.** Servicios de dominio y servicios de aplicación (casos de uso) en DDD con TypeScript. Cubre cuándo una operación merece un servicio de dominio y cuándo pertenece a una entidad o value object, cómo evitar el modelo anémico, cómo escribir casos de uso finos (cargar, invocar, guardar, publicar), comandos y DTOs de entrada, salida mediante DTOs o read models, command bus, transacciones, seguridad y autorización, manejo de errores y tests de la capa de aplicación con adaptadores en memoria. Consúltala siempre que se escriba o revise un "service", "manager", "handler", "use case" o "interactor", cuando la lógica de negocio esté en servicios en vez de en el modelo, al decidir dónde va una regla que implica varios objetos, o al conectar un controlador con el dominio, aunque no se mencione DDD.
+> **Cuándo consultar esta guía.** Servicios de dominio y servicios de aplicación (casos de uso) en DDD con TypeScript. Cubre cuándo una operación merece un servicio de dominio y cuándo pertenece a una entidad o value object, cómo evitar el modelo anémico, cómo escribir casos de uso finos (cargar, invocar, guardar, publicar), comandos y DTOs de entrada, salida mediante DTOs o read models, command bus, dónde queda la transacción (en el repositorio), seguridad y autorización, manejo de errores y tests de la capa de aplicación con adaptadores en memoria. Consúltala siempre que se escriba o revise un "service", "manager", "handler", "use case" o "interactor", cuando la lógica de negocio esté en servicios en vez de en el modelo, al decidir dónde va una regla que implica varios objetos, o al conectar un controlador con el dominio, aunque no se mencione DDD.
 
 ## Con @archi-code/ddd
 
 [Fuera de los libros: convención de @archi-code/ddd]
 
-* Un caso de uso extiende `UseCase<Input, Command, Output>`: un `Input` de primitivos, un `Command` de value objects que construye `toCommand` con `ValueObjects.build` (informa de todos los campos a la vez), y `handle`, sin ayudas de la clase base, carga, cambia, guarda y publica dentro de `transactions.run`. Una acción de negocio por caso de uso, con nombre de verbo del negocio (`PlaceOrder`, `AddOrderLine`).
+* Un caso de uso extiende `UseCase<Input, Command, Output>`: un `Input` de primitivos, un `Command` de value objects que construye `toCommand` con `ValueObjects.build` (informa de todos los campos a la vez), y `handle`, sin ayudas de la clase base, carga, cambia, guarda (`await this.orders.save(order)`) y publica (`await this.events.publish(order.pullDomainEvents())`). No hay puerto de transacciones: el caso de uso recibe solo los roles de repositorio que usa (`AggregateFinder`, `AggregateSaver`, `AggregateRemover`), `EventBus`, `Clock` y sus puertos propios, y el repositorio garantiza que cada `save` o `remove` es una escritura atómica. Una acción de negocio por caso de uso, con nombre de verbo del negocio (`PlaceOrder`, `AddOrderLine`).
 * Un caso de uso nunca importa ni llama a otro: las acciones se encadenan con eventos y listeners `<Acción>On<Evento>` decorados con `@ListensTo`, que solo mapean el evento a la entrada de un caso de uso. No hay bus de comandos: el punto de entrada llama a `execute(input)`.
-* Los servicios de dominio son clases sin base en `domain/` que reciben agregados y value objects, y pueden leer con un contrato `AggregateFinder` o un puerto de dominio; nunca guardan, ni abren transacciones, ni publican.
+* Los servicios de dominio son clases sin base en `domain/` que reciben agregados y value objects, y pueden leer con un contrato `AggregateFinder` o un puerto de dominio; nunca guardan ni publican, y no tocan la persistencia.
 * Errores: `AggregateNotFoundException` (404) y `NotAllowedException` (403) en el caso de uso, `DomainException` con código propio en el dominio, y `HttpErrorMapper` en los puntos de entrada; `execute` envuelve cualquier error ajeno al paquete en `InternalErrorException` con `cause`.
-* Un `ConcurrencyException` se reintenta, si el comando es seguro de repetir, con un bucle en `handle` en el que cada intento es un `transactions.run` nuevo que vuelve a cargar el agregado; nunca dentro de una transacción exterior.
+* Un `ConcurrencyException` se reintenta, si el comando es seguro de repetir, con un bucle en `handle` con un límite de intentos en el que cada intento vuelve a cargar el agregado y vuelve a guardarlo. Un caso de uso que ejecuta un listener no reintenta por sí mismo: reintenta la reentrega del canal.
 * Un caso de uso que ejecuta un listener para registrar un hecho no lanza si falta el agregado: retorna, para que el canal no lo reentregue sin fin.
 
 Dos cosas con el mismo nombre ("servicio") y papeles opuestos. Confundirlas es la vía más rápida hacia un modelo anémico [IDDD cap. 7 y cap. 14].
@@ -23,7 +23,7 @@ Dos cosas con el mismo nombre ("servicio") y papeles opuestos. Confundirlas es l
 | Vive en | `domain/` | `application/` |
 | Nombre | Del lenguaje ubicuo | Del caso de uso |
 | Estado | Sin estado [IDDD cap. 7] | Sin estado; coordina |
-| Transacciones y seguridad | Nunca [IDDD cap. 7] | Sí [IDDD cap. 14] |
+| Transacciones y seguridad | Nunca [IDDD cap. 7] | Seguridad sí; transacciones según IDDD sí [IDDD cap. 14], con el paquete las garantiza el repositorio `[Fuera de los libros: convención de @archi-code/ddd]` |
 | Quién lo llama | Servicios de aplicación (u otros de dominio) | Adaptadores de entrada (HTTP, mensajes, CLI) |
 
 Ninguno es un servicio SOA remoto ni tiene por qué ser pesado [IDDD cap. 7].
@@ -48,19 +48,19 @@ Antes de crear un servicio de dominio, asegúrate de que lo necesitas. Usarlos p
 * Interfaz con el lenguaje del modelo; el nombre de la operación forma parte del lenguaje ubicuo; sin estado [IDDD cap. 7, citando a Evans].
 * Reciben y devuelven objetos de dominio, no DTOs ni primitivos.
 * Algunos tienen implementación técnica en infraestructura, sobre todo los de integración, con interfaz en el dominio (ver la ACL en `ddd-skills/ddd-context-mapping/GUIA.md`) [IDDD cap. 7].
-* Pueden leer agregados por repositorio para cálculos o validaciones de composición [IDDD cap. 5 y cap. 7], pero **no modifican varios agregados** en una transacción. Con el paquete, el servicio lee con `AggregateFinder` (el contrato del dominio) o el caso de uso le pasa los agregados ya cargados; nunca recibe `AggregateSaver` ni `AggregateRemover`.
+* Pueden leer agregados por repositorio para cálculos o validaciones de composición [IDDD cap. 5 y cap. 7], pero **no modifican varios agregados** en una misma operación. Con el paquete, el servicio lee con `AggregateFinder` (el contrato del dominio) o el caso de uso le pasa los agregados ya cargados; nunca recibe `AggregateSaver` ni `AggregateRemover`.
 * El paquete no trae clase base: un servicio de dominio es una clase normal; una regla con nombre que decide si algo cumple un criterio es una `Specification<T>` de `@archi-code/ddd/domain`.
 
 Ejemplos e implementación en `ddd-skills/ddd-servicios-capa-aplicacion/references/servicios-dominio-ts.md`.
 
 ## Paso 3. Servicios de aplicación
 
-* Clientes directos del modelo; un método por flujo de caso de uso; controlan transacciones y seguridad [IDDD cap. 14].
+* Clientes directos del modelo; un método por flujo de caso de uso; según IDDD controlan transacciones y seguridad [IDDD cap. 14]. Con el paquete la seguridad sigue en el caso de uso, pero la transacción pasa al repositorio `[Fuera de los libros: convención de @archi-code/ddd]`.
 * **Finos.** Si crecen, la lógica de dominio se escapa y el modelo se vuelve anémico [IDDD cap. 4 y cap. 14; PHP: Application].
 * Forma típica: recibir parámetros, obtener el agregado del repositorio, ejecutar un comando sobre él, guardar [IDDD cap. 4].
 * Entrada con primitivos, DTOs o, mejor, objetos comando [PHP: Application, citando a Vernon]. Con el paquete, un `Input` plano de primitivos y un `Command` de value objects que construye `toCommand` `[Fuera de los libros: convención de @archi-code/ddd]`.
 * Salida: identificador, DTO de lectura, o nada (con un puerto de salida), según lo que necesite el cliente [IDDD cap. 14]. Es el tipo `Output` de `UseCase`; nunca el agregado.
-* Transacciones: el caso de uso envuelve cargar, cambiar, guardar y publicar en `transactions.run` del puerto `TransactionRunner` [IDDD cap. 14].
+* Transacciones: IDDD las pone en el servicio de aplicación [IDDD cap. 14]. Con el paquete la aplicación nunca abre, une ni cierra transacciones y no hay puerto para ello: el adaptador del repositorio es responsable de todo lo de persistencia (que cada `save`/`remove` sea atómico, la comprobación de versión con `ConcurrencyException`, la conexión o sesión, envolver los errores del driver en `InternalErrorException` con `{ cause }`). "Una transacción por agregado" se traduce en "una escritura atómica por agregado, garantizada por el repositorio" `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 Plantilla, variantes y errores frecuentes en `ddd-skills/ddd-servicios-capa-aplicacion/references/capa-aplicacion-ts.md`.
 
@@ -74,7 +74,7 @@ Plantilla, variantes y errores frecuentes en `ddd-skills/ddd-servicios-capa-apli
 ## Paso 5. Probar
 
 * Servicios de dominio: tests unitarios con objetos de dominio reales [IDDD cap. 7].
-* Servicios de aplicación: con repositorios y adaptadores **en memoria**; comprueban orquestación, no reglas de negocio [IDDD cap. 12; PHP: Application]. Con el paquete: `InMemoryRepository(AggregateMapper.of(Order))`, `InMemoryTransactionRunner([orders])`, `DomainEventBus` sobre `InMemoryEventChannel` (`channel.sent`) y `FixedClock`.
+* Servicios de aplicación: con repositorios y adaptadores **en memoria**; comprueban orquestación, no reglas de negocio [IDDD cap. 12; PHP: Application]. Con el paquete: `InMemoryRepository(AggregateMapper.of(Order))`, `DomainEventBus` sobre `InMemoryEventChannel` (`channel.sent`) y `FixedClock`.
 * Las reglas de negocio se prueban en el agregado o el value object, no a través del caso de uso.
 
 ## Señales de alarma
@@ -83,7 +83,8 @@ Plantilla, variantes y errores frecuentes en `ddd-skills/ddd-servicios-capa-apli
 * `if` sobre el estado de una entidad dentro del servicio de aplicación.
 * Servicios de dominio llamados `XxxManager`, `XxxHelper`, `XxxUtils` [Destilado cap. 5].
 * Un servicio de dominio que abre transacciones o comprueba permisos de usuario.
-* Un caso de uso que guarda dos agregados en la misma transacción.
+* Un caso de uso que abre o maneja transacciones, o recibe un runner de transacciones o una unidad de trabajo: eso va dentro del adaptador del repositorio.
+* Un caso de uso que guarda dos agregados.
 * El caso de uso devuelve el agregado al controlador.
 * Un caso de uso que importa o llama a otro caso de uso.
 * Tests de reglas de negocio escritos contra el caso de uso con mocks de todo.

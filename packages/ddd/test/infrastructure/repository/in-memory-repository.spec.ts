@@ -327,30 +327,6 @@ describe('InMemoryRepository: the repository of a use case test or a prototype',
     });
   });
 
-  describe('as a participant of an in-memory transaction', () => {
-    it('restores the orders it held when the snapshot was taken', async () => {
-      const repository = await storedOrder();
-      const restore = repository.snapshot();
-      const loaded = (await repository.findById(new OrderId(orderId))) as Order;
-      loaded.ship();
-      await repository.save(loaded);
-      await repository.save(Order.place(otherOrderId, 'Luis', clock));
-      restore();
-      const stored = (await repository.findById(new OrderId(orderId))) as Order;
-      expect(stored.status.value).toBe('placed');
-      expect(stored.version).toBe(1);
-      expect(await repository.findById(new OrderId(otherOrderId))).toBeNull();
-    });
-
-    it('brings back an order removed after the snapshot', async () => {
-      const repository = await storedOrder();
-      const restore = repository.snapshot();
-      await repository.remove((await repository.findById(new OrderId(orderId))) as Order);
-      restore();
-      expect(await repository.findById(new OrderId(orderId))).not.toBeNull();
-    });
-  });
-
   describe('removing an order', () => {
     async function loaded(repository: InMemoryRepository<Order>, id = orderId): Promise<Order> {
       return (await repository.findById(new OrderId(id))) as Order;

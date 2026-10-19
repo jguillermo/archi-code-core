@@ -10,7 +10,7 @@ Cuando un agregado nace en el contexto de otro, el método de creación vive en 
 
 Ventajas: el lenguaje queda explícito (se planifica un elemento en un producto), el creador puede aplicar sus reglas y pasar identidades (`productId`, `tenantId`) sin que el cliente las conozca.
 
-No contradice la regla de una transacción por agregado: el creador no se modifica; solo fabrica el nuevo, que se guarda en su propio repositorio.
+No contradice la regla de una transacción por agregado: el creador no se modifica; solo fabrica el nuevo, que se guarda en su propio repositorio con un único `save` atómico.
 
 `Order`, `OrderId`, `OrderLines` y `ShippingAddress` son los de `references/implementacion-ts.md`:
 
@@ -89,7 +89,7 @@ La regla de creación ("un cliente bloqueado no puede realizar pedidos") vive en
 import { ValueObjects } from '@archi-code/ddd/domain';
 import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
 import { UseCase } from '@archi-code/ddd/application';
-import type { Clock, EventBus, TransactionRunner } from '@archi-code/ddd/application';
+import type { Clock, EventBus } from '@archi-code/ddd/application';
 import { AggregateNotFoundException } from '@archi-code/ddd/exceptions';
 
 interface PlaceOrderInput {
@@ -109,7 +109,6 @@ export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, stri
     private readonly customers: AggregateFinder<Customer>,
     private readonly orders: AggregateSaver<Order>,
     private readonly events: EventBus<OrderEvent>,
-    private readonly transactions: TransactionRunner,
     private readonly clock: Clock,
   ) {
     super();
@@ -123,22 +122,20 @@ export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, stri
     });
   }
 
-  protected handle(command: PlaceOrderCommand): Promise<string> {
-    return this.transactions.run(async () => {
-      const customer = await this.customers.findById(command.customerId);
-      if (customer === null) {
-        throw new AggregateNotFoundException('Customer', command.customerId.value);
-      }
-      const order = customer.placeOrder(
-        OrderId.generate(),
-        command.lines,
-        command.shippingAddress,
-        this.clock,
-      );
-      await this.orders.save(order);
-      await this.events.publish(order.pullDomainEvents());
-      return order.id.value;
-    });
+  protected async handle(command: PlaceOrderCommand): Promise<string> {
+    const customer = await this.customers.findById(command.customerId);
+    if (customer === null) {
+      throw new AggregateNotFoundException('Customer', command.customerId.value);
+    }
+    const order = customer.placeOrder(
+      OrderId.generate(),
+      command.lines,
+      command.shippingAddress,
+      this.clock,
+    );
+    await this.orders.save(order);
+    await this.events.publish(order.pullDomainEvents());
+    return order.id.value;
   }
 }
 ```

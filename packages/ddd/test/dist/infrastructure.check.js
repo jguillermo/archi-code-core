@@ -130,37 +130,6 @@ function smoke(m) {
       },
     ],
     [
-      'a transaction stores the order, and rolls it back when the use case fails',
-      async () => {
-        const { Order } = orderModel();
-        const orders = new m.InMemoryRepository(m.AggregateMapper.of(Order));
-        const transactions = new m.InMemoryTransactionRunner([orders]);
-        const placeOrder = async (id, fail) =>
-          transactions.run(async () => {
-            await orders.save(Order.place(id, 'Ana'));
-            if (fail) {
-              throw new Error('payment declined');
-            }
-          });
-        let failed = false;
-        try {
-          await placeOrder(ORDER_ID, true);
-        } catch {
-          failed = true;
-        }
-        const afterRollback = (await orders.findAll()).length;
-        await placeOrder(OTHER_ORDER_ID, false);
-        return (
-          (failed &&
-            afterRollback === 0 &&
-            (await orders.findAll()).length === 1 &&
-            transactions.committed === 1 &&
-            transactions.rolledBack === 1) ||
-          'unexpected transaction behavior'
-        );
-      },
-    ],
-    [
       'events go through the in-memory channel and listeners receive them rebuilt from their JSON',
       async () => {
         const { Order, OrderPlaced } = orderModel();

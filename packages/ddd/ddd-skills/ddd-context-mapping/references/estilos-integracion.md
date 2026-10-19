@@ -32,7 +32,7 @@ Publicar los eventos de dominio como un feed de recursos (al estilo Atom) que lo
 
 ### Publicar de forma fiable
 
-`[Fuera de los libros como nombre; la idea de guardar eventos en la misma transacción está en IDDD cap. 8]`. Patrón **outbox transaccional**: en la misma transacción que guarda el agregado, se guardan sus eventos en una tabla; un proceso aparte los lee y los publica en el bus, marcándolos como enviados. Evita perder eventos si el bus falla tras confirmar la transacción, o publicar eventos de cambios que luego se revierten. Se desarrolla en `ddd-skills/ddd-eventos-dominio/GUIA.md`. Con `@archi-code/ddd` el caso de uso sigue llamando a `EventBus.publish` dentro de `transactions.run`; el outbox es un `EventChannel` duradero del proyecto, cuyo `send` inserta las filas en la transacción abierta y cuyo reenviador las entrega después del commit `[Fuera de los libros: convención de @archi-code/ddd]`.
+`[Fuera de los libros como nombre; la idea de guardar eventos en la misma transacción está en IDDD cap. 8]`. Patrón **outbox transaccional**: en la misma transacción que guarda el agregado, se guardan sus eventos en una tabla; un proceso aparte los lee y los publica en el bus, marcándolos como enviados. Evita perder eventos si el bus falla tras confirmar la transacción, o publicar eventos de cambios que luego se revierten. Se desarrolla en `ddd-skills/ddd-eventos-dominio/GUIA.md`. Con `@archi-code/ddd` la aplicación no abre transacciones: el caso de uso sigue llamando a `EventBus.publish` después de `save`, y el outbox lo escribe el adaptador del repositorio, que guarda el agregado y sus eventos pendientes en la misma escritura atómica de `save` (el mismo documento o la misma transacción de base de datos); un reenviador los entrega después por un `EventChannel` `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ### Receptor idempotente en TypeScript
 
@@ -43,7 +43,7 @@ El evento de Almacén llega por un `EventChannel` a un listener (`RegisterStockR
 import { ValueObjects } from '@archi-code/ddd/domain';
 import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
 import { UseCase } from '@archi-code/ddd/application';
-import type { Clock, EventBus, TransactionRunner } from '@archi-code/ddd/application';
+import type { Clock, EventBus } from '@archi-code/ddd/application';
 import { Order, OrderEvent, OrderId, ReservationId } from '../../domain/order/Order';
 
 interface RegisterStockReservationInput {
@@ -64,7 +64,6 @@ export class RegisterStockReservation extends UseCase<
   constructor(
     private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
     private readonly events: EventBus<OrderEvent>,
-    private readonly transactions: TransactionRunner,
     private readonly clock: Clock,
   ) {
     super();
@@ -77,16 +76,14 @@ export class RegisterStockReservation extends UseCase<
     });
   }
 
-  protected handle(command: RegisterStockReservationCommand): Promise<void> {
-    return this.transactions.run(async () => {
-      const order = await this.orders.findById(command.orderId);
-      if (order === null) {
-        return;
-      }
-      order.registerStockReservation(command.reservationId, this.clock);
-      await this.orders.save(order);
-      await this.events.publish(order.pullDomainEvents());
-    });
+  protected async handle(command: RegisterStockReservationCommand): Promise<void> {
+    const order = await this.orders.findById(command.orderId);
+    if (order === null) {
+      return;
+    }
+    order.registerStockReservation(command.reservationId, this.clock);
+    await this.orders.save(order);
+    await this.events.publish(order.pullDomainEvents());
   }
 }
 ```
@@ -103,7 +100,7 @@ registerStockReservation(reservation: ReservationId, clock: { now(): Date }): vo
 }
 ```
 
-Aplicar dos veces "reserva registrada" no cambia nada la segunda vez ni graba un segundo evento. Cuando la operación no es idempotente por naturaleza, el caso de uso guarda el `eventId` del mensaje como procesado en la misma transacción que el cambio del agregado y vuelve sin hacer nada si ya estaba `[Fuera de los libros]`. Si dos mensajes del mismo pedido llegan a la vez, `save` lanza `ConcurrencyException` en uno de ellos y el listener falla; lo que pase después lo decide el canal (reintento o cola de mensajes muertos), y en el reintento el caso de uso vuelve a cargar el pedido y la operación idempotente no cambia nada.
+Aplicar dos veces "reserva registrada" no cambia nada la segunda vez ni graba un segundo evento. Cuando la operación no es idempotente por naturaleza, el `eventId` del mensaje se guarda como procesado en la misma escritura atómica que el cambio, y si ya estaba no se hace nada `[Fuera de los libros]`; con el paquete esa escritura la hace el adaptador que persiste el cambio, no el caso de uso, que solo le pasa el `eventId` (ver "Consumidor idempotente" en `ddd-skills/ddd-eventos-dominio/references/publicacion-ts.md`) `[Fuera de los libros: convención de @archi-code/ddd]`. Si dos mensajes del mismo pedido llegan a la vez, `save` lanza `ConcurrencyException` en uno de ellos y el listener falla; lo que pase después lo decide el canal (reintento o cola de mensajes muertos), y en el reintento el caso de uso vuelve a cargar el pedido y la operación idempotente no cambia nada.
 
 ## Contratos y versionado
 

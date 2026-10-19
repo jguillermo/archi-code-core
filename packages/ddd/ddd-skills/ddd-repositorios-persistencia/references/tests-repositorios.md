@@ -18,7 +18,7 @@ export const inMemoryOrders = () => new InMemoryRepository(AggregateMapper.of(Or
 * Guarda `structuredClone` de `mapper.toPrimitives(order)` con su versión, y cada `findById` reconstruye un objeto nuevo con `mapper.fromPrimitives(copy, version)`: cambiar un agregado sin `save` no persiste nada.
 * Sigue el mismo contrato de concurrencia que un repositorio real: `save` y `remove` lanzan `ConcurrencyException` si la versión almacenada no coincide con `order.version` (también al dar de alta un id ocupado), y tras guardar llama a `markPersisted()`.
 * Las claves son `id.toString()`; `IdType` y `UuidType` guardan el valor en minúsculas, así que la búsqueda no distingue mayúsculas.
-* Es participante de `InMemoryTransactionRunner([orders])`: si el trabajo lanza, vuelve al estado de antes (`ddd-skills/ddd-repositorios-persistencia/references/transacciones-ts.md`).
+* Cada `save` y cada `remove` es atómico, como el de un repositorio real: no hay transacción que abrir ni estado que restaurar en los tests (la transacción es del repositorio, `ddd-skills/ddd-repositorios-persistencia/references/transacciones-ts.md`).
 * `findAll()` existe solo como comodidad de los tests `[Fuera de los libros: convención de @archi-code/ddd]`; un repositorio real no lo tiene y el código de producción no lo usa. Tampoco se usa `InMemoryRepository` en producción.
 
 Pasar el mapper real también en memoria prueba de paso que el mapeo es reversible. El repositorio no guarda los eventos publicados: los publica el caso de uso, y los tests los leen de `channel.sent` del `InMemoryEventChannel` `[Fuera de los libros: convención de @archi-code/ddd]`.
@@ -106,7 +106,7 @@ export function orderRepositoryContract(
 }
 ```
 
-El spec del adaptador lo ejecuta contra las dos implementaciones. El de MongoDB necesita un servidor real con replica set (Testcontainers, `mongodb-memory-server` o el de CI) `[herramienta fuera de los libros]`; cada fábrica usa una colección nueva para que los tests no compartan datos. En `test/contexts/sales/infrastructure/persistence/mongo-order-repository.spec.ts`, espejo de `src/`:
+El spec del adaptador lo ejecuta contra las dos implementaciones. El de MongoDB necesita un servidor real (Testcontainers, `mongodb-memory-server` o el de CI) `[herramienta fuera de los libros]`; cada fábrica usa una colección nueva para que los tests no compartan datos. En `test/contexts/sales/infrastructure/persistence/mongo-order-repository.spec.ts`, espejo de `src/`:
 
 ```ts
 import { randomUUID } from 'node:crypto';
@@ -116,7 +116,6 @@ import { AggregateMapper, InMemoryRepository } from '@archi-code/ddd/infrastruct
 import { Order } from '../../../../../src/contexts/sales/domain/order/order';
 import { MongoOrderRepository } from '../../../../../src/contexts/sales/infrastructure/persistence/mongo-order-repository';
 import type { OrderDocument } from '../../../../../src/contexts/sales/infrastructure/persistence/mongo-order-repository';
-import { MongoTransactionRunner } from '../../../../../src/contexts/sales/infrastructure/persistence/mongo-transaction-runner';
 import { orderRepositoryContract } from '../../../../support/order-repository-contract';
 
 let client: MongoClient;
@@ -130,7 +129,6 @@ afterAll(() => client.close());
 const mongoOrders = async () =>
   new MongoOrderRepository(
     client.db('sales-test').collection<OrderDocument>(`orders-${randomUUID()}`),
-    new MongoTransactionRunner(client),
   );
 
 describe('InMemoryRepository', () =>

@@ -7,7 +7,6 @@ import type {
 } from '../../domain/index';
 import { ConcurrencyException } from '../../exceptions/index';
 import type { AggregateMapper } from './aggregate-mapper';
-import type { TransactionParticipant } from '../transaction/transaction-participant';
 
 interface StoredAggregate<Aggregate> {
   readonly version: number;
@@ -17,11 +16,7 @@ interface StoredAggregate<Aggregate> {
 export class InMemoryRepository<
   Aggregate extends AggregateRoot<any, any> & { toPrimitives(): PrimitiveTypes<Aggregate> },
 >
-  implements
-    AggregateFinder<Aggregate>,
-    AggregateSaver<Aggregate>,
-    AggregateRemover<Aggregate>,
-    TransactionParticipant
+  implements AggregateFinder<Aggregate>, AggregateSaver<Aggregate>, AggregateRemover<Aggregate>
 {
   private readonly rows = new Map<string, StoredAggregate<Aggregate>>();
 
@@ -45,14 +40,6 @@ export class InMemoryRepository<
 
   async remove(aggregate: Aggregate): Promise<void> {
     this.rows.delete(this.keyOfCurrent(aggregate));
-  }
-
-  snapshot(): () => void {
-    const saved = new Map(this.rows);
-    return () => {
-      this.rows.clear();
-      saved.forEach((row, key) => this.rows.set(key, row));
-    };
   }
 
   private keyOfCurrent(aggregate: Aggregate): string {
