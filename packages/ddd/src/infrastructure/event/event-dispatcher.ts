@@ -1,11 +1,20 @@
 import { ListensTo } from '../../application/index';
-import type { EventListener } from '../../application/index';
+import type { EventListener, TransactionRunner } from '../../application/index';
 import type { EventBase } from '../../domain/index';
+import type { InboxStore } from '../inbox/inbox-store';
+
+export interface IdempotentDelivery {
+  readonly inbox: InboxStore;
+  readonly transactions: TransactionRunner;
+}
 
 export class EventDispatcher<Event extends EventBase = EventBase> {
   private readonly listeners = new Map<string, EventListener<any>[]>();
 
-  constructor(listeners: readonly EventListener<any>[] = []) {
+  constructor(
+    listeners: readonly EventListener<any>[] = [],
+    private readonly idempotent?: IdempotentDelivery,
+  ) {
     listeners.forEach((listener) => this.add(listener));
   }
 
@@ -21,7 +30,20 @@ export class EventDispatcher<Event extends EventBase = EventBase> {
 
   async dispatch(event: Event): Promise<void> {
     for (const listener of this.listenersOf(event.eventName())) {
-      await listener.handle(event);
+      await this.deliver(listener, event);
     }
+  }
+
+  private async deliver(listener: EventListener<any>, event: Event): Promise<void> {
+    if (this.idempotent === undefined) {
+      await listener.handle(event);
+      return;
+    }
+    const { inbox, transactions } = this.idempotent;
+    await transactions.run(async () => {
+      if (await inbox.markProcessed(listener.constructor.name, event.eventId)) {
+        await listener.handle(event);
+      }
+    });
   }
 }

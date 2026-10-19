@@ -45,6 +45,7 @@ describe('InMemoryOutbox: where a use case leaves its events, in the same transa
           sequence: 1,
           event: {
             eventName: 'order.placed',
+            eventVersion: 1,
             eventId: event.eventId,
             aggregateId: orderId,
             occurredOn: '2026-03-01T09:30:00.000Z',

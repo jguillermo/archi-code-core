@@ -82,7 +82,7 @@ Plantilla, variantes y errores frecuentes en `references/capa-aplicacion-ts.md`.
 
 ## Ejemplo
 
-`references/ejemplo-ecommerce.md`: servicio de dominio de cálculo de gastos de envío, casos de uso `PlaceOrder` y `CancelOrder`, política `RegisterReservationOnOrder` y sus tests.
+`references/ejemplo-ecommerce.md`: servicio de dominio de cálculo de gastos de envío, casos de uso `PlaceOrder` y `CancelOrder`, listener `RegisterReservationOnStockReserved` y sus tests.
 
 ## Siguiente skill
 

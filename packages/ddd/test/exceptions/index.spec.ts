@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import * as exceptions from '../../src/exceptions/index';
 import type { ExceptionOptions, ValidationIssue } from '../../src/exceptions/index';
-import { AggregateNotFoundException } from '../../src/exceptions/domain/aggregate-not-found.exception';
+import { AggregateNotFoundException } from '../../src/exceptions/application/aggregate-not-found.exception';
 import { ExceptionCode } from '../../src/exceptions/exception-code';
 
 const PUBLIC_API = [
@@ -13,6 +13,7 @@ const PUBLIC_API = [
   'ExceptionCode',
   'InfrastructureException',
   'InternalErrorException',
+  'NotAllowedException',
   'RequiredValueException',
   'TypePrimitiveException',
   'UnknownEventException',
@@ -33,7 +34,7 @@ describe('@archi-code/ddd/exceptions', () => {
     for (const name of PUBLIC_API.filter((name) => name !== 'ExceptionCode')) {
       expect(typeof exceptions[name as keyof typeof exceptions]).toBe('function');
     }
-    expect(exceptions.ExceptionCode.AggregateNotFound).toBe('DOM002');
+    expect(exceptions.ExceptionCode.AggregateNotFound).toBe('APP002');
   });
 
   it('keeps the brand that recognizes exceptions across builds out of the public API', () => {

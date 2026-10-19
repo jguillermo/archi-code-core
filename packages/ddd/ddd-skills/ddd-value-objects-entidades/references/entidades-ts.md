@@ -26,19 +26,12 @@ Antes de crear una, comprueba si el concepto es en realidad un valor. Y si un si
 ### Momento: temprana o tardía
 
 * **Tardía** (al persistir): el evento de creación se publicaría sin identidad y, si `equals` compara ids, varios objetos nuevos parecerían el mismo en un `Set` [IDDD cap. 5].
-* **Temprana** (al construir): el repositorio ofrece `nextId()` y el id se pasa al constructor [IDDD cap. 5]. IDDD prefiere esta opción frente a hacer `equals` por atributos.
+* **Temprana** (al construir): el id existe antes de persistir y se pasa al constructor [IDDD cap. 5]. IDDD prefiere esta opción frente a hacer `equals` por atributos. IDDD lo ofrece desde el repositorio (`nextId()`); con `@archi-code/ddd` lo genera el value object de la identidad, porque el repositorio solo obtiene y persiste `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ```ts
-export interface OrderRepository {
-  nextId(): OrderId;
-  // ...
-}
+class OrderId extends IdType {}
 
-export class PostgresOrderRepository implements OrderRepository {
-  nextId(): OrderId {
-    return OrderId.of(`ord-${uuidv7()}`);
-  }
-}
+const order = Order.place(OrderId.generate(), customerId, lines, address); // UUID v4, antes de guardar
 ```
 
 ### Identidad sustituta
@@ -60,6 +53,11 @@ export abstract class Entity<Id extends ValueObject<any>> {
   }
 }
 ```
+
+Con `@archi-code/ddd` esta base ya existe (`Entity<Id>` de `@archi-code/ddd/domain`) y `AggregateRoot` la extiende `[Fuera de los libros: convención de @archi-code/ddd]`:
+
+* La **raíz del agregado** tiene el comportamiento con nombres del negocio que se ve abajo.
+* Una **entidad hija** (parte del agregado con identidad propia) extiende `Entity<Id>` y solo tiene su id y sus value objects, **sin lógica de negocio**: la raíz aplica las reglas y la cambia. Si nadie la busca por su id, no es entidad: es un value object compuesto (`Composite({...})`).
 
 ### Creación frente a reconstitución
 

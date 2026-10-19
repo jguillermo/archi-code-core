@@ -1,3 +1,4 @@
+import { Entity } from '../entity/entity';
 import type { EventBase } from '../event/event-base';
 import type { AbstractType } from '../type/abstract-type';
 import type { IdType } from '../type/id-type';
@@ -6,26 +7,18 @@ import { InternalErrorException } from '../../exceptions/index';
 export abstract class AggregateRoot<
   Id extends AbstractType<any> = IdType,
   Event extends EventBase = EventBase,
-> {
+> extends Entity<Id> {
   private readonly domainEvents!: Event[];
   private persistedVersion!: number;
 
-  constructor(readonly id: Id) {
+  constructor(id: Id) {
+    super(id);
     Object.defineProperty(this, 'domainEvents', { value: [] });
     Object.defineProperty(this, 'persistedVersion', { value: 0, writable: true });
   }
 
   get version(): number {
     return this.persistedVersion;
-  }
-
-  equals(other: unknown): boolean {
-    return (
-      typeof other === 'object' &&
-      other !== null &&
-      other.constructor === this.constructor &&
-      this.id.equals((other as AggregateRoot<Id, Event>).id)
-    );
   }
 
   protected record(event: Event): void {

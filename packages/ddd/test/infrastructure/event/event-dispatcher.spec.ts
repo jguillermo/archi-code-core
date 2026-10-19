@@ -4,6 +4,8 @@ import { EventBase } from '../../../src/domain/index';
 import { ApplicationException } from '../../../src/exceptions/index';
 import { DomainEventRegistry } from '../../../src/infrastructure/event/domain-event-registry';
 import { EventDispatcher } from '../../../src/infrastructure/event/event-dispatcher';
+import { InMemoryInbox } from '../../../src/infrastructure/inbox/in-memory-inbox';
+import { InMemoryTransactionRunner } from '../../../src/infrastructure/transaction/in-memory-transaction-runner';
 import type { EventMetadata } from '../../../src/domain/index';
 
 class OrderPlaced extends EventBase {
@@ -105,5 +107,76 @@ describe('EventDispatcher: hands each event to the listeners subscribed to it', 
     const message = JSON.stringify(new OrderPlaced(orderId, 'Luis'));
     await dispatcher().dispatch(registry.fromJSON(message));
     expect(log).toEqual([`reserve stock for ${orderId}`, 'notify Luis']);
+  });
+
+  describe('idempotent delivery with an inbox, because the relay delivers at least once', () => {
+    function idempotentDispatcher() {
+      log.length = 0;
+      const inbox = new InMemoryInbox();
+      const transactions = new InMemoryTransactionRunner([inbox]);
+      return {
+        inbox,
+        transactions,
+        dispatcher: new EventDispatcher(
+          [new ReserveStockOnOrderPlaced(), new NotifyCustomerOnOrderPlaced()],
+          { inbox, transactions },
+        ),
+      };
+    }
+
+    it('runs each listener once for an event delivered twice', async () => {
+      const { dispatcher: listeners } = idempotentDispatcher();
+      const event = new OrderPlaced(orderId, 'Ana');
+      await listeners.dispatch(event);
+      await listeners.dispatch(event);
+      expect(log).toEqual([`reserve stock for ${orderId}`, 'notify Ana']);
+    });
+
+    it('recognizes the redelivered event by its id, even rebuilt from the outbox JSON', async () => {
+      const { dispatcher: listeners } = idempotentDispatcher();
+      const event = new OrderPlaced(orderId, 'Ana');
+      const registry = new DomainEventRegistry<OrderPlaced>().register(
+        OrderPlaced,
+        (json) => new OrderPlaced(json.aggregateId, json.customer as string, json),
+      );
+      await listeners.dispatch(event);
+      await listeners.dispatch(registry.fromJSON(JSON.stringify(event)));
+      expect(log).toHaveLength(2);
+    });
+
+    it('runs each listener in its own transaction, which joins the one of the use case it calls', async () => {
+      const { dispatcher: listeners, transactions } = idempotentDispatcher();
+      await listeners.dispatch(new OrderPlaced(orderId, 'Ana'));
+      expect(transactions.committed).toBe(2);
+    });
+
+    it('when a listener fails, keeps the event pending for it and done for the ones before', async () => {
+      log.length = 0;
+      let mailServerDown = true;
+
+      @ListensTo(OrderPlaced)
+      class EmailCustomerOnOrderPlaced extends EventListener<OrderPlaced> {
+        handle(event: OrderPlaced): void {
+          if (mailServerDown) {
+            throw new Error('mail server down');
+          }
+          log.push(`email ${event.customer}`);
+        }
+      }
+
+      const inbox = new InMemoryInbox();
+      const transactions = new InMemoryTransactionRunner([inbox]);
+      const listeners = new EventDispatcher(
+        [new NotifyCustomerOnOrderPlaced(), new EmailCustomerOnOrderPlaced()],
+        { inbox, transactions },
+      );
+      const event = new OrderPlaced(orderId, 'Ana');
+
+      await expect(listeners.dispatch(event)).rejects.toThrow('mail server down');
+      mailServerDown = false;
+      await listeners.dispatch(event);
+      expect(log).toEqual(['notify Ana', 'email Ana']);
+      expect(transactions.rolledBack).toBe(1);
+    });
   });
 });

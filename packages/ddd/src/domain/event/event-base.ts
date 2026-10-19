@@ -12,6 +12,7 @@ export interface EventMetadata {
 
 export interface SerializedEvent {
   eventName: string;
+  eventVersion: number;
   eventId: string;
   aggregateId: string;
   occurredOn: string;
@@ -20,6 +21,7 @@ export interface SerializedEvent {
 
 export interface EventClass<Event extends EventBase = EventBase> {
   readonly eventName: string;
+  readonly eventVersion?: number;
   new (...args: any[]): Event;
 }
 
@@ -29,9 +31,14 @@ export abstract class EventBase {
   readonly occurredOn: Date;
 
   constructor(aggregateId: string, metadata: EventMetadata = {}) {
-    const { eventName } = this.constructor as Partial<EventClass>;
+    const { eventName, eventVersion = 1 } = this.constructor as Partial<EventClass>;
     if (typeof eventName !== 'string' || eventName.trim() === '') {
       throw new InternalErrorException(`${this.constructor.name} must declare a static eventName`);
+    }
+    if (!Number.isSafeInteger(eventVersion) || eventVersion < 1) {
+      throw new InternalErrorException(
+        `${this.constructor.name}.eventVersion must be a whole number from 1`,
+      );
     }
     if (TypeInput.isMissing(aggregateId)) {
       throw new RequiredValueException(`${this.constructor.name}.aggregateId`, aggregateId);
@@ -48,9 +55,14 @@ export abstract class EventBase {
     return (this.constructor as EventClass).eventName;
   }
 
+  eventVersion(): number {
+    return (this.constructor as EventClass).eventVersion ?? 1;
+  }
+
   toJSON(): SerializedEvent {
     const serialized: SerializedEvent = {
       eventName: this.eventName(),
+      eventVersion: this.eventVersion(),
       eventId: this.eventId,
       aggregateId: this.aggregateId,
       occurredOn: this.occurredOn.toISOString(),

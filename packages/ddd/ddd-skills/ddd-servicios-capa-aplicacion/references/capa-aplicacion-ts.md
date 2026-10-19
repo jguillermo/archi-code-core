@@ -58,8 +58,8 @@ Para pantallas, mejor una consulta de lectura aparte que devuelve un DTO sin pas
 
 `[Fuera de los libros]`
 * El dominio lanza errores con nombre (`OrderCannotBeCancelled`).
-* La aplicación añade los suyos (`OrderNotFound`, `NotAllowed`).
-* El adaptador los traduce a HTTP: 404, 403, 409 (conflicto de versión), 422 (regla de negocio).
+* La aplicación añade los suyos (`OrderNotFound`, `NotAllowed`). Con `@archi-code/ddd` son `AggregateNotFoundException` y `NotAllowedException`, de `@archi-code/ddd/exceptions`, y los lanza el caso de uso: el repositorio devuelve `null` y el dominio no sabe de permisos `[Fuera de los libros: convención de @archi-code/ddd]`.
+* El adaptador los traduce a HTTP: 404, 403, 409 (conflicto de versión), 422 (regla de negocio). `HttpErrorMapper` aplica exactamente esa tabla.
 
 ## Tests
 

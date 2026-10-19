@@ -5,9 +5,13 @@ import type {
   EventFactory,
   HttpError,
   HttpErrorBody,
+  IdempotentDelivery,
+  InboxStore,
   OutboxDelivery,
   OutboxEntry,
   OutboxStore,
+  PublishedContract,
+  PublishedMessage,
   TransactionParticipant,
 } from '../../src/infrastructure/index';
 import { AggregateRoot, EventBase } from '../../src/domain/index';
@@ -23,10 +27,12 @@ const PUBLIC_API = [
   'FixedClock',
   'HttpErrorMapper',
   'InMemoryEventBus',
+  'InMemoryInbox',
   'InMemoryOutbox',
   'InMemoryRepository',
   'InMemoryTransactionRunner',
   'OutboxRelay',
+  'PublishedLanguage',
   'SystemClock',
 ];
 
@@ -66,6 +72,19 @@ describe('@archi-code/ddd/infrastructure', () => {
     }>();
     expectTypeOf<HttpError>().toEqualTypeOf<{ status: number; body: HttpErrorBody }>();
     expectTypeOf<TransactionParticipant>().toEqualTypeOf<{ snapshot(): () => void }>();
+    expectTypeOf<InboxStore['markProcessed']>().toEqualTypeOf<
+      (consumer: string, eventId: string) => Promise<boolean>
+    >();
+    expectTypeOf<IdempotentDelivery>().toHaveProperty('inbox');
+    expectTypeOf<PublishedContract>().toHaveProperty('data');
+    expectTypeOf<PublishedMessage>().toEqualTypeOf<{
+      readonly name: string;
+      readonly version: number;
+      readonly messageId: string;
+      readonly occurredOn: string;
+      readonly data: Readonly<Record<string, unknown>>;
+    }>();
+    expectTypeOf<IdempotentDelivery>().toHaveProperty('transactions');
     expectTypeOf<OutboxEntry>().toEqualTypeOf<{
       readonly sequence: number;
       readonly event: SerializedEvent;

@@ -18,6 +18,7 @@ class SqlOutboxDouble implements OutboxStore {
 
 const shipped: SerializedEvent = {
   eventName: 'order.shipped',
+  eventVersion: 1,
   eventId: 'e7c1a1b0-1d2e-4f3a-8b4c-5d6e7f8a9b0c',
   aggregateId: '9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c',
   occurredOn: '2026-03-01T09:30:00.000Z',

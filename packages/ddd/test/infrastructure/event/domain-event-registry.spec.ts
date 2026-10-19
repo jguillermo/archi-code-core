@@ -61,6 +61,7 @@ describe('DomainEventRegistry: rebuilding events read from an outbox or a broker
   it('a broker consumer rebuilds the event from the parsed message body', () => {
     const body: SerializedEvent = {
       eventName: 'order.shipped',
+      eventVersion: 1,
       eventId,
       aggregateId: orderId,
       occurredOn: '2026-03-02T10:00:00.000Z',
@@ -104,6 +105,7 @@ describe('DomainEventRegistry: rebuilding events read from an outbox or a broker
     const read = () =>
       orderEvents().fromJSON({
         eventName: 'order.cancelled',
+        eventVersion: 1,
         eventId,
         aggregateId: orderId,
         occurredOn: '2026-03-02T10:00:00.000Z',
@@ -155,11 +157,53 @@ describe('DomainEventRegistry: rebuilding events read from an outbox or a broker
     expect(() =>
       orderEvents().fromJSON({
         eventName: 'order.placed',
+        eventVersion: 1,
         eventId: 'not-an-id',
         aggregateId: orderId,
         occurredOn: '2026-03-01T09:30:00Z',
         customer: 'Ana',
       }),
     ).toThrow('Validation Error: Expected a valid UUID, but received "not-an-id".');
+  });
+
+  it('hands the stored version to the factory, so a consumer can read an older shape', () => {
+    class CustomerRenamed extends EventBase {
+      static readonly eventName = 'customer.renamed';
+      static readonly eventVersion = 2;
+
+      constructor(
+        customerId: string,
+        readonly givenName: string,
+        readonly familyName: string,
+        metadata?: EventMetadata,
+      ) {
+        super(customerId, metadata);
+      }
+    }
+    const registry = new DomainEventRegistry<CustomerRenamed>().register(
+      CustomerRenamed,
+      (json) => {
+        if (json.eventVersion === 1) {
+          const [givenName, ...rest] = String(json.name).split(' ');
+          return new CustomerRenamed(json.aggregateId, givenName, rest.join(' '), json);
+        }
+        return new CustomerRenamed(
+          json.aggregateId,
+          json.givenName as string,
+          json.familyName as string,
+          json,
+        );
+      },
+    );
+    const storedLastYear = registry.fromJSON({
+      eventName: 'customer.renamed',
+      eventVersion: 1,
+      eventId,
+      aggregateId: orderId,
+      occurredOn: '2025-03-01T09:30:00.000Z',
+      name: 'Ana María López',
+    });
+    expect(storedLastYear).toMatchObject({ givenName: 'Ana', familyName: 'María López' });
+    expect(storedLastYear.toJSON().eventVersion).toBe(2);
   });
 });

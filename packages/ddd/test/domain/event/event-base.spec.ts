@@ -177,14 +177,42 @@ describe('EventBase: a fact the domain publishes', () => {
     });
   });
 
+  describe('eventVersion: the version of the shape of its data', () => {
+    it('is 1 unless the event class declares another one', () => {
+      expect(new PaymentCaptured(orderId, 10, 'EUR').eventVersion()).toBe(1);
+      expect('eventVersion' in PaymentCaptured).toBe(false);
+    });
+
+    it('a class that changed the shape of its data declares the new version', () => {
+      class PaymentCapturedV2 extends PaymentCaptured {
+        static readonly eventVersion = 2;
+      }
+      const event = new PaymentCapturedV2(orderId, 10, 'EUR');
+      expect(event.eventVersion()).toBe(2);
+      expect(event.eventName()).toBe('payment.captured');
+      expect(event.toJSON().eventVersion).toBe(2);
+    });
+
+    it.each([0, -1, 1.5, Number.NaN])('refuses the version %s', (version) => {
+      class BrokenVersion extends EventBase {
+        static readonly eventName = 'order.archived';
+        static readonly eventVersion = version;
+      }
+      expect(() => new BrokenVersion(orderId)).toThrow(
+        'Failed, internal error: BrokenVersion.eventVersion must be a whole number from 1',
+      );
+    });
+  });
+
   describe('toJSON: what goes to the outbox or the broker', () => {
-    it('serializes name, id, aggregate id, ISO moment and payload', () => {
+    it('serializes name, schema version, id, aggregate id, ISO moment and payload', () => {
       const event = new PaymentCaptured(orderId, 49.9, 'EUR', {
         eventId,
         occurredOn: '2026-03-01T09:30:00Z',
       });
       expect(JSON.parse(JSON.stringify(event))).toEqual({
         eventName: 'payment.captured',
+        eventVersion: 1,
         eventId,
         aggregateId: orderId,
         occurredOn: '2026-03-01T09:30:00.000Z',
@@ -198,6 +226,7 @@ describe('EventBase: a fact the domain publishes', () => {
       const event = new PaymentCaptured(orderId, 49.9, 'EUR', { eventId });
       expect(Object.keys(event.toJSON())).toEqual([
         'eventName',
+        'eventVersion',
         'eventId',
         'aggregateId',
         'occurredOn',

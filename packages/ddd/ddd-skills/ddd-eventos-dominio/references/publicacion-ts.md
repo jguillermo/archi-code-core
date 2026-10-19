@@ -61,7 +61,7 @@ export class PostgresOrderRepository implements OrderRepository {
 }
 ```
 
-Que el repositorio vacíe los eventos al guardar es una opción cómoda `[Fuera de los libros]`. La alternativa es que el caso de uso llame a `pullEvents()` y a un `EventStore.append` dentro de la misma transacción. Elige una y sé consistente.
+Que el repositorio vacíe los eventos al guardar es una opción cómoda `[Fuera de los libros]`. La alternativa es que el caso de uso llame a `pullEvents()` y a un `EventStore.append` dentro de la misma transacción. Elige una y sé consistente. Con `@archi-code/ddd` se usa la segunda, porque el repositorio solo obtiene y persiste: el caso de uso hace `events.publish(order.pullDomainEvents())` dentro de `transactions.run(...)`, el `EventBus` es el outbox, y un `OutboxRelay` reenvía después del commit `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ## Reenviador
 

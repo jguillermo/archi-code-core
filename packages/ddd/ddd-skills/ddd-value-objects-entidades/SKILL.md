@@ -58,6 +58,7 @@ Reglas mínimas que no se negocian (los nombres de los métodos son interfaces q
 * Igualdad por identidad.
 * Sin setters públicos: métodos con verbos del negocio que protegen reglas (ver la comparación `commitTo` frente a `setStatus` en `ddd-descubrimiento-dominio`) [IDDD cap. 1 y cap. 5].
 * Diseño inicial mínimo: identidad, lo que sirve para encontrarla y el comportamiento esencial con los atributos que ese comportamiento necesita. El resto, después [IDDD cap. 5].
+* Con `@archi-code/ddd`: la raíz extiende `AggregateRoot` y una entidad hija extiende `Entity<Id>`, que solo guarda el id y compara por identidad; la entidad hija tiene su id y sus value objects y **ninguna lógica de negocio**, que vive en la raíz `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ## Paso 3. Identidad
 
@@ -70,7 +71,7 @@ Elige la estrategia con `references/entidades-ts.md` (sección Identidad). Resum
 | La genera la base de datos (secuencia) | Llega tarde: el evento de creación sale sin id, y los objetos nuevos parecen iguales en colecciones |
 | La asigna otro contexto | Sincronización con el origen; la más compleja |
 
-Recomendación por defecto: identidad generada por la aplicación, **temprana** (antes de persistir), expuesta por el repositorio con `nextId()` [IDDD cap. 5]. En TypeScript, UUID v7 si conviene orden temporal en índices `[Fuera de los libros]`.
+Recomendación por defecto: identidad generada por la aplicación, **temprana** (antes de persistir) [IDDD cap. 5]. Con `@archi-code/ddd`, la genera el value object (`OrderId.generate()`), no el repositorio, que solo obtiene y persiste `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ## Paso 4. Validación en tres niveles
 

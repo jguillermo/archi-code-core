@@ -34,7 +34,10 @@
 * No inyectar repositorios en agregados [IDDD cap. 10].
 * Eventos en pasado, con lo necesario, sin estado completo [Destilado cap. 6].
 * Agregado y evento en la misma transacción; publicar después [Destilado cap. 6; IDDD cap. 8].
-* Un repositorio por agregado; no es un DAO [IDDD cap. 12].
+* Un repositorio por agregado; no es un DAO [IDDD cap. 12]. Solo obtiene y persiste: sin lógica ni consultas de negocio; las búsquedas son consultas de lectura `[Fuera de los libros: convención de @archi-code/ddd]`.
+* Entidades hijas: `Entity<Id>` con su id y value objects, sin lógica; la raíz aplica las reglas `[Fuera de los libros: convención de @archi-code/ddd]`.
+* Listeners `<Acción>On<Evento>` (`ReserveStockOnOrderPlaced`): traducen el evento a la entrada de un caso de uso `[Fuera de los libros: convención de @archi-code/ddd]`.
+* "No encontrado" y "no permitido" son errores de la capa de aplicación (404 y 403); una regla de negocio rota es del dominio (422) `[Fuera de los libros]`.
 * Servicio de dominio solo si la operación no encaja en una entidad o valor; sin estado [IDDD cap. 7].
 * Métodos que revelan intención; funciones sin efectos secundarios [IDDD cap. 5 y cap. 6].
 * Reglas con nombre del negocio que se combinan: Specification [IDDD cap. 5; PHP: Repositories].

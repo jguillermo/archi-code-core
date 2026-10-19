@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ValidationException } from '../../../src/exceptions/domain/validation.exception';
 import { DomainException } from '../../../src/exceptions/domain/domain.exception';
-import { AggregateNotFoundException } from '../../../src/exceptions/domain/aggregate-not-found.exception';
+import { AggregateNotFoundException } from '../../../src/exceptions/application/aggregate-not-found.exception';
 
 describe('ValidationException', () => {
   it('collects every failed rule of a form in one message, naming the field when there is one', () => {

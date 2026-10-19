@@ -5,6 +5,7 @@ import {
   ConcurrencyException,
   DomainException,
   ExceptionCode,
+  NotAllowedException,
   RequiredValueException,
   TypePrimitiveException,
   ValidationException,
@@ -45,17 +46,20 @@ export class HttpErrorMapper {
   }
 
   private static defaultStatus(error: AbstractException): number {
-    if (error instanceof ValidationException) {
-      return 422;
-    }
     if (error instanceof AggregateNotFoundException) {
       return 404;
+    }
+    if (error instanceof NotAllowedException) {
+      return 403;
+    }
+    if (error instanceof ConcurrencyException) {
+      return 409;
     }
     if (error instanceof TypePrimitiveException || error instanceof RequiredValueException) {
       return 400;
     }
-    if (error instanceof ConcurrencyException || error instanceof DomainException) {
-      return 409;
+    if (error instanceof DomainException) {
+      return 422;
     }
     if (error instanceof ApplicationException) {
       return 400;

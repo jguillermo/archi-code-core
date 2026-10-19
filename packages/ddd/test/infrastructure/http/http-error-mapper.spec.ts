@@ -5,6 +5,7 @@ import {
   AggregateNotFoundException,
   ApplicationException,
   ConcurrencyException,
+  NotAllowedException,
   DomainException,
   InfrastructureException,
   InternalErrorException,
@@ -52,7 +53,7 @@ describe('HttpErrorMapper: the error handler of an HTTP controller', () => {
     it('an order that does not exist is a 404', () => {
       expect(mapper.map(new AggregateNotFoundException('Order', orderId))).toEqual({
         status: 404,
-        body: { code: 'DOM002', message: `Order with ID ${orderId} not found.` },
+        body: { code: 'APP002', message: `Order with ID ${orderId} not found.` },
       });
     });
 
@@ -86,6 +87,13 @@ describe('HttpErrorMapper: the error handler of an HTTP controller', () => {
       expect(mapper.map(error)).toMatchObject({ status: 400, body: { code: 'DOM004' } });
     });
 
+    it('a customer cancelling an order of another customer is a 403', () => {
+      expect(mapper.map(new NotAllowedException('cus-luis cannot cancel this order'))).toEqual({
+        status: 403,
+        body: { code: 'APP003', message: 'cus-luis cannot cancel this order' },
+      });
+    });
+
     it('a save that lost an optimistic concurrency race is a 409', () => {
       expect(mapper.map(new ConcurrencyException('Order', orderId, 3))).toEqual({
         status: 409,
@@ -96,9 +104,9 @@ describe('HttpErrorMapper: the error handler of an HTTP controller', () => {
       });
     });
 
-    it('a business rule of the domain, such as adding a line to a shipped order, is a 409', () => {
+    it('a business rule of the domain, such as adding a line to a shipped order, is a 422', () => {
       expect(mapper.map(new OrderShippedException(orderId))).toEqual({
-        status: 409,
+        status: 422,
         body: { code: 'ORD001', message: `Order ${orderId} is already shipped` },
       });
     });
@@ -144,7 +152,7 @@ describe('HttpErrorMapper: the error handler of an HTTP controller', () => {
   });
 
   describe('overriding the status of a code', () => {
-    const custom = new HttpErrorMapper({ ORD001: 403, DOM002: 410, USR001: 503 });
+    const custom = new HttpErrorMapper({ ORD001: 403, APP002: 410, USR001: 503 });
 
     it('maps your own code to the status your API documents', () => {
       expect(custom.map(new OrderShippedException(orderId))).toEqual({

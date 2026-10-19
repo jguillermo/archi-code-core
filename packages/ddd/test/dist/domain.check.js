@@ -124,6 +124,20 @@ function smoke(m) {
       },
     ],
     [
+      'Entity compares by id and is the base of aggregate roots',
+      () => {
+        class Seat extends m.Entity {}
+        class Room extends m.AggregateRoot {}
+        const seat = new Seat(new m.IdType(ORDER_ID));
+        return (
+          (seat.equals(new Seat(new m.IdType(ORDER_ID.toUpperCase()))) &&
+            !seat.equals(new Room(new m.IdType(ORDER_ID))) &&
+            new Room(new m.IdType(ORDER_ID)) instanceof m.Entity) ||
+          'unexpected entity equality'
+        );
+      },
+    ],
+    [
       'Specification combines named rules',
       () => {
         class Above extends m.Specification {

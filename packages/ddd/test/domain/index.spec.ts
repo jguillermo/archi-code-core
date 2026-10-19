@@ -26,6 +26,7 @@ const PUBLIC_API = [
   'Composite',
   'CreatedAt',
   'DateType',
+  'Entity',
   'EnumType',
   'EventBase',
   'IdType',

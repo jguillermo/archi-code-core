@@ -181,6 +181,42 @@ function smoke(m) {
       },
     ],
     [
+      'an inbox makes delivery idempotent and the published language keeps internal events inside',
+      async () => {
+        const { OrderPlaced } = orderModel();
+        const handled = [];
+        class ConfirmOrderOnOrderPlaced extends application.EventListener {
+          handle(event) {
+            handled.push(event.eventId);
+          }
+        }
+        application.ListensTo(OrderPlaced)(ConfirmOrderOnOrderPlaced);
+        const inbox = new m.InMemoryInbox();
+        const transactions = new m.InMemoryTransactionRunner([inbox]);
+        const dispatcher = new m.EventDispatcher([new ConfirmOrderOnOrderPlaced()], {
+          inbox,
+          transactions,
+        });
+        const event = new OrderPlaced(ORDER_ID, 'Ana');
+        await dispatcher.dispatch(event);
+        await dispatcher.dispatch(event);
+        const language = new m.PublishedLanguage().expose(OrderPlaced, {
+          name: 'sales.order_placed',
+          version: 1,
+          data: (json) => ({ orderId: json.aggregateId }),
+        });
+        const message = language.translate(event.toJSON());
+        return (
+          (handled.length === 1 &&
+            message.name === 'sales.order_placed' &&
+            message.messageId === event.eventId &&
+            event.toJSON().eventVersion === 1 &&
+            language.translate({ ...event.toJSON(), eventName: 'order.internal' }) === null) ||
+          'unexpected inbox or published language behavior'
+        );
+      },
+    ],
+    [
       'events go through the bus and come back from their JSON',
       async () => {
         const { Order, OrderPlaced } = orderModel();
@@ -216,10 +252,16 @@ function smoke(m) {
         const mapper = new m.HttpErrorMapper();
         const notFound = mapper.map(new exceptions.AggregateNotFoundException('Order', ORDER_ID));
         const internal = mapper.map(new exceptions.InternalErrorException('password=secret'));
+        const forbidden = mapper.map(new exceptions.NotAllowedException('cus-luis cannot cancel'));
+        const rule = mapper.map(
+          new exceptions.DomainException('Order already shipped', ['ORD001']),
+        );
         const clock = new m.FixedClock('2026-01-01T00:00:00Z');
         clock.advance(1000);
         return (
           (notFound.status === 404 &&
+            forbidden.status === 403 &&
+            rule.status === 422 &&
             internal.status === 500 &&
             internal.body.message === 'Internal server error' &&
             clock.now().toISOString() === '2026-01-01T00:00:01.000Z' &&

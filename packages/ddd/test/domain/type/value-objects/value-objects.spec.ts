@@ -8,7 +8,7 @@ import { StringType } from '../../../../src/domain/type/string-type';
 import { Required } from '../../../../src/domain/type/required/required';
 import { DomainException } from '../../../../src/exceptions/domain/domain.exception';
 import { ValidationException } from '../../../../src/exceptions/domain/validation.exception';
-import { AggregateNotFoundException } from '../../../../src/exceptions/domain/aggregate-not-found.exception';
+import { AggregateNotFoundException } from '../../../../src/exceptions/application/aggregate-not-found.exception';
 
 class OrderId extends IdType {}
 
@@ -182,15 +182,32 @@ describe('ValueObjects: building every value object of an input at once', () => 
     });
 
     it('treats any domain exception as a field error, whatever its subclass', () => {
+      class UnknownCurrency extends DomainException {
+        constructor(code: string) {
+          super(`Currency ${code} is not sold here`, ['PAY002']);
+        }
+      }
       expect(
         issuesOf(() =>
           ValueObjects.build({
-            order: () => {
-              throw new AggregateNotFoundException('Order', orderId);
+            currency: () => {
+              throw new UnknownCurrency('GBP');
             },
           }),
         ),
-      ).toEqual([{ field: 'order', message: `Order with ID ${orderId} not found.` }]);
+      ).toEqual([{ field: 'currency', message: 'Currency GBP is not sold here' }]);
+    });
+
+    it('lets an application exception through untouched: it is not a field of the input', () => {
+      const missing = new AggregateNotFoundException('Order', orderId);
+      expect(() =>
+        ValueObjects.build({
+          email: () => new CustomerEmail('ana'),
+          order: () => {
+            throw missing;
+          },
+        }),
+      ).toThrow(missing);
     });
 
     it('an empty input builds an empty command', () => {

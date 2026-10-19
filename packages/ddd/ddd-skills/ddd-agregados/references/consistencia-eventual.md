@@ -20,17 +20,30 @@ El evento no está para mantener un puntero inverso sin sentido. En IDDD, `Backl
 
 `[Fuera de los libros como término; en Event Storming son las notas lila de proceso, Destilado cap. 7]`
 
+Con `@archi-code/ddd` una política son dos piezas de la capa de aplicación `[Fuera de los libros: convención de @archi-code/ddd]`: un **listener** que traduce el evento a la entrada de un caso de uso, y el **caso de uso** que carga, invoca y guarda el agregado.
+
 ```ts
 /** Política de Ventas: cuando Almacén reserva stock, se registra en el pedido. */
-export class RegisterReservationOnOrder {
-  constructor(private readonly orders: OrderRepository, private readonly tx: TransactionRunner) {}
+@ListensTo(StockReserved)
+export class RegisterReservationOnStockReserved extends EventListener<StockReserved> {
+  constructor(private readonly registerReservation: RegisterReservation) {
+    super();
+  }
 
-  async when(event: StockReservedV1): Promise<void> {
-    await this.tx.run(async () => {
-      const order = await this.orders.byId(OrderId.of(event.orderId));
-      if (!order) return;                                     // pedido de otro canal: no es nuestro
-      order.registerStockReservation(ReservationId.of(event.reservationId));
-      await this.orders.save(order);                          // un agregado, una transacción
+  async handle(event: StockReserved): Promise<void> {
+    await this.registerReservation.execute({ orderId: event.orderId, reservationId: event.aggregateId });
+  }
+}
+
+export class RegisterReservation extends UseCase<RegisterReservationInput, RegisterReservationCommand, void> {
+  // toCommand: ValueObjects.build({ orderId: () => new OrderId(...), reservationId: () => new ReservationId(...) })
+  protected handle(command: RegisterReservationCommand): Promise<void> {
+    return this.transactions.run(async () => {
+      const order = await this.orders.findById(command.orderId);
+      if (order === null) return;                              // pedido de otro canal: no es nuestro
+      order.registerStockReservation(command.reservationId);
+      await this.orders.save(order);                           // un agregado, una transacción
+      await this.events.publish(order.pullDomainEvents());     // outbox, misma transacción
     });
   }
 }
@@ -38,8 +51,9 @@ export class RegisterReservationOnOrder {
 
 Reglas para políticas:
 * Una política, un agregado modificado.
-* Nombre con el lenguaje del negocio (`RegisterReservationOnOrder`), no `StockReservedHandler`.
-* La regla de negocio está en el agregado; la política solo lo invoca.
+* Nombre del listener: `<Acción>On<Evento>`, donde la acción es el caso de uso que ejecuta y el evento el hecho que la dispara (`RegisterReservationOnStockReserved`), nunca `StockReservedHandler` `[Fuera de los libros: convención de @archi-code/ddd]`.
+* La regla de negocio está en el agregado; el listener solo traduce el evento y el caso de uso solo coordina.
+* El listener se suscribe con `@ListensTo(Evento)`, un evento por listener; el `EventDispatcher` con inbox hace que cada evento se procese una vez por listener.
 * El método invocado no lanza errores de negocio (ver "Comandos frente a hechos" en `implementacion-ts.md`). Los errores técnicos (base de datos caída, conflicto de versión) sí se propagan para que la mensajería reintente.
 
 ## Plazos y lo que ve el usuario

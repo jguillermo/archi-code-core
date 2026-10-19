@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AggregateNotFoundException } from '../../../src/exceptions/domain/aggregate-not-found.exception';
+import { AggregateNotFoundException } from '../../../src/exceptions/application/aggregate-not-found.exception';
+import { ApplicationException } from '../../../src/exceptions/application/application.exception';
 import { DomainException } from '../../../src/exceptions/domain/domain.exception';
 import { ValidationException } from '../../../src/exceptions/domain/validation.exception';
 import { ExceptionCode } from '../../../src/exceptions/exception-code';
@@ -37,7 +38,7 @@ function toHttpStatus(error: unknown): number {
 }
 
 describe('AggregateNotFoundException', () => {
-  it('is what a repository throws when the aggregate does not exist', () => {
+  it('is what a use case throws when the aggregate it needs does not exist', () => {
     const repository = new InMemoryUserRepository();
 
     expect(repository.getById('u-1').name).toBe('Ana');
@@ -45,13 +46,16 @@ describe('AggregateNotFoundException', () => {
     expect(() => repository.getById('u-404')).toThrow('User with ID u-404 not found.');
   });
 
-  it('is a domain exception with the code DOM002', () => {
+  it('is an application exception with the code APP002, never a domain one', () => {
     const exception = new AggregateNotFoundException('User', 'u-404');
 
-    expect(exception).toBeInstanceOf(DomainException);
+    expect(exception).toBeInstanceOf(ApplicationException);
+    expect(exception).not.toBeInstanceOf(DomainException);
     expect(exception.name).toBe('AggregateNotFoundException');
-    expect(exception.code).toBe('DOM002');
-    expect(exception.description).toBe('Domain Exception (DOM000), Aggregate Not Found (DOM002)');
+    expect(exception.code).toBe('APP002');
+    expect(exception.description).toBe(
+      'Application Exception (APP000), Aggregate Not Found (APP002)',
+    );
   });
 
   it('lets an HTTP error mapper turn it into a 404 by its code', () => {
@@ -65,11 +69,12 @@ describe('AggregateNotFoundException', () => {
 
   it('is recognized when thrown by the other build of the package, and not taken for a validation error', async () => {
     vi.resetModules();
-    const otherCopy = await import('../../../src/exceptions/domain/aggregate-not-found.exception');
+    const otherCopy =
+      await import('../../../src/exceptions/application/aggregate-not-found.exception');
     const thrownByOtherCopy = new otherCopy.AggregateNotFoundException('User', 'u-404');
 
     expect(thrownByOtherCopy instanceof AggregateNotFoundException).toBe(true);
-    expect(thrownByOtherCopy instanceof DomainException).toBe(true);
+    expect(thrownByOtherCopy instanceof ApplicationException).toBe(true);
     expect(thrownByOtherCopy instanceof ValidationException).toBe(false);
     expect(toHttpStatus(thrownByOtherCopy)).toBe(404);
   });

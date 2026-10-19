@@ -13,9 +13,11 @@ function smoke(m) {
         return (
           (internal.cause === cause &&
             internal.code === m.ExceptionCode.InternalError &&
-            notFound.code === 'DOM002' &&
-            notFound.description === 'Domain Exception (DOM000), Aggregate Not Found (DOM002)' &&
-            notFound instanceof m.DomainException &&
+            notFound.code === 'APP002' &&
+            notFound.description ===
+              'Application Exception (APP000), Aggregate Not Found (APP002)' &&
+            notFound instanceof m.ApplicationException &&
+            new m.NotAllowedException('cus-luis cannot cancel').code === 'APP003' &&
             notFound instanceof m.AbstractException &&
             JSON.parse(JSON.stringify(notFound)).message ===
               `Order with ID ${ORDER_ID} not found.`) ||
@@ -55,7 +57,8 @@ function crossBuild(cjs, esm) {
         const conflict = new esm.ConcurrencyException('Order', ORDER_ID, 3);
         return (
           (notFound instanceof cjs.AggregateNotFoundException &&
-            notFound instanceof cjs.DomainException &&
+            notFound instanceof cjs.ApplicationException &&
+            !(notFound instanceof cjs.DomainException) &&
             notFound instanceof cjs.AbstractException &&
             !(notFound instanceof cjs.ValidationException) &&
             !(notFound instanceof cjs.InfrastructureException) &&

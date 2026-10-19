@@ -55,11 +55,12 @@ describe('AbstractException', () => {
       expect(AbstractException.ExceptionCodeStrings).toStrictEqual({
         DOM000: 'Domain Exception',
         DOM001: 'Validation Failed',
-        DOM002: 'Aggregate Not Found',
         DOM003: 'Type Failed',
         DOM004: 'Required Value',
         APP000: 'Application Exception',
         APP001: 'Concurrency Conflict',
+        APP002: 'Aggregate Not Found',
+        APP003: 'Not Allowed',
         INF000: 'Infrastructure Exception',
         INF001: 'Internal Error',
         INF002: 'Unknown Event',

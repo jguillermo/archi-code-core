@@ -37,7 +37,7 @@ Publicar los eventos de dominio como un feed de recursos (al estilo Atom) que lo
 ### Receptor idempotente en TypeScript
 
 ```ts
-export class StockReservedHandler {
+export class RegisterReservationOnStockReserved {
   constructor(
     private readonly processed: ProcessedMessageStore,
     private readonly confirmOrder: ConfirmOrderWhenReady,
