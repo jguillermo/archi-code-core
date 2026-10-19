@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import * as application from '../../src/application/index';
-import type { Clock, EventBus } from '../../src/application/index';
+import type { Clock, EventBus, TransactionRunner } from '../../src/application/index';
 import { EventListener } from '../../src/application/listener/event-listener';
 import { ListensTo } from '../../src/application/listener/listens-to';
 import { UseCase } from '../../src/application/use-case/use-case';
@@ -27,6 +27,9 @@ describe('@archi-code/ddd/application', () => {
     expectTypeOf<Clock>().toEqualTypeOf<{ now(): Date }>();
     expectTypeOf<EventBus['publish']>().toEqualTypeOf<
       (events: readonly EventBase[]) => Promise<void>
+    >();
+    expectTypeOf<TransactionRunner['run']>().toEqualTypeOf<
+      <Result>(work: () => Promise<Result>) => Promise<Result>
     >();
   });
 });

@@ -5,6 +5,10 @@ import type {
   EventFactory,
   HttpError,
   HttpErrorBody,
+  OutboxDelivery,
+  OutboxEntry,
+  OutboxStore,
+  TransactionParticipant,
 } from '../../src/infrastructure/index';
 import { AggregateRoot, EventBase } from '../../src/domain/index';
 import type { SerializedEvent } from '../../src/domain/index';
@@ -19,7 +23,10 @@ const PUBLIC_API = [
   'FixedClock',
   'HttpErrorMapper',
   'InMemoryEventBus',
+  'InMemoryOutbox',
   'InMemoryRepository',
+  'InMemoryTransactionRunner',
+  'OutboxRelay',
   'SystemClock',
 ];
 
@@ -58,5 +65,16 @@ describe('@archi-code/ddd/infrastructure', () => {
       errors?: readonly ValidationIssue[];
     }>();
     expectTypeOf<HttpError>().toEqualTypeOf<{ status: number; body: HttpErrorBody }>();
+    expectTypeOf<TransactionParticipant>().toEqualTypeOf<{ snapshot(): () => void }>();
+    expectTypeOf<OutboxEntry>().toEqualTypeOf<{
+      readonly sequence: number;
+      readonly event: SerializedEvent;
+    }>();
+    expectTypeOf<OutboxStore['pending']>().toEqualTypeOf<
+      (limit: number) => Promise<readonly OutboxEntry[]>
+    >();
+    expectTypeOf<OutboxDelivery>().toEqualTypeOf<
+      (event: SerializedEvent) => Promise<void> | void
+    >();
   });
 });

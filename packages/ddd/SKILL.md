@@ -1,6 +1,6 @@
 ---
 name: archi-code-ddd
-description: Rules, patterns and common mistakes for writing TypeScript code with @archi-code/ddd (archi-code DDD by layer - where each class goes and what it may import; domain value objects, Required(...), ValueObjects.build, Composite value objects, Specification, AggregateRoot with identity and events, EventBase, repository contracts and exceptions; application UseCase with toCommand/handle, EventListener with @ListensTo and the ports EventBus/Clock; infrastructure InMemoryRepository, EventDispatcher, InMemoryEventBus, DomainEventRegistry, HttpErrorMapper and clocks). Use it when creating or changing value objects, entities, aggregates, events, domain services, use cases, listeners, repositories or adapters, deciding in which layer a class goes, mapping errors to HTTP, or whenever the code imports @archi-code/ddd.
+description: Rules, patterns and common mistakes for writing TypeScript code with @archi-code/ddd (archi-code DDD by layer - where each class goes and what it may import; domain value objects, Required(...), ValueObjects.build, Composite value objects, Specification, AggregateRoot with identity and events, EventBase, repository contracts and exceptions; application UseCase with toCommand/handle, EventListener with @ListensTo and the ports EventBus/Clock/TransactionRunner; infrastructure InMemoryRepository, InMemoryTransactionRunner, InMemoryOutbox, OutboxRelay, EventDispatcher, InMemoryEventBus, DomainEventRegistry, HttpErrorMapper and clocks). Use it when creating or changing value objects, entities, aggregates, events, domain services, use cases, listeners, repositories or adapters, deciding in which layer a class goes, mapping errors to HTTP, or whenever the code imports @archi-code/ddd.
 ---
 
 # archi-code-ddd
@@ -63,7 +63,7 @@ import type {
   PrimitiveTypes,
 } from '@archi-code/ddd/domain';
 import { EventListener, ListensTo, UseCase } from '@archi-code/ddd/application';
-import type { Clock, EventBus } from '@archi-code/ddd/application';
+import type { Clock, EventBus, TransactionRunner } from '@archi-code/ddd/application';
 import {
   AggregateMapper,
   DomainEventRegistry,
@@ -71,7 +71,10 @@ import {
   FixedClock,
   HttpErrorMapper,
   InMemoryEventBus,
+  InMemoryOutbox,
   InMemoryRepository,
+  InMemoryTransactionRunner,
+  OutboxRelay,
 } from '@archi-code/ddd/infrastructure';
 import { Validations } from '@archi-code/validation';
 ```
@@ -246,22 +249,35 @@ const { Required, StringType } = require('@archi-code/ddd/domain');
   (`delete`), combined with `&` when it needs several. There is no all-in-one `Repository` port:
   an adapter implements each role it supports.
 - Use cases extend `UseCase<Input, Command, Output>`, receive ports by constructor
-  (`AggregateSaver<Order>`, `EventBus<OrderEvent>`, `Clock`) and are called with `execute(input)`.
+  (`AggregateSaver<Order>`, `EventBus<OrderEvent>`, `TransactionRunner`, `Clock`) and are called
+  with `execute(input)`.
   They implement two steps: `protected toCommand(input)` builds the value objects with
   `ValueObjects.build` and returns the command (a small interface of value objects, or one value
   object built with `new`); `protected handle(command)` works only with value objects. `UseCase` has no helpers:
   write every step in `handle` (load with `findById` and throw `AggregateNotFoundException` when it
-  is `null`, change the aggregate, `save`, then `publish(aggregate.pullDomainEvents())`). Let errors
+  is `null`, change the aggregate, `save`, then `publish(aggregate.pullDomainEvents())`), all of
+  them inside `transactions.run(async () => …)` when the project has transactions. Let errors
   propagate: `execute` keeps package exceptions and wraps any other error (also from `toCommand`)
   in `InternalErrorException` with `cause`.
 - A use case never imports nor calls another use case.
+- **Transactions belong to the application, events to the outbox** [IDDD ch. 12; Destilado ch. 6]:
+  the use case opens the transaction with the `TransactionRunner` port (`run(work)`; a nested run
+  joins the outer one) and publishes inside it, so the aggregate and its events are committed
+  together. `EventBus` is then an outbox: it stores the events; an `OutboxRelay(store, deliver)`
+  run by a worker after the commit (`forward()`) delivers them in order to the dispatcher or a
+  broker, at least once, so listeners must tolerate an `eventId` they already processed. Neither
+  the domain nor a repository opens a transaction.
+- Tests use `InMemoryTransactionRunner([repository, outbox])` (restores both when the work throws;
+  `committed`/`rolledBack`), `InMemoryOutbox` (events stored as JSON, `pending(limit)`) and
+  `OutboxRelay`. `InMemoryEventBus` dispatches immediately: only for a quick test without
+  transactions.
 - Listeners extend `EventListener<Event>`, are decorated with `@ListensTo(EventClass)` (one event
   per listener, any number of listeners per event), receive the one use case they run by
   constructor and their `handle(event)` only maps the event to that use case's input.
-- Listeners are wired in infrastructure: `new EventDispatcher([...listeners])`, given to
-  `new InMemoryEventBus(dispatcher)` for in-process delivery, or called with
-  `dispatcher.dispatch(registry.fromJSON(message))` by a queue or outbox consumer. The application
-  only knows `EventBus.publish`.
+- Listeners are wired in infrastructure: `new EventDispatcher([...listeners])`, fed after the
+  commit by `new OutboxRelay(outbox, (json) => dispatcher.dispatch(registry.fromJSON(json)))` or by
+  a queue consumer (`InMemoryEventBus(dispatcher)` for a quick test). The application only knows
+  `EventBus.publish` and `TransactionRunner.run`.
 - A real repository implements the roles it supports (`AggregateFinder<A>`, `AggregateSaver<A>`,
   `AggregateRemover<A>`) and wraps driver errors in `InternalErrorException` with `cause`.
   `InMemoryRepository(AggregateMapper.of(Order))` is the reference for tests: it stores copies of
@@ -433,7 +449,8 @@ interface AddOrderLineCommand {
 class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand, void> {
   constructor(
     private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
-    private readonly bus: EventBus<OrderEvent>,
+    private readonly events: EventBus<OrderEvent>,
+    private readonly transactions: TransactionRunner,
   ) {
     super();
   }
@@ -446,14 +463,16 @@ class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand, void>
     });
   }
 
-  protected async handle(command: AddOrderLineCommand): Promise<void> {
-    const order = await this.orders.findById(command.orderId);
-    if (order === null) {
-      throw new AggregateNotFoundException('Order', command.orderId.value);
-    }
-    order.addLine(command.sku, command.units);
-    await this.orders.save(order);
-    await this.bus.publish(order.pullDomainEvents());
+  protected handle(command: AddOrderLineCommand): Promise<void> {
+    return this.transactions.run(async () => {
+      const order = await this.orders.findById(command.orderId);
+      if (order === null) {
+        throw new AggregateNotFoundException('Order', command.orderId.value);
+      }
+      order.addLine(command.sku, command.units);
+      await this.orders.save(order);
+      await this.events.publish(order.pullDomainEvents());
+    });
   }
 }
 ```
@@ -534,23 +553,29 @@ class MongoOrderRepository implements AggregateFinder<Order>, AggregateSaver<Ord
 }
 ```
 
-Wiring and tests with the in-memory adapters, a fixed clock and the HTTP mapper:
+Wiring and tests with the in-memory adapters (transaction, outbox, relay) and the HTTP mapper:
 
 ```ts
 const orders = new InMemoryRepository(AggregateMapper.of(Order));
+const outbox = new InMemoryOutbox<OrderEvent>();
+const transactions = new InMemoryTransactionRunner([orders, outbox]);
 const listeners = new EventDispatcher([
   new PrepareShipmentOnOrderLineAdded(new PrepareShipment(warehouse)),
 ]);
-const bus = new InMemoryEventBus<OrderEvent>(listeners);
-await orders.save(Order.place(new OrderId(orderId), new CustomerName('Ana')));
-await new AddOrderLine(orders, bus).execute({ orderId, sku: 'TORCH-01', units: 2 });
-bus.published; // events in order; PrepareShipment already ran
-
 const registry = new DomainEventRegistry<OrderEvent>().register(
   OrderLineAdded,
   (json) => new OrderLineAdded(json.aggregateId, json.sku as string, json.units as number, json),
 );
-await listeners.dispatch(registry.fromJSON(queueMessage)); // same listeners, fed by a queue
+const relay = new OutboxRelay(outbox, (json) => listeners.dispatch(registry.fromJSON(json)));
+
+await orders.save(Order.place(new OrderId(orderId), new CustomerName('Ana')));
+await new AddOrderLine(orders, outbox, transactions).execute({
+  orderId,
+  sku: 'TORCH-01',
+  units: 2,
+});
+await outbox.pending(10); // the OrderLineAdded event, committed with the order
+await relay.forward(); // after the commit: PrepareShipment runs
 
 const errors = new HttpErrorMapper({ ORD001: 409 });
 const { status, body } = errors.map(caughtError);
@@ -653,6 +678,14 @@ freeShipping.isSatisfiedBy(order);
 - Catching errors inside `handle` just to rethrow them as `ApplicationException`: let them
   propagate; `execute` keeps package exceptions and wraps the rest.
 - Calling `bus.publish` before `repository.save`, or publishing without `pullDomainEvents()`.
+- Publishing after `transactions.run(...)` returns, or delivering events (dispatching listeners,
+  sending to a broker) inside the transaction: events are stored in the transaction and delivered
+  by the relay after the commit.
+- Opening transactions (`BEGIN`/`COMMIT`) in a repository or in the domain, or saving two
+  aggregates in one `run`: the use case owns one transaction for one aggregate.
+- Using `InMemoryEventBus` with a `TransactionRunner`: it dispatches before the commit; use
+  `InMemoryOutbox` + `OutboxRelay`.
+- A listener that breaks when the relay delivers the same event twice: delivery is at least once.
 - A use case that does several things (`UpdateOrder` that ships, cancels or renames depending on
   the input) or that saves more than one aggregate: split it into one use case per business
   action.

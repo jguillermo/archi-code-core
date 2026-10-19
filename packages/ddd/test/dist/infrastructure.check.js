@@ -129,6 +129,58 @@ function smoke(m) {
       },
     ],
     [
+      'a transaction stores the order and its events, rolls both back on failure, and the relay delivers after commit',
+      async () => {
+        const { Order, OrderPlaced } = orderModel();
+        const orders = new m.InMemoryRepository(m.AggregateMapper.of(Order));
+        const outbox = new m.InMemoryOutbox();
+        const transactions = new m.InMemoryTransactionRunner([orders, outbox]);
+        const placeOrder = async (fail) =>
+          transactions.run(async () => {
+            const order = Order.place(ORDER_ID, 'Ana');
+            await orders.save(order);
+            await outbox.publish(order.pullDomainEvents());
+            if (fail) {
+              throw new Error('payment declined');
+            }
+          });
+        let failed = false;
+        try {
+          await placeOrder(true);
+        } catch {
+          failed = true;
+        }
+        const afterRollback = (await orders.findAll()).length + (await outbox.pending(10)).length;
+        await placeOrder(false);
+        const received = [];
+        class ConfirmOrderOnOrderPlaced extends application.EventListener {
+          handle(event) {
+            received.push(event.customer);
+          }
+        }
+        application.ListensTo(OrderPlaced)(ConfirmOrderOnOrderPlaced);
+        const dispatcher = new m.EventDispatcher([new ConfirmOrderOnOrderPlaced()]);
+        const registry = new m.DomainEventRegistry().register(
+          OrderPlaced,
+          (json) => new OrderPlaced(json.aggregateId, json.customer, json),
+        );
+        const relay = new m.OutboxRelay(outbox, (json) =>
+          dispatcher.dispatch(registry.fromJSON(json)),
+        );
+        const delivered = await relay.forward();
+        return (
+          (failed &&
+            afterRollback === 0 &&
+            transactions.committed === 1 &&
+            transactions.rolledBack === 1 &&
+            delivered === 1 &&
+            received.join() === 'Ana' &&
+            (await relay.forward()) === 0) ||
+          'unexpected transaction or outbox behavior'
+        );
+      },
+    ],
+    [
       'events go through the bus and come back from their JSON',
       async () => {
         const { Order, OrderPlaced } = orderModel();
