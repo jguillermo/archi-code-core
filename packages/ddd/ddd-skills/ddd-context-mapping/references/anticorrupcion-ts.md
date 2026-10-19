@@ -166,7 +166,7 @@ export class CatalogHttpProductPricing implements ProductPricing {
 Decisiones visibles:
 * Timeout explícito: la red falla y hay latencia [IDDD cap. 13].
 * Validación del contrato al entrar: si Catálogo rompe el esquema, el error se detecta en el borde y no dentro del modelo. Un valor inválido de Catálogo no llega al usuario como `ValidationException` de Ventas: el adaptador la envuelve en `CatalogContractViolation` con la original como `cause`.
-* Errores con nombre y código propios (`InfrastructureException` con `CAT001`, `CAT002`). El punto de entrada los traduce con `HttpErrorMapper`, que responde 500 por defecto a cualquier error de infraestructura; para avisar de que Catálogo no está disponible se configura por código: `new HttpErrorMapper({ CAT001: 503 })` (con 5xx el cuerpo lleva un mensaje genérico, nunca el del error).
+* Errores con nombre y código propios (`InfrastructureException` con `CAT001`, `CAT002`). El punto de entrada los traduce con `HttpErrorMapper`, que responde 500 por defecto a cualquier error de infraestructura; para avisar de que Catálogo no está disponible se configura por código: `new HttpErrorMapper({ statusByCode: { CAT001: 503 } })` (con 5xx el cuerpo lleva un mensaje genérico, nunca el del error).
 
 ### 5. Uso desde la capa de aplicación
 

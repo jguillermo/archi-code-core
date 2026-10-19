@@ -83,14 +83,13 @@ src/
       warehouse/
     main.ts
   prompts/      (si el proyecto usa IA; nunca dentro del dominio)
-  utils/        (logger; se inyecta en infraestructura, nunca en domain/)
 config/
 tests/
   contexts/sales/...
 ```
 
 Reglas de encaje:
-* El logger de `src/utils/` solo lo usan `application`, `infrastructure` e `interfaces`. El dominio no registra logs: registra eventos (`record`) o lanza una `DomainException` con nombre y código.
+* El logger es el puerto `Logger` de `@archi-code/ddd/application` (`debug`, `info`, `warn`, `error`, cada uno con un mensaje estable y un contexto). Lo reciben por constructor `application`, `infrastructure` e `interfaces`; el proveedor (`ConsoleLogger` del paquete, o un adaptador sobre pino, winston…) se elige en el composition root. El dominio no registra logs: registra eventos (`record`) o lanza una `DomainException` con nombre y código. `[Fuera de los libros: convención de @archi-code/ddd]`
 * Las variables de entorno se leen en el composition root y llegan a los adaptadores como configuración tipada. Nunca `process.env` fuera de ahí.
 * Los prompts de IA (si los hay) son infraestructura o aplicación; un modelo de lenguaje es un adaptador detrás de un puerto con nombre de negocio.
 
@@ -100,7 +99,7 @@ Reglas de encaje:
 |---|---|---|---|
 | Entrada (driving) | HTTP `POST /orders`, consumidor de `StockReserved` | El caso de uso es la API de entrada (`execute(input)`) | `interfaces/` |
 | Salida de dominio | `AggregateFinder<Order>`, `AggregateSaver<Order>` (del paquete); `ProductPricing` (tuyo) | `@archi-code/ddd/domain`; `domain/` | `infrastructure/` (`MongoOrderRepository`, `CatalogHttpProductPricing`) |
-| Salida de aplicación | `EventBus`, `Clock`, `TransactionRunner` (del paquete); `Warehouse` (tuyo) | `@archi-code/ddd/application`; `application/` | `DomainEventBus` sobre tu `EventChannel`, `SystemClock`, tu `MongoTransactionRunner`; `HttpWarehouse` |
+| Salida de aplicación | `EventBus`, `Clock`, `TransactionRunner`, `Logger` (del paquete); `Warehouse` (tuyo) | `@archi-code/ddd/application`; `application/` | `DomainEventBus` sobre tu `EventChannel`, `SystemClock`, tu `MongoTransactionRunner`, `ConsoleLogger` o tu adaptador; `HttpWarehouse` |
 
 En IDDD los puertos no se implementan "a mano": el puerto es HTTP o el bus de mensajes, y el adaptador es el controlador o el listener que traduce a la API de aplicación [IDDD cap. 4]. El interior se diseña por casos de uso, no por número de clientes [IDDD cap. 4].
 
@@ -131,7 +130,7 @@ import type { HttpClient } from './infrastructure/warehouse/HttpWarehouse';
 import { RabbitMqEventChannel } from './infrastructure/messaging/RabbitMqEventChannel';
 import type { AmqpChannel } from './infrastructure/messaging/RabbitMqEventChannel';
 import { ordersRouter } from './interfaces/http/ordersRouter';
-import type { Logger } from './interfaces/http/ordersRouter';
+import type { Logger } from '@archi-code/ddd/application';
 
 export interface SalesConfig {
   mongoUrl: string;
@@ -174,7 +173,11 @@ export async function composeSales(
           json,
         ),
     );
-  const bus = new DomainEventBus<OrderEvent>(new RabbitMqEventChannel(deps.amqp), registry);
+  const bus = new DomainEventBus<OrderEvent>(
+    new RabbitMqEventChannel(deps.amqp),
+    registry,
+    deps.logger,
+  );
 
   const placeOrder = new PlaceOrder(orders, bus, transactions, clock);
   const addOrderLine = new AddOrderLine(orders, bus, transactions, clock);
@@ -189,8 +192,7 @@ export async function composeSales(
   return {
     httpRouter: ordersRouter(
       { placeOrder, addOrderLine },
-      new HttpErrorMapper({ ORD001: 409 }),
-      deps.logger,
+      new HttpErrorMapper({ statusByCode: { ORD001: 409 }, logger: deps.logger }),
     ),
     close: async () => {
       await Promise.all(subscriptions.map((subscription) => subscription.unsubscribe()));
@@ -271,22 +273,14 @@ import type { HttpErrorMapper } from '@archi-code/ddd/infrastructure';
 import type { AddOrderLine } from '../../application/add-order-line/AddOrderLine';
 import type { PlaceOrder } from '../../application/place-order/PlaceOrder';
 
-export interface Logger {
-  error(message: string, context: Record<string, unknown>): void;
-}
-
 export function ordersRouter(
   useCases: { placeOrder: PlaceOrder; addOrderLine: AddOrderLine },
   errors: HttpErrorMapper,
-  logger: Logger,
 ): Router {
   const router = Router();
 
   const fail = (res: Response, error: unknown) => {
     const { status, body } = errors.map(error);
-    if (status >= 500) {
-      logger.error('orders_request_failed', { error });
-    }
     return res.status(status).json(body);
   };
 
@@ -351,7 +345,7 @@ export function ordersRouter(
 }
 ```
 
-El controlador no sabe qué es un `Order`. Comprueba solo la forma de la petición (un campo es texto o número) [IDDD cap. 4]; las reglas de cada valor son de los value objects que `toCommand` construye con `ValueObjects.build`, y llegan como una `ValidationException` con todos los campos (422). La identidad del cliente sale del token, no del body. `HttpErrorMapper` traduce los errores: 404 `AggregateNotFoundException`, 403 `NotAllowedException`, 409 `ConcurrencyException`, 422 `ValidationException` y cualquier otra `DomainException`, 500 con un mensaje genérico para lo demás, que es lo único que se registra en el log.
+El controlador no sabe qué es un `Order`. Comprueba solo la forma de la petición (un campo es texto o número) [IDDD cap. 4]; las reglas de cada valor son de los value objects que `toCommand` construye con `ValueObjects.build`, y llegan como una `ValidationException` con todos los campos (422). La identidad del cliente sale del token, no del body. `HttpErrorMapper` traduce los errores: 404 `AggregateNotFoundException`, 403 `NotAllowedException`, 409 `ConcurrencyException`, 422 `ValidationException` y cualquier otra `DomainException`, 500 con un mensaje genérico para lo demás. Con `logger`, el mapper registra cada 5xx una vez como `error` (con su causa) y los 4xx solo en `debug`; el controlador no vuelve a registrarlos.
 
 ## Configuración de TypeScript
 

@@ -312,7 +312,7 @@ await new AddOrderLine(orders, bus, transactions, clock).execute({
 });
 channel.sent.map((event) => event.eventName); // ['OrderLineAdded']: PrepareShipment already ran
 
-const errors = new HttpErrorMapper({ ORD001: 409 }); // a domain rule defaults to 422
+const errors = new HttpErrorMapper({ statusByCode: { ORD001: 409 } }); // a domain rule defaults to 422
 const { status, body } = errors.map(caughtError);
 ```
 

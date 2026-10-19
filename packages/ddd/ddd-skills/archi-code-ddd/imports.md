@@ -55,17 +55,23 @@ import type {
   Clock,
   EventBus,
   ListenerSubscription,
+  LogContext,
+  Logger,
+  LogLevel,
   TransactionRunner,
 } from '@archi-code/ddd/application';
 import {
   AggregateMapper,
+  ConsoleLogger,
   DomainEventBus,
   EventRegistry,
   FixedClock,
   HttpErrorMapper,
   InMemoryEventChannel,
+  InMemoryLogger,
   InMemoryRepository,
   InMemoryTransactionRunner,
+  SilentLogger,
   SystemClock,
 } from '@archi-code/ddd/infrastructure';
 import type {

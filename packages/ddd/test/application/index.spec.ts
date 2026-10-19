@@ -5,6 +5,9 @@ import type {
   EventBus,
   ListenerSubscription,
   ListensToOptions,
+  LogContext,
+  Logger,
+  LogLevel,
   TransactionRunner,
 } from '../../src/application/index';
 import { EventListener } from '../../src/application/event/event-listener';
@@ -45,6 +48,8 @@ describe('@archi-code/ddd/application', () => {
       readonly eventName: string;
       readonly consumer: string;
     }>();
+    expectTypeOf<LogLevel>().toEqualTypeOf<'debug' | 'info' | 'warn' | 'error'>();
+    expectTypeOf<Logger['warn']>().toEqualTypeOf<(message: string, context?: LogContext) => void>();
     expectTypeOf<TransactionRunner['run']>().toEqualTypeOf<
       <Result>(work: () => Promise<Result>) => Promise<Result>
     >();

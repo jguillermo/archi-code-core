@@ -2,12 +2,12 @@
 
 Domain-Driven Design building blocks for TypeScript, one entry point per layer:
 
-| Entry point                      | Layer          | What it gives you                                                                                                                                                                                             |
-| -------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@archi-code/ddd/exceptions`     | Shared         | Exceptions of every layer with codes, causes and `instanceof` across builds                                                                                                                                   |
-| `@archi-code/ddd/domain`         | Domain         | Value objects, `Required(...)`, `Composite(...)`, `Immutable`, `Entity`, `AggregateRoot`, `EventBase`, `Specification` and the repository contracts (`AggregateFinder`, `AggregateSaver`, `AggregateRemover`) |
-| `@archi-code/ddd/application`    | Application    | `UseCase`, the event contract (`EventListener`, `@ListensTo` to listen, `EventBus` to publish) and the ports `Clock` and `TransactionRunner`                                                                  |
-| `@archi-code/ddd/infrastructure` | Infrastructure | `InMemoryRepository`, `AggregateMapper`, the event wiring (`DomainEventBus`, `EventRegistry`, the `EventChannel` port, `InMemoryEventChannel`), `InMemoryTransactionRunner`, `HttpErrorMapper`, clocks        |
+| Entry point                      | Layer          | What it gives you                                                                                                                                                                                               |
+| -------------------------------- | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@archi-code/ddd/exceptions`     | Shared         | Exceptions of every layer with codes, causes and `instanceof` across builds                                                                                                                                     |
+| `@archi-code/ddd/domain`         | Domain         | Value objects, `Required(...)`, `Composite(...)`, `Immutable`, `Entity`, `AggregateRoot`, `EventBase`, `Specification` and the repository contracts (`AggregateFinder`, `AggregateSaver`, `AggregateRemover`)   |
+| `@archi-code/ddd/application`    | Application    | `UseCase`, the event contract (`EventListener`, `@ListensTo` to listen, `EventBus` to publish) and the ports `Clock`, `TransactionRunner` and `Logger`                                                          |
+| `@archi-code/ddd/infrastructure` | Infrastructure | `InMemoryRepository`, `AggregateMapper`, the event wiring (`DomainEventBus`, `EventRegistry`, the `EventChannel` port, `InMemoryEventChannel`), `InMemoryTransactionRunner`, `HttpErrorMapper`, clocks, loggers |
 
 The layers only depend inwards: `exceptions` imports nothing, `domain` imports only `exceptions`,
 `application` imports `domain` and `exceptions`, and `infrastructure` imports all three. The
@@ -74,25 +74,25 @@ library built on this package): the exceptions of one build are `instanceof` the
 Every class of a project built on this package goes in exactly one layer. The table says where,
 what it may import and what it must never do; the package itself is organized the same way.
 
-| Class                                                                                     | Layer          | Responsibility                                                                                     | May depend on                                                                 | Never                                                                        |
-| ----------------------------------------------------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| Value object (`extends StringType`…)                                                      | domain         | One concept of the business; converts and validates its own value                                  | other value objects, `@archi-code/validation`, exceptions                     | mutate, know about storage or transport                                      |
-| Aggregate (`extends AggregateRoot`)                                                       | domain         | Business rules and invariants; records an event for every fact                                     | its value objects, child entities, events, domain services, domain ports      | read a repository, publish events, use `new Date()`                          |
-| Composite value object (`Composite({...})`)                                               | domain         | Several values that only make sense together (money, a date range, an order line)                  | value objects, other composites                                               | change, hold an id, be loaded or saved on its own                            |
-| Child entity (`extends Entity`)                                                           | domain         | A part of an aggregate with its own id; value objects and business methods only the root calls     | value objects                                                                 | setters, be called from outside its aggregate, be loaded or saved on its own |
-| Specification (`extends Specification`)                                                   | domain         | A named business rule that validates, selects or builds; combinable                                | value objects, aggregates, data already loaded                                | read a repository, protect an aggregate invariant                            |
-| Domain event (`extends EventBase`)                                                        | domain         | A fact that happened, named in the past (`OrderPlaced`, `'OrderPlaced'`), with primitive data      | value objects (to take its primitives from them)                              | carry behavior or value objects, reference infrastructure                    |
-| Repository contract (`AggregateFinder`…)                                                  | domain         | Only gets and persists aggregates, one role per interface; no business logic                       | the aggregate                                                                 | be implemented in the domain, hold rules, answer business queries            |
-| Domain service                                                                            | domain         | A business rule that spans several aggregates or fits none                                         | aggregates, value objects, `AggregateFinder` (to read), domain ports          | I/O, saving, transactions, publishing                                        |
-| Domain port (`ProductPricing`)                                                            | domain         | What the model needs from another context or an external service, in its own words                 | value objects of this context                                                 | contain code, expose the other system's model                                |
-| Use case (`extends UseCase`)                                                              | application    | One business action: input → command of value objects → change one aggregate                       | domain, application ports, exceptions                                         | import another use case or a listener, persist or call the network by itself |
-| Listener (`extends EventListener`)                                                        | application    | What happens after an event: turns it into the input of one use case; lives next to that use case  | one use case (by constructor), the event                                      | hold business rules, save aggregates, call several use cases                 |
-| Application port (`EventBus`, `Clock`, `TransactionRunner`, your own such as `Warehouse`) | application    | A technical capability the application needs, as a type                                            | domain types                                                                  | contain code                                                                 |
-| Read query (`OrderSummaries`)                                                             | application    | An interface that answers a screen or a list with DTOs or ids, outside the aggregates              | domain types, DTOs                                                            | load aggregates, go through a repository, change data                        |
-| Adapter (repository, outbox, read query, clock…)                                          | infrastructure | Implements a contract with a database, a queue, a broker, HTTP or memory                           | domain, application, exceptions, drivers                                      | contain business rules                                                       |
-| Anti-corruption layer (adapter + translator)                                              | infrastructure | Implements a domain port by calling another context or service and translating its model into ours | domain, application, exceptions, clients                                      | leak the other model into the domain, hold business rules                    |
-| Entry point (controller, message consumer, CLI)                                           | interfaces     | Turns HTTP, a message or a command line into the input of a use case, and back                     | application, exceptions, `HttpErrorMapper` (domain types only if unavoidable) | hold business rules, use a repository or another adapter directly            |
-| Composition root (`composition.ts`)                                                       | (per context)  | Reads the configuration, builds adapters, use cases and entry points                               | everything                                                                    | be imported by the domain, the application or the interfaces                 |
+| Class                                                                                               | Layer          | Responsibility                                                                                     | May depend on                                                                 | Never                                                                        |
+| --------------------------------------------------------------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Value object (`extends StringType`…)                                                                | domain         | One concept of the business; converts and validates its own value                                  | other value objects, `@archi-code/validation`, exceptions                     | mutate, know about storage or transport                                      |
+| Aggregate (`extends AggregateRoot`)                                                                 | domain         | Business rules and invariants; records an event for every fact                                     | its value objects, child entities, events, domain services, domain ports      | read a repository, publish events, use `new Date()`                          |
+| Composite value object (`Composite({...})`)                                                         | domain         | Several values that only make sense together (money, a date range, an order line)                  | value objects, other composites                                               | change, hold an id, be loaded or saved on its own                            |
+| Child entity (`extends Entity`)                                                                     | domain         | A part of an aggregate with its own id; value objects and business methods only the root calls     | value objects                                                                 | setters, be called from outside its aggregate, be loaded or saved on its own |
+| Specification (`extends Specification`)                                                             | domain         | A named business rule that validates, selects or builds; combinable                                | value objects, aggregates, data already loaded                                | read a repository, protect an aggregate invariant                            |
+| Domain event (`extends EventBase`)                                                                  | domain         | A fact that happened, named in the past (`OrderPlaced`, `'OrderPlaced'`), with primitive data      | value objects (to take its primitives from them)                              | carry behavior or value objects, reference infrastructure                    |
+| Repository contract (`AggregateFinder`…)                                                            | domain         | Only gets and persists aggregates, one role per interface; no business logic                       | the aggregate                                                                 | be implemented in the domain, hold rules, answer business queries            |
+| Domain service                                                                                      | domain         | A business rule that spans several aggregates or fits none                                         | aggregates, value objects, `AggregateFinder` (to read), domain ports          | I/O, saving, transactions, publishing                                        |
+| Domain port (`ProductPricing`)                                                                      | domain         | What the model needs from another context or an external service, in its own words                 | value objects of this context                                                 | contain code, expose the other system's model                                |
+| Use case (`extends UseCase`)                                                                        | application    | One business action: input → command of value objects → change one aggregate                       | domain, application ports, exceptions                                         | import another use case or a listener, persist or call the network by itself |
+| Listener (`extends EventListener`)                                                                  | application    | What happens after an event: turns it into the input of one use case; lives next to that use case  | one use case (by constructor), the event                                      | hold business rules, save aggregates, call several use cases                 |
+| Application port (`EventBus`, `Clock`, `TransactionRunner`, `Logger`, your own such as `Warehouse`) | application    | A technical capability the application needs, as a type                                            | domain types                                                                  | contain code                                                                 |
+| Read query (`OrderSummaries`)                                                                       | application    | An interface that answers a screen or a list with DTOs or ids, outside the aggregates              | domain types, DTOs                                                            | load aggregates, go through a repository, change data                        |
+| Adapter (repository, outbox, read query, clock…)                                                    | infrastructure | Implements a contract with a database, a queue, a broker, HTTP or memory                           | domain, application, exceptions, drivers                                      | contain business rules                                                       |
+| Anti-corruption layer (adapter + translator)                                                        | infrastructure | Implements a domain port by calling another context or service and translating its model into ours | domain, application, exceptions, clients                                      | leak the other model into the domain, hold business rules                    |
+| Entry point (controller, message consumer, CLI)                                                     | interfaces     | Turns HTTP, a message or a command line into the input of a use case, and back                     | application, exceptions, `HttpErrorMapper` (domain types only if unavoidable) | hold business rules, use a repository or another adapter directly            |
+| Composition root (`composition.ts`)                                                                 | (per context)  | Reads the configuration, builds adapters, use cases and entry points                               | everything                                                                    | be imported by the domain, the application or the interfaces                 |
 
 Dependencies only point inwards. Your domain imports only `@archi-code/ddd/domain`,
 `@archi-code/ddd/exceptions` and `@archi-code/validation`; the application adds
@@ -1476,6 +1476,9 @@ await reserving.unsubscribe();
   with the registry and calls `listener.handle`. `unsubscribe()` closes the channel subscription.
 - Listeners always receive an event rebuilt from its JSON (frozen, equal by `toJSON()`), also in
   memory, so what works with the in-memory channel works the same with a broker.
+- An optional third argument, a `Logger`, logs what was published, the subscriptions and every
+  listener failure with its event and consumer (see [Logging](#logging)); without it, nothing is
+  logged.
 
 `EventRegistry`: `register(EventClass, factory)` (the same event twice throws
 `InternalErrorException`: a wiring mistake), `has(eventName)` and `fromJSON(json)` (a parsed
@@ -1752,12 +1755,28 @@ interface TransactionRunner {
   run<Result>(work: () => Promise<Result>): Promise<Result>;
   inTransaction(): boolean;
 }
+
+type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+type LogContext = Readonly<Record<string, unknown>>;
+
+interface Logger {
+  debug(message: string, context?: LogContext): void;
+  info(message: string, context?: LogContext): void;
+  warn(message: string, context?: LogContext): void;
+  error(message: string, context?: LogContext): void;
+}
 ```
 
 `inTransaction()` tells whether the calling code runs inside an open `run` (a database adapter
 answers it from the same `AsyncLocalStorage` it uses to share the connection). The books' runner
 also exposes `current()`, the connection of the open transaction; here that stays inside your
 adapter. How a transaction is opened is decided in infrastructure.
+
+`Logger` is the contract any logging library implements: four levels, each taking a stable
+message and an optional structured context. `console` and winston already have this shape; pino
+(`logger.info(context, message)`) needs a four-line adapter. A use case that must log receives it
+by constructor, like any port; the domain never logs (it records events or throws). See
+[Logging](#logging) for the providers this package ships and where it logs on its own.
 
 ## Transactions
 
@@ -1841,7 +1860,9 @@ Ready adapters for tests, prototypes and the edges of an API:
 | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `InMemoryRepository(AggregateMapper.of(Order))` | Finder, saver and remover over a `Map` of primitives and versions; checks versions on save and remove; adds `findAll()` |
 | `InMemoryEventChannel({ delivery }?)`           | `EventChannel` inside the process, built on emittery's techniques; `sent` lists what was sent                           |
-| `HttpErrorMapper(statusByCode?)`                | `map(error)` → `{ status, body: { code, message, errors? } }` (`errors`: `{ field, code, message }[]`)                  |
+| `HttpErrorMapper({ statusByCode?, logger? }?)`  | `map(error)` → `{ status, body: { code, message, errors? } }` (`errors`: `{ field, code, message }[]`)                  |
+| `ConsoleLogger({ level?, clock? }?)`            | `Logger` that writes one JSON line per entry from `level` up (`info` by default)                                        |
+| `InMemoryLogger`, `SilentLogger`                | `Logger` that keeps `entries` for tests, and one that writes nothing (the default of every piece that logs)             |
 | `SystemClock`, `FixedClock(at)`                 | `Clock` with the real time, and a test clock with `set(at)` and `advance(ms)`                                           |
 | `InMemoryTransactionRunner(participants?)`      | `TransactionRunner` that restores its participants when the work throws; `committed`, `rolledBack`, `inTransaction()`   |
 
@@ -1868,7 +1889,7 @@ await orders.save(byLuis);
 // ConcurrencyException: Order with ID … was changed by someone else: expected version 1.
 ```
 
-`HttpErrorMapper` statuses, overridable by code (`new HttpErrorMapper({ ORD001: 403 })`):
+`HttpErrorMapper` statuses, overridable by code (`new HttpErrorMapper({ statusByCode: { ORD001: 403 } })`):
 
 | Error                                                | Status |
 | ---------------------------------------------------- | ------ |
@@ -1916,11 +1937,84 @@ await bus.subscribe(new NotifyCustomerOnOrderPlaced(notifyCustomer));
 await bus.publish(order.pullDomainEvents());
 channel.sent.map((event) => event.eventName); // ['OrderPlaced']
 
-const errors = new HttpErrorMapper({ ORD001: 403 });
+const errors = new HttpErrorMapper({ statusByCode: { ORD001: 403 } });
 app.use((error, req, res, next) => {
   const { status, body } = errors.map(error);
   res.status(status).json(body);
 });
+```
+
+## Logging
+
+The application declares the [`Logger` port](#ports); infrastructure ships three providers and
+logs on its own only where nobody else sees the error:
+
+| Provider                             | Use                                                                                                   |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| `ConsoleLogger({ level?, clock? }?)` | Production without a logging library, Node and browsers: one JSON line per entry on `console.<level>` |
+| `InMemoryLogger`                     | Tests: `entries` lists `{ level, message, context? }` in order (a copy)                               |
+| `SilentLogger`                       | Writes nothing; the default when no logger is passed                                                  |
+
+```ts
+import type { Logger } from '@archi-code/ddd/application';
+import {
+  ConsoleLogger,
+  DomainEventBus,
+  HttpErrorMapper,
+  SystemClock,
+} from '@archi-code/ddd/infrastructure';
+
+const logger: Logger = new ConsoleLogger({ level: 'info', clock: new SystemClock() });
+logger.warn('stock_low', { sku: 'TORCH-01', units: 2 });
+// console.warn: {"time":"2026-10-19T09:30:00.000Z","level":"warn","message":"stock_low","context":{"sku":"TORCH-01","units":2}}
+
+const bus = new DomainEventBus<OrderEvent>(channel, registry, logger);
+const errors = new HttpErrorMapper({ statusByCode: { ORD001: 409 }, logger });
+```
+
+`ConsoleLogger` drops entries below `level` (`debug` < `info` < `warn` < `error`; an unknown level
+throws `InternalErrorException`), writes an `Error` in the context with its `name`, `code`,
+`message`, `errors`, `stack` and `cause` (which `JSON.stringify` would turn into `{}`), dates and
+value objects through their `toJSON`, a `bigint` as text and a circular reference as
+`'[Circular]'`; a context it cannot read becomes `'[Unserializable]'`, so logging never throws.
+
+What the package logs when it receives a logger:
+
+| Where             | Level   | Message                                                                                                   | Context                                                       |
+| ----------------- | ------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `DomainEventBus`  | `debug` | `domain_events_published` (after the channel accepted them)                                               | `events`: `{ eventName, eventId, aggregateId }[]`, no payload |
+| `DomainEventBus`  | `info`  | `event_listener_subscribed`, `event_listener_unsubscribed`                                                | `eventName`, `consumer`                                       |
+| `DomainEventBus`  | `warn`  | `event_listener_rejected`: a `DomainException` or `ApplicationException` (such as `ConcurrencyException`) | `eventName`, `consumer`, `eventId`, `aggregateId`, `error`    |
+| `DomainEventBus`  | `error` | `event_listener_failed`: any other error, also an event the registry cannot rebuild                       | `eventName`, `consumer`, `eventId`, `aggregateId`, `error`    |
+| `HttpErrorMapper` | `error` | `http_request_failed`: every 5xx                                                                          | `status`, `code`, `error` (with its cause)                    |
+| `HttpErrorMapper` | `debug` | `http_request_rejected`: every 4xx                                                                        | `status`, `code`                                              |
+
+The bus still rethrows a listener's error after logging it, so the channel keeps its delivery
+semantics (the in-memory channel rejects `send`, a broker retries). The rule for your own code is
+the same: log an error once, where it is handled (an entry point, a listener's channel), never in
+every layer it passes through; keep the message a stable name and put only the data you need in the
+context (no passwords, tokens or personal data the entry does not need). Another library plugs in
+by implementing `Logger`:
+
+```ts
+import pino from 'pino';
+import type { LogContext, Logger } from '@archi-code/ddd/application';
+
+class PinoLogger implements Logger {
+  constructor(private readonly pino: pino.Logger) {}
+  debug(message: string, context?: LogContext): void {
+    this.pino.debug(context ?? {}, message);
+  }
+  info(message: string, context?: LogContext): void {
+    this.pino.info(context ?? {}, message);
+  }
+  warn(message: string, context?: LogContext): void {
+    this.pino.warn(context ?? {}, message);
+  }
+  error(message: string, context?: LogContext): void {
+    this.pino.error(context ?? {}, message);
+  }
+}
 ```
 
 ## Persisting aggregates with `AggregateMapper`
@@ -2464,24 +2558,27 @@ await new RegisterUser(users, bus, clock)
 
 `@archi-code/ddd/application`:
 
-| Export                       | Kind                             |
-| ---------------------------- | -------------------------------- |
-| `UseCase`, `EventListener`   | abstract classes                 |
-| `ListensTo`                  | decorator                        |
-| `ListensToOptions`           | type (`{ consumer }`)            |
-| `ListenerSubscription`       | type (`{ eventName, consumer }`) |
-| `EventBus`                   | type (event port)                |
-| `Clock`, `TransactionRunner` | types (ports)                    |
+| Export                                 | Kind                             |
+| -------------------------------------- | -------------------------------- |
+| `UseCase`, `EventListener`             | abstract classes                 |
+| `ListensTo`                            | decorator                        |
+| `ListensToOptions`                     | type (`{ consumer }`)            |
+| `ListenerSubscription`                 | type (`{ eventName, consumer }`) |
+| `EventBus`                             | type (event port)                |
+| `Clock`, `TransactionRunner`, `Logger` | types (ports)                    |
+| `LogLevel`, `LogContext`               | types (logger port)              |
 
 `@archi-code/ddd/infrastructure`:
 
 | Export                                                                                                                                       | Kind                   |
 | -------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
 | `InMemoryRepository`, `AggregateMapper`, `InMemoryEventChannel`, `InMemoryTransactionRunner`, `HttpErrorMapper`, `SystemClock`, `FixedClock` | classes                |
+| `ConsoleLogger`, `InMemoryLogger`, `SilentLogger`                                                                                            | classes (loggers)      |
 | `DomainEventBus`, `EventRegistry`                                                                                                            | classes (event wiring) |
 | `EventChannel`, `ChannelHandler`, `ChannelSubscription`                                                                                      | types (channel port)   |
 | `Subscription`, `EventFactory`                                                                                                               | types                  |
 | `AggregateClass`, `HttpError`, `HttpErrorBody`, `TransactionParticipant`, `InMemoryEventChannelOptions`                                      | types                  |
+| `HttpErrorMapperOptions`, `ConsoleLoggerOptions`, `LogEntry`                                                                                 | types                  |
 
 ## AI assistant skill
 

@@ -15,6 +15,7 @@ import {
   ValidationException,
 } from '../../../src/exceptions/index';
 import { HttpErrorMapper } from '../../../src/infrastructure/http/http-error-mapper';
+import { InMemoryLogger } from '../../../src/infrastructure/logging/in-memory-logger';
 
 @Validations([{ validator: 'isEmail' }])
 class Email extends Required(StringType) {}
@@ -166,7 +167,9 @@ describe('HttpErrorMapper: the error handler of an HTTP controller', () => {
   });
 
   describe('overriding the status of a code', () => {
-    const custom = new HttpErrorMapper({ ORD001: 403, APP002: 410, USR001: 503 });
+    const custom = new HttpErrorMapper({
+      statusByCode: { ORD001: 403, APP002: 410, USR001: 503 },
+    });
 
     it('maps your own code to the status your API documents', () => {
       expect(custom.map(new OrderShippedException(orderId))).toEqual({
@@ -234,6 +237,69 @@ describe('HttpErrorMapper: the error handler of an HTTP controller', () => {
     expect(mapper.map(new ValidationException(issues))).toMatchObject({
       status: 422,
       body: { errors: issues },
+    });
+  });
+
+  describe('logging what it maps', () => {
+    it('logs a server error once, as an error with its cause, while the client gets a generic message', () => {
+      const logger = new InMemoryLogger();
+      const cause = new Error('connection refused by db-orders:5432');
+      const failure = new InternalErrorException('PlaceOrder: database unavailable', { cause });
+
+      const mapped = new HttpErrorMapper({ logger }).map(failure);
+
+      expect(mapped.body.message).toBe('Internal server error');
+      expect(logger.entries).toStrictEqual([
+        {
+          level: 'error',
+          message: 'http_request_failed',
+          context: { status: 500, code: 'INF001', error: failure },
+        },
+      ]);
+    });
+
+    it('logs an unknown error as an error with the generic code', () => {
+      const logger = new InMemoryLogger();
+      const bug = new TypeError('Cannot read properties of undefined');
+
+      new HttpErrorMapper({ logger }).map(bug);
+
+      expect(logger.entries).toStrictEqual([
+        {
+          level: 'error',
+          message: 'http_request_failed',
+          context: { status: 500, code: 'E000', error: bug },
+        },
+      ]);
+    });
+
+    it('logs a status overridden to 5xx as a server error', () => {
+      const logger = new InMemoryLogger();
+      const mapper = new HttpErrorMapper({ statusByCode: { USR001: 503 }, logger });
+
+      mapper.map(new EmailAlreadyUsedException('ana@example.com'));
+
+      expect(logger.entries.map(({ level, context }) => [level, context?.status])).toStrictEqual([
+        ['error', 503],
+      ]);
+    });
+
+    it('logs a rejected request only at debug, with its status and code but not its message', () => {
+      const logger = new InMemoryLogger();
+
+      new HttpErrorMapper({ logger }).map(new AggregateNotFoundException('Order', orderId));
+
+      expect(logger.entries).toStrictEqual([
+        {
+          level: 'debug',
+          message: 'http_request_rejected',
+          context: { status: 404, code: 'APP002' },
+        },
+      ]);
+    });
+
+    it('logs nothing by default', () => {
+      expect(() => new HttpErrorMapper().map(new Error('disk full'))).not.toThrow();
     });
   });
 });

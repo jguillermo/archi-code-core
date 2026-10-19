@@ -4,16 +4,20 @@ import type {
   AggregateClass,
   ChannelHandler,
   ChannelSubscription,
+  ConsoleLoggerOptions,
   EventChannel,
   EventFactory,
   HttpError,
   HttpErrorBody,
+  HttpErrorMapperOptions,
   InMemoryEventChannelOptions,
+  LogEntry,
   Subscription,
   TransactionParticipant,
 } from '../../src/infrastructure/index';
 import { AggregateRoot } from '../../src/domain/index';
 import type { EventBase, SerializedEvent } from '../../src/domain/index';
+import type { Clock, LogContext, Logger, LogLevel } from '../../src/application/index';
 import { DomainEventBus } from '../../src/infrastructure/event/domain-event-bus';
 import { EventRegistry } from '../../src/infrastructure/event/event-registry';
 import type { ValidationIssue } from '../../src/exceptions/index';
@@ -22,13 +26,16 @@ import { AggregateMapper } from '../../src/infrastructure/repository/aggregate-m
 
 const PUBLIC_API = [
   'AggregateMapper',
+  'ConsoleLogger',
   'DomainEventBus',
   'EventRegistry',
   'FixedClock',
   'HttpErrorMapper',
   'InMemoryEventChannel',
+  'InMemoryLogger',
   'InMemoryRepository',
   'InMemoryTransactionRunner',
+  'SilentLogger',
   'SystemClock',
 ];
 
@@ -45,6 +52,13 @@ describe('@archi-code/ddd/infrastructure', () => {
 
   it('exports the aggregate mapper next to the repositories that use it', () => {
     expect(infrastructure.AggregateMapper).toBe(AggregateMapper);
+  });
+
+  it('exports the loggers that implement the Logger port of the application', () => {
+    for (const name of ['ConsoleLogger', 'InMemoryLogger', 'SilentLogger'] as const) {
+      expectTypeOf<InstanceType<(typeof infrastructure)[typeof name]>>().toMatchTypeOf<Logger>();
+      expect(typeof new infrastructure[name]().warn).toBe('function');
+    }
   });
 
   it('exports every value as a class', () => {
@@ -72,6 +86,19 @@ describe('@archi-code/ddd/infrastructure', () => {
     expectTypeOf<EventFactory<EventBase>>().toEqualTypeOf<
       (serialized: SerializedEvent) => EventBase
     >();
+    expectTypeOf<HttpErrorMapperOptions>().toEqualTypeOf<{
+      readonly statusByCode?: Readonly<Record<string, number>>;
+      readonly logger?: Logger;
+    }>();
+    expectTypeOf<ConsoleLoggerOptions>().toEqualTypeOf<{
+      readonly level?: LogLevel;
+      readonly clock?: Clock;
+    }>();
+    expectTypeOf<LogEntry>().toEqualTypeOf<{
+      readonly level: LogLevel;
+      readonly message: string;
+      readonly context?: LogContext;
+    }>();
     expectTypeOf<InMemoryEventChannelOptions>().toEqualTypeOf<{
       readonly delivery?: 'serial' | 'parallel';
     }>();

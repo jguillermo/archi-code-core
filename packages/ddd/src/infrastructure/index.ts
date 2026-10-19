@@ -11,6 +11,11 @@ export type { ChannelHandler, ChannelSubscription, EventChannel } from './event/
 export { InMemoryEventChannel } from './event/in-memory/in-memory-event-channel';
 export type { InMemoryEventChannelOptions } from './event/in-memory/in-memory-event-channel';
 export { HttpErrorMapper } from './http/http-error-mapper';
-export type { HttpError, HttpErrorBody } from './http/http-error-mapper';
+export type { HttpError, HttpErrorBody, HttpErrorMapperOptions } from './http/http-error-mapper';
 export { InMemoryTransactionRunner } from './transaction/in-memory-transaction-runner';
 export type { TransactionParticipant } from './transaction/transaction-participant';
+export { ConsoleLogger } from './logging/console-logger';
+export type { ConsoleLoggerOptions } from './logging/console-logger';
+export { InMemoryLogger } from './logging/in-memory-logger';
+export type { LogEntry } from './logging/in-memory-logger';
+export { SilentLogger } from './logging/silent-logger';

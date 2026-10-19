@@ -269,6 +269,55 @@ function smoke(m) {
       },
     ],
     [
+      'the loggers write JSON lines, keep entries for tests and record a failing listener',
+      async () => {
+        const written = [];
+        const original = console.warn;
+        console.warn = (line) => written.push(JSON.parse(line));
+        try {
+          const clock = new m.FixedClock('2026-10-19T09:30:00Z');
+          const logger = new m.ConsoleLogger({ level: 'warn', clock });
+          logger.info('order_placed');
+          logger.warn('stock_low', { sku: 'TORCH-01', at: clock.now() });
+        } finally {
+          console.warn = original;
+        }
+        const { OrderPlaced } = orderModel();
+        class ReserveStockOnOrderPlaced extends application.EventListener {
+          handle() {
+            throw new Error('warehouse offline');
+          }
+        }
+        application.ListensTo(OrderPlaced, { consumer: 'reserve-stock' })(
+          ReserveStockOnOrderPlaced,
+        );
+        const memory = new m.InMemoryLogger();
+        const bus = new m.DomainEventBus(
+          new m.InMemoryEventChannel(),
+          new m.EventRegistry().register(
+            OrderPlaced,
+            (json) => new OrderPlaced(json.aggregateId, json.customer, json),
+          ),
+          memory,
+        );
+        await bus.subscribe(new ReserveStockOnOrderPlaced());
+        await bus.publish([new OrderPlaced(ORDER_ID, 'Ana')]).catch(() => undefined);
+        const mapper = new m.HttpErrorMapper({ logger: memory });
+        mapper.map(new Error('disk full'));
+        new m.SilentLogger().error('ignored');
+        const levels = memory.entries.map((entry) => `${entry.level}:${entry.message}`);
+        return (
+          (written.length === 1 &&
+            written[0].level === 'warn' &&
+            written[0].time === '2026-10-19T09:30:00.000Z' &&
+            written[0].context.at === '2026-10-19T09:30:00.000Z' &&
+            levels.join() ===
+              'info:event_listener_subscribed,error:event_listener_failed,error:http_request_failed') ||
+          `unexpected logging: ${JSON.stringify(written)} ${levels.join()}`
+        );
+      },
+    ],
+    [
       'errors map to HTTP without leaking internals, and clocks are injectable',
       () => {
         const mapper = new m.HttpErrorMapper();

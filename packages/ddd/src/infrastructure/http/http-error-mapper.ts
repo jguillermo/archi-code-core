@@ -11,6 +11,8 @@ import {
   ValidationException,
 } from '../../exceptions';
 import type { ValidationIssue } from '../../exceptions';
+import type { Logger } from '../../application/index';
+import { SilentLogger } from '../logging/silent-logger';
 
 export interface HttpErrorBody {
   code: string;
@@ -23,12 +25,34 @@ export interface HttpError {
   body: HttpErrorBody;
 }
 
+export interface HttpErrorMapperOptions {
+  readonly statusByCode?: Readonly<Record<string, number>>;
+  readonly logger?: Logger;
+}
+
 const INTERNAL_MESSAGE = 'Internal server error';
 
 export class HttpErrorMapper {
-  constructor(private readonly statusByCode: Readonly<Record<string, number>> = {}) {}
+  private readonly statusByCode: Readonly<Record<string, number>>;
+  private readonly logger: Logger;
+
+  constructor({ statusByCode = {}, logger = new SilentLogger() }: HttpErrorMapperOptions = {}) {
+    this.statusByCode = statusByCode;
+    this.logger = logger;
+  }
 
   map(error: unknown): HttpError {
+    const mapped = this.toHttpError(error);
+    const { status, body } = mapped;
+    if (status >= 500) {
+      this.logger.error('http_request_failed', { status, code: body.code, error });
+    } else {
+      this.logger.debug('http_request_rejected', { status, code: body.code });
+    }
+    return mapped;
+  }
+
+  private toHttpError(error: unknown): HttpError {
     if (!(error instanceof AbstractException)) {
       return {
         status: 500,

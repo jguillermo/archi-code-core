@@ -255,6 +255,15 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   different from the model); read queries straight to the database come first. A projection is
   an `EventListener` that writes a read table and skips an `eventId` it already applied; a read query is an application
   interface implemented in infrastructure that returns DTOs or ids.
+- Logging goes through the `Logger` port of `/application` (`debug`, `info`, `warn`, `error`,
+  each `(message, context?)`): the message is a stable snake_case name (`order_shipped`) and the
+  data goes in the context. Use cases, listeners and adapters that need it receive it by
+  constructor; the domain never logs (it records events or throws). The composition root picks the
+  provider: `ConsoleLogger({ level })` (one JSON line per entry), an adapter over pino or winston,
+  `InMemoryLogger` in tests (`entries`), `SilentLogger` by default. Pass it to
+  `new DomainEventBus(channel, registry, logger)` (listener failures, subscriptions, what was
+  published) and `new HttpErrorMapper({ statusByCode, logger })` (5xx as `error`, 4xx at `debug`):
+  each error is logged once, where it is handled, never logged and rethrown in every layer.
 - Tests use `InMemoryTransactionRunner([repository])` (restores it when the work throws;
   `committed`/`rolledBack`; a run inside another joins it, and runs that overlap in time wait
   their turn) and `new DomainEventBus(new InMemoryEventChannel(), registry)` (`channel.sent` lists

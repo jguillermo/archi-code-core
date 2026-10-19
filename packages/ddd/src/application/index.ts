@@ -5,3 +5,4 @@ export type { ListenerSubscription, ListensToOptions } from './event/listens-to'
 export type { EventBus } from './event/event-bus';
 export type { Clock } from './ports/clock';
 export type { TransactionRunner } from './ports/transaction-runner';
+export type { LogContext, Logger, LogLevel } from './ports/logger';
