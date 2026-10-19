@@ -119,6 +119,47 @@ function smoke(m) {
         );
       },
     ],
+    [
+      'the domain event bus sends JSON to its channel and hands listeners the rebuilt event',
+      async () => {
+        const { Order, OrderPlaced } = orderModel();
+        const receivers = new Map();
+        const channel = {
+          async send(events) {
+            for (const event of events) {
+              await receivers.get(event.eventName)?.(event);
+            }
+          },
+          async receive(eventName, consumer, handler) {
+            receivers.set(eventName, handler);
+            return { close: async () => receivers.delete(eventName) };
+          },
+        };
+        const received = [];
+        class ConfirmOrderOnOrderPlaced extends m.EventListener {
+          handle(event) {
+            received.push(event);
+          }
+        }
+        m.ListensTo(OrderPlaced)(ConfirmOrderOnOrderPlaced);
+        const registry = new m.EventRegistry().register(
+          OrderPlaced,
+          (json) => new OrderPlaced(json.aggregateId, json),
+        );
+        const bus = new m.DomainEventBus(channel, registry);
+        const subscription = await bus.subscribe(new ConfirmOrderOnOrderPlaced());
+        const events = Order.place(ORDER_ID).pullDomainEvents();
+        await bus.publish(events);
+        await subscription.unsubscribe();
+        return (
+          (received.length === 1 &&
+            received[0] instanceof OrderPlaced &&
+            received[0].eventId === events[0].eventId &&
+            receivers.size === 0) ||
+          `unexpected bus result: ${received.length}`
+        );
+      },
+    ],
   ];
 }
 

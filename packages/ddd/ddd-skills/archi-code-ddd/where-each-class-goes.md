@@ -13,9 +13,9 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
 | Domain port to another context or service (`ProductPricing`) | domain                                  | value objects                                                                             | remote DTOs, I/O code                                                      |
 | Use case (`PlaceOrder`)                                      | application                             | domain, ports, exceptions                                                                 | import another use case or a listener, return an aggregate                 |
 | Listener (`ReserveStockOnOrderPlaced`)                       | application                             | one use case (by constructor), the event                                                  | business rules, saving aggregates, calling several use cases               |
-| Port (`EventBus`, `Clock`, `TransactionRunner`, your own)    | application                             | domain types                                                                              | code                                                                       |
+| Port (`EventBus`, `EventChannel`, `Clock`, `TransactionRunner`, your own) | application                | domain types                                                                              | code                                                                       |
 | Read query (`OrderSummaries`, `StaleOrders`)                 | application (interface), infrastructure | DTOs and ids, `@archi-code/criteria`                                                      | loading aggregates, repositories, business rules                           |
-| Adapter (repository, outbox, inbox, ACL translator)          | infrastructure                          | domain, application, exceptions, drivers                                                  | business rules                                                             |
+| Adapter (repository, event channel, ACL translator)          | infrastructure                          | domain, application, exceptions, drivers                                                  | business rules                                                             |
 | Entry point (controller, consumer, scheduler, CLI)           | interfaces                              | application, exceptions, `HttpErrorMapper`; domain types only if unavoidable              | business rules, repositories or other adapters                             |
 | Composition root (`composition.ts`)                          | per context                             | everything                                                                                | being imported by any layer                                                |
 
@@ -26,7 +26,7 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   exception: an entry point may import `HttpErrorMapper` (or receive it from the composition root).
   Entry points (`interfaces/`: controllers, message consumers, schedulers, CLI) call use cases
   only. The composition root of each context is the only place that builds and connects everything
-  (repositories, dispatcher, relay, listeners) and reads `process.env`.
+  (repositories, event channel, `DomainEventBus`, listeners) and reads `process.env`.
 - Layout, with modules named after the ubiquitous language inside each zone, never after patterns
   (`entities/`, `events/`, `valueobjects/`, `listeners/`); a listener lives next to the use case it
   runs; a context never imports another one, only an explicit `shared-kernel/`:
@@ -39,7 +39,8 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   │   ├── reserve-stock/       ReserveStock, ReserveStockOnOrderPlaced
   │   └── order-summaries/     OrderSummaries (read query)
   ├── infrastructure/
-  │   ├── persistence/         MongoOrderRepository, MongoOutbox, MongoOrderSummaries
+  │   ├── persistence/         MongoOrderRepository, MongoOrderSummaries
+  │   ├── messaging/           RabbitMqEventChannel
   │   └── catalog/             HttpProductPricing, CatalogTranslator (ACL)
   ├── interfaces/http/         OrderController
   └── composition.ts

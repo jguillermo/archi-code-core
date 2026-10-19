@@ -1,5 +1,5 @@
 import {
-  InfrastructureException,
+  ApplicationException,
   InternalErrorException,
   UnknownEventException,
 } from '../../exceptions/index';
@@ -8,7 +8,7 @@ import { Frozen } from './frozen';
 
 export type EventFactory<Event extends EventBase> = (serialized: SerializedEvent) => Event;
 
-export class DomainEventRegistry<Event extends EventBase = EventBase> {
+export class EventRegistry<Event extends EventBase = EventBase> {
   private readonly factories = new Map<string, EventFactory<Event>>();
 
   register<Registered extends Event>(
@@ -17,7 +17,7 @@ export class DomainEventRegistry<Event extends EventBase = EventBase> {
   ): this {
     const { eventName } = event;
     if (this.factories.has(eventName)) {
-      throw new InfrastructureException(`Event "${eventName}" is already registered.`);
+      throw new ApplicationException(`Event "${eventName}" is already registered.`);
     }
     this.factories.set(eventName, factory);
     return this;
@@ -28,8 +28,7 @@ export class DomainEventRegistry<Event extends EventBase = EventBase> {
   }
 
   fromJSON(serialized: SerializedEvent | string): Event {
-    const event =
-      typeof serialized === 'string' ? DomainEventRegistry.parse(serialized) : serialized;
+    const event = typeof serialized === 'string' ? EventRegistry.parse(serialized) : serialized;
     if (typeof event !== 'object' || event === null) {
       throw new InternalErrorException('a serialized event must be a JSON object');
     }
@@ -41,7 +40,7 @@ export class DomainEventRegistry<Event extends EventBase = EventBase> {
       throw new UnknownEventException(event.eventName);
     }
     const rebuilt = factory(event);
-    DomainEventRegistry.assertSameIdentity(event, rebuilt);
+    EventRegistry.assertSameIdentity(event, rebuilt);
     return Frozen.deep(rebuilt);
   }
 

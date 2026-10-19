@@ -130,153 +130,93 @@ function smoke(m) {
       },
     ],
     [
-      'a transaction stores the order and its events, rolls both back on failure, and the relay delivers after commit',
+      'a transaction stores the order, and rolls it back when the use case fails',
       async () => {
-        const { Order, OrderPlaced } = orderModel();
+        const { Order } = orderModel();
         const orders = new m.InMemoryRepository(m.AggregateMapper.of(Order));
-        const outbox = new m.InMemoryOutbox();
-        const transactions = new m.InMemoryTransactionRunner([orders, outbox]);
-        const placeOrder = async (fail) =>
+        const transactions = new m.InMemoryTransactionRunner([orders]);
+        const placeOrder = async (id, fail) =>
           transactions.run(async () => {
-            const order = Order.place(ORDER_ID, 'Ana');
-            await orders.save(order);
-            await outbox.publish(order.pullDomainEvents());
+            await orders.save(Order.place(id, 'Ana'));
             if (fail) {
               throw new Error('payment declined');
             }
           });
         let failed = false;
         try {
-          await placeOrder(true);
+          await placeOrder(ORDER_ID, true);
         } catch {
           failed = true;
         }
-        const afterRollback = (await orders.findAll()).length + (await outbox.pending(10)).length;
-        await placeOrder(false);
-        const received = [];
-        class ConfirmOrderOnOrderPlaced extends application.EventListener {
-          handle(event) {
-            received.push(event.customer);
-          }
-        }
-        application.ListensTo(OrderPlaced)(ConfirmOrderOnOrderPlaced);
-        const dispatcher = new m.EventDispatcher([new ConfirmOrderOnOrderPlaced()]);
-        const registry = new m.DomainEventRegistry().register(
-          OrderPlaced,
-          (json) => new OrderPlaced(json.aggregateId, json.customer, json),
-        );
-        const relay = new m.OutboxRelay(outbox, (json) =>
-          dispatcher.dispatch(registry.fromJSON(json)),
-        );
-        const delivered = await relay.forward();
+        const afterRollback = (await orders.findAll()).length;
+        await placeOrder(OTHER_ORDER_ID, false);
         return (
           (failed &&
             afterRollback === 0 &&
+            (await orders.findAll()).length === 1 &&
             transactions.committed === 1 &&
-            transactions.rolledBack === 1 &&
-            delivered === 1 &&
-            received.join() === 'Ana' &&
-            (await relay.forward()) === 0) ||
-          'unexpected transaction or outbox behavior'
+            transactions.rolledBack === 1) ||
+          'unexpected transaction behavior'
         );
       },
     ],
     [
-      'the relay parks an event it can never deliver after maxAttempts and delivers the next ones',
-      async () => {
-        const { Order } = orderModel();
-        const outbox = new m.InMemoryOutbox();
-        const first = Order.place(ORDER_ID, 'Ana');
-        const second = Order.place(OTHER_ORDER_ID, 'Luis');
-        await outbox.publish([...first.pullDomainEvents(), ...second.pullDomainEvents()]);
-        const delivered = [];
-        const parked = [];
-        const relay = new m.OutboxRelay(
-          outbox,
-          (json) => {
-            if (json.aggregateId === ORDER_ID) {
-              throw new Error('rejected by the broker');
-            }
-            delivered.push(json.aggregateId);
-          },
-          { maxAttempts: 1, onParked: (json, error, sequence) => parked.push(sequence) },
-        );
-        const count = await relay.forward();
-        return (
-          (count === 1 &&
-            delivered.join() === OTHER_ORDER_ID &&
-            parked.join() === '1' &&
-            (await outbox.parked()).length === 1 &&
-            (await outbox.pending(10)).length === 0) ||
-          'unexpected relay parking behavior'
-        );
-      },
-    ],
-    [
-      'an inbox makes delivery idempotent and the published language keeps internal events inside',
-      async () => {
-        const { OrderPlaced } = orderModel();
-        const handled = [];
-        class ConfirmOrderOnOrderPlaced extends application.EventListener {
-          handle(event) {
-            handled.push(event.eventId);
-          }
-        }
-        application.ListensTo(OrderPlaced)(ConfirmOrderOnOrderPlaced);
-        const inbox = new m.InMemoryInbox();
-        const transactions = new m.InMemoryTransactionRunner([inbox]);
-        const dispatcher = new m.EventDispatcher([new ConfirmOrderOnOrderPlaced()], {
-          inbox,
-          transactions,
-        });
-        const event = new OrderPlaced(ORDER_ID, 'Ana');
-        await dispatcher.dispatch(event);
-        await dispatcher.dispatch(event);
-        const language = new m.PublishedLanguage().expose(OrderPlaced, {
-          name: 'sales.order.OrderPlaced',
-          version: 1,
-          data: (json) => ({ orderId: json.aggregateId }),
-        });
-        const [message] = language.translate(event.toJSON(), 7);
-        return (
-          (handled.length === 1 &&
-            message.name === 'sales.order.OrderPlaced' &&
-            message.messageId === event.eventId &&
-            message.sequence === 7 &&
-            event.toJSON().eventVersion === 1 &&
-            language.translate({ ...event.toJSON(), eventName: 'OrderInternal' }, 8).length ===
-              0) ||
-          'unexpected inbox or published language behavior'
-        );
-      },
-    ],
-    [
-      'events go through the bus and come back from their JSON',
+      'events go through the in-memory channel and listeners receive them rebuilt from their JSON',
       async () => {
         const { Order, OrderPlaced } = orderModel();
         const received = [];
         class ConfirmOrderOnOrderPlaced extends application.EventListener {
           handle(event) {
-            received.push(event.customer);
+            received.push(event);
           }
         }
         application.ListensTo(OrderPlaced)(ConfirmOrderOnOrderPlaced);
-        const bus = new m.InMemoryEventBus(
-          new m.EventDispatcher([new ConfirmOrderOnOrderPlaced()]),
-        );
-        const events = Order.place(ORDER_ID, 'Ana').pullDomainEvents();
-        await bus.publish(events);
-        const registry = new m.DomainEventRegistry().register(
+        const channel = new m.InMemoryEventChannel();
+        const registry = new application.EventRegistry().register(
           OrderPlaced,
           (json) => new OrderPlaced(json.aggregateId, json.customer, json),
         );
-        const rebuilt = registry.fromJSON(JSON.stringify(events[0]));
+        const bus = new application.DomainEventBus(channel, registry);
+        const subscription = await bus.subscribe(new ConfirmOrderOnOrderPlaced());
+        const events = Order.place(ORDER_ID, 'Ana').pullDomainEvents();
+        await bus.publish(events);
+        await subscription.unsubscribe();
+        await bus.publish(Order.place(OTHER_ORDER_ID, 'Luis').pullDomainEvents());
         return (
-          (received[0] === 'Ana' &&
-            rebuilt instanceof OrderPlaced &&
-            rebuilt.eventId === events[0].eventId &&
-            bus.published.length === 1) ||
-          'unexpected bus or registry result'
+          (received.length === 1 &&
+            received[0] instanceof OrderPlaced &&
+            received[0] !== events[0] &&
+            received[0].customer === 'Ana' &&
+            received[0].eventId === events[0].eventId &&
+            Object.isFrozen(received[0]) &&
+            channel.sent.length === 2) ||
+          'unexpected bus or channel result'
+        );
+      },
+    ],
+    [
+      'the parallel channel runs every consumer and reports all failures together',
+      async () => {
+        const channel = new m.InMemoryEventChannel({ delivery: 'parallel' });
+        const ran = [];
+        await channel.receive('OrderPlaced', 'ReserveStockOnOrderPlaced', async () => {
+          throw new Error('warehouse offline');
+        });
+        await channel.receive('OrderPlaced', 'ConfirmOrderOnOrderPlaced', async () => {
+          ran.push('mail');
+        });
+        const { OrderPlaced } = orderModel();
+        let failure = null;
+        try {
+          await channel.send([new OrderPlaced(ORDER_ID, 'Ana').toJSON()]);
+        } catch (error) {
+          failure = error;
+        }
+        return (
+          (failure instanceof exceptions.EventDeliveryException &&
+            failure.errors.length === 1 &&
+            ran.join() === 'mail') ||
+          `unexpected parallel delivery: ${failure}`
         );
       },
     ],

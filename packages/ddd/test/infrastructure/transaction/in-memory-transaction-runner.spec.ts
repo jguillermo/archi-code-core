@@ -3,10 +3,6 @@ import { InMemoryTransactionRunner } from '../../../src/infrastructure/transacti
 import type { TransactionParticipant } from '../../../src/infrastructure/transaction/transaction-participant';
 import { InMemoryRepository } from '../../../src/infrastructure/repository/in-memory-repository';
 import { AggregateMapper } from '../../../src/infrastructure/repository/aggregate-mapper';
-import { InMemoryOutbox } from '../../../src/infrastructure/outbox/in-memory-outbox';
-import { OutboxRelay } from '../../../src/infrastructure/outbox/outbox-relay';
-import { EventDispatcher } from '../../../src/infrastructure/event/event-dispatcher';
-import { DomainEventRegistry } from '../../../src/infrastructure/event/domain-event-registry';
 import {
   AggregateRoot,
   BooleanType,
@@ -16,7 +12,7 @@ import {
   StringType,
 } from '../../../src/domain/index';
 import type { AggregateFinder, AggregateSaver, PrimitiveTypes } from '../../../src/domain/index';
-import { EventListener, ListensTo, UseCase } from '../../../src/application/index';
+import { UseCase } from '../../../src/application/index';
 import type { EventBus, TransactionRunner } from '../../../src/application/index';
 import { AggregateNotFoundException, DomainException } from '../../../src/exceptions/index';
 
@@ -104,11 +100,30 @@ class ShipOrder extends UseCase<{ orderId: string; failAfterSaving?: boolean }, 
   }
 }
 
+class TransactionalEventLog implements EventBus<OrderShipped>, TransactionParticipant {
+  private entries: string[] = [];
+
+  get stored(): readonly string[] {
+    return [...this.entries];
+  }
+
+  async publish(events: readonly OrderShipped[]): Promise<void> {
+    this.entries.push(...events.map((event) => event.eventName()));
+  }
+
+  snapshot(): () => void {
+    const saved = [...this.entries];
+    return () => {
+      this.entries = saved;
+    };
+  }
+}
+
 const orderId = '9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c';
 
 async function shop() {
   const orders = new InMemoryRepository(AggregateMapper.of(Order));
-  const outbox = new InMemoryOutbox<OrderShipped>();
+  const outbox = new TransactionalEventLog();
   const transactions = new InMemoryTransactionRunner([orders, outbox]);
   await orders.save(Order.place(orderId, 'Ana'));
   return { orders, outbox, transactions, shipOrder: new ShipOrder(orders, outbox, transactions) };
@@ -122,7 +137,6 @@ describe('InMemoryTransactionRunner: the transactions of a use case test', () =>
   it('is a TransactionRunner whose participants are the in-memory adapters', () => {
     expectTypeOf<InMemoryTransactionRunner>().toMatchTypeOf<TransactionRunner>();
     expectTypeOf<InMemoryRepository<Order>>().toMatchTypeOf<TransactionParticipant>();
-    expectTypeOf<InMemoryOutbox>().toMatchTypeOf<TransactionParticipant>();
   });
 
   describe('a use case that succeeds', () => {
@@ -130,9 +144,7 @@ describe('InMemoryTransactionRunner: the transactions of a use case test', () =>
       const { orders, outbox, transactions, shipOrder } = await shop();
       await shipOrder.execute({ orderId });
       expect((await storedOrder(orders)).shipped.value).toBe(true);
-      expect((await outbox.pending(10)).map((entry) => entry.event.eventName)).toEqual([
-        'OrderShipped',
-      ]);
+      expect(outbox.stored).toEqual(['OrderShipped']);
       expect(transactions.committed).toBe(1);
       expect(transactions.rolledBack).toBe(0);
     });
@@ -152,7 +164,7 @@ describe('InMemoryTransactionRunner: the transactions of a use case test', () =>
       const order = await storedOrder(orders);
       expect(order.shipped.value).toBe(false);
       expect(order.version).toBe(1);
-      expect(await outbox.pending(10)).toEqual([]);
+      expect(outbox.stored).toEqual([]);
       expect(transactions.committed).toBe(0);
       expect(transactions.rolledBack).toBe(1);
     });
@@ -178,7 +190,7 @@ describe('InMemoryTransactionRunner: the transactions of a use case test', () =>
       ).rejects.toThrow(OrderAlreadyShipped);
       expect(await orders.findById(new OrderId(extra))).toBeNull();
       expect((await storedOrder(orders)).shipped.value).toBe(false);
-      expect(await outbox.pending(10)).toEqual([]);
+      expect(outbox.stored).toEqual([]);
     });
   });
 
@@ -241,7 +253,7 @@ describe('InMemoryTransactionRunner: the transactions of a use case test', () =>
       expect(steps).toEqual(['place starts', 'place ends', 'ship starts']);
       expect((await orders.findById(new OrderId(extra)))?.customer.value).toBe('Luis');
       expect((await storedOrder(orders)).shipped.value).toBe(false);
-      expect(await outbox.pending(10)).toEqual([]);
+      expect(outbox.stored).toEqual([]);
       expect([transactions.committed, transactions.rolledBack]).toEqual([1, 1]);
     });
 
@@ -272,36 +284,5 @@ describe('InMemoryTransactionRunner: the transactions of a use case test', () =>
       }),
     ).rejects.toThrow('disk full');
     expect(restored).toEqual(['outbox', 'orders']);
-  });
-
-  describe('the whole flow: transaction, outbox, relay and listener', () => {
-    @ListensTo(OrderShipped)
-    class NotifyCustomerOnOrderShipped extends EventListener<OrderShipped> {
-      readonly notified: string[] = [];
-
-      handle(event: OrderShipped): void {
-        this.notified.push(event.aggregateId);
-      }
-    }
-
-    it('delivers the events only after the transaction committed, through the relay', async () => {
-      const { outbox, shipOrder } = await shop();
-      const listener = new NotifyCustomerOnOrderShipped();
-      const dispatcher = new EventDispatcher([listener]);
-      const registry = new DomainEventRegistry<OrderShipped>().register(
-        OrderShipped,
-        (json) => new OrderShipped(json.aggregateId, json),
-      );
-      const relay = new OutboxRelay(outbox, (json) => dispatcher.dispatch(registry.fromJSON(json)));
-
-      await expect(shipOrder.execute({ orderId, failAfterSaving: true })).rejects.toThrow();
-      expect(await relay.forward()).toBe(0);
-
-      await shipOrder.execute({ orderId });
-      expect(listener.notified).toEqual([]);
-      expect(await relay.forward()).toBe(1);
-      expect(listener.notified).toEqual([orderId]);
-      expect(await relay.forward()).toBe(0);
-    });
   });
 });

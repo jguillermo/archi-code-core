@@ -2,43 +2,25 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 import * as infrastructure from '../../src/infrastructure/index';
 import type {
   AggregateClass,
-  EventFactory,
   HttpError,
   HttpErrorBody,
-  IdempotentDelivery,
-  InboxStore,
-  OutboxDelivery,
-  OutboxEntry,
-  OutboxStore,
-  PublishedContract,
-  PublishedMessage,
+  InMemoryEventChannelOptions,
   TransactionParticipant,
 } from '../../src/infrastructure/index';
-import { AggregateRoot, EventBase } from '../../src/domain/index';
-import type { SerializedEvent } from '../../src/domain/index';
+import { AggregateRoot } from '../../src/domain/index';
 import type { ValidationIssue } from '../../src/exceptions/index';
 import { InMemoryRepository } from '../../src/infrastructure/repository/in-memory-repository';
 import { AggregateMapper } from '../../src/infrastructure/repository/aggregate-mapper';
 
 const PUBLIC_API = [
   'AggregateMapper',
-  'DomainEventRegistry',
-  'EventDispatcher',
   'FixedClock',
   'HttpErrorMapper',
-  'InMemoryEventBus',
-  'InMemoryInbox',
-  'InMemoryOutbox',
+  'InMemoryEventChannel',
   'InMemoryRepository',
   'InMemoryTransactionRunner',
-  'OutboxRelay',
-  'PublishedLanguage',
   'SystemClock',
 ];
-
-class OrderPlaced extends EventBase {
-  static readonly eventName = 'OrderPlaced';
-}
 
 describe('@archi-code/ddd/infrastructure', () => {
   it('exports exactly the public API', () => {
@@ -62,9 +44,6 @@ describe('@archi-code/ddd/infrastructure', () => {
   it('exports the public types', () => {
     expectTypeOf<AggregateClass<AggregateRoot>>().toHaveProperty('fromPrimitives');
     expectTypeOf<AggregateClass<AggregateRoot>>().toHaveProperty('name');
-    expectTypeOf<EventFactory<OrderPlaced>>().toEqualTypeOf<
-      (serialized: SerializedEvent) => OrderPlaced
-    >();
     expectTypeOf<HttpErrorBody>().toEqualTypeOf<{
       code: string;
       message: string;
@@ -72,29 +51,8 @@ describe('@archi-code/ddd/infrastructure', () => {
     }>();
     expectTypeOf<HttpError>().toEqualTypeOf<{ status: number; body: HttpErrorBody }>();
     expectTypeOf<TransactionParticipant>().toEqualTypeOf<{ snapshot(): () => void }>();
-    expectTypeOf<InboxStore['markProcessed']>().toEqualTypeOf<
-      (consumer: string, eventId: string) => Promise<boolean>
-    >();
-    expectTypeOf<IdempotentDelivery>().toHaveProperty('inbox');
-    expectTypeOf<PublishedContract>().toHaveProperty('data');
-    expectTypeOf<PublishedMessage>().toEqualTypeOf<{
-      readonly name: string;
-      readonly version: number;
-      readonly messageId: string;
-      readonly sequence: number;
-      readonly occurredOn: string;
-      readonly data: Readonly<Record<string, unknown>>;
+    expectTypeOf<InMemoryEventChannelOptions>().toEqualTypeOf<{
+      readonly delivery?: 'serial' | 'parallel';
     }>();
-    expectTypeOf<IdempotentDelivery>().toHaveProperty('transactions');
-    expectTypeOf<OutboxEntry>().toEqualTypeOf<{
-      readonly sequence: number;
-      readonly event: SerializedEvent;
-    }>();
-    expectTypeOf<OutboxStore['pending']>().toEqualTypeOf<
-      (limit: number) => Promise<readonly OutboxEntry[]>
-    >();
-    expectTypeOf<OutboxDelivery>().toEqualTypeOf<
-      (event: SerializedEvent, sequence: number) => Promise<void> | void
-    >();
   });
 });

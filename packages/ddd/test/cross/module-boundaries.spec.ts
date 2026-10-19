@@ -36,6 +36,12 @@ function resolveImport(from: string, specifier: string): string {
   return found === undefined ? `unresolved:${specifier}` : path.relative(SRC, found);
 }
 
+const EVENT_PORTS = [
+  'application/event/event-bus.ts',
+  'application/event/event-channel.ts',
+  'application/event/event-subscriber.ts',
+];
+
 interface Imports {
   readonly relative: string[];
   readonly packages: string[];
@@ -137,10 +143,14 @@ describe('layer boundaries: exceptions ← domain ← application ← infrastruc
     expect(packages).toEqual([]);
   });
 
-  it('declares the repository contracts in the domain and the technical ports in the application, as types only', () => {
+  it('declares the repository contracts in the domain and the technical and event ports in the application, as types only', () => {
     const contracts = Array.from(imports.keys()).filter(
-      (file) => file.startsWith('domain/repository/') || file.startsWith('application/ports/'),
+      (file) =>
+        file.startsWith('domain/repository/') ||
+        file.startsWith('application/ports/') ||
+        EVENT_PORTS.includes(file),
     );
+    expect(contracts).toEqual(expect.arrayContaining(EVENT_PORTS));
     expect(contracts.length).toBeGreaterThan(0);
     const withRuntimeCode = contracts.filter((file) =>
       /^export\s+(?!interface\b|type\b)/m.test(fs.readFileSync(path.join(SRC, file), 'utf8')),
@@ -148,14 +158,14 @@ describe('layer boundaries: exceptions ← domain ← application ← infrastruc
     expect(withRuntimeCode).toEqual([]);
   });
 
-  it('a use case never imports another use case nor a listener', () => {
+  it('a use case never imports another use case, and from the event contract only the EventBus port', () => {
     const coupled = Array.from(imports.entries()).flatMap(([file, { relative }]) =>
       file.startsWith('application/use-case/')
         ? relative
             .filter(
               (target) =>
                 (target.startsWith('application/use-case/') && target !== file) ||
-                target.startsWith('application/listener/'),
+                target.startsWith('application/event/'),
             )
             .map((target) => `${file} -> ${target}`)
         : [],

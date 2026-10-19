@@ -10,5 +10,6 @@ export enum ExceptionCode {
   InfrastructureException = 'INF000',
   InternalError = 'INF001',
   UnknownEvent = 'INF002',
+  EventDelivery = 'INF003',
   ErrorException = 'E000',
 }

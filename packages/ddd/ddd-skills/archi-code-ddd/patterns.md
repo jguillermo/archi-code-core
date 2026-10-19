@@ -290,40 +290,151 @@ class MongoOrderRepository
 }
 ```
 
-Wiring and tests with the in-memory adapters (transaction, outbox, relay) and the HTTP mapper:
+Wiring and tests with the in-memory adapters (transaction, event channel) and the HTTP mapper:
 
 ```ts
 const orders = new InMemoryRepository(AggregateMapper.of(Order));
-const outbox = new InMemoryOutbox<OrderEvent>();
-const inbox = new InMemoryInbox();
-const transactions = new InMemoryTransactionRunner([orders, outbox, inbox]);
-const listeners = new EventDispatcher(
-  [new PrepareShipmentOnOrderLineAdded(new PrepareShipment(warehouse))],
-  { inbox, transactions },
-);
-const registry = new DomainEventRegistry<OrderEvent>().register(
+const transactions = new InMemoryTransactionRunner([orders]);
+const registry = new EventRegistry<OrderEvent>().register(
   OrderLineAdded,
   (json) => new OrderLineAdded(json.aggregateId, json.sku as string, json.units as number, json),
 );
-const relay = new OutboxRelay(outbox, (json) => listeners.dispatchSerialized(json, registry), {
-  maxAttempts: 5,
-  onParked: (json, error) => alerts.notify(`${json.eventName} parked`, error),
-});
+const channel = new InMemoryEventChannel(); // swap for your RabbitMQ or database channel
+const bus = new DomainEventBus<OrderEvent>(channel, registry);
+await bus.subscribe(new PrepareShipmentOnOrderLineAdded(new PrepareShipment(warehouse)));
 
 const clock = new FixedClock('2026-03-01T09:30:00Z');
 await orders.save(Order.place(new OrderId(orderId), new CustomerName('Ana'), clock));
-await new AddOrderLine(orders, outbox, transactions, clock).execute({
+await new AddOrderLine(orders, bus, transactions, clock).execute({
   orderId,
   sku: 'TORCH-01',
   units: 2,
 });
-await outbox.pending(10); // the OrderLineAdded event, committed with the order
-await relay.forward(); // after the commit: PrepareShipment runs, once per event
-await outbox.parked(); // events that failed 5 times, for a person to review
+channel.sent.map((event) => event.eventName); // ['OrderLineAdded']: PrepareShipment already ran
 
 const errors = new HttpErrorMapper({ ORD001: 409 }); // a domain rule defaults to 422
 const { status, body } = errors.map(caughtError);
 ```
+
+A test of the event flow asserts on what the listener caused and on what the channel carried,
+never on the listener being called:
+
+```ts
+import { describe, expect, it } from 'vitest';
+
+describe('Adding a line to an order', () => {
+  it('prepares the shipment of the new line', async () => {
+    const prepared: string[] = [];
+    const warehouse: Warehouse = {
+      prepare: async (orderId, sku) => void prepared.push(`${orderId.value}:${sku.value}`),
+    };
+    const orders = new InMemoryRepository(AggregateMapper.of(Order));
+    const transactions = new InMemoryTransactionRunner([orders]);
+    const channel = new InMemoryEventChannel();
+    const bus = new DomainEventBus<OrderEvent>(channel, registry);
+    await bus.subscribe(new PrepareShipmentOnOrderLineAdded(new PrepareShipment(warehouse)));
+    const clock = new FixedClock('2026-03-01T09:30:00Z');
+    await orders.save(Order.place(new OrderId(orderId), new CustomerName('Ana'), clock));
+
+    await new AddOrderLine(orders, bus, transactions, clock).execute({
+      orderId,
+      sku: 'TORCH-01',
+      units: 2,
+    });
+
+    expect(prepared).toEqual([`${orderId}:TORCH-01`]);
+    expect(channel.sent).toMatchObject([
+      { eventName: 'OrderLineAdded', aggregateId: orderId, sku: 'TORCH-01', units: 2 },
+    ]);
+  });
+});
+```
+
+Another messaging technology is one `EventChannel` class in `infrastructure/messaging/`; the
+use cases, the listeners and `DomainEventBus` stay the same, and the composition root changes one
+line (`new DomainEventBus(new RabbitMqEventChannel(amqpChannel), registry)`). A RabbitMQ channel
+over the methods of an amqplib channel it uses, declared structurally: one durable topic exchange,
+the event name as routing key, one durable queue per consumer (the listener class name) and event,
+`ack` when the listener finished and `nack` without requeue when it failed (a dead-letter
+exchange on the queue keeps those messages):
+
+```ts
+import type { ChannelHandler, ChannelSubscription, EventChannel } from '@archi-code/ddd/application';
+import type { SerializedEvent } from '@archi-code/ddd/domain';
+
+interface AmqpMessage {
+  content: Buffer;
+}
+
+interface AmqpChannel {
+  assertExchange(exchange: string, type: 'topic', options: { durable: boolean }): Promise<unknown>;
+  publish(
+    exchange: string,
+    routingKey: string,
+    content: Buffer,
+    options: { persistent: boolean; messageId: string; contentType: string },
+  ): boolean;
+  assertQueue(queue: string, options: { durable: boolean }): Promise<unknown>;
+  bindQueue(queue: string, exchange: string, pattern: string): Promise<unknown>;
+  consume(
+    queue: string,
+    onMessage: (message: AmqpMessage | null) => void,
+  ): Promise<{ consumerTag: string }>;
+  ack(message: AmqpMessage): void;
+  nack(message: AmqpMessage, allUpTo: boolean, requeue: boolean): void;
+  cancel(consumerTag: string): Promise<unknown>;
+}
+
+class RabbitMqEventChannel implements EventChannel {
+  constructor(
+    private readonly amqp: AmqpChannel,
+    private readonly exchange = 'sales.events',
+  ) {}
+
+  async send(events: readonly SerializedEvent[]): Promise<void> {
+    await this.amqp.assertExchange(this.exchange, 'topic', { durable: true });
+    for (const event of events) {
+      this.amqp.publish(this.exchange, event.eventName, Buffer.from(JSON.stringify(event)), {
+        persistent: true,
+        messageId: event.eventId,
+        contentType: 'application/json',
+      });
+    }
+  }
+
+  async receive(
+    eventName: string,
+    consumer: string,
+    handler: ChannelHandler,
+  ): Promise<ChannelSubscription> {
+    const queue = `${consumer}.${eventName}`;
+    await this.amqp.assertExchange(this.exchange, 'topic', { durable: true });
+    await this.amqp.assertQueue(queue, { durable: true });
+    await this.amqp.bindQueue(queue, this.exchange, eventName);
+    const { consumerTag } = await this.amqp.consume(queue, (message) => {
+      if (message === null) {
+        return;
+      }
+      handler(JSON.parse(message.content.toString()))
+        .then(() => this.amqp.ack(message))
+        .catch(() => this.amqp.nack(message, false, false));
+    });
+    let open = true;
+    return {
+      close: async () => {
+        if (open) {
+          open = false;
+          await this.amqp.cancel(consumerTag);
+        }
+      },
+    };
+  }
+}
+```
+
+With a broker, `publish` resolves when RabbitMQ took the messages, not when the listener ran: an
+integration test waits for the effect (polling until `prepared` has the line) instead of reading it
+right after `execute`.
 
 Tests with Vitest: describe real situations, use a plain fixture factory in the project's
 `test/support/` and the native matchers (there is no archi-code test package). Dates held by VOs and
@@ -439,7 +550,7 @@ new OrderStatus(primitives.status); // primitives.status: Status, from Primitive
 ```
 
 A use case run by a listener registers a fact: it never refuses it, and returns when the aggregate
-is missing instead of making the relay retry forever:
+is missing instead of making the channel redeliver forever:
 
 ```ts
 class RegisterReservation extends UseCase<ReservationInput, ReservationCommand, void> {

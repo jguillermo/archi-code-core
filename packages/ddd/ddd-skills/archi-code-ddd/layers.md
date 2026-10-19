@@ -129,11 +129,11 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   state [IDDD ch. 10; IDDD appendix A]: a loop in `handle` around the whole `transactions.run`, so
   each attempt is a new transaction that loads the aggregate again (a few attempts, then rethrow);
   otherwise the conflict reaches the user (409). A nested `run` joins the outer transaction, so a
-  use case run by a listener with an inbox does not retry: the relay delivers the event again.
+  use case run inside another transaction does not retry: the caller or the channel's redelivery
+  tries again.
 - `record(event)` is `protected` and deep-freezes the event (facts never change [IDDD ch. 8]); `pullDomainEvents()` returns the events (typed `Event[]`) in order
-  and empties the list. Pull them after persisting, to publish. `InMemoryOutbox`,
-  `InMemoryEventBus` and `EventDispatcher` freeze every event they receive too, also one that
-  never went through an aggregate.
+  and empties the list. Pull them after persisting, to publish. `DomainEventBus.publish` freezes
+  every event it receives too, also one that never went through an aggregate.
 - Events extend `EventBase`, declare `static readonly eventName` with their class name, a fact in
   the past tense (`'OrderPlaced'`) [IDDD ch. 8] (a published contract is named
   `<context>.<module>.<Event>`, `sales.order.OrderPlaced` [IDDD ch. 13]) and
@@ -143,7 +143,7 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   the event by its class (`@ListensTo(OrderPlaced)`, `register(OrderPlaced, …)`). The
   base sets `eventId` (UUID v4) and `occurredOn` (immutable `Date`, from `metadata.clock` when
   given, otherwise the system time); pass `{ eventId, occurredOn }` only when rebuilding an event
-  read from an outbox or a broker. Inside an aggregate method, always pass the clock it received:
+  a channel delivered. Inside an aggregate method, always pass the clock it received:
   `new OrderPlaced(id.value, customer.value, { clock })`. Serialize with `JSON.stringify` /
   `toJSON()` (`eventName`, `eventVersion`, `eventId`, `aggregateId`, ISO `occurredOn` and the
   payload).
@@ -222,64 +222,51 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   `Required(NumberType)` with `isInt`), never a decimal amount; it is exact up to
   `Number.MAX_SAFE_INTEGER` cents (the books use `bigint`, `[Fuera de los libros: convención de
   @archi-code/ddd]`); rounding is explicit.
-- **Transactions belong to the application, events to the outbox** [IDDD ch. 12; Destilado ch. 6]:
-  the use case opens the transaction with the `TransactionRunner` port (`run(work)`; a nested run
-  joins the outer one; `inTransaction()` tells whether one is open) and publishes inside it, so the aggregate and its events are committed
-  together. `EventBus` is then an outbox: it stores the events; an `OutboxRelay(store, deliver)`
-  run by a worker after the commit (`forward()`) delivers them in order to the dispatcher or a
-  broker, at least once, so listeners must tolerate an `eventId` they already processed. Neither
-  the domain nor a repository opens a transaction. The relay stops at the first failure, counts
-  it (`OutboxStore.markFailed`) and retries it on the next run, up to a limit [IDDD ch. 10]: after
-  `maxAttempts` failures (5 by default) it parks the entry (`OutboxStore.park`), calls
-  `onParked(event, error, sequence)` so someone is told or a compensation starts, and goes on with
-  the next ones: `new OutboxRelay(outbox, deliver, { maxAttempts, onParked })`. Each event
-  arrives with its outbox `sequence` (`deliver(json, sequence)`) for consumers that keep order.
+- **Transactions belong to the application** [IDDD ch. 12]: the use case opens the transaction
+  with the `TransactionRunner` port (`run(work)`; a nested run joins the outer one;
+  `inTransaction()` tells whether one is open) and publishes inside it. Neither the domain nor a
+  repository opens a transaction. The in-memory channel delivers as soon as `publish` is called;
+  when events must be stored with the aggregate and delivered after the commit [Destilado ch. 6;
+  IDDD ch. 8], implement a durable `EventChannel` (an outbox table written in the runner's
+  transaction and relayed after the commit): use cases do not change.
 - **Events have a schema version** (`static readonly eventVersion = 2` when their data changes
-  incompatibly; 1 by default, written in `toJSON()`); a `DomainEventRegistry` factory reads older
+  incompatibly; 1 by default, written in `toJSON()`); an `EventRegistry` factory reads older
   stored versions from `json.eventVersion`.
-- **Consumers are idempotent**: wire `new EventDispatcher(listeners, { inbox, transactions })`;
-  each listener runs in its own transaction that marks `eventId` for that listener in the inbox
-  (`InMemoryInbox` or a table implementing `InboxStore`) and skips an event already processed. The
-  inbox must be written in that same transaction: in tests pass it to the runner
-  (`new InMemoryTransactionRunner([orders, outbox, inbox])`), in production write the mark through
-  the runner's connection. Otherwise a listener that fails leaves the mark, the redelivery is
-  skipped and the event is lost [IDDD ch. 8]. A dispatcher with an inbox refuses to run inside an
-  open transaction (`InfrastructureException`): listeners run after the commit, never inside the
-  transaction of the use case that recorded the event [IDDD ch. 8].
-- **Other contexts never receive domain classes**:
-  `new PublishedLanguage().expose(OrderPlaced, { name: 'sales.order.OrderPlaced', version: 1, data: (json) => ({ … }) })`
-  and, in the relay,
-  `published.translate(json, sequence)` (one message per exposed version, `[]` for internal
-  events; each message carries `messageId` = `eventId` and the outbox `sequence`, IDDD's
-  `notificationId` [IDDD ch. 13], so consumers deduplicate and keep the causal order) before
-  sending to the broker. Publish only what consumers need; a new contract version for incompatible
-  changes, exposed next to the old one while consumers move.
+- **The event contract lives in the application, in `application/event`**: `EventListener`,
+  `@ListensTo`, the ports `EventBus` (`publish`, what use cases see), `EventSubscriber`
+  (`subscribe(listener)` → `{ unsubscribe() }`, both async) and `EventChannel`
+  (`send(serialized)`, `receive(eventName, consumer, handler)` → `{ close() }`), and the classes
+  `DomainEventBus(channel, registry)` and `EventRegistry`. A messaging technology implements only
+  `EventChannel` (`InMemoryEventChannel` in the package; RabbitMQ, a table or Kafka in your
+  infrastructure); swapping it changes one line of the wiring.
+- **Consumers are idempotent**: delivery is at least once, so a listener ignores an `eventId` it
+  already processed. Listeners always receive the event rebuilt from its JSON (frozen, equal by
+  `toJSON()`), also in memory, so nothing changes when the channel does.
+- **Other contexts never receive domain classes**: translate the serialized event to a published,
+  versioned contract (`sales.order.OrderPlaced`, only what consumers need, `messageId` = `eventId`)
+  in the adapter that talks to the broker [IDDD ch. 13]; expose a new contract version next to the
+  old one while consumers move.
 - Event Sourcing and CQRS are optional, only for a concrete need (full history, read models very
   different from the model); read queries straight to the database come first. A projection is
-  an `EventListener` with the inbox that writes a read table; a read query is an application
+  an `EventListener` that writes a read table and skips an `eventId` it already applied; a read query is an application
   interface implemented in infrastructure that returns DTOs or ids.
-- Tests use `InMemoryTransactionRunner([repository, outbox, inbox])` (restores them when the work throws;
+- Tests use `InMemoryTransactionRunner([repository])` (restores it when the work throws;
   `committed`/`rolledBack`; a run inside another joins it, and runs that overlap in time wait
-  their turn),
-  `InMemoryOutbox` (events stored as JSON, `pending(limit)`, `parked()`) and
-  `OutboxRelay`. `InMemoryEventBus` dispatches immediately: only for a quick test without
-  transactions (the books deliver after the commit [IDDD ch. 8]; the package keeps this bus as a
-  test convenience, `[Fuera de los libros: convención de @archi-code/ddd]`).
+  their turn) and `new DomainEventBus(new InMemoryEventChannel(), registry)` (`channel.sent` lists
+  what was published; `{ delivery: 'parallel' }` runs the listeners of an event together).
 - Listeners extend `EventListener<Event>`, are decorated with `@ListensTo(EventClass)` (one event
   per listener, any number of listeners per event), receive the one use case they run by
   constructor and their `handle(event)` only maps the event to that use case's input.
-- The dispatcher and the relay are infrastructure classes built and connected in the composition
-  root: `new EventDispatcher([...listeners])`, fed after the commit by
-  `new OutboxRelay(outbox, (json) => dispatcher.dispatchSerialized(json, registry))` or by a queue
-  consumer (`InMemoryEventBus(dispatcher)` for a quick test). `dispatchSerialized` skips an event
-  nobody listens to without rebuilding it, so an event without a factory never blocks the outbox.
-  The application only knows `EventBus.publish` and `TransactionRunner.run`.
+- The bus is built and connected in the composition root:
+  `const bus = new DomainEventBus(channel, registry)`, then `await bus.subscribe(listener)` for
+  each listener; `subscribe` refuses a listener without `@ListensTo` and an event the registry
+  cannot rebuild. The use cases only receive `EventBus`.
 - A real repository implements the roles it supports (`AggregateFinder<A>`, `AggregateSaver<A>`,
   `AggregateRemover<A>`) and wraps driver errors in `InternalErrorException` with `cause`.
   `InMemoryRepository(AggregateMapper.of(Order))` is the reference for tests: it stores copies of
   the primitives with their version and follows the same concurrency contract.
-- Consumers of an outbox or broker rebuild events with `DomainEventRegistry`: register a factory per
+- `DomainEventBus` rebuilds events with `EventRegistry`: register a factory per
   event class that passes the JSON as metadata
   (`register(OrderPlaced, (json) => new OrderPlaced(json.aggregateId, …, json))`); `fromJSON`
   throws `InternalErrorException` when the rebuilt event lost its `eventId` or `occurredOn`, which
-  the inbox needs to skip a redelivery.
+  listeners need to skip a redelivery.

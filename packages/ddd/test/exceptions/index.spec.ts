@@ -10,6 +10,7 @@ const PUBLIC_API = [
   'ApplicationException',
   'ConcurrencyException',
   'DomainException',
+  'EventDeliveryException',
   'ExceptionCode',
   'InfrastructureException',
   'InternalErrorException',

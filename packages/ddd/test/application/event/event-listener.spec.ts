@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
-import { EventListener } from '../../../src/application/listener/event-listener';
-import { ListensTo } from '../../../src/application/listener/listens-to';
+import { EventListener } from '../../../src/application/event/event-listener';
+import { ListensTo } from '../../../src/application/event/listens-to';
 import { UseCase } from '../../../src/application/use-case/use-case';
 import { EventBase, IdType } from '../../../src/domain/index';
 

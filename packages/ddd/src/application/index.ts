@@ -1,6 +1,11 @@
 export { UseCase } from './use-case/use-case';
-export { EventListener } from './listener/event-listener';
-export { ListensTo } from './listener/listens-to';
-export type { EventBus } from './ports/event-bus';
+export { EventListener } from './event/event-listener';
+export { ListensTo } from './event/listens-to';
+export { DomainEventBus } from './event/domain-event-bus';
+export { EventRegistry } from './event/event-registry';
+export type { EventFactory } from './event/event-registry';
+export type { EventBus } from './event/event-bus';
+export type { EventSubscriber, Subscription } from './event/event-subscriber';
+export type { ChannelHandler, ChannelSubscription, EventChannel } from './event/event-channel';
 export type { Clock } from './ports/clock';
 export type { TransactionRunner } from './ports/transaction-runner';

@@ -50,31 +50,33 @@ import type {
   SatisfiedBy,
   SerializedEvent,
 } from '@archi-code/ddd/domain';
-import { EventListener, ListensTo, UseCase } from '@archi-code/ddd/application';
-import type { Clock, EventBus, TransactionRunner } from '@archi-code/ddd/application';
+import {
+  DomainEventBus,
+  EventListener,
+  EventRegistry,
+  ListensTo,
+  UseCase,
+} from '@archi-code/ddd/application';
+import type {
+  ChannelHandler,
+  ChannelSubscription,
+  Clock,
+  EventBus,
+  EventChannel,
+  EventSubscriber,
+  Subscription,
+  TransactionRunner,
+} from '@archi-code/ddd/application';
 import {
   AggregateMapper,
-  DomainEventRegistry,
-  EventDispatcher,
   FixedClock,
   HttpErrorMapper,
-  InMemoryEventBus,
-  InMemoryInbox,
-  InMemoryOutbox,
+  InMemoryEventChannel,
   InMemoryRepository,
   InMemoryTransactionRunner,
-  OutboxRelay,
-  PublishedLanguage,
   SystemClock,
 } from '@archi-code/ddd/infrastructure';
-import type {
-  InboxStore,
-  OutboxEntry,
-  OutboxRelayOptions,
-  OutboxStore,
-  PublishedMessage,
-  TransactionParticipant,
-} from '@archi-code/ddd/infrastructure';
+import type { TransactionParticipant } from '@archi-code/ddd/infrastructure';
 import { Validations } from '@archi-code/validation';
 ```
 

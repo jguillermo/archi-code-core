@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { EventBase } from '../../../src/domain/index';
 import {
+  ApplicationException,
   ExceptionCode,
-  InfrastructureException,
   InternalErrorException,
   UnknownEventException,
 } from '../../../src/exceptions/index';
 import type { EventMetadata, SerializedEvent } from '../../../src/domain/index';
-import { DomainEventRegistry } from '../../../src/infrastructure/event/domain-event-registry';
+import { EventRegistry } from '../../../src/application/event/event-registry';
 
 class OrderPlaced extends EventBase {
   static readonly eventName = 'OrderPlaced';
@@ -51,13 +51,13 @@ const orderId = '9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c';
 const eventId = '1d2e3f4a-5b6c-4d7e-8f9a-0b1c2d3e4f5a';
 
 function orderEvents() {
-  return new DomainEventRegistry<OrderEvent>()
+  return new EventRegistry<OrderEvent>()
     .register(OrderPlaced, (e) => new OrderPlaced(e.aggregateId, e.customer as string, e))
     .register(OrderShipped, (e) => new OrderShipped(e.aggregateId, e.carrier as string, e));
 }
 
-describe('DomainEventRegistry: rebuilding events read from an outbox or a broker', () => {
-  it('an outbox worker rebuilds the event from the JSON row it stored', () => {
+describe('EventRegistry: rebuilding the events a channel delivers', () => {
+  it('a database channel rebuilds the event from the JSON row it stored', () => {
     const recorded = new OrderPlaced(orderId, 'Ana', {
       eventId,
       occurredOn: '2026-03-01T09:30:00Z',
@@ -85,7 +85,7 @@ describe('DomainEventRegistry: rebuilding events read from an outbox or a broker
   });
 
   it('gives listeners an immutable fact, down to the lines it carries', () => {
-    const changed = new DomainEventRegistry<OrderLinesChanged>()
+    const changed = new EventRegistry<OrderLinesChanged>()
       .register(
         OrderLinesChanged,
         (e) => new OrderLinesChanged(e.aggregateId, e.lines as { sku: string; units: number }[], e),
@@ -104,7 +104,7 @@ describe('DomainEventRegistry: rebuilding events read from an outbox or a broker
   });
 
   it('registers each event by its class, under its static eventName', () => {
-    const registry = new DomainEventRegistry<OrderEvent>().register(
+    const registry = new EventRegistry<OrderEvent>().register(
       OrderShipped,
       (e) => new OrderShipped(e.aggregateId, e.carrier as string, e),
     );
@@ -116,7 +116,7 @@ describe('DomainEventRegistry: rebuilding events read from an outbox or a broker
     class OrderDispatched extends EventBase {
       static readonly eventName = 'OrderShipped';
     }
-    const registry = new DomainEventRegistry().register(
+    const registry = new EventRegistry().register(
       OrderDispatched,
       (e) => new OrderDispatched(e.aggregateId, e),
     );
@@ -125,7 +125,7 @@ describe('DomainEventRegistry: rebuilding events read from an outbox or a broker
   });
 
   it('registers events one after another in a single expression', () => {
-    const registry = new DomainEventRegistry();
+    const registry = new EventRegistry();
     expect(registry.register(OrderPlaced, (e) => new OrderPlaced(e.aggregateId, 'x'))).toBe(
       registry,
     );
@@ -140,7 +140,7 @@ describe('DomainEventRegistry: rebuilding events read from an outbox or a broker
   it('refuses to register the same event twice, a wiring mistake at start-up', () => {
     const register = () =>
       orderEvents().register(OrderPlaced, (e) => new OrderPlaced(e.aggregateId, 'x'));
-    expect(register).toThrow(InfrastructureException);
+    expect(register).toThrow(ApplicationException);
     expect(register).toThrow('Event "OrderPlaced" is already registered.');
   });
 
@@ -196,8 +196,8 @@ describe('DomainEventRegistry: rebuilding events read from an outbox or a broker
     expect(read).toThrow('Failed, internal error: a serialized event must be a JSON object');
   });
 
-  it('refuses a factory that drops the eventId, because the inbox could not skip a redelivery', () => {
-    const forgetful = new DomainEventRegistry<OrderEvent>().register(
+  it('refuses a factory that drops the eventId, because a listener could not skip a redelivery', () => {
+    const forgetful = new EventRegistry<OrderEvent>().register(
       OrderShipped,
       (e) => new OrderShipped(e.aggregateId, e.carrier as string),
     );
@@ -214,7 +214,7 @@ describe('DomainEventRegistry: rebuilding events read from an outbox or a broker
   });
 
   it('refuses a factory that keeps the eventId but stamps a new occurredOn', () => {
-    const restamping = new DomainEventRegistry<OrderEvent>().register(
+    const restamping = new EventRegistry<OrderEvent>().register(
       OrderShipped,
       (e) => new OrderShipped(e.aggregateId, e.carrier as string, { eventId: e.eventId }),
     );
@@ -266,21 +266,18 @@ describe('DomainEventRegistry: rebuilding events read from an outbox or a broker
         super(customerId, metadata);
       }
     }
-    const registry = new DomainEventRegistry<CustomerRenamed>().register(
-      CustomerRenamed,
-      (json) => {
-        if (json.eventVersion === 1) {
-          const [givenName, ...rest] = String(json.name).split(' ');
-          return new CustomerRenamed(json.aggregateId, givenName, rest.join(' '), json);
-        }
-        return new CustomerRenamed(
-          json.aggregateId,
-          json.givenName as string,
-          json.familyName as string,
-          json,
-        );
-      },
-    );
+    const registry = new EventRegistry<CustomerRenamed>().register(CustomerRenamed, (json) => {
+      if (json.eventVersion === 1) {
+        const [givenName, ...rest] = String(json.name).split(' ');
+        return new CustomerRenamed(json.aggregateId, givenName, rest.join(' '), json);
+      }
+      return new CustomerRenamed(
+        json.aggregateId,
+        json.givenName as string,
+        json.familyName as string,
+        json,
+      );
+    });
     const storedLastYear = registry.fromJSON({
       eventName: 'CustomerRenamed',
       eventVersion: 1,

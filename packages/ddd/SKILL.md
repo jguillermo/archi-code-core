@@ -1,6 +1,6 @@
 ---
 name: archi-code-ddd
-description: The single entry point for Domain-Driven Design with @archi-code/ddd. It routes every DDD question to the guide suite shipped in the package (discovery, subdomains and bounded contexts, context mapping, architecture, value objects and entities, aggregates, domain events, repositories, application services, event sourcing and CQRS, audits) and gives the rules, patterns and common mistakes for TypeScript code with @archi-code/ddd - where each class goes and what it may import, value objects, Composite, Specification, Entity, AggregateRoot, EventBase, repository roles, exceptions, UseCase, EventListener with @ListensTo, ports, transactions, outbox, inbox and HttpErrorMapper. Use it whenever someone applies DDD, designs or reviews a domain model, splits a system into contexts, writes or changes value objects, aggregates, events, use cases, listeners, repositories or adapters, decides which layer a class belongs to, or whenever the code imports @archi-code/ddd.
+description: The single entry point for Domain-Driven Design with @archi-code/ddd. It routes every DDD question to the guide suite shipped in the package (discovery, subdomains and bounded contexts, context mapping, architecture, value objects and entities, aggregates, domain events, repositories, application services, event sourcing and CQRS, audits) and gives the rules, patterns and common mistakes for TypeScript code with @archi-code/ddd - where each class goes and what it may import, value objects, Composite, Specification, Entity, AggregateRoot, EventBase, repository roles, exceptions, UseCase, the event contract (EventListener, @ListensTo, DomainEventBus, event channels), ports, transactions and HttpErrorMapper. Use it whenever someone applies DDD, designs or reviews a domain model, splits a system into contexts, writes or changes value objects, aggregates, events, use cases, listeners, repositories or adapters, decides which layer a class belongs to, or whenever the code imports @archi-code/ddd.
 ---
 
 # archi-code-ddd
@@ -9,10 +9,10 @@ description: The single entry point for Domain-Driven Design with @archi-code/dd
 layer: `@archi-code/ddd/exceptions` (the exceptions every layer throws), `@archi-code/ddd/domain`
 (value objects, `Composite`, `Specification`, `Entity`, `AggregateRoot`, `EventBase` and the
 repository contracts `AggregateFinder`, `AggregateSaver`, `AggregateRemover`),
-`@archi-code/ddd/application` (`UseCase`, `EventListener`, `@ListensTo` and the ports `EventBus`,
+`@archi-code/ddd/application` (`UseCase`, the event contract `EventListener`, `@ListensTo`,
+`EventBus`, `EventSubscriber`, `EventChannel`, `DomainEventBus`, `EventRegistry`, and the ports
 `Clock`, `TransactionRunner`) and `@archi-code/ddd/infrastructure` (aggregate mapper, in-memory
-repository, transaction runner, outbox and relay, inbox, event dispatcher and registry, published
-language, HTTP error mapper, clocks).
+repository, transaction runner, in-memory event channel, HTTP error mapper, clocks).
 
 ## Full API
 

@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import { Validations } from '@archi-code/validation';
 import { UseCase } from '../../../src/application/use-case/use-case';
-import type { EventBus } from '../../../src/application/ports/event-bus';
+import type { EventBus } from '../../../src/application/event/event-bus';
 import {
   AggregateRoot,
   BooleanType,

@@ -55,6 +55,7 @@ function crossBuild(cjs, esm) {
           { field: 'email', message: 'Email: Value does not satisfy isEmail' },
         ]);
         const conflict = new esm.ConcurrencyException('Order', ORDER_ID, 3);
+        const delivery = new esm.EventDeliveryException('OrderPlaced', [], 0);
         return (
           (notFound instanceof cjs.AggregateNotFoundException &&
             notFound instanceof cjs.ApplicationException &&
@@ -64,7 +65,9 @@ function crossBuild(cjs, esm) {
             !(notFound instanceof cjs.InfrastructureException) &&
             invalid instanceof esm.ValidationException &&
             invalid instanceof esm.DomainException &&
-            conflict instanceof cjs.ApplicationException) ||
+            conflict instanceof cjs.ApplicationException &&
+            delivery instanceof cjs.EventDeliveryException &&
+            delivery instanceof cjs.InfrastructureException) ||
           'an exception of one build is not recognized by the other'
         );
       },

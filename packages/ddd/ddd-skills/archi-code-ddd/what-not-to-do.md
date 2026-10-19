@@ -12,8 +12,8 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   from a use case: build them in `toCommand`.
 - A listener without `@ListensTo`, decorated with two events, or one that holds business rules,
   saves aggregates or calls several use cases.
-- Subscribing listeners by a text name or calling them from a use case: the dispatcher in
-  infrastructure finds them by `@ListensTo`.
+- Subscribing listeners by a text name or calling them from a use case: the composition root
+  subscribes them with `bus.subscribe(listener)`, which reads their `@ListensTo`.
 - Declaring `eventName()` as a method in an event: declare `static readonly eventName`.
 - Importing the repository contracts from `@archi-code/ddd/application`: they live in `/domain`.
 - Do not invent API: there is no root `@archi-code/ddd` import, no `toPrimitives()` in the base
@@ -35,21 +35,20 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   (`new OrderPlaced(id.value, customer.value)`): `occurredOn` becomes the system time and tests stop
   being deterministic.
 - A registry factory that does not pass the JSON as metadata
-  (`(json) => new OrderShipped(json.aggregateId)`): the event gets a new `eventId`, the inbox
+  (`(json) => new OrderShipped(json.aggregateId)`): the event gets a new `eventId`, a listener
   cannot skip a redelivery, and `fromJSON` throws.
-- Wiring the relay with `dispatcher.dispatch(registry.fromJSON(json))` and registering only the
-  events that have listeners: the first event without a factory blocks the outbox; use
-  `dispatcher.dispatchSerialized(json, registry)`.
-- A relay without a retry limit for a store that cannot count attempts: implement `markFailed`
-  and `park` in your `OutboxStore`, and give `onParked` something that tells a person or starts a
-  compensation; a parked event that nobody looks at is a lost event.
+- Subscribing a listener of an event the `EventRegistry` does not know: `bus.subscribe` refuses it
+  with `UnknownEventException`; register every event a listener receives.
+- Writing a second bus for a new technology (a `RabbitMqEventBus` with its own `publish` and
+  subscriptions): implement only `EventChannel` and keep `DomainEventBus`, so listeners and use
+  cases behave the same on every channel.
 - A use case run by a listener that throws `AggregateNotFoundException` or a business error: the
-  relay retries it forever; return, or record an event that compensates.
+  channel redelivers it forever; return, or record an event that compensates.
 - Retrying a `ConcurrencyException` with the same loaded aggregate, inside the transaction that
   failed, without a limit, or for a command that is not safe to repeat: each attempt is a new
   `transactions.run` that loads again, and only for commands safe to repeat. A use case never
-  calls itself nor another use case to retry, and one run by a listener with an inbox (its `run`
-  joins the listener's transaction) never retries: the relay redelivers the event.
+  calls itself nor another use case to retry, and one whose `run` joins an outer transaction
+  never retries: the caller or the channel's redelivery tries again.
 - A read query that loads aggregates through `AggregateFinder`, or a repository method that
   returns DTOs: reads go straight to the database through an application interface.
 - Importing `@archi-code/ddd/infrastructure` from domain code, or `application` from the domain.
@@ -58,18 +57,18 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
 - Catching errors inside `handle` just to rethrow them as `ApplicationException`: let them
   propagate; `execute` keeps package exceptions and wraps the rest.
 - Calling `bus.publish` before `repository.save`, or publishing without `pullDomainEvents()`.
-- Publishing after `transactions.run(...)` returns, or delivering events (dispatching listeners,
-  sending to a broker) inside the transaction: events are stored in the transaction and delivered
-  by the relay after the commit.
+- Publishing after `transactions.run(...)` returns: publish inside the transaction, and when the
+  events must be delivered only after the commit, use a durable `EventChannel` (an outbox table)
+  instead of changing the use case.
 - Opening transactions (`BEGIN`/`COMMIT`) in a repository or in the domain, or saving two
   aggregates in one `run` without one of the exceptions IDDD ch. 10 accepts, written down as a
   decision: the use case owns one transaction for one aggregate.
-- Using `InMemoryEventBus` with a `TransactionRunner`: it dispatches before the commit; use
-  `InMemoryOutbox` + `OutboxRelay`.
-- A listener that breaks when the relay delivers the same event twice: delivery is at least once;
-  use the inbox.
-- Sending `event.toJSON()` of a domain event to another context: translate it with
-  `PublishedLanguage`.
+- Relying on `InMemoryEventChannel` delivering before the commit in production code: it delivers
+  as soon as `publish` is called; a durable channel delivers after the commit.
+- A listener that breaks when a channel delivers the same event twice: delivery is at least once;
+  skip an `eventId` already processed.
+- Sending `event.toJSON()` of a domain event to another context: translate it to a published,
+  versioned contract.
 - Changing the data of a stored or published event without raising `eventVersion` (or the
   contract version).
 - Repository methods with business names or rules (`pendingOlderThan`, `findOverdueInvoices`),
@@ -119,13 +118,9 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   `RequiredValueException`.
 - Removing by id without loading the aggregate, or a `remove` with no version condition: `remove`
   receives the loaded aggregate and refuses a stale one with `ConcurrencyException`.
-- Dispatching listeners with an inbox inside the use case's transaction (an `EventDispatcher`
-  behind an `InMemoryEventBus` inside `transactions.run`): it throws; deliver after the commit with
-  the outbox and the relay.
-- An inbox that is not written in the listener's transaction (an `InMemoryInbox` missing from the
-  runner's participants): a failed listener keeps its mark and the redelivery is skipped.
-- `translate(json)` without the outbox `sequence`, or a broker message without it: consumers of
-  other contexts lose the causal order.
+- Putting listeners or event ports under `application/ports/` or a separate listener folder of the
+  package API: the event contract (`EventListener`, `@ListensTo`, `EventBus`, `EventSubscriber`,
+  `EventChannel`, `DomainEventBus`, `EventRegistry`) is imported from `@archi-code/ddd/application`.
 - A child entity as a plain class, with setters, or called from outside its aggregate: it extends
   `Entity<Id>`, holds value objects, and its business methods are called only by its root.
 - Modeling an amount with its currency, a date range or an address as loose fields of the

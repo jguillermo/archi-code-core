@@ -6,8 +6,8 @@ Domain-Driven Design building blocks for TypeScript, one entry point per layer:
 | -------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `@archi-code/ddd/exceptions`     | Shared         | Exceptions of every layer with codes, causes and `instanceof` across builds                                                                                                                      |
 | `@archi-code/ddd/domain`         | Domain         | Value objects, `Required(...)`, `Composite(...)`, `Entity`, `AggregateRoot`, `EventBase`, `Specification` and the repository contracts (`AggregateFinder`, `AggregateSaver`, `AggregateRemover`) |
-| `@archi-code/ddd/application`    | Application    | `UseCase`, `EventListener`, `@ListensTo` and the ports `EventBus`, `Clock` and `TransactionRunner`                                                                                               |
-| `@archi-code/ddd/infrastructure` | Infrastructure | `InMemoryRepository`, `AggregateMapper`, `EventDispatcher`, transactions, outbox, inbox, `PublishedLanguage`, `DomainEventRegistry`, `HttpErrorMapper`, clocks                                   |
+| `@archi-code/ddd/application`    | Application    | `UseCase`, the event contract (`EventListener`, `@ListensTo`, `EventBus`, `EventSubscriber`, `EventChannel`, `DomainEventBus`, `EventRegistry`) and the ports `Clock` and `TransactionRunner`    |
+| `@archi-code/ddd/infrastructure` | Infrastructure | `InMemoryRepository`, `AggregateMapper`, `InMemoryEventChannel`, `InMemoryTransactionRunner`, `HttpErrorMapper`, clocks                                                                          |
 
 The layers only depend inwards: `exceptions` imports nothing, `domain` imports only `exceptions`,
 `application` imports `domain` and `exceptions`, and `infrastructure` imports all three. The
@@ -126,7 +126,8 @@ src/
         notify-customer/    NotifyCustomer.ts, NotifyCustomerOnOrderShipped.ts
         order-summaries/    OrderSummaries.ts (read query: interface + DTOs)
       infrastructure/
-        persistence/        MongoOrderRepository.ts, MongoOutbox.ts, MongoOrderSummaries.ts
+        persistence/        MongoOrderRepository.ts, MongoOrderSummaries.ts
+        messaging/          RabbitMqEventChannel.ts
         catalog/            CatalogHttpProductPricing.ts, CatalogTranslator.ts (anti-corruption layer)
       interfaces/
         http/               ordersRouter.ts
@@ -180,8 +181,7 @@ test/                       mirrors src/
   `toPrimitives()` no longer matches the stored data.
 - **Event names**: an event's `eventName` is its class name, a fact in the past tense
   (`'OrderPlaced'`) [IDDD ch. 8]; contracts published to other contexts are
-  `'<context>.<module>.<Event>'` (`'sales.order.OrderPlaced'`) [IDDD ch. 13] (see
-  [`PublishedLanguage`](#events-for-other-contexts-publishedlanguage)). An event carries
+  `'<context>.<module>.<Event>'` (`'sales.order.OrderPlaced'`) [IDDD ch. 13]. An event carries
   primitives taken from value objects (ids as strings, money as `{ amount, currency }`), never value
   objects nor the whole state of the aggregate.
 
@@ -869,12 +869,11 @@ repository. It does not protect the invariants of an aggregate: those stay in th
 
 - `EventBase`: abstract class for events; declare
   `static readonly eventName = '<ClassName>'` (`'OrderPlaced'` [IDDD ch. 8]; the
-  `'<context>.<module>.<Event>'` names are for the contracts other contexts read, see
-  [`PublishedLanguage`](#events-for-other-contexts-publishedlanguage)) (listeners and registries refer to the event by its class, without an instance; `eventName()`
+  `'<context>.<module>.<Event>'` names are for the contracts other contexts read) (listeners and registries refer to the event by its class, without an instance; `eventName()`
   returns it, and a subclass inherits it). Creating an event whose class has no non-blank
   `eventName` throws `InternalErrorException`. `new (aggregateId, metadata?)` sets `aggregateId`, a new `eventId` (UUID v4) and an immutable `occurredOn`. Pass
   `{ clock }` (any `{ now(): Date }`, such as the `Clock` port) to take the moment from it; without
-  a clock it is the system time. When you rebuild an event read from an outbox or a broker, pass
+  a clock it is the system time. When you rebuild an event a channel delivered, pass
   `{ eventId, occurredOn }` (`Date` or ISO string with zone) to keep them; a stored `occurredOn`
   wins over a clock. The clock is not kept in the event nor in its JSON. `toJSON()` gives
   `{ eventName, eventVersion, eventId, aggregateId, occurredOn (ISO), ...payload }`.
@@ -882,7 +881,7 @@ repository. It does not protect the invariants of an aggregate: those stay in th
   in a way old readers cannot follow (renaming or removing a field, changing its meaning; adding an
   optional field needs no new version). It is 1 when not declared, `event.eventVersion()` returns
   it, and a version below 1 or not whole throws `InternalErrorException`. Stored events keep the
-  version they were written with, so the `DomainEventRegistry` factory can read old shapes
+  version they were written with, so the `EventRegistry` factory can read old shapes
   (`json.eventVersion === 1 ? … : …`).
 - The data of an event are primitives taken from value objects (`id.value`, money as
   `{ amount, currency }`), never value objects nor the whole state of the aggregate: the event is
@@ -1039,9 +1038,9 @@ again, which loads the aggregate again. The use case may retry by itself when it
 to repeat against the new state [IDDD ch. 10; IDDD appendix A]: each attempt is a whole new
 `transactions.run` that loads the aggregate again, written in `handle` (there is no helper), and
 it never calls another use case. That holds only when `handle` is not already inside another
-`run`: a nested run joins the outer transaction, so a use case run by a listener under
-`EventDispatcher` with an inbox does not retry; it lets the conflict propagate and the relay
-delivers the event again:
+`run`: a nested run joins the outer transaction, so a use case run inside another transaction
+does not retry; it lets the conflict propagate and the caller (or the channel's redelivery) tries
+again:
 
 ```ts
 import { UseCase } from '@archi-code/ddd/application';
@@ -1060,7 +1059,7 @@ interface AddOrderLineCommand {
 }
 
 class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand, void> {
-  // constructor (orders, events, transactions, clock) as in "Transactions and the outbox";
+  // constructor (orders, events, transactions, clock) as in "Transactions";
   // toCommand builds orderId, sku and units with ValueObjects.build;
   // Order, OrderLine, Sku and Units as in "Persisting aggregates with AggregateMapper"
 
@@ -1227,7 +1226,7 @@ order:
 2. `protected handle(command: Command)` (sync or async) coordinates the action with value objects
    only: load the aggregate, call its business method, save it, publish
    `aggregate.pullDomainEvents()`. When the project uses transactions, these steps go inside
-   `transactions.run(...)` (see [Transactions and the outbox](#transactions-and-the-outbox)).
+   `transactions.run(...)` (see [Transactions](#transactions)).
 
 Errors of both steps are treated the same way:
 
@@ -1275,7 +1274,7 @@ use case never imports another use case.
 
 A use case that a listener runs registers a fact that already happened elsewhere, so it does not
 refuse it: when the aggregate is missing it returns instead of throwing
-`AggregateNotFoundException` (a not-found would block the outbox or the queue for ever), and the
+`AggregateNotFoundException` (a not-found would block the channel's redelivery for ever), and the
 aggregate method is idempotent. Only technical errors propagate, so the delivery is retried:
 
 ```ts
@@ -1307,13 +1306,36 @@ protected async handle(command: RefundPaymentCommand): Promise<void> {
 }
 ```
 
-## Listeners: `EventListener` and `@ListensTo`
+## Events: the contract in `application/event`
+
+Everything about events in the application layer lives in one folder, `application/event`: the
+listeners, the ports and the bus every technology shares. Changing the messaging technology (in
+memory today, RabbitMQ, a database table or Kafka tomorrow) means **changing only the channel**: use
+cases, listeners and wiring stay as they are.
+
+```
+use case ──► EventBus (port) ─┐
+wiring   ──► EventSubscriber ─┤  DomainEventBus  (freeze, toJSON, @ListensTo, rebuild, listener.handle)
+                              └──► EventChannel (port)  ◄── InMemoryEventChannel   (@archi-code/ddd/infrastructure)
+                                   send / receive         ◄── your RabbitMQ, database or Kafka channel
+```
+
+| Piece                                                   | Kind             | Role                                                                                                                 |
+| ------------------------------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `EventListener`, `@ListensTo`                           | class, decorator | What the application does when an event happens                                                                      |
+| `EventBus`                                              | port (type)      | `publish(events)`: the only thing a use case knows                                                                   |
+| `EventSubscriber`, `Subscription`                       | port (types)     | `subscribe(listener)` → `{ unsubscribe() }`, both async: used by the wiring                                          |
+| `EventChannel`, `ChannelHandler`, `ChannelSubscription` | port (types)     | `send(serialized)` / `receive(eventName, consumer, handler)` → `{ close() }`: the only thing a technology implements |
+| `DomainEventBus(channel, registry)`                     | class            | Implements `EventBus` and `EventSubscriber` over any `EventChannel`                                                  |
+| `EventRegistry`, `EventFactory`                         | class, type      | Rebuilds an event from its JSON, keeping its `eventId` and `occurredOn`                                              |
+
+### Listeners: `EventListener` and `@ListensTo`
 
 A listener is what the application does when an event happens. It extends
-`EventListener<Event>`, implements `handle(event)` (sync or async) and is subscribed with
+`EventListener<Event>`, implements `handle(event)` (sync or async) and is marked with
 `@ListensTo(EventClass)`, which stores the event's `static eventName` on the listener class. A
 listener listens to exactly one event (decorating it twice throws `ApplicationException`) and any
-number of listeners may listen to the same event. A subclass does not inherit the subscription.
+number of listeners may listen to the same event. A subclass does not inherit the mark.
 
 Its name is `<Action>On<Event>`, and its body only turns the event into the input of the one use
 case it receives by constructor:
@@ -1333,21 +1355,353 @@ class ReserveStockOnOrderPlaced extends EventListener<OrderPlaced> {
 }
 ```
 
-`ListensTo.eventOf(listener)` returns the event name a listener instance is subscribed to (and
-throws `ApplicationException` when its class has no `@ListensTo`). The mark is kept under a
-`Symbol.for` key, so a listener decorated with one build (CJS or ESM) is read by the other.
-Neither the aggregates nor the use cases know the listeners: only infrastructure (the
-`EventDispatcher`) brings them together.
+`ListensTo.eventOf(listener)` returns the event name a listener instance listens to (and throws
+`ApplicationException` when its class has no `@ListensTo`). The mark is kept under a `Symbol.for`
+key, so a listener decorated with one build (CJS or ESM) is read by the other. Neither the
+aggregates nor the use cases know the listeners: only the wiring subscribes them to the bus.
 
-## Ports
-
-Technical capabilities the application needs and infrastructure implements (types only):
+### The ports
 
 ```ts
 interface EventBus<Event extends EventBase = EventBase> {
   publish(events: readonly Event[]): Promise<void>;
 }
 
+interface Subscription {
+  unsubscribe(): Promise<void>;
+}
+
+interface EventSubscriber<Event extends EventBase = EventBase> {
+  subscribe(listener: EventListener<Event>): Promise<Subscription>;
+}
+
+type ChannelHandler = (event: SerializedEvent) => Promise<void>;
+
+interface ChannelSubscription {
+  close(): Promise<void>;
+}
+
+interface EventChannel {
+  send(events: readonly SerializedEvent[]): Promise<void>;
+  receive(
+    eventName: string,
+    consumer: string,
+    handler: ChannelHandler,
+  ): Promise<ChannelSubscription>;
+}
+```
+
+A channel only moves serialized events (`toJSON()`), so the same contract fits a process, a broker
+and a table. The rules every channel follows:
+
+| Concern           | Rule                                                                                                                            |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Payload           | `SerializedEvent`s (JSON-safe), never instances                                                                                 |
+| Consumer identity | `receive(eventName, consumer, handler)`; `DomainEventBus` passes the listener class name (a durable queue name, a consumer row) |
+| One per consumer  | a second `receive` for the same event and consumer while the first is open throws `InfrastructureException`                     |
+| Lifecycle         | `receive` resolves to a `ChannelSubscription`; `close()` is async and can be called more than once                              |
+| `send` resolves   | when the channel accepted the events; whether the handlers already ran is the channel's choice                                  |
+| Order             | one consumer receives the events of one `send` in their order                                                                   |
+| Delivery          | at least once: a listener ignores an `eventId` it already processed                                                             |
+| Handler failure   | the channel's choice (the in-memory channel rejects `send`; a broker retries or dead-letters)                                   |
+
+### `DomainEventBus` and `EventRegistry`
+
+```ts
+import { DomainEventBus, EventRegistry } from '@archi-code/ddd/application';
+import { InMemoryEventChannel } from '@archi-code/ddd/infrastructure';
+
+const events = new EventRegistry<OrderEvent>()
+  .register(OrderPlaced, (json) => new OrderPlaced(json.aggregateId, json.customer as string, json))
+  .register(OrderShipped, (json) => new OrderShipped(json.aggregateId, json));
+
+const bus = new DomainEventBus<OrderEvent>(new InMemoryEventChannel(), events);
+const reserving = await bus.subscribe(new ReserveStockOnOrderPlaced(reserveStock));
+await bus.subscribe(new NotifyCustomerOnOrderShipped(notifyCustomer));
+
+const placeOrder = new PlaceOrder(orders, bus, clock); // the use case only sees EventBus
+await placeOrder.execute({ customer: 'Ana' }); // ReserveStock ran with a rebuilt OrderPlaced
+await reserving.unsubscribe();
+```
+
+- `publish(events)` deep-freezes each event and sends their JSON to the channel in one `send`.
+- `subscribe(listener)` reads the event with `ListensTo.eventOf` (`ApplicationException` without
+  `@ListensTo`), refuses an event the registry cannot rebuild (`UnknownEventException`, at wiring
+  time rather than at the first delivery) and calls
+  `channel.receive(eventName, listener.constructor.name, handler)`; the handler rebuilds the event
+  with the registry and calls `listener.handle`. `unsubscribe()` closes the channel subscription.
+- Listeners always receive an event rebuilt from its JSON (frozen, equal by `toJSON()`), also in
+  memory, so what works with the in-memory channel works the same with a broker.
+
+`EventRegistry`: `register(EventClass, factory)` (the same event twice throws
+`ApplicationException`), `has(eventName)` and `fromJSON(json)` (a `SerializedEvent` or its text).
+The factory must pass the serialized event as the metadata of the new event (`json` as the last
+argument), so the rebuilt event keeps its `eventId` and `occurredOn`: consumers deduplicate by
+`eventId`, and a new one would make every redelivery look like a new event. `fromJSON` checks it
+and throws `InternalErrorException`
+(`the factory of "OrderPlaced" must pass the serialized event as metadata, so it keeps its eventId and occurredOn`)
+when the rebuilt `eventId` (compared without case) or the `occurredOn` instant differs from the
+JSON. It also throws `UnknownEventException` for a name nobody registered and
+`InternalErrorException` for text that is not a JSON object or has no `eventName`. The rebuilt
+event is deep-frozen, like the ones an aggregate records. The factory receives the stored
+`eventVersion`, so it can read older shapes (`json.eventVersion === 1 ? … : …`).
+
+### Example: from the use case to the listener, in memory
+
+One aggregate records `OrderPlaced`, a use case publishes it, and a listener runs the use case
+that sends the confirmation. The use cases and the listener only know the ports; the composition
+root chooses the channel:
+
+```ts
+import { AggregateRoot, EventBase, IdType, Required, StringType } from '@archi-code/ddd/domain';
+import type { AggregateSaver, EventMetadata, PrimitiveTypes } from '@archi-code/ddd/domain';
+import {
+  DomainEventBus,
+  EventListener,
+  EventRegistry,
+  ListensTo,
+  UseCase,
+} from '@archi-code/ddd/application';
+import type { Clock, EventBus } from '@archi-code/ddd/application';
+import {
+  AggregateMapper,
+  FixedClock,
+  InMemoryEventChannel,
+  InMemoryRepository,
+} from '@archi-code/ddd/infrastructure';
+
+class OrderId extends IdType {}
+class CustomerName extends Required(StringType) {}
+
+class OrderPlaced extends EventBase {
+  static readonly eventName = 'OrderPlaced';
+
+  constructor(
+    orderId: string,
+    readonly customer: string,
+    metadata?: EventMetadata,
+  ) {
+    super(orderId, metadata);
+  }
+}
+
+class Order extends AggregateRoot<OrderId, OrderPlaced> {
+  private constructor(
+    id: OrderId,
+    private readonly _customer: CustomerName,
+  ) {
+    super(id);
+  }
+
+  static place(id: OrderId, customer: CustomerName, clock: Clock): Order {
+    const order = new Order(id, customer);
+    order.record(new OrderPlaced(id.value, customer.value, { clock }));
+    return order;
+  }
+
+  static fromPrimitives(primitives: PrimitiveTypes<Order>): Order {
+    return new Order(new OrderId(primitives.id), new CustomerName(primitives.customer));
+  }
+
+  get customer(): CustomerName {
+    return this._customer;
+  }
+
+  toPrimitives(): PrimitiveTypes<Order> {
+    return { id: this.id.value, customer: this.customer.value };
+  }
+}
+
+class PlaceOrder extends UseCase<{ customer: string }, CustomerName, string> {
+  constructor(
+    private readonly orders: AggregateSaver<Order>,
+    private readonly events: EventBus<OrderPlaced>,
+    private readonly clock: Clock,
+  ) {
+    super();
+  }
+
+  protected toCommand(input: { customer: string }): CustomerName {
+    return new CustomerName(input.customer);
+  }
+
+  protected async handle(customer: CustomerName): Promise<string> {
+    const order = Order.place(OrderId.generate(), customer, this.clock);
+    await this.orders.save(order);
+    await this.events.publish(order.pullDomainEvents());
+    return order.id.value;
+  }
+}
+
+class SendConfirmation extends UseCase<{ orderId: string; customer: string }, string, void> {
+  constructor(private readonly mails: string[]) {
+    super();
+  }
+
+  protected toCommand(input: { orderId: string; customer: string }): string {
+    return `Order ${input.orderId} confirmed to ${new CustomerName(input.customer).value}`;
+  }
+
+  protected handle(mail: string): void {
+    this.mails.push(mail);
+  }
+}
+
+@ListensTo(OrderPlaced)
+class SendConfirmationOnOrderPlaced extends EventListener<OrderPlaced> {
+  constructor(private readonly sendConfirmation: SendConfirmation) {
+    super();
+  }
+
+  async handle(event: OrderPlaced): Promise<void> {
+    await this.sendConfirmation.execute({ orderId: event.aggregateId, customer: event.customer });
+  }
+}
+
+// composition root
+const mails: string[] = [];
+const events = new EventRegistry<OrderPlaced>().register(
+  OrderPlaced,
+  (json) => new OrderPlaced(json.aggregateId, json.customer as string, json),
+);
+const channel = new InMemoryEventChannel();
+const bus = new DomainEventBus<OrderPlaced>(channel, events);
+const confirming = await bus.subscribe(
+  new SendConfirmationOnOrderPlaced(new SendConfirmation(mails)),
+);
+
+const orders = new InMemoryRepository(AggregateMapper.of(Order));
+const placeOrder = new PlaceOrder(orders, bus, new FixedClock('2026-10-19T09:30:00Z'));
+const orderId = await placeOrder.execute({ customer: 'Ana' });
+
+mails; // ['Order <orderId> confirmed to Ana']: the listener ran before publish resolved
+channel.sent;
+// [{ eventName: 'OrderPlaced', eventVersion: 1, eventId: '…', aggregateId: orderId,
+//    occurredOn: '2026-10-19T09:30:00.000Z', customer: 'Ana' }]
+
+await bus.subscribe(new SendConfirmationOnOrderPlaced(new SendConfirmation(mails)));
+// InfrastructureException: SendConfirmationOnOrderPlaced already receives "OrderPlaced"
+
+await confirming.unsubscribe();
+await placeOrder.execute({ customer: 'Luis' });
+mails.length; // 1: nobody receives OrderPlaced any more
+channel.sent.length; // 2
+```
+
+In a test, assert on what the listener caused (`mails`) and on `channel.sent`; with
+`new InMemoryEventChannel({ delivery: 'parallel' })` the listeners of one event run together and
+their failures arrive in one `EventDeliveryException`.
+
+### Implementing another channel
+
+A new technology implements one class, `EventChannel`, in its own infrastructure folder of your
+project (for example `infrastructure/messaging/RabbitMqEventChannel.ts`): `send` publishes each
+JSON (a message per event, a row per event…), `receive` declares what the consumer needs (a queue
+named after `consumer` bound to `eventName`, a consumer row…) and calls `handler` for each delivery,
+and `close` cancels it.
+
+A RabbitMQ channel, written against the few methods of an
+[amqplib](https://www.npmjs.com/package/amqplib) channel it uses (declared structurally, so the
+package needs no driver): one durable topic exchange, the event name as routing key, one durable
+queue per consumer and event, `ack` when the listener finished and `nack` without requeue when it
+failed (configure a dead-letter exchange on the queue to keep those messages):
+
+```ts
+import type {
+  ChannelHandler,
+  ChannelSubscription,
+  EventChannel,
+} from '@archi-code/ddd/application';
+import type { SerializedEvent } from '@archi-code/ddd/domain';
+
+interface AmqpMessage {
+  content: Buffer;
+}
+
+interface AmqpChannel {
+  assertExchange(exchange: string, type: 'topic', options: { durable: boolean }): Promise<unknown>;
+  publish(
+    exchange: string,
+    routingKey: string,
+    content: Buffer,
+    options: { persistent: boolean; messageId: string; contentType: string },
+  ): boolean;
+  assertQueue(queue: string, options: { durable: boolean }): Promise<unknown>;
+  bindQueue(queue: string, exchange: string, pattern: string): Promise<unknown>;
+  consume(
+    queue: string,
+    onMessage: (message: AmqpMessage | null) => void,
+  ): Promise<{ consumerTag: string }>;
+  ack(message: AmqpMessage): void;
+  nack(message: AmqpMessage, allUpTo: boolean, requeue: boolean): void;
+  cancel(consumerTag: string): Promise<unknown>;
+}
+
+class RabbitMqEventChannel implements EventChannel {
+  constructor(
+    private readonly amqp: AmqpChannel,
+    private readonly exchange = 'sales.events',
+  ) {}
+
+  async send(events: readonly SerializedEvent[]): Promise<void> {
+    await this.amqp.assertExchange(this.exchange, 'topic', { durable: true });
+    for (const event of events) {
+      this.amqp.publish(this.exchange, event.eventName, Buffer.from(JSON.stringify(event)), {
+        persistent: true,
+        messageId: event.eventId,
+        contentType: 'application/json',
+      });
+    }
+  }
+
+  async receive(
+    eventName: string,
+    consumer: string,
+    handler: ChannelHandler,
+  ): Promise<ChannelSubscription> {
+    const queue = `${consumer}.${eventName}`;
+    await this.amqp.assertExchange(this.exchange, 'topic', { durable: true });
+    await this.amqp.assertQueue(queue, { durable: true });
+    await this.amqp.bindQueue(queue, this.exchange, eventName);
+    const { consumerTag } = await this.amqp.consume(queue, (message) => {
+      if (message === null) {
+        return;
+      }
+      handler(JSON.parse(message.content.toString()))
+        .then(() => this.amqp.ack(message))
+        .catch(() => this.amqp.nack(message, false, false));
+    });
+    let open = true;
+    return {
+      close: async () => {
+        if (open) {
+          open = false;
+          await this.amqp.cancel(consumerTag);
+        }
+      },
+    };
+  }
+}
+```
+
+The wiring of the example above changes one line, and the use cases and the listener stay as they
+are:
+
+```ts
+const bus = new DomainEventBus<OrderPlaced>(new RabbitMqEventChannel(amqpChannel), events);
+```
+
+With a broker, `publish` resolves when the messages were handed to RabbitMQ, not when the listener
+ran, so a test waits for its effect instead of reading it right after `execute`. Make your channel
+follow the rules of the table above; the package's own contract suite
+(`test/contract/event-channel-contract.ts` in the repository) shows the cases every channel must
+pass.
+
+## Ports
+
+Technical capabilities the application needs and infrastructure implements (types only):
+
+```ts
 interface Clock {
   now(): Date;
 }
@@ -1361,24 +1715,12 @@ interface TransactionRunner {
 `inTransaction()` tells whether the calling code runs inside an open `run` (a database adapter
 answers it from the same `AsyncLocalStorage` it uses to share the connection). The books' runner
 also exposes `current()`, the connection of the open transaction; here that stays inside your
-adapter. The application only knows `EventBus.publish` and `TransactionRunner.run`: whether events go to
-memory, a queue, an outbox table or a broker, and how a transaction is opened, is decided in
-infrastructure (see [Transactions and the outbox](#transactions-and-the-outbox)).
+adapter. How a transaction is opened is decided in infrastructure.
 
-## Transactions and the outbox
+## Transactions
 
-A use case changes one aggregate in one transaction, and the events of that change must be stored
-**in the same transaction** and delivered **after** the commit: otherwise a crash between saving
-and publishing loses events, or a rolled-back change announces something that never happened
-[Destilado ch. 6; IDDD ch. 8]. The pieces:
-
-| Piece                                   | Layer          | Role                                                                                                                        |
-| --------------------------------------- | -------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `TransactionRunner`                     | application    | Port: `run(work)` commits what `work` did, or rolls it back if it throws; a nested `run` joins; `inTransaction()`           |
-| `EventBus.publish`                      | application    | Inside the transaction: leaves the events in the outbox, next to the aggregate                                              |
-| Outbox (`InMemoryOutbox` or your table) | infrastructure | Implements `EventBus` (writes rows in the transaction) and `OutboxStore` (`pending`, `markPublished`, `markFailed`, `park`) |
-| `OutboxRelay(store, deliver, options?)` | infrastructure | After the commit, a worker or a scheduler calls `forward()`: delivers pending events in order, parks one that keeps failing |
-| `InMemoryTransactionRunner([...])`      | infrastructure | Test adapter: snapshots its participants and restores them when the work throws                                             |
+A use case changes one aggregate in one transaction [IDDD ch. 8 and 10]: it wraps load, change,
+save and publish in `transactions.run`:
 
 ```ts
 import { UseCase } from '@archi-code/ddd/application';
@@ -1412,154 +1754,19 @@ class ShipOrder extends UseCase<{ orderId: string }, OrderId, void> {
 }
 ```
 
-Wiring for tests (the same use case runs in production with a database runner and outbox):
-
-```ts
-import {
-  AggregateMapper,
-  DomainEventRegistry,
-  EventDispatcher,
-  FixedClock,
-  InMemoryOutbox,
-  InMemoryRepository,
-  InMemoryTransactionRunner,
-  OutboxRelay,
-} from '@archi-code/ddd/infrastructure';
-
-const orders = new InMemoryRepository(AggregateMapper.of(Order));
-const outbox = new InMemoryOutbox<OrderEvent>();
-const transactions = new InMemoryTransactionRunner([orders, outbox]);
-const shipOrder = new ShipOrder(
-  orders,
-  outbox,
-  transactions,
-  new FixedClock('2026-10-17T10:00:00Z'),
-);
-
-const listeners = new EventDispatcher([new NotifyCustomerOnOrderShipped(notifyCustomer)]);
-const events = new DomainEventRegistry<OrderEvent>().register(
-  OrderShipped,
-  (json) => new OrderShipped(json.aggregateId, json),
-);
-const relay = new OutboxRelay(outbox, (json) => listeners.dispatchSerialized(json, events));
-
-await shipOrder.execute({ orderId });
-await outbox.pending(10); // [{ sequence: 1, event: { eventName: 'OrderShipped', … } }]
-await relay.forward(); // 1: the listener ran after the commit
-transactions.committed; // 1
-```
-
 - **`InMemoryTransactionRunner(participants)`** takes a snapshot of each participant
-  (`InMemoryRepository`, `InMemoryOutbox` or anything with `snapshot(): () => void`) when a
-  transaction starts and restores them, in reverse order, if the work throws; `committed` and
-  `rolledBack` count the outcomes, and `inTransaction()` tells whether a `run` is open. A `run` inside another (in the same async flow, tracked with
-  `AsyncLocalStorage`) joins it; runs that overlap in time (two `execute` calls not awaited one after
-  the other) wait their turn, so each one commits or rolls back only its own work. It is meant for
-  tests and prototypes. After a rollback, discard the aggregates you
-  held: their version already moved.
-- **`InMemoryOutbox`** freezes each published event and stores its JSON (`toJSON()`), frozen and
-  numbered by `sequence`, like a row of an outbox table; `pending(limit)` returns the oldest
-  undelivered entries and `markPublished(entries)` marks them. `markFailed(entry)` counts a failed
-  delivery and resolves to the attempts so far; `park(entry)` takes the entry out of the pending
-  ones, and `parked()` lists the parked entries for a person to review.
-- **`OutboxRelay.forward(limit = 100)`** delivers the pending entries one by one, in order, and
-  marks the delivered ones; it resolves to how many it delivered. The delivery function
-  (`OutboxDelivery`) is `(event: SerializedEvent, sequence: number) => Promise<void> | void`: it
-  receives the `sequence` of each entry, so a consumer can keep the order (for example, ignore a
-  sequence lower than the last one it applied). If a delivery throws, it records the failure with
-  `store.markFailed(entry)`, marks the ones delivered before and rethrows, so the failed event and
-  the next ones wait for the next run. Delivery is at least once: a consumer must ignore an
-  `eventId` it already processed.
-- **Poison messages**: a subscriber is retried up to a limit, and then the failure is compensated
-  or reported [IDDD ch. 10]. When an entry has failed `maxAttempts` times (5 by default,
-  `new OutboxRelay(store, deliver, { maxAttempts, onParked })`), the relay parks it
-  (`store.park(entry)`), calls `onParked(event, error, sequence)` so you can alert someone or start
-  a compensation, and goes on with the next entries. A parked entry is never delivered again by the
-  relay. `maxAttempts` must be a whole number from 1 (`InfrastructureException` otherwise).
-- **`EventDispatcher.dispatchSerialized(json, registry)`** is the delivery for listeners in the
-  same process: it rebuilds the event with `registry.fromJSON` and dispatches it only when the
-  dispatcher has listeners for `json.eventName`; otherwise it skips it without rebuilding, so an
-  event nobody listens to (and nobody registered) never blocks the outbox.
-- **Your adapters**: a database runner opens the transaction and lets the repository and the outbox
-  use its connection (in Node, `AsyncLocalStorage` avoids passing it around); your outbox table
-  implements `EventBus` (insert in the current transaction) and `OutboxStore` (select pending rows
-  in `sequence` order, for example `FOR UPDATE SKIP LOCKED`, update them as published, count the
-  attempts of a row in `markFailed` and move it to a dead-letter state in `park`).
-  Deliver to a broker of other contexts through the published language:
-  `new OutboxRelay(table, async (json, sequence) => { for (const message of published.translate(json, sequence)) await broker.publish(message.name, message); })`
-  (see [`PublishedLanguage`](#events-for-other-contexts-publishedlanguage)).
-- **`InMemoryEventBus`** freezes and dispatches each event as soon as `publish` is called: use it
-  only for a quick test without a transaction; with `TransactionRunner`, use the outbox and the
-  relay. An `EventDispatcher` with an inbox refuses to run inside an open transaction
-  (`InfrastructureException`): a listener that changes another aggregate inside the transaction of
-  the use case would break "one transaction, one aggregate" [IDDD ch. 8].
-
-### Idempotent consumers: the inbox
-
-The relay delivers at least once (a crash after delivering and before marking sends the event
-again), so a consumer must process each event once [IDDD ch. 8; Destilado ch. 4]. Give the
-dispatcher an inbox and a transaction runner, and each listener runs in its own transaction that
-first records the `eventId` for that listener and skips the event if it was already there:
-
-```ts
-import {
-  EventDispatcher,
-  InMemoryInbox,
-  InMemoryTransactionRunner,
-} from '@archi-code/ddd/infrastructure';
-
-const inbox = new InMemoryInbox(); // your processed_messages table in production
-const transactions = new InMemoryTransactionRunner([orders, outbox, inbox]);
-const listeners = new EventDispatcher([new ReserveStockOnOrderPlaced(reserveStock)], {
-  inbox,
-  transactions,
-});
-
-await listeners.dispatch(event);
-await listeners.dispatch(event); // the same eventId: ReserveStock does not run again
-```
-
-The use case the listener calls opens its own `transactions.run`, which joins the listener's one,
-so the mark and the change commit together: if the use case fails, the mark is rolled back and the
-next delivery retries it. Each listener is tracked apart (by its class name): when the second
-listener of an event fails, the first one is not repeated. A real inbox implements `InboxStore`
-(`markProcessed(consumer, eventId)` returns `true` the first time), usually an insert that
-ignores duplicates in the transaction of the runner.
-
-### Events for other contexts: `PublishedLanguage`
-
-Internal events are classes of this context's model and may change with it; other contexts depend
-only on a published, versioned contract that carries what they need and no more (no personal data
-they do not use) [IDDD ch. 13; Destilado ch. 4]. Never send the domain classes out: translate them.
-
-```ts
-import { OutboxRelay, PublishedLanguage } from '@archi-code/ddd/infrastructure';
-
-const published = new PublishedLanguage().expose(OrderPlaced, {
-  name: 'sales.order.OrderPlaced',
-  version: 1,
-  data: (json) => ({ orderId: json.aggregateId }),
-});
-
-const relay = new OutboxRelay(outbox, async (event, sequence) => {
-  for (const message of published.translate(event, sequence)) {
-    await broker.publish(message.name, message);
-  }
-});
-// translate: [{ name: 'sales.order.OrderPlaced', version: 1, messageId: <eventId>, sequence, occurredOn, data: { orderId } }]
-// an internal event translates to []
-```
-
-`data` receives the serialized event (`toJSON()`: `eventName`, `eventVersion`, `aggregateId`, `eventId`, `occurredOn` and the
-payload) and returns only what the consumers need: here the order id, not the customer name that
-`OrderPlaced` also carries. `expose` refuses the same contract name and version exposed twice for an event, or a contract
-without a name or with a version below 1 (`InfrastructureException`); `isPublished(eventName)` tells whether an event leaves the context.
-The list and every message are frozen; a message's `messageId` is the `eventId`, so consumers in
-other contexts can deduplicate too, and its `sequence` is the outbox sequence, so they can keep
-the causal order [Destilado ch. 6] (the `notificationId` of IDDD's notification envelope
-[IDDD ch. 13]). Change a contract by exposing a new version next to the old
-one: `translate` returns one message per exposed version, so both are published while consumers
-move; stop exposing the old one when nobody reads it.
+  (`InMemoryRepository` or anything with `snapshot(): () => void`) when a transaction starts and
+  restores them, in reverse order, if the work throws; `committed` and `rolledBack` count the
+  outcomes, and `inTransaction()` tells whether a `run` is open. A `run` inside another (in the
+  same async flow, tracked with `AsyncLocalStorage`) joins it; runs that overlap in time (two
+  `execute` calls not awaited one after the other) wait their turn, so each one commits or rolls
+  back only its own work. It is meant for tests and prototypes. After a rollback, discard the
+  aggregates you held: their version already moved.
+- **Events and the commit**: the in-memory channel delivers as soon as `publish` is called, inside
+  the transaction. When the events must be stored in the same transaction as the aggregate and
+  delivered only after the commit [Destilado ch. 6; IDDD ch. 8], implement a durable channel (an
+  outbox table written in the transaction of the runner, relayed after the commit) behind the same
+  `EventChannel` port; use cases do not change.
 
 ## Event Sourcing and CQRS: only for a concrete risk
 
@@ -1572,33 +1779,26 @@ does not use `AggregateMapper`.
 | ------------------------------------------------------------- | ------------------------------------------------------------- |
 | Screens that follow one aggregate                             | Repositories and use cases, nothing else                      |
 | Lists and searches across aggregates                          | Read queries straight to the database (SQL, views), read-only |
-| Views very different from the model, heavy reading            | CQRS: read models kept up to date by listeners of the outbox  |
+| Views very different from the model, heavy reading            | CQRS: read models kept up to date by event listeners          |
 | A business or legal need for the full history of an aggregate | Consider Event Sourcing for that aggregate only               |
 
-A read model (projection) is kept up to date by `EventListener`s run through an
-`EventDispatcher` with an inbox, so each event is applied once. The outbox is a delivery queue, not
-a history: `OutboxStore` only hands out pending entries and cannot read the published ones again,
-so rebuilding a read model from scratch needs an event log of your own (a table where a listener
-appends every event, or the broker's retained stream). If a read model is eventually consistent, the screen must expect it: show what was
+A read model (projection) is kept up to date by `EventListener`s subscribed to the bus, which
+skip an `eventId` they already applied (delivery is at least once). A channel is a delivery path,
+not a history, so rebuilding a read model from scratch needs an event log of your own (a table
+where a listener appends every event, or the broker's retained stream). If a read model is eventually consistent, the screen must expect it: show what was
 just sent, show how old the data is, or say that the request is being processed.
 
 # Infrastructure layer: `@archi-code/ddd/infrastructure`
 
 Ready adapters for tests, prototypes and the edges of an API:
 
-| Export                                                    | What it is                                                                                                                                                        |
-| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `InMemoryRepository(AggregateMapper.of(Order))`           | Finder, saver and remover over a `Map` of primitives and versions; checks versions on save and remove; adds `findAll()`                                           |
-| `EventDispatcher(listeners?, { inbox, transactions }?)`   | Groups listeners by their `@ListensTo` event; `add`, `listenersOf(name)`, `dispatch(event)`, `dispatchSerialized(json, registry)`; idempotent with an inbox       |
-| `InMemoryEventBus(dispatcher?)`                           | `EventBus` that records `published` and hands every event to its dispatcher, in the same process                                                                  |
-| `DomainEventRegistry`                                     | `register(EventClass, factory)`, `has(eventName)` and `fromJSON(json)`: rebuilds events read from an outbox or a broker, keeping their `eventId` and `occurredOn` |
-| `HttpErrorMapper(statusByCode?)`                          | `map(error)` → `{ status, body: { code, message, errors? } }` (`errors`: `{ field, code, message }[]`)                                                            |
-| `SystemClock`, `FixedClock(at)`                           | `Clock` with the real time, and a test clock with `set(at)` and `advance(ms)`                                                                                     |
-| `InMemoryTransactionRunner(participants?)`                | `TransactionRunner` that restores its participants when the work throws; `committed`, `rolledBack`, `inTransaction()`                                             |
-| `InMemoryOutbox`                                          | `EventBus` + `OutboxStore`: events as numbered JSON rows; `pending(limit)`, `markPublished(entries)`, `markFailed(entry)`, `park(entry)`, `parked()`              |
-| `OutboxRelay(store, deliver, { maxAttempts, onParked }?)` | `forward(limit?)`: delivers pending outbox entries in order after the commit, passing `(event, sequence)`, marks them, parks one after `maxAttempts` failures     |
-| `InMemoryInbox`                                           | `InboxStore` for `EventDispatcher(listeners, { inbox, transactions })`: each event once per listener                                                              |
-| `PublishedLanguage`                                       | `expose(EventClass, { name, version, data })`, `translate(json, sequence)` → one message per exposed version: the contract other contexts read                    |
+| Export                                          | What it is                                                                                                              |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `InMemoryRepository(AggregateMapper.of(Order))` | Finder, saver and remover over a `Map` of primitives and versions; checks versions on save and remove; adds `findAll()` |
+| `InMemoryEventChannel({ delivery }?)`           | `EventChannel` inside the process, built on emittery's techniques; `sent` lists what was sent                           |
+| `HttpErrorMapper(statusByCode?)`                | `map(error)` → `{ status, body: { code, message, errors? } }` (`errors`: `{ field, code, message }[]`)                  |
+| `SystemClock`, `FixedClock(at)`                 | `Clock` with the real time, and a test clock with `set(at)` and `advance(ms)`                                           |
+| `InMemoryTransactionRunner(participants?)`      | `TransactionRunner` that restores its participants when the work throws; `committed`, `rolledBack`, `inTransaction()`   |
 
 `InMemoryRepository` follows the [optimistic concurrency](#optimistic-concurrency) contract like a
 real adapter: it stores a copy of the primitives with their version, rejects a stale save (or a new
@@ -1639,39 +1839,32 @@ await orders.save(byLuis);
 Every 5xx answer has the message `Internal server error`: messages of infrastructure errors (SQL,
 hosts, secrets…) never reach the client. Unknown errors get the code `E000`.
 
-`EventDispatcher` runs every listener of an event one after another, in the order they were
-added, and rejects with the first error. It is the piece every distribution strategy shares:
-`InMemoryEventBus` dispatches right after `publish`, and an outbox worker or a queue consumer
-rebuilds each message with `DomainEventRegistry` and dispatches it:
+`InMemoryEventChannel` is the in-process `EventChannel` behind `DomainEventBus` (see
+[Events](#events-the-contract-in-applicationevent)). It reimplements the techniques of
+[emittery](https://github.com/sindresorhus/emittery) (MIT) that a channel needs: a `Map` from event
+name to a `Set` of handlers, dispatch always after a microtask (no handler runs inside `send`), a
+snapshot of the handlers taken when an event is sent (a consumer that starts receiving during the
+delivery is not called for it; one closed before its turn is skipped), and two delivery modes:
+
+| `delivery`           | Like emittery's | Behaviour                                                                                                                         |
+| -------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `'serial'` (default) | `emitSerial`    | Consumers run one after another, in the order they started receiving; the first failure rejects `send` with its own error         |
+| `'parallel'`         | `emit`          | Consumers start together; all of them run, and the failures reject `send` with one `EventDeliveryException` (`errors` holds each) |
+
+Events go one after another in the order of the `send`; a failure stops the events after it. Every
+consumer gets the same frozen JSON copy, `send` resolves once the handlers finished, and `sent`
+returns a copy of what was sent, in order (for tests).
 
 ```ts
-import {
-  DomainEventRegistry,
-  EventDispatcher,
-  InMemoryEventBus,
-} from '@archi-code/ddd/infrastructure';
+import { DomainEventBus } from '@archi-code/ddd/application';
+import { HttpErrorMapper, InMemoryEventChannel } from '@archi-code/ddd/infrastructure';
 
-const listeners = new EventDispatcher([
-  new ReserveStockOnOrderPlaced(reserveStock),
-  new NotifyCustomerOnOrderPlaced(notifyCustomer),
-]);
-
-const bus = new InMemoryEventBus<OrderEvent>(listeners); // in-process delivery
-
-queue.onMessage((body) => listeners.dispatchSerialized(JSON.parse(body), events)); // queue delivery; events: the DomainEventRegistry of the next block
-```
-
-`EventDispatcher` throws `ApplicationException` for a listener without `@ListensTo`, when the
-application starts.
-
-```ts
-import { DomainEventRegistry, HttpErrorMapper } from '@archi-code/ddd/infrastructure';
-
-const events = new DomainEventRegistry<OrderEvent>().register(
-  OrderPlaced,
-  (json) => new OrderPlaced(json.aggregateId, json.customer as string, json),
-);
-const event = events.fromJSON(outboxRow.payload); // OrderPlaced with the stored eventId and occurredOn
+const channel = new InMemoryEventChannel({ delivery: 'parallel' });
+const bus = new DomainEventBus<OrderEvent>(channel, events); // events: the EventRegistry of "Events"
+await bus.subscribe(new ReserveStockOnOrderPlaced(reserveStock));
+await bus.subscribe(new NotifyCustomerOnOrderPlaced(notifyCustomer));
+await bus.publish(order.pullDomainEvents());
+channel.sent.map((event) => event.eventName); // ['OrderPlaced']
 
 const errors = new HttpErrorMapper({ ORD001: 403 });
 app.use((error, req, res, next) => {
@@ -1679,16 +1872,6 @@ app.use((error, req, res, next) => {
   res.status(status).json(body);
 });
 ```
-
-The factory must pass the serialized event as the metadata of the new event (`json` as the last
-argument), so the rebuilt event keeps its `eventId` and `occurredOn`: consumers deduplicate by
-`eventId`, and a new one would make every redelivery look like a new event. `fromJSON` checks it
-and throws `InternalErrorException`
-(`the factory of "OrderPlaced" must pass the serialized event as metadata, so it keeps its eventId and occurredOn`)
-when the rebuilt `eventId` (compared without case) or the `occurredOn` instant differs from the
-JSON. It also throws `UnknownEventException` for a name nobody registered and
-`InternalErrorException` for text that is not a JSON object or has no `eventName`. The rebuilt
-event is deep-frozen, like the ones an aggregate records.
 
 ## Persisting aggregates with `AggregateMapper`
 
@@ -1885,6 +2068,7 @@ All of them extend `AbstractException` (which extends `Error`) and have:
 | `AggregateNotFoundException` | `ApplicationException`    | `(entity: string, id: string, options?)`                             | `APP000`, `APP002` | `<entity> with ID <id> not found.`                                                |
 | `NotAllowedException`        | `ApplicationException`    | `(message, options?)`                                                | `APP000`, `APP003` | `message`                                                                         |
 | `UnknownEventException`      | `InfrastructureException` | `(eventName)`                                                        | `INF000`, `INF002` | `Unknown event "<eventName>": register it before reading it.`                     |
+| `EventDeliveryException`     | `InfrastructureException` | `(eventName, errors, consumers)`                                     | `INF000`, `INF003` | `<n> of <consumers> consumers of "<eventName>" failed.` (`errors`: each failure)  |
 
 `options` is `{ cause }`: keep the original error when you wrap it. A `ValidationIssueInput` is a
 `ValidationIssue` (`{ field: string | null; code: string; message: string }`) whose `code` is
@@ -1970,14 +2154,19 @@ import type {
   EventMetadata,
   PrimitiveTypes,
 } from '@archi-code/ddd/domain';
-import { EventListener, ListensTo, UseCase } from '@archi-code/ddd/application';
+import {
+  DomainEventBus,
+  EventListener,
+  EventRegistry,
+  ListensTo,
+  UseCase,
+} from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
 import {
   AggregateMapper,
-  EventDispatcher,
   FixedClock,
   HttpErrorMapper,
-  InMemoryEventBus,
+  InMemoryEventChannel,
   InMemoryRepository,
 } from '@archi-code/ddd/infrastructure';
 
@@ -2159,9 +2348,15 @@ class SendWelcomeEmailOnUserRegistered extends EventListener<UserRegistered> {
 
 const emails: string[] = [];
 const users = new InMemoryRepository(AggregateMapper.of(User));
-const bus = new InMemoryEventBus<UserEvent>(
-  new EventDispatcher([new SendWelcomeEmailOnUserRegistered(new SendWelcomeEmail(emails))]),
-);
+const channel = new InMemoryEventChannel();
+const events = new EventRegistry<UserEvent>()
+  .register(
+    UserRegistered,
+    (json) => new UserRegistered(json.aggregateId, json.email as string, json),
+  )
+  .register(UserRenamed, (json) => new UserRenamed(json.aggregateId, json.name as string, json));
+const bus = new DomainEventBus<UserEvent>(channel, events);
+await bus.subscribe(new SendWelcomeEmailOnUserRegistered(new SendWelcomeEmail(emails)));
 const clock = new FixedClock('2026-01-01T09:00:00Z');
 
 const id = await new RegisterUser(users, bus, clock).execute({
@@ -2170,7 +2365,7 @@ const id = await new RegisterUser(users, bus, clock).execute({
 });
 await new RenameUser(users, bus, clock).execute({ id, name: 'Ana María' });
 
-bus.published.map((event) => event.eventName()); // ['UserRegistered', 'UserRenamed']
+channel.sent.map((event) => event.eventName); // ['UserRegistered', 'UserRenamed']
 emails; // ['Welcome, ana@example.com']
 (await users.findById(new UserId(id)))?.toPrimitives();
 // { id, name: 'Ana María', email: 'ana@example.com', blocked: false, createdAt: 2026-01-01T09:00:00.000Z }
@@ -2195,7 +2390,7 @@ await new RegisterUser(users, bus, clock)
 | `AbstractException`                                                                                                                          | abstract class |
 | `DomainException`, `ApplicationException`, `InfrastructureException`                                                                         | classes        |
 | `ValidationException`, `AggregateNotFoundException`, `TypePrimitiveException`, `RequiredValueException`, `InternalErrorException`            | classes        |
-| `ConcurrencyException`, `NotAllowedException`, `UnknownEventException`                                                                       | classes        |
+| `ConcurrencyException`, `NotAllowedException`, `UnknownEventException`, `EventDeliveryException`                                             | classes        |
 | `ExceptionCode`                                                                                                                              | enum           |
 | `ExceptionOptions`, `ValidationIssue` (`{ field: string \| null; code: string; message: string }`), `ValidationIssueInput` (`code` optional) | types          |
 
@@ -2220,21 +2415,22 @@ await new RegisterUser(users, bus, clock)
 
 `@archi-code/ddd/application`:
 
-| Export                                   | Kind             |
-| ---------------------------------------- | ---------------- |
-| `UseCase`, `EventListener`               | abstract classes |
-| `ListensTo`                              | decorator        |
-| `EventBus`, `Clock`, `TransactionRunner` | types (ports)    |
+| Export                                                  | Kind                 |
+| ------------------------------------------------------- | -------------------- |
+| `UseCase`, `EventListener`                              | abstract classes     |
+| `ListensTo`                                             | decorator            |
+| `DomainEventBus`, `EventRegistry`                       | classes              |
+| `EventBus`, `EventSubscriber`, `Subscription`           | types (event ports)  |
+| `EventChannel`, `ChannelHandler`, `ChannelSubscription` | types (channel port) |
+| `EventFactory`                                          | type                 |
+| `Clock`, `TransactionRunner`                            | types (ports)        |
 
 `@archi-code/ddd/infrastructure`:
 
-| Export                                                                                                                                                | Kind    |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| `InMemoryRepository`, `AggregateMapper`, `EventDispatcher`, `InMemoryEventBus`, `DomainEventRegistry`, `HttpErrorMapper`, `SystemClock`, `FixedClock` | classes |
-| `InMemoryTransactionRunner`, `InMemoryOutbox`, `OutboxRelay`, `InMemoryInbox`, `PublishedLanguage`                                                    | classes |
-| `AggregateClass`, `EventFactory`, `HttpError`, `HttpErrorBody`                                                                                        | types   |
-| `TransactionParticipant`, `OutboxStore`, `OutboxEntry`, `OutboxDelivery`, `InboxStore`, `IdempotentDelivery`, `PublishedContract`, `PublishedMessage` | types   |
-| `OutboxRelayOptions`, `ParkedDelivery`                                                                                                                | types   |
+| Export                                                                                                                                       | Kind    |
+| -------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `InMemoryRepository`, `AggregateMapper`, `InMemoryEventChannel`, `InMemoryTransactionRunner`, `HttpErrorMapper`, `SystemClock`, `FixedClock` | classes |
+| `AggregateClass`, `HttpError`, `HttpErrorBody`, `TransactionParticipant`, `InMemoryEventChannelOptions`                                      | types   |
 
 ## AI assistant skill
 
@@ -2293,3 +2489,6 @@ and, before using anything the skill does not show, reads this README in `node_m
 ## License
 
 MIT
+
+The in-memory event channel reimplements techniques of
+[emittery](https://github.com/sindresorhus/emittery), MIT License, Copyright (c) Sindre Sorhus.

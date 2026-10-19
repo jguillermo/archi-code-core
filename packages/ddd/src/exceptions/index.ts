@@ -7,6 +7,7 @@ export * from './application/not-allowed.exception';
 export * from './infrastructure/infrastructure.exception';
 export * from './infrastructure/internal-error.exception';
 export * from './infrastructure/unknown-event.exception';
+export * from './infrastructure/event-delivery.exception';
 export * from './domain/validation.exception';
 export * from './domain/domain.exception';
 export * from './domain/required-value.exception';

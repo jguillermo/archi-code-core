@@ -64,6 +64,7 @@ describe('AbstractException', () => {
         INF000: 'Infrastructure Exception',
         INF001: 'Internal Error',
         INF002: 'Unknown Event',
+        INF003: 'Event Delivery',
         E000: 'Error Exception',
       });
     });

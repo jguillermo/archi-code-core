@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { EventListener } from '../../../src/application/listener/event-listener';
-import { ListensTo } from '../../../src/application/listener/listens-to';
+import { EventListener } from '../../../src/application/event/event-listener';
+import { ListensTo } from '../../../src/application/event/listens-to';
 import { EventBase } from '../../../src/domain/index';
 import { ApplicationException } from '../../../src/exceptions/index';
 

@@ -1,5 +1,5 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
-import type { EventBus } from '../../../src/application/ports/event-bus';
+import type { EventBus } from '../../../src/application/event/event-bus';
 import { EventBase } from '../../../src/domain/index';
 import type { SerializedEvent } from '../../../src/domain/index';
 
