@@ -38,7 +38,7 @@ src/
           OrderSummaries.ts        (consulta de lectura: interfaz + DTOs)
       infrastructure/
         persistence/
-          MongoOrderRepository.ts  (AggregateFinder/AggregateSaver/AggregateRemover + AggregateMapper.of(Order); cada save/remove es atómico)
+          MongoOrderRepository.ts  (AggregateFinder/AggregateSaver/AggregateRemover<Order>; constructor solo con la collection; guarda order.toPrimitives() con su version y carga con Order.fromPrimitives(row); cada save/remove es atómico)
           MongoOrderSummaries.ts
         catalog/                   (ACL hacia Catálogo: CatalogHttpProductPricing, CatalogTranslator)
         warehouse/
@@ -56,13 +56,17 @@ src/
   shared-kernel/                   ← solo si hay un Shared Kernel acordado (ver ddd-skills/ddd-context-mapping/GUIA.md)
   main.ts                          ← arranque del proceso
 test/
+  support/
+    in-memory-order-repository.ts     (doble de test: AggregateFinder/AggregateSaver/AggregateRemover<Order>, constructor vacío)
   contexts/sales/
     domain/                        (tests unitarios y de aceptación del modelo)
-    application/                   (casos de uso con InMemoryRepository, InMemoryEventChannel)
+    application/                   (casos de uso con InMemoryOrderRepository, InMemoryEventChannel)
     infrastructure/                (integración con BD real o contenedor)
 ```
 
-Lo que no aparece porque lo da `@archi-code/ddd`: clases base (`AggregateRoot`, `Entity`, `EventBase`, los tipos de value object, `Composite`), una interfaz `OrderRepository` (los roles `AggregateFinder`, `AggregateSaver` y `AggregateRemover` vienen de `@archi-code/ddd/domain`), un `OrderMapper` (el repositorio usa `AggregateMapper.of(Order)`), un publicador de eventos (`DomainEventBus` implementa `EventBus`) y el puerto `Clock`. Tampoco hay un runner de transacciones ni una unidad de trabajo: la transacción es del repositorio `[Fuera de los libros: convención de @archi-code/ddd]`.
+Lo que no aparece porque lo da `@archi-code/ddd`: clases base (`AggregateRoot`, `Entity`, `EventBase`, los tipos de value object, `Composite`), una interfaz `OrderRepository` (los roles `AggregateFinder`, `AggregateSaver` y `AggregateRemover` vienen de `@archi-code/ddd/domain`), un `OrderMapper` (la conversión es del agregado, `toPrimitives()` y `static fromPrimitives()`, y cada repositorio los llama directamente: guarda `order.toPrimitives()` con `order.version + 1` y carga con `Order.fromPrimitives(row).restoreVersion(row.version)`), un publicador de eventos (`DomainEventBus` implementa `EventBus`) y el puerto `Clock`. Tampoco hay un runner de transacciones ni una unidad de trabajo: la transacción es del repositorio `[Fuera de los libros: convención de @archi-code/ddd]`.
+
+Lo que el paquete no da y escribe el proyecto: cada repositorio, uno por agregado. Su constructor recibe solo las dependencias de su tecnología (la `collection` de Mongo, el `pool` de Postgres), nunca la clase del agregado ni un mapper; el agregado solo entra y sale por sus métodos. Nada comprueba en ejecución la forma del agregado: que su estado sean value objects expuestos por getters y que `toPrimitives()`/`fromPrimitives()` no pierdan campos lo garantizan el agregado y su test de ida y vuelta. El repositorio en memoria también es del proyecto y es un doble de test: vive en `test/support/`, nunca en `src/` (ver `InMemoryOrderRepository` en `ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`) `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 Decisiones:
 * Los tests de aceptación del modelo están junto al contexto, aunque en carpeta `test/` espejo [Destilado cap. 2 pide tenerlos con el código del contexto; la carpeta espejo mantiene esa correspondencia].
@@ -198,7 +202,7 @@ export async function composeSales(
 
 Qué hace cada pieza:
 * Del paquete, en `@archi-code/ddd/infrastructure`: `EventRegistry` (reconstruye cada evento desde su JSON; la factoría pasa el JSON como metadata para conservar `eventId` y `occurredOn`), `DomainEventBus` (implementa `EventBus`, lo único que reciben los casos de uso; su `subscribe(listener)` solo lo llama el composition root), `SystemClock` (implementa `Clock`) y `HttpErrorMapper` (códigos propios como `ORD001` se sobrescriben por código).
-* Código del proyecto sobre los puertos del paquete `[Fuera de los libros: convención de @archi-code/ddd]`: `MongoOrderRepository` (roles de repositorio + `AggregateMapper.of(Order)` + control de `version`; responsable de toda la persistencia: cada `save`/`remove` es una escritura atómica de un documento, y si un agregado ocupara varias tablas SQL abriría y cerraría la transacción de la base de datos dentro de `save`/`remove`; ver `ddd-skills/ddd-repositorios-persistencia/GUIA.md`), `RabbitMqEventChannel` (implementa `EventChannel`, ver `ddd-skills/ddd-eventos-dominio/GUIA.md`) y `HttpWarehouse` (implementa el puerto `Warehouse`).
+* Código del proyecto sobre los puertos del paquete `[Fuera de los libros: convención de @archi-code/ddd]`: `MongoOrderRepository` (roles de repositorio de `Order`; su constructor recibe solo la `collection`; llama a `order.toPrimitives()` y a `Order.fromPrimitives(row).restoreVersion(row.version)` y controla la `version`; responsable de toda la persistencia: cada `save`/`remove` es una escritura atómica de un documento, y si un agregado ocupara varias tablas SQL abriría y cerraría la transacción de la base de datos dentro de `save`/`remove`; ver `ddd-skills/ddd-repositorios-persistencia/GUIA.md`), `RabbitMqEventChannel` (implementa `EventChannel`, ver `ddd-skills/ddd-eventos-dominio/GUIA.md`) y `HttpWarehouse` (implementa el puerto `Warehouse`).
 * Cada listener se suscribe con `bus.subscribe(listener)`, que lee su `@ListensTo(OrderLineAdded, { consumer: 'prepare-shipment-on-order-line-added' })` y rechaza un evento que el registro no sabe reconstruir.
 * Cambiar RabbitMQ por un outbox o por memoria cambia solo la línea del canal.
 * Ni los casos de uso ni los repositorios reciben un runner de transacciones: el composition root no construye ninguno.
@@ -207,18 +211,16 @@ Por qué sin contenedor: en TypeScript las interfaces desaparecen en tiempo de e
 
 ## El mismo grafo en los tests de aplicación
 
-Los tests de `application/` montan el contexto con los adaptadores en memoria del paquete; los casos de uso y los listeners son los mismos:
+Los tests de `application/` montan el contexto con el repositorio en memoria del proyecto (`test/support/in-memory-order-repository.ts`) y los adaptadores en memoria del paquete; los casos de uso y los listeners son los mismos (`test/contexts/sales/application/salesForTests.ts`):
 
 ```ts
 import {
-  AggregateMapper,
   DomainEventBus,
   EventRegistry,
   FixedClock,
   InMemoryEventChannel,
-  InMemoryRepository,
 } from '@archi-code/ddd/infrastructure';
-import { Order } from '@sales/domain/order/Order';
+import { InMemoryOrderRepository } from '../../../support/in-memory-order-repository';
 import { OrderLineAdded } from '@sales/domain/order/events';
 import type { MoneyData, OrderEvent } from '@sales/domain/order/events';
 import { AddOrderLine } from '@sales/application/add-order-line/AddOrderLine';
@@ -228,7 +230,7 @@ import { PrepareShipmentOnOrderLineAdded } from '@sales/application/prepare-ship
 import type { Warehouse } from '@sales/application/prepare-shipment/Warehouse';
 
 export async function salesForTests(warehouse: Warehouse) {
-  const orders = new InMemoryRepository(AggregateMapper.of(Order));
+  const orders = new InMemoryOrderRepository();
   const channel = new InMemoryEventChannel();
   const registry = new EventRegistry<OrderEvent>().register(
     OrderLineAdded,
@@ -254,7 +256,7 @@ export async function salesForTests(warehouse: Warehouse) {
 }
 ```
 
-El test comprueba lo que causó el listener (el `Warehouse` de prueba) y lo que llevó el canal (`channel.sent`), nunca que el listener fue llamado. `InMemoryRepository` (cada `save` y `remove` atómico, con comprobación de versión) solo es para tests y prototipos.
+El test comprueba lo que causó el listener (el `Warehouse` de prueba) y lo que llevó el canal (`channel.sent`), nunca que el listener fue llamado. `InMemoryOrderRepository` (cada `save` y `remove` atómico, con comprobación de versión) es un doble de test del proyecto: vive en `test/support/` y nunca se usa en producción `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ## Controlador como adaptador de entrada
 

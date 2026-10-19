@@ -7,7 +7,7 @@ Domain-Driven Design building blocks for TypeScript, one entry point per layer:
 | `@archi-code/ddd/exceptions`     | Shared         | Exceptions of every layer with codes, causes and `instanceof` across builds                                                                                                                                   |
 | `@archi-code/ddd/domain`         | Domain         | Value objects, `Required(...)`, `Composite(...)`, `Immutable`, `Entity`, `AggregateRoot`, `EventBase`, `Specification` and the repository contracts (`AggregateFinder`, `AggregateSaver`, `AggregateRemover`) |
 | `@archi-code/ddd/application`    | Application    | `UseCase`, the event contract (`EventListener`, `@ListensTo` to listen, `EventBus` to publish) and the ports `Clock` and `Logger`                                                                             |
-| `@archi-code/ddd/infrastructure` | Infrastructure | `InMemoryRepository`, `AggregateMapper`, the event wiring (`DomainEventBus`, `EventRegistry`, the `EventChannel` port, `InMemoryEventChannel`), `HttpErrorMapper`, clocks, loggers                            |
+| `@archi-code/ddd/infrastructure` | Infrastructure | The event wiring (`DomainEventBus`, `EventRegistry`, the `EventChannel` port, `InMemoryEventChannel`), `HttpErrorMapper`, clocks, loggers                                                                     |
 
 The layers only depend inwards: `exceptions` imports nothing, `domain` imports only `exceptions`,
 `application` imports `domain` and `exceptions`, and `infrastructure` imports all three. The
@@ -53,7 +53,7 @@ import { DomainException, ExceptionCode } from '@archi-code/ddd/exceptions';
 import type { AggregateSaver } from '@archi-code/ddd/domain';
 import { EventListener, ListensTo, UseCase } from '@archi-code/ddd/application';
 import type { EventBus } from '@archi-code/ddd/application';
-import { InMemoryRepository, HttpErrorMapper } from '@archi-code/ddd/infrastructure';
+import { HttpErrorMapper } from '@archi-code/ddd/infrastructure';
 ```
 
 ```js
@@ -768,7 +768,7 @@ JSON.stringify(price); // '{"amount":1250,"currency":"EUR"}'
 - **`equals(other)`** compares the class and every field (dates by instant, lists in order):
   a `Price` and a `Money` with the same fields are different. **`toPrimitives()`** gives plain data
   for repositories (dates stay `Date`); `JSON.stringify` writes ISO dates.
-- **In an aggregate**, a composite is a field like any value object: `AggregateMapper` accepts it,
+- **In an aggregate**, a composite is a field like any value object:
   `PrimitiveTypes<Order>` types it as its primitives, and an optional one is a `Money | null`
   field. Write `this.price.toPrimitives()` in `toPrimitives()` and `Money.fromPrimitives(...)` in
   `fromPrimitives`. Fields inside a composite are always present.
@@ -912,7 +912,7 @@ repository. It does not protect the invariants of an aggregate: those stay in th
   serialized as it is, and its readers must not depend on the model.
 - `version` counts saves, not events: it grows by 1 on each save, however many events the change
   recorded. Event Sourcing is not provided: an event-sourced aggregate manages the version of its
-  stream itself and does not use `AggregateMapper`.
+  stream itself.
 
 ```ts
 import { AggregateRoot, EventBase, IdType, Required, StringType } from '@archi-code/ddd/domain';
@@ -1047,14 +1047,14 @@ Two users load the same order, both change it and both save: without a check, th
 silently erases the first. `AggregateRoot` carries the version that prevents it, and every
 repository follows the same contract:
 
-| Moment                       | The repository                                                                                            |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------- |
-| Load                         | Rebuilds with `mapper.fromPrimitives(row, storedVersion)`, so `aggregate.version` is the version it read  |
-| Save a new aggregate         | `aggregate.version` is `0`: inserts with version `1`; if the id already exists, it is a conflict          |
-| Save an existing aggregate   | Writes only where the stored version still equals `aggregate.version`, and stores `aggregate.version + 1` |
-| Nothing written (stale data) | Throws `ConcurrencyException(mapper.aggregateName, id, aggregate.version)` (HTTP 409)                     |
-| Written                      | Calls `aggregate.markPersisted()`, so the same object can be changed and saved again                      |
-| Remove                       | Deletes only where the stored version still equals `aggregate.version`; otherwise `ConcurrencyException`  |
+| Moment                       | The repository                                                                                               |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Load                         | Rebuilds with `Order.fromPrimitives(row).restoreVersion(storedVersion)`: `aggregate.version` is what it read |
+| Save a new aggregate         | `aggregate.version` is `0`: inserts with version `1`; if the id already exists, it is a conflict             |
+| Save an existing aggregate   | Writes only where the stored version still equals `aggregate.version`, and stores `aggregate.version + 1`    |
+| Nothing written (stale data) | Throws `ConcurrencyException('Order', id, aggregate.version)` (HTTP 409)                                     |
+| Written                      | Calls `aggregate.markPersisted()`, so the same object can be changed and saved again                         |
+| Remove                       | Deletes only where the stored version still equals `aggregate.version`; otherwise `ConcurrencyException`     |
 
 The version lives next to the primitives (a `version` column or field), never inside them. After a
 `ConcurrencyException`, either tell the user that someone else changed it, or run the command
@@ -1083,7 +1083,7 @@ interface AddOrderLineCommand {
 class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand, void> {
   // constructor (orders, events, clock) as in "Persistence belongs to the repository";
   // toCommand builds orderId, sku and quantity with ValueObjects.build;
-  // Order, OrderLine, Sku and Quantity as in "Persisting aggregates with AggregateMapper"
+  // Order, OrderLine, Sku and Quantity as in "Persisting aggregates"
 
   protected async handle(command: AddOrderLineCommand): Promise<void> {
     for (let attempt = 1; ; attempt += 1) {
@@ -1111,10 +1111,9 @@ changed) does not retry: the `ConcurrencyException` reaches the entry point (HTT
 ```ts
 import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
 import { ConcurrencyException, InternalErrorException } from '@archi-code/ddd/exceptions';
-import { AggregateMapper } from '@archi-code/ddd/infrastructure';
 
 class MongoOrderRepository implements AggregateFinder<Order>, AggregateSaver<Order> {
-  private readonly mapper = AggregateMapper.of(Order);
+  constructor(private readonly collection: Collection<OrderDocument>) {}
 
   async findById(id: OrderId): Promise<Order | null> {
     const document = await this.collection.findOne({ _id: id.value });
@@ -1122,18 +1121,18 @@ class MongoOrderRepository implements AggregateFinder<Order>, AggregateSaver<Ord
       return null;
     }
     const { _id, version, ...primitives } = document;
-    return this.mapper.fromPrimitives(primitives, version);
+    return Order.fromPrimitives(primitives).restoreVersion(version);
   }
 
   async save(order: Order): Promise<void> {
-    const data = { ...this.mapper.toPrimitives(order), version: order.version + 1 };
+    const data = { ...order.toPrimitives(), version: order.version + 1 };
     const written =
       order.version === 0
         ? await this.insert(data)
         : (await this.collection.replaceOne({ _id: data.id, version: order.version }, data))
             .matchedCount === 1;
     if (!written) {
-      throw new ConcurrencyException(this.mapper.aggregateName, order.id.value, order.version);
+      throw new ConcurrencyException('Order', order.id.value, order.version);
     }
     order.markPersisted();
   }
@@ -1157,15 +1156,16 @@ and zero updated rows means a conflict.
 
 ### Repository contract tests
 
-Write the contract once, in `test/support/`, and run it against `InMemoryRepository` and against
-your real adapter, so the double the use case tests rely on behaves like production (`Order` is
-the one of [Persisting aggregates](#persisting-aggregates-with-aggregatemapper)):
+Write the contract once, in `test/support/`, and run it against your in-memory repository (see
+[Writing a repository](#writing-a-repository)) and against your real adapter, so the double the use
+case tests rely on behaves like production (`Order` is
+the one of [Persisting aggregates](#persisting-aggregates)):
 
 ```ts
 import { describe, expect, it } from 'vitest';
 import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
 import { ConcurrencyException } from '@archi-code/ddd/exceptions';
-import { AggregateMapper, FixedClock, InMemoryRepository } from '@archi-code/ddd/infrastructure';
+import { FixedClock } from '@archi-code/ddd/infrastructure';
 
 const clock = new FixedClock('2026-10-17T10:00:00Z');
 const anOrder = () => Order.place(OrderId.generate(), new CustomerName('Ana'), clock);
@@ -1210,8 +1210,8 @@ export function orderRepositoryContract(
   });
 }
 
-describe('InMemoryRepository of orders', () => {
-  orderRepositoryContract(() => new InMemoryRepository(AggregateMapper.of(Order)));
+describe('InMemoryOrderRepository', () => {
+  orderRepositoryContract(() => new InMemoryOrderRepository());
 });
 
 describe('MongoOrderRepository', () => {
@@ -1500,13 +1500,12 @@ import type { AggregateSaver, EventMetadata, PrimitiveTypes } from '@archi-code/
 import { EventListener, ListensTo, UseCase } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
 import {
-  AggregateMapper,
   DomainEventBus,
   EventRegistry,
   FixedClock,
   InMemoryEventChannel,
-  InMemoryRepository,
 } from '@archi-code/ddd/infrastructure';
+import { InMemoryOrderRepository } from './test/support/in-memory-order-repository';
 
 class OrderId extends IdType<'OrderId'> {}
 class CustomerName extends Required(StringType) {}
@@ -1608,7 +1607,7 @@ const confirming = await bus.subscribe(
   new SendConfirmationOnOrderPlaced(new SendConfirmation(mails)),
 );
 
-const orders = new InMemoryRepository(AggregateMapper.of(Order));
+const orders = new InMemoryOrderRepository(); // see "Writing a repository"
 const placeOrder = new PlaceOrder(orders, bus, new FixedClock('2026-10-19T09:30:00Z'));
 const orderId = await placeOrder.execute({ customer: 'Ana' });
 
@@ -1808,7 +1807,7 @@ The repository is responsible for the transaction and for everything else about 
   with its own connection.
 - **Concurrency**: it checks the stored version and throws `ConcurrencyException` (see
   [Optimistic concurrency](#optimistic-concurrency)), calls `markPersisted()` after a write and
-  passes the stored version to `mapper.fromPrimitives(row, version)` on load.
+  rebuilds with `Order.fromPrimitives(row).restoreVersion(version)` on load.
 - **Connections and errors**: pools, sessions and driver retries stay inside the adapter, and driver
   errors are wrapped in `InternalErrorException` with `{ cause }`.
 - **Events that must not be lost**: `publish` runs after `save`, so a failure in between loses the
@@ -1817,15 +1816,14 @@ The repository is responsible for the transaction and for everything else about 
   a relay delivers them through an `EventChannel` [Destilado ch. 6; IDDD ch. 8]; use cases do not
   change.
 
-`InMemoryRepository` follows the same contract for tests and prototypes: every `save` and `remove`
-is applied whole or not at all.
+An in-memory repository written in your tests (see [Writing a repository](#writing-a-repository))
+follows the same contract: every `save` and `remove` is applied whole or not at all.
 
 ## Event Sourcing and CQRS: only for a concrete risk
 
 Neither is required, and both add complexity [IDDD ch. 4]. This package persists the state of
 aggregates; it does not ship an event store nor Event Sourcing support: `version` grows by 1 per
-save, not per event, and an event-sourced aggregate manages the version of its stream itself and
-does not use `AggregateMapper`.
+save, not per event, and an event-sourced aggregate manages the version of its stream itself.
 
 | Situation                                                     | Recommendation                                                |
 | ------------------------------------------------------------- | ------------------------------------------------------------- |
@@ -1844,37 +1842,16 @@ just sent, show how old the data is, or say that the request is being processed.
 
 Ready adapters for tests, prototypes and the edges of an API:
 
-| Export                                          | What it is                                                                                                              |
-| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `InMemoryRepository(AggregateMapper.of(Order))` | Finder, saver and remover over a `Map` of primitives and versions; checks versions on save and remove; adds `findAll()` |
-| `InMemoryEventChannel({ delivery }?)`           | `EventChannel` inside the process, built on emittery's techniques; `sent` lists what was sent                           |
-| `HttpErrorMapper({ statusByCode?, logger? }?)`  | `map(error)` → `{ status, body: { code, message, errors? } }` (`errors`: `{ field, code, message }[]`)                  |
-| `ConsoleLogger({ level?, clock? }?)`            | `Logger` that writes one JSON line per entry from `level` up (`info` by default)                                        |
-| `InMemoryLogger`, `SilentLogger`                | `Logger` that keeps `entries` for tests, and one that writes nothing (the default of every piece that logs)             |
-| `SystemClock`, `FixedClock(at)`                 | `Clock` with the real time, and a test clock with `set(at)` and `advance(ms)`                                           |
+| Export                                         | What it is                                                                                                  |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `InMemoryEventChannel({ delivery }?)`          | `EventChannel` inside the process, built on emittery's techniques; `sent` lists what was sent               |
+| `HttpErrorMapper({ statusByCode?, logger? }?)` | `map(error)` → `{ status, body: { code, message, errors? } }` (`errors`: `{ field, code, message }[]`)      |
+| `ConsoleLogger({ level?, clock? }?)`           | `Logger` that writes one JSON line per entry from `level` up (`info` by default)                            |
+| `InMemoryLogger`, `SilentLogger`               | `Logger` that keeps `entries` for tests, and one that writes nothing (the default of every piece that logs) |
+| `SystemClock`, `FixedClock(at)`                | `Clock` with the real time, and a test clock with `set(at)` and `advance(ms)`                               |
 
-`InMemoryRepository` follows the [optimistic concurrency](#optimistic-concurrency) contract like a
-real adapter: it stores a copy of the primitives with their version, rejects a stale save (or a new
-aggregate whose id is already stored) with `ConcurrencyException`, and calls `markPersisted()` on
-success. It keys the rows by `id.toString()`: ids of `UuidType`/`IdType` are stored in lowercase,
-so those are found whatever case they were typed in (other id types are compared as they are). It
-returns copies, so changing a loaded aggregate does not touch the store until you save it.
-
-With the `Order` of [Persisting aggregates](#persisting-aggregates-with-aggregatemapper):
-
-```ts
-const clock = new FixedClock('2026-10-17T10:00:00Z');
-const orders = new InMemoryRepository(AggregateMapper.of(Order));
-await orders.save(Order.place(new OrderId(id), new CustomerName('Ana'), clock));
-
-const byAna = (await orders.findById(new OrderId(id)))!; // version 1
-const byLuis = (await orders.findById(new OrderId(id)))!; // version 1
-byAna.ship(clock);
-await orders.save(byAna); // stored as version 2; byAna.version is 2
-byLuis.addLine(new OrderLine({ sku: new Sku('TORCH-01'), quantity: new Quantity(1) }));
-await orders.save(byLuis);
-// ConcurrencyException: Order with ID … was changed by someone else: expected version 1.
-```
+The package ships no repository: each project writes one per aggregate and technology (see
+[Writing a repository](#writing-a-repository)), including the in-memory one its tests use.
 
 `HttpErrorMapper` statuses, overridable by code (`new HttpErrorMapper({ statusByCode: { ORD001: 403 } })`):
 
@@ -2004,14 +1981,13 @@ class PinoLogger implements Logger {
 }
 ```
 
-## Persisting aggregates with `AggregateMapper`
+## Persisting aggregates
 
 The domain knows nothing about persistence: a repository receives an aggregate and stores it.
-`AggregateMapper` lives here, in infrastructure, next to the repositories that use it. It relies on
-two things every aggregate has: everything it stores is a **value object** (no raw `string`,
+Each aggregate converts itself: everything it stores is a **value object** (no raw `string`,
 `number`, `boolean` or `Date` fields in its state), and it exposes `toPrimitives()` and
-`static fromPrimitives()`. The repository never reads the aggregate's fields: it only calls the
-mapper. Follow these rules for every
+`static fromPrimitives()` (its snapshot). There is no mapper in between: the repository calls
+those two methods and never reads the aggregate's fields. Follow these rules for every
 aggregate:
 
 1. **State is value objects.** Each persisted field is a value object, a composite, a list of them
@@ -2029,20 +2005,16 @@ aggregate:
    instead of entering the model.
 4. **`toPrimitives(): PrimitiveTypes<Order>`** returns only plain data: `vo.value` of each value
    object and the primitives of each child entity, never a value object.
-5. **The repository receives `AggregateMapper.of(Order)`** and never touches the aggregate's fields.
+5. **The repository calls `order.toPrimitives()` and `Order.fromPrimitives(row)`** and never touches
+   the aggregate's fields.
 6. **One round-trip test per aggregate**: `Order.fromPrimitives(order.toPrimitives()).toPrimitives()`
    equals `order.toPrimitives()`.
 
 The compiler enforces rules 1 and 4 on what is public: a getter that returns a raw `boolean` makes
-that key `never` in `PrimitiveTypes<Order>`, so `toPrimitives()` does not compile. `AggregateMapper`
-checks the rest at runtime on every `toPrimitives`, throwing `InternalErrorException`:
-
-| Mistake                                     | Message                                                                                |
-| ------------------------------------------- | -------------------------------------------------------------------------------------- |
-| A raw field, also inside a child entity     | `Order._shipped is a boolean, not a value object`                                      |
-| A private field without its key in the data | `Order._status is not in its primitives` (it would be lost when saving)                |
-| The same inside a child entity or composite | `Order._lines[1]._giftNote is not in its primitives`                                   |
-| `toPrimitives()` returns a value object     | `Order.toPrimitives() returns a value object at primitives.customer; return its value` |
+that key `never` in `PrimitiveTypes<Order>`, so `toPrimitives()` does not compile. Nothing checks
+private state at run time: `PrimitiveTypes<Order>` does not see a private field, so a private field
+left out of `toPrimitives()` compiles and is lost when saving. Keeping rule 2 (no private state
+without its getter) and the round-trip test of rule 6 is the aggregate's responsibility.
 
 ```ts
 import {
@@ -2058,7 +2030,6 @@ import {
 } from '@archi-code/ddd/domain';
 import type { EventMetadata, PrimitiveTypes } from '@archi-code/ddd/domain';
 import { DomainException } from '@archi-code/ddd/exceptions';
-import { AggregateMapper } from '@archi-code/ddd/infrastructure';
 
 class OrderId extends IdType<'OrderId'> {}
 class CustomerName extends Required(StringType) {}
@@ -2165,10 +2136,100 @@ class Order extends AggregateRoot<OrderId, OrderEvent> {
   }
 }
 
-const orders = AggregateMapper.of(Order); // AggregateMapper<Order>
-orders.aggregateName; // 'Order'
-// new InMemoryRepository(orders), or your own adapter:
-// write orders.toPrimitives(order) with order.version + 1, read orders.fromPrimitives(row, row.version)
+const order = Order.place(OrderId.generate(), new CustomerName('Ana'), { now: () => new Date() });
+const stored = order.toPrimitives(); // plain data the repository writes with order.version + 1
+Order.fromPrimitives(stored).restoreVersion(1); // what the repository returns on load
+```
+
+### Writing a repository
+
+A repository is written once per aggregate and per technology, and implements the roles of the
+domain it supports (`AggregateFinder`, `AggregateSaver`, `AggregateRemover`):
+
+- **One per aggregate**: it knows the aggregate it rebuilds, so nothing tells it which one. There
+  is no generic repository shared by several aggregates.
+- **The constructor receives only its technology** (a Mongo collection, a Postgres pool…), never
+  an aggregate class nor a mapper. Aggregates only go in and out through its methods: `save(order)`,
+  `remove(order)`, `findById(id)` → `Order | null`.
+- **The aggregate converts itself**: `order.toPrimitives()` and `Order.fromPrimitives(row)` are
+  the aggregate's snapshot, never a domain service nor a mapper. The repository calls them
+  directly, gives back the stored version with `restoreVersion(version)` and maps the primitives to
+  its storage format.
+- **It owns persistence**: atomic writes, the version check, connections and driver errors (see
+  [Persistence belongs to the repository](#persistence-belongs-to-the-repository)).
+
+The in-memory repository of your tests is written the same way, in `test/support/`:
+
+```ts
+import type {
+  AggregateFinder,
+  AggregateRemover,
+  AggregateSaver,
+  PrimitiveTypes,
+} from '@archi-code/ddd/domain';
+import { ConcurrencyException } from '@archi-code/ddd/exceptions';
+
+export class InMemoryOrderRepository
+  implements AggregateFinder<Order>, AggregateSaver<Order>, AggregateRemover<Order>
+{
+  private readonly rows = new Map<string, { version: number; primitives: PrimitiveTypes<Order> }>();
+
+  async findById(id: OrderId): Promise<Order | null> {
+    const row = this.rows.get(id.value);
+    return row === undefined
+      ? null
+      : Order.fromPrimitives(structuredClone(row.primitives)).restoreVersion(row.version);
+  }
+
+  async save(order: Order): Promise<void> {
+    const key = this.currentKey(order);
+    const primitives = structuredClone(order.toPrimitives());
+    this.rows.set(key, { version: order.version + 1, primitives });
+    order.markPersisted();
+  }
+
+  async remove(order: Order): Promise<void> {
+    this.rows.delete(this.currentKey(order));
+  }
+
+  private currentKey(order: Order): string {
+    const key = order.id.value;
+    if ((this.rows.get(key)?.version ?? 0) !== order.version) {
+      throw new ConcurrencyException('Order', key, order.version);
+    }
+    return key;
+  }
+}
+
+const orders = new InMemoryOrderRepository();
+await orders.save(Order.place(new OrderId(id), new CustomerName('Ana'), clock));
+const byAna = (await orders.findById(new OrderId(id)))!; // version 1, a copy
+const byLuis = (await orders.findById(new OrderId(id)))!; // version 1, another copy
+byAna.ship(clock);
+await orders.save(byAna); // stored as version 2
+byLuis.addLine(new OrderLine({ sku: new Sku('TORCH-01'), quantity: new Quantity(1) }));
+await orders.save(byLuis);
+// ConcurrencyException: Order with ID … was changed by someone else: expected version 1.
+```
+
+A Mongo repository has the same shape; only the storage changes:
+
+```ts
+class MongoOrderRepository
+  implements AggregateFinder<Order>, AggregateSaver<Order>, AggregateRemover<Order>
+{
+  constructor(private readonly collection: Collection<OrderDocument>) {}
+
+  async findById(id: OrderId): Promise<Order | null> {
+    const document = await this.collection.findOne({ _id: id.value });
+    return document === null
+      ? null
+      : Order.fromPrimitives(document.data).restoreVersion(document.version);
+  }
+
+  // save: updateOne({ _id, version: order.version }, { $set: { data, version: order.version + 1 } }),
+  // or insertOne when order.version is 0; no match → ConcurrencyException; then order.markPersisted()
+}
 ```
 
 # Exceptions: `@archi-code/ddd/exceptions`
@@ -2290,14 +2351,13 @@ import type {
 import { EventListener, ListensTo, UseCase } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
 import {
-  AggregateMapper,
   DomainEventBus,
   EventRegistry,
   FixedClock,
   HttpErrorMapper,
   InMemoryEventChannel,
-  InMemoryRepository,
 } from '@archi-code/ddd/infrastructure';
+import { InMemoryUserRepository } from './test/support/in-memory-user-repository';
 
 class UserId extends IdType<'UserId'> {}
 class Name extends Required(StringType) {}
@@ -2476,7 +2536,7 @@ class SendWelcomeEmailOnUserRegistered extends EventListener<UserRegistered> {
 }
 
 const emails: string[] = [];
-const users = new InMemoryRepository(AggregateMapper.of(User));
+const users = new InMemoryUserRepository(); // written like InMemoryOrderRepository
 const channel = new InMemoryEventChannel();
 const events = new EventRegistry<UserEvent>()
   .register(
@@ -2557,15 +2617,15 @@ await new RegisterUser(users, bus, clock)
 
 `@archi-code/ddd/infrastructure`:
 
-| Export                                                                                                          | Kind                   |
-| --------------------------------------------------------------------------------------------------------------- | ---------------------- |
-| `InMemoryRepository`, `AggregateMapper`, `InMemoryEventChannel`, `HttpErrorMapper`, `SystemClock`, `FixedClock` | classes                |
-| `ConsoleLogger`, `InMemoryLogger`, `SilentLogger`                                                               | classes (loggers)      |
-| `DomainEventBus`, `EventRegistry`                                                                               | classes (event wiring) |
-| `EventChannel`, `ChannelHandler`, `ChannelSubscription`                                                         | types (channel port)   |
-| `Subscription`, `EventFactory`                                                                                  | types                  |
-| `AggregateClass`, `HttpError`, `HttpErrorBody`, `InMemoryEventChannelOptions`                                   | types                  |
-| `HttpErrorMapperOptions`, `ConsoleLoggerOptions`, `LogEntry`                                                    | types                  |
+| Export                                                                 | Kind                   |
+| ---------------------------------------------------------------------- | ---------------------- |
+| `InMemoryEventChannel`, `HttpErrorMapper`, `SystemClock`, `FixedClock` | classes                |
+| `ConsoleLogger`, `InMemoryLogger`, `SilentLogger`                      | classes (loggers)      |
+| `DomainEventBus`, `EventRegistry`                                      | classes (event wiring) |
+| `EventChannel`, `ChannelHandler`, `ChannelSubscription`                | types (channel port)   |
+| `Subscription`, `EventFactory`                                         | types                  |
+| `HttpError`, `HttpErrorBody`, `InMemoryEventChannelOptions`            | types                  |
+| `HttpErrorMapperOptions`, `ConsoleLoggerOptions`, `LogEntry`           | types                  |
 
 ## AI assistant skill
 

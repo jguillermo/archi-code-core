@@ -27,7 +27,7 @@ La clase completa está en la sección 3. Lo que da la base:
 * `version`: `0` si es nuevo; no es un campo del agregado ni aparece en `PrimitiveTypes`.
 * `restoreVersion(v)` y `markPersisted()`: solo para repositorios (al cargar y tras escribir).
 
-Sin `markPersisted`, el objeto en memoria conservaría la versión antigua tras guardar y un segundo `save` del mismo objeto (por ejemplo, dos comandos seguidos en el mismo proceso) daría un falso conflicto de concurrencia `[Fuera de los libros]`. `InMemoryRepository` y los repositorios que sigan el contrato lo llaman siempre.
+Sin `markPersisted`, el objeto en memoria conservaría la versión antigua tras guardar y un segundo `save` del mismo objeto (por ejemplo, dos comandos seguidos en el mismo proceso) daría un falso conflicto de concurrencia `[Fuera de los libros]`. Los repositorios que sigan el contrato lo llaman siempre, también el `InMemoryOrderRepository` que el proyecto escribe en `test/support/` para los tests.
 
 Por qué registrar en vez de publicar: IDDD publica desde el agregado con un publicador estático [IDDD cap. 8]. Registrar y dejar que la aplicación publique no requiere un singleton global en el dominio y, con una bandeja de salida (outbox), evita entregar eventos de cambios que no llegaron a guardarse. *DDD in PHP* discute ambas variantes [PHP: Domain Events]. Con el paquete, el caso de uso llama a `await this.orders.save(order)` y después a `events.publish(order.pullDomainEvents())`; la aplicación no abre transacciones, porque la transacción es del repositorio. Si `publish` falla tras `save`, el evento puede perderse; cuando eso no es admisible, el repositorio guarda el agregado y sus eventos pendientes en la misma escritura atómica (outbox) y un proceso aparte los entrega por un `EventChannel`, y el caso de uso no cambia `[Fuera de los libros: convención de @archi-code/ddd]`.
 
@@ -38,7 +38,7 @@ Orden que sigue Destilado para construir la raíz [Destilado cap. 5]:
 1. Clase de la raíz (`extends AggregateRoot<OrderId, OrderEvent>`).
 2. Identidad global única como value object (`class OrderId extends IdType<'OrderId'> {}`; en multi-tenant, también el `TenantId`).
 3. Atributos intrínsecos necesarios para encontrarlo (nombre, descripción).
-4. Getters solo si hacen falta; **sin setters públicos**. Con el paquete, cada campo que se guarda tiene un getter público con su nombre sin `_` (o es `readonly` público), porque `PrimitiveTypes` y `AggregateMapper` los leen; los valores derivados son métodos (`total()`) `[Fuera de los libros: convención de @archi-code/ddd]`.
+4. Getters solo si hacen falta; **sin setters públicos**. Con el paquete, cada campo que se guarda tiene un getter público con su nombre sin `_` (o es `readonly` público), porque `PrimitiveTypes` los lee para tipar `toPrimitives()`/`fromPrimitives()` (nada lo comprueba en tiempo de ejecución: lo cubre el test de ida y vuelta de cada agregado); los valores derivados son métodos (`total()`) `[Fuera de los libros: convención de @archi-code/ddd]`.
 5. Comportamiento complejo con nombres del lenguaje (`planBacklogItem`, `scheduleRelease`).
 
 ## 3. Agregado completo: Order
@@ -474,7 +474,7 @@ Cómo encaja con las reglas:
 
 * `customerId` es una referencia por identidad (regla 3); `stockReservation` es la identidad de otro agregado de otro contexto, y `paymentAuthorization` un value object con lo mínimo que el pedido necesita de Pagos.
 * Las líneas son un value object (`OrderLines`, parte reemplazable entera); `addLine` sustituye la colección por la que devuelve `withLine`, y la regla de SKU único la comprueba el propio value object.
-* Constructor privado, una factoría de negocio (`place`, que registra `OrderPlaced`) y `fromPrimitives`, que reconstruye sin reglas de creación ni eventos; `toPrimitives()` devuelve solo datos planos. El repositorio recibe `AggregateMapper.of(Order)` y no lee los campos `[Fuera de los libros: convención de @archi-code/ddd]`.
+* Constructor privado, una factoría de negocio (`place`, que registra `OrderPlaced`) y `fromPrimitives`, que reconstruye sin reglas de creación ni eventos; `toPrimitives()` devuelve solo datos planos. La conversión es solo del propio agregado (instantánea): el repositorio, cuyo constructor recibe solo las dependencias de su tecnología, llama directamente a `order.toPrimitives()` al escribir y a `Order.fromPrimitives(row).restoreVersion(row.version)` al leer, sin mapper ni comprobación de forma en medio, y no lee los campos. Quien añade un campo lo añade a `toPrimitives`/`fromPrimitives`, y el spec del agregado comprueba la ida y vuelta `[Fuera de los libros: convención de @archi-code/ddd]`.
 * Cada método recibe el reloj (`clock: { now(): Date }`) y lo pasa a los eventos (`{ clock }`): el dominio no llama a `new Date()` y los tests son deterministas.
 
 ### Comandos frente a hechos
@@ -572,7 +572,7 @@ UPDATE orders
  WHERE id = $1 AND version = $4;
 ```
 
-Si la sentencia no afecta a ninguna fila, el repositorio lanza `ConcurrencyException(mapper.aggregateName, order.id.value, order.version)` (de `@archi-code/ddd/exceptions`, HTTP 409 con `HttpErrorMapper`); si escribe, llama a `order.markPersisted()`. `InMemoryRepository(AggregateMapper.of(Order))` cumple ese contrato en los tests; el repositorio real y su suite de contrato están en `ddd-repositorios-persistencia`.
+Si la sentencia no afecta a ninguna fila, el repositorio lanza `new ConcurrencyException('Order', order.id.value, order.version)` (de `@archi-code/ddd/exceptions`, HTTP 409 con `HttpErrorMapper`; el nombre del agregado va como texto literal porque los minificadores renombran las clases); si escribe, llama a `order.markPersisted()`. En los tests lo cumple el `InMemoryOrderRepository` que el proyecto escribe en `test/support/`; el repositorio real y su suite de contrato están en `ddd-repositorios-persistencia`.
 
 Reintentar automáticamente solo es seguro si el comando es idempotente o se vuelve a evaluar contra el estado recargado: con el paquete, un bucle con límite en `handle` en el que cada intento vuelve a cargar el agregado y vuelve a guardarlo (unos pocos intentos y después se relanza); un caso de uso que ejecuta un listener no reintenta por su cuenta, lo hace la reentrega del canal `[Fuera de los libros: convención de @archi-code/ddd]`. Ejemplo en `ddd-skills/ddd-repositorios-persistencia/references/transacciones-ts.md`.
 
@@ -580,7 +580,7 @@ Reintentar automáticamente solo es seguro si el comando es idempotente o se vue
 
 `[Fuera de los libros como código; la idea está en Destilado cap. 5]`
 
-El paquete no la da: `AggregateRoot`, `PrimitiveTypes` y `AggregateMapper` necesitan clases `[Fuera de los libros: convención de @archi-code/ddd]`. Si se elige, se escribe en el proyecto con los mismos value objects y eventos, y su persistencia queda a cargo del proyecto:
+El paquete no la da: `AggregateRoot` y `PrimitiveTypes` necesitan clases `[Fuera de los libros: convención de @archi-code/ddd]`. Si se elige, se escribe en el proyecto con los mismos value objects y eventos, y su persistencia queda a cargo del proyecto:
 
 ```ts
 type OrderState = Readonly<{

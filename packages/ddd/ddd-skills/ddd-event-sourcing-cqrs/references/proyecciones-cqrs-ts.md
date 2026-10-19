@@ -278,7 +278,7 @@ Las consultas no pasan por agregados ni repositorios (`AggregateFinder`). Los co
 
 ## CQRS sin Event Sourcing
 
-Con persistencia de estado normal (`AggregateMapper` y repositorios), las proyecciones se alimentan de los mismos eventos que los casos de uso publican con `EventBus.publish(aggregate.pullDomainEvents())` (`ddd-skills/ddd-eventos-dominio/GUIA.md`). Mismo patrón: idempotencia por `eventId` y reconstrucción desde un log de eventos guardados. `[Fuera de los libros: convención de @archi-code/ddd]` El canal no conserva historial legible: si la vista debe poder reconstruirse desde cero, guarda cada evento en un log propio desde el primer día.
+Con persistencia de estado normal (repositorios que guardan `toPrimitives()` de cada agregado), las proyecciones se alimentan de los mismos eventos que los casos de uso publican con `EventBus.publish(aggregate.pullDomainEvents())` (`ddd-skills/ddd-eventos-dominio/GUIA.md`). Mismo patrón: idempotencia por `eventId` y reconstrucción desde un log de eventos guardados. `[Fuera de los libros: convención de @archi-code/ddd]` El canal no conserva historial legible: si la vista debe poder reconstruirse desde cero, guarda cada evento en un log propio desde el primer día.
 
 ## Proyecciones para otros agregados
 

@@ -1,6 +1,6 @@
 # Implementar repositorios en TypeScript
 
-Todos los ejemplos usan el agregado `Order` de `ddd-skills/ddd-agregados/references/implementacion-ts.md`, con sus value objects (`OrderId`, `CustomerId`, `OrderLines`, `OrderLine`, `Sku`, `Quantity`, `Money`, `ShippingAddress`, `OrderStatus`, `PaymentAuthorization`) y sus eventos: `Order.place(id, customerId, lines, address, clock)` lo crea pendiente con sus líneas, `addLine(line, clock)` añade una, y `toPrimitives()` y `static fromPrimitives()` son los que exige `AggregateMapper` (ver `ddd-skills/ddd-agregados/GUIA.md`). El repositorio es código del proyecto en `infrastructure/persistence/` que implementa los roles del paquete.
+Todos los ejemplos usan el agregado `Order` de `ddd-skills/ddd-agregados/references/implementacion-ts.md`, con sus value objects (`OrderId`, `CustomerId`, `OrderLines`, `OrderLine`, `Sku`, `Quantity`, `Money`, `ShippingAddress`, `OrderStatus`, `PaymentAuthorization`) y sus eventos: `Order.place(id, customerId, lines, address, clock)` lo crea pendiente con sus líneas, `addLine(line, clock)` añade una, y `toPrimitives()` y `static fromPrimitives()` son su conversión, la que llama el repositorio (ver `ddd-skills/ddd-agregados/GUIA.md`). El repositorio es código del proyecto en `infrastructure/persistence/` que implementa los roles del paquete.
 
 ## Qué se guarda
 
@@ -29,17 +29,19 @@ const primitives: PrimitiveTypes<Order> = {
 
 Un documento (o una fila) por agregado: lectura rápida, sin joins, y la versión protege todo el agregado [IDDD cap. 10]. La versión se guarda **junto a** los primitivos, nunca dentro: el agregado no la declara y `PrimitiveTypes` la deja fuera `[Fuera de los libros: convención de @archi-code/ddd]`.
 
-Convención de versiones del paquete: un agregado nuevo tiene `version` 0; al insertarlo se guarda con 1 y `markPersisted()` lo lleva a 1. Cada actualización exige que la versión almacenada coincida con `order.version`, guarda `order.version + 1` y llama a `markPersisted()`. Al cargar, `mapper.fromPrimitives(primitives, storedVersion)` llama a `restoreVersion(storedVersion)`. El repositorio llama a `markPersisted()` solo cuando la escritura se completó (en SQL, tras el `COMMIT`); si `save` lanza, el objeto conserva su versión y el caso de uso lo descarta y vuelve a cargarlo.
+Convención de versiones del paquete: un agregado nuevo tiene `version` 0; al insertarlo se guarda con 1 y `markPersisted()` lo lleva a 1. Cada actualización exige que la versión almacenada coincida con `order.version`, guarda `order.version + 1` y llama a `markPersisted()`. Al cargar, el repositorio llama a `Order.fromPrimitives(primitives).restoreVersion(storedVersion)`. El repositorio llama a `markPersisted()` solo cuando la escritura se completó (en SQL, tras el `COMMIT`); si `save` lanza, el objeto conserva su versión y el caso de uso lo descarta y vuelve a cargarlo.
 
-## Mapper
+## Conversión
 
-No se escribe: el paquete lo da. `AggregateMapper.of(Order)` (de `@archi-code/ddd/infrastructure`) ofrece:
+No se escribe un mapper: la conversión es del agregado, su único dueño (`toPrimitives()` y `static fromPrimitives()`, su instantánea o Memento), no de un servicio de dominio ni de un mapper hecho a mano, y no hay comprobación de forma en medio `[Fuera de los libros: convención de @archi-code/ddd]`. El repositorio llama al agregado directamente:
 
-* `toPrimitives(order)`: llama a `order.toPrimitives()` y lanza `InternalErrorException` si el agregado tiene estado crudo (no value object), un campo privado que no está en sus primitivos o si devuelve un value object en vez de su valor.
-* `fromPrimitives(primitives, version = 0)`: `Order.fromPrimitives(primitives).restoreVersion(version)`.
-* `aggregateName`: el nombre de la clase (`'Order'`), para `ConcurrencyException`.
+* Al escribir: guarda `order.toPrimitives()` con `order.version + 1` al lado y, tras escribir, llama a `order.markPersisted()`.
+* Al leer: `Order.fromPrimitives(row).restoreVersion(row.version)`.
+* En un conflicto: `throw new ConcurrencyException('Order', key, order.version)`, con el nombre del agregado como texto literal, no como nombre de clase: los minificadores cambian los nombres de las clases.
 
-`toPrimitives()`/`fromPrimitives()` son la única puerta de infraestructura al estado interno `[Fuera de los libros: convención de @archi-code/ddd]`; el repositorio nunca lee getters del agregado ni construye filas a mano. Los constructores de los value objects validan al cargar: un dato corrupto falla en `fromPrimitives` y no dentro del modelo.
+Nada comprueba en ejecución que la conversión esté completa. Lo garantizan el agregado y sus tests: el spec de cada agregado prueba el viaje de ida y vuelta (`Order.fromPrimitives(order.toPrimitives()).toPrimitives()` igual a `order.toPrimitives()`), y quien añade un campo lo añade a `toPrimitives()` y a `fromPrimitives()`, también un campo privado que TypeScript no ve en `PrimitiveTypes<Order>`.
+
+Cada repositorio es único para su agregado y su constructor recibe solo las dependencias de su tecnología (la `collection` de MongoDB, el `pool` de Postgres, el `PrismaClient`), nunca la clase del agregado ni un mapper: los agregados solo entran y salen por `save(order)`, `remove(order)` y `findById(id)` `[Fuera de los libros: convención de @archi-code/ddd]`. `toPrimitives()`/`fromPrimitives()` son la única puerta de infraestructura al estado interno `[Fuera de los libros: convención de @archi-code/ddd]`; el repositorio nunca lee getters del agregado ni construye filas a mano. Los constructores de los value objects validan al cargar: un dato corrupto falla en `fromPrimitives` y no dentro del modelo.
 
 ## Repositorio con MongoDB
 
@@ -55,7 +57,6 @@ import type {
   PrimitiveTypes,
 } from '@archi-code/ddd/domain';
 import { ConcurrencyException, InternalErrorException } from '@archi-code/ddd/exceptions';
-import { AggregateMapper } from '@archi-code/ddd/infrastructure';
 import { Order, OrderId } from '../../domain/order/order';
 
 export type OrderDocument = PrimitiveTypes<Order> & { _id: string; version: number };
@@ -65,8 +66,6 @@ const DUPLICATE_KEY = 11000;
 export class MongoOrderRepository
   implements AggregateFinder<Order>, AggregateSaver<Order>, AggregateRemover<Order>
 {
-  private readonly mapper = AggregateMapper.of(Order);
-
   constructor(private readonly collection: Collection<OrderDocument>) {}
 
   async findById(id: OrderId): Promise<Order | null> {
@@ -75,12 +74,12 @@ export class MongoOrderRepository
       return null;
     }
     const { _id, version, ...primitives } = document;
-    return this.mapper.fromPrimitives(primitives, version);
+    return Order.fromPrimitives(primitives).restoreVersion(version);
   }
 
   async save(order: Order): Promise<void> {
     const document: OrderDocument = {
-      ...this.mapper.toPrimitives(order),
+      ...order.toPrimitives(),
       _id: order.id.value,
       version: order.version + 1,
     };
@@ -96,7 +95,7 @@ export class MongoOrderRepository
       return matchedCount === 1;
     });
     if (!written) {
-      throw new ConcurrencyException(this.mapper.aggregateName, order.id.value, order.version);
+      throw new ConcurrencyException('Order', order.id.value, order.version);
     }
     order.markPersisted();
   }
@@ -111,7 +110,7 @@ export class MongoOrderRepository
       return deletedCount === 1;
     });
     if (!removed) {
-      throw new ConcurrencyException(this.mapper.aggregateName, order.id.value, order.version);
+      throw new ConcurrencyException('Order', order.id.value, order.version);
     }
   }
 
@@ -120,7 +119,7 @@ export class MongoOrderRepository
       return await operation();
     } catch (error) {
       if (error instanceof MongoServerError && error.code === DUPLICATE_KEY) {
-        throw new ConcurrencyException(this.mapper.aggregateName, order.id.value, order.version, {
+        throw new ConcurrencyException('Order', order.id.value, order.version, {
           cause: error,
         });
       }
@@ -133,7 +132,7 @@ export class MongoOrderRepository
 * Alta (`version === 0`): `insertOne`; un `_id` ya ocupado (error 11000) es `ConcurrencyException` con el error del driver como `cause`.
 * Cambio: `replaceOne` con la condición `{ _id, version: order.version }`; si no casa ningún documento, otro guardó antes.
 * Un conflicto es `ConcurrencyException`: el caso de uso puede reintentar volviendo a cargar y a guardar, y `HttpErrorMapper` responde 409, no 500.
-* Borrado: `deleteOne` con la misma condición. Un agregado que nunca se guardó (versión 0) no tiene nada que borrar, salvo que su id ya esté ocupado: entonces es un conflicto, igual que en `InMemoryRepository`.
+* Borrado: `deleteOne` con la misma condición. Un agregado que nunca se guardó (versión 0) no tiene nada que borrar, salvo que su id ya esté ocupado: entonces es un conflicto, igual que en el `InMemoryOrderRepository` de los tests (`ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`).
 * Cualquier otro error del driver al escribir es `InternalErrorException` con el error como `cause`.
 * Cuidado con la serialización: IDDD advierte de que en estos almacenes hay que cuidar el formato serializado, que no es gratis [IDDD cap. 12]. Los primitivos son datos planos y `Date`, que el driver guarda tal cual.
 
@@ -156,7 +155,6 @@ CREATE TABLE orders (
 ```ts
 import type { AggregateFinder, AggregateSaver, PrimitiveTypes } from '@archi-code/ddd/domain';
 import { ConcurrencyException, InternalErrorException } from '@archi-code/ddd/exceptions';
-import { AggregateMapper } from '@archi-code/ddd/infrastructure';
 import { Order, OrderId } from '../../domain/order/order';
 import type { PgPool } from './pg-pool';
 
@@ -166,8 +164,6 @@ interface OrderRow {
 }
 
 export class PostgresOrderRepository implements AggregateFinder<Order>, AggregateSaver<Order> {
-  private readonly mapper = AggregateMapper.of(Order);
-
   constructor(private readonly pool: PgPool) {}
 
   async findById(id: OrderId): Promise<Order | null> {
@@ -175,11 +171,11 @@ export class PostgresOrderRepository implements AggregateFinder<Order>, Aggregat
       'SELECT version, data FROM orders WHERE id = $1',
       [id.value],
     );
-    return rows[0] ? this.mapper.fromPrimitives(rows[0].data, rows[0].version) : null;
+    return rows[0] ? Order.fromPrimitives(rows[0].data).restoreVersion(rows[0].version) : null;
   }
 
   async save(order: Order): Promise<void> {
-    const primitives = this.mapper.toPrimitives(order);
+    const primitives = order.toPrimitives();
     const write =
       order.version === 0
         ? this.pool.query(
@@ -194,7 +190,7 @@ export class PostgresOrderRepository implements AggregateFinder<Order>, Aggregat
       throw new InternalErrorException(`writing order ${order.id.value}`, { cause: error });
     });
     if (rowCount === 0) {
-      throw new ConcurrencyException(this.mapper.aggregateName, order.id.value, order.version);
+      throw new ConcurrencyException('Order', order.id.value, order.version);
     }
     order.markPersisted();
   }
@@ -206,8 +202,8 @@ Al leer `data` de `jsonb`, `paymentAuthorization.expiresAt` llega como texto ISO
 ## Con Prisma
 
 `[Fuera de los libros]`
-* El esquema de Prisma y su cliente viven en infraestructura. El repositorio implementa `AggregateFinder<Order>` y `AggregateSaver<Order>`, recibe el `PrismaClient` y devuelve agregados con `mapper.fromPrimitives(row.data, row.version)`, nunca modelos de Prisma.
-* La concurrencia optimista con Prisma: `updateMany({ where: { id, version: order.version }, data: { ..., version: { increment: 1 } } })`; si `count === 0`, `ConcurrencyException(mapper.aggregateName, order.id.value, order.version)`; si no, `order.markPersisted()`.
+* El esquema de Prisma y su cliente viven en infraestructura. El repositorio implementa `AggregateFinder<Order>` y `AggregateSaver<Order>`, recibe el `PrismaClient` y devuelve agregados con `Order.fromPrimitives(row.data).restoreVersion(row.version)`, nunca modelos de Prisma.
+* La concurrencia optimista con Prisma: `updateMany({ where: { id, version: order.version }, data: { ..., version: { increment: 1 } } })`; si `count === 0`, `ConcurrencyException('Order', order.id.value, order.version)`; si no, `order.markPersisted()`.
 * Si el agregado ocupa varios modelos de Prisma, el repositorio agrupa sus escrituras con `prisma.$transaction(async (tx) => ...)` dentro de su propio `save`; la aplicación nunca la abre `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ## Consultas de lectura
@@ -297,4 +293,4 @@ export class MongoStaleOrders implements StaleOrders {
 
 ## Jerarquías de tipos
 
-IDDD trata repositorios compartidos por subtipos y sus complicaciones [IDDD cap. 12]. Antes de diseñar una jerarquía de agregados, revisa si un tipo estándar (value object de estado o tipo, como `OrderStatus`) basta. `AggregateMapper.of(X)` trabaja con una clase concreta.
+IDDD trata repositorios compartidos por subtipos y sus complicaciones [IDDD cap. 12]. Antes de diseñar una jerarquía de agregados, revisa si un tipo estándar (value object de estado o tipo, como `OrderStatus`) basta. Cada repositorio reconstruye una clase concreta con su `fromPrimitives`.

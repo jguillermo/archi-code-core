@@ -24,7 +24,7 @@ La prueba de anemia da dos "sí" [IDDD cap. 1]: `Order` tiene `setStatus`, `setT
 
 ```ts
 import { AggregateRoot, CreatedAt, UpdatedAt } from '@archi-code/ddd/domain';
-import { AggregateMapper } from '@archi-code/ddd/infrastructure';
+import { OrderMapper } from '../../infrastructure/order-mapper';
 
 class Order extends AggregateRoot<OrderId, OrderEvent> {
   private _status: string;
@@ -39,7 +39,7 @@ class Order extends AggregateRoot<OrderId, OrderEvent> {
     this._total = total;
   }
 
-  static mapper = AggregateMapper.of(Order);
+  static mapper = new OrderMapper();
 }
 
 class UpdateOrder extends UseCase<UpdateOrderInput, UpdateOrderInput, void> {
@@ -81,7 +81,7 @@ class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, void> {
 | 1 | `PlaceOrder` guarda `Order` y `Customer` en la misma `unitOfWork.run`: un conflicto de versión en el cliente anula el pedido | `application/place-order/place-order.ts:31` | Crítica |
 | 2 | Reglas de envío en el caso de uso; `Order` solo tiene setters (modelo anémico) | `domain/order/order.ts:48`, `application/update-order/update-order.ts:22` | Alta |
 | 3 | `UpdateOrder` hace varias cosas según el input (enviar, cambiar total, cambiar líneas): nombre CRUD, no una acción de negocio | `application/update-order/update-order.ts` | Alta |
-| 4 | El dominio importa `AggregateMapper` de `@archi-code/ddd/infrastructure` | `domain/order/order.ts:2` | Alta |
+| 4 | El dominio importa `OrderMapper`, un mapper escrito a mano en `infrastructure/`, y le delega la conversión a primitivos | `domain/order/order.ts:2` | Alta |
 | 5 | Estado y total como primitivos (`_status: string`, `_total: number`) en vez de value objects | `domain/order/order.ts:5-6` | Media |
 | 6 | `toCommand` devuelve el input tal cual: ningún value object se construye ni valida antes de `handle` | `application/update-order/update-order.ts:14` | Media |
 | 7 | `new Date()` en el agregado: fechas no deterministas en tests | `domain/order/order.ts:10` | Media |
@@ -256,22 +256,22 @@ class AwardLoyaltyPointsOnOrderPlaced extends EventListener<OrderPlaced> {
 }
 ```
 
-Test de la corrección, con los adaptadores en memoria del paquete (`OrderLineData` y `MoneyData` son los tipos del payload de los eventos, en el mismo fichero que `Order`):
+Test de la corrección, con los repositorios en memoria del proyecto (`InMemoryOrderRepository` e `InMemoryCustomerRepository`, dobles de test en `test/support/` escritos como en `ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`) y los adaptadores en memoria del paquete (`OrderLineData` y `MoneyData` son los tipos del payload de los eventos, en el mismo fichero que `Order`):
 
 ```ts
 import { expect } from 'vitest';
 import {
-  AggregateMapper,
   DomainEventBus,
   EventRegistry,
   FixedClock,
   InMemoryEventChannel,
-  InMemoryRepository,
 } from '@archi-code/ddd/infrastructure';
 import { ValidationException } from '@archi-code/ddd/exceptions';
+import { InMemoryCustomerRepository } from '../support/in-memory-customer-repository';
+import { InMemoryOrderRepository } from '../support/in-memory-order-repository';
 
-const orders = new InMemoryRepository(AggregateMapper.of(Order));
-const customers = new InMemoryRepository(AggregateMapper.of(Customer));
+const orders = new InMemoryOrderRepository();
+const customers = new InMemoryCustomerRepository();
 const registry = new EventRegistry<OrderEvent>().register(
   OrderPlaced,
   (json) =>
@@ -310,7 +310,7 @@ await expect(
 
 ## Plan
 
-* **Fase 0:** tests de caracterización de alta, envío y puntos de fidelidad sobre `InMemoryRepository`, `InMemoryEventChannel` y `FixedClock`.
-* **Fase 1:** sacar `AggregateMapper` del dominio (solo lo usa `MongoOrderRepository`), sustituir `new Date()` por el `Clock` inyectado y `Error` por `DomainException` con código; `HttpErrorMapper` responde 422 a las reglas de negocio. Quitar el `UnitOfWork` de los casos de uso: `MongoOrderRepository` hace atómico cada `save` (una escritura de un documento con condición de versión) y los casos de uso solo reciben roles de repositorio, `EventBus` y `Clock`.
+* **Fase 0:** tests de caracterización de alta, envío y puntos de fidelidad sobre `InMemoryOrderRepository` e `InMemoryCustomerRepository` (dobles de test del proyecto en `test/support/`), `InMemoryEventChannel` y `FixedClock`.
+* **Fase 1:** borrar `OrderMapper`: la conversión pasa al agregado (`toPrimitives()` y `static fromPrimitives()`, con un test de ida y vuelta) y `MongoOrderRepository` la llama directamente (su constructor recibe solo la `collection`), sustituir `new Date()` por el `Clock` inyectado y `Error` por `DomainException` con código; `HttpErrorMapper` responde 422 a las reglas de negocio. Quitar el `UnitOfWork` de los casos de uso: `MongoOrderRepository` hace atómico cada `save` (una escritura de un documento con condición de versión) y los casos de uso solo reciben roles de repositorio, `EventBus` y `Clock`.
 * **Fase 2:** `OrderStatus`, `OrderLines` (con `OrderLine` y `Money`) como value objects; `addLine` sustituye a los setters; `UpdateOrder` se parte en `AddOrderLine` y el envío pasa a `Shipment` en Almacén.
 * **Fase 3:** `PlaceOrder` guarda solo el pedido; `AwardLoyaltyPointsOnOrderPlaced` ejecuta `AwardLoyaltyPoints` por evento. Para que `OrderPlaced` no se pierda si el proceso cae entre `save` y `publish`, `MongoOrderRepository` escribe el pedido y sus eventos pendientes en el mismo documento (outbox) y un relay los entrega después por el `EventChannel`; los casos de uso no cambian.

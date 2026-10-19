@@ -4,24 +4,61 @@
 
 Un mapa con la identidad como clave y el agregado como valor [IDDD cap. 12]. Dos detalles para que no mienta `[Fuera de los libros]`: guardar copias (para que modificar un objeto sin `save` no "persista") y comprobar versiones.
 
-No se escribe: es `InMemoryRepository` de `@archi-code/ddd/infrastructure`, que implementa `AggregateFinder`, `AggregateSaver` y `AggregateRemover` para cualquier agregado:
+El paquete no lo da: cada proyecto escribe el suyo en `test/support/`, uno por agregado, como cualquier otra implementación de una tecnología `[Fuera de los libros: convención de @archi-code/ddd]`. Implementa los roles de `@archi-code/ddd/domain` para su agregado (`AggregateFinder<Order>`, `AggregateSaver<Order>`, `AggregateRemover<Order>`), su constructor no recibe nada (no hay tecnología de la que depender) y llama a `order.toPrimitives()` y `Order.fromPrimitives(row).restoreVersion(version)`, igual que un adaptador real.
 
-En `test/support/orders.ts`:
+En `test/support/in-memory-order-repository.ts`:
 
 ```ts
-import { AggregateMapper, InMemoryRepository } from '@archi-code/ddd/infrastructure';
+import type {
+  AggregateFinder,
+  AggregateRemover,
+  AggregateSaver,
+  PrimitiveTypes,
+} from '@archi-code/ddd/domain';
+import { ConcurrencyException } from '@archi-code/ddd/exceptions';
 import { Order } from '../../src/contexts/sales/domain/order/order';
+import type { OrderId } from '../../src/contexts/sales/domain/order/order';
 
-export const inMemoryOrders = () => new InMemoryRepository(AggregateMapper.of(Order));
+export class InMemoryOrderRepository
+  implements AggregateFinder<Order>, AggregateSaver<Order>, AggregateRemover<Order>
+{
+  private readonly rows = new Map<string, { version: number; primitives: PrimitiveTypes<Order> }>();
+
+  async findById(id: OrderId): Promise<Order | null> {
+    const row = this.rows.get(id.value);
+    return row === undefined
+      ? null
+      : Order.fromPrimitives(structuredClone(row.primitives)).restoreVersion(row.version);
+  }
+
+  async save(order: Order): Promise<void> {
+    const key = this.currentKey(order);
+    this.rows.set(key, { version: order.version + 1, primitives: structuredClone(order.toPrimitives()) });
+    order.markPersisted();
+  }
+
+  async remove(order: Order): Promise<void> {
+    this.rows.delete(this.currentKey(order));
+  }
+
+  private currentKey(order: Order): string {
+    const key = order.id.value;
+    if ((this.rows.get(key)?.version ?? 0) !== order.version) {
+      throw new ConcurrencyException('Order', key, order.version);
+    }
+    return key;
+  }
+}
 ```
 
-* Guarda `structuredClone` de `mapper.toPrimitives(order)` con su versión, y cada `findById` reconstruye un objeto nuevo con `mapper.fromPrimitives(copy, version)`: cambiar un agregado sin `save` no persiste nada.
+* Guarda `structuredClone` de `order.toPrimitives()` con su versión al lado, y cada `findById` reconstruye un objeto nuevo con `Order.fromPrimitives(copy).restoreVersion(version)`: cambiar un agregado sin `save` no persiste nada.
 * Sigue el mismo contrato de concurrencia que un repositorio real: `save` y `remove` lanzan `ConcurrencyException` si la versión almacenada no coincide con `order.version` (también al dar de alta un id ocupado), y tras guardar llama a `markPersisted()`.
-* Las claves son `id.toString()`; `IdType` y `UuidType` guardan el valor en minúsculas, así que la búsqueda no distingue mayúsculas.
+* Las claves son `id.value`; `IdType` y `UuidType` guardan el valor en minúsculas, así que la búsqueda no distingue mayúsculas.
 * Cada `save` y cada `remove` es atómico, como el de un repositorio real: no hay transacción que abrir ni estado que restaurar en los tests (la transacción es del repositorio, `ddd-skills/ddd-repositorios-persistencia/references/transacciones-ts.md`).
-* `findAll()` existe solo como comodidad de los tests `[Fuera de los libros: convención de @archi-code/ddd]`; un repositorio real no lo tiene y el código de producción no lo usa. Tampoco se usa `InMemoryRepository` en producción.
+* No tiene `findAll()` salvo que los tests del proyecto lo necesiten; si se añade, es solo comodidad de los tests y un repositorio real no lo tiene `[Fuera de los libros: convención de @archi-code/ddd]`. Nunca se usa en producción.
+* Otro agregado tiene el suyo, escrito igual (`InMemoryProductRepository` con `Product.fromPrimitives` y `product.toPrimitives()`).
 
-Pasar el mapper real también en memoria prueba de paso que el mapeo es reversible. El repositorio no guarda los eventos publicados: los publica el caso de uso, y los tests los leen de `channel.sent` del `InMemoryEventChannel` `[Fuera de los libros: convención de @archi-code/ddd]`.
+El repositorio en memoria no comprueba que la conversión esté completa: que `fromPrimitives` deshaga `toPrimitives` sin perder ningún campo lo prueba el spec del agregado (`Order.fromPrimitives(order.toPrimitives()).toPrimitives()` igual a `order.toPrimitives()`) `[Fuera de los libros: convención de @archi-code/ddd]`. La suite de contrato de abajo se ejecuta contra este repositorio y contra el adaptador real, así que el doble no puede apartarse del contrato. El repositorio no guarda los eventos publicados: los publica el caso de uso, y los tests los leen de `channel.sent` del `InMemoryEventChannel` `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ## Tests de contrato compartidos
 
@@ -112,10 +149,9 @@ El spec del adaptador lo ejecuta contra las dos implementaciones. El de MongoDB 
 import { randomUUID } from 'node:crypto';
 import { MongoClient } from 'mongodb';
 import { afterAll, beforeAll, describe } from 'vitest';
-import { AggregateMapper, InMemoryRepository } from '@archi-code/ddd/infrastructure';
-import { Order } from '../../../../../src/contexts/sales/domain/order/order';
 import { MongoOrderRepository } from '../../../../../src/contexts/sales/infrastructure/persistence/mongo-order-repository';
 import type { OrderDocument } from '../../../../../src/contexts/sales/infrastructure/persistence/mongo-order-repository';
+import { InMemoryOrderRepository } from '../../../../support/in-memory-order-repository';
 import { orderRepositoryContract } from '../../../../support/order-repository-contract';
 
 let client: MongoClient;
@@ -131,8 +167,8 @@ const mongoOrders = async () =>
     client.db('sales-test').collection<OrderDocument>(`orders-${randomUUID()}`),
   );
 
-describe('InMemoryRepository', () =>
-  orderRepositoryContract(async () => new InMemoryRepository(AggregateMapper.of(Order))));
+describe('InMemoryOrderRepository', () =>
+  orderRepositoryContract(async () => new InMemoryOrderRepository()));
 describe('MongoOrderRepository', () => orderRepositoryContract(mongoOrders));
 ```
 

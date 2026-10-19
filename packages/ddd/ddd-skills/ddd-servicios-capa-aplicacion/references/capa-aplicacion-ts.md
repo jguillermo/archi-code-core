@@ -211,24 +211,23 @@ La identidad del solicitante sale del token (`request.auth`), nunca del cuerpo.
 
 ## Tests
 
-Con los adaptadores en memoria del paquete: `InMemoryRepository(AggregateMapper.of(Order))` (cada `save` y `remove` es atómico y comprueba la versión) y `DomainEventBus` sobre `InMemoryEventChannel` (`channel.sent` lista lo publicado). Los puertos propios se sustituyen por objetos simples.
+Con adaptadores en memoria: `InMemoryOrderRepository`, que el proyecto escribe en `test/support/` (uno por agregado; cada `save` y `remove` es atómico y comprueba la versión; cómo se escribe, en `ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`), y del paquete `DomainEventBus` sobre `InMemoryEventChannel` (`channel.sent` lista lo publicado). Los puertos propios se sustituyen por objetos simples.
 
 ```ts
 import { describe, expect, it } from 'vitest';
 import { NotAllowedException } from '@archi-code/ddd/exceptions';
 import {
-  AggregateMapper,
   DomainEventBus,
   EventRegistry,
   FixedClock,
   InMemoryEventChannel,
-  InMemoryRepository,
 } from '@archi-code/ddd/infrastructure';
+import { InMemoryOrderRepository } from '../support/in-memory-order-repository';
 
 const clock = new FixedClock('2026-03-01T09:30:00Z');
 
 function salesWith(permissions: SalesPermissions) {
-  const orders = new InMemoryRepository(AggregateMapper.of(Order));
+  const orders = new InMemoryOrderRepository();
   const channel = new InMemoryEventChannel();
   const events = new DomainEventBus<OrderEvent>(channel, new EventRegistry<OrderEvent>());
   const cancelOrder = new CancelOrder(orders, events, permissions, clock);

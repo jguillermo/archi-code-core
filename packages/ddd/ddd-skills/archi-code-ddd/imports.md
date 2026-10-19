@@ -60,7 +60,6 @@ import type {
   LogLevel,
 } from '@archi-code/ddd/application';
 import {
-  AggregateMapper,
   ConsoleLogger,
   DomainEventBus,
   EventRegistry,
@@ -68,7 +67,6 @@ import {
   HttpErrorMapper,
   InMemoryEventChannel,
   InMemoryLogger,
-  InMemoryRepository,
   SilentLogger,
   SystemClock,
 } from '@archi-code/ddd/infrastructure';

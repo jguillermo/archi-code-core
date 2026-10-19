@@ -27,13 +27,12 @@ Antes de convertir un valor en entidad "porque tiene tabla", responde [IDDD cap.
 ## En TypeScript
 
 `[Fuera de los libros: convención de @archi-code/ddd]`
-* Nada de mappers escritos a mano ni decoradores de ORM en las clases de dominio. El agregado da sus datos planos con `toPrimitives()` y se rehace con `static fromPrimitives()`; el repositorio solo llama a `AggregateMapper.of(Order)` (de `@archi-code/ddd/infrastructure`), que además comprueba en ejecución que no se pierde ningún campo privado ni se devuelve un value object.
+* Nada de mappers escritos a mano ni decoradores de ORM en las clases de dominio. El agregado da sus datos planos con `toPrimitives()` y se rehace con `static fromPrimitives()`; el repositorio solo llama a `order.toPrimitives()` y `Order.fromPrimitives(row).restoreVersion(version)`. Nada comprueba en ejecución que no se pierda ningún campo privado: lo prueba el spec del agregado con el viaje de ida y vuelta (`Order.fromPrimitives(order.toPrimitives()).toPrimitives()` igual a `order.toPrimitives()`).
 * Los primitivos ya dan la forma de cada opción de la tabla: un value object simple es su valor, un `Composite` es un objeto (`shippingAddress: { street, city, country }`), una lista de composites es una lista de objetos (`lines: { items: [...] }`) y un `EnumType` es la opción del enum (`status: 'pending'`).
 * Con un almacén de documentos (MongoDB), los primitivos se guardan tal cual. Con tablas, el repositorio decide cómo se reparten en columnas: el formato de la fila sigue en infraestructura y no deforma el modelo.
 
 ```ts
 import type { PrimitiveTypes } from '@archi-code/ddd/domain';
-import { AggregateMapper } from '@archi-code/ddd/infrastructure';
 
 type OrderPrimitives = PrimitiveTypes<Order>;
 
@@ -50,10 +49,8 @@ interface OrderRow {
   version: number;
 }
 
-const mapper = AggregateMapper.of(Order);
-
 function rowOf(order: Order): OrderRow {
-  const primitives = mapper.toPrimitives(order);
+  const primitives = order.toPrimitives();
   return {
     id: primitives.id,
     customer_id: primitives.customerId,
@@ -69,26 +66,23 @@ function rowOf(order: Order): OrderRow {
 }
 
 function orderOf(row: OrderRow): Order {
-  return mapper.fromPrimitives(
-    {
-      id: row.id,
-      customerId: row.customer_id,
-      lines: { items: row.lines },
-      shippingAddress: {
-        street: row.ship_street,
-        city: row.ship_city,
-        country: row.ship_country,
-      },
-      status: row.status as Status,
-      stockReservation: row.stock_reservation,
-      paymentAuthorization: row.payment_authorization,
+  return Order.fromPrimitives({
+    id: row.id,
+    customerId: row.customer_id,
+    lines: { items: row.lines },
+    shippingAddress: {
+      street: row.ship_street,
+      city: row.ship_city,
+      country: row.ship_country,
     },
-    row.version,
-  );
+    status: row.status as Status,
+    stockReservation: row.stock_reservation,
+    paymentAuthorization: row.payment_authorization,
+  }).restoreVersion(row.version);
 }
 ```
 
 `Order`, `ShippingAddress` y `Status` son los de `ddd-skills/ddd-agregados/references/implementacion-ts.md`. La dirección va en columnas de la fila del padre, las líneas y la autorización de pago en columnas JSON (`jsonb` en PostgreSQL) y el estado como su código. Con el driver `pg`, una columna `jsonb` se lee ya como objeto (la fecha de caducidad de la autorización llega como texto ISO, que `ExpiresAt` convierte), y al escribir el parámetro se pasa como `JSON.stringify(row.lines)` (un array sin convertir lo enviaría como array de PostgreSQL). La `version` se guarda junto a los primitivos, nunca dentro; la consulta con la condición de versión y `markPersisted()` están en `ddd-skills/ddd-repositorios-persistencia/GUIA.md`.
 
 * Al cargar, `fromPrimitives` rehace cada value object con su constructor, que valida: un dato corrupto falla al cargar (`ValidationException`) en vez de propagarse. No se repiten reglas de creación ni se registran eventos.
-* Con Prisma o Drizzle, el esquema es de infraestructura y el repositorio sigue pasando por `AggregateMapper`.
+* Con Prisma o Drizzle, el esquema es de infraestructura y el repositorio sigue pasando por `order.toPrimitives()` y `Order.fromPrimitives()`.

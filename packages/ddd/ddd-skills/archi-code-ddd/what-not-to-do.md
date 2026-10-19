@@ -92,7 +92,7 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
 - Looking for helpers such as `findOrFail` or `saveAndPublish` in `UseCase`: there are none; the
   steps go in `handle`.
 - Using `new Date()` inside use cases or aggregates: inject a `Clock`.
-- Using `InMemoryRepository` in production: it is for tests and prototypes.
+- An in-memory repository in `src/` or used in production: it lives in `test/support/`.
 - `vo.toString` without parentheses: it is a method; use `vo.toString()`, `` `${vo}` `` or
   `vo.value`.
 - Mutating a VO or its value (`vo.value.setFullYear(...)`, pushing to `vo.value`): values are frozen
@@ -141,20 +141,27 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   (`FieldEquals`), or one used instead of the aggregate to protect an invariant.
 - Raw state in an aggregate (`private _shipped: boolean`, `private _at: Date`, a `string` field):
   wrap it in a value object.
-- A private field without its public getter: it would be lost when saving (`AggregateMapper` throws
-  `… is not in its primitives`).
+- A private field without its public getter, or left out of `toPrimitives()`: it compiles and is
+  lost when saving (`PrimitiveTypes` does not see private fields, and nothing checks them at run
+  time); the round-trip test of each aggregate must cover every field.
 - `toPrimitives()` returning value objects instead of `vo.value`.
-- A repository that reads aggregate fields or builds rows by hand: use `AggregateMapper.of(Order)`.
-- Importing `AggregateMapper` (or any persistence concern) into domain code: it belongs to
+- A repository that reads aggregate fields or builds rows by hand: call `order.toPrimitives()` and
+  `Order.fromPrimitives(row)`.
+- Importing a persistence concern (a repository, a driver, a mapper) into domain code: it belongs to
   infrastructure.
-- Passing `{ toPrimitives, fromPrimitives }` objects to `InMemoryRepository`: pass
-  `AggregateMapper.of(Order)`.
+- A repository whose constructor receives an aggregate class, a mapper or
+  `{ toPrimitives, fromPrimitives }`: it receives only its technology (a collection, a pool) and
+  calls the aggregate's own methods.
+- A generic repository shared by several aggregates: write one per aggregate.
+- Converting an aggregate to or from primitives outside the aggregate (a domain service, a
+  hand-written mapper reading its fields): the aggregate owns `toPrimitives()` and
+  `static fromPrimitives()`.
 - Declaring a `version` field in an aggregate, or putting it in `toPrimitives()`: the base already
   has it, and the repository stores it next to the primitives.
-- A repository that saves with `upsert` and no version condition, or `InMemoryRepository`
-  behavior expected as "last save wins": a stale save must throw `ConcurrencyException`.
+- A repository (also the in-memory one of the tests) that saves with `upsert` and no version
+  condition, or "last save wins": a stale save must throw `ConcurrencyException`.
 - Forgetting `markPersisted()` after a successful write (the next save of the same object becomes a
-  false conflict), or `mapper.fromPrimitives(row)` without the stored version (every load looks
+  false conflict), or `Order.fromPrimitives(row)` without `.restoreVersion(storedVersion)` (every load looks
   new, and the first save conflicts).
 - Calling `restoreVersion()` or `markPersisted()` from domain or application code: they are for
   repositories.

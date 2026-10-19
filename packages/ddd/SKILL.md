@@ -11,7 +11,7 @@ layer: `@archi-code/ddd/exceptions` (the exceptions every layer throws), `@archi
 and the repository contracts `AggregateFinder`, `AggregateSaver`, `AggregateRemover`),
 `@archi-code/ddd/application` (`UseCase`, the event contract to listen, `EventListener` and
 `@ListensTo`, and to publish, `EventBus`, and the ports `Clock`, `Logger`) and
-`@archi-code/ddd/infrastructure` (aggregate mapper, in-memory repository, the
+`@archi-code/ddd/infrastructure` (aggregate mapper for your repositories, the
 event wiring `DomainEventBus`, `EventRegistry` and the `EventChannel` port, in-memory event
 channel, HTTP error mapper, clocks, loggers).
 

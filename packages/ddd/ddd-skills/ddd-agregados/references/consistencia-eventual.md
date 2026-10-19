@@ -112,19 +112,18 @@ export class RegisterStockReservationOnStockReserved extends EventListener<Stock
 }
 ```
 
-La raíz de composición registra el evento y suscribe el listener; en los tests, con los adaptadores en memoria del paquete:
+La raíz de composición registra el evento y suscribe el listener; en los tests, con los adaptadores en memoria del paquete y el `InMemoryOrderRepository` que el proyecto escribe en `test/support/` (`ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`). En `test/contexts/sales/application/register-stock-reservation.spec.ts`:
 
 ```ts
 import {
-  AggregateMapper,
   DomainEventBus,
   EventRegistry,
   FixedClock,
   InMemoryEventChannel,
-  InMemoryRepository,
 } from '@archi-code/ddd/infrastructure';
+import { InMemoryOrderRepository } from '../../../support/in-memory-order-repository';
 
-const orders = new InMemoryRepository(AggregateMapper.of(Order));
+const orders = new InMemoryOrderRepository();
 const registry = new EventRegistry<OrderEvent | StockReserved>().register(
   StockReserved,
   (json) =>

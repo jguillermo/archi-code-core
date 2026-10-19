@@ -63,7 +63,7 @@ Exponer el modelo directamente por REST produce interfaces frágiles: cada cambi
 
 * `import` de `express`, `@prisma/client`, `typeorm`, `axios`, `pg`, `kafkajs` o similares dentro de `domain/`.
 * Decoradores de ORM (`@Entity`, `@Column`) en clases de dominio. Mezclan el modelo con la persistencia.
-* Clases base propias (`domain/shared/AggregateRoot.ts`, `ValueObject.ts`, `DomainEvent.ts`), un `OrderRepository` que lo hace todo, un `OrderMapper` a mano o un `EventPublisher` propio: el paquete ya da `AggregateRoot`, los roles de repositorio, `AggregateMapper` y `EventBus`.
+* Clases base propias (`domain/shared/AggregateRoot.ts`, `ValueObject.ts`, `DomainEvent.ts`), un `OrderRepository` que lo hace todo, un `OrderMapper` a mano o un `EventPublisher` propio: el paquete ya da `AggregateRoot`, los roles de repositorio y `EventBus`, y la conversión a primitivos es del propio agregado (`toPrimitives()` y `static fromPrimitives()`).
 * `@archi-code/ddd/infrastructure` importado desde `domain/` o `application/`.
 * Carpetas `domain/entities`, `domain/services`, `domain/valueobjects`: módulos por tipo de patrón [PHP: Modules].
 * Controladores que llaman a repositorios o contienen `if` de negocio.

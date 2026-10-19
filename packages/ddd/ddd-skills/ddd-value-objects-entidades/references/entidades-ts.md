@@ -208,7 +208,7 @@ Fíjate en:
 * Constructor privado y dos factorías con nombre: `register` (lenguaje del negocio, puede registrar eventos) y `fromPrimitives` (técnica, solo para repositorios: rehace cada value object desde su primitivo, que vuelve a validar, y no registra nada).
 * Ningún setter; cada cambio es un comportamiento con nombre y sus reglas. `block` es idempotente y registra `CustomerBlocked` con el reloj que recibe, nunca con `new Date()`.
 * Todos los atributos son value objects; cambiar el correo es reemplazar un `Email`.
-* Getters solo para lo que los clientes necesitan leer, dicen los libros. Con el paquete, cada campo que se guarda tiene un getter público con su nombre sin `_`, porque `toPrimitives()` y `AggregateMapper` los leen `[Fuera de los libros: convención de @archi-code/ddd]`. Los valores derivados son métodos (`isBlocked()`), nunca getters.
+* Getters solo para lo que los clientes necesitan leer, dicen los libros. Con el paquete, cada campo que se guarda tiene un getter público con su nombre sin `_`, porque `toPrimitives()` los lee `[Fuera de los libros: convención de @archi-code/ddd]`. Los valores derivados son métodos (`isBlocked()`), nunca getters.
 * El agregado no declara `version` ni la incluye en `toPrimitives()`: la lleva la base y la gestionan los repositorios.
 
 ## Seguimiento de cambios

@@ -74,7 +74,7 @@ Plantilla, variantes y errores frecuentes en `ddd-skills/ddd-servicios-capa-apli
 ## Paso 5. Probar
 
 * Servicios de dominio: tests unitarios con objetos de dominio reales [IDDD cap. 7].
-* Servicios de aplicación: con repositorios y adaptadores **en memoria**; comprueban orquestación, no reglas de negocio [IDDD cap. 12; PHP: Application]. Con el paquete: `InMemoryRepository(AggregateMapper.of(Order))`, `DomainEventBus` sobre `InMemoryEventChannel` (`channel.sent`) y `FixedClock`.
+* Servicios de aplicación: con repositorios y adaptadores **en memoria**; comprueban orquestación, no reglas de negocio [IDDD cap. 12; PHP: Application]. El repositorio en memoria lo escribe el proyecto en `test/support/`, uno por agregado (`InMemoryOrderRepository`, como en `ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`); del paquete: `DomainEventBus` sobre `InMemoryEventChannel` (`channel.sent`) y `FixedClock`.
 * Las reglas de negocio se prueban en el agregado o el value object, no a través del caso de uso.
 
 ## Señales de alarma

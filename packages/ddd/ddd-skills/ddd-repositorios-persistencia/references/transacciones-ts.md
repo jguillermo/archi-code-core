@@ -11,10 +11,10 @@ Un caso de uso modifica un solo agregado y lo guarda una vez [IDDD cap. 10]. El 
 Lo que hace el adaptador del repositorio, y nadie más:
 
 * Que cada `save` y cada `remove` sea atómico. En MongoDB, un documento por agregado: una sola escritura, atómica por sí misma. Si el agregado ocupa varias tablas SQL, el repositorio abre la transacción de la base de datos **dentro** de `save`/`remove`, con su propia conexión o sesión, y la confirma o la revierte antes de volver.
-* La comprobación optimista de la versión: una versión almacenada distinta de `order.version` (o un id ya ocupado al dar de alta) es `ConcurrencyException(mapper.aggregateName, order.id.value, order.version)`.
+* La comprobación optimista de la versión: una versión almacenada distinta de `order.version` (o un id ya ocupado al dar de alta) es `ConcurrencyException('Order', order.id.value, order.version)`.
 * La conexión, la sesión y el pool.
 * Envolver los errores del driver en `InternalErrorException` con `{ cause }`.
-* `markPersisted()` tras escribir con éxito y, al cargar, `restoreVersion` a través de `mapper.fromPrimitives(row, version)`.
+* `markPersisted()` tras escribir con éxito y, al cargar, `Order.fromPrimitives(row).restoreVersion(version)`.
 
 ## Varias tablas en PostgreSQL
 
@@ -56,7 +56,6 @@ En `infrastructure/persistence/postgres-order-repository.ts`:
 ```ts
 import type { AggregateFinder, AggregateSaver, PrimitiveTypes } from '@archi-code/ddd/domain';
 import { ConcurrencyException, InternalErrorException } from '@archi-code/ddd/exceptions';
-import { AggregateMapper } from '@archi-code/ddd/infrastructure';
 import { Order, OrderId } from '../../domain/order/order';
 import type { PgPool } from './pg-pool';
 
@@ -69,8 +68,6 @@ interface OrderRow {
 }
 
 export class PostgresOrderRepository implements AggregateFinder<Order>, AggregateSaver<Order> {
-  private readonly mapper = AggregateMapper.of(Order);
-
   constructor(private readonly pool: PgPool) {}
 
   async findById(id: OrderId): Promise<Order | null> {
@@ -90,11 +87,11 @@ export class PostgresOrderRepository implements AggregateFinder<Order>, Aggregat
       [id.value],
     );
     const row = rows[0];
-    return row ? this.mapper.fromPrimitives({ ...row.data, lines: { items: row.items } }, row.version) : null;
+    return row ? Order.fromPrimitives({ ...row.data, lines: { items: row.items } }).restoreVersion(row.version) : null;
   }
 
   async save(order: Order): Promise<void> {
-    const { lines, ...data } = this.mapper.toPrimitives(order);
+    const { lines, ...data } = order.toPrimitives();
     const client = await this.pool.connect();
     let broken = false;
     try {
@@ -110,7 +107,7 @@ export class PostgresOrderRepository implements AggregateFinder<Order>, Aggregat
               [data.id, order.version, data.status, data],
             );
       if (rowCount === 0) {
-        throw new ConcurrencyException(this.mapper.aggregateName, order.id.value, order.version);
+        throw new ConcurrencyException('Order', order.id.value, order.version);
       }
       await client.query('DELETE FROM order_lines WHERE order_id = $1', [data.id]);
       for (const [position, line] of lines.items.entries()) {
@@ -236,17 +233,15 @@ export class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand
 
 ## En tests
 
-Los tests de la aplicación usan `InMemoryRepository(AggregateMapper.of(Order))` y un `DomainEventBus` sobre `InMemoryEventChannel`; no hay nada que revertir ni que contar, porque cada `save` del repositorio en memoria es atómico y comprueba la versión igual que uno real. En `test/contexts/sales/application/add-order-line.spec.ts`:
+Los tests de la aplicación usan el `InMemoryOrderRepository` que el proyecto escribe en `test/support/` (`ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`) y un `DomainEventBus` sobre `InMemoryEventChannel`; no hay nada que revertir ni que contar, porque cada `save` del repositorio en memoria es atómico y comprueba la versión igual que uno real. En `test/contexts/sales/application/add-order-line.spec.ts`:
 
 ```ts
 import { describe, expect, it } from 'vitest';
 import {
-  AggregateMapper,
   DomainEventBus,
   EventRegistry,
   FixedClock,
   InMemoryEventChannel,
-  InMemoryRepository,
 } from '@archi-code/ddd/infrastructure';
 import { AddOrderLine } from '../../../../src/contexts/sales/application/add-order-line/add-order-line';
 import {
@@ -257,11 +252,12 @@ import {
   ShippingAddress,
 } from '../../../../src/contexts/sales/domain/order/order';
 import type { OrderEvent } from '../../../../src/contexts/sales/domain/order/order';
+import { InMemoryOrderRepository } from '../../../support/in-memory-order-repository';
 
 describe('Two customers add a line to the same order at once', () => {
   it('the second one retries with the reloaded order and both lines are kept', async () => {
     const clock = new FixedClock('2026-03-01T09:30:00Z');
-    const orders = new InMemoryRepository(AggregateMapper.of(Order));
+    const orders = new InMemoryOrderRepository();
     const channel = new InMemoryEventChannel();
     const addOrderLine = new AddOrderLine(
       orders,

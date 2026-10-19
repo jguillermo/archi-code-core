@@ -10,12 +10,13 @@
 
 * No hay un `Repository` completo: los contratos son tres roles en `@archi-code/ddd/domain` (`AggregateFinder.findById`, `AggregateSaver.save`, `AggregateRemover.remove`) y un caso de uso pide solo los que usa, combinados con `&`.
 * Los repositorios solo obtienen y persisten: sin `nextId()` ni consultas de negocio como `pendingOlderThan`, que pasan a ser consultas de lectura en `application/`.
-* El repositorio no lee campos del agregado: mapea con `AggregateMapper.of(Order)` (`toPrimitives(order)` y `fromPrimitives(row, version)`), que exige que el agregado tenga `toPrimitives()` y `static fromPrimitives()`.
-* La versión de concurrencia optimista vive en la base `AggregateRoot` (`version`, `restoreVersion()`, `markPersisted()`): el agregado no la declara ni la mapea, y solo los repositorios la tocan. Un conflicto es `ConcurrencyException(mapper.aggregateName, id, version, { cause })` (HTTP 409).
+* Cada repositorio es único para su agregado (`MongoOrderRepository implements AggregateFinder<Order>, AggregateSaver<Order>, AggregateRemover<Order>`) y sabe qué agregado reconstruye. Su constructor recibe solo las dependencias de su tecnología (una `collection` de MongoDB, un `pool` de Postgres), nunca la clase del agregado ni un mapper; los agregados solo entran y salen por sus métodos (`save(order)`, `remove(order)`, `findById(id)` → `Order | null`).
+* La conversión es del agregado, su único dueño: `toPrimitives()` y `static fromPrimitives()` (instantánea o Memento), sin un mapper, un servicio de dominio ni una comprobación de forma en medio. El repositorio no lee campos del agregado: guarda `order.toPrimitives()` con `order.version + 1` al lado y carga con `Order.fromPrimitives(row).restoreVersion(row.version)`. Nada comprueba en ejecución que la conversión esté completa: lo garantiza el test del agregado con el viaje de ida y vuelta (`Order.fromPrimitives(order.toPrimitives()).toPrimitives()` igual a `order.toPrimitives()`), y quien añade un campo lo añade a los dos métodos.
+* La versión de concurrencia optimista vive en la base `AggregateRoot` (`version`, `restoreVersion()`, `markPersisted()`): el agregado no la declara ni la mapea, y solo los repositorios la tocan. Un conflicto es `ConcurrencyException('Order', id, version, { cause })` (HTTP 409), con el nombre del agregado como texto literal y no como nombre de clase, que los minificadores cambian.
 * `remove(aggregate)` recibe el agregado cargado y comprueba su versión como `save`: borrar un agregado que otro cambió después de cargarlo es `ConcurrencyException`.
 * El repositorio no publica eventos: lo hace el caso de uso con `events.publish(order.pullDomainEvents())` después de `save`.
 * La transacción es del repositorio: no hay puerto de transacciones en `@archi-code/ddd/application` y la aplicación nunca abre, une ni cierra una. Cada `save`/`remove` es una escritura atómica, y si el agregado ocupa varias tablas el repositorio abre y confirma la transacción de la base de datos dentro de ese método, con su propia conexión o sesión.
-* La referencia para tests es `InMemoryRepository(AggregateMapper.of(Order))` con un `DomainEventBus` sobre `InMemoryEventChannel`; su `findAll()` existe solo como comodidad de los tests y un repositorio real no lo tiene.
+* El paquete no da un repositorio en memoria: cada proyecto escribe el suyo en `test/support/`, uno por agregado (`InMemoryOrderRepository`), con el mismo contrato que el real (copias guardadas, comprobación de versión, `markPersisted()`), y lo usa en los tests con un `DomainEventBus` sobre `InMemoryEventChannel`. Solo tiene `findAll()` si los tests del proyecto lo necesitan; un repositorio real no lo tiene.
 
 Un repositorio da la ilusión de una colección en memoria con todos los agregados de un tipo, con una interfaz conocida para añadir, quitar y seleccionar. **Solo los agregados tienen repositorio**, normalmente uno por tipo de agregado [IDDD cap. 12, citando a Evans].
 
@@ -75,14 +76,14 @@ export class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand
 
 Guía completa con MongoDB, PostgreSQL y Prisma en `ddd-skills/ddd-repositorios-persistencia/references/implementacion-ts.md`. Puntos clave:
 
-* El agregado se convierte en datos planos y vuelve a construirse con sus value objects [IDDD cap. 6]: el repositorio usa `AggregateMapper.of(Order)`, que llama a `order.toPrimitives()` (y comprueba en tiempo de ejecución que no falte estado privado ni se devuelvan value objects) y a `Order.fromPrimitives(primitives)` más `restoreVersion(version)`.
+* El agregado se convierte en datos planos y vuelve a construirse con sus value objects [IDDD cap. 6]: la conversión es del propio agregado y el repositorio llama a `order.toPrimitives()` y a `Order.fromPrimitives(row).restoreVersion(version)` `[Fuera de los libros: convención de @archi-code/ddd]`. Que no falte ningún campo lo prueba el test de ida y vuelta del agregado, no una comprobación en ejecución.
 * La **versión** se comprueba al guardar y al borrar (concurrencia optimista) [IDDD cap. 10]: se guarda junto a los primitivos, nunca dentro, y tras escribir el repositorio llama a `order.markPersisted()`.
 * Los **eventos** los publica el caso de uso con `EventBus.publish` después de `save`. Si un evento no puede perderse, el repositorio escribe el agregado y sus eventos pendientes en la misma escritura atómica (outbox) y un proceso aparte los entrega después por un `EventChannel` (`ddd-skills/ddd-repositorios-persistencia/references/transacciones-ts.md`, `ddd-skills/ddd-eventos-dominio/GUIA.md`).
 * El **esquema** sirve al modelo, no al revés [IDDD cap. 6]. Un agregado pequeño encaja a menudo en un documento, o en una fila con una columna `jsonb` para sus value objects.
 
 ## Paso 4. Transacciones
 
-La transacción es del repositorio, como todo lo demás de la persistencia `[Fuera de los libros: convención de @archi-code/ddd]`. La aplicación no abre, une ni cierra transacciones: el caso de uso carga, llama al método de negocio, `await this.orders.save(order)` y después `await this.events.publish(order.pullDomainEvents())`. El adaptador garantiza que cada `save`/`remove` es atómico (un documento en MongoDB; varias tablas SQL en una transacción que abre y confirma o revierte dentro del propio `save`, con su conexión), comprueba la versión (`ConcurrencyException`), gestiona la conexión, la sesión y el pool, y envuelve los errores del driver en `InternalErrorException` con `{ cause }`. Un conflicto se reintenta en `handle` volviendo a cargar y a guardar, con un límite y solo para comandos seguros de repetir. En tests basta `InMemoryRepository(AggregateMapper.of(Order))`. Patrón y ejemplos en `ddd-skills/ddd-repositorios-persistencia/references/transacciones-ts.md`.
+La transacción es del repositorio, como todo lo demás de la persistencia `[Fuera de los libros: convención de @archi-code/ddd]`. La aplicación no abre, une ni cierra transacciones: el caso de uso carga, llama al método de negocio, `await this.orders.save(order)` y después `await this.events.publish(order.pullDomainEvents())`. El adaptador garantiza que cada `save`/`remove` es atómico (un documento en MongoDB; varias tablas SQL en una transacción que abre y confirma o revierte dentro del propio `save`, con su conexión), comprueba la versión (`ConcurrencyException`), gestiona la conexión, la sesión y el pool, y envuelve los errores del driver en `InternalErrorException` con `{ cause }`. Un conflicto se reintenta en `handle` volviendo a cargar y a guardar, con un límite y solo para comandos seguros de repetir. En tests basta el `InMemoryOrderRepository` que el proyecto escribe en `test/support/`. Patrón y ejemplos en `ddd-skills/ddd-repositorios-persistencia/references/transacciones-ts.md`.
 
 ## Paso 5. Consultas
 
@@ -94,7 +95,7 @@ La transacción es del repositorio, como todo lo demás de la persistencia `[Fue
 
 Dos tipos de prueba [IDDD cap. 12]:
 * **Del repositorio real**, contra la base de datos de verdad (por ejemplo con Testcontainers o `mongodb-memory-server`) `[herramienta fuera de los libros]`.
-* **Del código que usa repositorios**, con una implementación **en memoria** cuando la real es lenta o aún no existe [IDDD cap. 12; PHP: Repositories]. Con el paquete es `new InMemoryRepository(AggregateMapper.of(Order))`: no escribas una propia.
+* **Del código que usa repositorios**, con una implementación **en memoria** cuando la real es lenta o aún no existe [IDDD cap. 12; PHP: Repositories]. Con el paquete se escribe en `test/support/` del proyecto, una por agregado (`new InMemoryOrderRepository()`), como cualquier otra implementación `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 Un mismo conjunto de tests de contrato, en `test/support/` del proyecto, se ejecuta contra ambas implementaciones para que la versión en memoria no mienta `[Fuera de los libros]`. Ver `ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`.
 
@@ -108,9 +109,11 @@ Un mismo conjunto de tests de contrato, en `test/support/` del proyecto, se ejec
 * El caso de uso recibe una dependencia `transactions`, `unitOfWork` o parecida, o abre `BEGIN`/`COMMIT` o `startTransaction()`: la transacción es del repositorio.
 * Un repositorio que reparte un agregado en varias tablas sin agrupar sus sentencias en una transacción dentro de `save`.
 * Docenas de métodos `findByXAndYOrderByZ` para pantallas.
-* El repositorio lee campos del agregado o construye filas a mano en vez de usar `AggregateMapper.of(Order)`.
+* El repositorio lee campos del agregado o construye filas a mano en vez de llamar a `order.toPrimitives()` y `Order.fromPrimitives(row)`.
+* El constructor del repositorio recibe la clase del agregado o un mapper: recibe solo las dependencias de su tecnología.
+* Un campo nuevo del agregado que no está en `toPrimitives()`/`fromPrimitives()`, sobre todo uno privado que `PrimitiveTypes<Order>` no ve, sin un test de ida y vuelta que lo detecte.
 * `save` con `upsert` sin condición de versión, `fromPrimitives(row)` sin la versión almacenada o `markPersisted()` olvidado tras escribir.
-* Un repositorio en memoria escrito a mano que no comprueba versiones ni copia objetos (los tests pasan, producción falla): usa `InMemoryRepository`.
+* Un repositorio en memoria que no comprueba versiones ni copia objetos (los tests pasan, producción falla): escríbelo como `InMemoryOrderRepository` y ejecuta contra él la suite de contrato.
 
 ## Siguiente guía
 

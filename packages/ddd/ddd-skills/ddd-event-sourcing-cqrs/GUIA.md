@@ -9,7 +9,7 @@
 [Fuera de los libros: convención de @archi-code/ddd]
 
 * El paquete no trae event store, repositorios con Event Sourcing, snapshots ni proyecciones con checkpoint: se construyen en la infraestructura del proyecto sobre sus clases, y solo si la tabla de decisión de esta guía lo justifica.
-* La `version` de `AggregateRoot` crece 1 por guardado, no por evento: un agregado con Event Sourcing lleva su propia versión de stream (`streamVersion()`), se reconstruye con `fromHistory` a partir de los eventos que reconstruye `EventRegistry` y no usa `AggregateMapper` ni `toPrimitives()`/`fromPrimitives()`.
+* La `version` de `AggregateRoot` crece 1 por guardado, no por evento: un agregado con Event Sourcing lleva su propia versión de stream (`streamVersion()`), se reconstruye con `fromHistory` a partir de los eventos que reconstruye `EventRegistry` y no usa `toPrimitives()`/`fromPrimitives()`.
 * El contrato del stream (`load`/`append`) lo declara el dominio y no es `AggregateFinder`/`AggregateSaver`; su adaptador es responsable de la persistencia: anexa los eventos de un `append` en una sola escritura atómica con la versión esperada y lanza `ConcurrencyException` si otro escribió antes. La aplicación no abre transacciones; el reintento ante `ConcurrencyException` va en el `handle` del caso de uso, cada intento vuelve a cargar y vuelve a anexar.
 * Una proyección es un `EventListener` con `@ListensTo(Event, { consumer })` que llama a un puerto de proyección (no a un caso de uso), idempotente por `eventId`; un `EventChannel` no guarda historial, así que reconstruirla exige un log de eventos propio (con Event Sourcing, el propio event store).
 * Una consulta de lectura es una interfaz en `application/` implementada en infraestructura directamente sobre la base de datos.
@@ -82,7 +82,7 @@ En Event Sourcing los eventos sirven para persistir el agregado **y** para comun
 * Eventos tipo `OrderUpdated` con el estado completo en el stream.
 * Proyecciones que no se pueden reconstruir (dependen de estado externo no reproducible).
 * Proyecciones no idempotentes (sin comprobar el `eventId` ya aplicado).
-* Un agregado con Event Sourcing que usa la `version` de `AggregateRoot` como versión de stream o se guarda con `AggregateMapper`.
+* Un agregado con Event Sourcing que usa la `version` de `AggregateRoot` como versión de stream o se guarda como instantánea con `toPrimitives()`.
 * Agregados que consultan read models para proteger invariantes (las invariantes viven en el agregado).
 * Datos personales en eventos sin estrategia de supresión.
 * CQRS con dos bases de datos para un CRUD de cinco pantallas.

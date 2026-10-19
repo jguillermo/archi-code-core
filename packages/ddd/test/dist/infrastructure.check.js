@@ -46,64 +46,41 @@ function orderModel() {
 function smoke(m) {
   return [
     [
-      'the aggregate mapper round-trips value objects and refuses raw state',
-      () => {
-        class CustomerName extends domain.Required(domain.StringType) {}
-        class Order extends domain.AggregateRoot {
-          constructor(id, customer) {
-            super(new domain.IdType(id));
-            this._customer = new CustomerName(customer);
-          }
-
-          static fromPrimitives(row) {
-            return new Order(row.id, row.customer);
-          }
-
-          get customer() {
-            return this._customer;
-          }
-
-          toPrimitives() {
-            return { id: this.id.value, customer: this.customer.value };
-          }
-        }
-        class Draft extends domain.AggregateRoot {
-          constructor(id) {
-            super(new domain.IdType(id));
-            this._submitted = false;
-          }
-
-          static fromPrimitives(row) {
-            return new Draft(row.id);
-          }
-
-          toPrimitives() {
-            return { id: this.id.value, submitted: false };
-          }
-        }
-        const mapper = m.AggregateMapper.of(Order);
-        const stored = mapper.toPrimitives(new Order(ORDER_ID, 'Ana'));
-        const loaded = mapper.fromPrimitives(stored);
-        let refused = '';
-        try {
-          m.AggregateMapper.of(Draft).toPrimitives(new Draft(ORDER_ID));
-        } catch (error) {
-          refused = error.message;
-        }
-        return (
-          (stored.customer === 'Ana' &&
-            loaded.customer.value === 'Ana' &&
-            refused ===
-              'Failed, internal error: Draft._submitted is a boolean, not a value object') ||
-          `unexpected mapper result: ${refused}`
-        );
-      },
-    ],
-    [
-      'the in-memory repository saves, loads copies, checks versions and removes',
+      'a repository written per aggregate saves, loads copies, checks versions and removes',
       async () => {
         const { Order } = orderModel();
-        const repository = new m.InMemoryRepository(m.AggregateMapper.of(Order));
+        class InMemoryOrderRepository {
+          constructor() {
+            this.rows = new Map();
+          }
+
+          async findById(id) {
+            const row = this.rows.get(id.value);
+            return row === undefined
+              ? null
+              : Order.fromPrimitives(structuredClone(row.primitives)).restoreVersion(row.version);
+          }
+
+          async save(order) {
+            const key = this.currentKey(order);
+            const primitives = structuredClone(order.toPrimitives());
+            this.rows.set(key, { version: order.version + 1, primitives });
+            order.markPersisted();
+          }
+
+          async remove(order) {
+            this.rows.delete(this.currentKey(order));
+          }
+
+          currentKey(order) {
+            const key = order.id.value;
+            if ((this.rows.get(key)?.version ?? 0) !== order.version) {
+              throw new exceptions.ConcurrencyException('Order', key, order.version);
+            }
+            return key;
+          }
+        }
+        const repository = new InMemoryOrderRepository();
         const id = new domain.IdType(ORDER_ID);
         await repository.save(Order.place(ORDER_ID, 'Ana'));
         const first = await repository.findById(id);

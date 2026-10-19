@@ -23,7 +23,8 @@ Qué pone `@archi-code/ddd` y qué escribe el proyecto:
 | `EventBase`, `AggregateRoot.record()`/`pullDomainEvents()` | `@archi-code/ddd/domain` |
 | `EventBus` (lo único que ve el caso de uso), `EventListener`, `@ListensTo` | `@archi-code/ddd/application` |
 | `DomainEventBus`, `EventRegistry`, `EventChannel`, `ChannelHandler`, `ChannelSubscription` (cableado del composition root y puerto del canal) | `@archi-code/ddd/infrastructure` |
-| `InMemoryEventChannel`, `InMemoryRepository` (tests) | `@archi-code/ddd/infrastructure` |
+| `InMemoryEventChannel` (tests) | `@archi-code/ddd/infrastructure` |
+| Repositorio en memoria (tests), uno por agregado (`InMemoryOrderRepository`) | `test/support/` del proyecto (`ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`) |
 | Repositorio con outbox, reenviador, deduplicación, traducción al lenguaje publicado, canal del broker | tu infraestructura, sobre esos puertos |
 
 ## Publicar desde el caso de uso
@@ -91,12 +92,11 @@ En los tests, `InMemoryEventChannel` guarda lo publicado en `channel.sent` (JSON
 ```ts
 import { describe, expect, it } from 'vitest';
 import {
-  AggregateMapper,
   DomainEventBus,
   FixedClock,
   InMemoryEventChannel,
-  InMemoryRepository,
 } from '@archi-code/ddd/infrastructure';
+import { InMemoryOrderRepository } from '../support/in-memory-order-repository';
 
 const orderId = '9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c';
 const customerId = '5c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f';
@@ -104,7 +104,7 @@ const customerId = '5c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f';
 describe('Adding a line to an order', () => {
   it('publishes OrderLineAdded with the new total', async () => {
     const clock = new FixedClock('2026-03-01T09:30:00Z');
-    const orders = new InMemoryRepository(AggregateMapper.of(Order));
+    const orders = new InMemoryOrderRepository();
     const channel = new InMemoryEventChannel();
     const bus = new DomainEventBus<OrderEvent>(channel, orderEvents);
     const order = Order.place(
@@ -171,7 +171,6 @@ CREATE INDEX stored_events_unpublished ON stored_events (sequence) WHERE publish
 ```ts
 import type { AggregateFinder, AggregateSaver, PrimitiveTypes } from '@archi-code/ddd/domain';
 import { ConcurrencyException, InternalErrorException } from '@archi-code/ddd/exceptions';
-import { AggregateMapper } from '@archi-code/ddd/infrastructure';
 
 interface QueryResult<Row> {
   rows: Row[];
@@ -196,8 +195,6 @@ interface OrderRow {
 }
 
 export class PostgresOrderRepository implements AggregateFinder<Order>, AggregateSaver<Order> {
-  private readonly mapper = AggregateMapper.of(Order);
-
   constructor(private readonly pool: Pool) {}
 
   async findById(id: OrderId): Promise<Order | null> {
@@ -206,14 +203,14 @@ export class PostgresOrderRepository implements AggregateFinder<Order>, Aggregat
         'SELECT version, data FROM orders WHERE id = $1',
         [id.value],
       );
-      return rows[0] ? this.mapper.fromPrimitives(rows[0].data, rows[0].version) : null;
+      return rows[0] ? Order.fromPrimitives(rows[0].data).restoreVersion(rows[0].version) : null;
     } catch (error) {
       throw new InternalErrorException('loading order', { cause: error });
     }
   }
 
   async save(order: Order): Promise<void> {
-    const primitives = this.mapper.toPrimitives(order);
+    const primitives = order.toPrimitives();
     const events = order.pullDomainEvents().map((event) => event.toJSON());
     const client = await this.pool.connect();
     try {
@@ -229,7 +226,7 @@ export class PostgresOrderRepository implements AggregateFinder<Order>, Aggregat
               [primitives.id, order.version, primitives.status, primitives],
             );
       if (rowCount === 0) {
-        throw new ConcurrencyException(this.mapper.aggregateName, order.id.value, order.version);
+        throw new ConcurrencyException('Order', order.id.value, order.version);
       }
       for (const event of events) {
         await client.query(

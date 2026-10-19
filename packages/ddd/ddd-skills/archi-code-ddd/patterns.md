@@ -246,7 +246,7 @@ which receives the loaded aggregate) and wraps driver errors with their cause:
 class MongoOrderRepository
   implements AggregateFinder<Order>, AggregateSaver<Order>, AggregateRemover<Order>
 {
-  private readonly mapper = AggregateMapper.of(Order);
+  constructor(private readonly collection: Collection<OrderDocument>) {}
 
   async findById(id: OrderId): Promise<Order | null> {
     const document = await this.collection.findOne({ _id: id.value });
@@ -254,11 +254,11 @@ class MongoOrderRepository
       return null;
     }
     const { _id, version, ...primitives } = document;
-    return this.mapper.fromPrimitives(primitives, version);
+    return Order.fromPrimitives(primitives).restoreVersion(version);
   }
 
   async save(order: Order): Promise<void> {
-    const data = { ...this.mapper.toPrimitives(order), version: order.version + 1 };
+    const data = { ...order.toPrimitives(), version: order.version + 1 };
     let written: boolean;
     try {
       written =
@@ -270,7 +270,7 @@ class MongoOrderRepository
       throw new InternalErrorException('saving order', { cause: error });
     }
     if (!written) {
-      throw new ConcurrencyException(this.mapper.aggregateName, order.id.value, order.version);
+      throw new ConcurrencyException('Order', order.id.value, order.version);
     }
     order.markPersisted();
   }
@@ -281,8 +281,54 @@ class MongoOrderRepository
       version: order.version,
     });
     if (deletedCount === 0 && order.version > 0) {
-      throw new ConcurrencyException(this.mapper.aggregateName, order.id.value, order.version);
+      throw new ConcurrencyException('Order', order.id.value, order.version);
     }
+  }
+}
+```
+
+A repository per aggregate and technology: the constructor receives only its technology, the
+aggregate converts itself and the repository calls it directly. The in-memory one
+lives in the project's `test/support/`:
+
+```ts
+import type {
+  AggregateFinder,
+  AggregateRemover,
+  AggregateSaver,
+  PrimitiveTypes,
+} from '@archi-code/ddd/domain';
+import { ConcurrencyException } from '@archi-code/ddd/exceptions';
+
+export class InMemoryOrderRepository
+  implements AggregateFinder<Order>, AggregateSaver<Order>, AggregateRemover<Order>
+{
+  private readonly rows = new Map<string, { version: number; primitives: PrimitiveTypes<Order> }>();
+
+  async findById(id: OrderId): Promise<Order | null> {
+    const row = this.rows.get(id.value);
+    return row === undefined
+      ? null
+      : Order.fromPrimitives(structuredClone(row.primitives)).restoreVersion(row.version);
+  }
+
+  async save(order: Order): Promise<void> {
+    const key = this.currentKey(order);
+    const primitives = structuredClone(order.toPrimitives());
+    this.rows.set(key, { version: order.version + 1, primitives });
+    order.markPersisted();
+  }
+
+  async remove(order: Order): Promise<void> {
+    this.rows.delete(this.currentKey(order));
+  }
+
+  private currentKey(order: Order): string {
+    const key = order.id.value;
+    if ((this.rows.get(key)?.version ?? 0) !== order.version) {
+      throw new ConcurrencyException('Order', key, order.version);
+    }
+    return key;
   }
 }
 ```
@@ -290,7 +336,7 @@ class MongoOrderRepository
 Wiring and tests with the in-memory adapters (repository, event channel) and the HTTP mapper:
 
 ```ts
-const orders = new InMemoryRepository(AggregateMapper.of(Order));
+const orders = new InMemoryOrderRepository();
 const registry = new EventRegistry<OrderEvent>().register(
   OrderLineAdded,
   (json) => new OrderLineAdded(json.aggregateId, json.sku as string, json.quantity as number, json),
@@ -324,7 +370,7 @@ describe('Adding a line to an order', () => {
     const warehouse: Warehouse = {
       prepare: async (orderId, sku) => void prepared.push(`${orderId.value}:${sku.value}`),
     };
-    const orders = new InMemoryRepository(AggregateMapper.of(Order));
+    const orders = new InMemoryOrderRepository();
     const channel = new InMemoryEventChannel();
     const bus = new DomainEventBus<OrderEvent>(channel, registry);
     await bus.subscribe(new PrepareShipmentOnOrderLineAdded(new PrepareShipment(warehouse)));
@@ -624,7 +670,7 @@ export function orderRepositoryContract(
   });
 }
 
-describe('InMemoryRepository', () =>
-  orderRepositoryContract(async () => new InMemoryRepository(AggregateMapper.of(Order))));
+describe('InMemoryOrderRepository', () =>
+  orderRepositoryContract(async () => new InMemoryOrderRepository()));
 describe('MongoOrderRepository', () => orderRepositoryContract(async () => mongoOrders()));
 ```

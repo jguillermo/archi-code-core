@@ -1,8 +1,5 @@
 export { SystemClock } from './clock/system-clock';
 export { FixedClock } from './clock/fixed-clock';
-export { InMemoryRepository } from './repository/in-memory-repository';
-export { AggregateMapper } from './repository/aggregate-mapper';
-export type { AggregateClass } from './repository/aggregate-mapper';
 export { DomainEventBus } from './event/domain-event-bus';
 export type { Subscription } from './event/domain-event-bus';
 export { EventRegistry } from './event/event-registry';

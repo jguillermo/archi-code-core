@@ -87,8 +87,8 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   `isSatisfiedBy`), the books' `Specification` interface [IDDD ch. 5]. It receives data already loaded (never a repository) and is
   never used to protect an invariant of an aggregate: invariants stay inside the aggregate.
 - **The domain knows nothing about persistence**: no mapper, repository nor storage concern in
-  domain code; a repository receives an aggregate and stores it. `AggregateMapper` is imported from
-  `@archi-code/ddd/infrastructure`.
+  domain code; a repository receives an aggregate and stores it, calling the aggregate's own
+  `toPrimitives()` / `fromPrimitives()`.
 - **Aggregates and their primitives** (every aggregate follows these six rules so infrastructure can
   store it; rules 1, 2, 4 and 5, and the name `fromPrimitives` of rule 3, are package conventions, `[Fuera de los libros: convención de
   @archi-code/ddd]`: the books allow a primitive without behavior [IDDD ch. 6], getters only where
@@ -104,25 +104,24 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
      from its primitive and records nothing.
   4. `toPrimitives(): PrimitiveTypes<Order>` returns only plain data (`vo.value`, child primitives),
      never a value object.
-  5. Repositories receive `AggregateMapper.of(Order)` and only call `toPrimitives` /
-     `fromPrimitives`; they never read the aggregate's fields.
+  5. Repositories only call `order.toPrimitives()` and `Order.fromPrimitives(row)` (plus
+     `.restoreVersion(version)`); they never read the aggregate's fields. There is no mapper.
   6. One round-trip test per aggregate: `Order.fromPrimitives(order.toPrimitives()).toPrimitives()`
      equals `order.toPrimitives()`.
-     The compiler rejects public raw state (`PrimitiveTypes` gives `never`); `AggregateMapper` throws
-     `InternalErrorException` at runtime for raw private state, private fields missing from the
-     primitives (also inside child entities and composites) and value objects returned by
-     `toPrimitives()`. An enum value object stores its option (`PrimitiveType` is the enum type),
+     The compiler rejects public raw state (`PrimitiveTypes` gives `never`); nothing checks private
+     state at run time: a private field left out of `toPrimitives()` compiles and is lost when
+     saving, so rule 2 and the round-trip test of rule 6 are the aggregate's responsibility. An enum value object stores its option (`PrimitiveType` is the enum type),
      so `new OrderStatus(primitives.status)` needs no cast.
 - Aggregates extend `AggregateRoot<Id, Event>` and call `super(id)`. **Every aggregate has a
   `version`** for optimistic concurrency: `0` when new, the stored one when loaded, `+1` after each
   save. The aggregate never declares, stores nor maps it (it is not a field nor in
   `PrimitiveTypes`); only repositories touch it.
 - **Every repository checks the version** (contract): load with
-  `mapper.fromPrimitives(row, storedVersion)`; save a new aggregate (`version === 0`) as version 1
+  `Order.fromPrimitives(row).restoreVersion(storedVersion)`; save a new aggregate (`version === 0`) as version 1
   and treat an existing id as a conflict; save an existing one only where the stored version still
   equals `aggregate.version`, storing `aggregate.version + 1` next to (never inside) the
   primitives; when nothing was written throw
-  `ConcurrencyException(mapper.aggregateName, id, aggregate.version)` (HTTP 409); after a write
+  `ConcurrencyException('Order', id, aggregate.version)` (HTTP 409); after a write
   call `aggregate.markPersisted()`. Keep the driver error: `ConcurrencyException(…, { cause })`.
   Removing is a change too: `remove(aggregate)` receives the loaded aggregate and deletes only
   where the stored version still equals `aggregate.version`, or throws `ConcurrencyException`
@@ -211,8 +210,18 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   technical one (`ExchangeRates`) is an interface in `domain/` implemented in infrastructure.
 - **Repositories only get and persist** (`findById`, `save`, `remove`): no business logic, no
   business queries (`pendingOlderThan`), no `nextId()`; new ids come from the value object
-  (`OrderId.generate()`). `InMemoryRepository.findAll()` is a convenience of the test adapter only
-  (`[Fuera de los libros: convención de @archi-code/ddd]`; a real repository has no `findAll()`).
+  (`OrderId.generate()`). A `findAll()` exists only in the in-memory repository of the tests, if
+  they need it (`[Fuera de los libros: convención de @archi-code/ddd]`; a real repository has no
+  `findAll()`).
+- **One repository per aggregate and technology** (user rule): it implements the roles it supports,
+  knows the aggregate it rebuilds, and its constructor receives only its technology (a collection,
+  a pool), never an aggregate class nor a mapper; aggregates only go in and out through its
+  methods. The aggregate converts itself (`toPrimitives()` / `static fromPrimitives()`), never a
+  domain service nor a mapper; the repository calls those methods directly
+  (`Order.fromPrimitives(row).restoreVersion(row.version)` on load, `order.toPrimitives()` with
+  `order.version + 1` on save, `ConcurrencyException('Order', …)` on a conflict) and maps the
+  primitives to its storage.
+  The package ships no repository: the in-memory one is written in the project's `test/support/`.
 - **Another aggregate is referenced by its id** (`customerId: CustomerId`), never by the object.
 - **A command can be refused, a fact cannot**: a method that registers something that already
   happened elsewhere (`registerStockReservation`, called by a listener) is idempotent and never
@@ -264,7 +273,7 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   `new DomainEventBus(channel, registry, logger)` (listener failures, subscriptions, what was
   published) and `new HttpErrorMapper({ statusByCode, logger })` (5xx as `error`, 4xx at `debug`):
   each error is logged once, where it is handled, never logged and rethrown in every layer.
-- Tests use `InMemoryRepository(AggregateMapper.of(Order))` and
+- Tests use the project's `InMemoryOrderRepository` (in `test/support/`) and
   `new DomainEventBus(new InMemoryEventChannel(), registry)` (`channel.sent` lists
   what was published; `{ delivery: 'parallel' }` runs the listeners of an event together).
 - Listeners extend `EventListener<Event>`, are decorated with `@ListensTo(EventClass, { consumer })`
@@ -278,8 +287,8 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   cannot rebuild. The use cases only receive `EventBus`.
 - A real repository implements the roles it supports (`AggregateFinder<A>`, `AggregateSaver<A>`,
   `AggregateRemover<A>`) and wraps driver errors in `InternalErrorException` with `cause`.
-  `InMemoryRepository(AggregateMapper.of(Order))` is the reference for tests: it stores copies of
-  the primitives with their version and follows the same concurrency contract.
+  The in-memory repository of the tests (`InMemoryOrderRepository`, see `patterns.md`) stores copies
+  of the primitives with their version and follows the same concurrency contract.
 - `DomainEventBus` rebuilds events with `EventRegistry`: register a factory per
   event class that passes the JSON as metadata
   (`register(OrderPlaced, (json) => new OrderPlaced(json.aggregateId, …, json))`); `fromJSON`

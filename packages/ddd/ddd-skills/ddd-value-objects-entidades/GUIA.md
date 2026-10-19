@@ -14,7 +14,7 @@
 * Los errores de una entrada se recogen con `ValueObjects.build({...})` y `ValidationException.errors`, no con un manejador de notificación.
 * Un value object es opcional por defecto (`value: T | null`) y `Required(XType)` lo hace obligatorio. Los libros crean siempre el valor con contenido y modelan lo opcional en el campo (`reservation: ReservationId | null`); con el paquete valen las dos formas.
 * La identidad de una entidad o raíz siempre es un value object obligatorio (`IdType` o `Required(...)`): un id sin valor lanza `RequiredValueException`, así dos entidades nuevas nunca son iguales por un id vacío [IDDD cap. 5].
-* Todo el estado de un agregado es value objects (también un booleano), cada campo guardado tiene un getter público con su nombre sin `_` y los valores derivados son métodos, nunca getters. La reconstitución es `static fromPrimitives(PrimitiveTypes<X>)` con su `toPrimitives()`, y el repositorio usa `AggregateMapper.of(X)`. Los libros solo piden getters donde hacen falta y un mapper en infraestructura.
+* Todo el estado de un agregado es value objects (también un booleano), cada campo guardado tiene un getter público con su nombre sin `_` y los valores derivados son métodos, nunca getters. La reconstitución es `static fromPrimitives(PrimitiveTypes<X>)` con su `toPrimitives()`, que el repositorio llama directamente y cuyo viaje de ida y vuelta prueba el spec del agregado (nada lo comprueba en ejecución). Los libros solo piden getters donde hacen falta y un mapper en infraestructura.
 
 Dos piezas básicas del modelo. Vernon insiste en un sesgo concreto: **modela con value objects siempre que puedas**. Incluso una entidad debería ser sobre todo un contenedor de value objects, no de entidades hijas, porque los valores son más fáciles de crear, probar, usar, optimizar y mantener [IDDD cap. 6].
 
@@ -94,7 +94,7 @@ Revisa el diseño con los patrones de diseño flexible (Supple Design): interfac
 
 ## Paso 6. Persistencia sin fugas
 
-Cómo guardar value objects (columnas embebidas, JSON, tabla propia para colecciones) sin convertirlos en entidades del modelo: `ddd-skills/ddd-value-objects-entidades/references/persistencia-valores.md`. La regla: diseña el modelo de datos al servicio del modelo de dominio [IDDD cap. 6]. Con el paquete, el repositorio parte de `AggregateMapper.of(Order)` y decide en infraestructura cómo reparte los primitivos en columnas.
+Cómo guardar value objects (columnas embebidas, JSON, tabla propia para colecciones) sin convertirlos en entidades del modelo: `ddd-skills/ddd-value-objects-entidades/references/persistencia-valores.md`. La regla: diseña el modelo de datos al servicio del modelo de dominio [IDDD cap. 6]. Con el paquete, el repositorio parte de `order.toPrimitives()` (y carga con `Order.fromPrimitives(row).restoreVersion(version)`) y decide en infraestructura cómo reparte los primitivos en columnas.
 
 ## Señales de alarma
 

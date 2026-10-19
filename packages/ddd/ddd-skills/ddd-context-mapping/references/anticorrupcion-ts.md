@@ -392,7 +392,7 @@ export class InMemoryProductPricing implements ProductPricing {
 }
 ```
 
-Con ella, `PlaceOrder` se prueba con `new InMemoryRepository(AggregateMapper.of(Order))`, un `DomainEventBus` sobre `InMemoryEventChannel` y `new FixedClock('2026-03-01T09:30:00Z')`, comprobando `channel.sent` y lo guardado.
+Con ella, `PlaceOrder` se prueba con `new InMemoryOrderRepository()` (el repositorio en memoria que el proyecto escribe en `test/support/`, como en `ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`), un `DomainEventBus` sobre `InMemoryEventChannel` y `new FixedClock('2026-03-01T09:30:00Z')`, comprobando `channel.sent` y lo guardado.
 
 ## Errores frecuentes
 

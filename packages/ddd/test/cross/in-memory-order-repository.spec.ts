@@ -1,5 +1,5 @@
 import { describe, expect, expectTypeOf, it, vi } from 'vitest';
-import type { AggregateFinder, AggregateRemover, AggregateSaver } from '../../../src/domain/index';
+import type { AggregateFinder, AggregateRemover, AggregateSaver } from '../../src/domain/index';
 import {
   AggregateRoot,
   CreatedAt,
@@ -7,16 +7,10 @@ import {
   IdType,
   Required,
   StringType,
-} from '../../../src/domain/index';
-import { AggregateMapper } from '../../../src/infrastructure/repository/aggregate-mapper';
-import {
-  ConcurrencyException,
-  DomainException,
-  InternalErrorException,
-} from '../../../src/exceptions/index';
-import type { PrimitiveTypes } from '../../../src/domain/index';
-import { FixedClock } from '../../../src/infrastructure/clock/fixed-clock';
-import { InMemoryRepository } from '../../../src/infrastructure/repository/in-memory-repository';
+} from '../../src/domain/index';
+import { FixedClock } from '../../src/infrastructure/index';
+import { ConcurrencyException, DomainException } from '../../src/exceptions/index';
+import type { PrimitiveTypes } from '../../src/domain/index';
 
 class OrderId extends IdType<'OrderId'> {}
 class CustomerName extends Required(StringType) {}
@@ -102,35 +96,55 @@ class Order extends AggregateRoot<OrderId> {
   }
 }
 
-class Draft extends AggregateRoot<OrderId> {
-  private constructor(
-    id: OrderId,
-    private _submitted: boolean,
-  ) {
-    super(id);
-  }
-
-  static start(id: string): Draft {
-    return new Draft(new OrderId(id), false);
-  }
-
-  static fromPrimitives(primitives: PrimitiveTypes<Draft>): Draft {
-    return new Draft(new OrderId(primitives.id), false);
-  }
-
-  toPrimitives(): PrimitiveTypes<Draft> {
-    return { id: this.id.value };
-  }
+interface StoredOrder {
+  readonly version: number;
+  readonly primitives: PrimitiveTypes<Order>;
 }
 
-const orderMapper = AggregateMapper.of(Order);
+class InMemoryOrderRepository
+  implements AggregateFinder<Order>, AggregateSaver<Order>, AggregateRemover<Order>
+{
+  private readonly rows = new Map<string, StoredOrder>();
+
+  async findById(id: OrderId): Promise<Order | null> {
+    const row = this.rows.get(id.value);
+    return row === undefined ? null : this.load(row);
+  }
+
+  async findAll(): Promise<Order[]> {
+    return Array.from(this.rows.values(), (row) => this.load(row));
+  }
+
+  async save(order: Order): Promise<void> {
+    const key = this.currentKey(order);
+    const primitives = structuredClone(order.toPrimitives());
+    this.rows.set(key, { version: order.version + 1, primitives });
+    order.markPersisted();
+  }
+
+  async remove(order: Order): Promise<void> {
+    this.rows.delete(this.currentKey(order));
+  }
+
+  private currentKey(order: Order): string {
+    const key = order.id.value;
+    if ((this.rows.get(key)?.version ?? 0) !== order.version) {
+      throw new ConcurrencyException('Order', key, order.version);
+    }
+    return key;
+  }
+
+  private load(row: StoredOrder): Order {
+    return Order.fromPrimitives(structuredClone(row.primitives)).restoreVersion(row.version);
+  }
+}
 
 const orderId = '9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c';
 const otherOrderId = '3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f';
 const clock = new FixedClock('2026-03-01T09:30:00Z');
 
 function orders() {
-  return new InMemoryRepository(orderMapper);
+  return new InMemoryOrderRepository();
 }
 
 async function storedOrder(repository = orders()) {
@@ -140,19 +154,9 @@ async function storedOrder(repository = orders()) {
   return repository;
 }
 
-describe('InMemoryRepository: the repository of a use case test or a prototype', () => {
-  it('is built from the mapper of the aggregate, so it never reads the order properties itself', () => {
-    expectTypeOf(orders()).toEqualTypeOf<InMemoryRepository<Order>>();
-  });
-
-  it('refuses to store a draft that keeps a raw boolean instead of a value object', async () => {
-    const drafts = new InMemoryRepository(AggregateMapper.of(Draft));
-    const save = drafts.save(Draft.start(orderId));
-    await expect(save).rejects.toThrow(InternalErrorException);
-    await expect(drafts.save(Draft.start(orderId))).rejects.toThrow(
-      'Failed, internal error: Draft._submitted is a boolean, not a value object',
-    );
-    expect(await drafts.findAll()).toEqual([]);
+describe('InMemoryOrderRepository: a repository a project writes in its tests, one per aggregate', () => {
+  it('needs nothing in its constructor: it knows its aggregate and converts through the aggregate itself', () => {
+    expectTypeOf<ConstructorParameters<typeof InMemoryOrderRepository>>().toEqualTypeOf<[]>();
   });
 
   it('can be injected wherever a use case asks for a finder, a saver or a remover of orders', () => {
@@ -328,7 +332,7 @@ describe('InMemoryRepository: the repository of a use case test or a prototype',
   });
 
   describe('removing an order', () => {
-    async function loaded(repository: InMemoryRepository<Order>, id = orderId): Promise<Order> {
+    async function loaded(repository: InMemoryOrderRepository, id = orderId): Promise<Order> {
       return (await repository.findById(new OrderId(id))) as Order;
     }
 

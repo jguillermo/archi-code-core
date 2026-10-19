@@ -211,7 +211,7 @@ Reglas:
 * `fromHistory` aplica sin `record`: reconstituir no genera eventos nuevos.
 * El reloj se recibe como `{ now(): Date }` y se pasa a cada evento (`{ clock }`), para que reconstruir no dependa de la hora actual; en pruebas, `FixedClock`.
 * IDDD propone separar estado y comportamiento en dos clases que solo colaboran a través de `apply` [IDDD apéndice A]; aquí el estado son campos privados de value objects que solo `apply` escribe. Si el agregado crece, extrae ese estado a una clase propia con su `apply`.
-* `[Fuera de los libros: convención de @archi-code/ddd]` La `version` de `AggregateRoot` cuenta guardados, no eventos (crece 1 por `save`), así que este agregado lleva su propia versión de stream (`streamVersion()`, los eventos que se aplicaron al cargar) y no se guarda con `AggregateMapper`: no necesita `toPrimitives()`/`fromPrimitives()` ni getters para sus campos, porque lo que se persiste son los eventos.
+* `[Fuera de los libros: convención de @archi-code/ddd]` La `version` de `AggregateRoot` cuenta guardados, no eventos (crece 1 por `save`), así que este agregado lleva su propia versión de stream (`streamVersion()`, los eventos que se aplicaron al cargar) y no se guarda como instantánea: no necesita `toPrimitives()`/`fromPrimitives()` ni getters para sus campos, porque lo que se persiste son los eventos.
 
 ## Event store
 

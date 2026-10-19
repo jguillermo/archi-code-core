@@ -38,7 +38,7 @@ Con el paquete, la tecnología es un `EventChannel` del proyecto (`RabbitMqEvent
 
 El estado de un agregado se guarda como la secuencia de sus eventos y se reconstruye aplicándolos [Destilado cap. 6; IDDD cap. 4]. Aporta historial completo y auditoría, pero cambia por completo la persistencia y las consultas. Ver `ddd-skills/ddd-event-sourcing-cqrs/GUIA.md` antes de decidir.
 
-El paquete no trae event store: guarda agregados como primitivas con `AggregateMapper` y su `version` crece 1 por cada `save`, no por evento. Un agregado con Event Sourcing sigue extendiendo `AggregateRoot` y registrando con `record()`, pero su repositorio (en `infrastructure/`, implementando `AggregateFinder`/`AggregateSaver`) lleva la versión del flujo él mismo y no usa `AggregateMapper`. `[Fuera de los libros: convención de @archi-code/ddd]`
+El paquete no trae event store: cada repositorio guarda el `toPrimitives()` del agregado junto a su `version`, que crece 1 por cada `save`, no por evento. Un agregado con Event Sourcing sigue extendiendo `AggregateRoot` y registrando con `record()`, pero su repositorio (en `infrastructure/`, implementando `AggregateFinder`/`AggregateSaver`) lleva la versión del flujo él mismo y reconstruye el agregado aplicando sus eventos, no con `toPrimitives()`/`fromPrimitives()`. `[Fuera de los libros: convención de @archi-code/ddd]`
 
 ## Tabla de decisión
 

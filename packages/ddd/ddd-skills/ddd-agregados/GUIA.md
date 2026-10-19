@@ -12,7 +12,7 @@
 * Todo el estado son value objects, composites o entidades hijas con getter público; constructor privado, una factoría de negocio y `fromPrimitives`, y `toPrimitives()` con datos planos (las seis reglas de `layers.md`).
 * Las identidades nuevas salen del value object (`OrderId.generate()`), no del repositorio.
 * Los métodos del dominio reciben `clock: { now(): Date }` y lo pasan a los eventos (`{ clock }`).
-* La variante funcional (estado inmutable + funciones que devuelven `[estado, eventos]`) no la da el paquete: necesita clases `AggregateRoot`, `PrimitiveTypes` y `AggregateMapper`.
+* La variante funcional (estado inmutable + funciones que devuelven `[estado, eventos]`) no la da el paquete: necesita clases `AggregateRoot` y `PrimitiveTypes`.
 * El agregado registra sus eventos con `record()` y el caso de uso, tras `await this.orders.save(order)`, los publica con `events.publish(order.pullDomainEvents())`. La aplicación no abre transacciones: la transacción es del repositorio, que hace atómico cada `save`; si un evento no puede perderse, el repositorio lo guarda con el agregado en la misma escritura (outbox) y un proceso aparte lo entrega por un `EventChannel`.
 * Una política se parte en un listener `<Acción>On<Evento>` con `@ListensTo` y el caso de uso que ejecuta.
 

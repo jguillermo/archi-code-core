@@ -281,25 +281,24 @@ export class RegisterReservationOnStockReserved extends EventListener<StockReser
 
 ## Test del flujo
 
-El test comprueba lo que el listener provoca, no que se le llame, y entrega el mismo evento dos veces. `aPendingOrderOf`, `laura` y `orderId` son fábricas y datos de `test/support/` del proyecto, como en `ddd-skills/ddd-servicios-capa-aplicacion/references/capa-aplicacion-ts.md`:
+El test comprueba lo que el listener provoca, no que se le llame, y entrega el mismo evento dos veces. `aPendingOrderOf`, `laura` y `orderId` son fábricas y datos de `test/support/` del proyecto, y `InMemoryOrderRepository` es el repositorio en memoria que el proyecto escribe allí (`ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`), como en `ddd-skills/ddd-servicios-capa-aplicacion/references/capa-aplicacion-ts.md`:
 
 ```ts
 import { describe, expect, it } from 'vitest';
 import {
-  AggregateMapper,
   DomainEventBus,
   EventRegistry,
   FixedClock,
   InMemoryEventChannel,
-  InMemoryRepository,
 } from '@archi-code/ddd/infrastructure';
+import { InMemoryOrderRepository } from '../support/in-memory-order-repository';
 
 const clock = new FixedClock('2026-03-01T09:30:00Z');
 const reservationId = '0f1e2d3c-4b5a-4968-8776-655443322110';
 
 describe('Registering the stock reservation of an order', () => {
   it('the order keeps the reservation the warehouse made, also when it is delivered twice', async () => {
-    const orders = new InMemoryRepository(AggregateMapper.of(Order));
+    const orders = new InMemoryOrderRepository();
     const registry = new EventRegistry<StockReserved>().register(
       StockReserved,
       (json) => new StockReserved(json.aggregateId, json.orderId as string, json),
