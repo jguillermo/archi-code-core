@@ -23,7 +23,10 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   `ValidationException` whose `errors` carry the `field` and `code` of each problem (required
   `DOM004`, conversion `DOM003`, a rule name, or the code of any `DomainException`, such as your
   `ORD003`); `ValueObjects.buildList(list, (item) => …)` names list items by position
-  (`lines.1.quantity`). It returns the command typed field by field.
+  (`lines.1.quantity`). It returns the command typed field by field. Factories are synchronous (one
+  that returns a Promise does not compile and is refused at run time with
+  `InternalErrorException`), and an error that is not a `DomainException` is a bug that wins over the
+  validation errors already collected.
 - **Which layer validates what:** the input adapter checks the shape and format of the request (it
   parses, a field is a string, an empty field or a length for a good user experience [IDDD ch. 4]),
   never a business rule, and that never replaces the value object; value objects check each value (built in

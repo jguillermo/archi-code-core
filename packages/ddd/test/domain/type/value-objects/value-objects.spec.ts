@@ -1,4 +1,4 @@
-import { describe, expect, expectTypeOf, it } from 'vitest';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { Validations } from '@archi-code/validation';
 import { ValueObjects } from '../../../../src/domain/type/value-objects/value-objects';
 import { ArrayType } from '../../../../src/domain/type/array-type';
@@ -9,6 +9,7 @@ import { Required } from '../../../../src/domain/type/required/required';
 import { DomainException } from '../../../../src/exceptions/domain/domain.exception';
 import { ValidationException } from '../../../../src/exceptions/domain/validation.exception';
 import { AggregateNotFoundException } from '../../../../src/exceptions/application/aggregate-not-found.exception';
+import { InternalErrorException } from '../../../../src/exceptions/infrastructure/internal-error.exception';
 
 class OrderId extends IdType<'OrderId'> {}
 
@@ -226,6 +227,72 @@ describe('ValueObjects: building every value object of an input at once', () => 
     it('an empty input builds an empty command', () => {
       expect(ValueObjects.build({})).toEqual({});
     });
+
+    it('lets a bug win over the validation errors already collected: the bug is reported first', () => {
+      const outage = new TypeError('Cannot read properties of undefined');
+      expect(() =>
+        ValueObjects.build({
+          email: () => new CustomerEmail('ana'),
+          broken: () => {
+            throw outage;
+          },
+          units: () => new Units(0),
+        }),
+      ).toThrow(outage);
+    });
+
+    it('keeps a field named __proto__ as a field of the command, without touching its prototype', () => {
+      const command = ValueObjects.build({ ['__proto__']: () => new Sku('TORCH-01') });
+
+      expect(Object.keys(command)).toEqual(['__proto__']);
+      expect(Object.getOwnPropertyDescriptor(command, '__proto__')?.value).toEqual(
+        new Sku('TORCH-01'),
+      );
+      expect(Object.getPrototypeOf(command)).toBe(Object.prototype);
+    });
+
+    describe('asynchronous factories', () => {
+      it('do not compile: a value object is built synchronously', () => {
+        expect(() =>
+          ValueObjects.build({
+            // @ts-expect-error a factory that returns a Promise would skip the validation
+            email: async () => new CustomerEmail('ana@example.com'),
+          }),
+        ).toThrow(InternalErrorException);
+      });
+
+      it('are refused at run time with the field, before their result reaches the command', () => {
+        const build = () =>
+          ValueObjects.build({
+            orderId: () => new OrderId(orderId),
+            email: (() => Promise.resolve(new CustomerEmail('ana@example.com'))) as () => unknown,
+          });
+
+        expect(build).toThrow(InternalErrorException);
+        expect(build).toThrow(
+          'Failed, internal error: ValueObjects: the factory of "email" returned a Promise; build value objects synchronously',
+        );
+      });
+
+      it('never leave an unhandled rejection behind when the refused factory fails', async () => {
+        const unhandled = vi.fn();
+        process.on('unhandledRejection', unhandled);
+        const rejected = Promise.reject(new ValidationException([{ field: null, message: 'x' }]));
+
+        expect(() => ValueObjects.build({ email: (() => rejected) as () => unknown })).toThrow(
+          InternalErrorException,
+        );
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        process.off('unhandledRejection', unhandled);
+        expect(unhandled).not.toHaveBeenCalled();
+      });
+
+      it('accept a value object that only has a then field that is not a function', () => {
+        const scheduled = { then: 'tomorrow' };
+        expect(ValueObjects.build({ delivery: () => scheduled }).delivery).toBe(scheduled);
+      });
+    });
   });
 
   describe('buildList and nested inputs', () => {
@@ -283,6 +350,14 @@ describe('ValueObjects: building every value object of an input at once', () => 
 
     it('builds an empty list from an empty input', () => {
       expect(ValueObjects.buildList([], (sku: string) => new Sku(sku))).toEqual([]);
+    });
+
+    it('refuses an asynchronous item factory at run time, naming its position', () => {
+      const build = () => ValueObjects.buildList(['TORCH-01'], async (sku) => new Sku(sku));
+
+      expect(build).toThrow(
+        'Failed, internal error: ValueObjects: the factory of "0" returned a Promise; build value objects synchronously',
+      );
     });
   });
 });

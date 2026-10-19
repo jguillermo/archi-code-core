@@ -372,9 +372,14 @@ input (a form, a JSON body, a message) at once, build the value objects with
 `ValidationException` whose `errors` name the field of each problem. It collects the three ways a
 value can be wrong: empty in a required type (`RequiredValueException`), not convertible
 (`TypePrimitiveException`) and broken rules (`ValidationException`), plus any other
-`DomainException` a factory throws. Any other error is a bug and goes through untouched.
+`DomainException` a factory throws. Any other error is a bug and goes through untouched, and it
+wins: the validation errors already collected are dropped, so a bug is never hidden behind a 422.
 `ValueObjects.buildList` does the same for a list and names each item by its position, so nested
-inputs get paths such as `lines.1.quantity`.
+inputs get paths such as `lines.1.quantity`. Factories are synchronous: a factory that returns a
+Promise does not compile in `build`, and both methods refuse it at run time with
+`InternalErrorException` (`ValueObjects: the factory of "email" returned a Promise; build value
+objects synchronously`), so an asynchronous check never skips the validation. Every field name is
+kept as written, `__proto__` included.
 
 ```ts
 import { IdType, NumberType, Required, StringType, ValueObjects } from '@archi-code/ddd/domain';
