@@ -9,7 +9,8 @@
 [Fuera de los libros: convención de @archi-code/ddd]
 
 * El puerto hacia otro contexto (`ProductPricing`) es una interfaz en `domain/` con value objects; adaptador y traductor van en `infrastructure/`. Un webhook entrante es un punto de entrada que llama a un caso de uso.
-* Los eventos que salen a otros contextos se traducen con `PublishedLanguage.expose(...)` y `translate(json)` en el relay; nunca se envía `event.toJSON()` de un evento de dominio.
+* Los eventos que salen a otros contextos se traducen con `PublishedLanguage.expose(...)` y `translate(json, sequence)` en el relay; nunca se envía `event.toJSON()` de un evento de dominio.
+* El envoltorio publicado es `{ name, version, messageId, sequence, occurredOn, data }` en lugar del de IDDD `{ notificationId, typeName, version, occurredOn, event }`: `sequence` es la secuencia del outbox (el `notificationId`), `messageId` el `eventId`, `name` el `typeName` y `data` el `event`.
 * Los procesos entre contextos se encadenan con eventos y listeners (`@ListensTo`), cada uno con su caso de uso.
 
 Una línea entre dos Bounded Contexts significa tres cosas a la vez: que hay **integración técnica**, que hay una **relación entre equipos** y que hay una **traducción entre dos lenguajes** [Destilado cap. 4]. Esta guía decide el tipo de cada línea y cómo se implementa.

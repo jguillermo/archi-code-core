@@ -43,8 +43,8 @@ class KeyValueCustomerRepository
     this.store.set(customer.id.value, JSON.stringify(customer.toPrimitives()));
   }
 
-  async remove(id: CustomerId): Promise<void> {
-    this.store.delete(id.value);
+  async remove(customer: Customer): Promise<void> {
+    this.store.delete(customer.id.value);
   }
 }
 
@@ -59,7 +59,7 @@ describe('Repository roles: the domain contracts a use case loads, saves and rem
       (aggregate: Customer) => Promise<void>
     >();
     expectTypeOf<AggregateRemover<Customer>['remove']>().toEqualTypeOf<
-      (id: CustomerId) => Promise<void>
+      (aggregate: Customer) => Promise<void>
     >();
   });
 
@@ -77,7 +77,8 @@ describe('Repository roles: the domain contracts a use case loads, saves and rem
   it('forgets a removed customer', async () => {
     const repository = new KeyValueCustomerRepository();
     await repository.save(new Customer(new CustomerId(customerId), new CustomerName('Ana')));
-    await repository.remove(new CustomerId(customerId));
+    const loaded = await repository.findById(new CustomerId(customerId));
+    await repository.remove(loaded as Customer);
     expect(await repository.findById(new CustomerId(customerId))).toBeNull();
   });
 
@@ -130,7 +131,9 @@ describe('Repository roles: the domain contracts a use case loads, saves and rem
     }
 
     class ForgetCustomer extends UseCase<{ id: string }, CustomerId, void> {
-      constructor(private readonly customers: AggregateRemover<Customer>) {
+      constructor(
+        private readonly customers: AggregateFinder<Customer> & AggregateRemover<Customer>,
+      ) {
         super();
       }
 
@@ -139,7 +142,11 @@ describe('Repository roles: the domain contracts a use case loads, saves and rem
       }
 
       protected async handle(id: CustomerId): Promise<void> {
-        await this.customers.remove(id);
+        const customer = await this.customers.findById(id);
+        if (customer === null) {
+          throw new AggregateNotFoundException('Customer', id.value);
+        }
+        await this.customers.remove(customer);
       }
     }
 
@@ -164,14 +171,15 @@ describe('Repository roles: the domain contracts a use case loads, saves and rem
       expect(() => finder.save).toBeDefined();
     });
 
-    it('the GDPR erasure use case only depends on remove', async () => {
+    it('the GDPR erasure use case loads the customer and removes it, nothing else', async () => {
       const removed: string[] = [];
-      const remover: AggregateRemover<Customer> = {
-        remove: async (id) => {
-          removed.push(id.value);
+      const repository: AggregateFinder<Customer> & AggregateRemover<Customer> = {
+        findById: async (id) => new Customer(id, new CustomerName('Ana')),
+        remove: async (customer) => {
+          removed.push(customer.id.value);
         },
       };
-      await new ForgetCustomer(remover).execute({ id: customerId });
+      await new ForgetCustomer(repository).execute({ id: customerId });
       expect(removed).toEqual([customerId]);
     });
 

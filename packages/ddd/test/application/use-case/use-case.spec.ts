@@ -122,8 +122,8 @@ class FakeOrderRepository
     this.rows.set(order.id.value, order.toPrimitives());
   }
 
-  async remove(id: OrderId): Promise<void> {
-    this.rows.delete(id.value);
+  async remove(order: Order): Promise<void> {
+    this.rows.delete(order.id.value);
   }
 }
 

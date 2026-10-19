@@ -12,7 +12,9 @@
 * Un valor de varios atributos (`Money`, `DateRange`, `OrderLine`) es `Composite({...})`; un estado, un `EnumType`; un id, `IdType` con `OrderId.generate()`.
 * `Money` va en céntimos enteros con `Required(NumberType)` + `isInt` en lugar de `bigint`: exacto hasta `Number.MAX_SAFE_INTEGER` (9.007.199.254.740.991 céntimos); el paquete no tiene tipo `bigint`.
 * Los errores de un input se recogen con `ValueObjects.build({...})`, no con un manejador de notificación.
-* `Specification<T>` y `Entity<Id>` vienen de `@archi-code/ddd/domain`. Los valores derivados son métodos, nunca getters calculados.
+* `Specification<T>` y `Entity<Id>` vienen de `@archi-code/ddd/domain`; `and`/`or` aceptan cualquier objeto con `isSatisfiedBy` (`SatisfiedBy<T>`). Los valores derivados son métodos, nunca getters calculados.
+* Un value object es opcional por defecto (`value: T | null`) y `Required(XType)` lo hace obligatorio. Los libros crean siempre el valor con contenido y modelan lo opcional en el campo (`reservation: ReservationId | null`); con el paquete valen las dos formas.
+* La identidad de una entidad o raíz siempre es un value object obligatorio (`IdType` o `Required(...)`): un id sin valor lanza `RequiredValueException`, así dos entidades nuevas nunca son iguales por un id vacío [IDDD cap. 5].
 
 Dos piezas básicas del modelo. Vernon insiste en un sesgo concreto: **modela con value objects siempre que puedas**. Incluso una entidad debería ser sobre todo un contenedor de value objects, no de entidades hijas, porque los valores son más fáciles de crear, probar, usar, optimizar y mantener [IDDD cap. 6].
 

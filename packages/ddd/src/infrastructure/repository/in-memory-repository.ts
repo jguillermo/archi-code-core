@@ -37,18 +37,14 @@ export class InMemoryRepository<
   }
 
   async save(aggregate: Aggregate): Promise<void> {
-    const key = aggregate.id.toString();
-    const storedVersion = this.rows.get(key)?.version ?? 0;
-    if (storedVersion !== aggregate.version) {
-      throw new ConcurrencyException(this.mapper.aggregateName, key, aggregate.version);
-    }
+    const key = this.keyOfCurrent(aggregate);
     const primitives = structuredClone(this.mapper.toPrimitives(aggregate));
     this.rows.set(key, { version: aggregate.version + 1, primitives });
     aggregate.markPersisted();
   }
 
-  async remove(id: Aggregate['id']): Promise<void> {
-    this.rows.delete(id.toString());
+  async remove(aggregate: Aggregate): Promise<void> {
+    this.rows.delete(this.keyOfCurrent(aggregate));
   }
 
   snapshot(): () => void {
@@ -57,6 +53,15 @@ export class InMemoryRepository<
       this.rows.clear();
       saved.forEach((row, key) => this.rows.set(key, row));
     };
+  }
+
+  private keyOfCurrent(aggregate: Aggregate): string {
+    const key = aggregate.id.toString();
+    const storedVersion = this.rows.get(key)?.version ?? 0;
+    if (storedVersion !== aggregate.version) {
+      throw new ConcurrencyException(this.mapper.aggregateName, key, aggregate.version);
+    }
+    return key;
   }
 
   private load(row: StoredAggregate<Aggregate>): Aggregate {

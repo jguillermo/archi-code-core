@@ -18,8 +18,12 @@ export class InMemoryTransactionRunner implements TransactionRunner {
     return this.rollbacks;
   }
 
+  inTransaction(): boolean {
+    return this.open.getStore() === true;
+  }
+
   run<Result>(work: () => Promise<Result>): Promise<Result> {
-    if (this.open.getStore() === true) {
+    if (this.inTransaction()) {
       return work();
     }
     const transaction = this.turn.then(() => this.runAlone(work));

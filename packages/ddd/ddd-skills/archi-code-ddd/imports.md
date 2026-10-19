@@ -30,10 +30,12 @@ import {
   ConcurrencyException,
   DomainException,
   ExceptionCode,
+  InfrastructureException,
   InternalErrorException,
   NotAllowedException,
   RequiredValueException,
   TypePrimitiveException,
+  UnknownEventException,
   ValidationException,
 } from '@archi-code/ddd/exceptions';
 import type { ValidationIssue } from '@archi-code/ddd/exceptions';
@@ -41,8 +43,12 @@ import type {
   AggregateFinder,
   AggregateRemover,
   AggregateSaver,
+  EntityId,
+  EventClass,
   EventMetadata,
   PrimitiveTypes,
+  SatisfiedBy,
+  SerializedEvent,
 } from '@archi-code/ddd/domain';
 import { EventListener, ListensTo, UseCase } from '@archi-code/ddd/application';
 import type { Clock, EventBus, TransactionRunner } from '@archi-code/ddd/application';
@@ -60,6 +66,14 @@ import {
   OutboxRelay,
   PublishedLanguage,
   SystemClock,
+} from '@archi-code/ddd/infrastructure';
+import type {
+  InboxStore,
+  OutboxEntry,
+  OutboxRelayOptions,
+  OutboxStore,
+  PublishedMessage,
+  TransactionParticipant,
 } from '@archi-code/ddd/infrastructure';
 import { Validations } from '@archi-code/validation';
 ```

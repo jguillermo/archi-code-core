@@ -106,4 +106,11 @@ describe('InMemoryEventBus: publishing domain events inside one process', () => 
       expect(new InMemoryEventBus().published).toEqual([]);
     });
   });
+
+  it('freezes every event it publishes, so a published fact cannot change', async () => {
+    const bus = new InMemoryEventBus<OrderEvent>();
+    const event = new OrderPlaced('9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c', 'Ana');
+    await bus.publish([event]);
+    expect(Object.isFrozen(bus.published[0])).toBe(true);
+  });
 });

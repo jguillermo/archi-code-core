@@ -5,6 +5,7 @@ export interface PublishedMessage {
   readonly name: string;
   readonly version: number;
   readonly messageId: string;
+  readonly sequence: number;
   readonly occurredOn: string;
   readonly data: Readonly<Record<string, unknown>>;
 }
@@ -47,13 +48,14 @@ export class PublishedLanguage {
     return this.contracts.has(eventName);
   }
 
-  translate(event: SerializedEvent): readonly PublishedMessage[] {
+  translate(event: SerializedEvent, sequence: number): readonly PublishedMessage[] {
     return Object.freeze(
       (this.contracts.get(event.eventName) ?? []).map((contract) =>
         Object.freeze({
           name: contract.name,
           version: contract.version,
           messageId: event.eventId,
+          sequence,
           occurredOn: event.occurredOn,
           data: Object.freeze({ ...contract.data(event) }),
         }),

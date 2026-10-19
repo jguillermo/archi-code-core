@@ -44,26 +44,35 @@ function placed(): OrderPlaced {
 
 describe('PublishedLanguage: what this context promises to other contexts', () => {
   it('turns an internal event into the published contract, without the data others do not need', () => {
-    expect(salesLanguage().translate(placed().toJSON())).toEqual([
+    expect(salesLanguage().translate(placed().toJSON(), 42)).toEqual([
       {
         name: 'sales.order.OrderPlaced',
         version: 1,
         messageId: eventId,
+        sequence: 42,
         occurredOn: '2026-03-01T09:30:00.000Z',
         data: { orderId, totalCents: 2500 },
       },
     ]);
   });
 
+  it('carries the outbox sequence, so a consumer in another context can keep the causal order', () => {
+    const language = salesLanguage();
+    const sequences = [7, 8].map(
+      (sequence) => language.translate(placed().toJSON(), sequence)[0].sequence,
+    );
+    expect(sequences).toEqual([7, 8]);
+  });
+
   it('keeps internal events inside the context', () => {
     const language = salesLanguage();
-    expect(language.translate(new OrderLinesChanged(orderId).toJSON())).toEqual([]);
+    expect(language.translate(new OrderLinesChanged(orderId).toJSON(), 1)).toEqual([]);
     expect(language.isPublished('OrderLinesChanged')).toBe(false);
     expect(language.isPublished('OrderPlaced')).toBe(true);
   });
 
   it('gives a frozen message, so a broker adapter cannot change the contract', () => {
-    const messages = salesLanguage().translate(placed().toJSON());
+    const messages = salesLanguage().translate(placed().toJSON(), 1);
     const [message] = messages;
     expect(Object.isFrozen(messages)).toBe(true);
     expect(Object.isFrozen(message)).toBe(true);
@@ -75,11 +84,13 @@ describe('PublishedLanguage: what this context promises to other contexts', () =
     await outbox.publish([placed(), new OrderLinesChanged(orderId)]);
     const language = salesLanguage();
     const broker: PublishedMessage[] = [];
-    const relay = new OutboxRelay(outbox, (event) => {
-      broker.push(...language.translate(event));
+    const relay = new OutboxRelay(outbox, (event, sequence) => {
+      broker.push(...language.translate(event, sequence));
     });
     expect(await relay.forward()).toBe(2);
-    expect(broker.map((message) => message.name)).toEqual(['sales.order.OrderPlaced']);
+    expect(broker.map(({ name, sequence }) => ({ name, sequence }))).toEqual([
+      { name: 'sales.order.OrderPlaced', sequence: 1 },
+    ]);
   });
 
   it('publishes both versions of a contract while consumers move from v1 to v2', () => {
@@ -92,7 +103,7 @@ describe('PublishedLanguage: what this context promises to other contexts', () =
       }),
     });
     expect(
-      language.translate(placed().toJSON()).map(({ name, version, data }) => ({
+      language.translate(placed().toJSON(), 1).map(({ name, version, data }) => ({
         name,
         version,
         data,

@@ -242,11 +242,13 @@ class PrepareShipmentOnOrderLineAdded extends EventListener<OrderLineAdded> {
 }
 ```
 
-A real repository implements only the roles it supports, checks the version and wraps driver
-errors with their cause:
+A real repository implements only the roles it supports, checks the version (also on `remove`,
+which receives the loaded aggregate) and wraps driver errors with their cause:
 
 ```ts
-class MongoOrderRepository implements AggregateFinder<Order>, AggregateSaver<Order> {
+class MongoOrderRepository
+  implements AggregateFinder<Order>, AggregateSaver<Order>, AggregateRemover<Order>
+{
   private readonly mapper = AggregateMapper.of(Order);
 
   async findById(id: OrderId): Promise<Order | null> {
@@ -275,6 +277,16 @@ class MongoOrderRepository implements AggregateFinder<Order>, AggregateSaver<Ord
     }
     order.markPersisted();
   }
+
+  async remove(order: Order): Promise<void> {
+    const { deletedCount } = await this.collection.deleteOne({
+      _id: order.id.value,
+      version: order.version,
+    });
+    if (deletedCount === 0 && order.version > 0) {
+      throw new ConcurrencyException(this.mapper.aggregateName, order.id.value, order.version);
+    }
+  }
 }
 ```
 
@@ -283,15 +295,20 @@ Wiring and tests with the in-memory adapters (transaction, outbox, relay) and th
 ```ts
 const orders = new InMemoryRepository(AggregateMapper.of(Order));
 const outbox = new InMemoryOutbox<OrderEvent>();
-const transactions = new InMemoryTransactionRunner([orders, outbox]);
-const listeners = new EventDispatcher([
-  new PrepareShipmentOnOrderLineAdded(new PrepareShipment(warehouse)),
-]);
+const inbox = new InMemoryInbox();
+const transactions = new InMemoryTransactionRunner([orders, outbox, inbox]);
+const listeners = new EventDispatcher(
+  [new PrepareShipmentOnOrderLineAdded(new PrepareShipment(warehouse))],
+  { inbox, transactions },
+);
 const registry = new DomainEventRegistry<OrderEvent>().register(
   OrderLineAdded,
   (json) => new OrderLineAdded(json.aggregateId, json.sku as string, json.units as number, json),
 );
-const relay = new OutboxRelay(outbox, (json) => listeners.dispatchSerialized(json, registry));
+const relay = new OutboxRelay(outbox, (json) => listeners.dispatchSerialized(json, registry), {
+  maxAttempts: 5,
+  onParked: (json, error) => alerts.notify(`${json.eventName} parked`, error),
+});
 
 const clock = new FixedClock('2026-03-01T09:30:00Z');
 await orders.save(Order.place(new OrderId(orderId), new CustomerName('Ana'), clock));
@@ -301,7 +318,8 @@ await new AddOrderLine(orders, outbox, transactions, clock).execute({
   units: 2,
 });
 await outbox.pending(10); // the OrderLineAdded event, committed with the order
-await relay.forward(); // after the commit: PrepareShipment runs
+await relay.forward(); // after the commit: PrepareShipment runs, once per event
+await outbox.parked(); // events that failed 5 times, for a person to review
 
 const errors = new HttpErrorMapper({ ORD001: 409 }); // a domain rule defaults to 422
 const { status, body } = errors.map(caughtError);
@@ -392,6 +410,9 @@ class OrderAbove extends Specification<Order> {
 
 const freeShipping = new OrderAbove(10).and(new OrderAbove(100).not());
 freeShipping.isSatisfiedBy(order);
+
+const paidByCard: SatisfiedBy<Order> = { isSatisfiedBy: (candidate) => candidate.paidByCard() };
+new OrderAbove(10).and(paidByCard); // any object with isSatisfiedBy combines too
 ```
 
 A state as an enum value object: the primitive is the enum option, so the round trip needs no cast:
@@ -460,7 +481,7 @@ One repository contract, run against the in-memory reference and the real adapte
 
 ```ts
 export function orderRepositoryContract(
-  make: () => Promise<AggregateFinder<Order> & AggregateSaver<Order>>,
+  make: () => Promise<AggregateFinder<Order> & AggregateSaver<Order> & AggregateRemover<Order>>,
 ): void {
   const clock = new FixedClock('2026-03-01T09:30:00Z');
   const placeOrder = () => Order.place(new OrderId(orderId), new CustomerName('Ana'), clock);
@@ -487,6 +508,15 @@ export function orderRepositoryContract(
     await orders.save(first!);
     await expect(orders.save(second!)).rejects.toThrow(ConcurrencyException);
     await expect(orders.save(placeOrder())).rejects.toThrow(ConcurrencyException);
+  });
+
+  it('refuses to remove an order someone changed after it was loaded', async () => {
+    const orders = await make();
+    await orders.save(placeOrder());
+    const first = await orders.findById(new OrderId(orderId));
+    const second = await orders.findById(new OrderId(orderId));
+    await orders.save(first!);
+    await expect(orders.remove(second!)).rejects.toThrow(ConcurrencyException);
   });
 }
 

@@ -1,10 +1,14 @@
 import type { EventBus } from '../../application/index';
 import type { EventBase, SerializedEvent } from '../../domain/index';
+import { Frozen } from '../event/frozen';
 import type { TransactionParticipant } from '../transaction/transaction-participant';
 import type { OutboxEntry, OutboxStore } from './outbox-store';
 
+type EntryState = 'pending' | 'published' | 'parked';
+
 interface StoredEntry extends OutboxEntry {
-  readonly published: boolean;
+  readonly state: EntryState;
+  readonly attempts: number;
 }
 
 export class InMemoryOutbox<Event extends EventBase = EventBase>
@@ -18,33 +22,40 @@ export class InMemoryOutbox<Event extends EventBase = EventBase>
       this.lastSequence += 1;
       return Object.freeze({
         sequence: this.lastSequence,
-        event: InMemoryOutbox.freeze(JSON.parse(JSON.stringify(event)) as SerializedEvent),
-        published: false,
+        event: Frozen.deep(JSON.parse(JSON.stringify(Frozen.deep(event))) as SerializedEvent),
+        state: 'pending' as const,
+        attempts: 0,
       });
     });
     this.entries = [...this.entries, ...stored];
   }
 
   async pending(limit: number): Promise<readonly OutboxEntry[]> {
-    return this.entries
-      .filter((entry) => !entry.published)
-      .slice(0, limit)
-      .map(({ sequence, event }) => Object.freeze({ sequence, event }));
+    return this.inState('pending').slice(0, limit);
+  }
+
+  async parked(): Promise<readonly OutboxEntry[]> {
+    return this.inState('parked');
   }
 
   async markPublished(entries: readonly OutboxEntry[]): Promise<void> {
     const sequences = new Set(entries.map((entry) => entry.sequence));
-    this.entries = this.entries.map((entry) =>
-      sequences.has(entry.sequence) ? Object.freeze({ ...entry, published: true }) : entry,
+    this.update((entry) =>
+      sequences.has(entry.sequence) ? { ...entry, state: 'published' } : entry,
     );
   }
 
-  private static freeze<Value>(value: Value): Value {
-    if (typeof value === 'object' && value !== null) {
-      Object.freeze(value);
-      Object.values(value).forEach((child) => InMemoryOutbox.freeze(child));
-    }
-    return value;
+  async markFailed(failed: OutboxEntry): Promise<number> {
+    this.update((entry) =>
+      entry.sequence === failed.sequence ? { ...entry, attempts: entry.attempts + 1 } : entry,
+    );
+    return this.entries.find((entry) => entry.sequence === failed.sequence)?.attempts ?? 0;
+  }
+
+  async park(parked: OutboxEntry): Promise<void> {
+    this.update((entry) =>
+      entry.sequence === parked.sequence ? { ...entry, state: 'parked' } : entry,
+    );
   }
 
   snapshot(): () => void {
@@ -53,5 +64,15 @@ export class InMemoryOutbox<Event extends EventBase = EventBase>
       this.entries = entries;
       this.lastSequence = lastSequence;
     };
+  }
+
+  private inState(state: EntryState): readonly OutboxEntry[] {
+    return this.entries
+      .filter((entry) => entry.state === state)
+      .map(({ sequence, event }) => Object.freeze({ sequence, event }));
+  }
+
+  private update(change: (entry: StoredEntry) => StoredEntry): void {
+    this.entries = this.entries.map((entry) => Object.freeze(change(entry)));
   }
 }

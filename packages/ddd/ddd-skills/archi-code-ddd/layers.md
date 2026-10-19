@@ -2,10 +2,13 @@
 
 Part of the `archi-code-ddd` skill: read it only when that skill routes here.
 
-- Value objects are **optional by default** (`value: T | null`). `Required(XType)` makes them
+- Value objects are **optional by default** (`value: T | null`) `[Fuera de los libros: convención
+  de @archi-code/ddd]`: the books build every value object with a value and model an optional one
+  as a field that may be `null` (`reservation: ReservationId | null`) [IDDD ch. 5 and 6]; both
+  forms work here. `Required(XType)` makes them
   required: the constructor demands `T` and, if it receives an empty value (`null`, `undefined` or a
   blank string), throws `RequiredValueException` with the class name. `Required(...)` also declares
-  the `isRequired` validation.
+  the `isRequired` validation. An id is always required (see the aggregate root below).
 - A domain VO is always a named subclass (`class Email extends ...`): the name appears in the error
   messages, and `equals` compares the class too (`BillingCountry('ES')` is not a
   `ShippingCountry('ES')`).
@@ -63,7 +66,10 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   of a composite may hold an optional value object whose value is `null` (`new Line2(null)`); only
   a missing instance is refused.
 - The aggregate root passes the id to `super(id)`, exposed as `readonly id`; do not redeclare it
-  (no `_id` + getter). `equals` compares class and id only. A child entity (a part with an identity
+  (no `_id` + getter). `equals` compares class and id only. The id is a required value object
+  (`EntityId`: `IdType` or a `Required(...)` type); an optional type does not compile as `Id`, and an
+  id that holds no value throws `RequiredValueException`, so two new entities are never equal by an
+  empty id [IDDD ch. 5]. A child entity (a part with an identity
   of its own inside the aggregate) extends `Entity<Id>` (`super(id)`, `equals` by class and id)
   and holds its id and value objects; it may have business methods named after the language
   (`seat.relabel(label)`) with the rules of that part, never setters, and only its root calls them
@@ -75,7 +81,8 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   breaks `toPrimitives()` at compile time.
 - **A named business rule that selects, validates or combines is a `Specification<T>`**:
   `class EligibleForExpressShipping extends Specification<Order> { isSatisfiedBy(order) {…} }`,
-  combined with `and`, `or` and `not`. It receives data already loaded (never a repository) and is
+  combined with `and`, `or` and `not`; `and`/`or` accept any `SatisfiedBy<T>` (an object with
+  `isSatisfiedBy`), the books' `Specification` interface [IDDD ch. 5]. It receives data already loaded (never a repository) and is
   never used to protect an invariant of an aggregate: invariants stay inside the aggregate.
 - **The domain knows nothing about persistence**: no mapper, repository nor storage concern in
   domain code; a repository receives an aggregate and stores it. `AggregateMapper` is imported from
@@ -115,13 +122,18 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   primitives; when nothing was written throw
   `ConcurrencyException(mapper.aggregateName, id, aggregate.version)` (HTTP 409); after a write
   call `aggregate.markPersisted()`. Keep the driver error: `ConcurrencyException(…, { cause })`.
+  Removing is a change too: `remove(aggregate)` receives the loaded aggregate and deletes only
+  where the stored version still equals `aggregate.version`, or throws `ConcurrencyException`
+  (someone changed or removed it after it was loaded) [IDDD ch. 10].
   After a conflict, the use case may repeat its own work when the command is safe against the new
   state [IDDD ch. 10; IDDD appendix A]: a loop in `handle` around the whole `transactions.run`, so
   each attempt is a new transaction that loads the aggregate again (a few attempts, then rethrow);
   otherwise the conflict reaches the user (409). A nested `run` joins the outer transaction, so a
   use case run by a listener with an inbox does not retry: the relay delivers the event again.
 - `record(event)` is `protected` and deep-freezes the event (facts never change [IDDD ch. 8]); `pullDomainEvents()` returns the events (typed `Event[]`) in order
-  and empties the list. Pull them after persisting, to publish.
+  and empties the list. Pull them after persisting, to publish. `InMemoryOutbox`,
+  `InMemoryEventBus` and `EventDispatcher` freeze every event they receive too, also one that
+  never went through an aggregate.
 - Events extend `EventBase`, declare `static readonly eventName` with their class name, a fact in
   the past tense (`'OrderPlaced'`) [IDDD ch. 8] (a published contract is named
   `<context>.<module>.<Event>`, `sales.order.OrderPlaced` [IDDD ch. 13]) and
@@ -212,34 +224,44 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   @archi-code/ddd]`); rounding is explicit.
 - **Transactions belong to the application, events to the outbox** [IDDD ch. 12; Destilado ch. 6]:
   the use case opens the transaction with the `TransactionRunner` port (`run(work)`; a nested run
-  joins the outer one) and publishes inside it, so the aggregate and its events are committed
+  joins the outer one; `inTransaction()` tells whether one is open) and publishes inside it, so the aggregate and its events are committed
   together. `EventBus` is then an outbox: it stores the events; an `OutboxRelay(store, deliver)`
   run by a worker after the commit (`forward()`) delivers them in order to the dispatcher or a
   broker, at least once, so listeners must tolerate an `eventId` they already processed. Neither
-  the domain nor a repository opens a transaction. The relay stops at the first failure and
-  retries it on the next run, so a delivery that can never succeed for one event (a poison
-  message) must catch it and park it (a dead-letter table), or every later event waits. Each event
+  the domain nor a repository opens a transaction. The relay stops at the first failure, counts
+  it (`OutboxStore.markFailed`) and retries it on the next run, up to a limit [IDDD ch. 10]: after
+  `maxAttempts` failures (5 by default) it parks the entry (`OutboxStore.park`), calls
+  `onParked(event, error, sequence)` so someone is told or a compensation starts, and goes on with
+  the next ones: `new OutboxRelay(outbox, deliver, { maxAttempts, onParked })`. Each event
   arrives with its outbox `sequence` (`deliver(json, sequence)`) for consumers that keep order.
 - **Events have a schema version** (`static readonly eventVersion = 2` when their data changes
   incompatibly; 1 by default, written in `toJSON()`); a `DomainEventRegistry` factory reads older
   stored versions from `json.eventVersion`.
 - **Consumers are idempotent**: wire `new EventDispatcher(listeners, { inbox, transactions })`;
   each listener runs in its own transaction that marks `eventId` for that listener in the inbox
-  (`InMemoryInbox` or a table implementing `InboxStore`) and skips an event already processed.
+  (`InMemoryInbox` or a table implementing `InboxStore`) and skips an event already processed. The
+  inbox must be written in that same transaction: in tests pass it to the runner
+  (`new InMemoryTransactionRunner([orders, outbox, inbox])`), in production write the mark through
+  the runner's connection. Otherwise a listener that fails leaves the mark, the redelivery is
+  skipped and the event is lost [IDDD ch. 8]. A dispatcher with an inbox refuses to run inside an
+  open transaction (`InfrastructureException`): listeners run after the commit, never inside the
+  transaction of the use case that recorded the event [IDDD ch. 8].
 - **Other contexts never receive domain classes**:
   `new PublishedLanguage().expose(OrderPlaced, { name: 'sales.order.OrderPlaced', version: 1, data: (json) => ({ … }) })`
   and, in the relay,
-  `published.translate(json)` (one message per exposed version, `[]` for internal events) before
+  `published.translate(json, sequence)` (one message per exposed version, `[]` for internal
+  events; each message carries `messageId` = `eventId` and the outbox `sequence`, IDDD's
+  `notificationId` [IDDD ch. 13], so consumers deduplicate and keep the causal order) before
   sending to the broker. Publish only what consumers need; a new contract version for incompatible
   changes, exposed next to the old one while consumers move.
 - Event Sourcing and CQRS are optional, only for a concrete need (full history, read models very
   different from the model); read queries straight to the database come first. A projection is
   an `EventListener` with the inbox that writes a read table; a read query is an application
   interface implemented in infrastructure that returns DTOs or ids.
-- Tests use `InMemoryTransactionRunner([repository, outbox])` (restores both when the work throws;
+- Tests use `InMemoryTransactionRunner([repository, outbox, inbox])` (restores them when the work throws;
   `committed`/`rolledBack`; a run inside another joins it, and runs that overlap in time wait
   their turn),
-  `InMemoryOutbox` (events stored as JSON, `pending(limit)`) and
+  `InMemoryOutbox` (events stored as JSON, `pending(limit)`, `parked()`) and
   `OutboxRelay`. `InMemoryEventBus` dispatches immediately: only for a quick test without
   transactions (the books deliver after the commit [IDDD ch. 8]; the package keeps this bus as a
   test convenience, `[Fuera de los libros: convención de @archi-code/ddd]`).

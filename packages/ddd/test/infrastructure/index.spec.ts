@@ -81,6 +81,7 @@ describe('@archi-code/ddd/infrastructure', () => {
       readonly name: string;
       readonly version: number;
       readonly messageId: string;
+      readonly sequence: number;
       readonly occurredOn: string;
       readonly data: Readonly<Record<string, unknown>>;
     }>();

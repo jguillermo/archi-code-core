@@ -281,6 +281,12 @@ A value object is optional: it accepts the value, `null` or nothing, and holds `
 with `Required(...)` to make it required: the constructor asks for exactly `T`, `value` is typed as
 `T` and an empty value throws `RequiredValueException` on construction.
 
+This is a convention of this package, not of the books: they build every value object with a
+value and model an optional one as a field that may be `null` (`reservation: ReservationId | null`)
+[IDDD ch. 5 and 6]. Both forms work here; an optional value object never holds an identity (ids
+are required, see [Aggregates and domain events](#aggregates-and-domain-events)), and an optional
+composite is always a `Money | null` field.
+
 ```ts
 import { Required, StringType } from '@archi-code/ddd/domain';
 
@@ -748,7 +754,9 @@ JSON.stringify(price); // '{"amount":1250,"currency":"EUR"}'
 A business rule with a name ("eligible for express shipping", "customer in arrears") that is used in
 several places or combined with others is a `Specification<T>` [IDDD ch. 5]: it validates,
 selects or builds, and combines with `and`, `or` and `not` (each returns a `Specification<T>`, so
-they keep combining; `and`/`or` stop at the first answer that decides).
+they keep combining; `and`/`or` stop at the first answer that decides). `and` and `or` accept any
+`SatisfiedBy<T>` (an object with `isSatisfiedBy(candidate): boolean`), not only subclasses, as the
+books' `Specification` interface does [IDDD ch. 5].
 
 ```ts
 import { Specification } from '@archi-code/ddd/domain';
@@ -781,7 +789,7 @@ repository. It does not protect the invariants of an aggregate: those stay in th
 
 - `AggregateRoot<Id = IdType, Event = EventBase>`: abstract class for aggregates. `new (id)` stores
   `readonly id`; `equals(other)` is true for the same class and an equal id, whatever the other
-  attributes are. `Id` may be any value object (`IdType`, a `Required(StringType)` code…); `record(event)` is `protected` and deep-freezes the event (a fact never changes [IDDD ch. 8]); `pullDomainEvents()` returns the events typed as `Event[]`, in order, and empties
+  attributes are. `Id` may be any required value object (`EntityId`: `IdType`, a `Required(StringType)` code…); an optional value object cannot be an id, and an id that holds no value throws `RequiredValueException`, so two new entities are never taken for the same one [IDDD ch. 5]; `record(event)` is `protected` and deep-freezes the event (a fact never changes [IDDD ch. 8]); `pullDomainEvents()` returns the events typed as `Event[]`, in order, and empties
   the list. Pending events are not an enumerable property: they never show up in
   `JSON.stringify(aggregate)`, `{ ...aggregate }` or `Object.keys`.
 - Every aggregate has a `version` for optimistic concurrency (see
@@ -976,9 +984,14 @@ interface AggregateSaver<Aggregate extends AggregateRoot<any, any>> {
 }
 
 interface AggregateRemover<Aggregate extends AggregateRoot<any, any>> {
-  remove(id: Aggregate['id']): Promise<void>;
+  remove(aggregate: Aggregate): Promise<void>;
 }
 ```
+
+`remove` receives the loaded aggregate, not its id: removing is a change like any other, so the
+repository removes it only where the stored version still equals `aggregate.version`, and throws
+`ConcurrencyException` when someone changed or removed it after it was loaded [IDDD ch. 10]. A
+use case loads it with `findById`, decides, and removes it.
 
 A use case asks only for the roles it uses: registering needs `AggregateSaver<User>`, renaming
 needs `AggregateFinder<User> & AggregateSaver<User>`, closing an account may need
@@ -1018,6 +1031,7 @@ repository follows the same contract:
 | Save an existing aggregate   | Writes only where the stored version still equals `aggregate.version`, and stores `aggregate.version + 1` |
 | Nothing written (stale data) | Throws `ConcurrencyException(mapper.aggregateName, id, aggregate.version)` (HTTP 409)                     |
 | Written                      | Calls `aggregate.markPersisted()`, so the same object can be changed and saved again                      |
+| Remove                       | Deletes only where the stored version still equals `aggregate.version`; otherwise `ConcurrencyException`  |
 
 The version lives next to the primitives (a `version` column or field), never inside them. After a
 `ConcurrencyException`, either tell the user that someone else changed it, or run the command
@@ -1340,10 +1354,14 @@ interface Clock {
 
 interface TransactionRunner {
   run<Result>(work: () => Promise<Result>): Promise<Result>;
+  inTransaction(): boolean;
 }
 ```
 
-The application only knows `EventBus.publish` and `TransactionRunner.run`: whether events go to
+`inTransaction()` tells whether the calling code runs inside an open `run` (a database adapter
+answers it from the same `AsyncLocalStorage` it uses to share the connection). The books' runner
+also exposes `current()`, the connection of the open transaction; here that stays inside your
+adapter. The application only knows `EventBus.publish` and `TransactionRunner.run`: whether events go to
 memory, a queue, an outbox table or a broker, and how a transaction is opened, is decided in
 infrastructure (see [Transactions and the outbox](#transactions-and-the-outbox)).
 
@@ -1354,13 +1372,13 @@ A use case changes one aggregate in one transaction, and the events of that chan
 and publishing loses events, or a rolled-back change announces something that never happened
 [Destilado ch. 6; IDDD ch. 8]. The pieces:
 
-| Piece                                   | Layer          | Role                                                                                                  |
-| --------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------------- |
-| `TransactionRunner`                     | application    | Port: `run(work)` commits what `work` did, or rolls it back if it throws; a nested `run` joins        |
-| `EventBus.publish`                      | application    | Inside the transaction: leaves the events in the outbox, next to the aggregate                        |
-| Outbox (`InMemoryOutbox` or your table) | infrastructure | Implements `EventBus` (writes rows in the transaction) and `OutboxStore` (`pending`, `markPublished`) |
-| `OutboxRelay(store, deliver)`           | infrastructure | After the commit, a worker or a scheduler calls `forward()`: delivers pending events in order         |
-| `InMemoryTransactionRunner([...])`      | infrastructure | Test adapter: snapshots its participants and restores them when the work throws                       |
+| Piece                                   | Layer          | Role                                                                                                                        |
+| --------------------------------------- | -------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `TransactionRunner`                     | application    | Port: `run(work)` commits what `work` did, or rolls it back if it throws; a nested `run` joins; `inTransaction()`           |
+| `EventBus.publish`                      | application    | Inside the transaction: leaves the events in the outbox, next to the aggregate                                              |
+| Outbox (`InMemoryOutbox` or your table) | infrastructure | Implements `EventBus` (writes rows in the transaction) and `OutboxStore` (`pending`, `markPublished`, `markFailed`, `park`) |
+| `OutboxRelay(store, deliver, options?)` | infrastructure | After the commit, a worker or a scheduler calls `forward()`: delivers pending events in order, parks one that keeps failing |
+| `InMemoryTransactionRunner([...])`      | infrastructure | Test adapter: snapshots its participants and restores them when the work throws                                             |
 
 ```ts
 import { UseCase } from '@archi-code/ddd/application';
@@ -1434,25 +1452,30 @@ transactions.committed; // 1
 - **`InMemoryTransactionRunner(participants)`** takes a snapshot of each participant
   (`InMemoryRepository`, `InMemoryOutbox` or anything with `snapshot(): () => void`) when a
   transaction starts and restores them, in reverse order, if the work throws; `committed` and
-  `rolledBack` count the outcomes. A `run` inside another (in the same async flow, tracked with
+  `rolledBack` count the outcomes, and `inTransaction()` tells whether a `run` is open. A `run` inside another (in the same async flow, tracked with
   `AsyncLocalStorage`) joins it; runs that overlap in time (two `execute` calls not awaited one after
   the other) wait their turn, so each one commits or rolls back only its own work. It is meant for
   tests and prototypes. After a rollback, discard the aggregates you
   held: their version already moved.
-- **`InMemoryOutbox`** stores each event as its JSON (`toJSON()`), frozen and numbered by
-  `sequence`, like a row of an outbox table; `pending(limit)` returns the oldest undelivered entries
-  and `markPublished(entries)` marks them.
+- **`InMemoryOutbox`** freezes each published event and stores its JSON (`toJSON()`), frozen and
+  numbered by `sequence`, like a row of an outbox table; `pending(limit)` returns the oldest
+  undelivered entries and `markPublished(entries)` marks them. `markFailed(entry)` counts a failed
+  delivery and resolves to the attempts so far; `park(entry)` takes the entry out of the pending
+  ones, and `parked()` lists the parked entries for a person to review.
 - **`OutboxRelay.forward(limit = 100)`** delivers the pending entries one by one, in order, and
   marks the delivered ones; it resolves to how many it delivered. The delivery function
   (`OutboxDelivery`) is `(event: SerializedEvent, sequence: number) => Promise<void> | void`: it
   receives the `sequence` of each entry, so a consumer can keep the order (for example, ignore a
-  sequence lower than the last one it applied). If a delivery throws, it marks the ones delivered
-  before and rethrows, so the failed event and the next ones wait for the next run. Delivery is at
-  least once: a consumer must ignore an `eventId` it already processed.
-- **Poison messages**: because the relay stops at the first failure, a `deliver` that can never
-  succeed for one event (a payload no reader understands, a listener that always rejects it) blocks
-  every later event. Catch that case inside `deliver` and park the event (for example in a
-  dead-letter table you monitor) instead of rethrowing; rethrow only errors worth retrying.
+  sequence lower than the last one it applied). If a delivery throws, it records the failure with
+  `store.markFailed(entry)`, marks the ones delivered before and rethrows, so the failed event and
+  the next ones wait for the next run. Delivery is at least once: a consumer must ignore an
+  `eventId` it already processed.
+- **Poison messages**: a subscriber is retried up to a limit, and then the failure is compensated
+  or reported [IDDD ch. 10]. When an entry has failed `maxAttempts` times (5 by default,
+  `new OutboxRelay(store, deliver, { maxAttempts, onParked })`), the relay parks it
+  (`store.park(entry)`), calls `onParked(event, error, sequence)` so you can alert someone or start
+  a compensation, and goes on with the next entries. A parked entry is never delivered again by the
+  relay. `maxAttempts` must be a whole number from 1 (`InfrastructureException` otherwise).
 - **`EventDispatcher.dispatchSerialized(json, registry)`** is the delivery for listeners in the
   same process: it rebuilds the event with `registry.fromJSON` and dispatches it only when the
   dispatcher has listeners for `json.eventName`; otherwise it skips it without rebuilding, so an
@@ -1460,12 +1483,16 @@ transactions.committed; // 1
 - **Your adapters**: a database runner opens the transaction and lets the repository and the outbox
   use its connection (in Node, `AsyncLocalStorage` avoids passing it around); your outbox table
   implements `EventBus` (insert in the current transaction) and `OutboxStore` (select pending rows
-  in `sequence` order, for example `FOR UPDATE SKIP LOCKED`, and update them as published).
+  in `sequence` order, for example `FOR UPDATE SKIP LOCKED`, update them as published, count the
+  attempts of a row in `markFailed` and move it to a dead-letter state in `park`).
   Deliver to a broker of other contexts through the published language:
-  `new OutboxRelay(table, async (json) => { for (const message of published.translate(json)) await broker.publish(message.name, message); })`
+  `new OutboxRelay(table, async (json, sequence) => { for (const message of published.translate(json, sequence)) await broker.publish(message.name, message); })`
   (see [`PublishedLanguage`](#events-for-other-contexts-publishedlanguage)).
-- **`InMemoryEventBus`** dispatches as soon as `publish` is called: use it only for a quick test
-  without a transaction; with `TransactionRunner`, use the outbox and the relay.
+- **`InMemoryEventBus`** freezes and dispatches each event as soon as `publish` is called: use it
+  only for a quick test without a transaction; with `TransactionRunner`, use the outbox and the
+  relay. An `EventDispatcher` with an inbox refuses to run inside an open transaction
+  (`InfrastructureException`): a listener that changes another aggregate inside the transaction of
+  the use case would break "one transaction, one aggregate" [IDDD ch. 8].
 
 ### Idempotent consumers: the inbox
 
@@ -1514,12 +1541,12 @@ const published = new PublishedLanguage().expose(OrderPlaced, {
   data: (json) => ({ orderId: json.aggregateId }),
 });
 
-const relay = new OutboxRelay(outbox, async (event) => {
-  for (const message of published.translate(event)) {
+const relay = new OutboxRelay(outbox, async (event, sequence) => {
+  for (const message of published.translate(event, sequence)) {
     await broker.publish(message.name, message);
   }
 });
-// translate: [{ name: 'sales.order.OrderPlaced', version: 1, messageId: <eventId>, occurredOn, data: { orderId } }]
+// translate: [{ name: 'sales.order.OrderPlaced', version: 1, messageId: <eventId>, sequence, occurredOn, data: { orderId } }]
 // an internal event translates to []
 ```
 
@@ -1528,7 +1555,9 @@ payload) and returns only what the consumers need: here the order id, not the cu
 `OrderPlaced` also carries. `expose` refuses the same contract name and version exposed twice for an event, or a contract
 without a name or with a version below 1 (`InfrastructureException`); `isPublished(eventName)` tells whether an event leaves the context.
 The list and every message are frozen; a message's `messageId` is the `eventId`, so consumers in
-other contexts can deduplicate too. Change a contract by exposing a new version next to the old
+other contexts can deduplicate too, and its `sequence` is the outbox sequence, so they can keep
+the causal order [Destilado ch. 6] (the `notificationId` of IDDD's notification envelope
+[IDDD ch. 13]). Change a contract by exposing a new version next to the old
 one: `translate` returns one message per exposed version, so both are published while consumers
 move; stop exposing the old one when nobody reads it.
 
@@ -1557,19 +1586,19 @@ just sent, show how old the data is, or say that the request is being processed.
 
 Ready adapters for tests, prototypes and the edges of an API:
 
-| Export                                                  | What it is                                                                                                                                                        |
-| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `InMemoryRepository(AggregateMapper.of(Order))`         | Finder, saver and remover over a `Map` of primitives and versions; checks versions; adds `findAll()`                                                              |
-| `EventDispatcher(listeners?, { inbox, transactions }?)` | Groups listeners by their `@ListensTo` event; `add`, `listenersOf(name)`, `dispatch(event)`, `dispatchSerialized(json, registry)`; idempotent with an inbox       |
-| `InMemoryEventBus(dispatcher?)`                         | `EventBus` that records `published` and hands every event to its dispatcher, in the same process                                                                  |
-| `DomainEventRegistry`                                   | `register(EventClass, factory)`, `has(eventName)` and `fromJSON(json)`: rebuilds events read from an outbox or a broker, keeping their `eventId` and `occurredOn` |
-| `HttpErrorMapper(statusByCode?)`                        | `map(error)` → `{ status, body: { code, message, errors? } }` (`errors`: `{ field, code, message }[]`)                                                            |
-| `SystemClock`, `FixedClock(at)`                         | `Clock` with the real time, and a test clock with `set(at)` and `advance(ms)`                                                                                     |
-| `InMemoryTransactionRunner(participants?)`              | `TransactionRunner` that restores its participants when the work throws; `committed`, `rolledBack`                                                                |
-| `InMemoryOutbox`                                        | `EventBus` + `OutboxStore`: events as numbered JSON rows; `pending(limit)`, `markPublished(entries)`                                                              |
-| `OutboxRelay(store, deliver)`                           | `forward(limit?)`: delivers pending outbox entries in order after the commit, passing `(event, sequence)`, and marks them                                         |
-| `InMemoryInbox`                                         | `InboxStore` for `EventDispatcher(listeners, { inbox, transactions })`: each event once per listener                                                              |
-| `PublishedLanguage`                                     | `expose(EventClass, { name, version, data })`, `translate(json)` → one message per exposed version: the contract other contexts read                              |
+| Export                                                    | What it is                                                                                                                                                        |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `InMemoryRepository(AggregateMapper.of(Order))`           | Finder, saver and remover over a `Map` of primitives and versions; checks versions on save and remove; adds `findAll()`                                           |
+| `EventDispatcher(listeners?, { inbox, transactions }?)`   | Groups listeners by their `@ListensTo` event; `add`, `listenersOf(name)`, `dispatch(event)`, `dispatchSerialized(json, registry)`; idempotent with an inbox       |
+| `InMemoryEventBus(dispatcher?)`                           | `EventBus` that records `published` and hands every event to its dispatcher, in the same process                                                                  |
+| `DomainEventRegistry`                                     | `register(EventClass, factory)`, `has(eventName)` and `fromJSON(json)`: rebuilds events read from an outbox or a broker, keeping their `eventId` and `occurredOn` |
+| `HttpErrorMapper(statusByCode?)`                          | `map(error)` → `{ status, body: { code, message, errors? } }` (`errors`: `{ field, code, message }[]`)                                                            |
+| `SystemClock`, `FixedClock(at)`                           | `Clock` with the real time, and a test clock with `set(at)` and `advance(ms)`                                                                                     |
+| `InMemoryTransactionRunner(participants?)`                | `TransactionRunner` that restores its participants when the work throws; `committed`, `rolledBack`, `inTransaction()`                                             |
+| `InMemoryOutbox`                                          | `EventBus` + `OutboxStore`: events as numbered JSON rows; `pending(limit)`, `markPublished(entries)`, `markFailed(entry)`, `park(entry)`, `parked()`              |
+| `OutboxRelay(store, deliver, { maxAttempts, onParked }?)` | `forward(limit?)`: delivers pending outbox entries in order after the commit, passing `(event, sequence)`, marks them, parks one after `maxAttempts` failures     |
+| `InMemoryInbox`                                           | `InboxStore` for `EventDispatcher(listeners, { inbox, transactions })`: each event once per listener                                                              |
+| `PublishedLanguage`                                       | `expose(EventClass, { name, version, data })`, `translate(json, sequence)` → one message per exposed version: the contract other contexts read                    |
 
 `InMemoryRepository` follows the [optimistic concurrency](#optimistic-concurrency) contract like a
 real adapter: it stores a copy of the primitives with their version, rejects a stale save (or a new
@@ -2186,6 +2215,7 @@ await new RegisterUser(users, bus, clock)
 | `AggregateFinder`, `AggregateSaver`, `AggregateRemover`                                       | types (contracts)  |
 | `RequiredType`, `JsonTypeValue`, `PrimitiveType`, `PrimitiveTypes`, `DataTypes`               | types              |
 | `EventMetadata`, `SerializedEvent`, `EventClass`                                              | types              |
+| `EntityId`, `SatisfiedBy`                                                                     | types              |
 | `Properties`, `PropertiesData`, `MutablePropertiesData`, `Methods`, `MethodsAndProperties`    | types              |
 
 `@archi-code/ddd/application`:
@@ -2204,6 +2234,7 @@ await new RegisterUser(users, bus, clock)
 | `InMemoryTransactionRunner`, `InMemoryOutbox`, `OutboxRelay`, `InMemoryInbox`, `PublishedLanguage`                                                    | classes |
 | `AggregateClass`, `EventFactory`, `HttpError`, `HttpErrorBody`                                                                                        | types   |
 | `TransactionParticipant`, `OutboxStore`, `OutboxEntry`, `OutboxDelivery`, `InboxStore`, `IdempotentDelivery`, `PublishedContract`, `PublishedMessage` | types   |
+| `OutboxRelayOptions`, `ParkedDelivery`                                                                                                                | types   |
 
 ## AI assistant skill
 

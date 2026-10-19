@@ -7,3 +7,4 @@ export type { AggregateFinder } from './repository/aggregate-finder';
 export type { AggregateSaver } from './repository/aggregate-saver';
 export type { AggregateRemover } from './repository/aggregate-remover';
 export { Specification } from './specification/specification';
+export type { SatisfiedBy } from './specification/specification';

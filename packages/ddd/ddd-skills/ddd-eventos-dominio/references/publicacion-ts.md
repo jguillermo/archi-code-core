@@ -77,7 +77,7 @@ export class StoredEventForwarder {
         `SELECT * FROM stored_events WHERE published_at IS NULL
          ORDER BY sequence LIMIT $1 FOR UPDATE SKIP LOCKED`, [limit]);
       for (const r of rows) {
-        const message = this.translate.toPublished(r);      // null si el evento es solo interno (con el paquete, `translate` devuelve una lista: un mensaje por versión publicada, `[]` si es interno)
+        const message = this.translate.toPublished(r);      // null si el evento es solo interno (con el paquete, `translate(json, sequence)` devuelve una lista: un mensaje por versión publicada, con la `sequence` del outbox, `[]` si es interno)
         if (message) await this.bus.publish(message.topic, message.body, { messageId: r.event_id });
       }
       await client.query(

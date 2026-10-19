@@ -7,10 +7,13 @@ class WarehouseId extends IdType {}
 class Warehouse extends AggregateRoot<WarehouseId> {}
 
 describe('AggregateRemover: the domain contract of a repository that can remove', () => {
-  it('offers only remove, typed by the aggregate and its id', () => {
+  it('offers only remove, which receives the loaded aggregate so its version can be checked', () => {
     expectTypeOf<keyof AggregateRemover<Warehouse>>().toEqualTypeOf<'remove'>();
     expectTypeOf<AggregateRemover<Warehouse>['remove']>().toEqualTypeOf<
-      (id: WarehouseId) => Promise<void>
+      (aggregate: Warehouse) => Promise<void>
     >();
+    expectTypeOf<AggregateRemover<Warehouse>['remove']>()
+      .parameter(0)
+      .not.toEqualTypeOf<WarehouseId>();
   });
 });

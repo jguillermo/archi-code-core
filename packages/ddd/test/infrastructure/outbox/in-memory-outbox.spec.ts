@@ -57,6 +57,13 @@ describe('InMemoryOutbox: where a use case leaves its events, in the same transa
       ]);
     });
 
+    it('freezes the published event itself: a fact never changes after it is stored', async () => {
+      const outbox = new InMemoryOutbox();
+      const event = placed();
+      await outbox.publish([event]);
+      expect(Object.isFrozen(event)).toBe(true);
+    });
+
     it('keeps numbering across publications', async () => {
       const outbox = new InMemoryOutbox();
       await outbox.publish([placed()]);
@@ -116,6 +123,36 @@ describe('InMemoryOutbox: where a use case leaves its events, in the same transa
       const [first] = await outbox.pending(1);
       await outbox.markPublished([first]);
       expect((await outbox.pending(10)).map((entry) => entry.sequence)).toEqual([2]);
+    });
+  });
+
+  describe('failed deliveries', () => {
+    it('counts the failed deliveries of each entry', async () => {
+      const outbox = new InMemoryOutbox();
+      await outbox.publish([placed(), new OrderShipped(orderId, at)]);
+      const [first, second] = await outbox.pending(10);
+      expect(await outbox.markFailed(first)).toBe(1);
+      expect(await outbox.markFailed(first)).toBe(2);
+      expect(await outbox.markFailed(second)).toBe(1);
+      expect(await outbox.pending(10)).toHaveLength(2);
+    });
+
+    it('counts nothing for an entry it does not hold', async () => {
+      const outbox = new InMemoryOutbox();
+      expect(await outbox.markFailed({ sequence: 9, event: placed().toJSON() })).toBe(0);
+    });
+
+    it('parks an entry: it leaves the pending ones and is listed apart for a person to review', async () => {
+      const outbox = new InMemoryOutbox();
+      await outbox.publish([placed(), new OrderShipped(orderId, at)]);
+      const [poison] = await outbox.pending(1);
+      await outbox.park(poison);
+      expect((await outbox.pending(10)).map((entry) => entry.sequence)).toEqual([2]);
+      expect(await outbox.parked()).toEqual([poison]);
+    });
+
+    it('starts with nothing parked', async () => {
+      expect(await new InMemoryOutbox().parked()).toEqual([]);
     });
   });
 

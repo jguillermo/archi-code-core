@@ -345,31 +345,58 @@ describe('InMemoryRepository: the repository of a use case test or a prototype',
     it('brings back an order removed after the snapshot', async () => {
       const repository = await storedOrder();
       const restore = repository.snapshot();
-      await repository.remove(new OrderId(orderId));
+      await repository.remove((await repository.findById(new OrderId(orderId))) as Order);
       restore();
       expect(await repository.findById(new OrderId(orderId))).not.toBeNull();
     });
   });
 
   describe('removing an order', () => {
-    it('removes it from the store', async () => {
+    async function loaded(repository: InMemoryRepository<Order>, id = orderId): Promise<Order> {
+      return (await repository.findById(new OrderId(id))) as Order;
+    }
+
+    it('removes the loaded order from the store', async () => {
       const repository = await storedOrder();
-      await repository.remove(new OrderId(orderId));
+      await repository.remove(await loaded(repository));
       expect(await repository.findById(new OrderId(orderId))).toBeNull();
       expect(await repository.findAll()).toEqual([]);
     });
 
     it('lets a new order reuse the id', async () => {
       const repository = await storedOrder();
-      await repository.remove(new OrderId(orderId));
+      await repository.remove(await loaded(repository));
       await repository.save(Order.place(orderId, 'Luis', clock));
       expect((await repository.findById(new OrderId(orderId)))?.customer.value).toBe('Luis');
     });
 
-    it('does nothing for an order that is not there', async () => {
+    it('does nothing for a new order that was never saved', async () => {
       const repository = await storedOrder();
-      await expect(repository.remove(new OrderId(otherOrderId))).resolves.toBeUndefined();
+      await expect(
+        repository.remove(Order.place(otherOrderId, 'Luis', clock)),
+      ).resolves.toBeUndefined();
       expect(await repository.findAll()).toHaveLength(1);
+    });
+
+    it('refuses to remove an order someone changed after it was loaded, and keeps it', async () => {
+      const repository = await storedOrder();
+      const byAna = await loaded(repository);
+      const byLuis = await loaded(repository);
+      byAna.ship();
+      await repository.save(byAna);
+
+      await expect(repository.remove(byLuis)).rejects.toThrow(
+        `Order with ID ${orderId} was changed by someone else: expected version 1.`,
+      );
+      expect((await loaded(repository)).status.value).toBe('shipped');
+    });
+
+    it('refuses to remove an order another user already removed', async () => {
+      const repository = await storedOrder();
+      const byAna = await loaded(repository);
+      const byLuis = await loaded(repository);
+      await repository.remove(byAna);
+      await expect(repository.remove(byLuis)).rejects.toThrow(ConcurrencyException);
     });
   });
 });

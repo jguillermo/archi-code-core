@@ -129,10 +129,19 @@ function smoke(m) {
         class Seat extends m.Entity {}
         class Room extends m.AggregateRoot {}
         const seat = new Seat(new m.IdType(ORDER_ID));
+        const refusesEmptyId = () => {
+          try {
+            new Seat(new m.StringType(null));
+            return false;
+          } catch (error) {
+            return error instanceof exceptions.RequiredValueException;
+          }
+        };
         return (
           (seat.equals(new Seat(new m.IdType(ORDER_ID.toUpperCase()))) &&
             !seat.equals(new Room(new m.IdType(ORDER_ID))) &&
-            new Room(new m.IdType(ORDER_ID)) instanceof m.Entity) ||
+            new Room(new m.IdType(ORDER_ID)) instanceof m.Entity &&
+            refusesEmptyId()) ||
           'unexpected entity equality'
         );
       },

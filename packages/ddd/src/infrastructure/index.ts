@@ -16,7 +16,7 @@ export { InMemoryTransactionRunner } from './transaction/in-memory-transaction-r
 export type { TransactionParticipant } from './transaction/transaction-participant';
 export { InMemoryOutbox } from './outbox/in-memory-outbox';
 export { OutboxRelay } from './outbox/outbox-relay';
-export type { OutboxDelivery } from './outbox/outbox-relay';
+export type { OutboxDelivery, OutboxRelayOptions, ParkedDelivery } from './outbox/outbox-relay';
 export type { OutboxEntry, OutboxStore } from './outbox/outbox-store';
 export { InMemoryInbox } from './inbox/in-memory-inbox';
 export type { InboxStore } from './inbox/inbox-store';

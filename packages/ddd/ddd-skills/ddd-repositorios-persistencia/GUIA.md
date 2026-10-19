@@ -13,6 +13,8 @@
 * El mapeo se hace con `AggregateMapper.of(Order)`, nunca leyendo campos del agregado; el conflicto de versión es `ConcurrencyException` (409) con `{ cause }`; la referencia de tests es `InMemoryRepository`.
 * `InMemoryRepository.findAll()` existe solo como comodidad de los tests; un repositorio real no tiene `findAll()`.
 * El repositorio no publica eventos: lo hace el caso de uso con `events.publish(order.pullDomainEvents())` dentro de la transacción.
+* `remove(aggregate)` recibe el agregado cargado y comprueba su versión como `save`: borrar un agregado que otro cambió después de cargarlo es `ConcurrencyException`.
+* El puerto `TransactionRunner` tiene `run(work)` e `inTransaction()`; la conexión en curso (`current()` de `references/transacciones-ts.md`) se queda dentro del adaptador.
 
 Un repositorio da la ilusión de una colección en memoria con todos los agregados de un tipo, con una interfaz conocida para añadir, quitar y seleccionar. **Solo los agregados tienen repositorio**, normalmente uno por tipo de agregado [IDDD cap. 12, citando a Evans].
 

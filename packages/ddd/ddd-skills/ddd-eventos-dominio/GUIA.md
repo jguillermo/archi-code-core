@@ -12,6 +12,8 @@
 * El outbox es el puerto `EventBus`, publicado dentro de `transactions.run` en el caso de uso; lo entrega `OutboxRelay` tras el commit. La idempotencia se consigue con `EventDispatcher(listeners, { inbox, transactions })`.
 * El repositorio nunca publica ni vacía los eventos: lo hace el caso de uso dentro de la transacción. `PublishedLanguage.translate` devuelve una lista (un mensaje por versión publicada, `[]` para eventos internos).
 * Los consumidores reconstruyen eventos con `DomainEventRegistry` pasando el JSON como metadatos; el relay usa `dispatchSerialized(json, registry)`.
+* `OutboxRelay` reintenta un evento que falla hasta `maxAttempts` (5 por defecto) y después lo aparta (`OutboxStore.park`) y avisa con `onParked`, para compensar o informar [IDDD cap. 10]; los mensajes publicados llevan la `sequence` del outbox para que el consumidor respete el orden causal.
+* Un `EventDispatcher` con inbox se niega a ejecutarse dentro de una transacción abierta: las reacciones van fuera de banda, cada una en su transacción [IDDD cap. 8]. El outbox, el bus en memoria y el despachador congelan los eventos que reciben.
 
 Un evento de dominio es el registro de algo que ha ocurrido y que importa al negocio en un Bounded Context [Destilado cap. 6]. Es parte de pleno derecho del modelo [IDDD cap. 8, citando a Evans] y la pieza que hace posible la consistencia eventual entre agregados y la integración entre contextos.
 

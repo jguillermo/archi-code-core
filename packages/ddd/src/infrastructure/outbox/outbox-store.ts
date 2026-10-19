@@ -8,4 +8,6 @@ export interface OutboxEntry {
 export interface OutboxStore {
   pending(limit: number): Promise<readonly OutboxEntry[]>;
   markPublished(entries: readonly OutboxEntry[]): Promise<void>;
+  markFailed(entry: OutboxEntry): Promise<number>;
+  park(entry: OutboxEntry): Promise<void>;
 }

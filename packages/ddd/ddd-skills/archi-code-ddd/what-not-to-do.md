@@ -40,8 +40,9 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
 - Wiring the relay with `dispatcher.dispatch(registry.fromJSON(json))` and registering only the
   events that have listeners: the first event without a factory blocks the outbox; use
   `dispatcher.dispatchSerialized(json, registry)`.
-- A relay `deliver` that throws forever for one event: catch it and park it, or every later event
-  waits behind it.
+- A relay without a retry limit for a store that cannot count attempts: implement `markFailed`
+  and `park` in your `OutboxStore`, and give `onParked` something that tells a person or starts a
+  compensation; a parked event that nobody looks at is a lost event.
 - A use case run by a listener that throws `AggregateNotFoundException` or a business error: the
   relay retries it forever; return, or record an event that compensates.
 - Retrying a `ConcurrencyException` with the same loaded aggregate, inside the transaction that
@@ -113,6 +114,18 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   is for `any`/`unknown` input.
 - Using `Required(StringType)` directly as a property type instead of a named subclass.
 - Declaring `private readonly _id` + `get id()` in an aggregate: the id goes to `super(id)`.
+- An optional value object (`class Code extends StringType {}`) as the id of an entity or
+  aggregate: an id is always required (`IdType` or `Required(...)`); an empty id throws
+  `RequiredValueException`.
+- Removing by id without loading the aggregate, or a `remove` with no version condition: `remove`
+  receives the loaded aggregate and refuses a stale one with `ConcurrencyException`.
+- Dispatching listeners with an inbox inside the use case's transaction (an `EventDispatcher`
+  behind an `InMemoryEventBus` inside `transactions.run`): it throws; deliver after the commit with
+  the outbox and the relay.
+- An inbox that is not written in the listener's transaction (an `InMemoryInbox` missing from the
+  runner's participants): a failed listener keeps its mark and the redelivery is skipped.
+- `translate(json)` without the outbox `sequence`, or a broker message without it: consumers of
+  other contexts lose the causal order.
 - A child entity as a plain class, with setters, or called from outside its aggregate: it extends
   `Entity<Id>`, holds value objects, and its business methods are called only by its root.
 - Modeling an amount with its currency, a date range or an address as loose fields of the

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { EventListener, ListensTo } from '../../../src/application/index';
 import { EventBase } from '../../../src/domain/index';
-import { ApplicationException } from '../../../src/exceptions/index';
+import { ApplicationException, InfrastructureException } from '../../../src/exceptions/index';
 import { DomainEventRegistry } from '../../../src/infrastructure/event/domain-event-registry';
 import { EventDispatcher } from '../../../src/infrastructure/event/event-dispatcher';
 import { InMemoryInbox } from '../../../src/infrastructure/inbox/in-memory-inbox';
@@ -77,6 +77,13 @@ describe('EventDispatcher: hands each event to the listeners subscribed to it', 
   it('does not run the listeners of other events', async () => {
     await dispatcher().dispatch(new OrderCancelled(orderId));
     expect(log).toEqual([`release stock for ${orderId}`]);
+  });
+
+  it('freezes the event it hands to the listeners: a fact never changes', async () => {
+    const event = new OrderPlaced(orderId, 'Ana');
+    await new EventDispatcher([new NotifyCustomerOnOrderPlaced()]).dispatch(event);
+    expect(Object.isFrozen(event)).toBe(true);
+    expect(() => ((event as { customer: string }).customer = 'Mallory')).toThrow(TypeError);
   });
 
   it('dispatching an event nobody listens to does nothing', async () => {
@@ -177,6 +184,20 @@ describe('EventDispatcher: hands each event to the listeners subscribed to it', 
       const { dispatcher: listeners, transactions } = idempotentDispatcher();
       await listeners.dispatch(new OrderPlaced(orderId, 'Ana'));
       expect(transactions.committed).toBe(2);
+    });
+
+    it('refuses to run listeners inside the transaction of a use case: they run after the commit', async () => {
+      const { dispatcher: listeners, transactions } = idempotentDispatcher();
+      const dispatchInside = transactions.run(() =>
+        listeners.dispatch(new OrderPlaced(orderId, 'Ana')),
+      );
+      await expect(dispatchInside).rejects.toThrow(InfrastructureException);
+      await expect(
+        transactions.run(() => listeners.dispatch(new OrderPlaced(orderId, 'Ana'))),
+      ).rejects.toThrow(
+        'OrderPlaced was dispatched inside an open transaction: listeners run after the commit, delivered by the outbox relay.',
+      );
+      expect(log).toEqual([]);
     });
 
     it('when a listener fails, keeps the event pending for it and done for the ones before', async () => {

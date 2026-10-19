@@ -6,6 +6,8 @@ import { NumberType } from '../../../src/domain/type/number-type';
 import { Required } from '../../../src/domain/type/required/required';
 import { StringType } from '../../../src/domain/type/string-type';
 import type { PrimitiveTypes } from '../../../src/domain/primitive/primitive-types';
+import type { RequiredMarked } from '../../../src/domain/type/required/required-mark';
+import { RequiredValueException } from '../../../src/exceptions/index';
 
 class SeatId extends IdType {}
 class SeatLabel extends Required(StringType) {}
@@ -75,5 +77,27 @@ describe('Entity: a part of an aggregate with an identity of its own, and nothin
 
   it('offers nothing but its id and equals: behavior belongs to the aggregate root', () => {
     expect(Object.getOwnPropertyNames(Entity.prototype).sort()).toEqual(['constructor', 'equals']);
+  });
+
+  describe('a stable identity from the start [IDDD ch. 5]', () => {
+    class Nickname extends StringType {}
+    class Guest extends Entity<Nickname & RequiredMarked> {}
+
+    it('refuses an id that holds no value, so two new entities are never taken for the same one', () => {
+      const withoutId = () => new Guest(new Nickname(null) as Nickname & RequiredMarked);
+      expect(withoutId).toThrow(RequiredValueException);
+      expect(withoutId).toThrow('Validation Error: Guest.id is required, but received null.');
+    });
+
+    it('refuses a missing id passed from untyped code', () => {
+      expect(() => new Locker(undefined as unknown as SeatId)).toThrow(
+        'Validation Error: Locker.id is required, but received undefined.',
+      );
+    });
+
+    it('only takes a required value object as id', () => {
+      // @ts-expect-error an optional value object may hold no value, so it cannot be an id
+      expect(() => new (class extends Entity<Nickname> {})(new Nickname('ana'))).not.toThrow();
+    });
   });
 });

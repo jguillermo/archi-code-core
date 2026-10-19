@@ -4,15 +4,31 @@ import type { SerializedEvent } from '../../../src/domain/index';
 
 class SqlOutboxDouble implements OutboxStore {
   readonly published: number[] = [];
+  readonly parked: number[] = [];
+  readonly attempts = new Map<number, number>();
 
   constructor(private readonly rows: OutboxEntry[]) {}
 
   async pending(limit: number): Promise<readonly OutboxEntry[]> {
-    return this.rows.filter((row) => !this.published.includes(row.sequence)).slice(0, limit);
+    return this.rows
+      .filter(
+        (row) => !this.published.includes(row.sequence) && !this.parked.includes(row.sequence),
+      )
+      .slice(0, limit);
   }
 
   async markPublished(entries: readonly OutboxEntry[]): Promise<void> {
     this.published.push(...entries.map((entry) => entry.sequence));
+  }
+
+  async markFailed(entry: OutboxEntry): Promise<number> {
+    const attempts = (this.attempts.get(entry.sequence) ?? 0) + 1;
+    this.attempts.set(entry.sequence, attempts);
+    return attempts;
+  }
+
+  async park(entry: OutboxEntry): Promise<void> {
+    this.parked.push(entry.sequence);
   }
 }
 
@@ -25,10 +41,12 @@ const shipped: SerializedEvent = {
 };
 
 describe('OutboxStore: what a relay needs from the table where events wait to be delivered', () => {
-  it('reads the pending entries in order and marks the delivered ones', () => {
+  it('reads the pending entries in order, marks the delivered ones, counts failures and parks', () => {
     expectTypeOf<OutboxStore>().toEqualTypeOf<{
       pending(limit: number): Promise<readonly OutboxEntry[]>;
       markPublished(entries: readonly OutboxEntry[]): Promise<void>;
+      markFailed(entry: OutboxEntry): Promise<number>;
+      park(entry: OutboxEntry): Promise<void>;
     }>();
   });
 
@@ -36,6 +54,15 @@ describe('OutboxStore: what a relay needs from the table where events wait to be
     const store = new SqlOutboxDouble([{ sequence: 7, event: shipped }]);
     const [entry] = await store.pending(10);
     await store.markPublished([entry]);
+    expect(await store.pending(10)).toEqual([]);
+  });
+
+  it('counts the failed deliveries of an entry and takes a parked entry out of the pending ones', async () => {
+    const store = new SqlOutboxDouble([{ sequence: 7, event: shipped }]);
+    const [entry] = await store.pending(10);
+    expect(await store.markFailed(entry)).toBe(1);
+    expect(await store.markFailed(entry)).toBe(2);
+    await store.park(entry);
     expect(await store.pending(10)).toEqual([]);
   });
 });

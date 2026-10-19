@@ -4,6 +4,7 @@ import {
   UnknownEventException,
 } from '../../exceptions/index';
 import type { EventBase, EventClass, SerializedEvent } from '../../domain/index';
+import { Frozen } from './frozen';
 
 export type EventFactory<Event extends EventBase> = (serialized: SerializedEvent) => Event;
 
@@ -41,15 +42,7 @@ export class DomainEventRegistry<Event extends EventBase = EventBase> {
     }
     const rebuilt = factory(event);
     DomainEventRegistry.assertSameIdentity(event, rebuilt);
-    return DomainEventRegistry.freeze(rebuilt);
-  }
-
-  private static freeze<Value>(value: Value): Value {
-    if (typeof value === 'object' && value !== null && !Object.isFrozen(value)) {
-      Object.freeze(value);
-      Object.values(value).forEach((child) => DomainEventRegistry.freeze(child));
-    }
-    return value;
+    return Frozen.deep(rebuilt);
   }
 
   private static assertSameIdentity(serialized: SerializedEvent, rebuilt: EventBase): void {

@@ -183,6 +183,17 @@ describe('InMemoryTransactionRunner: the transactions of a use case test', () =>
   });
 
   describe('nested runs', () => {
+    it('tells whether the code runs inside a transaction, also inside a nested run', async () => {
+      const transactions = new InMemoryTransactionRunner();
+      expect(transactions.inTransaction()).toBe(false);
+      const inside = await transactions.run(async () => [
+        transactions.inTransaction(),
+        await transactions.run(async () => transactions.inTransaction()),
+      ]);
+      expect(inside).toEqual([true, true]);
+      expect(transactions.inTransaction()).toBe(false);
+    });
+
     it('a run inside another joins it: one commit, and a failure rolls back both', async () => {
       const { orders, transactions } = await shop();
       await transactions.run(async () => {

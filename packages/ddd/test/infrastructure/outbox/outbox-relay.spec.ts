@@ -3,6 +3,7 @@ import { OutboxRelay } from '../../../src/infrastructure/outbox/outbox-relay';
 import { InMemoryOutbox } from '../../../src/infrastructure/outbox/in-memory-outbox';
 import { EventBase } from '../../../src/domain/index';
 import type { SerializedEvent } from '../../../src/domain/index';
+import { InfrastructureException } from '../../../src/exceptions/index';
 
 class OrderShipped extends EventBase {
   static readonly eventName = 'OrderShipped';
@@ -94,5 +95,62 @@ describe('OutboxRelay: delivers the events a transaction committed, after the co
     const markPublished = vi.spyOn(outbox, 'markPublished');
     expect(await new OutboxRelay(outbox, vi.fn()).forward()).toBe(0);
     expect(markPublished).not.toHaveBeenCalled();
+  });
+
+  describe('an event that can never be delivered (a poison message)', () => {
+    function poisonRelay(outbox: InMemoryOutbox, options = {}) {
+      const delivered: string[] = [];
+      const relay = new OutboxRelay(
+        outbox,
+        (event) => {
+          if (event.aggregateId === orderIds[1]) {
+            throw new Error('rejected by the broker schema');
+          }
+          delivered.push(event.aggregateId);
+        },
+        options,
+      );
+      return { relay, delivered };
+    }
+
+    it('retries it on each run up to maxAttempts, then parks it and delivers the ones behind', async () => {
+      const outbox = await outboxWithShipments();
+      const parked: [string, unknown, number][] = [];
+      const { relay, delivered } = poisonRelay(outbox, {
+        maxAttempts: 2,
+        onParked: (event: SerializedEvent, error: unknown, sequence: number) => {
+          parked.push([event.aggregateId, (error as Error).message, sequence]);
+        },
+      });
+
+      await expect(relay.forward()).rejects.toThrow('rejected by the broker schema');
+      expect(delivered).toEqual([orderIds[0]]);
+      expect(parked).toEqual([]);
+
+      expect(await relay.forward()).toBe(1);
+      expect(delivered).toEqual([orderIds[0], orderIds[2]]);
+      expect(parked).toEqual([[orderIds[1], 'rejected by the broker schema', 2]]);
+      expect((await outbox.parked()).map((entry) => entry.sequence)).toEqual([2]);
+      expect(await outbox.pending(10)).toEqual([]);
+    });
+
+    it('gives up after five attempts by default, and parking needs no callback', async () => {
+      const outbox = await outboxWithShipments();
+      const { relay } = poisonRelay(outbox);
+      for (let attempt = 1; attempt < 5; attempt += 1) {
+        await expect(relay.forward()).rejects.toThrow('rejected by the broker schema');
+      }
+      expect(await relay.forward()).toBe(1);
+      expect(await outbox.parked()).toHaveLength(1);
+    });
+
+    it.each([0, -1, 1.5, Number.NaN])('refuses maxAttempts %s', (maxAttempts) => {
+      expect(() => new OutboxRelay(new InMemoryOutbox(), vi.fn(), { maxAttempts })).toThrow(
+        InfrastructureException,
+      );
+      expect(() => new OutboxRelay(new InMemoryOutbox(), vi.fn(), { maxAttempts })).toThrow(
+        `OutboxRelay needs maxAttempts as a whole number from 1, got ${String(maxAttempts)}.`,
+      );
+    });
   });
 });

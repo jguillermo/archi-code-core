@@ -8,6 +8,7 @@ const exceptions = require(path.resolve(__dirname, '../../dist/cjs/exceptions/in
 const esmExceptionsUrl = path.resolve(__dirname, '../../dist/esm/exceptions/index.js');
 
 const ORDER_ID = '9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c';
+const OTHER_ORDER_ID = '3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f';
 
 function orderModel() {
   class OrderPlaced extends domain.EventBase {
@@ -115,7 +116,7 @@ function smoke(m) {
           conflict = error;
         }
         const stored = await repository.findById(id);
-        await repository.remove(id);
+        await repository.remove(stored);
         const removed = await repository.findById(id);
         return (
           (first.customer.value === 'Ana' &&
@@ -181,6 +182,37 @@ function smoke(m) {
       },
     ],
     [
+      'the relay parks an event it can never deliver after maxAttempts and delivers the next ones',
+      async () => {
+        const { Order } = orderModel();
+        const outbox = new m.InMemoryOutbox();
+        const first = Order.place(ORDER_ID, 'Ana');
+        const second = Order.place(OTHER_ORDER_ID, 'Luis');
+        await outbox.publish([...first.pullDomainEvents(), ...second.pullDomainEvents()]);
+        const delivered = [];
+        const parked = [];
+        const relay = new m.OutboxRelay(
+          outbox,
+          (json) => {
+            if (json.aggregateId === ORDER_ID) {
+              throw new Error('rejected by the broker');
+            }
+            delivered.push(json.aggregateId);
+          },
+          { maxAttempts: 1, onParked: (json, error, sequence) => parked.push(sequence) },
+        );
+        const count = await relay.forward();
+        return (
+          (count === 1 &&
+            delivered.join() === OTHER_ORDER_ID &&
+            parked.join() === '1' &&
+            (await outbox.parked()).length === 1 &&
+            (await outbox.pending(10)).length === 0) ||
+          'unexpected relay parking behavior'
+        );
+      },
+    ],
+    [
       'an inbox makes delivery idempotent and the published language keeps internal events inside',
       async () => {
         const { OrderPlaced } = orderModel();
@@ -205,13 +237,15 @@ function smoke(m) {
           version: 1,
           data: (json) => ({ orderId: json.aggregateId }),
         });
-        const [message] = language.translate(event.toJSON());
+        const [message] = language.translate(event.toJSON(), 7);
         return (
           (handled.length === 1 &&
             message.name === 'sales.order.OrderPlaced' &&
             message.messageId === event.eventId &&
+            message.sequence === 7 &&
             event.toJSON().eventVersion === 1 &&
-            language.translate({ ...event.toJSON(), eventName: 'OrderInternal' }).length === 0) ||
+            language.translate({ ...event.toJSON(), eventName: 'OrderInternal' }, 8).length ===
+              0) ||
           'unexpected inbox or published language behavior'
         );
       },

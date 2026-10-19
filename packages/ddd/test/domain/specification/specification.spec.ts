@@ -1,5 +1,6 @@
 import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { Specification } from '../../../src/domain/specification/specification';
+import type { SatisfiedBy } from '../../../src/domain/specification/specification';
 
 interface Order {
   readonly zone: 'PENINSULA' | 'ISLANDS';
@@ -109,7 +110,14 @@ describe('Specification: a business rule with a name that can be combined', () =
     >();
     expectTypeOf(new ShipsToThePeninsula().not().or)
       .parameter(0)
-      .toEqualTypeOf<Specification<Order>>();
+      .toEqualTypeOf<SatisfiedBy<Order>>();
+  });
+
+  it('combines with any rule that only answers isSatisfiedBy, such as a rule from another module', () => {
+    const paidByCard: SatisfiedBy<Order> = { isSatisfiedBy: (order) => order.totalCents > 0 };
+    const rule = new ShipsToThePeninsula().and(paidByCard).or(paidByCard);
+    expect(rule.isSatisfiedBy(madridTorch)).toBe(true);
+    expect(new ShipsToThePeninsula().and(paidByCard).isSatisfiedBy(palmaTorch)).toBe(false);
   });
 
   it('does not combine rules about different candidates', () => {

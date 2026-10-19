@@ -9,7 +9,7 @@ El suscriptor puede estar en el mismo contexto (en el ejemplo del libro, `Sprint
 ## Fallos y reintentos
 
 * Si el suscriptor falla por concurrencia, no confirma el mensaje; el mecanismo lo reenvía y se reintenta en una nueva transacción, hasta lograrlo o hasta un límite de reintentos [IDDD cap. 10].
-* Si falla del todo: compensar o, como mínimo, informar del fallo para intervención [IDDD cap. 10].
+* Si falla del todo: compensar o, como mínimo, informar del fallo para intervención [IDDD cap. 10]. Con el paquete, `OutboxRelay` cuenta los fallos, aparta el evento al llegar a `maxAttempts` y llama a `onParked` `[Fuera de los libros: convención de @archi-code/ddd]`.
 * El suscriptor debe ser idempotente: la mensajería entrega al menos una vez [Destilado cap. 4].
 
 ## No crear asociaciones bidireccionales

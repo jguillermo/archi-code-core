@@ -1,11 +1,15 @@
-export abstract class Specification<Candidate> {
+export interface SatisfiedBy<Candidate> {
+  isSatisfiedBy(candidate: Candidate): boolean;
+}
+
+export abstract class Specification<Candidate> implements SatisfiedBy<Candidate> {
   abstract isSatisfiedBy(candidate: Candidate): boolean;
 
-  and(other: Specification<Candidate>): Specification<Candidate> {
+  and(other: SatisfiedBy<Candidate>): Specification<Candidate> {
     return new BothSpecification(this, other);
   }
 
-  or(other: Specification<Candidate>): Specification<Candidate> {
+  or(other: SatisfiedBy<Candidate>): Specification<Candidate> {
     return new EitherSpecification(this, other);
   }
 
@@ -16,8 +20,8 @@ export abstract class Specification<Candidate> {
 
 class BothSpecification<Candidate> extends Specification<Candidate> {
   constructor(
-    private readonly left: Specification<Candidate>,
-    private readonly right: Specification<Candidate>,
+    private readonly left: SatisfiedBy<Candidate>,
+    private readonly right: SatisfiedBy<Candidate>,
   ) {
     super();
   }
@@ -29,8 +33,8 @@ class BothSpecification<Candidate> extends Specification<Candidate> {
 
 class EitherSpecification<Candidate> extends Specification<Candidate> {
   constructor(
-    private readonly left: Specification<Candidate>,
-    private readonly right: Specification<Candidate>,
+    private readonly left: SatisfiedBy<Candidate>,
+    private readonly right: SatisfiedBy<Candidate>,
   ) {
     super();
   }
@@ -41,7 +45,7 @@ class EitherSpecification<Candidate> extends Specification<Candidate> {
 }
 
 class NegatedSpecification<Candidate> extends Specification<Candidate> {
-  constructor(private readonly negated: Specification<Candidate>) {
+  constructor(private readonly negated: SatisfiedBy<Candidate>) {
     super();
   }
 

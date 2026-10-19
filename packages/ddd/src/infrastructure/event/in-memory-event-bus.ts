@@ -1,6 +1,7 @@
 import type { EventBus } from '../../application/index';
 import type { EventBase } from '../../domain/index';
 import { EventDispatcher } from './event-dispatcher';
+import { Frozen } from './frozen';
 
 export class InMemoryEventBus<Event extends EventBase = EventBase> implements EventBus<Event> {
   private readonly publishedEvents: Event[] = [];
@@ -13,7 +14,7 @@ export class InMemoryEventBus<Event extends EventBase = EventBase> implements Ev
 
   async publish(events: readonly Event[]): Promise<void> {
     for (const event of events) {
-      this.publishedEvents.push(event);
+      this.publishedEvents.push(Frozen.deep(event));
       await this.dispatcher.dispatch(event);
     }
   }

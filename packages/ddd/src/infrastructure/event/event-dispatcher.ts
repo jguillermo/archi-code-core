@@ -2,6 +2,8 @@ import { ListensTo } from '../../application/index';
 import type { EventListener, TransactionRunner } from '../../application/index';
 import type { EventBase, SerializedEvent } from '../../domain/index';
 import type { DomainEventRegistry } from './domain-event-registry';
+import { Frozen } from './frozen';
+import { InfrastructureException } from '../../exceptions/index';
 import type { InboxStore } from '../inbox/inbox-store';
 
 export interface IdempotentDelivery {
@@ -30,6 +32,12 @@ export class EventDispatcher<Event extends EventBase = EventBase> {
   }
 
   async dispatch(event: Event): Promise<void> {
+    if (this.idempotent?.transactions.inTransaction()) {
+      throw new InfrastructureException(
+        `${event.eventName()} was dispatched inside an open transaction: listeners run after the commit, delivered by the outbox relay.`,
+      );
+    }
+    Frozen.deep(event);
     for (const listener of this.listenersOf(event.eventName())) {
       await this.deliver(listener, event);
     }

@@ -1,8 +1,16 @@
 import type { AbstractType } from '../type/abstract-type';
 import type { IdType } from '../type/id-type';
+import type { RequiredMarked } from '../type/required/required-mark';
+import { RequiredValueException } from '../../exceptions/index';
 
-export abstract class Entity<Id extends AbstractType<any> = IdType> {
-  constructor(readonly id: Id) {}
+export type EntityId = AbstractType<any> & RequiredMarked;
+
+export abstract class Entity<Id extends EntityId = IdType> {
+  constructor(readonly id: Id) {
+    if (id?.isNull !== false) {
+      throw new RequiredValueException(`${new.target.name}.id`, id?.value);
+    }
+  }
 
   equals(other: unknown): boolean {
     return (
