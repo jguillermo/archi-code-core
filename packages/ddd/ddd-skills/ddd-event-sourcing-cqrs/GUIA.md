@@ -44,7 +44,7 @@ Inconvenientes que el propio apéndice reconoce [IDDD apéndice A]:
 
 Recomendación de estas fuentes `[Fuera de los libros]`: Event Sourcing solo en agregados del Core Domain donde el historial es un requisito de negocio (o legal) o donde las preguntas "¿cómo llegó a este estado?" son frecuentes. No en todo el sistema. Si solo hace falta auditoría, el outbox de `ddd-skills/ddd-eventos-dominio/GUIA.md` ya deja un registro de eventos sin cambiar la persistencia.
 
-Registra la decisión como ADR, en la carpeta de ADR del proyecto.
+Registra la decisión como ADR (en proyectos con SBR-IA-EST-001, en `_codex_architect/`).
 
 ## Paso 2. Implementar Event Sourcing
 

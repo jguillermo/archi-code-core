@@ -39,18 +39,34 @@ function markdownOf(skillDir: string): string[] {
     .map((file) => fs.readFileSync(path.join(SUITE, skillDir, file), 'utf8'));
 }
 
-function citedPaths(skillDir: string): string[] {
-  return markdownOf(skillDir).flatMap((text) =>
-    Array.from(
-      text.matchAll(/(?<![\w/.-])((?:references|assets|scripts)\/[\w.-]+(?:\/[\w.-]+)*)/g),
-      (m) => m[1].replace(/\.+$/, ''),
-    ),
+const SUITE_PATH = /(?<![\w/.-])((?:references|assets|scripts)\/[\w.-]+(?:\/[\w.-]+)*)/g;
+
+function prefixedPathsOf(text: string, skillDir: string): string[] {
+  const prefixed = new RegExp(
+    `(?<![\\w/.-])ddd-skills/${skillDir}/((?:references|assets|scripts)/[\\w.-]+(?:/[\\w.-]+)*)`,
+    'g',
   );
+  return Array.from(text.matchAll(prefixed), (m) => m[1].replace(/\.+$/, ''));
+}
+
+function citedPaths(skillDir: string): string[] {
+  const relative = markdownOf(skillDir).flatMap((text) =>
+    Array.from(text.matchAll(SUITE_PATH), (m) => m[1].replace(/\.+$/, '')),
+  );
+  const prefixed = [...suiteSkills, PACKAGE_GUIDES]
+    .flatMap((dir) => markdownOf(dir))
+    .flatMap((text) => prefixedPathsOf(text, skillDir));
+  return Array.from(new Set([...relative, ...prefixed]));
 }
 
 function localReferences(skillDir: string): string[] {
   const text = fs.readFileSync(path.join(SUITE, skillDir, 'GUIA.md'), 'utf8');
-  return Array.from(text.matchAll(/`((?:references|assets|scripts)\/[^`\s]+)`/g), (m) => m[1]);
+  return Array.from(
+    text.matchAll(
+      new RegExp(`\`(?:ddd-skills/${skillDir}/)?((?:references|assets|scripts)/[^\`\\s]+)\``, 'g'),
+    ),
+    (m) => m[1],
+  );
 }
 
 describe('the DDD skill suite is reached only through SKILL.md', () => {
@@ -198,7 +214,10 @@ describe('the rules and patterns of the package are part of SKILL.md, split in d
   it('every suite path a guide cites exists', () => {
     const missing = packageGuides.flatMap((guide) => {
       const text = fs.readFileSync(path.join(PACKAGE_GUIDES_DIR, guide), 'utf8');
-      return Array.from(text.matchAll(/`((ddd-[a-z-]+)\/[^`\s]+)`/g), (m) => m[1])
+      return Array.from(
+        text.matchAll(/`(?:ddd-skills\/)?((?:ddd-[a-z-]+|archi-code-ddd)\/[^`\s]+)`/g),
+        (m) => m[1],
+      )
         .filter((cited) => !fs.existsSync(path.join(SUITE, cited)))
         .map((cited) => `${guide}: ${cited}`);
     });

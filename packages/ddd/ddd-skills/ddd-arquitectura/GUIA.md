@@ -49,7 +49,7 @@ En la interfaz se valida formato (campo obligatorio, longitud), no conocimiento 
 ## Flujo de trabajo
 
 1. **Decide si el contexto merece modelo de dominio.** Si es un subdominio genérico o de soporte sin reglas, un CRUD sencillo y bien encapsulado es legítimo (ver `ddd-skills/ddd-subdominios-bounded-contexts/GUIA.md`). La estructura hexagonal sigue siendo útil, pero sin agregados artificiales.
-2. **Crea la estructura de carpetas** con `ddd-skills/ddd-arquitectura/references/estructura-hexagonal-ts.md`. Si tu organización fija una estructura de proyecto propia (por ejemplo, la lógica en `src/app/`), usa la variante descrita allí.
+2. **Crea la estructura de carpetas** con `ddd-skills/ddd-arquitectura/references/estructura-hexagonal-ts.md`. Si el proyecto sigue el estándar SBR-IA-EST-001, usa la variante descrita allí.
 3. **Nombra los módulos** con el lenguaje ubicuo, nunca por tipo de patrón (`entities/`, `services/`, `valueobjects/`). Guía en `ddd-skills/ddd-arquitectura/references/modulos.md`.
 4. **Monta el composition root**: un único punto donde se instancian adaptadores y se inyectan en los casos de uso. Sin contenedor mágico salvo necesidad.
 5. **Automatiza las reglas de dependencia** con `ddd-skills/ddd-arquitectura/assets/dependency-cruiser.cjs`. Una regla que no se comprueba en CI acaba violándose `[Fuera de los libros]`.
