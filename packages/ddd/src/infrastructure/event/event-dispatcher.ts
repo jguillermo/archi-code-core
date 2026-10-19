@@ -1,6 +1,7 @@
 import { ListensTo } from '../../application/index';
 import type { EventListener, TransactionRunner } from '../../application/index';
-import type { EventBase } from '../../domain/index';
+import type { EventBase, SerializedEvent } from '../../domain/index';
+import type { DomainEventRegistry } from './domain-event-registry';
 import type { InboxStore } from '../inbox/inbox-store';
 
 export interface IdempotentDelivery {
@@ -31,6 +32,15 @@ export class EventDispatcher<Event extends EventBase = EventBase> {
   async dispatch(event: Event): Promise<void> {
     for (const listener of this.listenersOf(event.eventName())) {
       await this.deliver(listener, event);
+    }
+  }
+
+  async dispatchSerialized(
+    serialized: SerializedEvent,
+    registry: DomainEventRegistry<Event>,
+  ): Promise<void> {
+    if (this.listenersOf(serialized.eventName).length > 0) {
+      await this.dispatch(registry.fromJSON(serialized));
     }
   }
 

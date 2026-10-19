@@ -282,7 +282,7 @@ describe('AbstractType: writing a custom value object', () => {
       expect(build).toThrow(ValidationException);
       expect(build).toThrow('Validation failed, Email: Value does not satisfy isEmail');
       expect(issuesOf(build)).toEqual([
-        { field: null, message: 'Email: Value does not satisfy isEmail' },
+        { field: null, code: 'isEmail', message: 'Email: Value does not satisfy isEmail' },
       ]);
     });
 
@@ -295,8 +295,8 @@ describe('AbstractType: writing a custom value object', () => {
         'Validation failed, SignUpEmail: Value does not satisfy isEmail, SignUpEmail: Value does not satisfy isLength',
       );
       expect(issuesOf(signUp)).toEqual([
-        { field: null, message: 'SignUpEmail: Value does not satisfy isEmail' },
-        { field: null, message: 'SignUpEmail: Value does not satisfy isLength' },
+        { field: null, code: 'isEmail', message: 'SignUpEmail: Value does not satisfy isEmail' },
+        { field: null, code: 'isLength', message: 'SignUpEmail: Value does not satisfy isLength' },
       ]);
     });
 
@@ -331,11 +331,19 @@ describe('AbstractType: writing a custom value object', () => {
       class WorkEmail extends CustomerEmail {}
 
       expect(issuesOf(() => new WorkEmail('ana'))).toEqual([
-        { field: null, message: 'WorkEmail: Value does not satisfy isEmail' },
-        { field: null, message: 'WorkEmail: Value does not satisfy isCorporate' },
+        { field: null, code: 'isEmail', message: 'WorkEmail: Value does not satisfy isEmail' },
+        {
+          field: null,
+          code: 'isCorporate',
+          message: 'WorkEmail: Value does not satisfy isCorporate',
+        },
       ]);
       expect(issuesOf(() => new WorkEmail('ana@gmail.com'))).toEqual([
-        { field: null, message: 'WorkEmail: Value does not satisfy isCorporate' },
+        {
+          field: null,
+          code: 'isCorporate',
+          message: 'WorkEmail: Value does not satisfy isCorporate',
+        },
       ]);
       expect(new WorkEmail('ana@acme.example').value).toBe('ana@acme.example');
     });
@@ -408,7 +416,7 @@ describe('AbstractType: writing a custom value object', () => {
       expect(new BillingCountry('es')).toBeInstanceOf(CountryCode);
       expect(BillingCountry.spain().value).toBe('ES');
       expect(issuesOf(() => new CustomerEmail('ana'))).toEqual([
-        { field: null, message: 'CustomerEmail: Value does not satisfy isEmail' },
+        { field: null, code: 'isEmail', message: 'CustomerEmail: Value does not satisfy isEmail' },
       ]);
     });
 

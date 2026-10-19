@@ -200,7 +200,11 @@ describe('StringType', () => {
       const { CouponCode } = couponCodes();
       expect(new CouponCode('abc').validate()).toEqual({ ok: true, value: 'abc', errors: [] });
       expect(issuesOf(() => new CouponCode('123456'))).toEqual([
-        { field: null, message: 'CouponCode: Value does not satisfy isShortCode' },
+        {
+          field: null,
+          code: 'isShortCode',
+          message: 'CouponCode: Value does not satisfy isShortCode',
+        },
       ]);
     });
 
@@ -221,7 +225,11 @@ describe('StringType', () => {
       const { ReferralCode } = couponCodes();
       expect(new ReferralCode('abc').validate()).toEqual({ ok: true, value: 'abc', errors: [] });
       expect(issuesOf(() => new ReferralCode('123456'))).toEqual([
-        { field: null, message: 'ReferralCode: Value does not satisfy isShortCode' },
+        {
+          field: null,
+          code: 'isShortCode',
+          message: 'ReferralCode: Value does not satisfy isShortCode',
+        },
       ]);
     });
   });
@@ -236,7 +244,7 @@ describe('StringType', () => {
       expect(build).toThrow(ValidationException);
       expect(build).toThrow('Validation failed, Email: Value does not satisfy isEmail');
       expect(issuesOf(build)).toEqual([
-        { field: null, message: 'Email: Value does not satisfy isEmail' },
+        { field: null, code: 'isEmail', message: 'Email: Value does not satisfy isEmail' },
       ]);
     });
   });

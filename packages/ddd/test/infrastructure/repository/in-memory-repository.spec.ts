@@ -67,7 +67,7 @@ class Order extends AggregateRoot<OrderId> {
       new OrderId(primitives.id),
       new CustomerName(primitives.customer),
       primitives.lines.map((sku) => new Sku(sku)),
-      new OrderStatus(primitives.status as Status),
+      new OrderStatus(primitives.status),
       new CreatedAt(primitives.createdAt),
     );
   }

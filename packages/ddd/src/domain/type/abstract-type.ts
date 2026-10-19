@@ -70,6 +70,7 @@ export abstract class AbstractType<T> implements Validatable<T | null> {
   protected brokenRules(value: unknown): ValidationIssue[] {
     return runValidations(this.constructor as ValidatedClass, value).errors.map((error) => ({
       field: null,
+      code: 'validator' in error ? error.validator : error.custom,
       message: `${this.constructor.name}: ${error.message}`,
     }));
   }

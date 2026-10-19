@@ -1,9 +1,8 @@
----
-name: ddd-context-mapping
-description: Context Mapping de DDD para decidir cómo se relacionan e integran los Bounded Contexts. Cubre los patrones de relación entre equipos y modelos (Partnership, Shared Kernel, Customer-Supplier, Conformist, Anticorruption Layer, Open Host Service, Published Language, Separate Ways, Big Ball of Mud), upstream y downstream, estilos de integración (RPC, REST, mensajería con eventos), contratos e idioma publicado, idempotencia, consistencia eventual entre contextos, procesos de larga duración y cómo implementar una capa anticorrupción en TypeScript. Úsalo SIEMPRE que haya que conectar dos sistemas, servicios, módulos o equipos, integrar con un ERP, CRM, pasarela o sistema heredado, decidir entre llamada síncrona y eventos, diseñar una API pública entre servicios, o cuando un modelo empiece a copiar conceptos de otro, aunque no se mencione "context map". Va después de ddd-subdominios-bounded-contexts.
----
-
 # Context Mapping
+
+> Guía de la suite DDD de @archi-code/ddd: se lee solo a través del skill `archi-code-ddd` (packages/ddd/SKILL.md), nunca como skill independiente.
+
+**Cuándo usarla.** Úsala siempre que haya que conectar dos sistemas, servicios, módulos o equipos, integrar con un ERP, CRM, pasarela o sistema heredado, decidir entre llamada síncrona y eventos, diseñar una API pública entre servicios, o cuando un modelo empiece a copiar conceptos de otro, aunque no se mencione "context map". Va después de ddd-subdominios-bounded-contexts.
 
 Una línea entre dos Bounded Contexts significa tres cosas a la vez: que hay **integración técnica**, que hay una **relación entre equipos** y que hay una **traducción entre dos lenguajes** [Destilado cap. 4]. Este skill decide el tipo de cada línea y cómo se implementa.
 

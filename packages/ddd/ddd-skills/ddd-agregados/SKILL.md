@@ -1,9 +1,8 @@
----
-name: ddd-agregados
-description: Diseño e implementación de agregados DDD en TypeScript, el skill central del diseño táctico. Cubre las cuatro reglas (proteger invariantes reales dentro del límite, agregados pequeños, referencias por identidad, consistencia eventual fuera del límite), el procedimiento para dimensionar agregados preguntando a negocio por los plazos de consistencia, la heurística de "¿de quién es el trabajo?", cuándo está justificado romper las reglas, la raíz del agregado, partes como value objects, fábricas, concurrencia optimista, registro de eventos de dominio y tests. Úsalo SIEMPRE que haya que decidir qué objetos van juntos, qué se guarda en una transacción, por qué hay conflictos de concurrencia o bloqueos, si un objeto debe contener una colección de otro, cómo coordinar cambios en varias entidades, o cuando aparezca un objeto enorme que carga medio modelo, aunque no se diga "agregado".
----
-
 # Agregados
+
+> Guía de la suite DDD de @archi-code/ddd: se lee solo a través del skill `archi-code-ddd` (packages/ddd/SKILL.md), nunca como skill independiente.
+
+**Cuándo usarla.** Úsala siempre que haya que decidir qué objetos van juntos, qué se guarda en una transacción, por qué hay conflictos de concurrencia o bloqueos, si un objeto debe contener una colección de otro, cómo coordinar cambios en varias entidades, o cuando aparezca un objeto enorme que carga medio modelo, aunque no se diga "agregado".
 
 Un agregado es un grupo de entidades y value objects con una entidad raíz que lo nombra y lo controla, y que forma un **límite de consistencia transaccional**: al confirmar la transacción, todo lo de dentro cumple las reglas del negocio [Destilado cap. 5]. No es un grafo de objetos cómodo de navegar; es una decisión sobre consistencia [IDDD cap. 10].
 

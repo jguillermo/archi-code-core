@@ -109,6 +109,35 @@ describe('EventDispatcher: hands each event to the listeners subscribed to it', 
     expect(log).toEqual([`reserve stock for ${orderId}`, 'notify Luis']);
   });
 
+  describe('dispatchSerialized: what an outbox relay or a queue consumer calls', () => {
+    const placedOnly = () =>
+      new DomainEventRegistry<OrderPlaced>().register(
+        OrderPlaced,
+        (json) => new OrderPlaced(json.aggregateId, json.customer as string, json),
+      );
+
+    it('rebuilds the stored event with the registry and runs its listeners', async () => {
+      const listeners = dispatcher();
+      await listeners.dispatchSerialized(new OrderPlaced(orderId, 'Luis').toJSON(), placedOnly());
+      expect(log).toEqual([`reserve stock for ${orderId}`, 'notify Luis']);
+    });
+
+    it('skips an event nobody listens to without rebuilding it, so it never blocks the outbox', async () => {
+      const listeners = new EventDispatcher([new ReserveStockOnOrderPlaced()]);
+      log.length = 0;
+      const shippedRow = { ...new OrderCancelled(orderId).toJSON(), eventName: 'order.shipped' };
+      await expect(listeners.dispatchSerialized(shippedRow, placedOnly())).resolves.toBeUndefined();
+      expect(log).toEqual([]);
+    });
+
+    it('still refuses an event that has listeners but no factory, a wiring mistake', async () => {
+      const cancelled = new OrderCancelled(orderId).toJSON();
+      await expect(dispatcher().dispatchSerialized(cancelled, placedOnly())).rejects.toThrow(
+        'order.cancelled',
+      );
+    });
+  });
+
   describe('idempotent delivery with an inbox, because the relay delivers at least once', () => {
     function idempotentDispatcher() {
       log.length = 0;

@@ -236,7 +236,7 @@ describe('JsonType', () => {
         new InvoiceAddress({ street: 'Gran Vía 1', city: 'Huelva', zip: '21001' }).validate().ok,
       ).toBe(true);
       expect(issuesOf(() => new InvoiceAddress({ street: 'Gran Vía 1', city: 'Huelva' }))).toEqual([
-        { field: null, message: 'InvoiceAddress: Zip code is required' },
+        { field: null, code: 'hasZip', message: 'InvoiceAddress: Zip code is required' },
       ]);
     });
 
@@ -262,7 +262,7 @@ describe('JsonType', () => {
       expect(ship).toThrow(ValidationException);
       expect(thrownBy(ship)).toMatchObject({
         message: 'Validation failed, DeliveryAddress: Zip code is required',
-        errors: [{ field: null, message: 'DeliveryAddress: Zip code is required' }],
+        errors: [{ field: null, code: 'hasZip', message: 'DeliveryAddress: Zip code is required' }],
       });
     });
 

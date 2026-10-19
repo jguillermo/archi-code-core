@@ -38,6 +38,15 @@ function toHttpStatus(error: unknown): number {
 }
 
 describe('AggregateNotFoundException', () => {
+  it('keeps the lookup error of another context as its cause', () => {
+    const notFoundUpstream = new Error('catalog answered 404 for sku-9');
+    const exception = new AggregateNotFoundException('Product', 'sku-9', {
+      cause: notFoundUpstream,
+    });
+    expect(exception.cause).toBe(notFoundUpstream);
+    expect(new AggregateNotFoundException('Product', 'sku-9').cause).toBeUndefined();
+  });
+
   it('is what a use case throws when the aggregate it needs does not exist', () => {
     const repository = new InMemoryUserRepository();
 

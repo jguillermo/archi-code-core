@@ -1,7 +1,7 @@
 import type { SerializedEvent } from '../../domain/index';
 import type { OutboxEntry, OutboxStore } from './outbox-store';
 
-export type OutboxDelivery = (event: SerializedEvent) => Promise<void> | void;
+export type OutboxDelivery = (event: SerializedEvent, sequence: number) => Promise<void> | void;
 
 export class OutboxRelay {
   constructor(
@@ -13,7 +13,7 @@ export class OutboxRelay {
     const delivered: OutboxEntry[] = [];
     try {
       for (const entry of await this.store.pending(limit)) {
-        await this.deliver(entry.event);
+        await this.deliver(entry.event, entry.sequence);
         delivered.push(entry);
       }
     } finally {

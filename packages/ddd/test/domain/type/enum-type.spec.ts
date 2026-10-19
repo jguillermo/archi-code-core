@@ -231,7 +231,11 @@ describe('EnumType', () => {
       const { DeliveredReturnStatus } = shippableStatuses();
       expect(new DeliveredReturnStatus(OrderStatusOption.SHIPPED).validate().ok).toBe(true);
       expect(issuesOf(() => new DeliveredReturnStatus(OrderStatusOption.PENDING))).toEqual([
-        { field: null, message: 'DeliveredReturnStatus: Value does not satisfy isShipped' },
+        {
+          field: null,
+          code: 'isShipped',
+          message: 'DeliveredReturnStatus: Value does not satisfy isShipped',
+        },
       ]);
     });
 
@@ -258,7 +262,13 @@ describe('EnumType', () => {
       expect(invoice).toThrow(ValidationException);
       expect(thrownBy(invoice)).toMatchObject({
         message: 'Validation failed, InvoiceableStatus: Value does not satisfy isShipped',
-        errors: [{ field: null, message: 'InvoiceableStatus: Value does not satisfy isShipped' }],
+        errors: [
+          {
+            field: null,
+            code: 'isShipped',
+            message: 'InvoiceableStatus: Value does not satisfy isShipped',
+          },
+        ],
       });
     });
 

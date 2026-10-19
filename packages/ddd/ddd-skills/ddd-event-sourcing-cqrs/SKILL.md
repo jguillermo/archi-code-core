@@ -1,9 +1,8 @@
----
-name: ddd-event-sourcing-cqrs
-description: Event Sourcing (agregados persistidos como secuencia de eventos, A+ES) y CQRS (modelo de comandos separado de modelos de lectura) con DDD en TypeScript. Empieza por decidir si compensan, y cubre stream de eventos por agregado, reconstitución, control de concurrencia con versión esperada, event store, snapshots, proyecciones y read models reconstruibles, consistencia eventual en la interfaz, enriquecimiento y versionado de eventos, y cómo cumplir el RGPD con eventos inmutables. Úsalo SIEMPRE que alguien mencione event sourcing, CQRS, read models, proyecciones, auditoría completa de cambios, "volver a un estado anterior", event store, o pantallas lentas que cruzan muchos agregados, aunque la pregunta sea solo "¿debería usar...?".
----
-
 # Event Sourcing y CQRS
+
+> Guía de la suite DDD de @archi-code/ddd: se lee solo a través del skill `archi-code-ddd` (packages/ddd/SKILL.md), nunca como skill independiente.
+
+**Cuándo usarla.** Úsala siempre que alguien mencione event sourcing, CQRS, read models, proyecciones, auditoría completa de cambios, "volver a un estado anterior", event store, o pantallas lentas que cruzan muchos agregados, aunque la pregunta sea solo "¿debería usar...?".
 
 Dos patrones distintos que a menudo van juntos. **CQRS** separa el modelo que ejecuta comandos (agregados) de los modelos que responden consultas [IDDD cap. 4]. **Event Sourcing** guarda el estado de un agregado como la secuencia de eventos que le han ocurrido y lo reconstruye aplicándolos [Destilado cap. 6; IDDD apéndice A]. Event Sourcing casi siempre exige alguna forma de CQRS, porque los streams de eventos son difíciles de consultar [IDDD apéndice A; Destilado cap. 6]. CQRS no exige Event Sourcing.
 

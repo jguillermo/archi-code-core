@@ -102,7 +102,7 @@ Fíjate en:
 * Constructor privado y dos factorías con nombre: `register` (lenguaje del negocio) y `reconstitute` (técnica, solo para infraestructura).
 * Ningún setter; cada cambio es un comportamiento con nombre y sus reglas.
 * Los atributos son value objects; cambiar el correo es reemplazar un `Email`.
-* Getters solo para lo que los clientes necesitan leer.
+* Getters solo para lo que los clientes necesitan leer. `[Fuera de los libros: convención de @archi-code/ddd]` Con @archi-code/ddd cada campo persistido tiene un getter público con su nombre sin `_` (o es `public readonly`), porque `PrimitiveTypes` y `AggregateMapper` lo leen; los valores derivados son métodos, no getters.
 
 ## Seguimiento de cambios
 

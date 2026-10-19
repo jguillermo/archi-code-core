@@ -1,9 +1,8 @@
----
-name: ddd-auditoria-refactorizacion
-description: Auditar un proyecto existente contra las reglas de DDD y planificar su refactorización incremental. Incluye un script que escanea un repositorio TypeScript en busca de síntomas (dominio que importa frameworks u ORM, setters y campos públicos, servicios gigantes, repositorios de partes internas, importaciones entre contextos, transacciones con varios agregados), una lista de comprobación estratégica y táctica con severidad, un informe con formato fijo y un plan de migración por pasos (tests de caracterización, capa anticorrupción, extracción de contextos y agregados, estrangulamiento del legado). Úsalo SIEMPRE que alguien pida revisar, auditar, evaluar o "pasar a DDD" un código existente, modernizar un monolito, sacar un servicio de un sistema heredado, o pregunte "¿está bien hecho este DDD?", aunque solo pegue unos ficheros.
----
-
 # Auditoría y refactorización con DDD
+
+> Guía de la suite DDD de @archi-code/ddd: se lee solo a través del skill `archi-code-ddd` (packages/ddd/SKILL.md), nunca como skill independiente.
+
+**Cuándo usarla.** Úsala siempre que alguien pida revisar, auditar, evaluar o "pasar a DDD" un código existente, modernizar un monolito, sacar un servicio de un sistema heredado, o pregunte "¿está bien hecho este DDD?", aunque solo pegue unos ficheros.
 
 No puedes cambiar todo el software mal diseñado de una vez; puedes hacer bien tu parte e integrarte con el resto [IDDD cap. 2]. Este skill convierte esa idea en un procedimiento: medir, priorizar por valor de negocio y cambiar por pasos seguros.
 

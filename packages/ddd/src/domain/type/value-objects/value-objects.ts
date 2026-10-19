@@ -41,11 +41,12 @@ export class ValueObjects {
     if (error instanceof ValidationException) {
       return error.errors.map((issue) => ({
         field: issue.field === null ? field : `${field}.${issue.field}`,
+        code: issue.code,
         message: issue.message,
       }));
     }
     if (error instanceof DomainException) {
-      return [{ field, message: error.message }];
+      return [{ field, code: error.code, message: error.message }];
     }
     throw error;
   }

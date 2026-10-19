@@ -85,7 +85,7 @@ function issuesOf(build: () => unknown): unknown {
 }
 
 const isPositiveBroken = (type: string) => [
-  { field: null, message: `${type}: Value does not satisfy isPositive` },
+  { field: null, code: 'isPositive', message: `${type}: Value does not satisfy isPositive` },
 ];
 
 describe('NumberType', () => {
@@ -220,7 +220,7 @@ describe('NumberType', () => {
       expect(addLine).toThrow(ValidationException);
       expect(addLine).toThrow('Validation failed, Quantity: Value does not satisfy isInt');
       expect(issuesOf(addLine)).toEqual([
-        { field: null, message: 'Quantity: Value does not satisfy isInt' },
+        { field: null, code: 'isInt', message: 'Quantity: Value does not satisfy isInt' },
       ]);
     });
   });

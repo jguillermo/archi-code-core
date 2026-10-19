@@ -93,7 +93,7 @@ describe('@archi-code/ddd/infrastructure', () => {
       (limit: number) => Promise<readonly OutboxEntry[]>
     >();
     expectTypeOf<OutboxDelivery>().toEqualTypeOf<
-      (event: SerializedEvent) => Promise<void> | void
+      (event: SerializedEvent, sequence: number) => Promise<void> | void
     >();
   });
 });

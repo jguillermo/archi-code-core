@@ -64,7 +64,9 @@ describe('HttpErrorMapper: the error handler of an HTTP controller', () => {
         body: {
           code: 'DOM001',
           message: 'Validation failed, Email: Value does not satisfy isEmail',
-          errors: [{ field: null, message: 'Email: Value does not satisfy isEmail' }],
+          errors: [
+            { field: null, code: 'isEmail', message: 'Email: Value does not satisfy isEmail' },
+          ],
         },
       });
     });
@@ -191,7 +193,7 @@ describe('HttpErrorMapper: the error handler of an HTTP controller', () => {
       body: {
         code: 'DOM001',
         message: 'Validation failed, email: Email: invalid',
-        errors: [{ field: 'email', message: 'Email: invalid' }],
+        errors: [{ field: 'email', code: 'DOM001', message: 'Email: invalid' }],
       },
     });
     expect(mapper.map(new otherCopy.ConcurrencyException('Order', orderId, 2)).status).toBe(409);

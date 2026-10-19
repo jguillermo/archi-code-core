@@ -90,6 +90,41 @@ describe('AggregateShape: what an aggregate may hold before it reaches a reposit
       expect(check(state, { id: orderId })).toThrow('Order._internalNote is not in its primitives');
     });
 
+    it('refuses a private field of a child entity that its primitives leave out', () => {
+      const state = {
+        id: new IdType(orderId),
+        _lines: [
+          { id: new IdType(lineId), sku: new Sku('TORCH-01') },
+          { id: new IdType(lineId), sku: new Sku('HELMET-02'), _giftNote: new Code('BDAY') },
+        ],
+      };
+      const primitives = {
+        id: orderId,
+        lines: [
+          { id: lineId, sku: 'TORCH-01' },
+          { id: lineId, sku: 'HELMET-02' },
+        ],
+      };
+      expect(check(state, primitives)).toThrow(
+        'Order._lines[1]._giftNote is not in its primitives',
+      );
+    });
+
+    it('refuses a field of a single child entity that its primitives leave out', () => {
+      const state = { _coupon: { code: new Code('SPRING'), _issuedBy: new Code('CRM') } };
+      expect(check(state, { coupon: { code: 'SPRING' } })).toThrow(
+        'Order._coupon._issuedBy is not in its primitives',
+      );
+    });
+
+    it('refuses a child entity stored as something that is not its primitives', () => {
+      const state = { _lines: [{ id: new IdType(lineId), sku: new Sku('TORCH-01') }] };
+      expect(check(state, { lines: [] })).toThrow('Order._lines[0].id is not in its primitives');
+      expect(check(state, { lines: 'TORCH-01' })).toThrow(
+        'Order._lines[0].id is not in its primitives',
+      );
+    });
+
     it('matches a public field by its own name', () => {
       expect(check({ customer: new Code('ANA') }, {})).toThrow(
         'Order.customer is not in its primitives',

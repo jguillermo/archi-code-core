@@ -1,9 +1,8 @@
----
-name: ddd-orquestador
-description: Punto de entrada de la suite de skills de Domain-Driven Design. Diagnostica en qué situación está el proyecto (nuevo, existente o una duda concreta), clasifica la pregunta como estratégica, táctica o mixta y decide qué skills DDD aplicar y en qué orden. Incluye una chuleta con las reglas esenciales de DDD y sus fuentes. Úsalo SIEMPRE que alguien quiera aplicar DDD a un proyecto, pregunte "por dónde empiezo", pida ayuda general con DDD, diseño de dominio, bounded contexts, agregados o microservicios sin precisar más, o cuando no esté claro cuál de los skills ddd-* corresponde.
----
-
 # Orquestador de la suite DDD
+
+> Guía de la suite DDD de @archi-code/ddd: se lee solo a través del skill `archi-code-ddd` (packages/ddd/SKILL.md), nunca como skill independiente.
+
+**Cuándo usarla.** Es el clasificador que usa `archi-code-ddd`: úsala siempre que alguien quiera aplicar DDD a un proyecto, pregunte "por dónde empiezo", pida ayuda general con DDD, diseño de dominio, bounded contexts, agregados o microservicios sin precisar más, o cuando no esté claro qué guía de la suite corresponde.
 
 ## Convenciones de la suite DDD
 

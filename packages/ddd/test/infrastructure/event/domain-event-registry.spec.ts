@@ -153,6 +153,49 @@ describe('DomainEventRegistry: rebuilding events read from an outbox or a broker
     expect(read).toThrow('Failed, internal error: a serialized event must be a JSON object');
   });
 
+  it('refuses a factory that drops the eventId, because the inbox could not skip a redelivery', () => {
+    const forgetful = new DomainEventRegistry<OrderEvent>().register(
+      OrderShipped,
+      (e) => new OrderShipped(e.aggregateId, e.carrier as string),
+    );
+    const delivered = new OrderShipped(orderId, 'UPS', {
+      eventId,
+      occurredOn: '2026-03-01T09:30:00Z',
+    });
+
+    const rebuild = () => forgetful.fromJSON(delivered.toJSON());
+    expect(rebuild).toThrow(InternalErrorException);
+    expect(rebuild).toThrow(
+      'the factory of "order.shipped" must pass the serialized event as metadata, so it keeps its eventId and occurredOn',
+    );
+  });
+
+  it('refuses a factory that keeps the eventId but stamps a new occurredOn', () => {
+    const restamping = new DomainEventRegistry<OrderEvent>().register(
+      OrderShipped,
+      (e) => new OrderShipped(e.aggregateId, e.carrier as string, { eventId: e.eventId }),
+    );
+    const delivered = new OrderShipped(orderId, 'UPS', {
+      eventId,
+      occurredOn: '2026-03-01T09:30:00Z',
+    });
+
+    expect(() => restamping.fromJSON(delivered.toJSON())).toThrow(InternalErrorException);
+  });
+
+  it('accepts the same identity written by another producer: upper case id, time without milliseconds', () => {
+    const rebuilt = orderEvents().fromJSON({
+      eventName: 'order.shipped',
+      eventVersion: 1,
+      eventId: eventId.toUpperCase(),
+      aggregateId: orderId,
+      occurredOn: '2026-03-01T10:30:00+01:00',
+      carrier: 'UPS',
+    });
+    expect(rebuilt.eventId).toBe(eventId);
+    expect(rebuilt.occurredOn.toISOString()).toBe('2026-03-01T09:30:00.000Z');
+  });
+
   it('propagates the error of a factory that rejects the stored data', () => {
     expect(() =>
       orderEvents().fromJSON({

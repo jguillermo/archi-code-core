@@ -6,7 +6,7 @@ Domain-Driven Design building blocks for TypeScript, one entry point per layer:
 | -------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `@archi-code/ddd/exceptions`     | Shared         | Exceptions of every layer with codes, causes and `instanceof` across builds                                                                                                                      |
 | `@archi-code/ddd/domain`         | Domain         | Value objects, `Required(...)`, `Composite(...)`, `Entity`, `AggregateRoot`, `EventBase`, `Specification` and the repository contracts (`AggregateFinder`, `AggregateSaver`, `AggregateRemover`) |
-| `@archi-code/ddd/application`    | Application    | `UseCase`, `EventListener`, `@ListensTo` and the ports `EventBus` and `Clock`                                                                                                                    |
+| `@archi-code/ddd/application`    | Application    | `UseCase`, `EventListener`, `@ListensTo` and the ports `EventBus`, `Clock` and `TransactionRunner`                                                                                               |
 | `@archi-code/ddd/infrastructure` | Infrastructure | `InMemoryRepository`, `AggregateMapper`, `EventDispatcher`, transactions, outbox, inbox, `PublishedLanguage`, `DomainEventRegistry`, `HttpErrorMapper`, clocks                                   |
 
 The layers only depend inwards: `exceptions` imports nothing, `domain` imports only `exceptions`,
@@ -74,31 +74,36 @@ library built on this package): the exceptions of one build are `instanceof` the
 Every class of a project built on this package goes in exactly one layer. The table says where,
 what it may import and what it must never do; the package itself is organized the same way.
 
-| Class                                           | Layer          | Responsibility                                                                    | May depend on                                              | Never                                                                        |
-| ----------------------------------------------- | -------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| Value object (`extends StringType`…)            | domain         | One concept of the business; converts and validates its own value                 | other value objects, `@archi-code/validation`, exceptions  | mutate, know about storage or transport                                      |
-| Aggregate (`extends AggregateRoot`)             | domain         | Business rules and invariants; records an event for every fact                    | its value objects, child entities, events, domain services | read a repository, publish events, use `new Date()`                          |
-| Composite value object (`Composite({...})`)     | domain         | Several values that only make sense together (money, a date range, an order line) | value objects, other composites                            | change, hold an id, be loaded or saved on its own                            |
-| Child entity (`extends Entity`)                 | domain         | A part of an aggregate with its own id; holds its id and value objects, no logic  | value objects                                              | hold business rules, be loaded or saved on its own                           |
-| Specification (`extends Specification`)         | domain         | A named business rule that validates, selects or builds; combinable               | value objects, aggregates, data already loaded             | read a repository, protect an aggregate invariant                            |
-| Domain event (`extends EventBase`)              | domain         | A fact that happened, named in the past (`OrderPlaced`), with `static eventName`  | value objects (to validate its data)                       | carry behavior, reference infrastructure                                     |
-| Repository contract (`AggregateFinder`…)        | domain         | Only gets and persists aggregates, one role per interface; no business logic      | the aggregate                                              | be implemented in the domain, hold rules, answer business queries            |
-| Domain service                                  | domain         | A business rule that spans several aggregates or fits none                        | aggregates, value objects, repository contracts            | I/O, transactions, publishing events                                         |
-| Use case (`extends UseCase`)                    | application    | One business action: input → command of value objects → change one aggregate      | domain, application ports, exceptions                      | import another use case or a listener, persist or call the network by itself |
-| Listener (`extends EventListener`)              | application    | What happens after an event: turns it into the input of one use case              | one use case (by constructor), the event                   | hold business rules, save aggregates, call several use cases                 |
-| Port (`EventBus`, `Clock`, `TransactionRunner`) | application    | A technical capability the application needs, as a type                           | domain types                                               | contain code                                                                 |
-| Adapter (repository, outbox, mapper, clock…)    | infrastructure | Implements a contract with a database, a queue, a broker, HTTP or memory          | domain, application, exceptions, drivers                   | contain business rules                                                       |
-| Entry point (controller, message consumer, CLI) | interfaces     | Turns HTTP, a message or a command line into the input of a use case, and back    | application, exceptions (domain types only if unavoidable) | hold business rules, use a repository or an adapter directly                 |
-| Composition root (`composition.ts`)             | (per context)  | Reads the configuration, builds adapters, use cases and entry points              | everything                                                 | be imported by the domain, the application or the interfaces                 |
+| Class                                                                                     | Layer          | Responsibility                                                                                     | May depend on                                                                 | Never                                                                        |
+| ----------------------------------------------------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Value object (`extends StringType`…)                                                      | domain         | One concept of the business; converts and validates its own value                                  | other value objects, `@archi-code/validation`, exceptions                     | mutate, know about storage or transport                                      |
+| Aggregate (`extends AggregateRoot`)                                                       | domain         | Business rules and invariants; records an event for every fact                                     | its value objects, child entities, events, domain services, domain ports      | read a repository, publish events, use `new Date()`                          |
+| Composite value object (`Composite({...})`)                                               | domain         | Several values that only make sense together (money, a date range, an order line)                  | value objects, other composites                                               | change, hold an id, be loaded or saved on its own                            |
+| Child entity (`extends Entity`)                                                           | domain         | A part of an aggregate with its own id; holds its id and value objects, no methods                 | value objects                                                                 | hold business rules, change itself, be loaded or saved on its own            |
+| Specification (`extends Specification`)                                                   | domain         | A named business rule that validates, selects or builds; combinable                                | value objects, aggregates, data already loaded                                | read a repository, protect an aggregate invariant                            |
+| Domain event (`extends EventBase`)                                                        | domain         | A fact that happened, named in the past (`OrderPlaced`, `'order.placed'`), with primitive data     | value objects (to take its primitives from them)                              | carry behavior or value objects, reference infrastructure                    |
+| Repository contract (`AggregateFinder`…)                                                  | domain         | Only gets and persists aggregates, one role per interface; no business logic                       | the aggregate                                                                 | be implemented in the domain, hold rules, answer business queries            |
+| Domain service                                                                            | domain         | A business rule that spans several aggregates or fits none                                         | aggregates, value objects, repository contracts, domain ports                 | I/O, transactions, publishing events                                         |
+| Domain port (`ProductPricing`)                                                            | domain         | What the model needs from another context or an external service, in its own words                 | value objects of this context                                                 | contain code, expose the other system's model                                |
+| Use case (`extends UseCase`)                                                              | application    | One business action: input → command of value objects → change one aggregate                       | domain, application ports, exceptions                                         | import another use case or a listener, persist or call the network by itself |
+| Listener (`extends EventListener`)                                                        | application    | What happens after an event: turns it into the input of one use case; lives next to that use case  | one use case (by constructor), the event                                      | hold business rules, save aggregates, call several use cases                 |
+| Application port (`EventBus`, `Clock`, `TransactionRunner`, your own such as `Warehouse`) | application    | A technical capability the application needs, as a type                                            | domain types                                                                  | contain code                                                                 |
+| Read query (`OrderSummaries`)                                                             | application    | An interface that answers a screen or a list with DTOs or ids, outside the aggregates              | domain types, DTOs                                                            | load aggregates, go through a repository, change data                        |
+| Adapter (repository, outbox, read query, clock…)                                          | infrastructure | Implements a contract with a database, a queue, a broker, HTTP or memory                           | domain, application, exceptions, drivers                                      | contain business rules                                                       |
+| Anti-corruption layer (adapter + translator)                                              | infrastructure | Implements a domain port by calling another context or service and translating its model into ours | domain, application, exceptions, clients                                      | leak the other model into the domain, hold business rules                    |
+| Entry point (controller, message consumer, CLI)                                           | interfaces     | Turns HTTP, a message or a command line into the input of a use case, and back                     | application, exceptions, `HttpErrorMapper` (domain types only if unavoidable) | hold business rules, use a repository or another adapter directly            |
+| Composition root (`composition.ts`)                                                       | (per context)  | Reads the configuration, builds adapters, use cases and entry points                               | everything                                                                    | be imported by the domain, the application or the interfaces                 |
 
-Dependencies only point inwards: `domain` imports only `exceptions` (the shared module every layer
-throws from), `application` imports `domain` and `exceptions`, `infrastructure` implements the
-contracts of both, and `interfaces` (controllers, consumers) only calls the application. The
-application never imports infrastructure, the domain never imports the application, and an entry
-point never reaches a repository or an adapter: only the composition root knows every piece
-[IDDD ch. 4]. A controller validates only the shape of the request, maps the use case result (an
-id, a DTO or nothing) to the response and the errors with `HttpErrorMapper`; it never returns an
-aggregate.
+Dependencies only point inwards. Your domain imports only `@archi-code/ddd/domain`,
+`@archi-code/ddd/exceptions` and `@archi-code/validation`; the application adds
+`@archi-code/ddd/application`; infrastructure implements the contracts of both; and `interfaces`
+(controllers, consumers) only calls the application. The application never imports
+infrastructure, the domain never imports the application, and an entry point never reaches a
+repository or an adapter: only the composition root knows every piece [IDDD ch. 4]. The one
+infrastructure import an entry point may have is `HttpErrorMapper` (or it receives the mapper from
+the composition root). A controller validates only the shape of the request, maps the use case
+result (an id, a DTO or nothing) to the response and the errors with `HttpErrorMapper`; it never
+returns an aggregate.
 
 ### Folder structure
 
@@ -111,32 +116,40 @@ src/
   contexts/
     sales/
       domain/
-        order/          Order.ts, OrderLine.ts, OrderId.ts, events.ts, OrderStatus.ts
-        customer/       CustomerId.ts
-        shared/         Money.ts (shared inside this context only)
+        order/              Order.ts, OrderLine.ts, OrderId.ts, events.ts, OrderStatus.ts
+        customer/           CustomerId.ts
+        catalog/            ProductPricing.ts (domain port to the catalog context)
+        shared/             Money.ts (shared inside this context only)
       application/
-        place-order/    PlaceOrder.ts
-        ship-order/     ShipOrder.ts
-        listeners/      ReserveStockOnOrderPlaced.ts
+        place-order/        PlaceOrder.ts
+        ship-order/         ShipOrder.ts
+        notify-customer/    NotifyCustomer.ts, NotifyCustomerOnOrderShipped.ts
+        order-summaries/    OrderSummaries.ts (read query: interface + DTOs)
       infrastructure/
-        persistence/    MongoOrderRepository.ts, MongoOutbox.ts
-        catalog/        CatalogHttpProductPricing.ts (anti-corruption layer)
+        persistence/        MongoOrderRepository.ts, MongoOutbox.ts, MongoOrderSummaries.ts
+        catalog/            CatalogHttpProductPricing.ts, CatalogTranslator.ts (anti-corruption layer)
       interfaces/
-        http/           ordersRouter.ts
-        messaging/      StockReservedConsumer.ts
-      composition.ts    composition root of the context
+        http/               ordersRouter.ts
+        messaging/          StockReservedConsumer.ts
+      composition.ts        composition root of the context
     warehouse/
+    shared-kernel/          optional: the few types two contexts agree to share and change together
   main.ts
-test/                   mirrors src/
+test/                       mirrors src/
 ```
 
+- A listener lives in the module of the use case it runs (`notify-customer/`), not in a
+  `listeners/` folder.
 - A context never imports another one: they integrate through published events, an API or an
-  agreed shared kernel.
-- Check the direction of the imports in CI, with an import test like the package's own
-  (`test/cross/module-boundaries.spec.ts`) or with dependency-cruiser rules (domain without npm
-  packages but the allowed ones, no imports from `application`, `infrastructure` or `interfaces`
-  into the domain, none from `infrastructure` into `interfaces`, isolated contexts, no cycles, and
-  `tsPreCompilationDeps: true` so type imports count too).
+  agreed shared kernel (`shared-kernel/`, kept small, changed only by agreement of both teams).
+- Check the direction of the imports in CI with dependency-cruiser. The DDD suite shipped with the
+  package has a ready configuration to start from:
+  `node_modules/@archi-code/ddd/ddd-skills/ddd-arquitectura/assets/dependency-cruiser.cjs` (domain
+  without npm packages but the allowed ones, no imports from `application`, `infrastructure` or
+  `interfaces` into the domain, none from `infrastructure` or `interfaces` into the application, no
+  `@archi-code/ddd/infrastructure` in the domain or the application, none from `interfaces` into
+  your `infrastructure` (`HttpErrorMapper` comes from the package), isolated contexts, no cycles,
+  and `tsPreCompilationDeps: true` so type imports count too). Adapt its paths to your layout.
 - Environment variables are read only in the composition root and reach the adapters as typed
   configuration; the domain never logs nor reads `process.env`.
 
@@ -159,7 +172,16 @@ test/                   mirrors src/
   Lists and searches for screens are read queries of the application (SQL, a view, a read model),
   outside the repositories.
 - **Child entities hold only their id and value objects**: the aggregate root owns every rule and
-  changes its children.
+  changes a child by replacing it with a new one (see
+  [Aggregates and domain events](#aggregates-and-domain-events)); the child has no methods.
+- **Derived values are methods, never getters** (`order.total()`, not `get total()`), on
+  aggregates, child entities and composites alike: a getter becomes a key of `PrimitiveTypes` and
+  `toPrimitives()` no longer matches the stored data.
+- **Event names**: internal events are `'<aggregate>.<past_fact>'` (`'order.placed'`); contracts
+  published to other contexts are `'<context>.<fact>'` (`'sales.order_placed'`, see
+  [`PublishedLanguage`](#events-for-other-contexts-publishedlanguage)). An event carries
+  primitives taken from value objects (ids as strings, money as `{ amount, currency }`), never value
+  objects nor the whole state of the aggregate.
 
 Logic that two use cases share never goes in a use case: a business rule becomes a method of the
 aggregate or a domain service, and a technical step becomes a port. Use cases never call each
@@ -288,6 +310,13 @@ whether it was built by a use case, an aggregate, `fromPrimitives` or a test. Wh
 it throws `ValidationException` with **every** broken rule, each prefixed with the class name. An
 optional, empty value object is built without running its rules.
 
+Each entry of `error.errors` is a `ValidationIssue`, `{ field, code, message }`: `field` is the path
+of the input (`null` for the value object itself), and `code` says which rule failed so a client
+can translate it without parsing the message: the validator name (`'isEmail'`), the name of a
+`custom` rule (`'isEven'`), or the code of the exception a value threw (`'DOM003'` for
+`TypePrimitiveException`, `'DOM004'` for `RequiredValueException`, `'ORD003'` for your own
+`DomainException` with that code).
+
 ```ts
 import { Validations } from '@archi-code/validation';
 import { NumberType, Required, StringType } from '@archi-code/ddd/domain';
@@ -298,7 +327,7 @@ class Email extends Required(StringType) {}
 new Email('ana@example.com').value; // 'ana@example.com'
 new Email('x');
 // ValidationException: Validation failed, Email: Value does not satisfy isEmail
-// error.errors: [{ field: null, message: 'Email: Value does not satisfy isEmail' }]
+// error.errors: [{ field: null, code: 'isEmail', message: 'Email: Value does not satisfy isEmail' }]
 
 @Validations([{ validator: 'isLength', properties: { min: 3, max: 20 } }])
 class Username extends StringType {}
@@ -313,6 +342,11 @@ class Quantity extends NumberType {}
 
 new Quantity(-3);
 // ValidationException: Validation failed, Quantity: Value does not satisfy isInt, Quantity: Must be even
+// error.errors:
+// [
+//   { field: null, code: 'isInt', message: 'Quantity: Value does not satisfy isInt' },
+//   { field: null, code: 'isEven', message: 'Quantity: Must be even' },
+// ]
 ```
 
 A subclass inherits its parent's validations; if it declares the same validation, it replaces it.
@@ -356,15 +390,17 @@ const command = ValueObjects.build({
 // with input = { orderId: 'x', email: 'ana', lines: [{ sku: 'TORCH-01', units: 2 }, { sku: '', units: 0 }] }:
 // ValidationException, error.errors:
 // [
-//   { field: 'orderId', message: 'Validation Error: Expected a valid UUID, but received "x".' },
-//   { field: 'email', message: 'Email: Value does not satisfy isEmail' },
-//   { field: 'lines.1.sku', message: 'Validation Error: Sku is required, but received "".' },
-//   { field: 'lines.1.units', message: 'Units: From 1 to 20 units' },
+//   { field: 'orderId', code: 'DOM003', message: 'Validation Error: Expected a valid UUID, but received "x".' },
+//   { field: 'email', code: 'isEmail', message: 'Email: Value does not satisfy isEmail' },
+//   { field: 'lines.1.sku', code: 'DOM004', message: 'Validation Error: Sku is required, but received "".' },
+//   { field: 'lines.1.units', code: 'isInt', message: 'Units: From 1 to 20 units' },
 // ]
 ```
 
 `HttpErrorMapper` answers it with a 422 whose body carries the same `errors`, so a client can mark
-each input.
+each input. To report a problem of your own in the same shape, throw
+`new ValidationException([{ field: 'deliveryDate', code: 'ORD003', message: '…' }])`; `code` is
+optional and defaults to `'DOM001'`.
 
 ### Which layer validates what
 
@@ -483,6 +519,9 @@ new LevelType('3' as any);
 // TypePrimitiveException: Validation Error: Expected one of [1, 2], but received "3".
 ```
 
+In `PrimitiveTypes`, an `EnumType<V>` field is typed as `V` (`Status`, `Level`), so
+`fromPrimitives` passes it back without a cast: `new StatusType(primitives.status)`.
+
 ### `JsonType`
 
 Holds a non-empty JSON object (frozen copy). `T` must extend `JsonTypeValue`
@@ -554,8 +593,8 @@ the errors of each item with its position (`field: '1'`, from 0):
 new Tags(['ok', 'x', '']);
 // ValidationException, error.errors:
 // [
-//   { field: '1', message: 'Tag: Value does not satisfy isLength' },
-//   { field: '2', message: 'Validation Error: Tag is required, but received "".' },
+//   { field: '1', code: 'isLength', message: 'Tag: Value does not satisfy isLength' },
+//   { field: '2', code: 'DOM004', message: 'Validation Error: Tag is required, but received "".' },
 // ]
 ```
 
@@ -605,14 +644,25 @@ class of each field:
 ```ts
 import { Validations } from '@archi-code/validation';
 import { Composite, DateType, NumberType, Required, StringType } from '@archi-code/ddd/domain';
+import { DomainException } from '@archi-code/ddd/exceptions';
 
+@Validations([{ validator: 'isInt' }])
 class Cents extends Required(NumberType) {}
 
 @Validations([{ validator: 'isIn', properties: { values: ['EUR', 'USD'] } }])
 class Currency extends Required(StringType) {}
 
+class CurrencyMismatch extends DomainException {
+  constructor(expected: string, received: string) {
+    super(`Cannot add ${received} to ${expected}`, ['PAY001']);
+  }
+}
+
 class Money extends Composite({ amount: Cents, currency: Currency }) {
   add(other: Money): Money {
+    if (!this.currency.equals(other.currency)) {
+      throw new CurrencyMismatch(this.currency.value, other.currency.value);
+    }
     return new Money({
       amount: new Cents(this.amount.value + other.amount.value),
       currency: this.currency,
@@ -623,6 +673,10 @@ class Money extends Composite({ amount: Cents, currency: Currency }) {
 const price = new Money({ amount: new Cents(1250), currency: new Currency('EUR') });
 price.amount; // Cents (read-only)
 price.add(price).toPrimitives(); // { amount: 2500, currency: 'EUR' }
+price.add(new Money({ amount: new Cents(100), currency: new Currency('USD') }));
+// CurrencyMismatch: Cannot add USD to EUR (code 'PAY001')
+new Cents(12.5);
+// ValidationException: Validation failed, Cents: Value does not satisfy isInt
 price.equals(Money.fromPrimitives({ amount: 1250, currency: 'EUR' })); // true
 JSON.stringify(price); // '{"amount":1250,"currency":"EUR"}'
 ```
@@ -649,10 +703,12 @@ JSON.stringify(price); // '{"amount":1250,"currency":"EUR"}'
 
   Promotion.fromPrimitives({ start: '2026-06-20', end: '2026-03-20' } as any);
   // ValidationException: Validation failed, Promotion: A promotion cannot end before it starts
+  // error.errors: [{ field: null, code: 'endsAfterItStarts', message: 'Promotion: A promotion cannot end before it starts' }]
   ```
 
 - **It never changes**: the instance and its lists are frozen and its fields are read-only, so
-  behavior returns a new instance. Do not add instance fields to the subclass.
+  behavior returns a new instance. Do not add instance fields to the subclass, and write derived
+  values as methods (`money.isZero()`), never getters.
 - **`X.fromPrimitives(data)`** rebuilds it from stored or received data, converting each primitive
   like the value objects do, and reports every invalid field with its path, also nested ones. It
   works inside `ValueObjects.build`, so a command reports `price.amount`:
@@ -668,9 +724,9 @@ JSON.stringify(price); // '{"amount":1250,"currency":"EUR"}'
   } as any);
   // ValidationException, error.errors:
   // [
-  //   { field: 'lines.0.sku', message: 'Validation Error: Sku is required, but received "".' },
-  //   { field: 'lines.0.units', message: 'Validation Error: Expected a valid Number, but received "two".' },
-  //   { field: 'lines.0.unitPrice.currency', message: 'Currency: Value does not satisfy isIn' },
+  //   { field: 'lines.0.sku', code: 'DOM004', message: 'Validation Error: Sku is required, but received "".' },
+  //   { field: 'lines.0.units', code: 'DOM003', message: 'Validation Error: Expected a valid Number, but received "two".' },
+  //   { field: 'lines.0.unitPrice.currency', code: 'isIn', message: 'Currency: Value does not satisfy isIn' },
   // ]
   ```
 
@@ -732,31 +788,54 @@ repository. It does not protect the invariants of an aggregate: those stay in th
 - Parts of an aggregate are composite value objects when nobody looks them up by an id of their
   own (the lines of an order). A part that does need its own identity inside the aggregate (a seat
   of a room) is a child entity: it extends `Entity<Id>`, which only stores `readonly id` and
-  compares by class and id, and it holds value objects and no business logic; the root changes it.
+  compares by class and id, and it holds value objects and no methods. The root changes a child by
+  replacing it with a new instance. Its id only needs to be unique inside the aggregate, so it may
+  be a local value object (`class SeatNumber extends Required(NumberType) {}`) instead of a UUID.
   `AggregateRoot` extends `Entity` too, and only the root is loaded and saved by repositories.
 
   ```ts
-  import { Entity, IdType, Required, StringType } from '@archi-code/ddd/domain';
+  import {
+    AggregateRoot,
+    Entity,
+    IdType,
+    NumberType,
+    Required,
+    StringType,
+  } from '@archi-code/ddd/domain';
 
-  class SeatId extends IdType {}
+  class SeatNumber extends Required(NumberType) {}
   class SeatLabel extends Required(StringType) {}
 
-  class Seat extends Entity<SeatId> {
+  class Seat extends Entity<SeatNumber> {
     constructor(
-      id: SeatId,
+      id: SeatNumber,
       readonly label: SeatLabel,
     ) {
       super(id);
     }
   }
 
-  new Seat(new SeatId(id), new SeatLabel('A1')).equals(
-    new Seat(new SeatId(id), new SeatLabel('B7')),
+  class Room extends AggregateRoot<IdType> {
+    private _seats: Seat[] = [];
+
+    get seats(): Seat[] {
+      return [...this._seats];
+    }
+
+    relabelSeat(id: SeatNumber, label: SeatLabel): void {
+      this._seats = this._seats.map((seat) => (seat.id.equals(id) ? new Seat(id, label) : seat));
+    }
+  }
+
+  new Seat(new SeatNumber(7), new SeatLabel('A1')).equals(
+    new Seat(new SeatNumber(7), new SeatLabel('B7')),
   ); // true
   ```
 
-- `EventBase`: abstract class for events; declare `static readonly eventName = '<context>.<fact>'`
-  (listeners and registries refer to the event by its class, without an instance; `eventName()`
+- `EventBase`: abstract class for events; declare
+  `static readonly eventName = '<aggregate>.<past_fact>'` (`'order.placed'`; the
+  `'<context>.<fact>'` names are for the contracts other contexts read, see
+  [`PublishedLanguage`](#events-for-other-contexts-publishedlanguage)) (listeners and registries refer to the event by its class, without an instance; `eventName()`
   returns it, and a subclass inherits it). Creating an event whose class has no non-blank
   `eventName` throws `InternalErrorException`. `new (aggregateId,
 metadata?)` sets `aggregateId`, a new `eventId` (UUID v4) and an immutable `occurredOn`. Pass
@@ -771,12 +850,20 @@ metadata?)` sets `aggregateId`, a new `eventId` (UUID v4) and an immutable `occu
   it, and a version below 1 or not whole throws `InternalErrorException`. Stored events keep the
   version they were written with, so the `DomainEventRegistry` factory can read old shapes
   (`json.eventVersion === 1 ? … : …`).
+- The data of an event are primitives taken from value objects (`id.value`, money as
+  `{ amount, currency }`), never value objects nor the whole state of the aggregate: the event is
+  serialized as it is, and its readers must not depend on the model.
+- `version` counts saves, not events: it grows by 1 on each save, however many events the change
+  recorded. Event Sourcing is not provided: an event-sourced aggregate manages the version of its
+  stream itself and does not use `AggregateMapper`.
 
 ```ts
-import { AggregateRoot, EventBase, IdType } from '@archi-code/ddd/domain';
+import { AggregateRoot, EventBase, IdType, Required, StringType } from '@archi-code/ddd/domain';
 import type { EventMetadata } from '@archi-code/ddd/domain';
+import { FixedClock } from '@archi-code/ddd/infrastructure';
 
 class OrderId extends IdType {}
+class CustomerName extends Required(StringType) {}
 
 class OrderPlaced extends EventBase {
   static readonly eventName = 'order.placed';
@@ -791,14 +878,18 @@ class OrderPlaced extends EventBase {
 }
 
 class Order extends AggregateRoot<OrderId, OrderPlaced> {
-  static place(id: string, customer: string): Order {
-    const order = new Order(new OrderId(id));
-    order.record(new OrderPlaced(id, customer));
+  static place(id: OrderId, customer: CustomerName, clock: { now(): Date }): Order {
+    const order = new Order(id);
+    order.record(new OrderPlaced(id.value, customer.value, { clock }));
     return order;
   }
 }
 
-const order = Order.place('9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c', 'Ana');
+const order = Order.place(
+  new OrderId('9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c'),
+  new CustomerName('Ana'),
+  new FixedClock('2026-10-17T10:00:00Z'),
+);
 const [placed] = order.pullDomainEvents(); // OrderPlaced[]
 order.pullDomainEvents(); // []
 JSON.stringify(placed);
@@ -809,22 +900,25 @@ JSON.stringify(placed);
 
 Types to go from an aggregate (or any class with value objects) to its plain values:
 
-| Type                       | Result                                                                                                                                                                                                                                |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PrimitiveType<T>`         | Value object → its value (`T['value']`); enum → `string`/`number`; arrays item by item; `null` → `null`; any other object (a child entity) → its `PrimitiveTypes`; raw `string`/`number`/`boolean`/`Date` and anything else → `never` |
-| `PrimitiveTypes<T>`        | Object with each public non-method property of `T` as `PrimitiveType`, without the leading `_` of the name                                                                                                                            |
-| `DataTypes<T>`             | `Partial<PrimitiveTypes<T>>`                                                                                                                                                                                                          |
-| `Properties<T>`            | The public properties of `T` that are not methods                                                                                                                                                                                     |
-| `PropertiesData<T>`        | `Required<Properties<T>>`                                                                                                                                                                                                             |
-| `MutablePropertiesData<T>` | `PropertiesData<T>` without `readonly`                                                                                                                                                                                                |
-| `Methods<T>`               | Union of the names of the methods of `T`                                                                                                                                                                                              |
-| `MethodsAndProperties<T>`  | `{ [key in keyof T]: T[key] }`                                                                                                                                                                                                        |
-| `RequiredType<C>`          | Type of the class returned by `Required(C)`                                                                                                                                                                                           |
-| `JsonTypeValue`            | `Record<string, any>`                                                                                                                                                                                                                 |
+| Type                       | Result                                                                                                                                                                                                                                                               |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PrimitiveType<T>`         | Value object → its value (`T['value']`); `EnumType<V>` → the enum option type `V`; arrays item by item; `null` → `null`; a child entity (`extends Entity`) or a composite → its `PrimitiveTypes`; raw `string`/`number`/`boolean`/`Date` and anything else → `never` |
+| `PrimitiveTypes<T>`        | Object with each public non-method property of `T` as `PrimitiveType`, without the leading `_` of the name                                                                                                                                                           |
+| `DataTypes<T>`             | `Partial<PrimitiveTypes<T>>`                                                                                                                                                                                                                                         |
+| `Properties<T>`            | The public properties of `T` that are not methods                                                                                                                                                                                                                    |
+| `PropertiesData<T>`        | `Required<Properties<T>>`                                                                                                                                                                                                                                            |
+| `MutablePropertiesData<T>` | `PropertiesData<T>` without `readonly`                                                                                                                                                                                                                               |
+| `Methods<T>`               | Union of the names of the methods of `T`                                                                                                                                                                                                                             |
+| `MethodsAndProperties<T>`  | `{ [key in keyof T]: T[key] }`                                                                                                                                                                                                                                       |
+| `RequiredType<C>`          | Type of the class returned by `Required(C)`                                                                                                                                                                                                                          |
+| `JsonTypeValue`            | `Record<string, any>`                                                                                                                                                                                                                                                |
 
 `PrimitiveTypes` only sees **public** members (`keyof`): `private` or `protected` properties do not
 appear. Expose the value objects with public `readonly` properties or with getters (see the full
-example). For an aggregate it includes `id`, and child entities become their own primitives.
+example), and write derived values as methods: a getter such as `get total()` would become a key of
+the primitives. For an aggregate it includes `id`, and child entities become their own primitives.
+An enum field keeps its enum type, so `fromPrimitives` rebuilds it without a cast:
+`new OrderStatusType(primitives.status)` (`primitives.status` is `OrderStatus`).
 
 ```ts
 import type { DataTypes, PrimitiveTypes } from '@archi-code/ddd/domain';
@@ -860,12 +954,30 @@ interface AggregateRemover<Aggregate extends AggregateRoot<any, any>> {
 }
 ```
 
-A use case asks only for the roles it uses: registering needs `AggregateSaver<User>`, a query needs
-`AggregateFinder<User>`, renaming needs `AggregateFinder<User> & AggregateSaver<User>`. Its
-dependencies then say what it can do, and a test double implements one method. There is no
-all-in-one `Repository` contract: the adapter implements the roles it supports
+A use case asks only for the roles it uses: registering needs `AggregateSaver<User>`, renaming
+needs `AggregateFinder<User> & AggregateSaver<User>`, closing an account may need
+`AggregateFinder<User> & AggregateRemover<User>`. Its dependencies then say what it can do, and a
+test double implements one method. There is no all-in-one `Repository` contract: the adapter
+implements the roles it supports
 (`class MongoUserRepository implements AggregateFinder<User>, AggregateSaver<User>, AggregateRemover<User>`)
 and the same instance is passed to every use case.
+
+Reading for a screen or a list does not go through aggregates nor repositories. A read query is an
+interface of the application, implemented in infrastructure, that returns DTOs or ids straight
+from the database (filter and paginate it with
+[`@archi-code/criteria`](https://www.npmjs.com/package/@archi-code/criteria)):
+
+```ts
+interface OrderSummary {
+  id: string;
+  customer: string;
+  totalCents: number;
+}
+
+interface OrderSummaries {
+  ofCustomer(customerId: string, page: { limit: number; offset: number }): Promise<OrderSummary[]>;
+}
+```
 
 ### Optimistic concurrency
 
@@ -882,9 +994,30 @@ repository follows the same contract:
 | Written                      | Calls `aggregate.markPersisted()`, so the same object can be changed and saved again                      |
 
 The version lives next to the primitives (a `version` column or field), never inside them. After a
-`ConcurrencyException`, reload the aggregate and run the command again (only if it is safe to
-repeat against the new state), or tell the user that someone else changed it. If a transaction is
-rolled back after `markPersisted()`, discard the object and load it again.
+`ConcurrencyException`, either tell the user that someone else changed it, or run the command
+again, which loads the aggregate again. A retry lives in the entry point or in the composition (a
+wrapper around `execute`), only for commands that are safe to repeat against the new state; never
+in a use case that calls another one:
+
+```ts
+import { ConcurrencyException } from '@archi-code/ddd/exceptions';
+
+async function retryOnConflict<Output>(run: () => Promise<Output>, attempts = 3): Promise<Output> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await run();
+    } catch (error) {
+      if (!(error instanceof ConcurrencyException) || attempt === attempts) {
+        throw error;
+      }
+    }
+  }
+}
+
+await retryOnConflict(() => addLine.execute(input));
+```
+
+If a transaction is rolled back after `markPersisted()`, discard the object and load it again.
 
 ```ts
 import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
@@ -933,6 +1066,70 @@ class MongoOrderRepository implements AggregateFinder<Order>, AggregateSaver<Ord
 In SQL the same check is `UPDATE orders SET …, version = version + 1 WHERE id = $1 AND version = $2`
 and zero updated rows means a conflict.
 
+### Repository contract tests
+
+Write the contract once, in `test/support/`, and run it against `InMemoryRepository` and against
+your real adapter, so the double the use case tests rely on behaves like production (`Order` is
+the one of [Persisting aggregates](#persisting-aggregates-with-aggregatemapper)):
+
+```ts
+import { describe, expect, it } from 'vitest';
+import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
+import { ConcurrencyException } from '@archi-code/ddd/exceptions';
+import { AggregateMapper, FixedClock, InMemoryRepository } from '@archi-code/ddd/infrastructure';
+
+const clock = new FixedClock('2026-10-17T10:00:00Z');
+const anOrder = () => Order.place(OrderId.generate(), new CustomerName('Ana'), clock);
+
+export function orderRepositoryContract(
+  make: () => AggregateFinder<Order> & AggregateSaver<Order>,
+): void {
+  it('finds what it saved', async () => {
+    const orders = make();
+    const order = anOrder();
+    await orders.save(order);
+    expect((await orders.findById(order.id))?.toPrimitives()).toStrictEqual(order.toPrimitives());
+  });
+
+  it('saves the same object twice', async () => {
+    const orders = make();
+    const order = anOrder();
+    await orders.save(order);
+    order.ship(clock);
+    await orders.save(order);
+    expect((await orders.findById(order.id))?.version).toBe(2);
+  });
+
+  it('refuses a stale save', async () => {
+    const orders = make();
+    const order = anOrder();
+    await orders.save(order);
+    const first = (await orders.findById(order.id))!;
+    const second = (await orders.findById(order.id))!;
+    first.ship(clock);
+    await orders.save(first);
+    second.ship(clock);
+    await expect(orders.save(second)).rejects.toBeInstanceOf(ConcurrencyException);
+  });
+
+  it('refuses a new aggregate whose id is taken', async () => {
+    const orders = make();
+    const order = anOrder();
+    await orders.save(order);
+    const copy = Order.place(order.id, new CustomerName('Luis'), clock);
+    await expect(orders.save(copy)).rejects.toBeInstanceOf(ConcurrencyException);
+  });
+}
+
+describe('InMemoryRepository of orders', () => {
+  orderRepositoryContract(() => new InMemoryRepository(AggregateMapper.of(Order)));
+});
+
+describe('MongoOrderRepository', () => {
+  orderRepositoryContract(() => new MongoOrderRepository(collection));
+});
+```
+
 # Application layer: `@archi-code/ddd/application`
 
 ## `UseCase<Input, Command, Output>`
@@ -975,6 +1172,7 @@ class ShipOrder extends UseCase<{ orderId: string }, OrderId, void> {
   constructor(
     private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
     private readonly bus: EventBus<OrderEvent>,
+    private readonly clock: Clock,
   ) {
     super();
   }
@@ -988,7 +1186,7 @@ class ShipOrder extends UseCase<{ orderId: string }, OrderId, void> {
     if (order === null) {
       throw new AggregateNotFoundException('Order', orderId.value);
     }
-    order.ship();
+    order.ship(this.clock);
     await this.orders.save(order);
     await this.bus.publish(order.pullDomainEvents());
   }
@@ -999,6 +1197,42 @@ Save before publishing, and publish what `pullDomainEvents()` returns, so a fail
 nothing and events are never sent twice. A command with several values is a small interface of
 value objects (`interface PlaceOrderCommand { orderId: OrderId; customer: CustomerName }`); a
 use case never imports another use case.
+
+### Use cases run by a listener
+
+A use case that a listener runs registers a fact that already happened elsewhere, so it does not
+refuse it: when the aggregate is missing it returns instead of throwing
+`AggregateNotFoundException` (a not-found would block the outbox or the queue for ever), and the
+aggregate method is idempotent. Only technical errors propagate, so the delivery is retried:
+
+```ts
+protected async handle(command: RegisterStockReservationCommand): Promise<void> {
+  const order = await this.orders.findById(command.orderId);
+  if (order === null) {
+    return;
+  }
+  order.registerStockReservation(command.reservationId, this.clock);
+  await this.orders.save(order);
+  await this.bus.publish(order.pullDomainEvents());
+}
+```
+
+### Authorization
+
+Who may run the action is checked by the application. The adapter takes the requester's id from
+the token (never from the body) and puts it in the input; `toCommand` turns it into a value object;
+an application policy throws `NotAllowedException` (HTTP 403) when the requester may not act.
+Ownership rules that are business rules ("only the customer who placed an order can cancel it",
+"only pending orders can be cancelled") stay in the aggregate, with a `DomainException`:
+
+```ts
+protected async handle(command: RefundPaymentCommand): Promise<void> {
+  if (!(await this.permissions.canRefund(command.requesterId))) {
+    throw new NotAllowedException(`User ${command.requesterId.value} may not refund payments`);
+  }
+  // load, change, save, publish
+}
+```
 
 ## Listeners: `EventListener` and `@ListensTo`
 
@@ -1071,13 +1305,14 @@ and publishing loses events, or a rolled-back change announces something that ne
 
 ```ts
 import { UseCase } from '@archi-code/ddd/application';
-import type { EventBus, TransactionRunner } from '@archi-code/ddd/application';
+import type { Clock, EventBus, TransactionRunner } from '@archi-code/ddd/application';
 
 class ShipOrder extends UseCase<{ orderId: string }, OrderId, void> {
   constructor(
     private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
     private readonly events: EventBus<OrderEvent>,
     private readonly transactions: TransactionRunner,
+    private readonly clock: Clock,
   ) {
     super();
   }
@@ -1092,7 +1327,7 @@ class ShipOrder extends UseCase<{ orderId: string }, OrderId, void> {
       if (order === null) {
         throw new AggregateNotFoundException('Order', orderId.value);
       }
-      order.ship();
+      order.ship(this.clock);
       await this.orders.save(order);
       await this.events.publish(order.pullDomainEvents());
     });
@@ -1107,6 +1342,7 @@ import {
   AggregateMapper,
   DomainEventRegistry,
   EventDispatcher,
+  FixedClock,
   InMemoryOutbox,
   InMemoryRepository,
   InMemoryTransactionRunner,
@@ -1116,14 +1352,19 @@ import {
 const orders = new InMemoryRepository(AggregateMapper.of(Order));
 const outbox = new InMemoryOutbox<OrderEvent>();
 const transactions = new InMemoryTransactionRunner([orders, outbox]);
-const shipOrder = new ShipOrder(orders, outbox, transactions);
+const shipOrder = new ShipOrder(
+  orders,
+  outbox,
+  transactions,
+  new FixedClock('2026-10-17T10:00:00Z'),
+);
 
 const listeners = new EventDispatcher([new NotifyCustomerOnOrderShipped(notifyCustomer)]);
 const events = new DomainEventRegistry<OrderEvent>().register(
   OrderShipped,
   (json) => new OrderShipped(json.aggregateId, json),
 );
-const relay = new OutboxRelay(outbox, (json) => listeners.dispatch(events.fromJSON(json)));
+const relay = new OutboxRelay(outbox, (json) => listeners.dispatchSerialized(json, events));
 
 await shipOrder.execute({ orderId });
 await outbox.pending(10); // [{ sequence: 1, event: { eventName: 'order.shipped', … } }]
@@ -1134,16 +1375,28 @@ transactions.committed; // 1
 - **`InMemoryTransactionRunner(participants)`** takes a snapshot of each participant
   (`InMemoryRepository`, `InMemoryOutbox` or anything with `snapshot(): () => void`) when a
   transaction starts and restores them, in reverse order, if the work throws; `committed` and
-  `rolledBack` count the outcomes. A `run` inside another joins it. It is meant for one transaction
-  at a time (tests and prototypes). After a rollback, discard the aggregates you held: their
-  version already moved.
+  `rolledBack` count the outcomes. A `run` inside another joins it. It runs one transaction at a
+  time: runs that overlap in time (two `execute` calls not awaited one after the other) join each
+  other too, so it is meant for tests and prototypes. After a rollback, discard the aggregates you
+  held: their version already moved.
 - **`InMemoryOutbox`** stores each event as its JSON (`toJSON()`), frozen and numbered by
   `sequence`, like a row of an outbox table; `pending(limit)` returns the oldest undelivered entries
   and `markPublished(entries)` marks them.
 - **`OutboxRelay.forward(limit = 100)`** delivers the pending entries one by one, in order, and
-  marks the delivered ones; it resolves to how many it delivered. If a delivery throws, it marks
-  the ones delivered before and rethrows, so the failed event and the next ones wait for the next
-  run. Delivery is at least once: a consumer must ignore an `eventId` it already processed.
+  marks the delivered ones; it resolves to how many it delivered. The delivery function
+  (`OutboxDelivery`) is `(event: SerializedEvent, sequence: number) => Promise<void> | void`: it
+  receives the `sequence` of each entry, so a consumer can keep the order (for example, ignore a
+  sequence lower than the last one it applied). If a delivery throws, it marks the ones delivered
+  before and rethrows, so the failed event and the next ones wait for the next run. Delivery is at
+  least once: a consumer must ignore an `eventId` it already processed.
+- **Poison messages**: because the relay stops at the first failure, a `deliver` that can never
+  succeed for one event (a payload no reader understands, a listener that always rejects it) blocks
+  every later event. Catch that case inside `deliver` and park the event (for example in a
+  dead-letter table you monitor) instead of rethrowing; rethrow only errors worth retrying.
+- **`EventDispatcher.dispatchSerialized(json, registry)`** is the delivery for listeners in the
+  same process: it rebuilds the event with `registry.fromJSON` and dispatches it only when the
+  dispatcher has listeners for `json.eventName`; otherwise it skips it without rebuilding, so an
+  event nobody listens to (and nobody registered) never blocks the outbox.
 - **Your adapters**: a database runner opens the transaction and lets the repository and the outbox
   use its connection (in Node, `AsyncLocalStorage` avoids passing it around); your outbox table
   implements `EventBus` (insert in the current transaction) and `OutboxStore` (select pending rows
@@ -1196,7 +1449,7 @@ import { OutboxRelay, PublishedLanguage } from '@archi-code/ddd/infrastructure';
 const published = new PublishedLanguage().expose(OrderPlaced, {
   name: 'sales.order_placed',
   version: 1,
-  data: (event) => ({ orderId: event.aggregateId, totalCents: event.totalCents }),
+  data: (json) => ({ orderId: json.aggregateId }),
 });
 
 const relay = new OutboxRelay(outbox, async (event) => {
@@ -1205,10 +1458,12 @@ const relay = new OutboxRelay(outbox, async (event) => {
     await broker.publish(message.name, message);
   }
 });
-// message: { name: 'sales.order_placed', version: 1, messageId: <eventId>, occurredOn, data: { orderId, totalCents } }
+// message: { name: 'sales.order_placed', version: 1, messageId: <eventId>, occurredOn, data: { orderId } }
 ```
 
-`expose` refuses an event exposed twice or a contract without a name or with a version below 1
+`data` receives the serialized event (`toJSON()`: `aggregateId`, `eventId`, `occurredOn` and the
+payload) and returns only what the consumers need: here the order id, not the customer name that
+`OrderPlaced` also carries. `expose` refuses an event exposed twice or a contract without a name or with a version below 1
 (`InfrastructureException`); `isPublished(eventName)` tells whether an event leaves the context.
 The message is frozen; its `messageId` is the `eventId`, so consumers in other contexts can
 deduplicate too. Change a contract by exposing a new version, and keep publishing the old one
@@ -1217,7 +1472,9 @@ while consumers move.
 ## Event Sourcing and CQRS: only for a concrete risk
 
 Neither is required, and both add complexity [IDDD ch. 4]. This package persists the state of
-aggregates; it does not ship an event store.
+aggregates; it does not ship an event store nor Event Sourcing support: `version` grows by 1 per
+save, not per event, and an event-sourced aggregate manages the version of its stream itself and
+does not use `AggregateMapper`.
 
 | Situation                                                     | Recommendation                                                |
 | ------------------------------------------------------------- | ------------------------------------------------------------- |
@@ -1226,44 +1483,50 @@ aggregates; it does not ship an event store.
 | Views very different from the model, heavy reading            | CQRS: read models kept up to date by listeners of the outbox  |
 | A business or legal need for the full history of an aggregate | Consider Event Sourcing for that aggregate only               |
 
-The outbox already keeps every event of every change, which is often enough for auditing. A read
-model is built by listeners that are idempotent (inbox) and can be rebuilt by replaying the
-stored events. If a read model is eventually consistent, the screen must expect it: show what was
+A read model (projection) is kept up to date by `EventListener`s run through an
+`EventDispatcher` with an inbox, so each event is applied once. The outbox is a delivery queue, not
+a history: `OutboxStore` only hands out pending entries and cannot read the published ones again,
+so rebuilding a read model from scratch needs an event log of your own (a table where a listener
+appends every event, or the broker's retained stream). If a read model is eventually consistent, the screen must expect it: show what was
 just sent, show how old the data is, or say that the request is being processed.
 
 # Infrastructure layer: `@archi-code/ddd/infrastructure`
 
 Ready adapters for tests, prototypes and the edges of an API:
 
-| Export                                                  | What it is                                                                                                            |
-| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `InMemoryRepository(AggregateMapper.of(Order))`         | Finder, saver and remover over a `Map` of primitives and versions; checks versions; adds `findAll()`                  |
-| `EventDispatcher(listeners?, { inbox, transactions }?)` | Groups listeners by their `@ListensTo` event; `add`, `listenersOf(name)`, `dispatch(event)`; idempotent with an inbox |
-| `InMemoryEventBus(dispatcher?)`                         | `EventBus` that records `published` and hands every event to its dispatcher, in the same process                      |
-| `DomainEventRegistry`                                   | `register(EventClass, factory)` and `fromJSON(json)`: rebuilds events read from an outbox or a broker                 |
-| `HttpErrorMapper(statusByCode?)`                        | `map(error)` → `{ status, body: { code, message, errors? } }` (`errors`: `{ field, message }[]`)                      |
-| `SystemClock`, `FixedClock(at)`                         | `Clock` with the real time, and a test clock with `set(at)` and `advance(ms)`                                         |
-| `InMemoryTransactionRunner(participants?)`              | `TransactionRunner` that restores its participants when the work throws; `committed`, `rolledBack`                    |
-| `InMemoryOutbox`                                        | `EventBus` + `OutboxStore`: events as numbered JSON rows; `pending(limit)`, `markPublished(entries)`                  |
-| `OutboxRelay(store, deliver)`                           | `forward(limit?)`: delivers pending outbox entries in order after the commit and marks them                           |
-| `InMemoryInbox`                                         | `InboxStore` for `EventDispatcher(listeners, { inbox, transactions })`: each event once per listener                  |
-| `PublishedLanguage`                                     | `expose(EventClass, { name, version, data })`, `translate(json)`: the contract other contexts read                    |
+| Export                                                  | What it is                                                                                                                                                        |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `InMemoryRepository(AggregateMapper.of(Order))`         | Finder, saver and remover over a `Map` of primitives and versions; checks versions; adds `findAll()`                                                              |
+| `EventDispatcher(listeners?, { inbox, transactions }?)` | Groups listeners by their `@ListensTo` event; `add`, `listenersOf(name)`, `dispatch(event)`, `dispatchSerialized(json, registry)`; idempotent with an inbox       |
+| `InMemoryEventBus(dispatcher?)`                         | `EventBus` that records `published` and hands every event to its dispatcher, in the same process                                                                  |
+| `DomainEventRegistry`                                   | `register(EventClass, factory)`, `has(eventName)` and `fromJSON(json)`: rebuilds events read from an outbox or a broker, keeping their `eventId` and `occurredOn` |
+| `HttpErrorMapper(statusByCode?)`                        | `map(error)` → `{ status, body: { code, message, errors? } }` (`errors`: `{ field, code, message }[]`)                                                            |
+| `SystemClock`, `FixedClock(at)`                         | `Clock` with the real time, and a test clock with `set(at)` and `advance(ms)`                                                                                     |
+| `InMemoryTransactionRunner(participants?)`              | `TransactionRunner` that restores its participants when the work throws; `committed`, `rolledBack`                                                                |
+| `InMemoryOutbox`                                        | `EventBus` + `OutboxStore`: events as numbered JSON rows; `pending(limit)`, `markPublished(entries)`                                                              |
+| `OutboxRelay(store, deliver)`                           | `forward(limit?)`: delivers pending outbox entries in order after the commit, passing `(event, sequence)`, and marks them                                         |
+| `InMemoryInbox`                                         | `InboxStore` for `EventDispatcher(listeners, { inbox, transactions })`: each event once per listener                                                              |
+| `PublishedLanguage`                                     | `expose(EventClass, { name, version, data })`, `translate(json)`: the contract other contexts read                                                                |
 
 `InMemoryRepository` follows the [optimistic concurrency](#optimistic-concurrency) contract like a
 real adapter: it stores a copy of the primitives with their version, rejects a stale save (or a new
 aggregate whose id is already stored) with `ConcurrencyException`, and calls `markPersisted()` on
-success. It finds ids whatever their case and returns copies, so changing a loaded aggregate does
-not touch the store until you save it.
+success. It keys the rows by `id.toString()`: ids of `UuidType`/`IdType` are stored in lowercase,
+so those are found whatever case they were typed in (other id types are compared as they are). It
+returns copies, so changing a loaded aggregate does not touch the store until you save it.
+
+With the `Order` of [Persisting aggregates](#persisting-aggregates-with-aggregatemapper):
 
 ```ts
+const clock = new FixedClock('2026-10-17T10:00:00Z');
 const orders = new InMemoryRepository(AggregateMapper.of(Order));
-await orders.save(Order.place(new OrderId(id), new CustomerName('Ana')));
+await orders.save(Order.place(new OrderId(id), new CustomerName('Ana'), clock));
 
-const byAna = await orders.findById(new OrderId(id)); // version 1
-const byLuis = await orders.findById(new OrderId(id)); // version 1
-byAna.ship();
+const byAna = (await orders.findById(new OrderId(id)))!; // version 1
+const byLuis = (await orders.findById(new OrderId(id)))!; // version 1
+byAna.ship(clock);
 await orders.save(byAna); // stored as version 2; byAna.version is 2
-byLuis.addLine(new Sku('TORCH-01'), new Units(1));
+byLuis.addLine(new OrderLine({ sku: new Sku('TORCH-01'), units: new Units(1) }));
 await orders.save(byLuis);
 // ConcurrencyException: Order with ID … was changed by someone else: expected version 1.
 ```
@@ -1303,7 +1566,7 @@ const listeners = new EventDispatcher([
 
 const bus = new InMemoryEventBus<OrderEvent>(listeners); // in-process delivery
 
-queue.onMessage(async (body) => listeners.dispatch(events.fromJSON(body))); // queue delivery
+queue.onMessage((body) => listeners.dispatchSerialized(JSON.parse(body), events)); // queue delivery
 ```
 
 `EventDispatcher` throws `ApplicationException` for a listener without `@ListensTo`, when the
@@ -1325,7 +1588,13 @@ app.use((error, req, res, next) => {
 });
 ```
 
-`fromJSON` throws `UnknownEventException` for a name nobody registered and
+The factory must pass the serialized event as the metadata of the new event (`json` as the last
+argument), so the rebuilt event keeps its `eventId` and `occurredOn`: consumers deduplicate by
+`eventId`, and a new one would make every redelivery look like a new event. `fromJSON` checks it
+and throws `InternalErrorException`
+(`the factory of "order.placed" must pass the serialized event as metadata, so it keeps its eventId and occurredOn`)
+when the rebuilt `eventId` (compared without case) or the `occurredOn` instant differs from the
+JSON. It also throws `UnknownEventException` for a name nobody registered and
 `InternalErrorException` for text that is not a JSON object or has no `eventName`.
 
 ## Persisting aggregates with `AggregateMapper`
@@ -1338,13 +1607,14 @@ two things every aggregate has: everything it stores is a **value object** (no r
 mapper. Follow these rules for every
 aggregate:
 
-1. **State is value objects.** Each persisted field is a value object, a list of value objects or a
-   child entity (a plain class) whose fields are value objects too. A flag is
+1. **State is value objects.** Each persisted field is a value object, a composite, a list of them
+   or a child entity (`extends Entity`) whose fields are value objects too. A flag is
    `class Shipped extends Required(BooleanType) {}`, never `boolean`; a moment is a `DateType` /
    `CreatedAt`, never `Date`.
 2. **Private field + public getter with the same name without `_`** (`private _customer` +
    `get customer()`), or a public `readonly customer`. No private state without its getter: the
-   primitives use those names.
+   primitives use those names. Derived values are methods (`units()`), never getters: a getter is a
+   key of `PrimitiveTypes<Order>` that the stored data does not have.
 3. **Private constructor and two factories**: a business one (`Order.place(...)`) that validates
    its invariants and records events, and `static fromPrimitives(primitives: PrimitiveTypes<Order>)`
    that rebuilds it from stored data, building each value object from its primitive and recording no
@@ -1364,6 +1634,7 @@ checks the rest at runtime on every `toPrimitives`, throwing `InternalErrorExcep
 | ------------------------------------------- | -------------------------------------------------------------------------------------- |
 | A raw field, also inside a child entity     | `Order._shipped is a boolean, not a value object`                                      |
 | A private field without its key in the data | `Order._status is not in its primitives` (it would be lost when saving)                |
+| The same inside a child entity or composite | `Order._lines[1]._giftNote is not in its primitives`                                   |
 | `toPrimitives()` returns a value object     | `Order.toPrimitives() returns a value object at primitives.customer; return its value` |
 
 ```ts
@@ -1372,12 +1643,14 @@ import {
   BooleanType,
   Composite,
   CreatedAt,
+  EventBase,
   IdType,
   NumberType,
   Required,
   StringType,
 } from '@archi-code/ddd/domain';
-import type { PrimitiveTypes } from '@archi-code/ddd/domain';
+import type { EventMetadata, PrimitiveTypes } from '@archi-code/ddd/domain';
+import { DomainException } from '@archi-code/ddd/exceptions';
 import { AggregateMapper } from '@archi-code/ddd/infrastructure';
 
 class OrderId extends IdType {}
@@ -1388,7 +1661,31 @@ class Units extends Required(NumberType) {}
 
 class OrderLine extends Composite({ sku: Sku, units: Units }) {}
 
-class Order extends AggregateRoot<OrderId> {
+class OrderPlaced extends EventBase {
+  static readonly eventName = 'order.placed';
+
+  constructor(
+    orderId: string,
+    readonly customer: string,
+    metadata?: EventMetadata,
+  ) {
+    super(orderId, metadata);
+  }
+}
+
+class OrderShipped extends EventBase {
+  static readonly eventName = 'order.shipped';
+}
+
+type OrderEvent = OrderPlaced | OrderShipped;
+
+class OrderAlreadyShipped extends DomainException {
+  constructor(orderId: string) {
+    super(`Order ${orderId} is already shipped`, ['ORD002']);
+  }
+}
+
+class Order extends AggregateRoot<OrderId, OrderEvent> {
   private constructor(
     id: OrderId,
     private readonly _customer: CustomerName,
@@ -1397,6 +1694,12 @@ class Order extends AggregateRoot<OrderId> {
     private readonly _placedAt: CreatedAt,
   ) {
     super(id);
+  }
+
+  static place(id: OrderId, customer: CustomerName, clock: { now(): Date }): Order {
+    const order = new Order(id, customer, new Shipped(false), [], CreatedAt.now(clock));
+    order.record(new OrderPlaced(id.value, customer.value, { clock }));
+    return order;
   }
 
   static fromPrimitives(primitives: PrimitiveTypes<Order>): Order {
@@ -1423,6 +1726,25 @@ class Order extends AggregateRoot<OrderId> {
 
   get placedAt(): CreatedAt {
     return this._placedAt;
+  }
+
+  addLine(line: OrderLine): void {
+    if (this._shipped.value) {
+      throw new OrderAlreadyShipped(this.id.value);
+    }
+    this._lines = [...this._lines, line];
+  }
+
+  ship(clock: { now(): Date }): void {
+    if (this._shipped.value) {
+      throw new OrderAlreadyShipped(this.id.value);
+    }
+    this._shipped = new Shipped(true);
+    this.record(new OrderShipped(this.id.value, { clock }));
+  }
+
+  units(): number {
+    return this._lines.reduce((total, line) => total + line.units.value, 0);
   }
 
   toPrimitives(): PrimitiveTypes<Order> {
@@ -1457,21 +1779,23 @@ All of them extend `AbstractException` (which extends `Error`) and have:
 | `print()`     | `'[<description>]: <message>, <ISO timestamp>'`                                               |
 | `toJSON()`    | `{ name, message, code, description, timestamp }` (`timestamp` in ISO 8601)                   |
 
-| Class                        | Extends                   | Constructor                                | Codes              | Message                                                                           |
-| ---------------------------- | ------------------------- | ------------------------------------------ | ------------------ | --------------------------------------------------------------------------------- |
-| `DomainException`            | `AbstractException`       | `(message, exceptionCodes = [], options?)` | `DOM000` + yours   | `message`                                                                         |
-| `ValidationException`        | `DomainException`         | `(errors: ValidationIssue[])`, keeps them  | `DOM000`, `DOM001` | `Validation failed, <field: message, joined with ", ">`                           |
-| `TypePrimitiveException`     | `DomainException`         | `(expectedType, receivedValue, template?)` | `DOM000`, `DOM003` | `Validation Error: Expected a valid <expectedType>, but received <value>.`        |
-| `RequiredValueException`     | `DomainException`         | `(typeName, receivedValue)`                | `DOM000`, `DOM004` | `Validation Error: <typeName> is required, but received <value>.`                 |
-| `ApplicationException`       | `AbstractException`       | `(message, exceptionCodes = [], options?)` | `APP000` + yours   | `message`                                                                         |
-| `InfrastructureException`    | `AbstractException`       | `(message, exceptionCodes = [], options?)` | `INF000` + yours   | `message`                                                                         |
-| `InternalErrorException`     | `InfrastructureException` | `(message, options?)`                      | `INF000`, `INF001` | `Failed, internal error: <message>`                                               |
-| `ConcurrencyException`       | `ApplicationException`    | `(aggregateName, id, expectedVersion)`     | `APP000`, `APP001` | `<aggregateName> with ID <id> was changed by someone else: expected version <n>.` |
-| `AggregateNotFoundException` | `ApplicationException`    | `(entity: string, id: string)`             | `APP000`, `APP002` | `<entity> with ID <id> not found.`                                                |
-| `NotAllowedException`        | `ApplicationException`    | `(message)`                                | `APP000`, `APP003` | `message`                                                                         |
-| `UnknownEventException`      | `InfrastructureException` | `(eventName)`                              | `INF000`, `INF002` | `Unknown event "<eventName>": register it before reading it.`                     |
+| Class                        | Extends                   | Constructor                                                          | Codes              | Message                                                                           |
+| ---------------------------- | ------------------------- | -------------------------------------------------------------------- | ------------------ | --------------------------------------------------------------------------------- |
+| `DomainException`            | `AbstractException`       | `(message, exceptionCodes = [], options?)`                           | `DOM000` + yours   | `message`                                                                         |
+| `ValidationException`        | `DomainException`         | `(errors: ValidationIssueInput[])`, keeps them as `ValidationIssue`s | `DOM000`, `DOM001` | `Validation failed, <field: message, joined with ", ">`                           |
+| `TypePrimitiveException`     | `DomainException`         | `(expectedType, receivedValue, template?)`                           | `DOM000`, `DOM003` | `Validation Error: Expected a valid <expectedType>, but received <value>.`        |
+| `RequiredValueException`     | `DomainException`         | `(typeName, receivedValue)`                                          | `DOM000`, `DOM004` | `Validation Error: <typeName> is required, but received <value>.`                 |
+| `ApplicationException`       | `AbstractException`       | `(message, exceptionCodes = [], options?)`                           | `APP000` + yours   | `message`                                                                         |
+| `InfrastructureException`    | `AbstractException`       | `(message, exceptionCodes = [], options?)`                           | `INF000` + yours   | `message`                                                                         |
+| `InternalErrorException`     | `InfrastructureException` | `(message, options?)`                                                | `INF000`, `INF001` | `Failed, internal error: <message>`                                               |
+| `ConcurrencyException`       | `ApplicationException`    | `(aggregateName, id, expectedVersion, options?)`                     | `APP000`, `APP001` | `<aggregateName> with ID <id> was changed by someone else: expected version <n>.` |
+| `AggregateNotFoundException` | `ApplicationException`    | `(entity: string, id: string, options?)`                             | `APP000`, `APP002` | `<entity> with ID <id> not found.`                                                |
+| `NotAllowedException`        | `ApplicationException`    | `(message, options?)`                                                | `APP000`, `APP003` | `message`                                                                         |
+| `UnknownEventException`      | `InfrastructureException` | `(eventName)`                                                        | `INF000`, `INF002` | `Unknown event "<eventName>": register it before reading it.`                     |
 
-`options` is `{ cause }`: keep the original error when you wrap it. `TypePrimitiveException` and
+`options` is `{ cause }`: keep the original error when you wrap it. A `ValidationIssueInput` is a
+`ValidationIssue` (`{ field: string | null; code: string; message: string }`) whose `code` is
+optional: it defaults to `'DOM001'`. `TypePrimitiveException` and
 `RequiredValueException` are the ones value objects throw; the `template` of
 `TypePrimitiveException` replaces `'Expected a valid '`. The built-in codes are exported as the
 `ExceptionCode` enum (`ExceptionCode.AggregateNotFound === 'APP002'`).
@@ -1766,21 +2090,21 @@ await new RenameUser(users, bus, clock)
 await new RegisterUser(users, bus, clock)
   .execute({ name: 'Eva', email: 'x' })
   .catch((error) => errors.map(error));
-// { status: 422, body: { code: 'DOM001', message: 'Validation failed, email: Email: …', errors: [{ field: 'email', message: 'Email: Value does not satisfy isEmail' }] } }
+// { status: 422, body: { code: 'DOM001', message: 'Validation failed, email: Email: …', errors: [{ field: 'email', code: 'isEmail', message: 'Email: Value does not satisfy isEmail' }] } }
 ```
 
 ## Exports
 
 `@archi-code/ddd/exceptions`:
 
-| Export                                                                                                                            | Kind           |
-| --------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| `AbstractException`                                                                                                               | abstract class |
-| `DomainException`, `ApplicationException`, `InfrastructureException`                                                              | classes        |
-| `ValidationException`, `AggregateNotFoundException`, `TypePrimitiveException`, `RequiredValueException`, `InternalErrorException` | classes        |
-| `ConcurrencyException`, `NotAllowedException`, `UnknownEventException`                                                            | classes        |
-| `ExceptionCode`                                                                                                                   | enum           |
-| `ExceptionOptions`, `ValidationIssue` (`{ field: string \| null; message }`)                                                      | types          |
+| Export                                                                                                                                       | Kind           |
+| -------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| `AbstractException`                                                                                                                          | abstract class |
+| `DomainException`, `ApplicationException`, `InfrastructureException`                                                                         | classes        |
+| `ValidationException`, `AggregateNotFoundException`, `TypePrimitiveException`, `RequiredValueException`, `InternalErrorException`            | classes        |
+| `ConcurrencyException`, `NotAllowedException`, `UnknownEventException`                                                                       | classes        |
+| `ExceptionCode`                                                                                                                              | enum           |
+| `ExceptionOptions`, `ValidationIssue` (`{ field: string \| null; code: string; message: string }`), `ValidationIssueInput` (`code` optional) | types          |
 
 `@archi-code/ddd/domain`:
 

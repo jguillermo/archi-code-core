@@ -1,6 +1,5 @@
 import type { AggregateRoot } from '../aggregate/aggregate-root';
 import type { AbstractType } from '../type/abstract-type';
-import type { EnumType } from '../type/enum-type';
 
 export type Methods<T> = {
   [P in keyof T]-?: T[P] extends Function ? P : never;
@@ -28,18 +27,14 @@ export type PrimitiveTypes<T> = {
 
 export type DataTypes<T> = Partial<PrimitiveTypes<T>>;
 
-type EnumPrimitive<V> = V extends string ? string : V extends number ? number : V;
-
 export type PrimitiveType<T> = T extends (infer U)[]
   ? PrimitiveType<U>[]
-  : T extends EnumType<any>
-    ? EnumPrimitive<T['value']>
-    : T extends AbstractType<any>
-      ? T['value']
-      : T extends null
-        ? null
-        : T extends Date
-          ? never
-          : T extends object
-            ? PrimitiveTypes<T>
-            : never;
+  : T extends AbstractType<any>
+    ? T['value']
+    : T extends null
+      ? null
+      : T extends Date
+        ? never
+        : T extends object
+          ? PrimitiveTypes<T>
+          : never;

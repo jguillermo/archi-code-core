@@ -6,6 +6,8 @@
  */
 // Grupo no capturante para app/: así $1 en las reglas es siempre el nombre del contexto.
 const CTX = '^src/(?:app/)?contexts/([^/]+)/';
+// [Fuera de los libros: convención de @archi-code/ddd] El dominio solo importa sus módulos domain y exceptions y @archi-code/validation; la aplicación, además, application; ninguno de los dos importa infrastructure.
+const ARCHI_CODE_DDD = 'node_modules/@archi-code/ddd/dist/(cjs|esm)/';
 
 module.exports = {
   forbidden: [
@@ -16,7 +18,11 @@ module.exports = {
       from: { path: CTX + 'domain/' },
       to: {
         dependencyTypes: ['npm', 'npm-dev', 'npm-optional', 'npm-peer'],
-        pathNot: ['node_modules/(uuid|decimal\\.js)/'],
+        pathNot: [
+          'node_modules/(uuid|decimal\\.js)/',
+          ARCHI_CODE_DDD + '(domain|exceptions)/',
+          'node_modules/@archi-code/validation/',
+        ],
       },
     },
     {
@@ -30,6 +36,20 @@ module.exports = {
       severity: 'error',
       from: { path: CTX + 'application/' },
       to: { path: CTX + '(infrastructure|interfaces)/' },
+    },
+    {
+      name: 'archi-code-ddd-infraestructura-fuera-del-nucleo',
+      comment: 'Con @archi-code/ddd, ni el dominio ni la aplicación importan su módulo infrastructure; eso lo cablea el composition root.',
+      severity: 'error',
+      from: { path: CTX + '(domain|application)/' },
+      to: { path: ARCHI_CODE_DDD + 'infrastructure/' },
+    },
+    {
+      name: 'nadie-importa-el-composition-root',
+      comment: 'Con @archi-code/ddd, composition.ts solo lo importa el arranque del proceso, nunca una capa.',
+      severity: 'error',
+      from: { path: CTX + '(domain|application|infrastructure|interfaces)/' },
+      to: { path: '^src/(?:app/)?contexts/[^/]+/composition\\.[cm]?[jt]s$' },
     },
     {
       name: 'interfaces-no-saltan-a-infraestructura',

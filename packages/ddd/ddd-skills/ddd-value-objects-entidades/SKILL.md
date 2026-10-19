@@ -1,9 +1,8 @@
----
-name: ddd-value-objects-entidades
-description: Diseño táctico DDD de Value Objects y entidades en TypeScript. Decide si un concepto es value object o entidad, cómo implementar value objects inmutables con igualdad por valor y comportamiento sin efectos secundarios (Money, identificadores, rangos, direcciones, tipos estándar y estados), cómo diseñar entidades con identidad estable y comportamiento con nombres del negocio en lugar de setters, estrategias y momento de generación de identidad, los tres niveles de validación (atributo, objeto completo, composición) y cómo persistir value objects sin que la base de datos deforme el modelo. Úsalo SIEMPRE que se cree o revise una clase del dominio, aparezcan primitivos sueltos (string para emails, number para dinero), getters y setters públicos, dudas sobre igualdad, ids o validaciones, o se pregunte "¿esto es una entidad?", aunque no se mencione DDD.
----
-
 # Value Objects y entidades
+
+> Guía de la suite DDD de @archi-code/ddd: se lee solo a través del skill `archi-code-ddd` (packages/ddd/SKILL.md), nunca como skill independiente.
+
+**Cuándo usarla.** Úsala siempre que se cree o revise una clase del dominio, aparezcan primitivos sueltos (string para emails, number para dinero), getters y setters públicos, dudas sobre igualdad, ids o validaciones, o se pregunte "¿esto es una entidad?", aunque no se mencione DDD.
 
 Dos piezas básicas del modelo. Vernon insiste en un sesgo concreto: **modela con value objects siempre que puedas**. Incluso una entidad debería ser sobre todo un contenedor de value objects, no de entidades hijas, porque los valores son más fáciles de crear, probar, usar, optimizar y mantener [IDDD cap. 6].
 

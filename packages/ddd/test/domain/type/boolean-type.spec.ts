@@ -80,7 +80,7 @@ function issuesOf(build: () => unknown): unknown {
 }
 
 const isTrueBroken = (type: string) => [
-  { field: null, message: `${type}: Value does not satisfy isTrue` },
+  { field: null, code: 'isTrue', message: `${type}: Value does not satisfy isTrue` },
 ];
 
 describe('BooleanType', () => {
@@ -221,7 +221,7 @@ describe('BooleanType', () => {
       expect(signUp).toThrow(ValidationException);
       expect(signUp).toThrow('Validation failed, AcceptsTerms: Must be accepted');
       expect(issuesOf(signUp)).toEqual([
-        { field: null, message: 'AcceptsTerms: Must be accepted' },
+        { field: null, code: 'isAccepted', message: 'AcceptsTerms: Must be accepted' },
       ]);
     });
   });

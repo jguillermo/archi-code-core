@@ -308,7 +308,11 @@ describe('UseCase: an application service a controller or a message handler call
       const error = await rejection(placeOrder.execute({ orderId, customer: 'A' }));
       expect(error).toBeInstanceOf(ValidationException);
       expect((error as ValidationException).errors).toEqual([
-        { field: 'customer', message: 'CustomerName: Value does not satisfy isLength' },
+        {
+          field: 'customer',
+          code: 'isLength',
+          message: 'CustomerName: Value does not satisfy isLength',
+        },
       ]);
       expect(orders.rows.size).toBe(0);
     });
@@ -320,10 +324,12 @@ describe('UseCase: an application service a controller or a message handler call
       expect((error as ValidationException).errors).toEqual([
         {
           field: 'orderId',
+          code: 'DOM003',
           message: 'Validation Error: Expected a valid UUID, but received "not-an-id".',
         },
         {
           field: 'customer',
+          code: 'DOM004',
           message: 'Validation Error: CustomerName is required, but received "".',
         },
       ]);

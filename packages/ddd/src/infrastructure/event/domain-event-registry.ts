@@ -39,7 +39,20 @@ export class DomainEventRegistry<Event extends EventBase = EventBase> {
     if (factory === undefined) {
       throw new UnknownEventException(event.eventName);
     }
-    return factory(event);
+    const rebuilt = factory(event);
+    DomainEventRegistry.assertSameIdentity(event, rebuilt);
+    return rebuilt;
+  }
+
+  private static assertSameIdentity(serialized: SerializedEvent, rebuilt: EventBase): void {
+    if (
+      rebuilt.eventId !== String(serialized.eventId).toLowerCase() ||
+      rebuilt.occurredOn.getTime() !== new Date(serialized.occurredOn).getTime()
+    ) {
+      throw new InternalErrorException(
+        `the factory of "${serialized.eventName}" must pass the serialized event as metadata, so it keeps its eventId and occurredOn`,
+      );
+    }
   }
 
   private static parse(text: string): SerializedEvent {

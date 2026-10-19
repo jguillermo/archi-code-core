@@ -151,11 +151,20 @@ people (and the AI assistants) that consume the package:
 Only when the package needs them, and documented in its README:
 
 - Extra `compilerOptions` in `tsconfig.json` (e.g. `lib`).
-- A bundled skill suite (only `ddd` today: `ddd-skills/`): a folder of extra skills listed in
-  `files` and read only through the package's `SKILL.md`, which routes to each of them (consumers
-  install only `SKILL.md`); `test/cross/skill-suite.spec.ts` checks that it is packed, that
-  `SKILL.md` routes to every skill of the suite and that their references exist. It is kept as
-  written (excluded from Prettier, ESLint and EditorConfig, see `.claude/rules/tooling.md`).
+- A bundled skill suite (only `ddd` today: `ddd-skills/`): a folder of guides listed in `files`
+  and read only through the package's `SKILL.md`, which routes to each of them (consumers install
+  only `SKILL.md`). The suite guides have no frontmatter, so no tool loads them as skills of their
+  own, and each says under its title that it is read only through the package skill. Where the
+  package deliberately differs from the books, the suite says so with
+  `[Fuera de los libros: convención de @archi-code/ddd]`. `test/cross/skill-suite.spec.ts` checks
+  that the suite is packed, that `SKILL.md` routes to every suite skill (and only to existing
+  ones), names `references/chuleta-reglas.md` and carries the convention mark, that no guide has
+  a frontmatter and each points to the package skill, that every `references/`, `assets/` and
+  `scripts/` path cited in any suite markdown exists, that every `ddd-*` name cited is a suite
+  folder, that no file of the suite is left uncited, that it cites no internal document codes and
+  that the dependency-cruiser asset loads with rules for `@archi-code` and `composition.ts`. It is
+  kept as written (excluded from Prettier, ESLint and EditorConfig, see
+  `.claude/rules/tooling.md`).
 - Extra folders (`benchmark/`, `docs/`): their own tsconfig type-checked in `check:types` and one
   script to run them (e.g. `benchmark`); the root lint and format already cover them. Generated
   output goes in the root ignore lists (`eslint.config.js`, `.prettierignore`,

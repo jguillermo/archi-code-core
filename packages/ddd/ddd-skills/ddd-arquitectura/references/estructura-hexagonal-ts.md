@@ -62,6 +62,7 @@ Decisiones:
 * Los tests de aceptación del modelo están junto al contexto, aunque en carpeta `tests/` espejo [Destilado cap. 2 pide tenerlos con el código del contexto; la carpeta espejo mantiene esa correspondencia].
 * `domain/shared/` es compartido **dentro** del contexto. Nada de un `shared/` global con modelos de varios contextos.
 * El composition root vive por contexto para que cada contexto se pueda desplegar por separado si un día hace falta.
+* `[Fuera de los libros: convención de @archi-code/ddd]` Con el paquete no se escriben `domain/shared/AggregateRoot.ts` ni `domain/shared/DomainEvent.ts`: `AggregateRoot` y `EventBase` vienen de `@archi-code/ddd/domain`. `OrderRepository.ts` no es una interfaz única: el repositorio se divide en los roles `AggregateFinder<Order>`, `AggregateSaver<Order>` y `AggregateRemover<Order>` (de `@archi-code/ddd/domain`) y cada caso de uso pide solo los que usa. `OrderMapper.ts` se sustituye por `AggregateMapper.of(Order)` (de `@archi-code/ddd/infrastructure`), que usa `toPrimitives`/`fromPrimitives` del agregado. Ningún fichero importa `composition.ts`.
 
 ## Variante con el código bajo `src/app/`
 
@@ -96,6 +97,8 @@ Reglas de encaje:
 | Entrada (driving) | HTTP `POST /orders`, consumidor de `StockReservado` | El caso de uso es la API de entrada | `interfaces/` |
 | Salida de dominio | `OrderRepository`, `ProductPricing` | `domain/` | `infrastructure/` |
 | Salida de aplicación | `EventPublisher`, `Clock`, `TransactionRunner` | `application/` | `infrastructure/` |
+
+`[Fuera de los libros: convención de @archi-code/ddd]` Con el paquete, el puerto `EventPublisher` es `EventBus` de `@archi-code/ddd/application`, junto con `Clock` y `TransactionRunner`; en memoria se implementan con `InMemoryOutbox` (o `InMemoryEventBus`), `FixedClock` e `InMemoryTransactionRunner` de `@archi-code/ddd/infrastructure`.
 
 En IDDD los puertos no se implementan "a mano": el puerto es HTTP o el bus de mensajes, y el adaptador es el controlador o el listener que traduce a la API de aplicación [IDDD cap. 4]. El interior se diseña por casos de uso, no por número de clientes [IDDD cap. 4].
 

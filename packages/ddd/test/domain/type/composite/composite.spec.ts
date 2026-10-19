@@ -224,7 +224,11 @@ describe('Composite: a value object made of several value objects', () => {
         });
       expect(build).toThrow(ValidationException);
       expect(issuesOf(build)).toEqual([
-        { field: null, message: 'DateRange: A promotion cannot end before it starts' },
+        {
+          field: null,
+          code: 'endsAfterItStarts',
+          message: 'DateRange: A promotion cannot end before it starts',
+        },
       ]);
     });
 
@@ -260,7 +264,7 @@ describe('Composite: a value object made of several value objects', () => {
     it('a cart mixing currencies breaks its rule', () => {
       const dollars = { ...mask, unitPrice: { amount: 3999, currency: 'USD' } };
       expect(issuesOf(() => Cart.fromPrimitives({ lines: [torch, dollars], note: null }))).toEqual([
-        { field: null, message: 'Cart: A cart is paid in one currency' },
+        { field: null, code: 'oneCurrency', message: 'Cart: A cart is paid in one currency' },
       ]);
     });
   });
@@ -291,13 +295,22 @@ describe('Composite: a value object made of several value objects', () => {
       const rebuild = () => Cart.fromPrimitives(broken);
       expect(rebuild).toThrow(ValidationException);
       expect(issuesOf(rebuild)).toEqual([
-        { field: 'lines.1.sku', message: 'Validation Error: Sku is required, but received "".' },
-        { field: 'lines.1.units', message: 'Units: From 1 to 20' },
+        {
+          field: 'lines.1.sku',
+          code: 'DOM004',
+          message: 'Validation Error: Sku is required, but received "".',
+        },
+        { field: 'lines.1.units', code: 'isInt', message: 'Units: From 1 to 20' },
         {
           field: 'lines.1.unitPrice.amount',
+          code: 'isInt',
           message: 'Cents: An amount is a whole number of cents',
         },
-        { field: 'lines.1.unitPrice.currency', message: 'Currency: Value does not satisfy isIn' },
+        {
+          field: 'lines.1.unitPrice.currency',
+          code: 'isIn',
+          message: 'Currency: Value does not satisfy isIn',
+        },
       ]);
     });
 
@@ -305,6 +318,7 @@ describe('Composite: a value object made of several value objects', () => {
       expect(issuesOf(() => Money.fromPrimitives({ amount: 100 } as never))).toEqual([
         {
           field: 'currency',
+          code: 'DOM004',
           message: 'Validation Error: Currency is required, but received null.',
         },
       ]);
@@ -315,6 +329,7 @@ describe('Composite: a value object made of several value objects', () => {
         [
           {
             field: 'tags',
+            code: 'DOM003',
             message: 'Validation Error: Expected a valid Array, but received "ddd".',
           },
         ],
@@ -340,7 +355,11 @@ describe('Composite: a value object made of several value objects', () => {
           }),
         ),
       ).toEqual([
-        { field: 'price.amount', message: 'Cents: An amount is a whole number of cents' },
+        {
+          field: 'price.amount',
+          code: 'isInt',
+          message: 'Cents: An amount is a whole number of cents',
+        },
       ]);
     });
   });

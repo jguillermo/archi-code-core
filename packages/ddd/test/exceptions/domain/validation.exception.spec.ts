@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ValidationException } from '../../../src/exceptions/domain/validation.exception';
+import type { ValidationIssue } from '../../../src/exceptions/domain/validation.exception';
 import { DomainException } from '../../../src/exceptions/domain/domain.exception';
 import { AggregateNotFoundException } from '../../../src/exceptions/application/aggregate-not-found.exception';
 
@@ -20,13 +21,31 @@ describe('ValidationException', () => {
 
   it('keeps the list of errors so an API can return them field by field', () => {
     const exception = new ValidationException([
-      { field: 'email', message: 'Email: invalid' },
-      { field: 'lines.1.units', message: 'Units: invalid' },
+      { field: 'email', code: 'isEmail', message: 'Email: invalid' },
+      { field: 'lines.1.units', code: 'isInt', message: 'Units: invalid' },
     ]);
 
     expect(exception.errors).toStrictEqual([
-      { field: 'email', message: 'Email: invalid' },
-      { field: 'lines.1.units', message: 'Units: invalid' },
+      { field: 'email', code: 'isEmail', message: 'Email: invalid' },
+      { field: 'lines.1.units', code: 'isInt', message: 'Units: invalid' },
+    ]);
+  });
+
+  it('gives an issue without its own code the code of the exception, DOM001', () => {
+    const exception = new ValidationException([{ field: 'email', message: 'Email: invalid' }]);
+
+    expect(exception.errors).toStrictEqual([
+      { field: 'email', code: 'DOM001', message: 'Email: invalid' },
+    ]);
+  });
+
+  it('keeps the code an issue is given, such as the name of the broken rule', () => {
+    const exception = new ValidationException([
+      { field: 'email', code: 'isEmail', message: 'Email: Value does not satisfy isEmail' },
+    ]);
+
+    expect(exception.errors).toStrictEqual([
+      { field: 'email', code: 'isEmail', message: 'Email: Value does not satisfy isEmail' },
     ]);
   });
 
@@ -37,12 +56,15 @@ describe('ValidationException', () => {
     errors.push({ field: 'age', message: 'Age: invalid' });
     issue.message = 'changed';
 
-    expect(exception.errors).toStrictEqual([{ field: 'email', message: 'Email: invalid' }]);
+    expect(exception.errors).toStrictEqual([
+      { field: 'email', code: 'DOM001', message: 'Email: invalid' },
+    ]);
     expect(Object.isFrozen(exception.errors)).toBe(true);
     expect(Object.isFrozen(exception.errors[0])).toBe(true);
     expect(() =>
-      (exception.errors as { field: string | null; message: string }[]).push({
+      (exception.errors as ValidationIssue[]).push({
         field: null,
+        code: 'isRequired',
         message: 'Name: invalid',
       }),
     ).toThrow(TypeError);

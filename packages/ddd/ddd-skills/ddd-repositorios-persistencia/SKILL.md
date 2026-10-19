@@ -1,9 +1,8 @@
----
-name: ddd-repositorios-persistencia
-description: Repositorios DDD y persistencia de agregados en TypeScript/Node. Cubre un repositorio por agregado, repositorios orientados a colección frente a orientados a persistencia (save), interfaz en el dominio e implementación en infraestructura, mappers entre filas o documentos y el modelo, concurrencia optimista, transacciones gestionadas fuera del dominio, consultas y "use case optimal queries", diferencias con un DAO, implementaciones en memoria y tests de contrato. Úsalo SIEMPRE que haya que guardar o cargar agregados, integrar Prisma, TypeORM, Drizzle, MikroORM, pg o MongoDB con un modelo de dominio, diseñar métodos find/save, gestionar transacciones, o cuando el ORM esté dictando la forma de las clases del dominio, aunque no se mencione "repository".
----
-
 # Repositorios y persistencia
+
+> Guía de la suite DDD de @archi-code/ddd: se lee solo a través del skill `archi-code-ddd` (packages/ddd/SKILL.md), nunca como skill independiente.
+
+**Cuándo usarla.** Úsala siempre que haya que guardar o cargar agregados, integrar Prisma, TypeORM, Drizzle, MikroORM, pg o MongoDB con un modelo de dominio, diseñar métodos find/save, gestionar transacciones, o cuando el ORM esté dictando la forma de las clases del dominio, aunque no se mencione "repository".
 
 Un repositorio da la ilusión de una colección en memoria con todos los agregados de un tipo, con una interfaz conocida para añadir, quitar y seleccionar. **Solo los agregados tienen repositorio**, normalmente uno por tipo de agregado [IDDD cap. 12, citando a Evans].
 

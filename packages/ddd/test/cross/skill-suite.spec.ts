@@ -1,16 +1,44 @@
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const PACKAGE = path.resolve(__dirname, '../..');
 const SUITE = path.join(PACKAGE, 'ddd-skills');
 const SKILL = fs.readFileSync(path.join(PACKAGE, 'SKILL.md'), 'utf8');
+const BOOK_CONVENTION_MARK = '[Fuera de los libros: convención de @archi-code/ddd]';
+const NAMES_THAT_ARE_NOT_SUITE_SKILLS = ['ddd-skills'];
 
 const suiteSkills = fs
   .readdirSync(SUITE, { withFileTypes: true })
   .filter((entry) => entry.isDirectory())
   .map((entry) => entry.name)
   .sort();
+
+function filesOf(skillDir: string): string[] {
+  return fs
+    .readdirSync(path.join(SUITE, skillDir), { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile() && !entry.name.startsWith('.'))
+    .map((entry) =>
+      path.relative(path.join(SUITE, skillDir), path.join(entry.parentPath, entry.name)),
+    )
+    .sort();
+}
+
+function markdownOf(skillDir: string): string[] {
+  return filesOf(skillDir)
+    .filter((file) => file.endsWith('.md'))
+    .map((file) => fs.readFileSync(path.join(SUITE, skillDir, file), 'utf8'));
+}
+
+function citedPaths(skillDir: string): string[] {
+  return markdownOf(skillDir).flatMap((text) =>
+    Array.from(
+      text.matchAll(/(?<![\w/.-])((?:references|assets|scripts)\/[\w.-]+(?:\/[\w.-]+)*)/g),
+      (m) => m[1].replace(/\.+$/, ''),
+    ),
+  );
+}
 
 function localReferences(skillDir: string): string[] {
   const text = fs.readFileSync(path.join(SUITE, skillDir, 'SKILL.md'), 'utf8');
@@ -48,6 +76,69 @@ describe('the DDD skill suite is reached only through SKILL.md', () => {
   it('tells the assistant never to install the suite as separate skills', () => {
     expect(SKILL).toContain('only skill to load');
     expect(SKILL).toContain('never copy the suite into `.claude/skills/`');
+  });
+
+  it('no suite guide can be loaded as a skill of its own: none has a frontmatter', () => {
+    const withFrontmatter = suiteSkills.filter((skill) =>
+      fs.readFileSync(path.join(SUITE, skill, 'SKILL.md'), 'utf8').startsWith('---'),
+    );
+    expect(withFrontmatter).toEqual([]);
+  });
+
+  it('every suite guide tells the assistant it is read only through archi-code-ddd', () => {
+    const silent = suiteSkills.filter(
+      (skill) =>
+        !fs
+          .readFileSync(path.join(SUITE, skill, 'SKILL.md'), 'utf8')
+          .includes('se lee solo a través del skill `archi-code-ddd`'),
+    );
+    expect(silent).toEqual([]);
+  });
+
+  it('every path a guide, reference or template of the suite cites exists in its skill', () => {
+    const missing = suiteSkills.flatMap((skill) =>
+      citedPaths(skill)
+        .filter((cited) => !fs.existsSync(path.join(SUITE, skill, cited)))
+        .map((cited) => `${skill}/${cited}`),
+    );
+    expect(missing).toEqual([]);
+  });
+
+  it('every ddd-* skill a suite file mentions is a folder of the suite', () => {
+    const unknown = suiteSkills.flatMap((skill) =>
+      markdownOf(skill).flatMap((text) =>
+        Array.from(text.matchAll(/\bddd-[a-z]+(?:-[a-z]+)*/g), (m) => m[0])
+          .filter((name) => !suiteSkills.includes(name))
+          .filter((name) => !NAMES_THAT_ARE_NOT_SUITE_SKILLS.includes(name))
+          .map((name) => `${skill}: ${name}`),
+      ),
+    );
+    expect(unknown).toEqual([]);
+  });
+
+  it('every reference, template and script of the suite is cited by some guide', () => {
+    const orphans = suiteSkills.flatMap((skill) => {
+      const cited = new Set(citedPaths(skill));
+      return filesOf(skill)
+        .filter((file) => file !== 'SKILL.md' && !cited.has(file.split(path.sep).join('/')))
+        .map((file) => `${skill}/${file}`);
+    });
+    expect(orphans).toEqual([]);
+  });
+
+  it('SKILL.md sends the assistant to the rule sheet and marks where the package leaves the books', () => {
+    expect(SKILL).toContain('references/chuleta-reglas.md');
+    expect(SKILL).toContain(BOOK_CONVENTION_MARK);
+  });
+
+  it('the dependency-cruiser rules accept the package modules and keep composition.ts out of the layers', () => {
+    const config = createRequire(__filename)(
+      path.join(SUITE, 'ddd-arquitectura/assets/dependency-cruiser.cjs'),
+    );
+    expect(Array.isArray(config.forbidden)).toBe(true);
+    const rules = config.forbidden.map((rule: unknown) => JSON.stringify(rule));
+    expect(rules.some((rule: string) => rule.includes('@archi-code'))).toBe(true);
+    expect(rules.some((rule: string) => rule.includes('composition'))).toBe(true);
   });
 
   it('is pure DDD: it cites books, never the internal document codes of a company', () => {

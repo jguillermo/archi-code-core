@@ -34,6 +34,19 @@ describe('OutboxRelay: delivers the events a transaction committed, after the co
     expect(broker).toHaveLength(3);
   });
 
+  it('hands each event with its outbox sequence, so a consumer can keep the order', async () => {
+    const outbox = await outboxWithShipments();
+    const received: [string, number][] = [];
+    await new OutboxRelay(outbox, (event, sequence) => {
+      received.push([event.aggregateId, sequence]);
+    }).forward();
+    expect(received).toEqual([
+      [orderIds[0], 1],
+      [orderIds[1], 2],
+      [orderIds[2], 3],
+    ]);
+  });
+
   it('delivers at most the batch size on each run', async () => {
     const outbox = await outboxWithShipments();
     const deliver = vi.fn(async () => undefined);

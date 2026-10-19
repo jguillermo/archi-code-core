@@ -100,7 +100,7 @@ class Order extends AggregateRoot<OrderId> {
       new Total(data.total),
       new Tags(data.tags),
       data.lines.map((line) => new OrderLine(new LineId(line.id), new Quantity(line.quantity))),
-      new OrderStatus(data.status as OrderStatusValue),
+      new OrderStatus(data.status),
       new CreatedAt(data.createdAt),
     );
   }
@@ -112,7 +112,7 @@ interface OrderPrimitives {
   total: number | null;
   tags: string[];
   lines: { id: string; quantity: number }[];
-  status: string;
+  status: OrderStatusValue;
   createdAt: Date;
 }
 
@@ -122,7 +122,7 @@ const storedOrder: OrderPrimitives = {
   total: 120.5,
   tags: ['gift', 'express'],
   lines: [{ id: '0b4fd2c4-5a8f-4a7c-9f6f-8a6a4b3c2d1e', quantity: 2 }],
-  status: 'paid',
+  status: OrderStatusValue.Paid,
   createdAt: new Date('2026-01-10T08:00:00.000Z'),
 };
 
@@ -363,11 +363,14 @@ describe('PrimitiveType: the primitive of one member', () => {
       expectTypeOf<PrimitiveType<UpdatedAt>>().toEqualTypeOf<Date>();
     });
 
-    it('an enum is stored as the plain text or number of its column', () => {
-      expectTypeOf<PrimitiveType<RequiredStatus>>().toEqualTypeOf<string>();
-      expectTypeOf<PrimitiveType<Status>>().toEqualTypeOf<string | null>();
-      expectTypeOf<PrimitiveType<RequiredPriority>>().toEqualTypeOf<number>();
-      expectTypeOf<PrimitiveType<PriorityLevel>>().toEqualTypeOf<number | null>();
+    it('an enum is stored as its option, so fromPrimitives rebuilds it without a cast', () => {
+      expectTypeOf<PrimitiveType<RequiredStatus>>().toEqualTypeOf<OrderStatus>();
+      expectTypeOf<PrimitiveType<Status>>().toEqualTypeOf<OrderStatus | null>();
+      expectTypeOf<PrimitiveType<RequiredPriority>>().toEqualTypeOf<Priority>();
+      expectTypeOf<PrimitiveType<PriorityLevel>>().toEqualTypeOf<Priority | null>();
+      expectTypeOf(
+        (stored: PrimitiveType<RequiredStatus>) => new RequiredStatus(stored),
+      ).returns.toEqualTypeOf<RequiredStatus>();
     });
 
     it('a JSON value object is stored as its document', () => {
@@ -383,7 +386,7 @@ describe('PrimitiveType: the primitive of one member', () => {
     it('a plain list of value objects becomes a list of values, item by item', () => {
       expectTypeOf<PrimitiveType<CustomerName[]>>().toEqualTypeOf<string[]>();
       expectTypeOf<PrimitiveType<Nickname[]>>().toEqualTypeOf<(string | null)[]>();
-      expectTypeOf<PrimitiveType<RequiredStatus[]>>().toEqualTypeOf<string[]>();
+      expectTypeOf<PrimitiveType<RequiredStatus[]>>().toEqualTypeOf<OrderStatus[]>();
       expectTypeOf<PrimitiveType<OrderId[][]>>().toEqualTypeOf<string[][]>();
     });
 

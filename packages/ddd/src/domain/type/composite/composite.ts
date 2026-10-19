@@ -69,7 +69,12 @@ export function Composite<Schema extends CompositeSchema>(schema: Schema): Compo
       const brokenRules = runValidations(this.constructor as ValidatedClass, this).errors;
       if (brokenRules.length > 0) {
         throw new ValidationException(
-          brokenRules.map((error) => ({ field: null, message: `${owner}: ${error.message}` })),
+          brokenRules.map((error) => ({
+            field: null,
+            /* v8 ignore next -- @preserve */
+            code: 'custom' in error ? error.custom : error.validator,
+            message: `${owner}: ${error.message}`,
+          })),
         );
       }
       Object.freeze(this);

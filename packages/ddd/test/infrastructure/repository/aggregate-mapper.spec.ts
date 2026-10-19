@@ -79,7 +79,7 @@ class Order extends AggregateRoot<OrderId> {
     return new Order(
       new OrderId(primitives.id),
       new CustomerName(primitives.customer),
-      new OrderStatus(primitives.status as Status),
+      new OrderStatus(primitives.status),
       new Shipped(primitives.shipped),
       new CreatedAt(primitives.placedAt),
       primitives.lines.map(
@@ -172,7 +172,7 @@ describe('AggregateMapper: the only bridge between an aggregate and its stored p
       expectTypeOf<PrimitiveTypes<Order>>().toEqualTypeOf<{
         id: string;
         customer: string;
-        status: string;
+        status: Status;
         shipped: boolean;
         placedAt: Date;
         lines: { id: string; sku: string; units: number }[];

@@ -32,6 +32,15 @@ describe('NotAllowedException', () => {
     ).toThrow('cus-luis cannot cancel an order of another customer');
   });
 
+  it('keeps the error of the access policy service as its cause', () => {
+    const policyDown = new Error('access policy service timed out');
+    const exception = new NotAllowedException('cus-luis cannot cancel this order', {
+      cause: policyDown,
+    });
+    expect(exception.cause).toBe(policyDown);
+    expect(new NotAllowedException('cus-luis cannot cancel this order').cause).toBeUndefined();
+  });
+
   it('is an application exception with the code APP003', () => {
     const exception = new NotAllowedException('cus-luis cannot cancel this order');
     expect(exception).toBeInstanceOf(ApplicationException);

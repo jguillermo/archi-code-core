@@ -16,6 +16,7 @@
 
 ## Arquitectura
 * Dominio libre de tecnología; transacciones en la capa de aplicación [Destilado cap. 2; IDDD cap. 12].
+* `[Fuera de los libros: convención de @archi-code/ddd]` El dominio solo importa `@archi-code/ddd/domain`, `@archi-code/ddd/exceptions` y `@archi-code/validation`.
 * Hexagonal con inversión de dependencias [IDDD cap. 4].
 * Servicios de aplicación finos [IDDD cap. 4 y cap. 14].
 * No exponer el modelo directamente por REST [IDDD cap. 4].

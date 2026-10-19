@@ -5,10 +5,8 @@ export class AggregateShape {
   static assert(aggregateName: string, aggregate: object, primitives: object): void {
     for (const [key, value] of Object.entries(aggregate)) {
       AggregateShape.assertValueObjects(`${aggregateName}.${key}`, value);
-      if (!(AggregateShape.primitiveKey(key) in primitives)) {
-        throw new InternalErrorException(`${aggregateName}.${key} is not in its primitives`);
-      }
     }
+    AggregateShape.assertStored(aggregateName, aggregate, primitives);
     AggregateShape.assertPlain(aggregateName, 'primitives', primitives);
   }
 
@@ -29,6 +27,33 @@ export class AggregateShape {
     throw new InternalErrorException(
       `${path} is ${AggregateShape.describe(value)}, not a value object`,
     );
+  }
+
+  private static assertStored(path: string, owner: object, primitive: unknown): void {
+    const stored = primitive as Record<string, unknown>;
+    for (const [key, member] of Object.entries(owner)) {
+      const primitiveKey = AggregateShape.primitiveKey(key);
+      if (typeof stored !== 'object' || stored === null || !(primitiveKey in stored)) {
+        throw new InternalErrorException(`${path}.${key} is not in its primitives`);
+      }
+      AggregateShape.assertMemberStored(`${path}.${key}`, member, stored[primitiveKey]);
+    }
+  }
+
+  private static assertMemberStored(path: string, member: unknown, primitive: unknown): void {
+    if (Array.isArray(member)) {
+      member.forEach((item, index) =>
+        AggregateShape.assertMemberStored(
+          `${path}[${index}]`,
+          item,
+          Array.isArray(primitive) ? primitive[index] : undefined,
+        ),
+      );
+      return;
+    }
+    if (typeof member === 'object' && member !== null && !(member instanceof AbstractType)) {
+      AggregateShape.assertStored(path, member, primitive);
+    }
   }
 
   private static assertPlain(aggregateName: string, path: string, value: unknown): void {

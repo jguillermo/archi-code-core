@@ -6,6 +6,7 @@ const path = require('path');
 const SCOPE = '@archi-code/';
 const SKILL_FILE = 'SKILL.md';
 const SKILL_KEYS = ['name', 'description'];
+const MAX_DESCRIPTION_LENGTH = 1024;
 const PACKED_DOCS = ['package.json', 'README.md', 'LICENSE', SKILL_FILE];
 
 function skillName(packageName) {
@@ -50,6 +51,11 @@ function skillErrors(text, packageName) {
   }
   if (!fields.description || /^[>|][-+]?$/.test(fields.description)) {
     errors.push(`${SKILL_FILE} description is empty`);
+  }
+  if (fields.description && fields.description.length > MAX_DESCRIPTION_LENGTH) {
+    errors.push(
+      `${SKILL_FILE} description is ${fields.description.length} characters, the limit is ${MAX_DESCRIPTION_LENGTH}`,
+    );
   }
   if (!body.trim()) errors.push(`${SKILL_FILE} has no instructions after the frontmatter`);
   return errors;

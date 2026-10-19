@@ -1,9 +1,8 @@
----
-name: ddd-arquitectura
-description: Arquitectura interna de un Bounded Context con DDD en TypeScript/Node. Cubre capas e inversión de dependencias, arquitectura hexagonal (puertos y adaptadores), qué va en dominio, aplicación, infraestructura e interfaz, módulos con nombres del lenguaje ubicuo, estructura de carpetas, composition root e inyección de dependencias, reglas automáticas de dependencias, cómo exponer REST sin exponer el modelo y cuándo (y cuándo no) añadir CQRS, arquitectura dirigida por eventos o Event Sourcing. Úsalo SIEMPRE que haya que crear o reorganizar la estructura de un proyecto o servicio con DDD, decidir dónde va un fichero o una clase, separar dominio de framework u ORM, montar la inyección de dependencias, configurar límites entre módulos, o cuando el dominio importe Express, Prisma, TypeORM o similares, aunque no se diga "arquitectura hexagonal".
----
-
 # Arquitectura de un Bounded Context
+
+> Guía de la suite DDD de @archi-code/ddd: se lee solo a través del skill `archi-code-ddd` (packages/ddd/SKILL.md), nunca como skill independiente.
+
+**Cuándo usarla.** Úsala siempre que haya que crear o reorganizar la estructura de un proyecto o servicio con DDD, decidir dónde va un fichero o una clase, separar dominio de framework u ORM, montar la inyección de dependencias, configurar límites entre módulos, o cuando el dominio importe Express, Prisma, TypeORM o similares, aunque no se diga "arquitectura hexagonal".
 
 La arquitectura existe para proteger el modelo de dominio. El modelo debe estar libre de tecnología; por eso, por ejemplo, las transacciones las gestionan los servicios de aplicación y no el dominio [Destilado cap. 2]. Y ningún estilo arquitectónico es una colección de herramientas para usar en todas partes: se aplica donde mitiga un riesgo concreto [IDDD cap. 4].
 
@@ -34,7 +33,7 @@ infrastructure (adaptadores salida) ─┘                     ▲
 
 | Zona | Contiene | Puede depender de | Nunca |
 |---|---|---|---|
-| `domain` | Agregados, entidades, value objects, eventos de dominio, servicios de dominio, **interfaces** de repositorio y de servicios externos | Nada externo (solo la librería estándar) | Framework web, ORM, cliente HTTP, `process.env`, logger |
+| `domain` | Agregados, entidades, value objects, eventos de dominio, servicios de dominio, **interfaces** de repositorio y de servicios externos | Nada externo (solo la librería estándar). `[Fuera de los libros: convención de @archi-code/ddd]` con el paquete, además `@archi-code/ddd/domain`, `@archi-code/ddd/exceptions` y `@archi-code/validation` | Framework web, ORM, cliente HTTP, `process.env`, logger |
 | `application` | Servicios de aplicación (casos de uso), comandos y consultas, DTOs, puertos de salida no de dominio (correo, reloj si se quiere) | `domain` | Express/Fastify, SQL, detalles de mensajería |
 | `infrastructure` | Repositorios concretos, ACL, publicador de eventos, clientes HTTP, mensajería | `domain`, `application` | Lógica de negocio |
 | `interfaces` | Controladores REST, consumidores de mensajes, CLI, resolvers GraphQL | `application` (y tipos de `domain` solo si es imprescindible) | Lógica de negocio, acceso directo a repositorios |

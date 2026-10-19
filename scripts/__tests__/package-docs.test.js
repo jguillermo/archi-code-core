@@ -76,6 +76,15 @@ describe('skillErrors', () => {
     expect(skillErrors(empty, NAME)).toStrictEqual(['SKILL.md description is empty']);
   });
 
+  test('refuses a description longer than the 1024 characters Claude Code loads', () => {
+    const atLimit = SKILL.replace(/description: .*/, `description: ${'a'.repeat(1024)}`);
+    expect(skillErrors(atLimit, NAME)).toStrictEqual([]);
+    const tooLong = SKILL.replace(/description: .*/, `description: ${'a'.repeat(1025)}`);
+    expect(skillErrors(tooLong, NAME)).toStrictEqual([
+      'SKILL.md description is 1025 characters, the limit is 1024',
+    ]);
+  });
+
   test('refuses a skill without instructions', () => {
     expect(skillErrors(SKILL.split('\n').slice(0, 4).join('\n'), NAME)).toStrictEqual([
       'SKILL.md has no instructions after the frontmatter',

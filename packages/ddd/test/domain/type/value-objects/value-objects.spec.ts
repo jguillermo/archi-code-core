@@ -120,9 +120,14 @@ describe('ValueObjects: building every value object of an input at once', () => 
       expect(issuesOf(place)).toEqual([
         {
           field: 'orderId',
+          code: 'DOM003',
           message: 'Validation Error: Expected a valid UUID, but received "not-an-id".',
         },
-        { field: 'email', message: 'CustomerEmail: Value does not satisfy isEmail' },
+        {
+          field: 'email',
+          code: 'isEmail',
+          message: 'CustomerEmail: Value does not satisfy isEmail',
+        },
       ]);
     });
 
@@ -138,13 +143,15 @@ describe('ValueObjects: building every value object of an input at once', () => 
       ).toEqual([
         {
           field: 'email',
+          code: 'DOM004',
           message: 'Validation Error: CustomerEmail is required, but received "".',
         },
         {
           field: 'units',
+          code: 'DOM003',
           message: 'Validation Error: Expected a valid Number, but received "three".',
         },
-        { field: 'otherUnits', message: 'Units: From 1 to 20 units' },
+        { field: 'otherUnits', code: 'isInt', message: 'Units: From 1 to 20 units' },
       ]);
     });
 
@@ -153,8 +160,12 @@ describe('ValueObjects: building every value object of an input at once', () => 
       class SignUpEmail extends CustomerEmail {}
 
       expect(issuesOf(() => ValueObjects.build({ email: () => new SignUpEmail('a@b') }))).toEqual([
-        { field: 'email', message: 'SignUpEmail: Value does not satisfy isEmail' },
-        { field: 'email', message: 'SignUpEmail: Value does not satisfy isLength' },
+        { field: 'email', code: 'isEmail', message: 'SignUpEmail: Value does not satisfy isEmail' },
+        {
+          field: 'email',
+          code: 'isLength',
+          message: 'SignUpEmail: Value does not satisfy isLength',
+        },
       ]);
     });
 
@@ -166,7 +177,9 @@ describe('ValueObjects: building every value object of an input at once', () => 
             throw new CouponExpired('SPRING');
           },
         });
-      expect(issuesOf(redeem)).toEqual([{ field: 'coupon', message: 'Coupon SPRING has expired' }]);
+      expect(issuesOf(redeem)).toEqual([
+        { field: 'coupon', code: 'ORD010', message: 'Coupon SPRING has expired' },
+      ]);
     });
 
     it('lets an error that is not a domain error through untouched, it is a bug', () => {
@@ -195,7 +208,7 @@ describe('ValueObjects: building every value object of an input at once', () => 
             },
           }),
         ),
-      ).toEqual([{ field: 'currency', message: 'Currency GBP is not sold here' }]);
+      ).toEqual([{ field: 'currency', code: 'PAY002', message: 'Currency GBP is not sold here' }]);
     });
 
     it('lets an application exception through untouched: it is not a field of the input', () => {
@@ -229,9 +242,13 @@ describe('ValueObjects: building every value object of an input at once', () => 
         });
 
       expect(issuesOf(place)).toEqual([
-        { field: 'lines.1.sku', message: 'Validation Error: Sku is required, but received "".' },
-        { field: 'lines.1.units', message: 'Units: From 1 to 20 units' },
-        { field: 'lines.2.units', message: 'Units: From 1 to 20 units' },
+        {
+          field: 'lines.1.sku',
+          code: 'DOM004',
+          message: 'Validation Error: Sku is required, but received "".',
+        },
+        { field: 'lines.1.units', code: 'isInt', message: 'Units: From 1 to 20 units' },
+        { field: 'lines.2.units', code: 'isInt', message: 'Units: From 1 to 20 units' },
       ]);
       expect(() => place()).toThrow(
         'Validation failed, lines.1.sku: Validation Error: Sku is required, but received "".',
@@ -240,7 +257,7 @@ describe('ValueObjects: building every value object of an input at once', () => 
 
     it('names an invalid item of a list value object by its position', () => {
       expect(issuesOf(() => ValueObjects.build({ tags: () => new Tags(['ddd', 'x']) }))).toEqual([
-        { field: 'tags.1', message: 'Tag: A tag has 2 letters' },
+        { field: 'tags.1', code: 'isLength', message: 'Tag: A tag has 2 letters' },
       ]);
     });
 
@@ -249,7 +266,7 @@ describe('ValueObjects: building every value object of an input at once', () => 
       class ProductTags extends Tags {}
 
       expect(issuesOf(() => ValueObjects.build({ tags: () => new ProductTags([]) }))).toEqual([
-        { field: 'tags', message: 'ProductTags: Value does not satisfy hasTags' },
+        { field: 'tags', code: 'hasTags', message: 'ProductTags: Value does not satisfy hasTags' },
       ]);
     });
 

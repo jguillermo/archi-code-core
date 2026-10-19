@@ -45,6 +45,7 @@ describe('@archi-code/ddd/exceptions', () => {
     expectTypeOf<ExceptionOptions>().toEqualTypeOf<{ cause?: unknown }>();
     expectTypeOf<ValidationIssue>().toEqualTypeOf<{
       readonly field: string | null;
+      readonly code: string;
       readonly message: string;
     }>();
   });

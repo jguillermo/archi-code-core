@@ -34,6 +34,13 @@ describe('ConcurrencyException', () => {
     expect(staleSave).toThrow('Order with ID o-1 was changed by someone else: expected version 3.');
   });
 
+  it('keeps the duplicate key error of the driver as its cause', () => {
+    const duplicateKey = new Error('E11000 duplicate key error collection: orders');
+    const exception = new ConcurrencyException('Order', 'o-1', 0, { cause: duplicateKey });
+    expect(exception.cause).toBe(duplicateKey);
+    expect(new ConcurrencyException('Order', 'o-1', 0).cause).toBeUndefined();
+  });
+
   it('is an application exception with the code APP001, not a domain rule', () => {
     const exception = new ConcurrencyException('Order', 'o-1', 3);
     expect(exception).toBeInstanceOf(ApplicationException);

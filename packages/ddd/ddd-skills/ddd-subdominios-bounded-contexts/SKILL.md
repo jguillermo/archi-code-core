@@ -1,9 +1,8 @@
----
-name: ddd-subdominios-bounded-contexts
-description: Diseño estratégico DDD para dividir un dominio en subdominios (Core Domain, de soporte, genéricos) y trazar Bounded Contexts por fronteras lingüísticas. Cubre espacio del problema frente a espacio de la solución, criterios de clasificación y de inversión (construir, comprar, subcontratar), tamaño correcto de un contexto, qué vive dentro de él, un equipo por contexto, alineación 1:1 subdominio-contexto y cómo analizar un sistema legado o Big Ball of Mud como subdominios lógicos. Úsalo SIEMPRE que alguien pregunte cómo dividir un sistema, cuántos microservicios o módulos hacer, qué es core y qué no, dónde poner un concepto que significa cosas distintas para distintos equipos, cómo partir un monolito, o cuando una clase o tabla "lo tiene todo", aunque no mencione Bounded Context. Va después de ddd-descubrimiento-dominio y antes de ddd-context-mapping.
----
-
 # Subdominios y Bounded Contexts
+
+> Guía de la suite DDD de @archi-code/ddd: se lee solo a través del skill `archi-code-ddd` (packages/ddd/SKILL.md), nunca como skill independiente.
+
+**Cuándo usarla.** Úsala siempre que alguien pregunte cómo dividir un sistema, cuántos microservicios o módulos hacer, qué es core y qué no, dónde poner un concepto que significa cosas distintas para distintos equipos, cómo partir un monolito, o cuando una clase o tabla "lo tiene todo", aunque no mencione Bounded Context. Va después de ddd-descubrimiento-dominio y antes de ddd-context-mapping.
 
 Este skill decide **dónde están las fronteras** y **cuánto invertir en cada zona**. Son las dos decisiones estratégicas que más condicionan todo lo demás: un agregado bien diseñado dentro de un contexto mal trazado sigue siendo un problema.
 

@@ -222,7 +222,7 @@ describe('ArrayType', () => {
       const tags = new LimitedTags(['a1', 'b2']).withItem('c3');
       expect(tags).toBeInstanceOf(LimitedTags);
       expect(issuesOf(() => tags.withItem('d4'))).toEqual([
-        { field: null, message: 'LimitedTags: A product has at most 3 tags' },
+        { field: null, code: 'atMostThree', message: 'LimitedTags: A product has at most 3 tags' },
       ]);
     });
 
@@ -244,7 +244,11 @@ describe('ArrayType', () => {
       const tags = new Tags(['ddd']);
       expect(() => tags.withItem({} as unknown as string)).toThrow(ValidationException);
       expect(issuesOf(() => tags.withItem({} as unknown as string))).toEqual([
-        { field: '1', message: 'Validation Error: Expected a valid String, but received {}.' },
+        {
+          field: '1',
+          code: 'DOM003',
+          message: 'Validation Error: Expected a valid String, but received {}.',
+        },
       ]);
       expect(tags.value).toEqual(['ddd']);
     });
@@ -384,8 +388,8 @@ describe('ArrayType', () => {
         'Validation failed, 1: Tag: A tag has 2 to 12 letters, 3: Tag: A tag has 2 to 12 letters',
       );
       expect(issuesOf(build)).toEqual([
-        { field: '1', message: 'Tag: A tag has 2 to 12 letters' },
-        { field: '3', message: 'Tag: A tag has 2 to 12 letters' },
+        { field: '1', code: 'isLength', message: 'Tag: A tag has 2 to 12 letters' },
+        { field: '3', code: 'isLength', message: 'Tag: A tag has 2 to 12 letters' },
       ]);
     });
 
@@ -393,22 +397,30 @@ describe('ArrayType', () => {
       expect(
         issuesOf(() => new Tags(['x', {} as unknown as string, null as unknown as string])),
       ).toEqual([
-        { field: '0', message: 'Tag: A tag has 2 to 12 letters' },
-        { field: '1', message: 'Validation Error: Expected a valid String, but received {}.' },
-        { field: '2', message: 'Validation Error: Tag is required, but received null.' },
+        { field: '0', code: 'isLength', message: 'Tag: A tag has 2 to 12 letters' },
+        {
+          field: '1',
+          code: 'DOM003',
+          message: 'Validation Error: Expected a valid String, but received {}.',
+        },
+        {
+          field: '2',
+          code: 'DOM004',
+          message: 'Validation Error: Tag is required, but received null.',
+        },
       ]);
     });
 
     it('reports the rules of the list before the errors of its tags', () => {
       expect(issuesOf(() => new LimitedTags(['a1', 'x', 'c3', 'd4']))).toEqual([
-        { field: null, message: 'LimitedTags: A product has at most 3 tags' },
-        { field: '1', message: 'Tag: A tag has 2 to 12 letters' },
+        { field: null, code: 'atMostThree', message: 'LimitedTags: A product has at most 3 tags' },
+        { field: '1', code: 'isLength', message: 'Tag: A tag has 2 to 12 letters' },
       ]);
     });
 
     it('reports the rules of the list when every tag is valid', () => {
       expect(issuesOf(() => new LimitedTags(['a1', 'b2', 'c3', 'd4']))).toEqual([
-        { field: null, message: 'LimitedTags: A product has at most 3 tags' },
+        { field: null, code: 'atMostThree', message: 'LimitedTags: A product has at most 3 tags' },
       ]);
     });
 
@@ -419,7 +431,7 @@ describe('ArrayType', () => {
       class NonEmptyTags extends Tags {}
 
       expect(issuesOf(() => new NonEmptyTags([]))).toEqual([
-        { field: null, message: 'NonEmptyTags: Add at least one tag' },
+        { field: null, code: 'hasTags', message: 'NonEmptyTags: Add at least one tag' },
       ]);
       expect(new NonEmptyTags(null).validate()).toEqual({ ok: true, value: null, errors: [] });
       expect(hasTags).toHaveBeenCalledTimes(1);

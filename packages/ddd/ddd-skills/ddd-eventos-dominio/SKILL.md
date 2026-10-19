@@ -1,9 +1,8 @@
----
-name: ddd-eventos-dominio
-description: Eventos de dominio en DDD con TypeScript. Cubre cómo descubrirlos en la conversación con expertos, nombrarlos en pasado con el lenguaje ubicuo, decidir qué datos llevan (ni el objeto entero ni eventos "XxxUpdated"), eventos causados por el paso del tiempo, diferencia entre comando y evento, registrarlos en el agregado, guardarlos en la misma transacción (event store u outbox) y publicarlos después, consumidores idempotentes, orden causal, versionado, eventos internos frente a eventos publicados a otros contextos y tolerancia a la latencia. Úsalo SIEMPRE que se diseñe un evento, un mensaje entre servicios, una notificación de "cuando pase X", un webhook propio, una cola o un bus, que se pierdan o dupliquen mensajes, o que un cambio deba disparar acciones en otra parte del sistema, aunque no se diga "domain event".
----
-
 # Eventos de dominio
+
+> Guía de la suite DDD de @archi-code/ddd: se lee solo a través del skill `archi-code-ddd` (packages/ddd/SKILL.md), nunca como skill independiente.
+
+**Cuándo usarla.** Úsala siempre que se diseñe un evento, un mensaje entre servicios, una notificación de "cuando pase X", un webhook propio, una cola o un bus, que se pierdan o dupliquen mensajes, o que un cambio deba disparar acciones en otra parte del sistema, aunque no se diga "domain event".
 
 Un evento de dominio es el registro de algo que ha ocurrido y que importa al negocio en un Bounded Context [Destilado cap. 6]. Es parte de pleno derecho del modelo [IDDD cap. 8, citando a Evans] y la pieza que hace posible la consistencia eventual entre agregados y la integración entre contextos.
 

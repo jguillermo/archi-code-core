@@ -4,8 +4,9 @@
 
 Un mapa con la identidad como clave y el agregado como valor [IDDD cap. 12]. Dos detalles para que no mienta `[Fuera de los libros]`: guardar copias (para que modificar un objeto sin `save` no "persista") y comprobar versiones.
 
+`[Fuera de los libros: convención de @archi-code/ddd]` Con el paquete se usa `new InMemoryRepository(AggregateMapper.of(Order))`, que guarda copias y comprueba versiones, pero **nunca** extrae ni publica eventos: el caso de uso pasa los de `pullDomainEvents()` al `EventBus` (el outbox, `InMemoryOutbox`) dentro del `TransactionRunner`, y los tests leen lo publicado con `outbox.pending(n)`. El ejemplo siguiente, que publica desde el repositorio, sigue el libro.
+
 ```ts
-// Con @archi-code/ddd: new InMemoryRepository(AggregateMapper.of(Order)) ya cumple este contrato.
 export class InMemoryOrderRepository implements AggregateFinder<Order>, AggregateSaver<Order> {
   private readonly rows = new Map<string, OrderRow & { version: number }>();
   readonly publishedEvents: DomainEvent[] = [];
