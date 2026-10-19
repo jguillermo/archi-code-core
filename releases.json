@@ -19,7 +19,7 @@
       "main": "3.0.0-alpha.4"
     },
     "@archi-code/criteria-adapters": {
-      "main": "3.0.0-alpha.1"
+      "main": "3.0.0-alpha.2"
     }
   },
   "deploys": [
@@ -359,6 +359,19 @@
             "commits (minor)"
           ],
           "dependencies": {}
+        },
+        {
+          "name": "@archi-code/criteria-adapters",
+          "previous": "3.0.0-alpha.1",
+          "version": "3.0.0-alpha.2",
+          "bump": "minor",
+          "reasons": [
+            "commits (minor)",
+            "cascade: @archi-code/criteria → 3.0.0-alpha.6"
+          ],
+          "dependencies": {
+            "@archi-code/criteria": "3.0.0-alpha.6"
+          }
         }
       ]
     }
