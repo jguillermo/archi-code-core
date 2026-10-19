@@ -5,7 +5,7 @@ import type { RequiredMarked } from './required-mark';
 
 type TypeClass = abstract new (value?: any) => AbstractType<any>;
 
-type RequiredValueOf<C extends TypeClass> = Exclude<InstanceType<C>['value'], null>;
+type RequiredValueOf<C extends TypeClass> = Exclude<ConstructorParameters<C>[0], null | undefined>;
 
 export type RequiredType<C extends TypeClass> = Omit<C, 'prototype'> &
   (abstract new (value: RequiredValueOf<C>) => InstanceType<C> & RequiredMarked);

@@ -1,39 +1,33 @@
 # Context Mapping
 
-> Parte del skill `archi-code-ddd`: léela solo cuando ese skill te dirija aquí. Para escribir el código, traduce los ejemplos con `ddd-skills/archi-code-ddd/suite-to-package.md`; las guías son la fuente de verdad: el paquete solo se aparta de ellas donde lo marca `[Fuera de los libros: convención de @archi-code/ddd]`, y cualquier otra discrepancia es un defecto del paquete.
+> Parte del skill `archi-code-ddd`: léela solo cuando ese skill te dirija aquí. Los ejemplos están escritos con la API de `@archi-code/ddd` (las clases de su `src`) y se copian tal cual; las guías son la fuente de verdad: el paquete solo se aparta de ellas donde lo marca `[Fuera de los libros: convención de @archi-code/ddd]`, y cualquier otra discrepancia es un defecto del paquete.
 >
-> **Cuándo consultar esta guía.** Context Mapping de DDD para decidir cómo se relacionan e integran los Bounded Contexts. Cubre los patrones de relación entre equipos y modelos (Partnership, Shared Kernel, Customer-Supplier, Conformist, Anticorruption Layer, Open Host Service, Published Language, Separate Ways, Big Ball of Mud), upstream y downstream, estilos de integración (RPC, REST, mensajería con eventos), contratos e idioma publicado, idempotencia, consistencia eventual entre contextos, procesos de larga duración y cómo implementar una capa anticorrupción en TypeScript. Consúltala siempre que haya que conectar dos sistemas, servicios, módulos o equipos, integrar con un ERP, CRM, pasarela o sistema heredado, decidir entre llamada síncrona y eventos, diseñar una API pública entre servicios, o cuando un modelo empiece a copiar conceptos de otro, aunque no se mencione "context map".
+> **Cuándo consultar esta guía.** Context Mapping de DDD para decidir cómo se integran en el código los Bounded Contexts. Cubre los patrones de integración entre modelos (Shared Kernel, Conformist, Anticorruption Layer, Open Host Service, Published Language, Separate Ways, Big Ball of Mud), upstream y downstream, estilos de integración (RPC, REST, mensajería con eventos), contratos e idioma publicado, idempotencia, consistencia eventual entre contextos, procesos de larga duración y cómo implementar una capa anticorrupción en TypeScript. Consúltala siempre que haya que conectar dos sistemas, servicios o módulos, integrar con un ERP, CRM, pasarela o sistema heredado, decidir entre llamada síncrona y eventos, diseñar una API pública entre servicios, o cuando un modelo empiece a copiar conceptos de otro, aunque no se mencione "context map".
 
 ## Con @archi-code/ddd
 
 [Fuera de los libros: convención de @archi-code/ddd]
 
-* El puerto hacia otro contexto (`ProductPricing`) es una interfaz en `domain/` con value objects; adaptador y traductor van en `infrastructure/`. Un webhook entrante es un punto de entrada que llama a un caso de uso.
-* Los eventos que salen a otros contextos se traducen con `PublishedLanguage.expose(...)` y `translate(json, sequence)` en el relay; nunca se envía `event.toJSON()` de un evento de dominio.
-* El envoltorio publicado es `{ name, version, messageId, sequence, occurredOn, data }` en lugar del de IDDD `{ notificationId, typeName, version, occurredOn, event }`: `sequence` es la secuencia del outbox (el `notificationId`), `messageId` el `eventId`, `name` el `typeName` y `data` el `event`.
-* Los procesos entre contextos se encadenan con eventos y listeners (`@ListensTo`), cada uno con su caso de uso.
+* El paquete no trae capa anticorrupción, Open Host Service ni Published Language: se escriben en el proyecto sobre sus clases y puertos. El puerto hacia otro contexto (`ProductPricing`) es una interfaz en `domain/` que recibe y devuelve value objects (`Sku`, un `Composite` `SellableProduct`); adaptador (`CatalogHttpProductPricing`) y traductor (`CatalogTranslator`) van en `infrastructure/` y lanzan una `InfrastructureException` con código propio (`CAT001`), que `HttpErrorMapper` traduce (`new HttpErrorMapper({ CAT001: 503 })`).
+* Un webhook entrante es un punto de entrada en `interfaces/` que traduce el lenguaje del emisor a la entrada de un `UseCase` y responde con `HttpErrorMapper`.
+* Los mensajes entre contextos viajan como `SerializedEvent` plano (`{ eventName, eventVersion, eventId, aggregateId, occurredOn, ...datos }`) por un `EventChannel` (tu canal de broker o de outbox), no con el envoltorio de IDDD `{ notificationId, typeName, version, occurredOn, event }`: `eventName` hace de `typeName` (`'sales.order.OrderPlaced'`), `eventVersion` de `version` y `eventId` identifica el mensaje para deduplicar. No hay `notificationId` secuencial: si un feed REST lo necesita, lo asigna tu canal duradero.
+* Lo que sale se traduce al Published Language en infraestructura, con un `EventChannel` propio en el adaptador del broker (`ContractPublishingChannel` + `SalesContracts`, en `ddd-skills/ddd-eventos-dominio/references/publicacion-ts.md`); nunca se publica fuera del contexto el `toJSON()` de un evento interno tal cual.
+* Lo que entra de otro contexto se lee con una clase propia `extends EventBase` que lleva el nombre publicado y solo los campos que este contexto usa; la factoría de `EventRegistry` es el traductor, y un `EventListener` con `@ListensTo(Evento, { consumer })` ejecuta un caso de uso, que valida cada campo con value objects en `toCommand`.
+* Los procesos entre contextos se encadenan con eventos y listeners, cada uno con su caso de uso.
 
-Una línea entre dos Bounded Contexts significa tres cosas a la vez: que hay **integración técnica**, que hay una **relación entre equipos** y que hay una **traducción entre dos lenguajes** [Destilado cap. 4]. Esta guía decide el tipo de cada línea y cómo se implementa.
+Una línea entre dos Bounded Contexts significa **integración técnica** y **traducción entre dos lenguajes** [Destilado cap. 4]. Esta guía decide el tipo de cada línea y cómo se implementa.
 
 
 ## Flujo de trabajo
 
-### Paso 1. Dibujar el presente
+### Paso 1. Elegir el patrón de integración para cada relación
 
-Mapea **la situación actual, no la imaginada**. Si el terreno cambia, se actualiza el mapa [IDDD cap. 3]. Para cada par de contextos que se relacionan, anota quién es upstream (U, de quien depende el otro) y quién downstream (D) [Destilado cap. 4].
-
-El mapa es del equipo y para el equipo: informal, en la pared, sin ceremonia. No es un diagrama de arquitectura empresarial ni de topología [IDDD cap. 3]. Su valor principal es forzar conversaciones: un equipo que asume una relación Customer-Supplier con un sistema heredado que solo ofrece lo que ya tiene acaba descubriendo tarde que es Conformist [IDDD cap. 3].
-
-### Paso 2. Elegir el patrón de relación para cada línea
-
-Resumen [Destilado cap. 4]. Detalle, señales y costes en `ddd-skills/ddd-context-mapping/references/patrones-relacion.md`.
+Para cada par de contextos que se relacionan, anota quién es upstream (U, de quien depende el otro) y quién downstream (D) [Destilado cap. 4]. Resumen [Destilado cap. 4]:
 
 | Patrón | Esencia |
 |---|---|
-| Partnership | Dos equipos que triunfan o fracasan juntos; sincronización frecuente e integración continua. Difícil de mantener; ponerle fecha de revisión |
 | Shared Kernel | Pequeño modelo común compartido por acuerdo explícito. Difícil de mantener; se evita si es posible [IDDD cap. 2] |
-| Customer-Supplier | Upstream decide qué recibe el downstream y cuándo, pero planifica con él |
-| Conformist | Upstream no tiene motivación para atender al downstream, que adopta su modelo tal cual |
+| Conformist | El downstream adopta el modelo upstream tal cual |
 | Anticorruption Layer | El downstream traduce entre el modelo upstream y el suyo; la opción más defensiva |
 | Open Host Service | El upstream ofrece un protocolo abierto, documentado y cómodo para cualquier integrador |
 | Published Language | Formato de intercambio documentado (JSON Schema, Protobuf, Avro); suele ir con OHS |
@@ -43,16 +37,14 @@ Resumen [Destilado cap. 4]. Detalle, señales y costes en `ddd-skills/ddd-contex
 Árbol de decisión rápido `[Fuera de los libros: síntesis de las definiciones]`:
 
 1. ¿La integración aporta valor real? No → Separate Ways.
-2. ¿Los dos equipos comparten objetivo y éxito? Sí → Partnership (con fecha de revisión).
-3. ¿Eres downstream? Entonces:
+2. ¿Eres downstream? Entonces:
    * ¿El upstream es un Big Ball of Mud o un producto externo? → ACL, siempre.
    * ¿Tu contexto es Core? → ACL, salvo coste desproporcionado.
    * ¿El upstream ofrece OHS con Published Language y su modelo se parece al tuyo? → Conformist puede ser aceptable.
-   * ¿El upstream escucha tus necesidades? → Customer-Supplier, y aun así ACL si eres Core.
-4. ¿Eres upstream con varios consumidores? → Open Host Service con Published Language.
-5. ¿La tentación es compartir clases o tablas? → Para y revisa: casi siempre se resuelve mejor con Published Language.
+3. ¿Eres upstream con varios consumidores? → Open Host Service con Published Language.
+4. ¿La tentación es compartir clases o tablas? → Para y revisa: casi siempre se resuelve mejor con Published Language.
 
-### Paso 3. Elegir el estilo de integración
+### Paso 2. Elegir el estilo de integración
 
 Vernon los ordena de menos a más robusto: RPC, REST, mensajería [Destilado cap. 4]. Detalle en `ddd-skills/ddd-context-mapping/references/estilos-integracion.md`.
 
@@ -67,40 +59,22 @@ Reglas que aplican siempre:
 * **Estado remoto mínimo:** copia solo los atributos que tu modelo necesita y modélalos con tus conceptos. Si no, tu `ProductOwner` acaba siendo un `User` disfrazado [IDDD cap. 3].
 * **La indisponibilidad se modela:** "todavía no está" es un estado válido del dominio, no un error. IDDD lo resuelve con un estado explícito en un value object [IDDD cap. 3].
 
-### Paso 4. Diseñar la traducción
+### Paso 3. Diseñar la traducción
 
-Para cada relación con ACL, define puerto, adaptador y traductor. Implementación en TypeScript en `ddd-skills/ddd-context-mapping/references/anticorrupcion-ts.md`.
+Para cada relación con ACL, define puerto, adaptador y traductor. Implementación con `@archi-code/ddd` (puerto con value objects, adaptador HTTP, webhook entrante, eventos de otro contexto y Published Language de salida) en `ddd-skills/ddd-context-mapping/references/anticorrupcion-ts.md`.
 
 Para cada evento que cruza un contexto, decide entre **evento enriquecido** (más autonomía del consumidor, pero difícil prever todo y riesgo de exponer datos sensibles) o **evento ligero con consulta al origen** (query-back), o una mezcla [Destilado cap. 4].
-
-## Entregable
-
-Usa `ddd-skills/ddd-context-mapping/assets/plantilla-context-map.md`. Contiene: diagrama, una ficha por relación (patrón, U/D, estilo, contrato, traducción, dueño, riesgos) y la lista de eventos que cruzan fronteras.
-
-Notación del diagrama en Mermaid:
-
-```mermaid
-flowchart LR
-  CAT["Catálogo"] -- "U: OHS/PL<br/>D: ACL" --> V["Ventas (Core)"]
-  V -- "U: eventos PL<br/>D: Customer-Supplier" --> A["Almacén"]
-```
-
-Convención: la flecha va de upstream a downstream y la etiqueta indica el patrón en cada extremo.
 
 ## Señales de alarma
 
 * Un contexto importa tipos (clases, interfaces, enums) del dominio de otro.
-* Tablas compartidas entre equipos.
+* Tablas compartidas entre contextos.
 * API REST que devuelve el agregado serializado con todos sus campos.
 * Una petición de usuario que atraviesa tres servicios en cadena de forma síncrona.
 * Un consumidor de eventos sin control de duplicados.
+* Un contexto publica hacia fuera el `toJSON()` de sus eventos internos, o un listener recibe la clase de evento de otro contexto importada de su código.
 * "Shared Kernel" usado como excusa para compartir una librería de modelos que crece sin acuerdo [IDDD cap. 13].
-* Un Partnership que lleva años sin revisarse.
-* Ninguna relación aparece como Conformist en el mapa, pero el código copia sin traducir el modelo de un proveedor.
-
-## Ejemplo completo
-
-`ddd-skills/ddd-context-mapping/references/ejemplo-ecommerce.md` continúa la tienda online: mapa con todas las relaciones, decisiones razonadas y eventos que cruzan fronteras.
+* El código copia sin traducir el modelo de un proveedor.
 
 ## Siguiente guía
 

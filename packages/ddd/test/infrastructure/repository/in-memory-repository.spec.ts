@@ -18,7 +18,7 @@ import type { PrimitiveTypes } from '../../../src/domain/index';
 import { FixedClock } from '../../../src/infrastructure/clock/fixed-clock';
 import { InMemoryRepository } from '../../../src/infrastructure/repository/in-memory-repository';
 
-class OrderId extends IdType {}
+class OrderId extends IdType<'OrderId'> {}
 class CustomerName extends Required(StringType) {}
 class Sku extends Required(StringType) {}
 

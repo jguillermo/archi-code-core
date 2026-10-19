@@ -13,8 +13,8 @@ import { InMemoryRepository } from '../../../src/infrastructure/repository/in-me
 import type { PrimitiveTypes } from '../../../src/domain/primitive/primitive-types';
 import { InternalErrorException } from '../../../src/exceptions/infrastructure/internal-error.exception';
 
-class OrderId extends IdType {}
-class LineId extends IdType {}
+class OrderId extends IdType<'OrderId'> {}
+class LineId extends IdType<'LineId'> {}
 class CustomerName extends Required(StringType) {}
 class Sku extends Required(StringType) {}
 class Units extends Required(NumberType) {}
@@ -447,7 +447,7 @@ describe('AggregateMapper: the only bridge between an aggregate and its stored p
     class Cents extends Required(NumberType) {}
     class Currency extends Required(StringType) {}
     class Money extends Composite({ amount: Cents, currency: Currency }) {}
-    class ProductId extends IdType {}
+    class ProductId extends IdType<'ProductId'> {}
     class ProductName extends Required(StringType) {}
 
     class Product extends AggregateRoot<ProductId> {

@@ -1,68 +1,217 @@
 # Event Sourcing en TypeScript
 
+`@archi-code/ddd` no trae event store, repositorios con Event Sourcing ni snapshots: todo lo de esta referencia es código del proyecto escrito sobre las clases del paquete (`AggregateRoot`, `EventBase`, `EventRegistry`, `UseCase`, `EventBus`, `TransactionRunner`, `ConcurrencyException`). Úsalo solo en los agregados que la tabla de decisión de `ddd-skills/ddd-event-sourcing-cqrs/GUIA.md` justifique.
+
+## Eventos del stream
+
+Cada evento es una subclase de `EventBase` con `static readonly eventName`, el id del agregado en `super(...)` y una carga de primitivos tomados de los value objects (el dinero como `{ amount, currency }`), nunca value objects: el evento se serializa tal cual con `toJSON()` [IDDD cap. 8].
+
+```ts
+import { EventBase } from '@archi-code/ddd/domain';
+import type { EventMetadata } from '@archi-code/ddd/domain';
+
+export class PaymentRequested extends EventBase {
+  static readonly eventName = 'PaymentRequested';
+
+  constructor(
+    paymentId: string,
+    readonly orderId: string,
+    readonly amount: { amount: number; currency: string },
+    metadata?: EventMetadata,
+  ) {
+    super(paymentId, metadata);
+  }
+}
+
+export class PaymentAuthorized extends EventBase {
+  static readonly eventName = 'PaymentAuthorized';
+
+  constructor(
+    paymentId: string,
+    readonly authorizationCode: string,
+    readonly expiresAt: string,
+    metadata?: EventMetadata,
+  ) {
+    super(paymentId, metadata);
+  }
+}
+
+export class PaymentRejected extends EventBase {
+  static readonly eventName = 'PaymentRejected';
+
+  constructor(
+    paymentId: string,
+    readonly reason: string,
+    metadata?: EventMetadata,
+  ) {
+    super(paymentId, metadata);
+  }
+}
+
+export class PaymentCaptured extends EventBase {
+  static readonly eventName = 'PaymentCaptured';
+}
+
+export type PaymentEvent = PaymentRequested | PaymentAuthorized | PaymentRejected | PaymentCaptured;
+```
+
+`EventBase` pone `eventId`, `aggregateId` y un `occurredOn` inmutable (del `clock` que recibe el método del agregado), y `toJSON()` escribe `eventName`, `eventVersion`, `eventId`, `aggregateId`, `occurredOn` en ISO y la carga: esa es la fila del stream.
+
 ## Agregado con decidir y aplicar
 
 `[Fuera de los libros como código; estructura basada en IDDD apéndice A]`
 
 ```ts
-type PaymentEvent =
-  | { type: 'PaymentRequested'; paymentId: string; orderId: string; amount: MoneyJSON; at: string }
-  | { type: 'PaymentAuthorized'; paymentId: string; authorizationCode: string; expiresAt: string; at: string }
-  | { type: 'PaymentRejected'; paymentId: string; reason: string; at: string }
-  | { type: 'PaymentCaptured'; paymentId: string; at: string };
+import {
+  AggregateRoot,
+  Composite,
+  DateType,
+  EnumType,
+  IdType,
+  NumberType,
+  Required,
+  StringType,
+} from '@archi-code/ddd/domain';
+import { DomainException } from '@archi-code/ddd/exceptions';
+import { Validations } from '@archi-code/validation';
 
-class PaymentState {
-  status: 'REQUESTED' | 'AUTHORIZED' | 'REJECTED' | 'CAPTURED' = 'REQUESTED';
-  amount!: Money;
-  expiresAt: Date | null = null;
+export class PaymentId extends IdType<'PaymentId'> {}
+export class OrderId extends IdType<'OrderId'> {}
+export class AuthorizationCode extends Required(StringType) {}
+export class RejectionReason extends Required(StringType) {}
+export class ExpiresAt extends Required(DateType) {}
 
-  apply(e: PaymentEvent): void {                 // solo cambia estado; nunca lanza errores de negocio
-    switch (e.type) {
-      case 'PaymentRequested': this.amount = Money.fromJSON(e.amount); break;
-      case 'PaymentAuthorized': this.status = 'AUTHORIZED'; this.expiresAt = new Date(e.expiresAt); break;
-      case 'PaymentRejected': this.status = 'REJECTED'; break;
-      case 'PaymentCaptured': this.status = 'CAPTURED'; break;
-    }
+@Validations([{ validator: 'isInt' }])
+export class Cents extends Required(NumberType) {}
+@Validations([{ validator: 'isISO4217' }])
+export class Currency extends Required(StringType) {}
+export class Money extends Composite({ amount: Cents, currency: Currency }) {}
+
+export enum Status {
+  Requested = 'requested',
+  Authorized = 'authorized',
+  Rejected = 'rejected',
+  Captured = 'captured',
+}
+
+class StatusType extends EnumType<Status> {
+  protected getEnum(): typeof Status {
+    return Status;
   }
 }
 
-export class Payment {
-  private readonly state = new PaymentState();
-  private readonly changes: PaymentEvent[] = [];
+export class PaymentStatus extends Required(StatusType) {
+  is(status: Status): boolean {
+    return this.value === status;
+  }
+}
 
-  private constructor(readonly id: PaymentId, history: PaymentEvent[]) {
-    history.forEach((e) => this.state.apply(e));   // reconstitución
+export class PaymentNotAuthorized extends DomainException {
+  constructor(paymentId: string) {
+    super(`Payment ${paymentId} is not authorized`, ['PAY002']);
+  }
+}
+
+export class AuthorizationExpired extends DomainException {
+  constructor(paymentId: string) {
+    super(`The authorization of payment ${paymentId} has expired`, ['PAY003']);
+  }
+}
+
+export class PaymentAlreadyDecided extends DomainException {
+  constructor(paymentId: string) {
+    super(`Payment ${paymentId} was already authorized or rejected`, ['PAY004']);
+  }
+}
+
+export class Payment extends AggregateRoot<PaymentId, PaymentEvent> {
+  private status = new PaymentStatus(Status.Requested);
+  private amount: Money | null = null;
+  private expiresAt: ExpiresAt | null = null;
+  private replayed = 0;
+
+  private constructor(id: PaymentId) {
+    super(id);
   }
 
-  static fromHistory(id: PaymentId, history: PaymentEvent[]): Payment {
-    return new Payment(id, history);
+  static request(id: PaymentId, orderId: OrderId, amount: Money, clock: { now(): Date }): Payment {
+    const payment = new Payment(id);
+    payment.emit(
+      new PaymentRequested(
+        id.value,
+        orderId.value,
+        { amount: amount.amount.value, currency: amount.currency.value },
+        { clock },
+      ),
+    );
+    return payment;
   }
 
-  static request(id: PaymentId, orderId: OrderId, amount: Money, clock: Clock): Payment {
-    const p = new Payment(id, []);
-    p.emit({ type: 'PaymentRequested', paymentId: id.value, orderId: orderId.value, amount: amount.toJSON(), at: clock.now().toISOString() });
-    return p;
+  static fromHistory(id: PaymentId, history: readonly PaymentEvent[]): Payment {
+    const payment = new Payment(id);
+    history.forEach((event) => payment.apply(event));
+    payment.replayed = history.length;
+    return payment;
   }
 
-  capture(clock: Clock): void {                    // decidir: reglas y luego evento
-    if (this.state.status !== 'AUTHORIZED') throw new PaymentNotAuthorized(this.id);
-    if (this.state.expiresAt! < clock.now()) throw new AuthorizationExpired(this.id);
-    this.emit({ type: 'PaymentCaptured', paymentId: this.id.value, at: clock.now().toISOString() });
+  streamVersion(): number {
+    return this.replayed;
   }
 
-  pendingChanges(): readonly PaymentEvent[] { return this.changes; }
+  authorize(code: AuthorizationCode, expiresAt: ExpiresAt, clock: { now(): Date }): void {
+    if (!this.status.is(Status.Requested)) {
+      throw new PaymentAlreadyDecided(this.id.value);
+    }
+    this.emit(
+      new PaymentAuthorized(this.id.value, code.value, expiresAt.value.toISOString(), { clock }),
+    );
+  }
 
-  private emit(e: PaymentEvent): void {
-    this.state.apply(e);                           // el estado solo cambia vía eventos
-    this.changes.push(e);
+  reject(reason: RejectionReason, clock: { now(): Date }): void {
+    if (!this.status.is(Status.Requested)) {
+      throw new PaymentAlreadyDecided(this.id.value);
+    }
+    this.emit(new PaymentRejected(this.id.value, reason.value, { clock }));
+  }
+
+  capture(clock: { now(): Date }): void {
+    if (!this.status.is(Status.Authorized) || this.expiresAt === null) {
+      throw new PaymentNotAuthorized(this.id.value);
+    }
+    if (this.expiresAt.value < clock.now()) {
+      throw new AuthorizationExpired(this.id.value);
+    }
+    this.emit(new PaymentCaptured(this.id.value, { clock }));
+  }
+
+  private emit(event: PaymentEvent): void {
+    this.apply(event);
+    this.record(event);
+  }
+
+  private apply(event: PaymentEvent): void {
+    if (event instanceof PaymentRequested) {
+      this.amount = Money.fromPrimitives(event.amount);
+    } else if (event instanceof PaymentAuthorized) {
+      this.status = new PaymentStatus(Status.Authorized);
+      this.expiresAt = new ExpiresAt(new Date(event.expiresAt));
+    } else if (event instanceof PaymentRejected) {
+      this.status = new PaymentStatus(Status.Rejected);
+    } else {
+      this.status = new PaymentStatus(Status.Captured);
+    }
   }
 }
 ```
 
 Reglas:
 * `apply` no valida ni lanza: los eventos son hechos ya ocurridos [Destilado cap. 6].
-* Las reglas viven en los métodos de comando, antes de emitir.
-* El reloj se inyecta para que reconstruir no dependa de la hora actual.
+* Las reglas viven en los métodos de comando (`authorize`, `capture`), antes de emitir, y lanzan subclases de `DomainException` con su código.
+* El estado solo cambia vía eventos: `emit` aplica y después llama a `record` (protegido en `AggregateRoot`, congela el evento), así que `pullDomainEvents()` devuelve exactamente los cambios pendientes, en orden.
+* `fromHistory` aplica sin `record`: reconstituir no genera eventos nuevos.
+* El reloj se recibe como `{ now(): Date }` y se pasa a cada evento (`{ clock }`), para que reconstruir no dependa de la hora actual; en pruebas, `FixedClock`.
+* IDDD propone separar estado y comportamiento en dos clases que solo colaboran a través de `apply` [IDDD apéndice A]; aquí el estado son campos privados de value objects que solo `apply` escribe. Si el agregado crece, extrae ese estado a una clase propia con su `apply`.
+* `[Fuera de los libros: convención de @archi-code/ddd]` La `version` de `AggregateRoot` cuenta guardados, no eventos (crece 1 por `save`), así que este agregado lleva su propia versión de stream (`streamVersion()`, los eventos que se aplicaron al cargar) y no se guarda con `AggregateMapper`: no necesita `toPrimitives()`/`fromPrimitives()` ni getters para sus campos, porque lo que se persiste son los eventos.
 
 ## Event store
 
@@ -70,69 +219,264 @@ Un stream por agregado, identificado por la identidad de la raíz; almacenamient
 
 ```sql
 CREATE TABLE event_streams (
-  stream_id    TEXT        NOT NULL,
-  version      INT         NOT NULL,
-  type_name    TEXT        NOT NULL,
-  body         JSONB       NOT NULL,
-  occurred_on  TIMESTAMPTZ NOT NULL,
-  global_seq   BIGSERIAL   UNIQUE,     -- para proyecciones y publicación en orden
-  PRIMARY KEY (stream_id, version)     -- la clave primaria impide dos escrituras con la misma versión
+  stream_id    TEXT      NOT NULL,
+  version      INT       NOT NULL,
+  body         JSONB     NOT NULL,
+  global_seq   BIGSERIAL UNIQUE,
+  PRIMARY KEY (stream_id, version)
 );
 ```
 
+La clave primaria `(stream_id, version)` impide dos escrituras con la misma versión; `global_seq` da el orden global que necesitan la publicación y la reconstrucción de proyecciones. `body` es el `toJSON()` del evento.
+
+El dominio declara el contrato del stream (solo tipos, como los contratos de repositorio del paquete) `[Fuera de los libros: convención de @archi-code/ddd]`: no es `AggregateFinder`/`AggregateSaver`, porque guardar necesita los cambios que el caso de uso ya sacó con `pullDomainEvents()` para publicarlos.
+
 ```ts
-export class PgEventStore {
-  async load(streamId: string): Promise<{ version: number; events: unknown[] }> {
-    const { rows } = await this.db.query(`SELECT version, body FROM event_streams WHERE stream_id=$1 ORDER BY version`, [streamId]);
-    return { version: rows.at(-1)?.version ?? 0, events: rows.map((r) => r.body) };
+export interface PaymentStream {
+  load(id: PaymentId): Promise<Payment | null>;
+  append(payment: Payment, changes: readonly PaymentEvent[]): Promise<void>;
+}
+```
+
+La infraestructura lo implementa: reconstruye cada fila con `EventRegistry.fromJSON` (que conserva `eventId` y `occurredOn` y congela el evento) y traduce la violación de la clave primaria a `ConcurrencyException`.
+
+```ts
+import type { SerializedEvent } from '@archi-code/ddd/domain';
+import { EventRegistry } from '@archi-code/ddd/application';
+import { ConcurrencyException, InternalErrorException } from '@archi-code/ddd/exceptions';
+
+export const paymentEvents = new EventRegistry<PaymentEvent>()
+  .register(
+    PaymentRequested,
+    (json) =>
+      new PaymentRequested(
+        json.aggregateId,
+        json.orderId as string,
+        json.amount as { amount: number; currency: string },
+        json,
+      ),
+  )
+  .register(
+    PaymentAuthorized,
+    (json) =>
+      new PaymentAuthorized(
+        json.aggregateId,
+        json.authorizationCode as string,
+        json.expiresAt as string,
+        json,
+      ),
+  )
+  .register(
+    PaymentRejected,
+    (json) => new PaymentRejected(json.aggregateId, json.reason as string, json),
+  )
+  .register(PaymentCaptured, (json) => new PaymentCaptured(json.aggregateId, json));
+
+interface SqlConnection {
+  query<Row>(text: string, values: readonly unknown[]): Promise<{ rows: Row[] }>;
+}
+
+interface PgTransactions {
+  current(): SqlConnection;
+}
+
+export class PgPaymentStream implements PaymentStream {
+  constructor(
+    private readonly transactions: PgTransactions,
+    private readonly registry: EventRegistry<PaymentEvent>,
+  ) {}
+
+  async load(id: PaymentId): Promise<Payment | null> {
+    const { rows } = await this.transactions
+      .current()
+      .query<{ body: SerializedEvent }>(
+        'SELECT body FROM event_streams WHERE stream_id = $1 ORDER BY version',
+        [id.value],
+      );
+    if (rows.length === 0) {
+      return null;
+    }
+    return Payment.fromHistory(
+      id,
+      rows.map((row) => this.registry.fromJSON(row.body)),
+    );
   }
 
-  async append(streamId: string, expectedVersion: number, events: readonly { type: string }[]): Promise<void> {
+  async append(payment: Payment, changes: readonly PaymentEvent[]): Promise<void> {
+    const expected = payment.streamVersion();
     try {
-      await this.tx.run(async () => {
-        let v = expectedVersion;
-        for (const e of events) {
-          await this.tx.current().query(
-            `INSERT INTO event_streams (stream_id, version, type_name, body, occurred_on) VALUES ($1,$2,$3,$4, now())`,
-            [streamId, ++v, e.type, e]);
-        }
-      });
-    } catch (err) {
-      if (isUniqueViolation(err)) throw new EventStoreConcurrencyConflict(streamId, expectedVersion);
-      throw err;
+      for (const [index, event] of changes.entries()) {
+        await this.transactions
+          .current()
+          .query('INSERT INTO event_streams (stream_id, version, body) VALUES ($1, $2, $3)', [
+            payment.id.value,
+            expected + index + 1,
+            JSON.stringify(event.toJSON()),
+          ]);
+      }
+    } catch (error) {
+      if ((error as { code?: string }).code === '23505') {
+        throw new ConcurrencyException('Payment', payment.id.value, expected, { cause: error });
+      }
+      throw new InternalErrorException('appending payment events', { cause: error });
     }
   }
 }
 ```
 
-## Repositorio y reintento
+`PgTransactions` es tu adaptador del puerto `TransactionRunner` (el que abre la transacción con `run` y guarda su conexión en un `AsyncLocalStorage`): el paquete solo define `run` e `inTransaction()`, y `current()` se queda dentro de tu infraestructura. `'23505'` es el código de violación de unicidad de PostgreSQL; con otro motor, comprueba el suyo.
+
+## Caso de uso y reintento
+
+El caso de uso carga, decide, anexa y publica dentro de `transactions.run`. Ante un conflicto puede reintentar recargando y reejecutando el comando contra el estado nuevo, como propone IDDD [IDDD apéndice A]; si el comando ya no es válido, el error de negocio sale normalmente. `[Fuera de los libros: convención de @archi-code/ddd]` El stream solo carga y anexa; el bucle de reintento va en el `handle` del caso de uso, cada intento en un `transactions.run` nuevo, unos pocos intentos y después relanza la `ConcurrencyException` (HTTP 409 con `HttpErrorMapper`). Si el `run` se une a una transacción exterior, no reintentes: deja que el conflicto suba.
 
 ```ts
-export class EventSourcedPaymentRepository {
-  constructor(private readonly store: PgEventStore) {}
+import { UseCase } from '@archi-code/ddd/application';
+import type { Clock, EventBus, TransactionRunner } from '@archi-code/ddd/application';
+import { AggregateNotFoundException, ConcurrencyException } from '@archi-code/ddd/exceptions';
 
-  async update(id: PaymentId, execute: (p: Payment) => void, maxAttempts = 3): Promise<void> {
-    for (let attempt = 1; ; attempt++) {
-      const { version, events } = await this.store.load(id.value);
-      const payment = Payment.fromHistory(id, events as PaymentEvent[]);
-      execute(payment);
+export class CapturePayment extends UseCase<{ paymentId: string }, PaymentId, void> {
+  constructor(
+    private readonly payments: PaymentStream,
+    private readonly events: EventBus<PaymentEvent>,
+    private readonly transactions: TransactionRunner,
+    private readonly clock: Clock,
+  ) {
+    super();
+  }
+
+  protected toCommand(input: { paymentId: string }): PaymentId {
+    return new PaymentId(input.paymentId);
+  }
+
+  protected async handle(paymentId: PaymentId): Promise<void> {
+    for (let attempt = 1; ; attempt += 1) {
       try {
-        await this.store.append(id.value, version, payment.pendingChanges());
-        return;
-      } catch (e) {
-        if (!(e instanceof EventStoreConcurrencyConflict) || attempt >= maxAttempts) throw e;
+        return await this.transactions.run(async () => {
+          const payment = await this.payments.load(paymentId);
+          if (payment === null) {
+            throw new AggregateNotFoundException('Payment', paymentId.value);
+          }
+          payment.capture(this.clock);
+          const changes = payment.pullDomainEvents();
+          await this.payments.append(payment, changes);
+          await this.events.publish(changes);
+        });
+      } catch (error) {
+        if (!(error instanceof ConcurrencyException) || attempt === 3) {
+          throw error;
+        }
       }
     }
   }
 }
 ```
 
-El reintento recarga y vuelve a ejecutar el comando contra el estado nuevo, como propone IDDD [IDDD apéndice A]. Si el comando ya no es válido, el error de negocio sale normalmente. Con el paquete, el repositorio solo carga y anexa (`load`/`append`); el bucle de reintento va en el `handle` del caso de uso, cada intento en un `transactions.run` nuevo `[Fuera de los libros: convención de @archi-code/ddd]`.
+Publicar: IDDD publica con un proceso en segundo plano que lee lo anexado [IDDD apéndice A]. Con el paquete, el caso de uso solo ve el puerto `EventBus`; el `DomainEventBus` de la composición envía a un `EventChannel`. Para entregar solo lo confirmado, ese canal es duradero: escribe en la transacción del runner y un reenviador entrega después del commit. Con Event Sourcing el propio `event_streams` puede hacer de bandeja: el reenviador lee por `global_seq` y entrega los `SerializedEvent` a los manejadores que registró `receive`. Los casos de uso no cambian.
+
+## Pruebas en memoria
+
+Una implementación en memoria del stream que participa en `InMemoryTransactionRunner` (implementa `TransactionParticipant`: `snapshot()` devuelve la función que restaura) sirve como doble de pruebas y como referencia del contrato:
+
+```ts
+import { DomainEventBus } from '@archi-code/ddd/application';
+import {
+  FixedClock,
+  InMemoryEventChannel,
+  InMemoryTransactionRunner,
+} from '@archi-code/ddd/infrastructure';
+import type { TransactionParticipant } from '@archi-code/ddd/infrastructure';
+
+export class InMemoryPaymentStream implements PaymentStream, TransactionParticipant {
+  private streams = new Map<string, readonly SerializedEvent[]>();
+
+  constructor(private readonly registry: EventRegistry<PaymentEvent>) {}
+
+  async load(id: PaymentId): Promise<Payment | null> {
+    const stream = this.streams.get(id.value);
+    if (stream === undefined) {
+      return null;
+    }
+    return Payment.fromHistory(
+      id,
+      stream.map((json) => this.registry.fromJSON(json)),
+    );
+  }
+
+  async append(payment: Payment, changes: readonly PaymentEvent[]): Promise<void> {
+    const stream = this.streams.get(payment.id.value) ?? [];
+    if (stream.length !== payment.streamVersion()) {
+      throw new ConcurrencyException('Payment', payment.id.value, payment.streamVersion());
+    }
+    this.streams.set(payment.id.value, [...stream, ...changes.map((event) => event.toJSON())]);
+  }
+
+  snapshot(): () => void {
+    const copy = new Map(this.streams);
+    return () => {
+      this.streams = copy;
+    };
+  }
+}
+
+const clock = new FixedClock('2026-10-19T09:30:00Z');
+const payments = new InMemoryPaymentStream(paymentEvents);
+const transactions = new InMemoryTransactionRunner([payments]);
+const channel = new InMemoryEventChannel();
+const bus = new DomainEventBus<PaymentEvent>(channel, paymentEvents);
+
+const paymentId = PaymentId.generate();
+const payment = Payment.request(
+  paymentId,
+  OrderId.generate(),
+  Money.fromPrimitives({ amount: 4990, currency: 'EUR' }),
+  clock,
+);
+payment.authorize(
+  new AuthorizationCode('AUTH-7731'),
+  new ExpiresAt(new Date('2026-10-26T09:30:00Z')),
+  clock,
+);
+await payments.append(payment, payment.pullDomainEvents());
+
+await new CapturePayment(payments, bus, transactions, clock).execute({
+  paymentId: paymentId.value,
+});
+channel.sent.map((event) => event.eventName); // ['PaymentCaptured']
+(await payments.load(paymentId))?.streamVersion(); // 3
+```
+
+Ejecuta las mismas pruebas de contrato (carga lo anexado, rechaza una versión esperada antigua con `ConcurrencyException`) contra `InMemoryPaymentStream` y `PgPaymentStream`, como el contrato de repositorio de `ddd-skills/ddd-repositorios-persistencia/GUIA.md`.
 
 ## Snapshots
 
-Para streams largos, guarda periódicamente el estado serializado con su versión y carga desde ahí más los eventos posteriores [IDDD apéndice A; Destilado cap. 6]. Los snapshots son una optimización desechable: si cambia la forma del estado, se borran y se regeneran.
+Para streams largos, guarda periódicamente el estado serializado con su versión y carga desde ahí más los eventos posteriores [IDDD apéndice A; Destilado cap. 6]. Los snapshots son una optimización desechable: si cambia la forma del estado, se borran y se regeneran. El paquete no los trae: son una tabla más de tu infraestructura (`stream_id`, `version`, `state`) y una fábrica del agregado que parte del estado y aplica solo los eventos con versión mayor, dejando `streamVersion()` en la versión del último evento aplicado.
 
 ## Versionado de eventos
 
 `[Fuera de los libros]` Los eventos del stream no se reescriben. Para cambiar su forma, convierte las versiones antiguas al leer ("upcasting") en el deserializador, o añade un tipo de evento nuevo. El apéndice de IDDD trata los serializadores (por ejemplo Protocol Buffers) como apoyo para esta evolución [IDDD apéndice A].
+
+Con el paquete, el evento declara `static readonly eventVersion` (1 si no se declara; `toJSON()` lo escribe) y la fábrica del `EventRegistry` recibe el `eventVersion` con el que se guardó cada fila, así que el upcasting va ahí. Por ejemplo, si una primera versión de `PaymentRequested` guardaba `amountCents` en euros:
+
+```ts
+export class PaymentRequested extends EventBase {
+  static readonly eventName = 'PaymentRequested';
+  static readonly eventVersion = 2;
+  // constructor as above
+}
+
+new EventRegistry<PaymentEvent>().register(
+  PaymentRequested,
+  (json) =>
+    new PaymentRequested(
+      json.aggregateId,
+      json.orderId as string,
+      json.eventVersion === 1
+        ? { amount: json.amountCents as number, currency: 'EUR' }
+        : (json.amount as { amount: number; currency: string }),
+      json,
+    ),
+);
+```
+
+Pasa siempre `json` como último argumento: el evento reconstruido conserva su `eventId` y su `occurredOn`, y `fromJSON` lanza `InternalErrorException` si la fábrica los pierde.

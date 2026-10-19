@@ -6,11 +6,11 @@ Que todos los atributos sean válidos no implica que el objeto lo sea, y que cad
 
 | Nivel | Qué comprueba | Dónde |
 |---|---|---|
-| Atributo | Un valor aislado: formato, rango, obligatoriedad | Factoría del value object; asignación protegida en la entidad (autoencapsulación) |
-| Objeto completo | Combinaciones de atributos de una entidad | La propia entidad en sus métodos, o un validador separado en el mismo módulo |
-| Composición | Varios objetos o agregados juntos | Servicio de dominio que lee lo necesario por repositorio |
+| Atributo | Un valor aislado: formato, rango, obligatoriedad | Constructor del value object (`Required(...)` y `@Validations`); un `Composite` con reglas `custom` para lo que combina sus campos |
+| Objeto completo | Combinaciones de atributos de una entidad | La propia entidad en sus métodos, o un validador separado en el mismo módulo (un servicio de dominio o `Specification`s) |
+| Composición | Varios objetos o agregados juntos | Servicio de dominio que recibe lo cargado o lee por `AggregateFinder` |
 
-IDDD llama a lo del primer nivel más bien **aserciones** que protegen el estado, no "validación" en el sentido de un framework [IDDD cap. 5].
+IDDD llama a lo del primer nivel más bien **aserciones** que protegen el estado, no "validación" en el sentido de un framework [IDDD cap. 5]. Con el paquete, un value object que existe es válido: su constructor convierte, comprueba `Required` y ejecuta todas sus reglas, y si falla alguna lanza una `ValidationException` con todas `[Fuera de los libros: convención de @archi-code/ddd]`. A eso se suma la autorización, que no es validación del modelo: la comprueba el caso de uso (`NotAllowedException`).
 
 ## Objeto completo: ¿dentro o fuera de la entidad?
 
@@ -22,23 +22,51 @@ Criterio práctico `[Fuera de los libros]`:
 
 ## Patrón de notificación
 
-Para devolver todos los errores en vez de parar en el primero, IDDD y *DDD in PHP* usan un manejador de notificación que recibe los fallos [IDDD cap. 5; PHP: Entities]:
+Para devolver todos los errores en vez de parar en el primero, IDDD y *DDD in PHP* usan un manejador de notificación que recibe los fallos [IDDD cap. 5; PHP: Entities]. Con el paquete no se escribe ese manejador `[Fuera de los libros: convención de @archi-code/ddd]`:
+
+* **Entrada de un caso de uso:** `ValueObjects.build({...})` ejecuta todas las factorías y lanza una sola `ValidationException` cuyos `errors` (`ValidationIssue`: `{ field, code, message }`) llevan el campo y el código de cada problema; `ValueObjects.buildList` nombra los elementos de una lista por su posición (`lines.1.quantity`).
 
 ```ts
-export interface ValidationNotificationHandler {
-  handleError(code: string, detail?: Record<string, unknown>): void;
-}
+import { ValueObjects } from '@archi-code/ddd/domain';
 
-export class ProductListingValidator {
-  constructor(private readonly handler: ValidationNotificationHandler) {}
+const command = ValueObjects.build({
+  customerId: () => new CustomerId(input.customerId),
+  email: () => new Email(input.email),
+  lines: () => ValueObjects.buildList(input.lines, (line) => OrderLine.fromPrimitives(line)),
+});
+// input { customerId: 'x', email: 'ana', lines: [...] } → una ValidationException:
+// errors: [
+//   { field: 'customerId', code: 'DOM003', message: 'Validation Error: Expected a valid UUID, but received "x".' },
+//   { field: 'email', code: 'isEmail', message: 'Email: Value does not satisfy isEmail' },
+// ]
+```
 
-  validate(listing: ProductListing): void {
-    if (listing.photos.length < 3) this.handler.handleError('listing.photos.too_few', { min: 3 });
-    if (!listing.description.isLongEnough()) this.handler.handleError('listing.description.too_short');
-    if (listing.price.isZero()) this.handler.handleError('listing.price.zero');
+* **Un objeto ya construido** (la ficha de un producto que se quiere publicar, en el contexto de Catálogo): un servicio de dominio recoge los `ValidationIssue` y lanza una sola `new ValidationException(issues)`.
+
+```ts
+import { ValidationException } from '@archi-code/ddd/exceptions';
+import type { ValidationIssue } from '@archi-code/ddd/exceptions';
+
+export class ListingReadyToPublish {
+  check(listing: ProductListing): void {
+    const issues: ValidationIssue[] = [];
+    if (listing.photos.value < 3) {
+      issues.push({ field: 'photos', code: 'tooFewPhotos', message: 'At least 3 photos' });
+    }
+    if (!listing.description.isLongEnough()) {
+      issues.push({ field: 'description', code: 'tooShort', message: 'Describe the product' });
+    }
+    if (listing.price.isZero()) {
+      issues.push({ field: 'price', code: 'zeroPrice', message: 'A listing needs a price' });
+    }
+    if (issues.length > 0) {
+      throw new ValidationException(issues);
+    }
   }
 }
 ```
+
+`ProductListing` es un agregado con `photos` (`PhotoCount`), `description` (`ListingDescription`, con su método `isLongEnough()`) y `price` (`Money`). Nunca captures la `ValidationException` de un value object para quedarte con un valor inválido.
 
 ## Validación diferida y estados intermedios
 
@@ -47,20 +75,22 @@ Un agregado puede estar en un estado intermedio legítimo en el que no procede v
 ## Interfaz frente a dominio
 
 * La interfaz valida formato para dar buena experiencia (campo vacío, longitud). Eso no sustituye a la validación del modelo, donde vive el conocimiento profundo [IDDD cap. 4].
-* No dupliques reglas de negocio en el esquema del DTO. Si el DTO comprueba "email válido" y `Email.of` también, que el DTO solo compruebe que es un `string` y deje la regla al value object `[Fuera de los libros]`.
+* No dupliques reglas de negocio en el esquema del DTO. Si el DTO comprueba "email válido" y `new Email(...)` también, que el DTO solo compruebe que es un `string` y deje la regla al value object `[Fuera de los libros]`. La entrada de un caso de uso llega sin validar a propósito: `toCommand` construye los value objects, así que todos los adaptadores pasan por las mismas reglas.
 
 ## Errores con nombre
 
 `[Fuera de los libros]`
-* Una clase de error por regla de negocio (`OrderMustHaveLines`, `CurrencyMismatch`), con un `code` estable para traducir a mensajes de usuario y a códigos HTTP en el adaptador.
+* Una clase de error por regla de negocio (`OrderMustHaveLines`, `CurrencyMismatch`), con un código estable para traducir a mensajes de usuario y a códigos HTTP en el adaptador. Con el paquete, una subclase de `DomainException` (de `@archi-code/ddd/exceptions`) con su código en el segundo argumento.
 * No uses `Error('invalid')` en el dominio.
 
 ```ts
-export abstract class DomainError extends Error {
-  abstract readonly code: string;
-}
-export class OrderMustHaveLines extends DomainError {
-  readonly code = 'order.lines.empty';
-  constructor() { super('Un pedido necesita al menos una línea'); }
+import { DomainException } from '@archi-code/ddd/exceptions';
+
+export class OrderMustHaveLines extends DomainException {
+  constructor() {
+    super('An order needs at least one line', ['ORD002']);
+  }
 }
 ```
+
+`error.code` es `'ORD002'`. En la entrada, `HttpErrorMapper` (de `@archi-code/ddd/infrastructure`) traduce sin tablas escritas a mano: 422 para una `ValidationException` o cualquier `DomainException`, 400 para un error de conversión u obligatoriedad lanzado solo, y cambios por código cuando el negocio lo pide (`new HttpErrorMapper({ ORD001: 409 })`).

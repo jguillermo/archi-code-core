@@ -25,7 +25,7 @@ import type {
   PrimitiveTypes,
 } from '../../../src/domain/index';
 
-class OrderId extends IdType {}
+class OrderId extends IdType<'OrderId'> {}
 
 @Validations([{ validator: 'isLength', properties: { min: 2 } }])
 class CustomerName extends Required(StringType) {}

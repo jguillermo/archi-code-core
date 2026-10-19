@@ -1,30 +1,24 @@
 # Eventos de dominio
 
-> Parte del skill `archi-code-ddd`: léela solo cuando ese skill te dirija aquí. Para escribir el código, traduce los ejemplos con `ddd-skills/archi-code-ddd/suite-to-package.md`; las guías son la fuente de verdad: el paquete solo se aparta de ellas donde lo marca `[Fuera de los libros: convención de @archi-code/ddd]`, y cualquier otra discrepancia es un defecto del paquete.
+> Parte del skill `archi-code-ddd`: léela solo cuando ese skill te dirija aquí. Los ejemplos están escritos con la API de `@archi-code/ddd` (las clases de su `src`) y se copian tal cual; las guías son la fuente de verdad: el paquete solo se aparta de ellas donde lo marca `[Fuera de los libros: convención de @archi-code/ddd]`, y cualquier otra discrepancia es un defecto del paquete.
 >
-> **Cuándo consultar esta guía.** Eventos de dominio en DDD con TypeScript. Cubre cómo descubrirlos en la conversación con expertos, nombrarlos en pasado con el lenguaje ubicuo, decidir qué datos llevan (ni el objeto entero ni eventos "XxxUpdated"), eventos causados por el paso del tiempo, diferencia entre comando y evento, registrarlos en el agregado, guardarlos en la misma transacción (event store u outbox) y publicarlos después, consumidores idempotentes, orden causal, versionado, eventos internos frente a eventos publicados a otros contextos y tolerancia a la latencia. Consúltala siempre que se diseñe un evento, un mensaje entre servicios, una notificación de "cuando pase X", un webhook propio, una cola o un bus, que se pierdan o dupliquen mensajes, o que un cambio deba disparar acciones en otra parte del sistema, aunque no se diga "domain event".
+> **Cuándo consultar esta guía.** Eventos de dominio en DDD con TypeScript. Cubre cómo nombrarlos en pasado con el lenguaje ubicuo, decidir qué datos llevan (ni el objeto entero ni eventos "XxxUpdated"), eventos causados por el paso del tiempo, diferencia entre comando y evento, registrarlos en el agregado, guardarlos en la misma transacción (event store u outbox) y publicarlos después, consumidores idempotentes, orden causal, versionado y eventos internos frente a eventos publicados a otros contextos. Consúltala siempre que se diseñe un evento, un mensaje entre servicios, una notificación de "cuando pase X", un webhook propio, una cola o un bus, que se pierdan o dupliquen mensajes, o que un cambio deba disparar acciones en otra parte del sistema, aunque no se diga "domain event".
 
 ## Con @archi-code/ddd
 
 [Fuera de los libros: convención de @archi-code/ddd]
 
-* Los eventos extienden `EventBase`, declaran `static readonly eventName` con el nombre de su clase en pasado (`'OrderPlaced'`) y su payload, y `eventVersion` cuando el payload cambia de forma incompatible; `eventId` y `occurredOn` los pone la base. El payload son primitivos, nunca value objects.
-* El outbox es el puerto `EventBus`, publicado dentro de `transactions.run` en el caso de uso; lo entrega `OutboxRelay` tras el commit. La idempotencia se consigue con `EventDispatcher(listeners, { inbox, transactions })`.
-* El repositorio nunca publica ni vacía los eventos: lo hace el caso de uso dentro de la transacción. `PublishedLanguage.translate` devuelve una lista (un mensaje por versión publicada, `[]` para eventos internos).
-* Los consumidores reconstruyen eventos con `DomainEventRegistry` pasando el JSON como metadatos; el relay usa `dispatchSerialized(json, registry)`.
-* `OutboxRelay` reintenta un evento que falla hasta `maxAttempts` (5 por defecto) y después lo aparta (`OutboxStore.park`) y avisa con `onParked`, para compensar o informar [IDDD cap. 10]; los mensajes publicados llevan la `sequence` del outbox para que el consumidor respete el orden causal.
-* Un `EventDispatcher` con inbox se niega a ejecutarse dentro de una transacción abierta: las reacciones van fuera de banda, cada una en su transacción [IDDD cap. 8]. El outbox, el bus en memoria y el despachador congelan los eventos que reciben.
+* Los eventos extienden `EventBase`, declaran `static readonly eventName` con el nombre de su clase en pasado (`'OrderPlaced'`) y `static readonly eventVersion` cuando sus datos cambian de forma incompatible (1 si no se declara); llaman a `super(aggregateId, { clock })` y la base pone `eventId` (UUID v4) y `occurredOn`. El payload son primitivos sacados de los value objects (el dinero como `{ amount, currency }`), nunca value objects ni `toPrimitives()` del agregado.
+* El agregado registra con `record()` (que congela el evento) y el caso de uso, nunca el repositorio, publica con `events.publish(order.pullDomainEvents())` después de `save` y dentro de `transactions.run`. Los libros aceptan también que el repositorio vacíe y guarde los eventos; aquí solo vale el caso de uso.
+* Todo lo de eventos de la aplicación está en `@archi-code/ddd/application`: el caso de uso solo ve el puerto `EventBus`; `DomainEventBus(channel, registry)` lo implementa sobre un `EventChannel`, que es lo único que implementa cada tecnología (`InMemoryEventChannel` en el paquete; un outbox o un broker en tu infraestructura). Los listeners reciben siempre el evento reconstruido desde su JSON por `EventRegistry`, cuya fábrica pasa el JSON como metadatos para conservar `eventId` y `occurredOn`.
+* Un listener extiende `EventListener<Event>`, escucha un único evento con `@ListensTo(EventClass, { consumer })` (un nombre de consumidor estable y explícito, su identidad en el canal), se llama `<Acción>On<Evento>` y solo traduce el evento a la entrada de un caso de uso.
+* El paquete no trae outbox, canal de broker, deduplicación ni traducción al lenguaje publicado: se escriben en el proyecto sobre el puerto `EventChannel` y los puertos propios, como en `ddd-skills/ddd-eventos-dominio/references/publicacion-ts.md`.
+* `InMemoryEventChannel` entrega en cuanto se llama a `publish`, dentro de la transacción: sirve para tests (`channel.sent` lista lo publicado; `{ delivery: 'parallel' }` ejecuta juntos los listeners de un evento), nunca para entregar tras el commit en producción.
 
 Un evento de dominio es el registro de algo que ha ocurrido y que importa al negocio en un Bounded Context [Destilado cap. 6]. Es parte de pleno derecho del modelo [IDDD cap. 8, citando a Evans] y la pieza que hace posible la consistencia eventual entre agregados y la integración entre contextos.
 
 
-## Paso 1. Descubrirlos
-
-* En Event Storming son las notas naranjas (`ddd-skills/ddd-descubrimiento-dominio/GUIA.md`).
-* En conversación, escucha expresiones como "cuando...", "si eso pasa...", "avísame si...", "cada vez que ocurre...". En "avísame si" el evento no es el aviso, sino lo que ocurre y alguien quiere saber [IDDD cap. 8].
-* Algunos eventos no salen de los expertos sino de necesidades de integración entre equipos; deben acabar entendiéndolos igualmente [IDDD cap. 8].
-
-## Paso 2. Diseñarlos
+## Paso 1. Diseñarlos
 
 Guía completa y ejemplos en `ddd-skills/ddd-eventos-dominio/references/diseno-eventos.md`. Lo esencial:
 
@@ -35,7 +29,7 @@ Guía completa y ejemplos en `ddd-skills/ddd-eventos-dominio/references/diseno-e
 * **El tiempo también causa eventos:** el fin de un periodo es un hecho, no un comando, y suele tener nombre en el lenguaje ("cierre de mercado", "fin de ejercicio fiscal") [Destilado cap. 6].
 * **Comando ≠ evento:** un comando se puede rechazar; un evento es un hecho y no se puede negar [Destilado cap. 6].
 
-## Paso 3. Guardar y publicar sin perder ni inventar
+## Paso 2. Guardar y publicar sin perder ni inventar
 
 Regla de oro: el agregado modificado y su evento se guardan **en la misma transacción**; después se publica [Destilado cap. 6]. IDDD da tres formas de mantener modelo y mensajería consistentes [IDDD cap. 8]:
 
@@ -47,7 +41,7 @@ Regla de oro: el agregado modificado y su evento se guardan **en la misma transa
 
 Recomendación de estas fuentes: la tercera, conocida hoy como **outbox transaccional** `[Fuera de los libros como nombre]`. Implementación en `ddd-skills/ddd-eventos-dominio/references/publicacion-ts.md`.
 
-## Paso 4. Consumirlos bien
+## Paso 3. Consumirlos bien
 
 * El suscriptor que reacciona dentro de la misma transacción **no debe modificar otro agregado**; eso rompe la regla de un agregado por transacción. Las reacciones que modifican agregados van fuera de banda, cada una en su transacción [IDDD cap. 8].
 * Entrega al menos una vez → consumidor idempotente. Identidad única del mensaje o del evento para deduplicar [IDDD cap. 8; Destilado cap. 4].
@@ -55,9 +49,27 @@ Recomendación de estas fuentes: la tercera, conocida hoy como **outbox transacc
 * Los consumidores de otros contextos no copian objetos: ejecutan comportamiento de **su** modelo según el significado del evento en su contexto [IDDD cap. 8].
 * Si un evento no lleva lo que un suscriptor necesita, el contrato debe cambiar, probablemente con una nueva versión o un evento distinto [IDDD cap. 8].
 
-## Paso 5. Acordar la latencia
+Con el paquete, la reacción es un listener que lanza un caso de uso, y ese caso de uso abre su propia transacción. Con `InMemoryEventChannel` el listener corre dentro de la transacción del caso de uso que publicó (un `run` anidado se une al exterior), lo que solo vale en tests; en producción un canal durable lo entrega tras el commit y cada reacción tiene su transacción [IDDD cap. 8]. El listener le pasa el `eventId` para que el caso de uso pueda saltarse una entrega repetida (ver "Consumidor idempotente" en `ddd-skills/ddd-eventos-dominio/references/publicacion-ts.md`):
 
-¿Cuánto retraso es aceptable? Lo saben los expertos, y a menudo segundos, minutos u horas son tolerables. Pregunta cómo funcionaba el negocio sin ordenadores [IDDD cap. 8]. Lo que no sea tolerable hay que diseñarlo con disponibilidad y escalabilidad suficientes [IDDD cap. 8].
+```ts
+import { EventListener, ListensTo } from '@archi-code/ddd/application';
+
+@ListensTo(OrderLineAdded, { consumer: 'prepare-shipment-on-order-line-added' })
+export class PrepareShipmentOnOrderLineAdded extends EventListener<OrderLineAdded> {
+  constructor(private readonly prepareShipment: PrepareShipment) {
+    super();
+  }
+
+  async handle(event: OrderLineAdded): Promise<void> {
+    await this.prepareShipment.execute({
+      eventId: event.eventId,
+      orderId: event.aggregateId,
+      sku: event.sku,
+      quantity: event.quantity,
+    });
+  }
+}
+```
 
 ## Eventos internos y eventos publicados
 
@@ -66,21 +78,19 @@ Recomendación de estas fuentes: la tercera, conocida hoy como **outbox transacc
 | | Evento de dominio interno | Evento publicado (integración) |
 |---|---|---|
 | Consumidores | El propio contexto | Otros contextos |
-| Forma | Clase TypeScript del dominio | Esquema JSON versionado (Published Language) |
+| Forma | Clase `EventBase` del dominio | Esquema JSON versionado (Published Language), `sales.order.OrderPlaced` |
 | Puede cambiar | Con el modelo | Solo con versión nueva y compatibilidad |
 | Contenido | Lo que el modelo necesita | Lo que el contrato promete; sin datos personales innecesarios |
 
-No publiques las clases de dominio tal cual hacia fuera. Traduce en el reenviador o en un mapeador de publicación.
-
-## Entregable: catálogo de eventos
-
-Usa `ddd-skills/ddd-eventos-dominio/assets/plantilla-catalogo-eventos.md`: nombre, contexto origen, causa (comando o tiempo), datos, consumidores, versión, interno o publicado, plazo aceptable.
+No publiques las clases de dominio ni su `toJSON()` tal cual hacia fuera. Traduce el evento serializado (`SerializedEvent`) al contrato publicado en el adaptador que habla con el broker, con `messageId` = `eventId` [IDDD cap. 13]; el paquete no trae esa traducción (ver "Lenguaje publicado en el adaptador del broker" en `ddd-skills/ddd-eventos-dominio/references/publicacion-ts.md`).
 
 ## Señales de alarma
 
 * Eventos en presente o imperativo (`CreateOrder`, `OrderUpdate`).
 * `OrderUpdated` con el pedido entero [Destilado cap. 6].
-* Publicar al bus dentro del método del agregado o antes de confirmar la transacción.
+* Publicar al bus dentro del método del agregado, antes de `save` o después de que `transactions.run` haya terminado; o confiar en que `InMemoryEventChannel` entrega tras el commit.
+* Escribir en el proyecto `DomainEvent`, `EventPublisher` o un segundo bus (`RabbitMqEventBus`): los eventos extienden `EventBase` y cada tecnología implementa solo `EventChannel`.
+* Una fábrica de `EventRegistry` que no pasa el JSON como metadatos: el evento reconstruido tendría otro `eventId` y no se podría deduplicar (`fromJSON` lo rechaza).
 * Un handler síncrono que modifica otro agregado en la misma transacción [IDDD cap. 8].
 * Consumidores sin deduplicación.
 * Eventos con datos personales que el consumidor no necesita.

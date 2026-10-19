@@ -10,7 +10,7 @@ type JsonValue<T> = T extends Date ? string : T;
 
 const VALUE_OBJECT: unique symbol = Symbol.for('@archi-code/ddd/value-object.v1');
 
-export abstract class AbstractType<T> implements Validatable<T | null> {
+export abstract class AbstractType<T, Input = T> implements Validatable<T | null> {
   protected readonly _value: T | null;
 
   static {
@@ -27,7 +27,7 @@ export abstract class AbstractType<T> implements Validatable<T | null> {
     );
   }
 
-  constructor(value: T | null = null) {
+  constructor(value: Input | null = null) {
     this._value = TypeInput.accept(this, value, (input) => this.filter(input));
     const brokenRules = this.brokenRules(this._value);
     if (brokenRules.length > 0) {

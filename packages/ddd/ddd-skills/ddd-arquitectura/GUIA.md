@@ -1,6 +1,6 @@
 # Arquitectura de un Bounded Context
 
-> Parte del skill `archi-code-ddd`: léela solo cuando ese skill te dirija aquí. Para escribir el código, traduce los ejemplos con `ddd-skills/archi-code-ddd/suite-to-package.md`; las guías son la fuente de verdad: el paquete solo se aparta de ellas donde lo marca `[Fuera de los libros: convención de @archi-code/ddd]`, y cualquier otra discrepancia es un defecto del paquete.
+> Parte del skill `archi-code-ddd`: léela solo cuando ese skill te dirija aquí. Los ejemplos están escritos con la API de `@archi-code/ddd` (las clases de su `src`) y se copian tal cual; las guías son la fuente de verdad: el paquete solo se aparta de ellas donde lo marca `[Fuera de los libros: convención de @archi-code/ddd]`, y cualquier otra discrepancia es un defecto del paquete.
 >
 > **Cuándo consultar esta guía.** Arquitectura interna de un Bounded Context con DDD en TypeScript/Node. Cubre capas e inversión de dependencias, arquitectura hexagonal (puertos y adaptadores), qué va en dominio, aplicación, infraestructura e interfaz, módulos con nombres del lenguaje ubicuo, estructura de carpetas, composition root e inyección de dependencias, reglas automáticas de dependencias, cómo exponer REST sin exponer el modelo y cuándo (y cuándo no) añadir CQRS, arquitectura dirigida por eventos o Event Sourcing. Consúltala siempre que haya que crear o reorganizar la estructura de un proyecto o servicio con DDD, decidir dónde va un fichero o una clase, separar dominio de framework u ORM, montar la inyección de dependencias, configurar límites entre módulos, o cuando el dominio importe Express, Prisma, TypeORM o similares, aunque no se diga "arquitectura hexagonal".
 
@@ -9,8 +9,9 @@
 [Fuera de los libros: convención de @archi-code/ddd]
 
 * El dominio importa `@archi-code/ddd/domain`, `@archi-code/ddd/exceptions` y `@archi-code/validation` (no "nada externo"); la aplicación añade `@archi-code/ddd/application`; solo infraestructura y el composition root importan `@archi-code/ddd/infrastructure`, salvo `HttpErrorMapper` en los puntos de entrada.
-* No se escriben clases base en el proyecto (`domain/shared/AggregateRoot.ts`, `DomainEvent.ts`, `ValueObject.ts`): vienen del paquete.
-* El composition root de cada contexto es el único que construye y conecta todo y lee `process.env`; nadie lo importa. El `dependency-cruiser.cjs` de esta guía ya aplica estas reglas.
+* No se escriben clases base ni puertos genéricos en el proyecto: `AggregateRoot`, `Entity`, `EventBase`, los tipos de value object y `Composite` vienen de `@archi-code/ddd/domain`; los contratos de repositorio son los roles `AggregateFinder`, `AggregateSaver` y `AggregateRemover` de `@archi-code/ddd/domain` (no hay un `OrderRepository` propio); `EventBus`, `EventChannel`, `Clock` y `TransactionRunner` vienen de `@archi-code/ddd/application`.
+* Un mecanismo de mensajería es solo un `EventChannel` en `infrastructure/messaging/`; el bus es siempre `DomainEventBus`, y cambiar de tecnología cambia una línea del composition root.
+* El composition root de cada contexto es el único que construye y conecta todo (repositorios, canal, `DomainEventBus`, suscripción de listeners con `bus.subscribe`) y lee `process.env`; nadie lo importa. El `dependency-cruiser.cjs` de esta guía ya aplica estas reglas.
 * Capa, dependencias permitidas y nombres de cada clase: `ddd-skills/archi-code-ddd/where-each-class-goes.md`.
 
 La arquitectura existe para proteger el modelo de dominio. El modelo debe estar libre de tecnología; por eso, por ejemplo, las transacciones las gestionan los servicios de aplicación y no el dominio [Destilado cap. 2]. Y ningún estilo arquitectónico es una colección de herramientas para usar en todas partes: se aplica donde mitiga un riesgo concreto [IDDD cap. 4].
@@ -23,7 +24,6 @@ Recomendación de estas fuentes para cualquier contexto con modelo de dominio: *
 * Con capas tradicionales, la infraestructura queda debajo del dominio y implementar repositorios obliga a romper las reglas o a hacer apaños [IDDD cap. 4].
 * Con DIP, módulos de alto y bajo nivel dependen de abstracciones; la infraestructura implementa interfaces definidas por las capas interiores [IDDD cap. 4].
 * Hexagonal da simetría: cada cliente o mecanismo de salida tiene su adaptador, y todos llegan al interior por la misma API de aplicación [IDDD cap. 4].
-* Muchos equipos que dicen usar capas usan en realidad hexagonal gracias a la inyección de dependencias [IDDD cap. 4].
 * *DDD in PHP* la adopta como arquitectura base de sus ejemplos [PHP: Modules; PHP: Appendix Hexagonal].
 
 ### Las cuatro zonas y la regla de dependencia
@@ -37,32 +37,34 @@ infrastructure (adaptadores salida) ─┘                     ▲
 
 | Zona | Contiene | Puede depender de | Nunca |
 |---|---|---|---|
-| `domain` | Agregados, entidades, value objects, eventos de dominio, servicios de dominio, **interfaces** de repositorio y de servicios externos | Nada externo (solo la librería estándar) | Framework web, ORM, cliente HTTP, `process.env`, logger |
-| `application` | Servicios de aplicación (casos de uso), comandos y consultas, DTOs, puertos de salida no de dominio (correo, reloj si se quiere) | `domain` | Express/Fastify, SQL, detalles de mensajería |
-| `infrastructure` | Repositorios concretos, ACL, publicador de eventos, clientes HTTP, mensajería | `domain`, `application` | Lógica de negocio |
-| `interfaces` | Controladores REST, consumidores de mensajes, CLI, resolvers GraphQL | `application` (y tipos de `domain` solo si es imprescindible) | Lógica de negocio, acceso directo a repositorios |
+| `domain` | Agregados (`AggregateRoot`), entidades (`Entity`), value objects, eventos de dominio (`EventBase`), servicios de dominio, puertos hacia servicios externos (`ProductPricing`); los contratos de repositorio son los roles `AggregateFinder`/`AggregateSaver`/`AggregateRemover` del paquete | Nada externo salvo `@archi-code/ddd/domain`, `@archi-code/ddd/exceptions` y `@archi-code/validation` | Framework web, ORM, cliente HTTP, `process.env`, logger |
+| `application` | Casos de uso (`UseCase`), listeners (`EventListener` + `@ListensTo`), consultas de lectura con sus DTOs, puertos de salida no de dominio (`EventBus`, `Clock`, `TransactionRunner` del paquete; los tuyos, como `Warehouse`) | `domain`, `@archi-code/ddd/application` | Express/Fastify, SQL, detalles de mensajería |
+| `infrastructure` | Repositorios concretos (`MongoOrderRepository`), ACL, canales de eventos (`EventChannel`), adaptadores de `TransactionRunner`, clientes HTTP | `domain`, `application`, `@archi-code/ddd/infrastructure` | Lógica de negocio |
+| `interfaces` | Controladores REST, consumidores de mensajes, CLI, resolvers GraphQL | `application`, `HttpErrorMapper` (y tipos de `domain` solo si es imprescindible) | Lógica de negocio, acceso directo a repositorios |
 
-Responsabilidades de los servicios de aplicación según IDDD: sin lógica de dominio, controlan transacciones y seguridad, pueden enviar notificaciones; son clientes directos del modelo y deben ser **finos**. Si crecen, la lógica de dominio se está escapando y el modelo se vuelve anémico [IDDD cap. 4]. Detalle en `ddd-skills/ddd-servicios-capa-aplicacion/GUIA.md`.
+Responsabilidades de los servicios de aplicación según IDDD: sin lógica de dominio, controlan transacciones y seguridad (en el paquete, `transactions.run` del puerto `TransactionRunner` y `NotAllowedException`), pueden enviar notificaciones; son clientes directos del modelo y deben ser **finos**. Si crecen, la lógica de dominio se está escapando y el modelo se vuelve anémico [IDDD cap. 4]. Detalle en `ddd-skills/ddd-servicios-capa-aplicacion/GUIA.md`.
 
 En la interfaz se valida formato (campo obligatorio, longitud), no conocimiento profundo del negocio, que se queda en el modelo [IDDD cap. 4].
 
 ## Flujo de trabajo
 
-1. **Decide si el contexto merece modelo de dominio.** Si es un subdominio genérico o de soporte sin reglas, un CRUD sencillo y bien encapsulado es legítimo (ver `ddd-skills/ddd-subdominios-bounded-contexts/GUIA.md`). La estructura hexagonal sigue siendo útil, pero sin agregados artificiales.
+1. **Decide si el contexto merece modelo de dominio.** Si no tiene reglas de negocio, un CRUD sencillo y bien encapsulado es legítimo [IDDD cap. 1]. La estructura hexagonal sigue siendo útil, pero sin agregados artificiales.
 2. **Crea la estructura de carpetas** con `ddd-skills/ddd-arquitectura/references/estructura-hexagonal-ts.md`. Si el proyecto ya reserva `src/app/` para la lógica principal, usa la variante descrita allí.
 3. **Nombra los módulos** con el lenguaje ubicuo, nunca por tipo de patrón (`entities/`, `services/`, `valueobjects/`). Guía en `ddd-skills/ddd-arquitectura/references/modulos.md`.
-4. **Monta el composition root**: un único punto donde se instancian adaptadores y se inyectan en los casos de uso. Sin contenedor mágico salvo necesidad.
+4. **Monta el composition root**: un único punto donde se instancian adaptadores, se construye el `DomainEventBus` sobre un `EventChannel`, se inyectan los puertos en los casos de uso y se suscriben los listeners con `bus.subscribe`. Sin contenedor mágico salvo necesidad.
 5. **Automatiza las reglas de dependencia** con `ddd-skills/ddd-arquitectura/assets/dependency-cruiser.cjs`. Una regla que no se comprueba en CI acaba violándose `[Fuera de los libros]`.
 6. **Decide los estilos adicionales** (CQRS, eventos, Event Sourcing) con `ddd-skills/ddd-arquitectura/references/estilos-adicionales.md`. Por defecto, ninguno.
 
 ## REST sin exponer el modelo
 
-Exponer el modelo directamente por REST produce interfaces frágiles: cada cambio del modelo rompe a los clientes. IDDD prefiere separar el modelo de la interfaz: recursos diseñados por casos de uso, construidos a partir de uno o varios agregados [IDDD cap. 4]. En TypeScript: el controlador recibe un DTO, llama al caso de uso, y el caso de uso devuelve un DTO o un read model, nunca el agregado.
+Exponer el modelo directamente por REST produce interfaces frágiles: cada cambio del modelo rompe a los clientes. IDDD prefiere separar el modelo de la interfaz: recursos diseñados por casos de uso, construidos a partir de uno o varios agregados [IDDD cap. 4]. En TypeScript: el controlador comprueba la forma de la petición, llama a `execute` del caso de uso con su input, responde con lo que este devuelve (un id, un DTO o nada; nunca el agregado) y traduce los errores con `HttpErrorMapper` de `@archi-code/ddd/infrastructure` (404, 403, 409, 422…). Ejemplo en `ddd-skills/ddd-arquitectura/references/estructura-hexagonal-ts.md`.
 
 ## Señales de alarma
 
 * `import` de `express`, `@prisma/client`, `typeorm`, `axios`, `pg`, `kafkajs` o similares dentro de `domain/`.
 * Decoradores de ORM (`@Entity`, `@Column`) en clases de dominio. Mezclan el modelo con la persistencia.
+* Clases base propias (`domain/shared/AggregateRoot.ts`, `ValueObject.ts`, `DomainEvent.ts`), un `OrderRepository` que lo hace todo, un `OrderMapper` a mano o un `EventPublisher` propio: el paquete ya da `AggregateRoot`, los roles de repositorio, `AggregateMapper` y `EventBus`.
+* `@archi-code/ddd/infrastructure` importado desde `domain/` o `application/`.
 * Carpetas `domain/entities`, `domain/services`, `domain/valueobjects`: módulos por tipo de patrón [PHP: Modules].
 * Controladores que llaman a repositorios o contienen `if` de negocio.
 * Servicios de aplicación de cientos de líneas [IDDD cap. 4].

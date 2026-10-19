@@ -2,7 +2,7 @@ import { describe, expectTypeOf, it } from 'vitest';
 import type { AggregateSaver } from '../../../src/domain/repository/aggregate-saver';
 import { AggregateRoot, IdType } from '../../../src/domain/index';
 
-class WarehouseId extends IdType {}
+class WarehouseId extends IdType<'WarehouseId'> {}
 
 class Warehouse extends AggregateRoot<WarehouseId> {}
 

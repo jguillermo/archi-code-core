@@ -4,116 +4,478 @@ Contenido: 1. Raíz base · 2. Construcción paso a paso · 3. Agregado completo
 
 ## 1. Raíz base
 
-`[Fuera de los libros: implementación propia de lo que IDDD cap. 10 describe]`
+La raíz no se escribe a mano: se extiende `AggregateRoot<Id, Event>` de `@archi-code/ddd/domain`, que ya trae lo que IDDD cap. 10 describe para la raíz (identidad, igualdad por identidad, versión para la concurrencia optimista y lista de eventos registrados) `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ```ts
-export abstract class AggregateRoot<Id extends ValueObject<any>> extends Entity<Id> {
-  private pending: DomainEvent[] = [];
-  protected constructor(id: Id, private _version: number) {
+import { AggregateRoot } from '@archi-code/ddd/domain';
+
+export class Order extends AggregateRoot<OrderId, OrderEvent> {
+  private constructor(
+    id: OrderId,
+    readonly customerId: CustomerId,
+  ) {
     super(id);
-  }
-
-  protected record(event: DomainEvent): void {
-    this.pending.push(event);
-  }
-
-  /** Lo llama la capa de aplicación (o el repositorio) tras guardar; con el paquete, solo el caso de uso. */
-  pullEvents(): DomainEvent[] {
-    const events = this.pending;
-    this.pending = [];
-    return events;
-  }
-
-  get version(): number { return this._version; }
-
-  /** Solo para repositorios: el estado se ha guardado con éxito y la versión persistida ha avanzado. */
-  markPersisted(): void {
-    this._version += 1;
   }
 }
 ```
 
-Sin `markPersisted`, el objeto en memoria conserva la versión antigua tras guardar y un segundo `save` del mismo objeto (por ejemplo, dos comandos seguidos en el mismo proceso) daría un falso conflicto de concurrencia `[Fuera de los libros]`.
+La clase completa está en la sección 3. Lo que da la base:
 
-Por qué registrar en vez de publicar: IDDD publica desde el agregado con un publicador estático [IDDD cap. 8]. Registrar y dejar que la aplicación los guarde en la misma transacción (outbox) y se entreguen tras confirmar evita publicar eventos de cambios que luego se revierten (con el paquete, `events.publish(...)` dentro de `transactions.run`; nunca después `[Fuera de los libros: convención de @archi-code/ddd]`), y no requiere un singleton global en el dominio. *DDD in PHP* discute ambas variantes [PHP: Domain Events].
+* `readonly id` y `equals(other)` (misma clase y mismo id) de `Entity<Id>`; un id sin valor lanza `RequiredValueException`.
+* `protected record(event)`: guarda el evento congelado (los hechos no cambian [IDDD cap. 8]).
+* `pullDomainEvents()`: devuelve los eventos en orden (tipados como `Event[]`) y vacía la lista; lo llama el caso de uso tras guardar.
+* `version`: `0` si es nuevo; no es un campo del agregado ni aparece en `PrimitiveTypes`.
+* `restoreVersion(v)` y `markPersisted()`: solo para repositorios (al cargar y tras escribir).
+
+Sin `markPersisted`, el objeto en memoria conservaría la versión antigua tras guardar y un segundo `save` del mismo objeto (por ejemplo, dos comandos seguidos en el mismo proceso) daría un falso conflicto de concurrencia `[Fuera de los libros]`. `InMemoryRepository` y los repositorios que sigan el contrato lo llaman siempre.
+
+Por qué registrar en vez de publicar: IDDD publica desde el agregado con un publicador estático [IDDD cap. 8]. Registrar y dejar que la aplicación publique en la misma transacción no requiere un singleton global en el dominio y, con un canal duradero (outbox), evita entregar eventos de cambios que luego se revierten. *DDD in PHP* discute ambas variantes [PHP: Domain Events]. Con el paquete, el caso de uso llama a `events.publish(order.pullDomainEvents())` dentro de `transactions.run`, nunca después; si los eventos solo deben entregarse tras confirmar, se implementa un `EventChannel` duradero y el caso de uso no cambia `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ## 2. Construcción paso a paso
 
 Orden que sigue Destilado para construir la raíz [Destilado cap. 5]:
 
-1. Clase de la raíz.
-2. Identidad global única como value object (en multi-tenant, también el `TenantId`).
+1. Clase de la raíz (`extends AggregateRoot<OrderId, OrderEvent>`).
+2. Identidad global única como value object (`class OrderId extends IdType<'OrderId'> {}`; en multi-tenant, también el `TenantId`).
 3. Atributos intrínsecos necesarios para encontrarlo (nombre, descripción).
-4. Getters solo si hacen falta; **sin setters públicos**. Con el paquete, cada campo que se guarda tiene un getter público `[Fuera de los libros: convención de @archi-code/ddd]`.
+4. Getters solo si hacen falta; **sin setters públicos**. Con el paquete, cada campo que se guarda tiene un getter público con su nombre sin `_` (o es `readonly` público), porque `PrimitiveTypes` y `AggregateMapper` los leen; los valores derivados son métodos (`total()`) `[Fuera de los libros: convención de @archi-code/ddd]`.
 5. Comportamiento complejo con nombres del lenguaje (`planBacklogItem`, `scheduleRelease`).
 
 ## 3. Agregado completo: Order
 
+Value objects del pedido (su diseño detallado está en `ddd-value-objects-entidades`):
+
 ```ts
-export class Order extends AggregateRoot<OrderId> {
-  private constructor(
-    id: OrderId,
-    version: number,
-    private readonly customerId: CustomerId,           // referencia por identidad (regla 3)
-    private lines: OrderLines,                          // value object (parte reemplazable)
-    private shippingAddress: ShippingAddress,
-    private status: OrderStatus,
-    private stockReservation: ReservationId | null,     // identidad de otro agregado, otro contexto
-    private paymentAuthorization: PaymentAuthorization | null, // value object con lo mínimo
-  ) {
-    super(id, version);
-  }
+import {
+  Composite,
+  DateType,
+  EnumType,
+  IdType,
+  NumberType,
+  Required,
+  StringType,
+} from '@archi-code/ddd/domain';
+import { DomainException } from '@archi-code/ddd/exceptions';
+import { Validations } from '@archi-code/validation';
 
-  static place(id: OrderId, customerId: CustomerId, lines: OrderLine[], address: ShippingAddress): Order {
-    const order = new Order(id, 0, customerId, OrderLines.of(lines), address, OrderStatus.Pending, null, null);
-    order.record(new OrderPlaced(id, customerId, order.lines.toSnapshot(), order.total()));
-    return order;
-  }
+export class OrderId extends IdType<'OrderId'> {}
+export class CustomerId extends IdType<'CustomerId'> {}
+export class ReservationId extends IdType<'ReservationId'> {}
+export class PaymentId extends IdType<'PaymentId'> {}
+export class Sku extends Required(StringType) {}
+export class Street extends Required(StringType) {}
+export class City extends Required(StringType) {}
+export class CancellationReason extends Required(StringType) {}
+export class ExpiresAt extends Required(DateType) {}
 
-  static reconstitute(s: OrderSnapshot): Order {
-    return new Order(s.id, s.version, s.customerId, s.lines, s.shippingAddress, s.status, s.stockReservation, s.paymentAuthorization);
-  }
+@Validations([{ validator: 'isInt', properties: { min: 1 } }])
+export class Quantity extends Required(NumberType) {}
 
-  registerStockReservation(reservation: ReservationId): void {
-    if (!this.status.equals(OrderStatus.Pending)) return;     // llegó tarde o repetido: idempotente
-    this.stockReservation = reservation;
-    this.tryToConfirm();
-  }
+@Validations([{ validator: 'isInt' }])
+export class Cents extends Required(NumberType) {}
 
-  registerPaymentAuthorization(authorization: PaymentAuthorization): void {
-    if (!this.status.equals(OrderStatus.Pending)) return;
-    if (!authorization.covers(this.total())) {
-      // Un hecho de otro contexto no se rechaza: se registra su consecuencia de negocio.
-      this.record(new PaymentAuthorizationInsufficient(this.id, authorization.paymentId, authorization.amount, this.total()));
-      return;
+@Validations([{ validator: 'isISO4217' }])
+export class Currency extends Required(StringType) {
+  protected filter(value: unknown): string {
+    return super.filter(value).trim().toUpperCase();
+  }
+}
+
+@Validations([{ validator: 'isISO31661Alpha2' }])
+export class Country extends Required(StringType) {
+  protected filter(value: unknown): string {
+    return super.filter(value).trim().toUpperCase();
+  }
+}
+
+export class CurrencyMismatch extends DomainException {
+  constructor(expected: string, received: string) {
+    super(`Cannot add ${received} to ${expected}`, ['PAY001']);
+  }
+}
+
+export class Money extends Composite({ amount: Cents, currency: Currency }) {
+  add(other: Money): Money {
+    if (!this.currency.equals(other.currency)) {
+      throw new CurrencyMismatch(this.currency.value, other.currency.value);
     }
-    this.paymentAuthorization = authorization;
-    this.tryToConfirm();
+    return new Money({
+      amount: new Cents(this.amount.value + other.amount.value),
+      currency: this.currency,
+    });
   }
 
-  cancel(reason: CancellationReason): void {
-    if (!this.status.canBeCancelled()) throw new OrderCannotBeCancelled(this.id, this.status);
-    this.status = OrderStatus.Cancelled;
-    this.record(new OrderCancelled(this.id, reason, this.stockReservation, this.paymentAuthorization?.paymentId ?? null));
+  times(quantity: Quantity): Money {
+    return new Money({
+      amount: new Cents(this.amount.value * quantity.value),
+      currency: this.currency,
+    });
   }
 
-  changeQuantity(sku: Sku, quantity: Quantity): void {
-    if (!this.status.allowsLineChanges()) throw new OrderNoLongerEditable(this.id);
-    this.lines = this.lines.withQuantity(sku, quantity);
-    this.record(new OrderLinesChanged(this.id, this.lines.toSnapshot(), this.total()));
+  covers(other: Money): boolean {
+    return this.currency.equals(other.currency) && this.amount.value >= other.amount.value;
+  }
+}
+
+export class OrderLine extends Composite({ sku: Sku, quantity: Quantity, unitPrice: Money }) {
+  subtotal(): Money {
+    return this.unitPrice.times(this.quantity);
+  }
+}
+
+@Validations([
+  {
+    custom: 'hasLines',
+    fn: (lines) => (lines as OrderLines).items.length > 0,
+    message: 'An order needs at least one line',
+  },
+  {
+    custom: 'uniqueSku',
+    fn: (lines) => {
+      const skus = (lines as OrderLines).items.map((line) => line.sku.value);
+      return new Set(skus).size === skus.length;
+    },
+    message: 'Each SKU appears in one line only',
+  },
+])
+export class OrderLines extends Composite({ items: [OrderLine] }) {
+  withLine(line: OrderLine): OrderLines {
+    return new OrderLines({ items: [...this.items, line] });
   }
 
-  total(): Money { return this.lines.total(); }
-  isConfirmed(): boolean { return this.status.equals(OrderStatus.Confirmed); }
+  total(): Money {
+    const [first, ...rest] = this.items;
+    return rest.reduce((sum, line) => sum.add(line.subtotal()), first.subtotal());
+  }
+}
 
-  private tryToConfirm(): void {
-    if (this.stockReservation && this.paymentAuthorization) {
-      this.status = OrderStatus.Confirmed;
-      this.record(new OrderConfirmed(this.id, this.total()));
-    }
+export class ShippingAddress extends Composite({ street: Street, city: City, country: Country }) {}
+
+export class PaymentAuthorization extends Composite({
+  paymentId: PaymentId,
+  amount: Money,
+  expiresAt: ExpiresAt,
+}) {
+  covers(total: Money): boolean {
+    return this.amount.covers(total);
+  }
+}
+
+export enum Status {
+  Pending = 'pending',
+  Confirmed = 'confirmed',
+  Cancelled = 'cancelled',
+}
+
+export class StatusType extends EnumType<Status> {
+  protected getEnum(): typeof Status {
+    return Status;
+  }
+}
+
+export class OrderStatus extends Required(StatusType) {
+  isPending(): boolean {
+    return this.value === Status.Pending;
+  }
+
+  isConfirmed(): boolean {
+    return this.value === Status.Confirmed;
+  }
+
+  canBeCancelled(): boolean {
+    return this.value !== Status.Cancelled;
   }
 }
 ```
+
+Eventos (hechos en pasado, con primitivos tomados de los value objects) y errores de negocio:
+
+```ts
+import { EventBase } from '@archi-code/ddd/domain';
+import type { EventMetadata } from '@archi-code/ddd/domain';
+import { DomainException } from '@archi-code/ddd/exceptions';
+
+export interface MoneyData {
+  readonly amount: number;
+  readonly currency: string;
+}
+
+export interface OrderLineData {
+  readonly sku: string;
+  readonly quantity: number;
+  readonly unitPrice: MoneyData;
+}
+
+export class OrderPlaced extends EventBase {
+  static readonly eventName = 'OrderPlaced';
+
+  constructor(
+    orderId: string,
+    readonly customerId: string,
+    readonly lines: readonly OrderLineData[],
+    readonly total: MoneyData,
+    metadata?: EventMetadata,
+  ) {
+    super(orderId, metadata);
+  }
+}
+
+export class OrderLineAdded extends EventBase {
+  static readonly eventName = 'OrderLineAdded';
+
+  constructor(
+    orderId: string,
+    readonly sku: string,
+    readonly quantity: number,
+    readonly unitPrice: MoneyData,
+    readonly total: MoneyData,
+    metadata?: EventMetadata,
+  ) {
+    super(orderId, metadata);
+  }
+}
+
+export class OrderConfirmed extends EventBase {
+  static readonly eventName = 'OrderConfirmed';
+
+  constructor(
+    orderId: string,
+    readonly total: MoneyData,
+    metadata?: EventMetadata,
+  ) {
+    super(orderId, metadata);
+  }
+}
+
+export class OrderCancelled extends EventBase {
+  static readonly eventName = 'OrderCancelled';
+
+  constructor(
+    orderId: string,
+    readonly reason: string,
+    readonly reservationId: string | null,
+    readonly paymentId: string | null,
+    metadata?: EventMetadata,
+  ) {
+    super(orderId, metadata);
+  }
+}
+
+export class PaymentAuthorizationInsufficient extends EventBase {
+  static readonly eventName = 'PaymentAuthorizationInsufficient';
+
+  constructor(
+    orderId: string,
+    readonly paymentId: string,
+    readonly authorized: MoneyData,
+    readonly required: MoneyData,
+    metadata?: EventMetadata,
+  ) {
+    super(orderId, metadata);
+  }
+}
+
+export type OrderEvent =
+  | OrderPlaced
+  | OrderLineAdded
+  | OrderConfirmed
+  | OrderCancelled
+  | PaymentAuthorizationInsufficient;
+
+export class OrderNoLongerEditable extends DomainException {
+  constructor(orderId: string) {
+    super(`Order ${orderId} no longer accepts line changes`, ['ORD001']);
+  }
+}
+
+export class OrderCannotBeCancelled extends DomainException {
+  constructor(orderId: string, status: string) {
+    super(`Order ${orderId} cannot be cancelled while ${status}`, ['ORD002']);
+  }
+}
+```
+
+La raíz:
+
+```ts
+import { AggregateRoot } from '@archi-code/ddd/domain';
+import type { PrimitiveTypes } from '@archi-code/ddd/domain';
+
+export class Order extends AggregateRoot<OrderId, OrderEvent> {
+  private constructor(
+    id: OrderId,
+    readonly customerId: CustomerId,
+    private _lines: OrderLines,
+    readonly shippingAddress: ShippingAddress,
+    private _status: OrderStatus,
+    private _stockReservation: ReservationId | null,
+    private _paymentAuthorization: PaymentAuthorization | null,
+  ) {
+    super(id);
+  }
+
+  static place(
+    id: OrderId,
+    customerId: CustomerId,
+    lines: OrderLines,
+    address: ShippingAddress,
+    clock: { now(): Date },
+  ): Order {
+    const order = new Order(
+      id,
+      customerId,
+      lines,
+      address,
+      new OrderStatus(Status.Pending),
+      null,
+      null,
+    );
+    order.record(
+      new OrderPlaced(
+        id.value,
+        customerId.value,
+        lines.items.map((line) => ({
+          sku: line.sku.value,
+          quantity: line.quantity.value,
+          unitPrice: Order.moneyData(line.unitPrice),
+        })),
+        Order.moneyData(order.total()),
+        { clock },
+      ),
+    );
+    return order;
+  }
+
+  static fromPrimitives(primitives: PrimitiveTypes<Order>): Order {
+    return new Order(
+      new OrderId(primitives.id),
+      new CustomerId(primitives.customerId),
+      OrderLines.fromPrimitives(primitives.lines),
+      ShippingAddress.fromPrimitives(primitives.shippingAddress),
+      new OrderStatus(primitives.status),
+      primitives.stockReservation === null ? null : new ReservationId(primitives.stockReservation),
+      primitives.paymentAuthorization === null
+        ? null
+        : PaymentAuthorization.fromPrimitives(primitives.paymentAuthorization),
+    );
+  }
+
+  get lines(): OrderLines {
+    return this._lines;
+  }
+
+  get status(): OrderStatus {
+    return this._status;
+  }
+
+  get stockReservation(): ReservationId | null {
+    return this._stockReservation;
+  }
+
+  get paymentAuthorization(): PaymentAuthorization | null {
+    return this._paymentAuthorization;
+  }
+
+  registerStockReservation(reservation: ReservationId, clock: { now(): Date }): void {
+    if (!this._status.isPending()) {
+      return;
+    }
+    this._stockReservation = reservation;
+    this.tryToConfirm(clock);
+  }
+
+  registerPaymentAuthorization(authorization: PaymentAuthorization, clock: { now(): Date }): void {
+    if (!this._status.isPending()) {
+      return;
+    }
+    if (!authorization.covers(this.total())) {
+      this.record(
+        new PaymentAuthorizationInsufficient(
+          this.id.value,
+          authorization.paymentId.value,
+          Order.moneyData(authorization.amount),
+          Order.moneyData(this.total()),
+          { clock },
+        ),
+      );
+      return;
+    }
+    this._paymentAuthorization = authorization;
+    this.tryToConfirm(clock);
+  }
+
+  cancel(reason: CancellationReason, clock: { now(): Date }): void {
+    if (!this._status.canBeCancelled()) {
+      throw new OrderCannotBeCancelled(this.id.value, this._status.value);
+    }
+    this._status = new OrderStatus(Status.Cancelled);
+    this.record(
+      new OrderCancelled(
+        this.id.value,
+        reason.value,
+        this._stockReservation?.value ?? null,
+        this._paymentAuthorization?.paymentId.value ?? null,
+        { clock },
+      ),
+    );
+  }
+
+  addLine(line: OrderLine, clock: { now(): Date }): void {
+    if (!this._status.isPending()) {
+      throw new OrderNoLongerEditable(this.id.value);
+    }
+    this._lines = this._lines.withLine(line);
+    this.record(
+      new OrderLineAdded(
+        this.id.value,
+        line.sku.value,
+        line.quantity.value,
+        Order.moneyData(line.unitPrice),
+        Order.moneyData(this.total()),
+        { clock },
+      ),
+    );
+  }
+
+  total(): Money {
+    return this._lines.total();
+  }
+
+  isConfirmed(): boolean {
+    return this._status.isConfirmed();
+  }
+
+  toPrimitives(): PrimitiveTypes<Order> {
+    return {
+      id: this.id.value,
+      customerId: this.customerId.value,
+      lines: this._lines.toPrimitives(),
+      shippingAddress: this.shippingAddress.toPrimitives(),
+      status: this._status.value,
+      stockReservation: this._stockReservation?.value ?? null,
+      paymentAuthorization: this._paymentAuthorization?.toPrimitives() ?? null,
+    };
+  }
+
+  private tryToConfirm(clock: { now(): Date }): void {
+    if (this._stockReservation !== null && this._paymentAuthorization !== null) {
+      this._status = new OrderStatus(Status.Confirmed);
+      this.record(new OrderConfirmed(this.id.value, Order.moneyData(this.total()), { clock }));
+    }
+  }
+
+  private static moneyData(money: Money): MoneyData {
+    return { amount: money.amount.value, currency: money.currency.value };
+  }
+}
+```
+
+Cómo encaja con las reglas:
+
+* `customerId` es una referencia por identidad (regla 3); `stockReservation` es la identidad de otro agregado de otro contexto, y `paymentAuthorization` un value object con lo mínimo que el pedido necesita de Pagos.
+* Las líneas son un value object (`OrderLines`, parte reemplazable entera); `addLine` sustituye la colección por la que devuelve `withLine`, y la regla de SKU único la comprueba el propio value object.
+* Constructor privado, una factoría de negocio (`place`, que registra `OrderPlaced`) y `fromPrimitives`, que reconstruye sin reglas de creación ni eventos; `toPrimitives()` devuelve solo datos planos. El repositorio recibe `AggregateMapper.of(Order)` y no lee los campos `[Fuera de los libros: convención de @archi-code/ddd]`.
+* Cada método recibe el reloj (`clock: { now(): Date }`) y lo pasa a los eventos (`{ clock }`): el dominio no llama a `new Date()` y los tests son deterministas.
 
 ### Comandos frente a hechos
 
@@ -121,7 +483,7 @@ export class Order extends AggregateRoot<OrderId> {
 
 * Los métodos que reaccionan a hechos son **idempotentes** y **no lanzan errores de negocio**.
 * Si el hecho no encaja con las reglas, el agregado registra un evento con nombre del negocio (`PaymentAuthorizationInsufficient`) y otra política decide la compensación (anular la autorización, avisar al cliente). Así el problema queda visible en el modelo en vez de perdido en una cola de errores.
-* Los errores de negocio con excepción quedan para comandos de usuario (`cancel`, `changeQuantity`), donde alguien puede recibir la respuesta.
+* Los errores de negocio con excepción (`DomainException` con su código) quedan para comandos de usuario (`cancel`, `addLine`), donde alguien puede recibir la respuesta (`HttpErrorMapper` los traduce a 422 salvo que se le indique otro estado para su código).
 
 Qué protege este agregado (sus invariantes, regla 1):
 * El total es siempre la suma de sus líneas (las líneas son un value object con su regla).
@@ -134,17 +496,74 @@ Qué **no** protege (y por eso no contiene): el stock del almacén ni el estado 
 
 No inyectes repositorios ni servicios en el agregado. Busca antes lo necesario y pásalo al método [IDDD cap. 10]. El "modelo de dominio desconectado" (usar un repositorio desde dentro del agregado) es una forma de carga perezosa y es la opción menos recomendada [IDDD cap. 10].
 
+El caso de uso construye los valores en `toCommand` y se los pasa al agregado en `handle`:
+
 ```ts
-// Servicio de aplicación
-const order = await this.orders.byId(orderId);
-const authorization = PaymentAuthorization.of(event.paymentId, Money.of(event.amount, event.currency), new Date(event.expiresAt));
-order.registerPaymentAuthorization(authorization);   // el agregado recibe valores, no repositorios
-await this.orders.save(order);
+import { ValueObjects } from '@archi-code/ddd/domain';
+import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
+import { UseCase } from '@archi-code/ddd/application';
+import type { Clock, EventBus, TransactionRunner } from '@archi-code/ddd/application';
+
+interface PaymentAuthorizationInput {
+  orderId: string;
+  paymentId: string;
+  amount: number;
+  currency: string;
+  expiresAt: string;
+}
+
+interface PaymentAuthorizationCommand {
+  orderId: OrderId;
+  authorization: PaymentAuthorization;
+}
+
+export class RegisterPaymentAuthorization extends UseCase<
+  PaymentAuthorizationInput,
+  PaymentAuthorizationCommand,
+  void
+> {
+  constructor(
+    private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
+    private readonly events: EventBus<OrderEvent>,
+    private readonly transactions: TransactionRunner,
+    private readonly clock: Clock,
+  ) {
+    super();
+  }
+
+  protected toCommand(input: PaymentAuthorizationInput): PaymentAuthorizationCommand {
+    return ValueObjects.build({
+      orderId: () => new OrderId(input.orderId),
+      authorization: () =>
+        PaymentAuthorization.fromPrimitives({
+          paymentId: input.paymentId,
+          amount: { amount: input.amount, currency: input.currency },
+          expiresAt: input.expiresAt,
+        }),
+    });
+  }
+
+  protected handle(command: PaymentAuthorizationCommand): Promise<void> {
+    return this.transactions.run(async () => {
+      const order = await this.orders.findById(command.orderId);
+      if (order === null) {
+        return;
+      }
+      order.registerPaymentAuthorization(command.authorization, this.clock);
+      await this.orders.save(order);
+      await this.events.publish(order.pullDomainEvents());
+    });
+  }
+}
 ```
+
+La fecha llega como texto y se pasa tal cual (`DateType` acepta `Date | string`) para que `ExpiresAt` la convierta y rechace una fecha-hora sin zona; `new Date(input.expiresAt)` la aceptaría en la hora local del servidor y un texto inválido llegaría como `Date(Invalid)` en el mensaje de error.
+
+El agregado recibe valores, no repositorios. Como registra un hecho (lo ejecuta un listener), el caso de uso vuelve sin error si el pedido no existe en vez de lanzar `AggregateNotFoundException`, que haría reintentar al canal sin fin.
 
 ## 5. Concurrencia optimista
 
-* Versión en la raíz, incrementada con cada comando que cambie estado en cualquier parte del agregado [IDDD cap. 10].
+* Versión en la raíz, incrementada con cada comando que cambie estado en cualquier parte del agregado [IDDD cap. 10]. Con el paquete es la `version` de `AggregateRoot`: el agregado no la declara ni la mapea, y solo la tocan los repositorios (`restoreVersion` al cargar, `markPersisted` tras escribir) `[Fuera de los libros: convención de @archi-code/ddd]`.
 * Si las partes internas son entidades y el ORM no detecta su cambio como cambio de la raíz, es una señal más para reducir el agregado a raíz más value objects [IDDD cap. 10].
 * En almacenes de documentos o clave-valor el agregado se guarda entero y la versión se comprueba en una sola operación [IDDD cap. 10].
 
@@ -154,24 +573,50 @@ En SQL `[Fuera de los libros]`:
 UPDATE orders
    SET status = $2, lines = $3, version = version + 1
  WHERE id = $1 AND version = $4;
--- 0 filas afectadas → ConcurrencyConflict: recargar y reintentar el comando, o informar al usuario.
 ```
 
-Reintentar automáticamente solo es seguro si el comando es idempotente o se vuelve a evaluar contra el estado recargado.
+Si la sentencia no afecta a ninguna fila, el repositorio lanza `ConcurrencyException(mapper.aggregateName, order.id.value, order.version)` (de `@archi-code/ddd/exceptions`, HTTP 409 con `HttpErrorMapper`); si escribe, llama a `order.markPersisted()`. `InMemoryRepository(AggregateMapper.of(Order))` cumple ese contrato en los tests; el repositorio real y su suite de contrato están en `ddd-repositorios-persistencia`.
+
+Reintentar automáticamente solo es seguro si el comando es idempotente o se vuelve a evaluar contra el estado recargado: con el paquete, un bucle en `handle` alrededor de todo `transactions.run`, de modo que cada intento sea una transacción nueva que vuelve a cargar el agregado (unos pocos intentos y después se relanza) `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ## 6. Variante funcional
 
 `[Fuera de los libros como código; la idea está en Destilado cap. 5]`
 
-```ts
-type OrderState = Readonly<{ id: OrderId; status: OrderStatus; lines: OrderLines; reservation: ReservationId | null; authorization: PaymentAuthorization | null }>;
+El paquete no la da: `AggregateRoot`, `PrimitiveTypes` y `AggregateMapper` necesitan clases `[Fuera de los libros: convención de @archi-code/ddd]`. Si se elige, se escribe en el proyecto con los mismos value objects y eventos, y su persistencia queda a cargo del proyecto:
 
-export function registerStockReservation(s: OrderState, r: ReservationId): [OrderState, DomainEvent[]] {
-  if (!s.status.equals(OrderStatus.Pending)) return [s, []];
-  const next = { ...s, reservation: r };
-  return next.authorization
-    ? [{ ...next, status: OrderStatus.Confirmed }, [new OrderConfirmed(s.id, s.lines.total())]]
-    : [next, []];
+```ts
+type OrderState = Readonly<{
+  id: OrderId;
+  status: OrderStatus;
+  lines: OrderLines;
+  reservation: ReservationId | null;
+  authorization: PaymentAuthorization | null;
+}>;
+
+export function registerStockReservation(
+  state: OrderState,
+  reservation: ReservationId,
+  clock: { now(): Date },
+): [OrderState, OrderEvent[]] {
+  if (!state.status.isPending()) {
+    return [state, []];
+  }
+  const next = { ...state, reservation };
+  if (next.authorization === null) {
+    return [next, []];
+  }
+  const total = state.lines.total();
+  return [
+    { ...next, status: new OrderStatus(Status.Confirmed) },
+    [
+      new OrderConfirmed(
+        state.id.value,
+        { amount: total.amount.value, currency: total.currency.value },
+        { clock },
+      ),
+    ],
+  ];
 }
 ```
 
@@ -181,33 +626,89 @@ Mismas reglas: un estado, un límite de consistencia, eventos como salida.
 
 Los agregados deben ser unidades fáciles de probar; uno complejo es difícil de verificar [Destilado cap. 5]. Los tests unitarios del agregado van **después** de los tests de aceptación de los escenarios y comprueban que hace bien lo que debe [Destilado cap. 5].
 
+Fábricas de datos en `test/support/` del proyecto, con un reloj fijo:
+
 ```ts
+import { FixedClock } from '@archi-code/ddd/infrastructure';
+
+export const clock = new FixedClock('2026-03-01T09:30:00Z');
+
+export function aPendingOrderOf(cents: number): Order {
+  return Order.place(
+    OrderId.generate(),
+    CustomerId.generate(),
+    OrderLines.fromPrimitives({
+      items: [{ sku: 'MUG-350', quantity: 1, unitPrice: { amount: cents, currency: 'EUR' } }],
+    }),
+    ShippingAddress.fromPrimitives({ street: 'Calle Mayor 1', city: 'Huelva', country: 'ES' }),
+    clock,
+  );
+}
+
+export function anAuthorizationOf(cents: number): PaymentAuthorization {
+  return PaymentAuthorization.fromPrimitives({
+    paymentId: '0b8e4f2a-6c1d-4e7f-9a3b-5d2c8e1f4a6b',
+    amount: { amount: cents, currency: 'EUR' },
+    expiresAt: new Date('2026-03-08T09:30:00Z'),
+  });
+}
+
+export function aReservation(): ReservationId {
+  return new ReservationId('7c3d9e1f-2a4b-4c6d-8e0f-1a2b3c4d5e6f');
+}
+
+export function aConfirmedOrder(): Order {
+  const order = aPendingOrderOf(1700);
+  order.registerStockReservation(aReservation(), clock);
+  order.registerPaymentAuthorization(anAuthorizationOf(1700), clock);
+  order.pullDomainEvents();
+  return order;
+}
+```
+
+```ts
+import { describe, expect, it } from 'vitest';
+
 describe('Order', () => {
-  it('se confirma cuando llegan reserva y autorización, en cualquier orden', () => {
-    const order = aPendingOrderOf('17.00');
-    order.registerPaymentAuthorization(anAuthorizationOf('17.00'));
+  it('is confirmed when the reservation and the authorization arrive, in any order', () => {
+    const order = aPendingOrderOf(1700);
+    order.registerPaymentAuthorization(anAuthorizationOf(1700), clock);
     expect(order.isConfirmed()).toBe(false);
-    order.registerStockReservation(aReservation());
+    order.registerStockReservation(aReservation(), clock);
     expect(order.isConfirmed()).toBe(true);
-    expect(order.pullEvents().map((e) => e.type)).toContain('OrderConfirmed');
+    expect(order.pullDomainEvents().map((event) => event.eventName())).toContain('OrderConfirmed');
   });
 
-  it('registra una autorización insuficiente sin lanzar error y sin confirmar', () => {
-    const order = aPendingOrderOf('17.00');
-    order.registerStockReservation(aReservation());
-    order.registerPaymentAuthorization(anAuthorizationOf('10.00'));
+  it('records an insufficient authorization without throwing and without confirming', () => {
+    const order = aPendingOrderOf(1700);
+    order.registerStockReservation(aReservation(), clock);
+    order.registerPaymentAuthorization(anAuthorizationOf(1000), clock);
     expect(order.isConfirmed()).toBe(false);
-    expect(order.pullEvents().map((e) => e.type)).toContain('PaymentAuthorizationInsufficient');
+    expect(order.pullDomainEvents().map((event) => event.eventName())).toContain(
+      'PaymentAuthorizationInsufficient',
+    );
   });
 
-  it('ignora una reserva repetida (mensaje duplicado)', () => {
+  it('ignores a repeated reservation (duplicated message)', () => {
     const order = aConfirmedOrder();
-    order.registerStockReservation(aReservation());
-    expect(order.pullEvents()).toHaveLength(0);
+    order.registerStockReservation(aReservation(), clock);
+    expect(order.pullDomainEvents()).toHaveLength(0);
   });
 
-  it('no admite cambios de cantidad una vez confirmado', () => {
-    expect(() => aConfirmedOrder().changeQuantity(Sku.of('TAZA-350'), Quantity.of(3))).toThrow(OrderNoLongerEditable);
+  it('accepts no new lines once confirmed', () => {
+    const line = OrderLine.fromPrimitives({
+      sku: 'PLATE-27',
+      quantity: 3,
+      unitPrice: { amount: 900, currency: 'EUR' },
+    });
+    expect(() => aConfirmedOrder().addLine(line, clock)).toThrow(OrderNoLongerEditable);
+  });
+
+  it('keeps every field when stored and loaded', () => {
+    const order = aConfirmedOrder();
+    expect(Order.fromPrimitives(order.toPrimitives()).toPrimitives()).toEqual(order.toPrimitives());
   });
 });
 ```
+
+El último test es el de ida y vuelta que exige el paquete para cada agregado `[Fuera de los libros: convención de @archi-code/ddd]`.

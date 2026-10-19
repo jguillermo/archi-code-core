@@ -68,18 +68,20 @@ afterEach(() => {
 
 describe('DateType', () => {
   describe('typing', () => {
-    it('an optional date takes a Date, null or nothing and holds Date | null', () => {
+    it('an optional date takes a Date, ISO text, null or nothing and holds Date | null', () => {
       expectTypeOf<ShippedAt>().toMatchTypeOf<AbstractType<Date>>();
       expectTypeOf<ConstructorParameters<typeof ShippedAt>>().toEqualTypeOf<
-        [value?: Date | null]
+        [value?: Date | string | null]
       >();
       expectTypeOf<ShippedAt['value']>().toEqualTypeOf<Date | null>();
       expectTypeOf<ShippedAt['validate']>().toEqualTypeOf<() => ValidationResult<Date | null>>();
       expectTypeOf<ShippedAt['toString']>().toEqualTypeOf<() => string>();
     });
 
-    it('a required date takes only a Date and holds a Date', () => {
-      expectTypeOf<ConstructorParameters<typeof PlacedAt>>().toEqualTypeOf<[value: Date]>();
+    it('a required date takes a Date or ISO text and holds a Date', () => {
+      expectTypeOf<ConstructorParameters<typeof PlacedAt>>().toEqualTypeOf<
+        [value: Date | string]
+      >();
       expectTypeOf<PlacedAt['value']>().toEqualTypeOf<Date>();
       expectTypeOf<PlacedAt['validate']>().toEqualTypeOf<() => ValidationResult<Date>>();
     });
@@ -95,8 +97,9 @@ describe('DateType', () => {
       expect(() => new PlacedAt()).toThrow(RequiredValueException);
       // @ts-expect-error a required date does not accept null
       expect(() => new PlacedAt(null)).toThrow(RequiredValueException);
-      // @ts-expect-error raw request text must be typed as unknown before converting it
       expect(new PlacedAt('2018-03-23').toString()).toBe('2018-03-23T00:00:00.000Z');
+      // @ts-expect-error an epoch number is not a date
+      expect(() => new PlacedAt(1521820800000)).toThrow(TypePrimitiveException);
     });
   });
 
@@ -240,7 +243,7 @@ describe('DateType', () => {
 
 describe('CreatedAt', () => {
   it('is a required date named after the record field', () => {
-    expectTypeOf<ConstructorParameters<typeof CreatedAt>>().toEqualTypeOf<[value: Date]>();
+    expectTypeOf<ConstructorParameters<typeof CreatedAt>>().toEqualTypeOf<[value: Date | string]>();
     expectTypeOf<CreatedAt['value']>().toEqualTypeOf<Date>();
     expect(() => new CreatedAt(null as unknown as Date)).toThrow(
       'Validation Error: CreatedAt is required, but received null.',
@@ -270,7 +273,7 @@ describe('CreatedAt', () => {
 
 describe('UpdatedAt', () => {
   it('is a required date named after the record field', () => {
-    expectTypeOf<ConstructorParameters<typeof UpdatedAt>>().toEqualTypeOf<[value: Date]>();
+    expectTypeOf<ConstructorParameters<typeof UpdatedAt>>().toEqualTypeOf<[value: Date | string]>();
     expectTypeOf<UpdatedAt['value']>().toEqualTypeOf<Date>();
     expect(() => new UpdatedAt(null as unknown as Date)).toThrow(
       'Validation Error: UpdatedAt is required, but received null.',

@@ -4,7 +4,7 @@ import { AggregateRoot, CreatedAt, IdType, UpdatedAt } from '../../../src/domain
 import { RequiredValueException, TypePrimitiveException } from '../../../src/exceptions/index';
 import { FixedClock } from '../../../src/infrastructure/clock/fixed-clock';
 
-class InvoiceId extends IdType {}
+class InvoiceId extends IdType<'InvoiceId'> {}
 
 class Invoice extends AggregateRoot<InvoiceId> {
   private constructor(

@@ -182,6 +182,18 @@ describe('the DDD skill suite is reached only through SKILL.md', () => {
     );
   });
 
+  it('writes its examples with the package: no generic base classes nor static of() factories', () => {
+    const genericCode =
+      /\b(?:abstract\s+)?class\s+(?:ValueObject|Entity|AggregateRoot|DomainEvent)\b(?:<[^>]*>)?\s*(?:\{|extends|implements)|\bstatic\s+of\s*\(|\bValueObject<|\bpullEvents\s*\(/;
+    const offending = suiteSkills.flatMap((skill) =>
+      filesOf(skill)
+        .filter((file) => file.endsWith('.md'))
+        .filter((file) => genericCode.test(fs.readFileSync(path.join(SUITE, skill, file), 'utf8')))
+        .map((file) => `${skill}/${file}`),
+    );
+    expect(offending).toEqual([]);
+  });
+
   it('is pure DDD: it cites books, never the internal document codes of a company', () => {
     const files = fs
       .readdirSync(SUITE, { recursive: true, withFileTypes: true })

@@ -1,6 +1,6 @@
 # Value Objects y entidades
 
-> Parte del skill `archi-code-ddd`: léela solo cuando ese skill te dirija aquí. Para escribir el código, traduce los ejemplos con `ddd-skills/archi-code-ddd/suite-to-package.md`; las guías son la fuente de verdad: el paquete solo se aparta de ellas donde lo marca `[Fuera de los libros: convención de @archi-code/ddd]`, y cualquier otra discrepancia es un defecto del paquete.
+> Parte del skill `archi-code-ddd`: léela solo cuando ese skill te dirija aquí. Los ejemplos están escritos con la API de `@archi-code/ddd` (las clases de su `src`) y se copian tal cual; las guías son la fuente de verdad: el paquete solo se aparta de ellas donde lo marca `[Fuera de los libros: convención de @archi-code/ddd]`, y cualquier otra discrepancia es un defecto del paquete.
 >
 > **Cuándo consultar esta guía.** Diseño táctico DDD de Value Objects y entidades en TypeScript. Decide si un concepto es value object o entidad, cómo implementar value objects inmutables con igualdad por valor y comportamiento sin efectos secundarios (Money, identificadores, rangos, direcciones, tipos estándar y estados), cómo diseñar entidades con identidad estable y comportamiento con nombres del negocio en lugar de setters, estrategias y momento de generación de identidad, los tres niveles de validación (atributo, objeto completo, composición) y cómo persistir value objects sin que la base de datos deforme el modelo. Consúltala siempre que se cree o revise una clase del dominio, aparezcan primitivos sueltos (string para emails, number para dinero), getters y setters públicos, dudas sobre igualdad, ids o validaciones, o se pregunte "¿esto es una entidad?", aunque no se mencione DDD.
 
@@ -8,13 +8,13 @@
 
 [Fuera de los libros: convención de @archi-code/ddd]
 
-* No hay clase base `ValueObject` ni factorías `of()`: un valor simple es una subclase con nombre (`class Email extends Required(StringType) {}`) con `@Validations`, válida por construcción con `new`; la normalización va en `filter`.
-* Un valor de varios atributos (`Money`, `DateRange`, `OrderLine`) es `Composite({...})`; un estado, un `EnumType`; un id, `IdType` con `OrderId.generate()`.
-* `Money` va en céntimos enteros con `Required(NumberType)` + `isInt` en lugar de `bigint`: exacto hasta `Number.MAX_SAFE_INTEGER` (9.007.199.254.740.991 céntimos); el paquete no tiene tipo `bigint`.
-* Los errores de un input se recogen con `ValueObjects.build({...})`, no con un manejador de notificación.
-* `Specification<T>` y `Entity<Id>` vienen de `@archi-code/ddd/domain`; `and`/`or` aceptan cualquier objeto con `isSatisfiedBy` (`SatisfiedBy<T>`). Los valores derivados son métodos, nunca getters calculados.
+* Un value object es una subclase con nombre de un tipo del paquete (`class Email extends Required(StringType) {}`) con sus reglas en `@Validations` (de `@archi-code/validation`): se crea con `new` y su constructor lo deja siempre válido; no hay factorías `of()` ni `assertValid()`, y la normalización va en `filter`.
+* Un valor de varios atributos (`Money`, `DateRange`, `OrderLine`, `OrderLines`) es `Composite({...})`, con las reglas que combinan campos como `custom`; un estado, un `EnumType`; un id, `IdType`, generado por el propio value object (`OrderId.generate()`), nunca por el repositorio.
+* `Money` va en céntimos enteros (`Cents`, `Required(NumberType)` con `isInt`) en lugar de `bigint`: exacto hasta `Number.MAX_SAFE_INTEGER` (9.007.199.254.740.991 céntimos); el paquete no tiene tipo `bigint`.
+* Los errores de una entrada se recogen con `ValueObjects.build({...})` y `ValidationException.errors`, no con un manejador de notificación.
 * Un value object es opcional por defecto (`value: T | null`) y `Required(XType)` lo hace obligatorio. Los libros crean siempre el valor con contenido y modelan lo opcional en el campo (`reservation: ReservationId | null`); con el paquete valen las dos formas.
 * La identidad de una entidad o raíz siempre es un value object obligatorio (`IdType` o `Required(...)`): un id sin valor lanza `RequiredValueException`, así dos entidades nuevas nunca son iguales por un id vacío [IDDD cap. 5].
+* Todo el estado de un agregado es value objects (también un booleano), cada campo guardado tiene un getter público con su nombre sin `_` y los valores derivados son métodos, nunca getters. La reconstitución es `static fromPrimitives(PrimitiveTypes<X>)` con su `toPrimitives()`, y el repositorio usa `AggregateMapper.of(X)`. Los libros solo piden getters donde hacen falta y un mapper en infraestructura.
 
 Dos piezas básicas del modelo. Vernon insiste en un sesgo concreto: **modela con value objects siempre que puedas**. Incluso una entidad debería ser sobre todo un contenedor de value objects, no de entidades hijas, porque los valores son más fáciles de crear, probar, usar, optimizar y mantener [IDDD cap. 6].
 
@@ -47,22 +47,22 @@ Si dudas, empieza por value object: es más barato pasar de valor a entidad que 
 
 ## Paso 2. Implementar
 
-* Value objects: `ddd-skills/ddd-value-objects-entidades/references/value-objects-ts.md`. Plantillas para `Money`, identificadores, `Email`, `DateRange`, colecciones de valores y estados.
-* Entidades: `ddd-skills/ddd-value-objects-entidades/references/entidades-ts.md`. Identidad, constructor completo, comportamiento con nombres del lenguaje, protección de invariantes, reconstitución desde persistencia.
+* Value objects: `ddd-skills/ddd-value-objects-entidades/references/value-objects-ts.md`. Qué clase del paquete usar en cada caso y ejemplos de `Money`, identificadores, `Email`, `DateRange`, colecciones de valores y estados.
+* Entidades: `ddd-skills/ddd-value-objects-entidades/references/entidades-ts.md`. Identidad, `Entity` y `AggregateRoot`, constructor completo, comportamiento con nombres del lenguaje, protección de invariantes, reconstitución con `fromPrimitives`.
 
 Reglas mínimas que no se negocian (los nombres de los métodos son interfaces que revelan intención, ver Paso 5):
 
 **Value objects**
 * Inmutables: propiedades `readonly`, sin métodos que muten. Las operaciones devuelven nuevas instancias [IDDD cap. 6].
-* Válidos desde su creación: el constructor o la factoría rechazan estados imposibles [IDDD cap. 5; PHP: Value Objects].
-* Igualdad por valor con un `equals` explícito; en TypeScript `===` compara referencias `[Fuera de los libros]`.
+* Válidos desde su creación: el constructor rechaza estados imposibles (`Required(...)` y `@Validations`) [IDDD cap. 5; PHP: Value Objects].
+* Igualdad por valor con `equals`, que el paquete ya da (clase y valor; fechas por instante, listas por contenido); en TypeScript `===` compara referencias `[Fuera de los libros]`.
 * Los métodos reciben otros value objects, no entidades, para garantizar que no hay efectos secundarios [IDDD cap. 6].
 * Nada de primitivos sueltos para conceptos del dominio: un `string` no puede tener comportamiento del negocio [IDDD cap. 6; PHP: Entities, "Objects vs. Primitive Types"].
 
 **Entidades**
-* Identidad estable, protegida contra cambios [IDDD cap. 5].
-* Igualdad por identidad.
-* Sin setters públicos: métodos con verbos del negocio que protegen reglas (ver la comparación `commitTo` frente a `setStatus` en `ddd-skills/ddd-descubrimiento-dominio/GUIA.md`) [IDDD cap. 1 y cap. 5].
+* Identidad estable, protegida contra cambios: se pasa a `super(id)` y queda `readonly` [IDDD cap. 5].
+* Igualdad por identidad: `equals` de `Entity` y `AggregateRoot` compara clase e id.
+* Sin setters públicos: métodos con verbos del negocio que protegen reglas: `backlogItem.commitTo(sprint)` y no `setSprintId(...)` + `setStatus(Committed)`, que deja la regla en cada cliente y el objeto a medias [IDDD cap. 1 y cap. 5].
 * Diseño inicial mínimo: identidad, lo que sirve para encontrarla y el comportamiento esencial con los atributos que ese comportamiento necesita. El resto, después [IDDD cap. 5].
 
 ## Paso 3. Identidad
@@ -76,25 +76,25 @@ Elige la estrategia con `ddd-skills/ddd-value-objects-entidades/references/entid
 | La genera la base de datos (secuencia) | Llega tarde: el evento de creación sale sin id, y los objetos nuevos parecen iguales en colecciones |
 | La asigna otro contexto | Sincronización con el origen; la más compleja |
 
-Recomendación por defecto: identidad generada por la aplicación, **temprana** (antes de persistir), generada por el propio value object de identidad (`OrderId.generate()`), nunca por el repositorio [IDDD cap. 5 para la identidad temprana; `[Fuera de los libros: convención de @archi-code/ddd]` para quién la genera]. En TypeScript, UUID v7 si conviene orden temporal en índices `[Fuera de los libros]`.
+Recomendación por defecto: identidad generada por la aplicación, **temprana** (antes de persistir), generada por el propio value object de identidad (`OrderId.generate()`), nunca por el repositorio [IDDD cap. 5 para la identidad temprana; `[Fuera de los libros: convención de @archi-code/ddd]` para quién la genera]. Si conviene orden temporal en índices, `new OrderId(uuidv7())`: `IdType` acepta cualquier versión de UUID `[Fuera de los libros]`.
 
 ## Paso 4. Validación en tres niveles
 
 [IDDD cap. 5; PHP: Entities]
 
-1. **Atributo:** en la factoría del value object o en la asignación protegida de la entidad.
-2. **Objeto completo:** reglas que combinan atributos. IDDD sugiere un validador separado cuando esa validación cambia más que la entidad.
-3. **Composición:** reglas sobre varios objetos o agregados. Un servicio de dominio que lee lo necesario por repositorio.
+1. **Atributo:** en el constructor del value object (`Required(...)` y `@Validations`).
+2. **Objeto completo:** reglas que combinan atributos (las de un valor de varios atributos, reglas `custom` de su `Composite`). IDDD sugiere un validador separado cuando esa validación cambia más que la entidad.
+3. **Composición:** reglas sobre varios objetos o agregados. Un servicio de dominio que recibe lo cargado o lee lo necesario con `AggregateFinder`.
 
-Detalle, patrón de notificación para acumular errores y qué validar en la interfaz frente al dominio en `ddd-skills/ddd-value-objects-entidades/references/validacion.md`.
+Detalle, cómo acumular todos los errores (`ValueObjects.build` en lugar del patrón de notificación) y qué validar en la interfaz frente al dominio en `ddd-skills/ddd-value-objects-entidades/references/validacion.md`.
 
 ## Paso 5. Diseño flexible y Specification
 
-Revisa el diseño con los patrones de diseño flexible (Supple Design): interfaces que revelan intención, funciones sin efectos secundarios, aserciones, contornos conceptuales, clases autónomas y clausura de operaciones [IDDD cap. 5 y cap. 6 aplican varios]. Cuando una regla tiene nombre en el negocio, se usa en varios sitios o se combina con otras, modélala como **Specification** para validar, seleccionar o construir [IDDD cap. 5; PHP: Repositories]. Guía y código en `ddd-skills/ddd-value-objects-entidades/references/specification-y-diseno-flexible.md`.
+Revisa el diseño con los patrones de diseño flexible (Supple Design): interfaces que revelan intención, funciones sin efectos secundarios, aserciones, contornos conceptuales, clases autónomas y clausura de operaciones [IDDD cap. 5 y cap. 6 aplican varios]. Cuando una regla tiene nombre en el negocio, se usa en varios sitios o se combina con otras, modélala como **Specification** (`Specification<T>` de `@archi-code/ddd/domain`) para validar, seleccionar o construir [IDDD cap. 5; PHP: Repositories]. Guía y código en `ddd-skills/ddd-value-objects-entidades/references/specification-y-diseno-flexible.md`.
 
 ## Paso 6. Persistencia sin fugas
 
-Cómo guardar value objects (columnas embebidas, JSON, tabla propia para colecciones) sin convertirlos en entidades del modelo: `ddd-skills/ddd-value-objects-entidades/references/persistencia-valores.md`. La regla: diseña el modelo de datos al servicio del modelo de dominio [IDDD cap. 6].
+Cómo guardar value objects (columnas embebidas, JSON, tabla propia para colecciones) sin convertirlos en entidades del modelo: `ddd-skills/ddd-value-objects-entidades/references/persistencia-valores.md`. La regla: diseña el modelo de datos al servicio del modelo de dominio [IDDD cap. 6]. Con el paquete, el repositorio parte de `AggregateMapper.of(Order)` y decide en infraestructura cómo reparte los primitivos en columnas.
 
 ## Señales de alarma
 
@@ -103,12 +103,14 @@ Cómo guardar value objects (columnas embebidas, JSON, tabla propia para colecci
 * Métodos `update(dto)` que copian campos del DTO a la entidad.
 * Entidades hijas con id propio que nadie busca por ese id (deberían ser valores).
 * `equals` que compara ids `undefined` de objetos aún no guardados [IDDD cap. 5].
+* Clases base propias (`ValueObject`, `Entity`, `deepEqual`) escritas en el proyecto: vienen del paquete. Tampoco factorías `of()`: un value object se crea con `new`.
+* Getters calculados (`get total()`) en agregados, entidades o composites: rompen `toPrimitives()`; escribe un método.
 * Un value object con un método que modifica una entidad recibida por parámetro [IDDD cap. 6].
 * Validaciones de negocio repetidas en controlador, DTO y entidad, con criterios distintos.
 
 ## Ejemplo
 
-`ddd-skills/ddd-value-objects-entidades/references/ejemplo-ecommerce.md` diseña `Money`, `Quantity`, `OrderLine`, `ShippingAddress`, `OrderStatus` y la entidad `Order` (todavía sin límites de agregado; eso es `ddd-skills/ddd-agregados/GUIA.md`).
+`ddd-skills/ddd-value-objects-entidades/references/ejemplo-ecommerce.md` diseña `Money`, `Quantity`, `OrderLine`, `OrderLines`, `ShippingAddress` y `OrderStatus`, y explica por qué `Order` es una entidad (la clase completa, con sus límites de agregado, está en `ddd-skills/ddd-agregados/references/implementacion-ts.md`; los límites se deciden en `ddd-skills/ddd-agregados/GUIA.md`).
 
 ## Siguiente guía
 

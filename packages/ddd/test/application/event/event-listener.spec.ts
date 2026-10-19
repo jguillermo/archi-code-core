@@ -15,7 +15,7 @@ class InvoiceIssued extends EventBase {
   }
 }
 
-class InvoiceId extends IdType {}
+class InvoiceId extends IdType<'InvoiceId'> {}
 
 class SendInvoice extends UseCase<{ invoiceId: string; to: string }, InvoiceId, string> {
   readonly sent: string[] = [];

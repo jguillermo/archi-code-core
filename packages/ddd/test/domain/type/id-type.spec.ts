@@ -4,9 +4,9 @@ import { UuidType } from '../../../src/domain/type/uuid-type';
 import { TypePrimitiveException } from '../../../src/exceptions/domain/type-primitive.exception';
 import { RequiredValueException } from '../../../src/exceptions/domain/required-value.exception';
 
-class OrderId extends IdType {}
+class OrderId extends IdType<'OrderId'> {}
 
-class CustomerId extends IdType {}
+class CustomerId extends IdType<'CustomerId'> {}
 
 const STORED = 'df9ef000-21fc-4e06-b8f7-103c3a133d10';
 
@@ -64,6 +64,15 @@ describe('IdType', () => {
     const typed = new OrderId('DF9EF000-21FC-4E06-B8F7-103C3A133D10');
     expect(typed.value).toBe(STORED);
     expect(typed.equals(new OrderId(STORED))).toBe(true);
+  });
+
+  it('a customer id is refused where an order id is expected, at compile time', () => {
+    const cancelOrder = (orderId: OrderId): string => `cancelled ${orderId}`;
+    expectTypeOf<CustomerId>().not.toExtend<OrderId>();
+    expectTypeOf<OrderId>().not.toExtend<CustomerId>();
+    expectTypeOf<OrderId>().toExtend<IdType>();
+    // @ts-expect-error a CustomerId is not an OrderId
+    expect(cancelOrder(new CustomerId(STORED))).toBe(`cancelled ${STORED}`);
   });
 
   it('an order id and a customer id are never equal, even with the same uuid', () => {

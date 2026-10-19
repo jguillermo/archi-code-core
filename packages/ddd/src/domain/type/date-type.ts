@@ -6,7 +6,7 @@ import { TypePrimitiveException } from '../../exceptions/index';
 
 const TIME_WITHOUT_ZONE = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?$/;
 
-export class DateType extends AbstractType<Date> {
+export class DateType extends AbstractType<Date, Date | string> {
   protected filter(value: unknown): Date {
     const converted = toDate(value, { iso: true });
     if (!converted.ok || (typeof value === 'string' && TIME_WITHOUT_ZONE.test(value))) {

@@ -11,10 +11,16 @@ Conjunto de patrones de Evans para que el modelo sea fácil de usar y de cambiar
 Los nombres de clases y métodos dicen **qué** consiguen, en el lenguaje ubicuo, no **cómo**. IDDD lo ilustra con `Tenant.activate()` y `deactivate()` en lugar de `setActive(boolean)`: varios setters para una sola petición vuelven ambigua la intención y complican publicar un único evento con significado [IDDD cap. 5, citando a Evans]. IDDD defiende también nombres fluidos (`valuePercentage()` frente a `getValuePercentage()`) [IDDD cap. 6].
 
 ```ts
-// Revela cómo                       // Revela intención
-order.setStatus('CANCELLED');        order.cancel(CancellationReason.customerRequest());
-money.getMinor() * 21 / 100;         money.percentage('21');
+order.setStatus('cancelled');
+price.amount.value * 21 / 100;
 ```
+
+```ts
+order.cancel(new CancellationReason('customer request'), clock);
+price.percentage('21');
+```
+
+El primero revela cómo; el segundo, la intención (`CancellationReason` es un `Required(StringType)` con nombre y `percentage` el de `Money` en `ddd-skills/ddd-value-objects-entidades/references/value-objects-ts.md`).
 
 ### Side-Effect-Free Functions
 
@@ -22,7 +28,7 @@ Las operaciones que devuelven un resultado no cambian estado observable. En los 
 
 ### Assertions
 
-`[Fuera de los libros: Evans 2003]`. Cuando una operación sí tiene efectos, haz explícitos sus resultados y las invariantes que mantiene: en los tests (tests de aceptación con lenguaje del negocio, ver `ddd-skills/ddd-descubrimiento-dominio/GUIA.md`) y en guardas del código. IDDD trata las guardas de autoencapsulación como aserciones que protegen el estado [IDDD cap. 5].
+`[Fuera de los libros: Evans 2003]`. Cuando una operación sí tiene efectos, haz explícitos sus resultados y las invariantes que mantiene: en los tests (tests de aceptación con lenguaje del negocio) y en guardas del código. IDDD trata las guardas de autoencapsulación como aserciones que protegen el estado [IDDD cap. 5].
 
 ### Conceptual Contours
 
@@ -34,7 +40,7 @@ Las operaciones que devuelven un resultado no cambian estado observable. En los 
 
 ### Closure of Operations
 
-`[Fuera de los libros: Evans 2003]`. Cuando sea natural, una operación devuelve el mismo tipo que recibe: `Money.add(Money): Money`, `DateRange.extendTo(Date): DateRange`, `Specification.and(Specification): Specification`. Permite combinar operaciones sin introducir conceptos nuevos.
+`[Fuera de los libros: Evans 2003]`. Cuando sea natural, una operación devuelve el mismo tipo que recibe: `Money.add(Money): Money`, `DateRange.extendTo(EndDate): DateRange`, `Specification.and(Specification): Specification`. Permite combinar operaciones sin introducir conceptos nuevos.
 
 ## 2. Specification
 
@@ -47,67 +53,59 @@ Tres usos clásicos `[Fuera de los libros: Evans 2003]`:
 
 Cuándo merece la pena: la regla tiene nombre en el lenguaje ("cliente moroso", "pedido apto para envío urgente"), se usa en varios sitios o se combina con otras. Si es una condición de una línea usada una vez, un método del agregado basta.
 
-```ts
-export interface Specification<T> {
-  isSatisfiedBy(candidate: T): boolean;
-}
-
-export abstract class CompositeSpecification<T> implements Specification<T> {
-  abstract isSatisfiedBy(candidate: T): boolean;
-  // Devuelven CompositeSpecification (clausura de operaciones): se pueden seguir encadenando.
-  and(other: Specification<T>): CompositeSpecification<T> { return new AndSpec(this, other); }
-  or(other: Specification<T>): CompositeSpecification<T> { return new OrSpec(this, other); }
-  not(): CompositeSpecification<T> { return new NotSpec(this); }
-}
-
-class AndSpec<T> extends CompositeSpecification<T> {
-  constructor(private readonly a: Specification<T>, private readonly b: Specification<T>) { super(); }
-  isSatisfiedBy(c: T) { return this.a.isSatisfiedBy(c) && this.b.isSatisfiedBy(c); }
-}
-class OrSpec<T> extends CompositeSpecification<T> {
-  constructor(private readonly a: Specification<T>, private readonly b: Specification<T>) { super(); }
-  isSatisfiedBy(c: T) { return this.a.isSatisfiedBy(c) || this.b.isSatisfiedBy(c); }
-}
-class NotSpec<T> extends CompositeSpecification<T> {
-  constructor(private readonly s: Specification<T>) { super(); }
-  isSatisfiedBy(c: T) { return !this.s.isSatisfiedBy(c); }
-}
-```
+No se escribe la base ni las combinaciones: `Specification<T>` viene de `@archi-code/ddd/domain`. Declara `isSatisfiedBy` como abstracto y da `and`, `or` y `not`, que devuelven otra `Specification<T>` (clausura de operaciones: se pueden seguir encadenando) y cortan en cuanto la respuesta está decidida. `and` y `or` aceptan cualquier `SatisfiedBy<T>` (un objeto con `isSatisfiedBy`), que es la interfaz `Specification` de los libros [IDDD cap. 5].
 
 Reglas de negocio con nombre:
 
 ```ts
-/** Apto para envío urgente: destino peninsular y todas las líneas con stock en el almacén central. */
-export class EligibleForExpressShipping extends CompositeSpecification<Order> {
-  constructor(private readonly centralStock: StockSnapshot) { super(); }
+import { Specification } from '@archi-code/ddd/domain';
+
+export interface StockSnapshot {
+  covers(sku: Sku, quantity: Quantity): boolean;
+}
+
+export class EligibleForExpressShipping extends Specification<Order> {
+  constructor(private readonly centralStock: StockSnapshot) {
+    super();
+  }
+
   isSatisfiedBy(order: Order): boolean {
-    return order.destinationZone().equals(Zone.Peninsula)
-      && order.lines().every((l) => this.centralStock.covers(l.sku, l.quantity));
+    return (
+      order.shippingAddress.country.value === 'ES' &&
+      order.lines.items.every((line) => this.centralStock.covers(line.sku, line.quantity))
+    );
   }
 }
 
-export class OrderAbove extends CompositeSpecification<Order> {
-  constructor(private readonly threshold: Money) { super(); }
-  isSatisfiedBy(order: Order) { return order.total().isGreaterThanOrEqual(this.threshold); }
+export class OrderAbove extends Specification<Order> {
+  constructor(private readonly threshold: Money) {
+    super();
+  }
+
+  isSatisfiedBy(order: Order): boolean {
+    return order.total().covers(this.threshold);
+  }
 }
 
-// Combinación con lenguaje del negocio
-const freeExpress = new EligibleForExpressShipping(stock).and(new OrderAbove(Money.of('50.00', 'EUR')));
+const freeExpress = new EligibleForExpressShipping(stock).and(
+  new OrderAbove(Money.fromPrimitives({ amount: 5000, currency: 'EUR' })),
+);
+freeExpress.isSatisfiedBy(order);
 ```
 
-La especificación recibe datos de otros agregados ya cargados (`StockSnapshot`), no repositorios: misma regla que para los agregados [IDDD cap. 10].
+`Order`, `Money`, `Sku` y `Quantity` son los de `ddd-skills/ddd-agregados/references/implementacion-ts.md`. La especificación recibe datos de otros agregados ya cargados (`StockSnapshot`), no repositorios: misma regla que para los agregados [IDDD cap. 10].
 
 ## 3. Specification para consultar
 
 *DDD in PHP* propone sustituir los métodos `find...` que crecen sin fin en los repositorios por un método `query(specification)` [PHP: Repositories; PHP: Factories]. Aquí no se hace: el repositorio solo obtiene y persiste, sin lógica ni consultas de negocio `[Fuera de los libros: convención de @archi-code/ddd]`. Una selección con nombre del negocio ("pedidos pendientes desde hace más de un día") es una consulta de lectura: una interfaz en `application/`, implementada en infraestructura directamente sobre la base de datos, que devuelve ids o DTOs.
 
 ```ts
-// application/order/StaleOrders.ts
 export interface StaleOrders {
   ids(pendingSince: Date, limit: number): Promise<OrderId[]>;
 }
-// Infraestructura: PgStaleOrders consulta SQL; el caso de uso carga cada pedido por id con el repositorio.
 ```
+
+La interfaz vive en `application/` y su implementación (`PgStaleOrders`, una consulta SQL; los filtros pueden escribirse con `@archi-code/criteria`) en infraestructura. Quien la usa (un programador de tareas, por ejemplo) ejecuta un caso de uso por cada id, y ese caso de uso carga el pedido con `AggregateFinder<Order>`.
 
 La Specification se queda para validar, seleccionar sobre datos ya cargados o construir.
 

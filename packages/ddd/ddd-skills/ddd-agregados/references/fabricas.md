@@ -2,7 +2,7 @@
 
 ## Para qué
 
-Encapsular la creación de agregados complejos y expresarla con el lenguaje ubicuo. Si crear es sencillo, un método estático con nombre en la propia clase basta [IDDD cap. 11; PHP: Factories].
+Encapsular la creación de agregados complejos y expresarla con el lenguaje ubicuo. Si crear es sencillo, un método estático con nombre en la propia clase basta (`Order.place(...)`) [IDDD cap. 11; PHP: Factories].
 
 ## Método fábrica en la raíz de otro agregado
 
@@ -12,25 +12,188 @@ Ventajas: el lenguaje queda explícito (se planifica un elemento en un producto)
 
 No contradice la regla de una transacción por agregado: el creador no se modifica; solo fabrica el nuevo, que se guarda en su propio repositorio.
 
+`Order`, `OrderId`, `OrderLines` y `ShippingAddress` son los de `references/implementacion-ts.md`:
+
 ```ts
+import { AggregateRoot, BooleanType, Required, StringType } from '@archi-code/ddd/domain';
+import type { PrimitiveTypes } from '@archi-code/ddd/domain';
+import { DomainException } from '@archi-code/ddd/exceptions';
+import { Validations } from '@archi-code/validation';
+
+export class CustomerName extends Required(StringType) {}
+
+@Validations([{ validator: 'isEmail' }])
+export class Email extends Required(StringType) {}
+
+export class Blocked extends Required(BooleanType) {}
+
+export class BlockedCustomerCannotOrder extends DomainException {
+  constructor(customerId: string) {
+    super(`Customer ${customerId} is blocked and cannot place orders`, ['CUS001']);
+  }
+}
+
 export class Customer extends AggregateRoot<CustomerId> {
-  /** Un cliente bloqueado no puede realizar pedidos. */
-  placeOrder(id: OrderId, lines: OrderLine[], address: ShippingAddress): Order {
-    if (this.isBlocked()) throw new BlockedCustomerCannotOrder(this.id);
-    return Order.place(id, this.id, lines, address);
+  private constructor(
+    id: CustomerId,
+    readonly name: CustomerName,
+    readonly email: Email,
+    private _blocked: Blocked,
+  ) {
+    super(id);
+  }
+
+  static register(id: CustomerId, name: CustomerName, email: Email): Customer {
+    return new Customer(id, name, email, new Blocked(false));
+  }
+
+  static fromPrimitives(primitives: PrimitiveTypes<Customer>): Customer {
+    return new Customer(
+      new CustomerId(primitives.id),
+      new CustomerName(primitives.name),
+      new Email(primitives.email),
+      new Blocked(primitives.blocked),
+    );
+  }
+
+  get blocked(): Blocked {
+    return this._blocked;
+  }
+
+  placeOrder(
+    id: OrderId,
+    lines: OrderLines,
+    address: ShippingAddress,
+    clock: { now(): Date },
+  ): Order {
+    if (this._blocked.value) {
+      throw new BlockedCustomerCannotOrder(this.id.value);
+    }
+    return Order.place(id, this.id, lines, address, clock);
+  }
+
+  toPrimitives(): PrimitiveTypes<Customer> {
+    return {
+      id: this.id.value,
+      name: this.name.value,
+      email: this.email.value,
+      blocked: this._blocked.value,
+    };
   }
 }
 ```
 
+La regla de creación ("un cliente bloqueado no puede realizar pedidos") vive en `Customer`. El caso de uso lee el cliente con `AggregateFinder<Customer>`, genera la identidad nueva con `OrderId.generate()` y guarda solo el pedido con `AggregateSaver<Order>`; `Customer` no se guarda porque no ha cambiado:
+
+```ts
+import { ValueObjects } from '@archi-code/ddd/domain';
+import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
+import { UseCase } from '@archi-code/ddd/application';
+import type { Clock, EventBus, TransactionRunner } from '@archi-code/ddd/application';
+import { AggregateNotFoundException } from '@archi-code/ddd/exceptions';
+
+interface PlaceOrderInput {
+  customerId: string;
+  lines: { sku: string; quantity: number; unitPrice: { amount: number; currency: string } }[];
+  shippingAddress: { street: string; city: string; country: string };
+}
+
+interface PlaceOrderCommand {
+  customerId: CustomerId;
+  lines: OrderLines;
+  shippingAddress: ShippingAddress;
+}
+
+export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, string> {
+  constructor(
+    private readonly customers: AggregateFinder<Customer>,
+    private readonly orders: AggregateSaver<Order>,
+    private readonly events: EventBus<OrderEvent>,
+    private readonly transactions: TransactionRunner,
+    private readonly clock: Clock,
+  ) {
+    super();
+  }
+
+  protected toCommand(input: PlaceOrderInput): PlaceOrderCommand {
+    return ValueObjects.build({
+      customerId: () => new CustomerId(input.customerId),
+      lines: () => OrderLines.fromPrimitives({ items: input.lines }),
+      shippingAddress: () => ShippingAddress.fromPrimitives(input.shippingAddress),
+    });
+  }
+
+  protected handle(command: PlaceOrderCommand): Promise<string> {
+    return this.transactions.run(async () => {
+      const customer = await this.customers.findById(command.customerId);
+      if (customer === null) {
+        throw new AggregateNotFoundException('Customer', command.customerId.value);
+      }
+      const order = customer.placeOrder(
+        OrderId.generate(),
+        command.lines,
+        command.shippingAddress,
+        this.clock,
+      );
+      await this.orders.save(order);
+      await this.events.publish(order.pullDomainEvents());
+      return order.id.value;
+    });
+  }
+}
+```
+
+La identidad nueva sale del value object (`OrderId.generate()`), no de un `nextIdentity()` del repositorio como hacen los ejemplos de IDDD `[Fuera de los libros: convención de @archi-code/ddd]`.
+
 ## Fábrica como servicio
 
-Cuando la creación necesita información de otro contexto y traducirla, un servicio (a menudo parte de la capa anticorrupción) actúa de fábrica: consulta, traduce y crea el objeto local [IDDD cap. 11; PHP: Factories]. En IDDD, un servicio de Colaboración crea `Author` o `Moderator` a partir de la identidad y rol consultados en Identidad y Acceso [IDDD cap. 11].
+Cuando la creación necesita información de otro contexto y traducirla, un servicio (a menudo parte de la capa anticorrupción) actúa de fábrica: consulta, traduce y crea el objeto local [IDDD cap. 11; PHP: Factories]. En IDDD, un servicio de Colaboración crea `Author` o `Moderator` a partir de la identidad y rol consultados en Identidad y Acceso [IDDD cap. 11]. El paquete no trae nada para esto: el puerto va en `domain/` con value objects y el adaptador con su traductor en `infrastructure/` (ver `ddd-context-mapping`).
 
 ## Tests
 
-Prueba que la fábrica produce objetos válidos y que aplica las reglas de creación [PHP: Factories]. Con datos realistas.
+Prueba que la fábrica produce objetos válidos y que aplica las reglas de creación [PHP: Factories]. Con datos realistas:
+
+```ts
+import { describe, expect, it } from 'vitest';
+import { FixedClock } from '@archi-code/ddd/infrastructure';
+
+const clock = new FixedClock('2026-03-01T09:30:00Z');
+const lines = OrderLines.fromPrimitives({
+  items: [{ sku: 'MUG-350', quantity: 2, unitPrice: { amount: 850, currency: 'EUR' } }],
+});
+const address = ShippingAddress.fromPrimitives({
+  street: 'Calle Mayor 1',
+  city: 'Huelva',
+  country: 'ES',
+});
+
+describe('Customer.placeOrder', () => {
+  it('places a pending order for the customer', () => {
+    const customer = Customer.register(
+      CustomerId.generate(),
+      new CustomerName('Ana'),
+      new Email('ana@example.com'),
+    );
+    const order = customer.placeOrder(OrderId.generate(), lines, address, clock);
+    expect(order.customerId.equals(customer.id)).toBe(true);
+    expect(order.pullDomainEvents().map((event) => event.eventName())).toEqual(['OrderPlaced']);
+  });
+
+  it('refuses an order from a blocked customer', () => {
+    const blocked = Customer.fromPrimitives({
+      id: '5f1c2e3d-4b6a-4c8d-9e0f-1a2b3c4d5e6f',
+      name: 'Ana',
+      email: 'ana@example.com',
+      blocked: true,
+    });
+    expect(() => blocked.placeOrder(OrderId.generate(), lines, address, clock)).toThrow(
+      BlockedCustomerCannotOrder,
+    );
+  });
+});
+```
 
 ## Cuándo no
 
-* Para reconstituir desde base de datos: eso es del repositorio y su mapper (`reconstitute`), sin reglas de creación ni eventos.
+* Para reconstituir desde base de datos: eso es `static fromPrimitives(primitives)`, que el repositorio llama a través de `AggregateMapper.of(Order)`, sin reglas de creación ni eventos.
 * "Fábricas" genéricas que reciben un DTO y rellenan campos: un constructor con setters disfrazado.

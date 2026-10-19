@@ -20,36 +20,36 @@ class Email extends Required(StringType) {}
   { validator: 'isInt', properties: { min: 0 } },
   { custom: 'isEven', fn: (v) => Number(v) % 2 === 0, message: 'Must be even' },
 ])
-class Quantity extends NumberType {}
+class PackSize extends NumberType {}
 
 new Email('ana@example.com').value; // 'ana@example.com'
 new Email('x');
 // ValidationException: Validation failed, Email: Value does not satisfy isEmail
 
-new Quantity(-3);
-// ValidationException: Validation failed, Quantity: Value does not satisfy isInt, Quantity: Must be even
+new PackSize(-3);
+// ValidationException: Validation failed, PackSize: Value does not satisfy isInt, PackSize: Must be even
 
 const command = ValueObjects.build({
   email: () => new Email(input.email),
-  quantity: () => new Quantity(input.quantity),
+  packSize: () => new PackSize(input.packSize),
 });
-// input { email: 'x', quantity: 3 } → one ValidationException with every field:
+// input { email: 'x', packSize: 3 } → one ValidationException with every field:
 // errors: [
 //   { field: 'email', code: 'isEmail', message: 'Email: Value does not satisfy isEmail' },
-//   { field: 'quantity', code: 'isEven', message: 'Quantity: Must be even' },
+//   { field: 'packSize', code: 'isEven', message: 'PackSize: Must be even' },
 // ]
 ```
 
 Aggregate with typed id, a list of composite value objects and events:
 
 ```ts
-class OrderId extends IdType {}
+class OrderId extends IdType<'OrderId'> {}
 class Sku extends Required(StringType) {}
-class Units extends Required(NumberType) {}
+class Quantity extends Required(NumberType) {}
 class CustomerName extends Required(StringType) {}
 class Shipped extends Required(BooleanType) {}
 
-class OrderLine extends Composite({ sku: Sku, units: Units }) {}
+class OrderLine extends Composite({ sku: Sku, quantity: Quantity }) {}
 
 class OrderPlaced extends EventBase {
   static readonly eventName = 'OrderPlaced';
@@ -69,7 +69,7 @@ class OrderLineAdded extends EventBase {
   constructor(
     orderId: string,
     readonly sku: string,
-    readonly units: number,
+    readonly quantity: number,
     metadata?: EventMetadata,
   ) {
     super(orderId, metadata);
@@ -132,13 +132,13 @@ class Order extends AggregateRoot<OrderId, OrderEvent> {
     return this._updatedAt;
   }
 
-  addLine(sku: Sku, units: Units, clock: { now(): Date }): void {
+  addLine(sku: Sku, quantity: Quantity, clock: { now(): Date }): void {
     if (this._shipped.value) {
       throw new OrderShippedException(this.id.value);
     }
-    this._lines = [...this._lines, new OrderLine({ sku, units })];
+    this._lines = [...this._lines, new OrderLine({ sku, quantity })];
     this._updatedAt = UpdatedAt.now(clock);
-    this.record(new OrderLineAdded(this.id.value, sku.value, units.value, { clock }));
+    this.record(new OrderLineAdded(this.id.value, sku.value, quantity.value, { clock }));
   }
 
   toPrimitives(): PrimitiveTypes<Order> {
@@ -161,13 +161,13 @@ publishes:
 interface AddOrderLineInput {
   orderId: string;
   sku: string;
-  units: number;
+  quantity: number;
 }
 
 interface AddOrderLineCommand {
   orderId: OrderId;
   sku: Sku;
-  units: Units;
+  quantity: Quantity;
 }
 
 class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand, void> {
@@ -184,7 +184,7 @@ class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand, void>
     return ValueObjects.build({
       orderId: () => new OrderId(input.orderId),
       sku: () => new Sku(input.sku),
-      units: () => new Units(input.units),
+      quantity: () => new Quantity(input.quantity),
     });
   }
 
@@ -194,7 +194,7 @@ class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand, void>
       if (order === null) {
         throw new AggregateNotFoundException('Order', command.orderId.value);
       }
-      order.addLine(command.sku, command.units, this.clock);
+      order.addLine(command.sku, command.quantity, this.clock);
       await this.orders.save(order);
       await this.events.publish(order.pullDomainEvents());
     });
@@ -297,7 +297,7 @@ const orders = new InMemoryRepository(AggregateMapper.of(Order));
 const transactions = new InMemoryTransactionRunner([orders]);
 const registry = new EventRegistry<OrderEvent>().register(
   OrderLineAdded,
-  (json) => new OrderLineAdded(json.aggregateId, json.sku as string, json.units as number, json),
+  (json) => new OrderLineAdded(json.aggregateId, json.sku as string, json.quantity as number, json),
 );
 const channel = new InMemoryEventChannel(); // swap for your RabbitMQ or database channel
 const bus = new DomainEventBus<OrderEvent>(channel, registry);
@@ -308,7 +308,7 @@ await orders.save(Order.place(new OrderId(orderId), new CustomerName('Ana'), clo
 await new AddOrderLine(orders, bus, transactions, clock).execute({
   orderId,
   sku: 'TORCH-01',
-  units: 2,
+  quantity: 2,
 });
 channel.sent.map((event) => event.eventName); // ['OrderLineAdded']: PrepareShipment already ran
 
@@ -339,12 +339,12 @@ describe('Adding a line to an order', () => {
     await new AddOrderLine(orders, bus, transactions, clock).execute({
       orderId,
       sku: 'TORCH-01',
-      units: 2,
+      quantity: 2,
     });
 
     expect(prepared).toEqual([`${orderId}:TORCH-01`]);
     expect(channel.sent).toMatchObject([
-      { eventName: 'OrderLineAdded', aggregateId: orderId, sku: 'TORCH-01', units: 2 },
+      { eventName: 'OrderLineAdded', aggregateId: orderId, sku: 'TORCH-01', quantity: 2 },
     ]);
   });
 });
@@ -450,14 +450,14 @@ describe('Order', () => {
   it('a customer adds a torch to a new order and the warehouse is told about it', () => {
     const clock = new FixedClock('2026-03-01T09:30:00Z');
     const order = Order.place(new OrderId(orderId), new CustomerName('Ana'), clock);
-    order.addLine(new Sku('TORCH-01'), new Units(2), clock);
+    order.addLine(new Sku('TORCH-01'), new Quantity(2), clock);
     expect(order.toPrimitives()).toMatchObject({
       id: orderId,
-      lines: [{ sku: 'TORCH-01', units: 2 }],
+      lines: [{ sku: 'TORCH-01', quantity: 2 }],
     });
     expect(order.pullDomainEvents().map((event) => event.toJSON())).toMatchObject([
       { eventName: 'OrderPlaced', aggregateId: orderId, customer: 'Ana' },
-      { eventName: 'OrderLineAdded', sku: 'TORCH-01', units: 2 },
+      { eventName: 'OrderLineAdded', sku: 'TORCH-01', quantity: 2 },
     ]);
   });
 });
@@ -510,12 +510,12 @@ price.toPrimitives(); // { amount: 1250, currency: 'EUR' }
 price.equals(Money.fromPrimitives({ amount: 1250, currency: 'EUR' })); // true
 
 class OrderAbove extends Specification<Order> {
-  constructor(private readonly minimumUnits: number) {
+  constructor(private readonly minimumQuantity: number) {
     super();
   }
 
   isSatisfiedBy(order: Order): boolean {
-    return order.lines.reduce((sum, line) => sum + line.units.value, 0) >= this.minimumUnits;
+    return order.lines.reduce((sum, line) => sum + line.quantity.value, 0) >= this.minimumQuantity;
   }
 }
 

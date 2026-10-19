@@ -14,6 +14,7 @@ export { UuidType } from './uuid-type';
 export { ValueObjects } from './value-objects/value-objects';
 export { Composite } from './composite/composite';
 export type {
+  CompositeInput,
   CompositePrimitives,
   CompositeProps,
   CompositeSchema,

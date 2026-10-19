@@ -215,8 +215,9 @@ Each value object wraps a value of one type and converts the input when it is co
 | `UpdatedAt`       | `Date`    | like `DateType`, required; `UpdatedAt.now()`                                           |
 | `IdType`          | `string`  | like `UuidType`, required, and rejects the nil and max UUIDs                           |
 
-The constructor is typed with the value's type (`new NumberType(1.5)`). The conversion acts at
-runtime on data that arrives untyped, such as a JSON body:
+The constructor is typed with the value's type (`new NumberType(1.5)`); `DateType` (and
+`CreatedAt`/`UpdatedAt`) also takes ISO text (`Date | string`), because dates travel as text in
+JSON and forms. The conversion acts at runtime on data that arrives untyped, such as a JSON body:
 
 ```ts
 import { BooleanType, DateType, NumberType, StringType } from '@archi-code/ddd/domain';
@@ -229,7 +230,7 @@ new NumberType(body.price).value; // 1.5
 new StringType(body.code).value; // '12'
 new BooleanType(body.active).value; // true
 new DateType(body.at).toString(); // '2024-01-31T08:00:00.000Z'
-new DateType('2018-03-23' as any).toString(); // '2018-03-23T00:00:00.000Z'
+new DateType('2018-03-23').toString(); // '2018-03-23T00:00:00.000Z'
 ```
 
 A value that cannot be converted throws `TypePrimitiveException`:
@@ -241,9 +242,9 @@ new NumberType(Infinity);
 // TypePrimitiveException: Validation Error: Expected a valid Number, but received Infinity.
 new BooleanType('yes' as any);
 // TypePrimitiveException: Validation Error: Expected a valid Boolean, but received "yes".
-new DateType('31/01/2024' as any);
+new DateType('31/01/2024');
 // TypePrimitiveException: Validation Error: Expected a valid Date, but received "31/01/2024".
-new DateType('2024-01-31T10:00:00' as any);
+new DateType('2024-01-31T10:00:00');
 // TypePrimitiveException: Validation Error: Expected a valid Date, but received "2024-01-31T10:00:00".
 ```
 
@@ -373,7 +374,7 @@ value can be wrong: empty in a required type (`RequiredValueException`), not con
 (`TypePrimitiveException`) and broken rules (`ValidationException`), plus any other
 `DomainException` a factory throws. Any other error is a bug and goes through untouched.
 `ValueObjects.buildList` does the same for a list and names each item by its position, so nested
-inputs get paths such as `lines.1.units`.
+inputs get paths such as `lines.1.quantity`.
 
 ```ts
 import { IdType, NumberType, Required, StringType, ValueObjects } from '@archi-code/ddd/domain';
@@ -381,31 +382,34 @@ import { Validations } from '@archi-code/validation';
 
 // Email as in the previous block; input is the raw request body
 
-class OrderId extends IdType {}
+class OrderId extends IdType<'OrderId'> {}
 class Sku extends Required(StringType) {}
 
 @Validations([
   { validator: 'isInt', properties: { min: 1, max: 20 }, message: 'From 1 to 20 units' },
 ])
-class Units extends Required(NumberType) {}
+class Quantity extends Required(NumberType) {}
 
 const command = ValueObjects.build({
   orderId: () => new OrderId(input.orderId),
   email: () => new Email(input.email),
   lines: () =>
     ValueObjects.buildList(input.lines, (line) =>
-      ValueObjects.build({ sku: () => new Sku(line.sku), units: () => new Units(line.units) }),
+      ValueObjects.build({
+        sku: () => new Sku(line.sku),
+        quantity: () => new Quantity(line.quantity),
+      }),
     ),
 });
-// command: { orderId: OrderId; email: Email; lines: { sku: Sku; units: Units }[] }
+// command: { orderId: OrderId; email: Email; lines: { sku: Sku; quantity: Quantity }[] }
 
-// with input = { orderId: 'x', email: 'ana', lines: [{ sku: 'TORCH-01', units: 2 }, { sku: '', units: 0 }] }:
+// with input = { orderId: 'x', email: 'ana', lines: [{ sku: 'TORCH-01', quantity: 2 }, { sku: '', quantity: 0 }] }:
 // ValidationException, error.errors:
 // [
 //   { field: 'orderId', code: 'DOM003', message: 'Validation Error: Expected a valid UUID, but received "x".' },
 //   { field: 'email', code: 'isEmail', message: 'Email: Value does not satisfy isEmail' },
 //   { field: 'lines.1.sku', code: 'DOM004', message: 'Validation Error: Sku is required, but received "".' },
-//   { field: 'lines.1.units', code: 'isInt', message: 'Units: From 1 to 20 units' },
+//   { field: 'lines.1.quantity', code: 'isInt', message: 'Quantity: From 1 to 20 units' },
 // ]
 ```
 
@@ -461,7 +465,7 @@ new UuidType('abc');
 // TypePrimitiveException: Validation Error: Expected a valid UUID, but received "abc".
 
 const id = new IdType(IdType.random()); // required
-const orderId = OrderId.generate(); // class OrderId extends IdType {}: a new OrderId with a random id
+const orderId = OrderId.generate(); // class OrderId extends IdType<'OrderId'> {}: a new OrderId with a random id
 new IdType('9B2F6C1E-4D3A-4F8B-A1C2-3E4D5F6A7B8C').value; // '9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c'
 new IdType('00000000-0000-0000-0000-000000000000');
 // TypePrimitiveException: Validation Error: Expected a valid Id, but received "00000000-0000-0000-0000-000000000000".
@@ -471,6 +475,20 @@ new IdType('00000000-0000-0000-0000-000000000000');
 (`6ba7b810-9dad-11d1-80b4-00c04fd430c8`). Both types store the UUID in lowercase, so an id typed in
 capitals equals the stored one. `generate()` builds a value object of the class you call it on
 (`OrderId.generate()` is an `OrderId`).
+
+`IdType<Brand>` takes the class name as a type-only brand, so the compiler tells ids of different
+aggregates apart even though they have the same shape:
+
+```ts
+class OrderId extends IdType<'OrderId'> {}
+class CustomerId extends IdType<'CustomerId'> {}
+
+const orderId: OrderId = CustomerId.generate(); // compile error: a CustomerId is not an OrderId
+const anyId: IdType = OrderId.generate(); // a plain IdType accepts any id
+```
+
+The brand does not exist at run time (`equals` already compares the class). A subclass without it
+(`extends IdType {}`) compiles but is accepted wherever another unbranded id is expected.
 
 ### `CreatedAt` and `UpdatedAt`
 
@@ -722,22 +740,24 @@ JSON.stringify(price); // '{"amount":1250,"currency":"EUR"}'
   behavior returns a new instance. Do not add instance fields to the subclass, and write derived
   values as methods (`money.isZero()`), never getters.
 - **`X.fromPrimitives(data)`** rebuilds it from stored or received data, converting each primitive
-  like the value objects do, and reports every invalid field with its path, also nested ones. It
-  works inside `ValueObjects.build`, so a command reports `price.amount`:
+  like the value objects do, and reports every invalid field with its path, also nested ones.
+  `data` is a `CompositeInput`: each field takes what its value object's constructor takes (a date
+  field takes a `Date` or ISO text). It works inside `ValueObjects.build`, so a command reports
+  `price.amount`:
 
   ```ts
   class Sku extends Required(StringType) {}
-  class Units extends Required(NumberType) {}
-  class OrderLine extends Composite({ sku: Sku, units: Units, unitPrice: Money }) {}
+  class Quantity extends Required(NumberType) {}
+  class OrderLine extends Composite({ sku: Sku, quantity: Quantity, unitPrice: Money }) {}
   class Cart extends Composite({ lines: [OrderLine] }) {}
 
   Cart.fromPrimitives({
-    lines: [{ sku: '', units: 'two', unitPrice: { amount: 1250, currency: 'GBP' } }],
+    lines: [{ sku: '', quantity: 'two', unitPrice: { amount: 1250, currency: 'GBP' } }],
   } as any);
   // ValidationException, error.errors:
   // [
   //   { field: 'lines.0.sku', code: 'DOM004', message: 'Validation Error: Sku is required, but received "".' },
-  //   { field: 'lines.0.units', code: 'DOM003', message: 'Validation Error: Expected a valid Number, but received "two".' },
+  //   { field: 'lines.0.quantity', code: 'DOM003', message: 'Validation Error: Expected a valid Number, but received "two".' },
   //   { field: 'lines.0.unitPrice.currency', code: 'isIn', message: 'Currency: Value does not satisfy isIn' },
   // ]
   ```
@@ -774,7 +794,7 @@ class InCentralStock extends Specification<Order> {
   }
 
   isSatisfiedBy(order: Order): boolean {
-    return order.lines.every((line) => this.stock.covers(line.sku, line.units));
+    return order.lines.every((line) => this.stock.covers(line.sku, line.quantity));
   }
 }
 
@@ -896,7 +916,7 @@ import { AggregateRoot, EventBase, IdType, Required, StringType } from '@archi-c
 import type { EventMetadata } from '@archi-code/ddd/domain';
 import { FixedClock } from '@archi-code/ddd/infrastructure';
 
-class OrderId extends IdType {}
+class OrderId extends IdType<'OrderId'> {}
 class CustomerName extends Required(StringType) {}
 
 class OrderPlaced extends EventBase {
@@ -1050,19 +1070,19 @@ import { AggregateNotFoundException, ConcurrencyException } from '@archi-code/dd
 interface AddOrderLineInput {
   orderId: string;
   sku: string;
-  units: number;
+  quantity: number;
 }
 
 interface AddOrderLineCommand {
   orderId: OrderId;
   sku: Sku;
-  units: Units;
+  quantity: Quantity;
 }
 
 class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand, void> {
   // constructor (orders, events, transactions, clock) as in "Transactions";
-  // toCommand builds orderId, sku and units with ValueObjects.build;
-  // Order, OrderLine, Sku and Units as in "Persisting aggregates with AggregateMapper"
+  // toCommand builds orderId, sku and quantity with ValueObjects.build;
+  // Order, OrderLine, Sku and Quantity as in "Persisting aggregates with AggregateMapper"
 
   protected async handle(command: AddOrderLineCommand): Promise<void> {
     for (let attempt = 1; ; attempt += 1) {
@@ -1072,7 +1092,7 @@ class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand, void>
           if (order === null) {
             throw new AggregateNotFoundException('Order', command.orderId.value);
           }
-          order.addLine(new OrderLine({ sku: command.sku, units: command.units }));
+          order.addLine(new OrderLine({ sku: command.sku, quantity: command.quantity }));
           await this.orders.save(order);
           await this.events.publish(order.pullDomainEvents());
         });
@@ -1481,7 +1501,7 @@ import {
   InMemoryRepository,
 } from '@archi-code/ddd/infrastructure';
 
-class OrderId extends IdType {}
+class OrderId extends IdType<'OrderId'> {}
 class CustomerName extends Required(StringType) {}
 
 class OrderPlaced extends EventBase {
@@ -1832,7 +1852,7 @@ const byAna = (await orders.findById(new OrderId(id)))!; // version 1
 const byLuis = (await orders.findById(new OrderId(id)))!; // version 1
 byAna.ship(clock);
 await orders.save(byAna); // stored as version 2; byAna.version is 2
-byLuis.addLine(new OrderLine({ sku: new Sku('TORCH-01'), units: new Units(1) }));
+byLuis.addLine(new OrderLine({ sku: new Sku('TORCH-01'), quantity: new Quantity(1) }));
 await orders.save(byLuis);
 // ConcurrencyException: Order with ID … was changed by someone else: expected version 1.
 ```
@@ -1905,7 +1925,7 @@ aggregate:
    `CreatedAt`, never `Date`.
 2. **Private field + public getter with the same name without `_`** (`private _customer` +
    `get customer()`), or a public `readonly customer`. No private state without its getter: the
-   primitives use those names. Derived values are methods (`units()`), never getters: a getter is a
+   primitives use those names. Derived values are methods (`totalQuantity()`), never getters: a getter is a
    key of `PrimitiveTypes<Order>` that the stored data does not have.
 3. **Private constructor and two factories**: a business one (`Order.place(...)`) that validates
    its invariants and records events, and `static fromPrimitives(primitives: PrimitiveTypes<Order>)`
@@ -1945,13 +1965,13 @@ import type { EventMetadata, PrimitiveTypes } from '@archi-code/ddd/domain';
 import { DomainException } from '@archi-code/ddd/exceptions';
 import { AggregateMapper } from '@archi-code/ddd/infrastructure';
 
-class OrderId extends IdType {}
+class OrderId extends IdType<'OrderId'> {}
 class CustomerName extends Required(StringType) {}
 class Shipped extends Required(BooleanType) {}
 class Sku extends Required(StringType) {}
-class Units extends Required(NumberType) {}
+class Quantity extends Required(NumberType) {}
 
-class OrderLine extends Composite({ sku: Sku, units: Units }) {}
+class OrderLine extends Composite({ sku: Sku, quantity: Quantity }) {}
 
 class OrderPlaced extends EventBase {
   static readonly eventName = 'OrderPlaced';
@@ -2035,8 +2055,8 @@ class Order extends AggregateRoot<OrderId, OrderEvent> {
     this.record(new OrderShipped(this.id.value, { clock }));
   }
 
-  units(): number {
-    return this._lines.reduce((total, line) => total + line.units.value, 0);
+  totalQuantity(): number {
+    return this._lines.reduce((total, line) => total + line.quantity.value, 0);
   }
 
   toPrimitives(): PrimitiveTypes<Order> {
@@ -2188,7 +2208,7 @@ import {
   InMemoryRepository,
 } from '@archi-code/ddd/infrastructure';
 
-class UserId extends IdType {}
+class UserId extends IdType<'UserId'> {}
 class Name extends Required(StringType) {}
 class Blocked extends Required(BooleanType) {}
 
@@ -2414,22 +2434,22 @@ await new RegisterUser(users, bus, clock)
 
 `@archi-code/ddd/domain`:
 
-| Export                                                                                        | Kind               |
-| --------------------------------------------------------------------------------------------- | ------------------ |
-| `AbstractType`                                                                                | abstract class     |
-| `StringType`, `NumberType`, `BooleanType`, `DateType`, `UuidType`, `JsonType`                 | classes            |
-| `EnumType`, `ArrayType`                                                                       | abstract classes   |
-| `CreatedAt`, `UpdatedAt`, `IdType`                                                            | classes (required) |
-| `Required`, `Composite`                                                                       | functions          |
-| `Specification`                                                                               | abstract class     |
-| `CompositeSchema`, `CompositeProps`, `CompositePrimitives`, `CompositeType`, `CompositeValue` | types              |
-| `ValueObjects` (`build`, `buildList`)                                                         | class              |
-| `Entity`, `AggregateRoot`, `EventBase`                                                        | abstract classes   |
-| `AggregateFinder`, `AggregateSaver`, `AggregateRemover`                                       | types (contracts)  |
-| `RequiredType`, `JsonTypeValue`, `PrimitiveType`, `PrimitiveTypes`, `DataTypes`               | types              |
-| `EventMetadata`, `SerializedEvent`, `EventClass`                                              | types              |
-| `EntityId`, `SatisfiedBy`                                                                     | types              |
-| `Properties`, `PropertiesData`, `MutablePropertiesData`, `Methods`, `MethodsAndProperties`    | types              |
+| Export                                                                                                          | Kind               |
+| --------------------------------------------------------------------------------------------------------------- | ------------------ |
+| `AbstractType`                                                                                                  | abstract class     |
+| `StringType`, `NumberType`, `BooleanType`, `DateType`, `UuidType`, `JsonType`                                   | classes            |
+| `EnumType`, `ArrayType`                                                                                         | abstract classes   |
+| `CreatedAt`, `UpdatedAt`, `IdType`                                                                              | classes (required) |
+| `Required`, `Composite`                                                                                         | functions          |
+| `Specification`                                                                                                 | abstract class     |
+| `CompositeSchema`, `CompositeProps`, `CompositePrimitives`, `CompositeInput`, `CompositeType`, `CompositeValue` | types              |
+| `ValueObjects` (`build`, `buildList`)                                                                           | class              |
+| `Entity`, `AggregateRoot`, `EventBase`                                                                          | abstract classes   |
+| `AggregateFinder`, `AggregateSaver`, `AggregateRemover`                                                         | types (contracts)  |
+| `RequiredType`, `JsonTypeValue`, `PrimitiveType`, `PrimitiveTypes`, `DataTypes`                                 | types              |
+| `EventMetadata`, `SerializedEvent`, `EventClass`                                                                | types              |
+| `EntityId`, `SatisfiedBy`                                                                                       | types              |
+| `Properties`, `PropertiesData`, `MutablePropertiesData`, `Methods`, `MethodsAndProperties`                      | types              |
 
 `@archi-code/ddd/application`:
 

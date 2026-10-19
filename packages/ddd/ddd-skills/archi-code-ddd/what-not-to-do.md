@@ -164,6 +164,8 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   object).
 - `IdType` with `00000000-0000-0000-0000-000000000000` or `ffffffff-ffff-ffff-ffff-ffffffffffff`:
   throws `TypePrimitiveException`.
+- An id class without its brand (`class OrderId extends IdType {}`): it compiles, but a `CustomerId`
+  is then accepted where an `OrderId` is expected. Write `class OrderId extends IdType<'OrderId'> {}`.
 - Declaring an aggregate's VOs as `private` without getters and expecting `PrimitiveTypes` to see
   them.
 - Calling `record()` from outside the aggregate (it is `protected`) or forgetting `super(...)` in the

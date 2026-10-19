@@ -10,57 +10,65 @@ src/
     sales/                         ← Bounded Context (nombre del modelo, no del producto comercial)
       domain/
         order/                     ← módulo del lenguaje ubicuo
-          Order.ts                 (agregado raíz)
-          OrderLine.ts             (value object o entidad interna)
-          OrderId.ts
-          OrderStatus.ts
-          events.ts                (OrderPlaced, OrderConfirmed...)
-          OrderRepository.ts       (interfaz)
-          errors.ts                (errores de negocio con nombre)
+          Order.ts                 (agregado raíz: extends AggregateRoot<OrderId, OrderEvent>)
+          OrderId.ts               (extends IdType<'OrderId'>)
+          OrderLine.ts             (Composite({ sku: Sku, quantity: Quantity, unitPrice: Money }))
+          OrderLines.ts            (Composite({ items: [OrderLine] }) con sus reglas)
+          OrderStatus.ts           (Required(StatusType), StatusType extends EnumType<Status>)
+          Sku.ts, Quantity.ts      (Required(StringType) / Required(NumberType) + @Validations)
+          ShippingAddress.ts       (Composite({ street: Street, city: City, country: Country }))
+          events.ts                (OrderPlaced, OrderLineAdded, OrderConfirmed…: extends EventBase)
+          errors.ts                (OrderNoLongerEditable extends DomainException, código ORD001)
         customer/
           CustomerId.ts
         pricing/
           ProductPricing.ts        (puerto hacia Catálogo, ver ddd-skills/ddd-context-mapping/GUIA.md)
         shared/                    ← solo para este contexto
-          Money.ts
-          DomainEvent.ts
-          AggregateRoot.ts
+          Money.ts                 (Composite({ amount: Cents, currency: Currency }))
       application/
         place-order/
-          PlaceOrder.ts            (caso de uso)
-          PlaceOrderCommand.ts
-        confirm-order/
-          ConfirmOrder.ts
-        queries/
-          OrderSummaryQuery.ts
+          PlaceOrder.ts            (extends UseCase)
+        add-order-line/
+          AddOrderLine.ts
+        prepare-shipment/
+          PrepareShipment.ts
+          PrepareShipmentOnOrderLineAdded.ts   (listener junto al caso de uso que ejecuta)
+          Warehouse.ts             (puerto de salida de aplicación)
+        order-summaries/
+          OrderSummaries.ts        (consulta de lectura: interfaz + DTOs)
       infrastructure/
         persistence/
-          PostgresOrderRepository.ts
-          OrderMapper.ts           (modelo ↔ filas)
-        catalog/                   (ACL hacia Catálogo)
+          MongoOrderRepository.ts  (AggregateFinder/AggregateSaver/AggregateRemover + AggregateMapper.of(Order))
+          MongoTransactionRunner.ts (implements TransactionRunner)
+          MongoOrderSummaries.ts
+        catalog/                   (ACL hacia Catálogo: CatalogHttpProductPricing, CatalogTranslator)
+        warehouse/
+          HttpWarehouse.ts
         messaging/
-          OutboxEventPublisher.ts
+          RabbitMqEventChannel.ts  (implements EventChannel)
       interfaces/
         http/
           ordersRouter.ts
-          dto.ts
         messaging/
-          StockReservedConsumer.ts
+          StockReservedConsumer.ts (traduce el contrato publicado por Almacén al input de un caso de uso)
       composition.ts               ← composition root del contexto
     warehouse/
       ...
   shared-kernel/                   ← solo si hay un Shared Kernel acordado (ver ddd-skills/ddd-context-mapping/GUIA.md)
   main.ts                          ← arranque del proceso
-tests/
+test/
   contexts/sales/
     domain/                        (tests unitarios y de aceptación del modelo)
-    application/                   (casos de uso con adaptadores en memoria)
+    application/                   (casos de uso con InMemoryRepository, InMemoryTransactionRunner, InMemoryEventChannel)
     infrastructure/                (integración con BD real o contenedor)
 ```
 
+Lo que no aparece porque lo da `@archi-code/ddd`: clases base (`AggregateRoot`, `Entity`, `EventBase`, los tipos de value object, `Composite`), una interfaz `OrderRepository` (los roles `AggregateFinder`, `AggregateSaver` y `AggregateRemover` vienen de `@archi-code/ddd/domain`), un `OrderMapper` (el repositorio usa `AggregateMapper.of(Order)`), un publicador de eventos (`DomainEventBus` implementa `EventBus`) y los puertos `Clock` y `TransactionRunner`.
+
 Decisiones:
-* Los tests de aceptación del modelo están junto al contexto, aunque en carpeta `tests/` espejo [Destilado cap. 2 pide tenerlos con el código del contexto; la carpeta espejo mantiene esa correspondencia].
-* `domain/shared/` es compartido **dentro** del contexto. Nada de un `shared/` global con modelos de varios contextos.
+* Los tests de aceptación del modelo están junto al contexto, aunque en carpeta `test/` espejo [Destilado cap. 2 pide tenerlos con el código del contexto; la carpeta espejo mantiene esa correspondencia].
+* `domain/shared/` es compartido **dentro** del contexto y solo guarda conceptos del modelo (`Money`). Nada de un `shared/` global con modelos de varios contextos.
+* Un listener vive en el módulo del caso de uso que ejecuta, no en una carpeta `listeners/`.
 * El composition root vive por contexto para que cada contexto se pueda desplegar por separado si un día hace falta.
 
 ## Variante para proyectos con la lógica en `src/app/`
@@ -79,14 +87,10 @@ src/
 config/
 tests/
   contexts/sales/...
-docs/
-  dominio/      (mapa estratégico, context map, glosarios por contexto)
-  adr/
-    ADR-xxx-*.md  (decisiones: patrón de relación elegido, CQRS sí/no, etc.)
 ```
 
 Reglas de encaje:
-* El logger de `src/utils/` solo lo usan `application`, `infrastructure` e `interfaces`. El dominio no registra logs: publica eventos o lanza errores con nombre.
+* El logger de `src/utils/` solo lo usan `application`, `infrastructure` e `interfaces`. El dominio no registra logs: registra eventos (`record`) o lanza una `DomainException` con nombre y código.
 * Las variables de entorno se leen en el composition root y llegan a los adaptadores como configuración tipada. Nunca `process.env` fuera de ahí.
 * Los prompts de IA (si los hay) son infraestructura o aplicación; un modelo de lenguaje es un adaptador detrás de un puerto con nombre de negocio.
 
@@ -94,64 +98,247 @@ Reglas de encaje:
 
 | Tipo | Ejemplo en el contexto de Ventas | Dónde se define la interfaz | Dónde se implementa |
 |---|---|---|---|
-| Entrada (driving) | HTTP `POST /orders`, consumidor de `StockReservado` | El caso de uso es la API de entrada | `interfaces/` |
-| Salida de dominio | `OrderRepository`, `ProductPricing` | `domain/` | `infrastructure/` |
-| Salida de aplicación | `EventPublisher`, `Clock`, `TransactionRunner` | `application/` | `infrastructure/` |
+| Entrada (driving) | HTTP `POST /orders`, consumidor de `StockReserved` | El caso de uso es la API de entrada (`execute(input)`) | `interfaces/` |
+| Salida de dominio | `AggregateFinder<Order>`, `AggregateSaver<Order>` (del paquete); `ProductPricing` (tuyo) | `@archi-code/ddd/domain`; `domain/` | `infrastructure/` (`MongoOrderRepository`, `CatalogHttpProductPricing`) |
+| Salida de aplicación | `EventBus`, `Clock`, `TransactionRunner` (del paquete); `Warehouse` (tuyo) | `@archi-code/ddd/application`; `application/` | `DomainEventBus` sobre tu `EventChannel`, `SystemClock`, tu `MongoTransactionRunner`; `HttpWarehouse` |
 
 En IDDD los puertos no se implementan "a mano": el puerto es HTTP o el bus de mensajes, y el adaptador es el controlador o el listener que traduce a la API de aplicación [IDDD cap. 4]. El interior se diseña por casos de uso, no por número de clientes [IDDD cap. 4].
+
+Con el paquete, una tecnología de mensajería solo implementa `EventChannel` (`send` y `receive`); `DomainEventBus`, los casos de uso y los listeners no cambian. `[Fuera de los libros: convención de @archi-code/ddd]`
 
 ## Composition root sin contenedor
 
 ```ts
 // src/contexts/sales/composition.ts
-import { Pool } from 'pg';
+import { MongoClient } from 'mongodb';
+import { DomainEventBus, EventRegistry } from '@archi-code/ddd/application';
+import { HttpErrorMapper, SystemClock } from '@archi-code/ddd/infrastructure';
+import { OrderLineAdded, OrderPlaced } from './domain/order/events';
+import type { MoneyData, OrderEvent, OrderLineData } from './domain/order/events';
+import { PlaceOrder } from './application/place-order/PlaceOrder';
+import { AddOrderLine } from './application/add-order-line/AddOrderLine';
+import { PrepareShipment } from './application/prepare-shipment/PrepareShipment';
+import { PrepareShipmentOnOrderLineAdded } from './application/prepare-shipment/PrepareShipmentOnOrderLineAdded';
+import { MongoOrderRepository } from './infrastructure/persistence/MongoOrderRepository';
+import type { OrderDocument } from './infrastructure/persistence/MongoOrderRepository';
+import { MongoTransactionRunner } from './infrastructure/persistence/MongoTransactionRunner';
+import { HttpWarehouse } from './infrastructure/warehouse/HttpWarehouse';
+import type { HttpClient } from './infrastructure/warehouse/HttpWarehouse';
+import { RabbitMqEventChannel } from './infrastructure/messaging/RabbitMqEventChannel';
+import type { AmqpChannel } from './infrastructure/messaging/RabbitMqEventChannel';
+import { ordersRouter } from './interfaces/http/ordersRouter';
+import type { Logger } from './interfaces/http/ordersRouter';
 
 export interface SalesConfig {
-  databaseUrl: string;
-  catalogBaseUrl: string;
+  mongoUrl: string;
+  warehouseBaseUrl: string;
 }
 
-export function composeSales(config: SalesConfig, deps: { http: HttpClient; logger: Logger }) {
-  const pool = new Pool({ connectionString: config.databaseUrl });
-  const tx = new PgTransactionRunner(pool);
+export async function composeSales(
+  config: SalesConfig,
+  deps: { amqp: AmqpChannel; http: HttpClient; logger: Logger },
+) {
+  const mongo = await new MongoClient(config.mongoUrl).connect();
+  const transactions = new MongoTransactionRunner(mongo);
+  const orders = new MongoOrderRepository(
+    mongo.db().collection<OrderDocument>('orders'),
+    transactions,
+  );
+  const clock = new SystemClock();
 
-  const orders = new PostgresOrderRepository(tx);
-  const pricing = new CatalogHttpProductPricing(deps.http.withBaseUrl(config.catalogBaseUrl));
-  const outbox = new OutboxEventPublisher(tx);
+  const registry = new EventRegistry<OrderEvent>()
+    .register(
+      OrderPlaced,
+      (json) =>
+        new OrderPlaced(
+          json.aggregateId,
+          json.customerId as string,
+          json.lines as OrderLineData[],
+          json.total as MoneyData,
+          json,
+        ),
+    )
+    .register(
+      OrderLineAdded,
+      (json) =>
+        new OrderLineAdded(
+          json.aggregateId,
+          json.sku as string,
+          json.quantity as number,
+          json.unitPrice as MoneyData,
+          json.total as MoneyData,
+          json,
+        ),
+    );
+  const bus = new DomainEventBus<OrderEvent>(new RabbitMqEventChannel(deps.amqp), registry);
 
-  const placeOrder = new PlaceOrder(orders, pricing, outbox, tx);
-  const confirmOrder = new ConfirmOrder(orders, outbox, tx);
+  const placeOrder = new PlaceOrder(orders, bus, transactions, clock);
+  const addOrderLine = new AddOrderLine(orders, bus, transactions, clock);
+  const prepareShipment = new PrepareShipment(
+    new HttpWarehouse(deps.http, config.warehouseBaseUrl),
+  );
+
+  const subscriptions = [
+    await bus.subscribe(new PrepareShipmentOnOrderLineAdded(prepareShipment)),
+  ];
 
   return {
-    httpRouter: ordersRouter({ placeOrder, confirmOrder }, deps.logger),
-    consumers: [new StockReservedConsumer(confirmOrder, deps.logger)],
+    httpRouter: ordersRouter(
+      { placeOrder, addOrderLine },
+      new HttpErrorMapper({ ORD001: 409 }),
+      deps.logger,
+    ),
+    close: async () => {
+      await Promise.all(subscriptions.map((subscription) => subscription.unsubscribe()));
+      await mongo.close();
+    },
   };
 }
 ```
 
-Por qué sin contenedor: en TypeScript las interfaces desaparecen en tiempo de ejecución y los contenedores necesitan tokens o decoradores. Para la mayoría de contextos, construir el grafo a mano es más legible y no mete decoradores en el dominio `[Fuera de los libros]`. Si usas NestJS, sus módulos y proveedores van en `interfaces/` e `infrastructure/`; el dominio sigue sin decoradores.
+Qué hace cada pieza:
+* Del paquete: `EventRegistry` (reconstruye cada evento desde su JSON; la factoría pasa el JSON como metadata para conservar `eventId` y `occurredOn`), `DomainEventBus` (implementa `EventBus`, lo único que reciben los casos de uso, y `EventSubscriber`), `SystemClock` (implementa `Clock`) y `HttpErrorMapper` (códigos propios como `ORD001` se sobrescriben por código).
+* Código del proyecto sobre los puertos del paquete `[Fuera de los libros: convención de @archi-code/ddd]`: `MongoOrderRepository` (roles de repositorio + `AggregateMapper.of(Order)` + control de `version`, ver `ddd-skills/ddd-repositorios-persistencia/GUIA.md`), `MongoTransactionRunner` (implementa `TransactionRunner`: `run(work)` abre una sesión con transacción y la deja disponible a los repositorios, una ejecución anidada se une a la exterior, `inTransaction()`), `RabbitMqEventChannel` (implementa `EventChannel`, ver `ddd-skills/ddd-eventos-dominio/GUIA.md`) y `HttpWarehouse` (implementa el puerto `Warehouse`).
+* Cada listener se suscribe con `bus.subscribe(listener)`, que lee su `@ListensTo(OrderLineAdded, { consumer: 'prepare-shipment-on-order-line-added' })` y rechaza un evento que el registro no sabe reconstruir.
+* Cambiar RabbitMQ por un outbox o por memoria cambia solo la línea del canal.
+
+Por qué sin contenedor: en TypeScript las interfaces desaparecen en tiempo de ejecución y los contenedores necesitan tokens o decoradores. Para la mayoría de contextos, construir el grafo a mano es más legible y no mete decoradores de inyección en el dominio `[Fuera de los libros]`. Si usas NestJS, sus módulos y proveedores van en `interfaces/` e `infrastructure/`; el dominio sigue sin decoradores salvo `@Validations` de `@archi-code/validation` en los value objects.
+
+## El mismo grafo en los tests de aplicación
+
+Los tests de `application/` montan el contexto con los adaptadores en memoria del paquete; los casos de uso y los listeners son los mismos:
+
+```ts
+import { DomainEventBus, EventRegistry } from '@archi-code/ddd/application';
+import {
+  AggregateMapper,
+  FixedClock,
+  InMemoryEventChannel,
+  InMemoryRepository,
+  InMemoryTransactionRunner,
+} from '@archi-code/ddd/infrastructure';
+import { Order } from '@sales/domain/order/Order';
+import { OrderLineAdded } from '@sales/domain/order/events';
+import type { MoneyData, OrderEvent } from '@sales/domain/order/events';
+import { AddOrderLine } from '@sales/application/add-order-line/AddOrderLine';
+import { PlaceOrder } from '@sales/application/place-order/PlaceOrder';
+import { PrepareShipment } from '@sales/application/prepare-shipment/PrepareShipment';
+import { PrepareShipmentOnOrderLineAdded } from '@sales/application/prepare-shipment/PrepareShipmentOnOrderLineAdded';
+import type { Warehouse } from '@sales/application/prepare-shipment/Warehouse';
+
+export async function salesForTests(warehouse: Warehouse) {
+  const orders = new InMemoryRepository(AggregateMapper.of(Order));
+  const transactions = new InMemoryTransactionRunner([orders]);
+  const channel = new InMemoryEventChannel();
+  const registry = new EventRegistry<OrderEvent>().register(
+    OrderLineAdded,
+    (json) =>
+      new OrderLineAdded(
+        json.aggregateId,
+        json.sku as string,
+        json.quantity as number,
+        json.unitPrice as MoneyData,
+        json.total as MoneyData,
+        json,
+      ),
+  );
+  const bus = new DomainEventBus<OrderEvent>(channel, registry);
+  await bus.subscribe(new PrepareShipmentOnOrderLineAdded(new PrepareShipment(warehouse)));
+  const clock = new FixedClock('2026-03-01T09:30:00Z');
+  return {
+    orders,
+    channel,
+    placeOrder: new PlaceOrder(orders, bus, transactions, clock),
+    addOrderLine: new AddOrderLine(orders, bus, transactions, clock),
+  };
+}
+```
+
+El test comprueba lo que causó el listener (el `Warehouse` de prueba) y lo que llevó el canal (`channel.sent`), nunca que el listener fue llamado. `InMemoryTransactionRunner([orders])` restaura el repositorio cuando el trabajo lanza; `InMemoryRepository` solo es para tests y prototipos.
 
 ## Controlador como adaptador de entrada
 
 ```ts
 // src/contexts/sales/interfaces/http/ordersRouter.ts
-export function ordersRouter(useCases: { placeOrder: PlaceOrder }, logger: Logger): Router {
+import { Router } from 'express';
+import type { Response } from 'express';
+import type { HttpErrorMapper } from '@archi-code/ddd/infrastructure';
+import type { AddOrderLine } from '../../application/add-order-line/AddOrderLine';
+import type { PlaceOrder } from '../../application/place-order/PlaceOrder';
+
+export interface Logger {
+  error(message: string, context: Record<string, unknown>): void;
+}
+
+export function ordersRouter(
+  useCases: { placeOrder: PlaceOrder; addOrderLine: AddOrderLine },
+  errors: HttpErrorMapper,
+  logger: Logger,
+): Router {
   const router = Router();
 
-  router.post('/orders', async (req, res) => {
-    const parsed = PlaceOrderRequest.safeParse(req.body);          // validación de formato
-    if (!parsed.success) return res.status(400).json(problem(parsed.error));
+  const fail = (res: Response, error: unknown) => {
+    const { status, body } = errors.map(error);
+    if (status >= 500) {
+      logger.error('orders_request_failed', { error });
+    }
+    return res.status(status).json(body);
+  };
 
+  router.post('/orders', async (req, res) => {
+    const body = req.body as {
+      lines?: unknown;
+      shippingAddress?: { street?: unknown; city?: unknown; country?: unknown };
+    } | null;
+    const address = body?.shippingAddress;
+    if (
+      !Array.isArray(body?.lines) ||
+      typeof address?.street !== 'string' ||
+      typeof address.city !== 'string' ||
+      typeof address.country !== 'string'
+    ) {
+      return res
+        .status(400)
+        .json({ code: 'BAD_REQUEST', message: 'lines and shippingAddress are required' });
+    }
     try {
       const orderId = await useCases.placeOrder.execute({
-        customerId: req.auth.customerId,                            // identidad del token, no del body
-        items: parsed.data.items,
+        customerId: req.auth.customerId,
+        lines: body.lines,
+        shippingAddress: { street: address.street, city: address.city, country: address.country },
       });
       return res.status(201).location(`/orders/${orderId}`).json({ orderId });
-    } catch (e) {
-      if (e instanceof ProductNotSellable) return res.status(422).json(problem(e));
-      logger.error('place_order_failed', { error: e });
-      return res.status(500).json(problem());
+    } catch (error) {
+      return fail(res, error);
+    }
+  });
+
+  router.post('/orders/:orderId/lines', async (req, res) => {
+    const body = req.body as {
+      sku?: unknown;
+      quantity?: unknown;
+      unitPrice?: { amount?: unknown; currency?: unknown };
+    } | null;
+    if (
+      typeof body?.sku !== 'string' ||
+      typeof body.quantity !== 'number' ||
+      typeof body.unitPrice?.amount !== 'number' ||
+      typeof body.unitPrice.currency !== 'string'
+    ) {
+      return res
+        .status(400)
+        .json({ code: 'BAD_REQUEST', message: 'sku, quantity and unitPrice are required' });
+    }
+    try {
+      await useCases.addOrderLine.execute({
+        orderId: req.params.orderId,
+        sku: body.sku,
+        quantity: body.quantity,
+        unitPrice: { amount: body.unitPrice.amount, currency: body.unitPrice.currency },
+      });
+      return res.status(204).json(null);
+    } catch (error) {
+      return fail(res, error);
     }
   });
 
@@ -159,11 +346,13 @@ export function ordersRouter(useCases: { placeOrder: PlaceOrder }, logger: Logge
 }
 ```
 
-El controlador no sabe qué es un `Order`. Traduce HTTP a comando y errores de negocio a códigos HTTP.
+El controlador no sabe qué es un `Order`. Comprueba solo la forma de la petición (un campo es texto o número) [IDDD cap. 4]; las reglas de cada valor son de los value objects que `toCommand` construye con `ValueObjects.build`, y llegan como una `ValidationException` con todos los campos (422). La identidad del cliente sale del token, no del body. `HttpErrorMapper` traduce los errores: 404 `AggregateNotFoundException`, 403 `NotAllowedException`, 409 `ConcurrencyException`, 422 `ValidationException` y cualquier otra `DomainException`, 500 con un mensaje genérico para lo demás, que es lo único que se registra en el log.
 
 ## Configuración de TypeScript
 
 `[Fuera de los libros]`
 * `strict: true`. El dominio se apoya en el tipado para expresar invariantes.
-* Alias por contexto (`@sales/domain/*`) para que los imports revelen la zona.
+* `experimentalDecorators: true`: `@Validations` (value objects) y `@ListensTo` (listeners) son decoradores de clase.
+* `moduleResolution` `node16`, `nodenext` o `bundler` para resolver los subpaths `@archi-code/ddd/domain`, `/application`, `/infrastructure` y `/exceptions`; con `node` los resuelve el `typesVersions` del paquete.
+* Alias por contexto (`"@sales/*": ["src/contexts/sales/*"]`, usado como `@sales/domain/order/Order`) para que los imports revelen la zona.
 * `exactOptionalPropertyTypes` y `noUncheckedIndexedAccess` ayudan a que los value objects no acepten estados a medias.

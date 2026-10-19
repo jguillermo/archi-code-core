@@ -16,7 +16,7 @@ import { UseCase } from '../../../src/application/index';
 import type { EventBus, TransactionRunner } from '../../../src/application/index';
 import { AggregateNotFoundException, DomainException } from '../../../src/exceptions/index';
 
-class OrderId extends IdType {}
+class OrderId extends IdType<'OrderId'> {}
 class CustomerName extends Required(StringType) {}
 class Shipped extends Required(BooleanType) {}
 

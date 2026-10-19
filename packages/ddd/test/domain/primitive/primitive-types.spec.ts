@@ -26,8 +26,8 @@ enum OrderStatusValue {
   Paid = 'paid',
 }
 
-class OrderId extends IdType {}
-class LineId extends IdType {}
+class OrderId extends IdType<'OrderId'> {}
+class LineId extends IdType<'LineId'> {}
 class CustomerName extends Required(StringType) {}
 class Total extends NumberType {}
 class Quantity extends Required(NumberType) {}
@@ -303,7 +303,7 @@ describe('PrimitiveType: the primitive of one member', () => {
   class DeliveredAt extends DateType {}
   class PaidAt extends Required(DateType) {}
   class TrackingCode extends UuidType {}
-  class OrderId extends IdType {}
+  class OrderId extends IdType<'OrderId'> {}
 
   class Status extends EnumType<OrderStatus> {
     protected getEnum(): typeof OrderStatus {

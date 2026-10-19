@@ -11,7 +11,7 @@ import { DomainException } from '../../../src/exceptions/domain/domain.exception
 import { InternalErrorException } from '../../../src/exceptions/infrastructure/internal-error.exception';
 import type { PrimitiveTypes } from '../../../src/domain/primitive/primitive-types';
 
-class OrderId extends IdType {}
+class OrderId extends IdType<'OrderId'> {}
 class CustomerName extends Required(StringType) {}
 class Sku extends Required(StringType) {}
 class Quantity extends Required(NumberType) {}

@@ -9,7 +9,7 @@ import type { PrimitiveTypes } from '../../../src/domain/primitive/primitive-typ
 import type { RequiredMarked } from '../../../src/domain/type/required/required-mark';
 import { RequiredValueException } from '../../../src/exceptions/index';
 
-class SeatId extends IdType {}
+class SeatId extends IdType<'SeatId'> {}
 class SeatLabel extends Required(StringType) {}
 class Row extends Required(NumberType) {}
 

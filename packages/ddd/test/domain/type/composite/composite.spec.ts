@@ -2,6 +2,7 @@ import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { Validations } from '@archi-code/validation';
 import { Composite } from '../../../../src/domain/type/composite/composite';
 import type {
+  CompositeInput,
   CompositePrimitives,
   CompositeProps,
 } from '../../../../src/domain/type/composite/composite';
@@ -152,6 +153,22 @@ describe('Composite: a value object made of several value objects', () => {
     it('fromPrimitives returns the subclass it is called on', () => {
       expectTypeOf(Money.fromPrimitives({ amount: 1, currency: 'EUR' })).toEqualTypeOf<Money>();
       expectTypeOf(Price.fromPrimitives({ amount: 1, currency: 'EUR' })).toEqualTypeOf<Price>();
+    });
+
+    it('fromPrimitives takes what each field accepts: a date range straight from a JSON body', () => {
+      const body = { start: '2026-03-20', end: '2026-06-20T00:00:00Z' };
+      expectTypeOf<Parameters<typeof DateRange.fromPrimitives>[0]>().toEqualTypeOf<
+        CompositeInput<{ start: typeof StartDate; end: typeof EndDate }>
+      >();
+      expectTypeOf<CompositeInput<{ start: typeof StartDate }>>().toEqualTypeOf<{
+        start: Date | string;
+      }>();
+      expect(DateRange.fromPrimitives(body).toPrimitives()).toEqual({
+        start: new Date('2026-03-20T00:00:00.000Z'),
+        end: new Date('2026-06-20T00:00:00.000Z'),
+      });
+      // @ts-expect-error an epoch number is not a date
+      expect(() => DateRange.fromPrimitives({ start: 1, end: 2 })).toThrow(ValidationException);
     });
   });
 

@@ -9,7 +9,7 @@ import type {
   PrimitiveTypes,
 } from '../../src/domain/index';
 
-class CustomerId extends IdType {}
+class CustomerId extends IdType<'CustomerId'> {}
 class CustomerName extends Required(StringType) {}
 
 class Customer extends AggregateRoot<CustomerId> {

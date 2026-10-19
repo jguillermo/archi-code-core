@@ -163,7 +163,8 @@ Only when the package needs them, and documented in its README:
   ones), names `references/chuleta-reglas.md` and carries the convention mark, that no guide has
   a frontmatter and each points to the package skill, that every `references/`, `assets/` and
   `scripts/` path cited in any suite markdown exists, that every `ddd-*` name cited is a suite
-  folder, that no file of the suite is left uncited, that it cites no internal document codes and
+  folder, that no file of the suite is left uncited, that it cites no internal document codes, that its examples declare no generic base classes
+  (`ValueObject`, `Entity`, `AggregateRoot`, `DomainEvent`) nor `static of()` factories, and
   that the dependency-cruiser asset loads with rules for `@archi-code` and `composition.ts`, and that
   `SKILL.md` lists every guide of `archi-code-ddd/` and each one exists. It is
   kept as written (excluded from Prettier, ESLint and EditorConfig, see

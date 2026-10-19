@@ -23,7 +23,7 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   `ValidationException` whose `errors` carry the `field` and `code` of each problem (required
   `DOM004`, conversion `DOM003`, a rule name, or the code of any `DomainException`, such as your
   `ORD003`); `ValueObjects.buildList(list, (item) => …)` names list items by position
-  (`lines.1.units`). It returns the command typed field by field.
+  (`lines.1.quantity`). It returns the command typed field by field.
 - **Which layer validates what:** the input adapter checks the shape and format of the request (it
   parses, a field is a string, an empty field or a length for a good user experience [IDDD ch. 4]),
   never a business rule, and that never replaces the value object; value objects check each value (built in
@@ -41,7 +41,9 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   work on VOs.
 - Dates: `DateType` accepts `Date`, ISO dates (`'2024-01-31'`, UTC midnight) and ISO date-times
   **with** a zone (`Z` or offset); a date-time without a zone throws `TypePrimitiveException`.
-  `UuidType`/`IdType` store lowercase. New ids: `OrderId.generate()` (an `OrderId`).
+  `UuidType`/`IdType` store lowercase. New ids: `OrderId.generate()` (an `OrderId`). Every id class
+  passes its own name as the brand (`class OrderId extends IdType<'OrderId'> {}`) so the compiler never
+  takes a `CustomerId` for an `OrderId`.
 - Time: pass a `Clock` to `CreatedAt.now(clock)` / `UpdatedAt.now(clock)` and to events
   (`new OrderPlaced(id, …, { clock })`) from use cases; tests use `FixedClock`. Aggregate methods
   type it as `clock: { now(): Date }`: the `Clock` port matches it, and the domain never imports
@@ -57,7 +59,7 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   exposed read-only with their value object type; the instance is frozen; `equals` compares class
   and every field; `toPrimitives()` gives plain data (dates stay `Date`); `JSON.stringify` writes
   the values; `X.fromPrimitives(data)` rebuilds it reporting every invalid field with its path
-  (`lines.1.units`). Rules over several fields (end ≥ start, one currency) are `@Validations`
+  (`lines.1.quantity`). Rules over several fields (end ≥ start, one currency) are `@Validations`
   `custom` rules on the composite class: `fn` receives the built composite, after its fields are
   valid. Behavior returns new instances (`add(other): Money`). Prefer a composite over a child
   entity: an order line with no id anybody looks it up by is a value [IDDD ch. 6]. A collection

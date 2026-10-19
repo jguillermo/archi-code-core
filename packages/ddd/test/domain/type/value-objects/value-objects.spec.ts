@@ -10,7 +10,7 @@ import { DomainException } from '../../../../src/exceptions/domain/domain.except
 import { ValidationException } from '../../../../src/exceptions/domain/validation.exception';
 import { AggregateNotFoundException } from '../../../../src/exceptions/application/aggregate-not-found.exception';
 
-class OrderId extends IdType {}
+class OrderId extends IdType<'OrderId'> {}
 
 @Validations([{ validator: 'isEmail' }])
 class CustomerEmail extends Required(StringType) {}

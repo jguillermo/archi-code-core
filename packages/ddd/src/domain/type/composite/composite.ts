@@ -22,6 +22,18 @@ export type CompositePrimitives<Schema extends CompositeSchema> = {
   [Field in keyof Schema]: PrimitiveType<FieldOf<Schema[Field]>>;
 };
 
+type InputOf<Spec> = Spec extends readonly [infer Item]
+  ? InputOf<Item>[]
+  : Spec extends { fromPrimitives(this: any, primitives: infer Primitives): unknown }
+    ? Primitives
+    : Spec extends abstract new (value: infer Value) => unknown
+      ? Exclude<Value, undefined>
+      : never;
+
+export type CompositeInput<Schema extends CompositeSchema> = {
+  [Field in keyof Schema]: InputOf<Schema[Field]>;
+};
+
 export interface CompositeValue<Schema extends CompositeSchema> {
   equals(other: unknown): boolean;
   toPrimitives(): CompositePrimitives<Schema>;
@@ -31,7 +43,7 @@ export interface CompositeType<Schema extends CompositeSchema> {
   new (props: CompositeProps<Schema>): CompositeProps<Schema> & CompositeValue<Schema>;
   fromPrimitives<Composed>(
     this: new (props: CompositeProps<Schema>) => Composed,
-    primitives: CompositePrimitives<Schema>,
+    primitives: CompositeInput<Schema>,
   ): Composed;
 }
 
