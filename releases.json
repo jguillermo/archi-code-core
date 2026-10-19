@@ -16,7 +16,7 @@
       "main": "3.0.0-alpha.4"
     },
     "@archi-code/validation": {
-      "main": "3.0.0-alpha.4"
+      "main": "3.0.0-alpha.5"
     },
     "@archi-code/criteria-adapters": {
       "main": "3.0.0-alpha.2"
@@ -372,6 +372,16 @@
           "dependencies": {
             "@archi-code/criteria": "3.0.0-alpha.6"
           }
+        },
+        {
+          "name": "@archi-code/validation",
+          "previous": "3.0.0-alpha.4",
+          "version": "3.0.0-alpha.5",
+          "bump": "minor",
+          "reasons": [
+            "commits (minor)"
+          ],
+          "dependencies": {}
         }
       ]
     }
