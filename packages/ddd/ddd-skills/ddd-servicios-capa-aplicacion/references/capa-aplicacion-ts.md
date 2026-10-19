@@ -43,7 +43,7 @@ IDDD presenta varias opciones [IDDD cap. 14]:
 | Transformador de datos que elige el cliente | Varios clientes con formatos distintos |
 | Método sin retorno y puerto de salida | Estilo hexagonal estricto |
 
-Para pantallas, mejor una consulta de lectura aparte que devuelve un DTO sin pasar por el agregado (ver `ddd-repositorios-persistencia` y `ddd-event-sourcing-cqrs`).
+Para pantallas, mejor una consulta de lectura aparte que devuelve un DTO sin pasar por el agregado (ver `ddd-skills/ddd-repositorios-persistencia/GUIA.md` y `ddd-skills/ddd-event-sourcing-cqrs/GUIA.md`).
 
 ## Command bus
 
@@ -52,14 +52,14 @@ Para pantallas, mejor una consulta de lectura aparte que devuelve un DTO sin pas
 ## Eventos en la capa de aplicación
 
 * La aplicación puede registrar suscriptores para guardar y reenviar eventos, dejando el dominio libre de mensajería [IDDD cap. 4].
-* Con outbox, el repositorio o el caso de uso guarda los eventos en la transacción; la publicación ocurre fuera (`ddd-eventos-dominio`).
+* Con outbox, el repositorio o el caso de uso guarda los eventos en la transacción; la publicación ocurre fuera (`ddd-skills/ddd-eventos-dominio/GUIA.md`).
 
 ## Errores
 
 `[Fuera de los libros]`
 * El dominio lanza errores con nombre (`OrderCannotBeCancelled`).
-* La aplicación añade los suyos (`OrderNotFound`, `NotAllowed`). Con `@archi-code/ddd` son `AggregateNotFoundException` y `NotAllowedException`, de `@archi-code/ddd/exceptions`, y los lanza el caso de uso: el repositorio devuelve `null` y el dominio no sabe de permisos `[Fuera de los libros: convención de @archi-code/ddd]`.
-* El adaptador los traduce a HTTP: 404, 403, 409 (conflicto de versión), 422 (regla de negocio). `HttpErrorMapper` aplica exactamente esa tabla.
+* La aplicación añade los suyos (`OrderNotFound`, `NotAllowed`).
+* El adaptador los traduce a HTTP: 404, 403, 409 (conflicto de versión), 422 (regla de negocio).
 
 ## Tests
 

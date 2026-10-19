@@ -17,7 +17,7 @@ IDDD llama a lo del primer nivel más bien **aserciones** que protegen el estado
 IDDD advierte que meter toda la validación en la entidad le da demasiadas responsabilidades y que la validación suele cambiar más que la entidad; propone un validador separado (Specification o Strategy) en el mismo módulo, con validación diferida [IDDD cap. 5].
 
 Criterio práctico `[Fuera de los libros]`:
-* **Invariantes** (lo que nunca puede ser falso: un pedido sin líneas) → en la entidad o el agregado, siempre. Se tratan en `ddd-agregados`.
+* **Invariantes** (lo que nunca puede ser falso: un pedido sin líneas) → en la entidad o el agregado, siempre. Se tratan en `ddd-skills/ddd-agregados/GUIA.md`.
 * **Reglas de completitud o calidad** que dependen del momento ("para publicar, la ficha necesita al menos tres fotos") → validador separado, invocado cuando toca.
 
 ## Patrón de notificación

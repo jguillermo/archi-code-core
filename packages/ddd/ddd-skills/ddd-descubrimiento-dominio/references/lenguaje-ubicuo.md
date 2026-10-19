@@ -27,7 +27,7 @@ Formas que propone Vernon [IDDD cap. 1]:
 
 Y una advertencia [IDDD cap. 1; Destilado cap. 2]: todo eso es el origen del lenguaje, no el modelo. Lo duradero son las conversaciones del equipo y el código. Prepárate para abandonar documentos que cueste mantener al día.
 
-Usa `assets/plantilla-glosario.md` para el formato.
+Usa `ddd-skills/ddd-descubrimiento-dominio/assets/plantilla-glosario.md` para el formato.
 
 ## Más allá de los sustantivos
 
@@ -56,7 +56,7 @@ Preguntas basadas en el ejemplo de refinamiento de escenarios de Vernon [Destila
 * **¿Quién?** ¿Quién ejecuta esta acción en el modelo? Puede revelar conceptos nuevos (en el libro aparece "consenso del equipo").
 * **¿Bajo qué condiciones?** ¿Qué tiene que ser cierto antes? Son invariantes o precondiciones.
 * **¿Quién se entera?** "Notificar a los interesados" casi siempre esconde un evento de dominio y a veces consistencia eventual.
-* **¿Tiene que pasar todo a la vez?** Si dos cosas no necesitan saberse en el mismo instante, es candidata a consistencia eventual (se decide en `ddd-agregados`).
+* **¿Tiene que pasar todo a la vez?** Si dos cosas no necesitan saberse en el mismo instante, es candidata a consistencia eventual (se decide en `ddd-skills/ddd-agregados/GUIA.md`).
 
 ## Idioma de los identificadores en código
 

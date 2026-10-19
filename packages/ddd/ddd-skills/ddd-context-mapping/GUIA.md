@@ -1,16 +1,19 @@
 # Context Mapping
 
-> Guía de la suite DDD de @archi-code/ddd: se lee solo a través del skill `archi-code-ddd` (packages/ddd/SKILL.md), nunca como skill independiente.
+> Parte del skill `archi-code-ddd`: léela solo cuando ese skill te dirija aquí. Para escribir el código, traduce los ejemplos con `ddd-skills/archi-code-ddd/suite-to-package.md`; si esta guía y las reglas del paquete discrepan, ganan las del paquete.
+>
+> **Cuándo consultar esta guía.** Context Mapping de DDD para decidir cómo se relacionan e integran los Bounded Contexts. Cubre los patrones de relación entre equipos y modelos (Partnership, Shared Kernel, Customer-Supplier, Conformist, Anticorruption Layer, Open Host Service, Published Language, Separate Ways, Big Ball of Mud), upstream y downstream, estilos de integración (RPC, REST, mensajería con eventos), contratos e idioma publicado, idempotencia, consistencia eventual entre contextos, procesos de larga duración y cómo implementar una capa anticorrupción en TypeScript. Consúltala siempre que haya que conectar dos sistemas, servicios, módulos o equipos, integrar con un ERP, CRM, pasarela o sistema heredado, decidir entre llamada síncrona y eventos, diseñar una API pública entre servicios, o cuando un modelo empiece a copiar conceptos de otro, aunque no se mencione "context map".
 
-**Cuándo usarla.** Úsala siempre que haya que conectar dos sistemas, servicios, módulos o equipos, integrar con un ERP, CRM, pasarela o sistema heredado, decidir entre llamada síncrona y eventos, diseñar una API pública entre servicios, o cuando un modelo empiece a copiar conceptos de otro, aunque no se mencione "context map". Va después de ddd-subdominios-bounded-contexts.
+## Con @archi-code/ddd
 
-Una línea entre dos Bounded Contexts significa tres cosas a la vez: que hay **integración técnica**, que hay una **relación entre equipos** y que hay una **traducción entre dos lenguajes** [Destilado cap. 4]. Este skill decide el tipo de cada línea y cómo se implementa.
+[Fuera de los libros: convención de @archi-code/ddd]
 
-## Convenciones de la suite DDD
+* El puerto hacia otro contexto (`ProductPricing`) es una interfaz en `domain/` con value objects; adaptador y traductor van en `infrastructure/`. Un webhook entrante es un punto de entrada que llama a un caso de uso.
+* Los eventos que salen a otros contextos se traducen con `PublishedLanguage.expose(...)` y `translate(json)` en el relay; nunca se envía `event.toJSON()` de un evento de dominio.
+* Los procesos entre contextos se encadenan con eventos y listeners (`@ListensTo`), cada uno con su caso de uso.
 
-* **Trazabilidad.** Cada regla indica su origen: `[Destilado cap. N]`, `[IDDD cap. N]`, `[PHP: capítulo]`. Lo que no sale de esos libros va marcado `[Fuera de los libros]`. Respeta estas marcas al responder.
-* **Idioma.** Responde en el idioma de la persona. El código de ejemplo es TypeScript.
-* **Honestidad del modelo.** No presentes como validado lo que no ha pasado por los equipos implicados; si faltan datos, declara los supuestos.
+Una línea entre dos Bounded Contexts significa tres cosas a la vez: que hay **integración técnica**, que hay una **relación entre equipos** y que hay una **traducción entre dos lenguajes** [Destilado cap. 4]. Esta guía decide el tipo de cada línea y cómo se implementa.
+
 
 ## Flujo de trabajo
 
@@ -22,7 +25,7 @@ El mapa es del equipo y para el equipo: informal, en la pared, sin ceremonia. No
 
 ### Paso 2. Elegir el patrón de relación para cada línea
 
-Resumen [Destilado cap. 4]. Detalle, señales y costes en `references/patrones-relacion.md`.
+Resumen [Destilado cap. 4]. Detalle, señales y costes en `ddd-skills/ddd-context-mapping/references/patrones-relacion.md`.
 
 | Patrón | Esencia |
 |---|---|
@@ -50,7 +53,7 @@ Resumen [Destilado cap. 4]. Detalle, señales y costes en `references/patrones-r
 
 ### Paso 3. Elegir el estilo de integración
 
-Vernon los ordena de menos a más robusto: RPC, REST, mensajería [Destilado cap. 4]. Detalle en `references/estilos-integracion.md`.
+Vernon los ordena de menos a más robusto: RPC, REST, mensajería [Destilado cap. 4]. Detalle en `ddd-skills/ddd-context-mapping/references/estilos-integracion.md`.
 
 Reglas que aplican siempre:
 
@@ -65,13 +68,13 @@ Reglas que aplican siempre:
 
 ### Paso 4. Diseñar la traducción
 
-Para cada relación con ACL, define puerto, adaptador y traductor. Implementación en TypeScript en `references/anticorrupcion-ts.md`.
+Para cada relación con ACL, define puerto, adaptador y traductor. Implementación en TypeScript en `ddd-skills/ddd-context-mapping/references/anticorrupcion-ts.md`.
 
 Para cada evento que cruza un contexto, decide entre **evento enriquecido** (más autonomía del consumidor, pero difícil prever todo y riesgo de exponer datos sensibles) o **evento ligero con consulta al origen** (query-back), o una mezcla [Destilado cap. 4].
 
 ## Entregable
 
-Usa `assets/plantilla-context-map.md`. Contiene: diagrama, una ficha por relación (patrón, U/D, estilo, contrato, traducción, dueño, riesgos) y la lista de eventos que cruzan fronteras.
+Usa `ddd-skills/ddd-context-mapping/assets/plantilla-context-map.md`. Contiene: diagrama, una ficha por relación (patrón, U/D, estilo, contrato, traducción, dueño, riesgos) y la lista de eventos que cruzan fronteras.
 
 Notación del diagrama en Mermaid:
 
@@ -96,10 +99,10 @@ Convención: la flecha va de upstream a downstream y la etiqueta indica el patr�
 
 ## Ejemplo completo
 
-`references/ejemplo-ecommerce.md` continúa la tienda online: mapa con todas las relaciones, decisiones razonadas y eventos que cruzan fronteras.
+`ddd-skills/ddd-context-mapping/references/ejemplo-ecommerce.md` continúa la tienda online: mapa con todas las relaciones, decisiones razonadas y eventos que cruzan fronteras.
 
-## Siguiente skill
+## Siguiente guía
 
-* Estructura interna de cada contexto y dónde vive el ACL → `ddd-arquitectura`.
-* Diseño de los eventos que se publican → `ddd-eventos-dominio`.
-* Consistencia eventual entre agregados y procesos → `ddd-agregados`.
+* Estructura interna de cada contexto y dónde vive el ACL → `ddd-skills/ddd-arquitectura/GUIA.md`.
+* Diseño de los eventos que se publican → `ddd-skills/ddd-eventos-dominio/GUIA.md`.
+* Consistencia eventual entre agregados y procesos → `ddd-skills/ddd-agregados/GUIA.md`.

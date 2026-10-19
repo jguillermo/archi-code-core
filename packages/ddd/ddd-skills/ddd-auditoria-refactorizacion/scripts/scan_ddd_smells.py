@@ -31,7 +31,11 @@ PRIMITIVE_MONEY_RE = re.compile(r"\b(price|amount|total|importe|precio)\s*\??\s*
 PRIMITIVE_STATUS_RE = re.compile(r"\b(status|estado|state)\s*\??\s*:\s*string\b", re.I)
 SMELLY_NAME_RE = re.compile(r"\bclass\s+\w*(Manager|Helper|Utils?|Processor)\b")
 REPO_CLASS_RE = re.compile(r"\b(?:class|interface)\s+(\w+)Repository\b")
-SAVE_CALL_RE = re.compile(r"\b(\w+)(?:Repository|Repo|repository|repo)\s*\.\s*(save|add|update|persist)\s*\(")
+# Cualquier receptor que guarde: this.orders.save(...), orderRepository.save(...), repo.persist(...)
+SAVE_CALL_RE = re.compile(r"(?:this\.)?(\w+)\s*\.\s*(?:save|add|persist)\s*\(")
+NOT_A_REPOSITORY = {"events", "eventbus", "bus", "outbox", "inbox", "list", "set", "map", "array", "items", "tags"}
+ARCHI_OUTER_LAYER_RE = re.compile(r"""['"]@archi-code/ddd/(application|infrastructure)['"]""")
+NEW_DATE_RE = re.compile(r"\bnew\s+Date\s*\(\s*\)")
 TRANSACTION_START_RE = re.compile(r"(\$transaction|\.transaction|\btx\.run|\.run|runInTransaction|withTransaction)\s*\(")
 
 
@@ -110,8 +114,11 @@ def scan(root: Path, domain_dir: str):
             for mod, idx in imports:
                 if any(mod == p or mod.startswith(p if p.endswith("/") else p + "/") or mod == p.rstrip("/") for p in INFRA_PACKAGES):
                     add("dominio-importa-infraestructura", "alta", path, line_of(text, idx), f"importa '{mod}'")
-                if re.search(r"/(infrastructure|interfaces|application)(/|$)", mod):
+                if not mod.startswith("@archi-code/") and re.search(r"/(infrastructure|interfaces|application)(/|$)", mod):
                     add("dominio-importa-capa-exterior", "alta", path, line_of(text, idx), f"importa '{mod}'")
+            for m in ARCHI_OUTER_LAYER_RE.finditer(text):
+                add("dominio-importa-capa-exterior-del-paquete", "alta", path, line_of(text, m.start()),
+                    f"importa @archi-code/ddd/{m.group(1)}")
             if "process.env" in text:
                 add("dominio-lee-entorno", "media", path, line_of(text, text.index("process.env")), "usa process.env")
             for m in ORM_DECORATOR_RE.finditer(text):
@@ -124,6 +131,11 @@ def scan(root: Path, domain_dir: str):
                 add("dinero-como-number", "media", path, line_of(text, m.start()), m.group(0))
             for m in PRIMITIVE_STATUS_RE.finditer(text):
                 add("estado-como-string", "baja", path, line_of(text, m.start()), m.group(0))
+
+        if zone in (domain_dir, "application") and not is_test:
+            for m in NEW_DATE_RE.finditer(text):
+                add("new-date-en-dominio-o-aplicacion", "media", path, line_of(text, m.start()),
+                    "usa new Date(); inyecta un Clock")
 
         if zone == "interfaces" and not is_test:
             if re.search(r"Repository\b", text):
@@ -152,7 +164,7 @@ def scan(root: Path, domain_dir: str):
 
         if not is_test:
             for start, block in transaction_blocks(text):
-                saved = {m.group(1).lower() for m in SAVE_CALL_RE.finditer(block)}
+                saved = {m.group(1).lower() for m in SAVE_CALL_RE.finditer(block)} - NOT_A_REPOSITORY
                 if len(saved) >= 2:
                     add("varios-agregados-en-una-transaccion", "alta", path, line_of(text, start),
                         f"el mismo bloque transaccional guarda con {sorted(saved)}")

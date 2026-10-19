@@ -1,16 +1,19 @@
 # Event Sourcing y CQRS
 
-> Guía de la suite DDD de @archi-code/ddd: se lee solo a través del skill `archi-code-ddd` (packages/ddd/SKILL.md), nunca como skill independiente.
+> Parte del skill `archi-code-ddd`: léela solo cuando ese skill te dirija aquí. Para escribir el código, traduce los ejemplos con `ddd-skills/archi-code-ddd/suite-to-package.md`; si esta guía y las reglas del paquete discrepan, ganan las del paquete.
+>
+> **Cuándo consultar esta guía.** Event Sourcing (agregados persistidos como secuencia de eventos, A+ES) y CQRS (modelo de comandos separado de modelos de lectura) con DDD en TypeScript. Empieza por decidir si compensan, y cubre stream de eventos por agregado, reconstitución, control de concurrencia con versión esperada, event store, snapshots, proyecciones y read models reconstruibles, consistencia eventual en la interfaz, enriquecimiento y versionado de eventos, y cómo cumplir el RGPD con eventos inmutables. Consúltala siempre que alguien mencione event sourcing, CQRS, read models, proyecciones, auditoría completa de cambios, "volver a un estado anterior", event store, o pantallas lentas que cruzan muchos agregados, aunque la pregunta sea solo "¿debería usar...?".
 
-**Cuándo usarla.** Úsala siempre que alguien mencione event sourcing, CQRS, read models, proyecciones, auditoría completa de cambios, "volver a un estado anterior", event store, o pantallas lentas que cruzan muchos agregados, aunque la pregunta sea solo "¿debería usar...?".
+## Con @archi-code/ddd
+
+[Fuera de los libros: convención de @archi-code/ddd]
+
+* El paquete no trae event store: Event Sourcing se construye en la infraestructura del proyecto, solo si la tabla de decisión de esta guía lo justifica; un agregado con Event Sourcing gestiona su propia versión de stream y no usa `AggregateMapper`.
+* Una proyección es un `EventListener` con inbox que escribe una tabla de lectura; reconstruirla desde cero exige un log de eventos propio (el outbox no conserva historial legible).
+* Una consulta de lectura es una interfaz en `application/` implementada en infraestructura directamente sobre la base de datos.
 
 Dos patrones distintos que a menudo van juntos. **CQRS** separa el modelo que ejecuta comandos (agregados) de los modelos que responden consultas [IDDD cap. 4]. **Event Sourcing** guarda el estado de un agregado como la secuencia de eventos que le han ocurrido y lo reconstruye aplicándolos [Destilado cap. 6; IDDD apéndice A]. Event Sourcing casi siempre exige alguna forma de CQRS, porque los streams de eventos son difíciles de consultar [IDDD apéndice A; Destilado cap. 6]. CQRS no exige Event Sourcing.
 
-## Convenciones de la suite DDD
-
-* **Trazabilidad.** Cada regla indica su origen: `[Destilado cap. N]`, `[IDDD cap. N]`, `[IDDD apéndice A]`, `[PHP: capítulo]`. Lo que no sale de esos libros va marcado `[Fuera de los libros]`. Respeta estas marcas al responder.
-* **Idioma.** Responde en el idioma de la persona. El código de ejemplo es TypeScript.
-* **Honestidad del modelo.** Si faltan datos para decidir, declara los supuestos.
 
 ## Paso 1. Decidir (la mayoría de las veces, no)
 
@@ -24,7 +27,7 @@ Ningún estilo es para todo: se usa donde mitiga un riesgo concreto [IDDD cap. 4
 | Volumen de lectura muy superior al de escritura `[Fuera de los libros]` | Usuarios que necesitan ver al instante lo que acaban de escribir, sin margen de diseño |
 | Muchos `findBy` en repositorios: señal de IDDD [IDDD cap. 12] | |
 
-Antes de CQRS completo, prueba el paso intermedio: consultas SQL de solo lectura sobre las mismas tablas (`ddd-arquitectura`).
+Antes de CQRS completo, prueba el paso intermedio: consultas SQL de solo lectura sobre las mismas tablas (`ddd-skills/ddd-arquitectura/GUIA.md`).
 
 ### Event Sourcing
 
@@ -39,13 +42,13 @@ Inconvenientes que el propio apéndice reconoce [IDDD apéndice A]:
 * Herramientas y conocimiento menos maduros; pocos desarrolladores con experiencia.
 * Obliga a CQRS: más carga cognitiva y curva de aprendizaje.
 
-Recomendación de esta suite `[Fuera de los libros]`: Event Sourcing solo en agregados del Core Domain donde el historial es un requisito de negocio (o legal) o donde las preguntas "¿cómo llegó a este estado?" son frecuentes. No en todo el sistema. Si solo hace falta auditoría, el outbox de `ddd-eventos-dominio` ya deja un registro de eventos sin cambiar la persistencia.
+Recomendación de estas fuentes `[Fuera de los libros]`: Event Sourcing solo en agregados del Core Domain donde el historial es un requisito de negocio (o legal) o donde las preguntas "¿cómo llegó a este estado?" son frecuentes. No en todo el sistema. Si solo hace falta auditoría, el outbox de `ddd-skills/ddd-eventos-dominio/GUIA.md` ya deja un registro de eventos sin cambiar la persistencia.
 
-Registra la decisión como ADR (por ejemplo en `docs/adr/`).
+Registra la decisión como ADR, en la carpeta de ADR del proyecto.
 
 ## Paso 2. Implementar Event Sourcing
 
-Guía completa en `references/event-sourcing-ts.md`. Esquema:
+Guía completa en `ddd-skills/ddd-event-sourcing-cqrs/references/event-sourcing-ts.md`. Esquema:
 
 1. El agregado separa **decidir** (comprobar reglas y emitir eventos) de **aplicar** (cambiar estado a partir de un evento). IDDD propone incluso dos clases, una de estado y otra de comportamiento, que solo colaboran a través de `apply` [IDDD apéndice A].
 2. Cargar: leer el stream del agregado y aplicar sus eventos en orden.
@@ -60,7 +63,7 @@ Rendimiento: caché de streams en memoria (los eventos son inmutables) y **snaps
 
 Suscriptores que reciben eventos y mantienen modelos de lectura persistentes; parecidos a un agregado, pero para consultar [IDDD apéndice A]. Se pueden **reconstruir** reproduciendo todos los eventos, lo que permite cambiar una vista sin tocar el agregado [IDDD apéndice A]. También sirven para dar a un agregado datos de otro de forma desacoplada, a través de un servicio de dominio que consulta la proyección [IDDD apéndice A].
 
-Guía en `references/proyecciones-cqrs-ts.md`.
+Guía en `ddd-skills/ddd-event-sourcing-cqrs/references/proyecciones-cqrs-ts.md`.
 
 ## Paso 4. La interfaz con un modelo de lectura eventual
 
@@ -68,7 +71,7 @@ Diseña para el peor caso: la vista siguiente puede no reflejar todavía el coma
 
 ## Paso 5. Eventos con doble función
 
-En Event Sourcing los eventos sirven para persistir el agregado **y** para comunicar al resto de la empresa. Eso crea tensión: lo que necesita el agregado no es lo que necesitan los consumidores. IDDD lo trata como enriquecimiento de eventos [IDDD apéndice A]. Pauta `[Fuera de los libros]`: eventos internos del stream con lo mínimo para reconstruir, y eventos publicados traducidos al Published Language (igual que en `ddd-eventos-dominio`).
+En Event Sourcing los eventos sirven para persistir el agregado **y** para comunicar al resto de la empresa. Eso crea tensión: lo que necesita el agregado no es lo que necesitan los consumidores. IDDD lo trata como enriquecimiento de eventos [IDDD apéndice A]. Pauta `[Fuera de los libros]`: eventos internos del stream con lo mínimo para reconstruir, y eventos publicados traducidos al Published Language (igual que en `ddd-skills/ddd-eventos-dominio/GUIA.md`).
 
 ## Datos personales e inmutabilidad
 
@@ -84,6 +87,6 @@ En Event Sourcing los eventos sirven para persistir el agregado **y** para comun
 * Datos personales en eventos sin estrategia de supresión.
 * CQRS con dos bases de datos para un CRUD de cinco pantallas.
 
-## Siguiente skill
+## Siguiente guía
 
-* Revisar un sistema existente → `ddd-auditoria-refactorizacion`.
+* Revisar un sistema existente → `ddd-skills/ddd-auditoria-refactorizacion/GUIA.md`.

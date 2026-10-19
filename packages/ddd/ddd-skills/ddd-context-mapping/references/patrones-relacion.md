@@ -40,7 +40,7 @@ El upstream (U) es el contexto del que se depende; sus cambios afectan al downst
 * **Qué es:** la relación más defensiva. El downstream crea una capa que traduce entre su modelo y el upstream, aislándose de conceptos externos.
 * **Cuándo:** siempre que sea posible entre tu modelo y un modelo de integración upstream; obligatoria frente a una Big Ball of Mud o a integración por base de datos.
 * **Coste:** como contratar un intérprete; en algunos casos puede ser demasiado alto.
-* **Estructura en IDDD:** un servicio de dominio como interfaz de la capa, un adaptador que actúa de cliente del sistema remoto y un traductor que convierte el Published Language en conceptos locales [IDDD cap. 3]. Implementación en `anticorrupcion-ts.md`.
+* **Estructura en IDDD:** un servicio de dominio como interfaz de la capa, un adaptador que actúa de cliente del sistema remoto y un traductor que convierte el Published Language en conceptos locales [IDDD cap. 3]. Implementación en `ddd-skills/ddd-context-mapping/references/anticorrupcion-ts.md`.
 
 ## Open Host Service (Servicio abierto)
 

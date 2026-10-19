@@ -27,7 +27,7 @@ Lo que NO es núcleo (se compra, se integra o se hace simple):
 Medimos el éxito por: <indicador de negocio>
 ```
 
-Ejemplo (tienda online de los ejemplos de la suite):
+Ejemplo (tienda online de los ejemplos de estas fuentes):
 
 > El contexto de Ventas permite vender en preventa y en campaña sin romper promesas al cliente: ningún pedido se confirma sin stock reservado y pago autorizado, y la fecha de entrega de una preventa es fiable. Lo diferencial son las reglas de reserva por campaña y la gestión de preventas. No son núcleo: catálogo, cobro (pasarela), facturación (ERP) e identidad. Medimos el éxito por la tasa de pedidos cancelados tras el pago.
 
@@ -49,7 +49,7 @@ En TypeScript `[Fuera de los libros]`:
 
 ## 3. Generic Subdomains
 
-Ya tratado en `clasificacion-subdominios.md`: lo genérico se separa en módulos o contextos propios para que no ensucie el núcleo, y se compra o se resuelve con un modelo simple [Destilado cap. 3; IDDD cap. 2]. Evans añade una advertencia útil: una solución genérica hecha en casa tiende a crecer hasta convertirse en un proyecto; conviene limitar su alcance `[Fuera de los libros: Evans 2003]`.
+Ya tratado en `ddd-skills/ddd-subdominios-bounded-contexts/references/clasificacion-subdominios.md`: lo genérico se separa en módulos o contextos propios para que no ensucie el núcleo, y se compra o se resuelve con un modelo simple [Destilado cap. 3; IDDD cap. 2]. Evans añade una advertencia útil: una solución genérica hecha en casa tiende a crecer hasta convertirse en un proyecto; conviene limitar su alcance `[Fuera de los libros: Evans 2003]`.
 
 ## 4. Cohesive Mechanisms
 
@@ -75,7 +75,7 @@ Cuando un contexto grande y crítico tiene lo esencial tapado por mucha funciona
 Caso de IDDD: el equipo de Colaboración tenía seguridad y permisos mezclados con el modelo. Como paso intermedio movió todas las clases de seguridad a módulos separados y obligó a los servicios de aplicación a resolver seguridad y traducción **antes** de llamar al núcleo. Así el núcleo quedó solo con conceptos de colaboración. Fue el paso previo a extraer un contexto de Identidad y Acceso independiente [IDDD cap. 2].
 
 Procedimiento:
-1. Busca exhaustivamente los conceptos que no son del lenguaje del núcleo (ver "Desafiar y unificar" en `ddd-descubrimiento-dominio`).
+1. Busca exhaustivamente los conceptos que no son del lenguaje del núcleo (ver "Desafiar y unificar" en `ddd-skills/ddd-descubrimiento-dominio/GUIA.md`).
 2. Muévelos a módulos propios dentro del contexto.
 3. Haz que los servicios de aplicación resuelvan esos conceptos y pasen al núcleo solo lo que habla su lenguaje (un `Author`, no un `User` con permisos).
 4. Si los módulos separados tienen su propio lenguaje y otros los necesitan, extráelos a un contexto propio.

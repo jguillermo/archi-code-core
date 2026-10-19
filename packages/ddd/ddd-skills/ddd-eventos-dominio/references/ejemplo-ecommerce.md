@@ -1,6 +1,6 @@
 # Ejemplo: catálogo de eventos de la tienda online
 
-Continúa los ejemplos de `ddd-context-mapping` y `ddd-agregados`.
+Continúa los ejemplos de `ddd-skills/ddd-context-mapping/GUIA.md` y `ddd-skills/ddd-agregados/GUIA.md`.
 
 | Evento | Contexto | Causa | Datos | Ámbito | Consumidores | Plazo |
 |---|---|---|---|---|---|---|

@@ -27,4 +27,4 @@ Tipos:
 
 | Término | Pertenece a | Cómo se obtiene si hace falta |
 |---|---|---|
-| | | Integración vía <contexto> (ver ddd-context-mapping) |
+| | | Integración vía <contexto> (ver ddd-skills/ddd-context-mapping/GUIA.md) |

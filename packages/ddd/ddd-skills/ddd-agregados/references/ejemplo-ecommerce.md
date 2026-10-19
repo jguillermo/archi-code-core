@@ -22,7 +22,7 @@ Candidatos del Event Storming: `Order` (Ventas), `Payment` (Pagos), `StockItem` 
 * Todo lo demás admite plazo → agregados separados y consistencia eventual.
 * "Último pedido" del cliente: no se toca `Customer` en la transacción del pedido; es una proyección para marketing.
 
-Prueba con "¿de quién es el trabajo?": confirmar el pedido no es trabajo del cliente que compra, sino del sistema cuando llegan reserva y pago → eventual. Por eso el diseño del agregado evoluciona respecto al test del skill de descubrimiento (`order.confirm(authorization)`): ya no hay un comando "confirmar" que alguien invoque, sino un pedido que se confirma solo al registrar las dos condiciones. Es un ejemplo de cómo el análisis de agregados refina un escenario; actualiza el escenario y el glosario cuando ocurra.
+Prueba con "¿de quién es el trabajo?": confirmar el pedido no es trabajo del cliente que compra, sino del sistema cuando llegan reserva y pago → eventual. Por eso el diseño del agregado evoluciona respecto al test de la guía de descubrimiento (`order.confirm(authorization)`): ya no hay un comando "confirmar" que alguien invoque, sino un pedido que se confirma solo al registrar las dos condiciones. Es un ejemplo de cómo el análisis de agregados refina un escenario; actualiza el escenario y el glosario cuando ocurra.
 
 ## Resultado
 
@@ -49,4 +49,4 @@ flowchart LR
 
 `StockItem` sí agrupa sus reservas: la invariante "no reservar más unidades de las disponibles" es inmediata y la protege él. Si un mismo `StockItem` sufre muchos conflictos de concurrencia en campañas, la alternativa es partir el stock por almacén o por lote, no meter pedidos dentro.
 
-El código de `Order` está en `implementacion-ts.md`.
+El código de `Order` está en `ddd-skills/ddd-agregados/references/implementacion-ts.md`.

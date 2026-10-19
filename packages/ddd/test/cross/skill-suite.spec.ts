@@ -8,11 +8,19 @@ const SUITE = path.join(PACKAGE, 'ddd-skills');
 const SKILL = fs.readFileSync(path.join(PACKAGE, 'SKILL.md'), 'utf8');
 const BOOK_CONVENTION_MARK = '[Fuera de los libros: convención de @archi-code/ddd]';
 const NAMES_THAT_ARE_NOT_SUITE_SKILLS = ['ddd-skills'];
+const PACKAGE_GUIDES = 'archi-code-ddd';
+const ORCHESTRATOR = 'ddd-orquestador';
+const PACKAGE_GUIDES_DIR = path.join(SUITE, PACKAGE_GUIDES);
 
 const suiteSkills = fs
   .readdirSync(SUITE, { withFileTypes: true })
-  .filter((entry) => entry.isDirectory())
+  .filter((entry) => entry.isDirectory() && entry.name !== PACKAGE_GUIDES)
   .map((entry) => entry.name)
+  .sort();
+
+const packageGuides = fs
+  .readdirSync(PACKAGE_GUIDES_DIR)
+  .filter((file) => file.endsWith('.md'))
   .sort();
 
 function filesOf(skillDir: string): string[] {
@@ -41,7 +49,7 @@ function citedPaths(skillDir: string): string[] {
 }
 
 function localReferences(skillDir: string): string[] {
-  const text = fs.readFileSync(path.join(SUITE, skillDir, 'SKILL.md'), 'utf8');
+  const text = fs.readFileSync(path.join(SUITE, skillDir, 'GUIA.md'), 'utf8');
   return Array.from(text.matchAll(/`((?:references|assets|scripts)\/[^`\s]+)`/g), (m) => m[1]);
 }
 
@@ -51,10 +59,10 @@ describe('the DDD skill suite is reached only through SKILL.md', () => {
     expect(packageJson.files).toContain('ddd-skills/');
   });
 
-  it('every suite skill has its SKILL.md and SKILL.md routes to every one of them', () => {
+  it('every suite guide has its GUIA.md and SKILL.md routes to every one of them', () => {
     expect(suiteSkills.length).toBeGreaterThan(0);
     for (const skill of suiteSkills) {
-      expect(fs.existsSync(path.join(SUITE, skill, 'SKILL.md')), skill).toBe(true);
+      expect(fs.existsSync(path.join(SUITE, skill, 'GUIA.md')), skill).toBe(true);
       expect(SKILL, `SKILL.md does not route to ${skill}`).toContain(`\`${skill}\``);
     }
   });
@@ -80,7 +88,7 @@ describe('the DDD skill suite is reached only through SKILL.md', () => {
 
   it('no suite guide can be loaded as a skill of its own: none has a frontmatter', () => {
     const withFrontmatter = suiteSkills.filter((skill) =>
-      fs.readFileSync(path.join(SUITE, skill, 'SKILL.md'), 'utf8').startsWith('---'),
+      fs.readFileSync(path.join(SUITE, skill, 'GUIA.md'), 'utf8').startsWith('---'),
     );
     expect(withFrontmatter).toEqual([]);
   });
@@ -89,10 +97,22 @@ describe('the DDD skill suite is reached only through SKILL.md', () => {
     const silent = suiteSkills.filter(
       (skill) =>
         !fs
-          .readFileSync(path.join(SUITE, skill, 'SKILL.md'), 'utf8')
-          .includes('se lee solo a través del skill `archi-code-ddd`'),
+          .readFileSync(path.join(SUITE, skill, 'GUIA.md'), 'utf8')
+          .includes('Parte del skill `archi-code-ddd`'),
     );
     expect(silent).toEqual([]);
+  });
+
+  it('every guide but the orchestrator opens with its box of divergences from the books', () => {
+    const withoutBox = suiteSkills
+      .filter((skill) => skill !== ORCHESTRATOR)
+      .filter(
+        (skill) =>
+          !fs
+            .readFileSync(path.join(SUITE, skill, 'GUIA.md'), 'utf8')
+            .includes(`## Con @archi-code/ddd\n\n${BOOK_CONVENTION_MARK}`),
+      );
+    expect(withoutBox).toEqual([]);
   });
 
   it('every path a guide, reference or template of the suite cites exists in its skill', () => {
@@ -120,7 +140,7 @@ describe('the DDD skill suite is reached only through SKILL.md', () => {
     const orphans = suiteSkills.flatMap((skill) => {
       const cited = new Set(citedPaths(skill));
       return filesOf(skill)
-        .filter((file) => file !== 'SKILL.md' && !cited.has(file.split(path.sep).join('/')))
+        .filter((file) => file !== 'GUIA.md' && !cited.has(file.split(path.sep).join('/')))
         .map((file) => `${skill}/${file}`);
     });
     expect(orphans).toEqual([]);
@@ -139,6 +159,11 @@ describe('the DDD skill suite is reached only through SKILL.md', () => {
     const rules = config.forbidden.map((rule: unknown) => JSON.stringify(rule));
     expect(rules.some((rule: string) => rule.includes('@archi-code'))).toBe(true);
     expect(rules.some((rule: string) => rule.includes('composition'))).toBe(true);
+    expect(config.options.tsPreCompilationDeps).toBe(true);
+    expect(config.options.enhancedResolveOptions.exportsFields).toEqual(['exports']);
+    expect(config.options.enhancedResolveOptions.conditionNames).toEqual(
+      expect.arrayContaining(['import', 'require']),
+    );
   });
 
   it('is pure DDD: it cites books, never the internal document codes of a company', () => {
@@ -151,5 +176,32 @@ describe('the DDD skill suite is reached only through SKILL.md', () => {
       internalDocumentCode.test(fs.readFileSync(file, 'utf8')),
     );
     expect(offending.map((file) => path.relative(SUITE, file))).toEqual([]);
+  });
+});
+
+describe('the rules and patterns of the package are part of SKILL.md, split in ddd-skills/archi-code-ddd', () => {
+  it('SKILL.md links every guide and only guides that exist', () => {
+    expect(packageGuides.length).toBeGreaterThan(0);
+    const linked = Array.from(SKILL.matchAll(/`([a-z-]+\.md)`/g), (m) => m[1]);
+    expect(packageGuides.filter((guide) => !linked.includes(guide))).toEqual([]);
+    expect(linked.filter((guide) => !packageGuides.includes(guide))).toEqual([]);
+  });
+
+  it('no guide can be loaded as a skill of its own and each one points to archi-code-ddd', () => {
+    for (const guide of packageGuides) {
+      const text = fs.readFileSync(path.join(PACKAGE_GUIDES_DIR, guide), 'utf8');
+      expect(text.startsWith('# '), guide).toBe(true);
+      expect(text, guide).toContain('Part of the `archi-code-ddd` skill');
+    }
+  });
+
+  it('every suite path a guide cites exists', () => {
+    const missing = packageGuides.flatMap((guide) => {
+      const text = fs.readFileSync(path.join(PACKAGE_GUIDES_DIR, guide), 'utf8');
+      return Array.from(text.matchAll(/`((ddd-[a-z-]+)\/[^`\s]+)`/g), (m) => m[1])
+        .filter((cited) => !fs.existsSync(path.join(SUITE, cited)))
+        .map((cited) => `${guide}: ${cited}`);
+    });
+    expect(missing).toEqual([]);
   });
 });

@@ -1,16 +1,17 @@
 # Subdominios y Bounded Contexts
 
-> Guía de la suite DDD de @archi-code/ddd: se lee solo a través del skill `archi-code-ddd` (packages/ddd/SKILL.md), nunca como skill independiente.
+> Parte del skill `archi-code-ddd`: léela solo cuando ese skill te dirija aquí. Para escribir el código, traduce los ejemplos con `ddd-skills/archi-code-ddd/suite-to-package.md`; si esta guía y las reglas del paquete discrepan, ganan las del paquete.
+>
+> **Cuándo consultar esta guía.** Diseño estratégico DDD para dividir un dominio en subdominios (Core Domain, de soporte, genéricos) y trazar Bounded Contexts por fronteras lingüísticas. Cubre espacio del problema frente a espacio de la solución, criterios de clasificación y de inversión (construir, comprar, subcontratar), tamaño correcto de un contexto, qué vive dentro de él, un equipo por contexto, alineación 1:1 subdominio-contexto y cómo analizar un sistema legado o Big Ball of Mud como subdominios lógicos. Consúltala siempre que alguien pregunte cómo dividir un sistema, cuántos microservicios o módulos hacer, qué es core y qué no, dónde poner un concepto que significa cosas distintas para distintos equipos, cómo partir un monolito, o cuando una clase o tabla "lo tiene todo", aunque no mencione Bounded Context.
 
-**Cuándo usarla.** Úsala siempre que alguien pregunte cómo dividir un sistema, cuántos microservicios o módulos hacer, qué es core y qué no, dónde poner un concepto que significa cosas distintas para distintos equipos, cómo partir un monolito, o cuando una clase o tabla "lo tiene todo", aunque no mencione Bounded Context. Va después de ddd-descubrimiento-dominio y antes de ddd-context-mapping.
+## Con @archi-code/ddd
 
-Este skill decide **dónde están las fronteras** y **cuánto invertir en cada zona**. Son las dos decisiones estratégicas que más condicionan todo lo demás: un agregado bien diseñado dentro de un contexto mal trazado sigue siendo un problema.
+[Fuera de los libros: convención de @archi-code/ddd]
 
-## Convenciones de la suite DDD
+* Un contexto nunca importa a otro, salvo un `shared-kernel/` explícito; la estructura por contexto está en `ddd-skills/archi-code-ddd/where-each-class-goes.md`.
 
-* **Trazabilidad.** Cada regla indica su origen: `[Destilado cap. N]`, `[IDDD cap. N]`, `[PHP: capítulo]`. Lo que no sale de esos libros va marcado `[Fuera de los libros]`. Respeta estas marcas al responder.
-* **Idioma.** Responde en el idioma de la persona. El código de ejemplo es TypeScript.
-* **Honestidad del modelo.** No presentes como validado por negocio lo que no ha pasado por un experto del dominio; si faltan datos, declara los supuestos.
+Esta guía decide **dónde están las fronteras** y **cuánto invertir en cada zona**. Son las dos decisiones estratégicas que más condicionan todo lo demás: un agregado bien diseñado dentro de un contexto mal trazado sigue siendo un problema.
+
 
 ## Dos conceptos que no se deben mezclar
 
@@ -27,7 +28,7 @@ El objetivo es alinearlos **1:1**: un subdominio por contexto y un contexto por 
 
 ### Paso 1. Espacio del problema: identificar y clasificar subdominios
 
-Parte de los contextos candidatos del descubrimiento (si existen) o de las funciones del negocio. Para cada subdominio decide su tipo con `references/clasificacion-subdominios.md`. Resumen [Destilado cap. 3; IDDD cap. 2]:
+Parte de los contextos candidatos del descubrimiento (si existen) o de las funciones del negocio. Para cada subdominio decide su tipo con `ddd-skills/ddd-subdominios-bounded-contexts/references/clasificacion-subdominios.md`. Resumen [Destilado cap. 3; IDDD cap. 2]:
 
 * **Core Domain:** donde la organización debe ser excelente porque la distingue. Máxima prioridad, los mejores desarrolladores y expertos con conocimiento profundo.
 * **De soporte:** necesario y específico del negocio (no se puede comprar hecho), pero no diferencia. Desarrollo a medida con menos inversión; candidato a subcontratar.
@@ -39,7 +40,7 @@ Los subdominios se validan con expertos. Si no los hay, la clasificación sale c
 
 ### Paso 2. Espacio de la solución: trazar Bounded Contexts
 
-Usa `references/delimitar-bounded-contexts.md`. Las reglas que no se negocian:
+Usa `ddd-skills/ddd-subdominios-bounded-contexts/references/delimitar-bounded-contexts.md`. Las reglas que no se negocian:
 
 1. **La frontera es lingüística.** Se traza donde un término cambia de significado, no donde lo pide la tecnología [IDDD cap. 2]. Un modelo único para toda la empresa fracasa [IDDD cap. 2].
 2. **Tamaño:** tan grande como haga falta para expresar el lenguaje completo, ni más ni menos [IDDD cap. 2]. Lo que no pertenece al lenguaje sale; lo esencial no se recorta.
@@ -52,22 +53,22 @@ Nombra cada contexto por su modelo: `Contexto de Ventas`, `Contexto de Almacén`
 
 ### Paso 3. Alinear subdominios y contextos
 
-Construye la tabla de alineación (plantilla en `assets/plantilla-mapa-estrategico.md`). Para cada desalineación decide:
+Construye la tabla de alineación (plantilla en `ddd-skills/ddd-subdominios-bounded-contexts/assets/plantilla-mapa-estrategico.md`). Para cada desalineación decide:
 
 * **Dos subdominios en un contexto:** si no es práctico separarlos, separa el secundario en un **módulo** propio dentro del contexto, como declaración explícita de que no es el núcleo [Destilado cap. 3]. Ojo: un módulo ordena el código pero **no arregla un lenguaje mezclado** [IDDD cap. 2]. Si los términos chocan, hacen falta dos contextos.
-* **Un subdominio repartido en varios contextos:** habitual en sistemas heredados y en integraciones con productos externos [IDDD cap. 2]. Documéntalo y planifica la traducción en `ddd-context-mapping`.
+* **Un subdominio repartido en varios contextos:** habitual en sistemas heredados y en integraciones con productos externos [IDDD cap. 2]. Documéntalo y planifica la traducción en `ddd-skills/ddd-context-mapping/GUIA.md`.
 
 ### Paso 4. Si hay sistemas heredados
 
-Analiza la Big Ball of Mud como un conjunto de **subdominios lógicos** aunque el código no los separe. Así se piensa en ella como si tuviera varios lenguajes, se decide cuáles importan al proyecto y cómo integrarse [Destilado cap. 3]. Guía en `references/legado-big-ball-of-mud.md`.
+Analiza la Big Ball of Mud como un conjunto de **subdominios lógicos** aunque el código no los separe. Así se piensa en ella como si tuviera varios lenguajes, se decide cuáles importan al proyecto y cómo integrarse [Destilado cap. 3]. Guía en `ddd-skills/ddd-subdominios-bounded-contexts/references/legado-big-ball-of-mud.md`.
 
 ### Paso 5. Decidir la inversión
 
-Para cada contexto, una estrategia coherente con su tipo. Tabla de decisión en `references/clasificacion-subdominios.md`.
+Para cada contexto, una estrategia coherente con su tipo. Tabla de decisión en `ddd-skills/ddd-subdominios-bounded-contexts/references/clasificacion-subdominios.md`.
 
 ### Paso 6. Destilar el Core Domain
 
-Clasificar no basta: el núcleo tiende a quedar enterrado bajo funcionalidad de soporte a medida que el código crece. Aplica los patrones de destilación de `references/destilacion-core.md`:
+Clasificar no basta: el núcleo tiende a quedar enterrado bajo funcionalidad de soporte a medida que el código crece. Aplica los patrones de destilación de `ddd-skills/ddd-subdominios-bounded-contexts/references/destilacion-core.md`:
 
 * **Domain Vision Statement** siempre: una página con qué hace diferente al núcleo y qué no es núcleo. Responde a la pregunta de IDDD sobre nombre y visión del Core Domain [IDDD cap. 2].
 * **Highlighted Core** cuando el núcleo ya existe en código: hacerlo visible (documento de destilación breve, núcleo marcado en el repositorio).
@@ -90,7 +91,7 @@ Estado: hipótesis | validado con <expertos, DD/MM/AAAA>
 ## 6. Estrategia de inversión por contexto (construir con DDD completo, a medida simple, comprar, subcontratar)
 ## 7. Diagrama (Mermaid)
 ## 8. Riesgos y preguntas abiertas
-## 9. Siguiente paso: relaciones entre contextos (ddd-context-mapping)
+## 9. Siguiente paso: relaciones entre contextos (ddd-skills/ddd-context-mapping/GUIA.md)
 ```
 
 Diagrama mínimo:
@@ -125,9 +126,9 @@ Vernon considera los microservicios básicamente equivalentes a Bounded Contexts
 
 ## Ejemplo completo
 
-`references/ejemplo-ecommerce.md` continúa el caso de la tienda online del skill de descubrimiento hasta el mapa estratégico completo.
+`ddd-skills/ddd-subdominios-bounded-contexts/references/ejemplo-ecommerce.md` continúa el caso de la tienda online de la guía de descubrimiento hasta el mapa estratégico completo.
 
-## Siguiente skill
+## Siguiente guía
 
-* Relaciones entre contextos, integración y traducción → `ddd-context-mapping`.
-* Estructura de carpetas, capas y módulos dentro de cada contexto → `ddd-arquitectura`.
+* Relaciones entre contextos, integración y traducción → `ddd-skills/ddd-context-mapping/GUIA.md`.
+* Estructura de carpetas, capas y módulos dentro de cada contexto → `ddd-skills/ddd-arquitectura/GUIA.md`.

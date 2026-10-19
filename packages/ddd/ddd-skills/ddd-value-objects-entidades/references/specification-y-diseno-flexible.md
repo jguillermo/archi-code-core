@@ -22,7 +22,7 @@ Las operaciones que devuelven un resultado no cambian estado observable. En los 
 
 ### Assertions
 
-`[Fuera de los libros: Evans 2003]`. Cuando una operación sí tiene efectos, haz explícitos sus resultados y las invariantes que mantiene: en los tests (tests de aceptación con lenguaje del negocio, ver `ddd-descubrimiento-dominio`) y en guardas del código. IDDD trata las guardas de autoencapsulación como aserciones que protegen el estado [IDDD cap. 5].
+`[Fuera de los libros: Evans 2003]`. Cuando una operación sí tiene efectos, haz explícitos sus resultados y las invariantes que mantiene: en los tests (tests de aceptación con lenguaje del negocio, ver `ddd-skills/ddd-descubrimiento-dominio/GUIA.md`) y en guardas del código. IDDD trata las guardas de autoencapsulación como aserciones que protegen el estado [IDDD cap. 5].
 
 ### Conceptual Contours
 
@@ -99,9 +99,21 @@ La especificación recibe datos de otros agregados ya cargados (`StockSnapshot`)
 
 ## 3. Specification para consultar
 
-*DDD in PHP* propone sustituir los métodos `find...` que crecen sin fin en los repositorios por un método `query(specification)` creado con una fábrica que depende de la infraestructura [PHP: Repositories; PHP: Factories].
+*DDD in PHP* propone sustituir los métodos `find...` que crecen sin fin en los repositorios por un método `query(specification)`. Para no acoplar el servicio a una implementación concreta (SQL o memoria), las especificaciones se crean con una fábrica abstracta cuya implementación depende de la infraestructura [PHP: Repositories; PHP: Factories].
 
-Con `@archi-code/ddd` no se hace así `[Fuera de los libros: convención de @archi-code/ddd]`: el repositorio solo obtiene y persiste (`findById`, `save`, `delete`). Seleccionar agregados es una **consulta de lectura** de la capa de aplicación (`StaleOrders.ids(olderThan)`, con SQL, una vista o `@archi-code/criteria`), que devuelve identidades o DTOs; la Specification se usa en memoria, sobre datos ya cargados (`orders.filter((o) => spec.isSatisfiedBy(o))`) o para validar. Si acabas construyendo un lenguaje de consultas genérico, has reinventado el ORM.
+```ts
+// Dominio
+export interface OrderSpecificationFactory {
+  pendingOlderThan(moment: Date): OrderQuerySpecification;
+}
+export interface OrderRepository {
+  query(spec: OrderQuerySpecification, limit: number): Promise<Order[]>;
+}
+// Infraestructura: PgOrderSpecificationFactory produce especificaciones que saben generar SQL;
+// InMemoryOrderSpecificationFactory, especificaciones que filtran en memoria.
+```
+
+Úsalo con mesura `[Fuera de los libros]`: si acabas construyendo un lenguaje de consultas genérico, has reinventado el ORM. Para pantallas, mejor consultas de lectura (`ddd-skills/ddd-repositorios-persistencia/GUIA.md`).
 
 ## 4. Errores frecuentes
 

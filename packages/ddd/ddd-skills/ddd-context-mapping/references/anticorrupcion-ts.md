@@ -134,7 +134,7 @@ export class PlaceOrder {
       if (!product) throw new ProductNotSellable(item.sku);
       lines.push(OrderLine.of(product.sku, product.name, Quantity.of(item.quantity), product.unitPrice));
     }
-    const order = Order.place(OrderId.generate(), CustomerId.of(cmd.customerId), lines);
+    const order = Order.place(this.orders.nextId(), CustomerId.of(cmd.customerId), lines);
     await this.orders.save(order);
     return order.id.value;
   }
@@ -166,8 +166,6 @@ export class PaymentGatewayWebhookAdapter {
   }
 }
 ```
-
-`[Fuera de los libros: convención de @archi-code/ddd]` Con el paquete el adaptador no llama al agregado ni a un servicio de dominio: es un punto de entrada en `interfaces/` que traduce el webhook a la entrada de un caso de uso (`RecordPaymentAuthorization`, `RecordPaymentRejection`) y llama a su `execute(input)`; el caso de uso construye los value objects en `toCommand`, carga el agregado, lo cambia, lo guarda y publica sus eventos.
 
 ## Tests de la capa
 

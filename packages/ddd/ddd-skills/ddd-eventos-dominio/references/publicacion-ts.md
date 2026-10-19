@@ -61,7 +61,7 @@ export class PostgresOrderRepository implements OrderRepository {
 }
 ```
 
-Que el repositorio vacíe los eventos al guardar es una opción cómoda `[Fuera de los libros]`. La alternativa es que el caso de uso llame a `pullEvents()` y a un `EventStore.append` dentro de la misma transacción. Elige una y sé consistente. Con `@archi-code/ddd` se usa la segunda, porque el repositorio solo obtiene y persiste: el caso de uso hace `events.publish(order.pullDomainEvents())` dentro de `transactions.run(...)`, el `EventBus` es el outbox, y un `OutboxRelay` reenvía después del commit `[Fuera de los libros: convención de @archi-code/ddd]`.
+Que el repositorio vacíe los eventos al guardar es una opción cómoda `[Fuera de los libros]`. La alternativa es que el caso de uso llame a `pullEvents()` y a un `EventStore.append` dentro de la misma transacción. Elige una y sé consistente.
 
 ## Reenviador
 
@@ -97,7 +97,7 @@ export class StoredEventForwarder {
 
 Si el proceso cae tras publicar y antes de marcar, el mensaje se volverá a enviar. Es la razón por la que los consumidores deben deduplicar [IDDD cap. 8].
 
-`PublishedLanguageMapper` traduce el evento interno al esquema publicado y decide qué eventos salen del contexto (ver "Eventos internos y eventos publicados" en SKILL.md).
+`PublishedLanguageMapper` traduce el evento interno al esquema publicado y decide qué eventos salen del contexto (ver "Eventos internos y eventos publicados" en `ddd-skills/ddd-eventos-dominio/GUIA.md`).
 
 ## Consumidor idempotente
 
@@ -129,4 +129,4 @@ Para políticas del mismo contexto se puede usar el mismo reenviador (más simpl
 
 ## Notificaciones por REST
 
-Alternativa a un bus: exponer el event store como un log de notificaciones REST (actual y archivados), que los consumidores leen a su ritmo [IDDD cap. 8 y cap. 13]. Útil cuando los consumidores no comparten infraestructura de mensajería. Ver `ddd-context-mapping`.
+Alternativa a un bus: exponer el event store como un log de notificaciones REST (actual y archivados), que los consumidores leen a su ritmo [IDDD cap. 8 y cap. 13]. Útil cuando los consumidores no comparten infraestructura de mensajería. Ver `ddd-skills/ddd-context-mapping/GUIA.md`.

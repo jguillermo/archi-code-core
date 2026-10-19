@@ -32,12 +32,12 @@ Publicar los eventos de dominio como un feed de recursos (al estilo Atom) que lo
 
 ### Publicar de forma fiable
 
-`[Fuera de los libros como nombre; la idea de guardar eventos en la misma transacción está en IDDD cap. 8]`. Patrón **outbox transaccional**: en la misma transacción que guarda el agregado, se guardan sus eventos en una tabla; un proceso aparte los lee y los publica en el bus, marcándolos como enviados. Evita perder eventos si el bus falla tras confirmar la transacción, o publicar eventos de cambios que luego se revierten. Se desarrolla en `ddd-eventos-dominio`.
+`[Fuera de los libros como nombre; la idea de guardar eventos en la misma transacción está en IDDD cap. 8]`. Patrón **outbox transaccional**: en la misma transacción que guarda el agregado, se guardan sus eventos en una tabla; un proceso aparte los lee y los publica en el bus, marcándolos como enviados. Evita perder eventos si el bus falla tras confirmar la transacción, o publicar eventos de cambios que luego se revierten. Se desarrolla en `ddd-skills/ddd-eventos-dominio/GUIA.md`.
 
 ### Receptor idempotente en TypeScript
 
 ```ts
-export class RegisterReservationOnStockReserved {
+export class StockReservedHandler {
   constructor(
     private readonly processed: ProcessedMessageStore,
     private readonly confirmOrder: ConfirmOrderWhenReady,

@@ -156,13 +156,16 @@ Only when the package needs them, and documented in its README:
   only `SKILL.md`). The suite guides have no frontmatter, so no tool loads them as skills of their
   own, and each says under its title that it is read only through the package skill. Where the
   package deliberately differs from the books, the suite says so with
-  `[Fuera de los libros: convención de @archi-code/ddd]`. `test/cross/skill-suite.spec.ts` checks
+  `[Fuera de los libros: convención de @archi-code/ddd]`. The package's own rules, patterns and
+  mistakes may live in the suite too, as plain English guides in `ddd-skills/archi-code-ddd/`
+  (not a suite skill) that the root `SKILL.md` lists one by one, keeping itself light. `test/cross/skill-suite.spec.ts` checks
   that the suite is packed, that `SKILL.md` routes to every suite skill (and only to existing
   ones), names `references/chuleta-reglas.md` and carries the convention mark, that no guide has
   a frontmatter and each points to the package skill, that every `references/`, `assets/` and
   `scripts/` path cited in any suite markdown exists, that every `ddd-*` name cited is a suite
   folder, that no file of the suite is left uncited, that it cites no internal document codes and
-  that the dependency-cruiser asset loads with rules for `@archi-code` and `composition.ts`. It is
+  that the dependency-cruiser asset loads with rules for `@archi-code` and `composition.ts`, and that
+  `SKILL.md` lists every guide of `archi-code-ddd/` and each one exists. It is
   kept as written (excluded from Prettier, ESLint and EditorConfig, see
   `.claude/rules/tooling.md`).
 - Extra folders (`benchmark/`, `docs/`): their own tsconfig type-checked in `check:types` and one

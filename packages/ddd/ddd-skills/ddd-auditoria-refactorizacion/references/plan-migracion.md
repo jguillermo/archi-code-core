@@ -3,7 +3,7 @@
 ## Fase 0. Red de seguridad
 
 * Tests de caracterización del comportamiento actual en la zona a cambiar: fijan lo que hace hoy, aunque esté mal, para detectar cambios no deseados `[Fuera de los libros]`.
-* Reglas automáticas de dependencias (`ddd-arquitectura`) en modo aviso, para medir sin bloquear.
+* Reglas automáticas de dependencias (`ddd-skills/ddd-arquitectura/GUIA.md`) en modo aviso, para medir sin bloquear.
 * Mapa de contexto del presente, no del futuro deseado [IDDD cap. 3].
 
 ## Fase 1. Proteger el núcleo
@@ -26,7 +26,7 @@ Orden recomendado `[Fuera de los libros, basado en dependencias entre reglas]`:
 1. Separar dominio de infraestructura (puertos, mappers, sin decoradores).
 2. Introducir value objects para los primitivos más usados (dinero, identificadores, estados).
 3. Sustituir setters por comportamiento con nombres del lenguaje, moviendo la lógica desde los servicios.
-4. Partir agregados grandes con el procedimiento de `ddd-agregados` (preguntar plazos de consistencia).
+4. Partir agregados grandes con el procedimiento de `ddd-skills/ddd-agregados/GUIA.md` (preguntar plazos de consistencia).
 5. Introducir eventos y outbox donde hoy se modifican varios agregados juntos.
 6. Separar consultas de lectura si los repositorios han crecido en métodos.
 

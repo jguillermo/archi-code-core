@@ -44,7 +44,7 @@ Orden que sigue Destilado para construir la raíz [Destilado cap. 5]:
 1. Clase de la raíz.
 2. Identidad global única como value object (en multi-tenant, también el `TenantId`).
 3. Atributos intrínsecos necesarios para encontrarlo (nombre, descripción).
-4. Getters solo si hacen falta; **sin setters públicos**. `[Fuera de los libros: convención de @archi-code/ddd]` Con @archi-code/ddd cada campo persistido tiene un getter público con su nombre sin `_` (o es `public readonly`), porque `PrimitiveTypes` y `AggregateMapper` lo leen; los valores derivados son métodos, no getters.
+4. Getters solo si hacen falta; **sin setters públicos**.
 5. Comportamiento complejo con nombres del lenguaje (`planBacklogItem`, `scheduleRelease`).
 
 ## 3. Agregado completo: Order

@@ -37,6 +37,6 @@ Procedimiento: lista las entidades principales, para cada una agrupa sus campos 
 
 ## Qué hacer después
 
-* Para integrarte con el sistema heredado sin contaminar el nuevo modelo: Anticorruption Layer, en `ddd-context-mapping`.
-* Para migrar el sistema por partes: `ddd-auditoria-refactorizacion`.
+* Para integrarte con el sistema heredado sin contaminar el nuevo modelo: Anticorruption Layer, en `ddd-skills/ddd-context-mapping/GUIA.md`.
+* Para migrar el sistema por partes: `ddd-skills/ddd-auditoria-refactorizacion/GUIA.md`.
 * No intentes rediseñar todo el sistema heredado a la vez. Empieza por el subdominio lógico que más dolor causa al Core Domain `[Fuera de los libros]`.

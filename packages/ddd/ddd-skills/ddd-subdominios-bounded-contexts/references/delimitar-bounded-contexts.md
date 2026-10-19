@@ -54,7 +54,7 @@ No solo el modelo de dominio. También [IDDD cap. 2; Destilado cap. 2]:
 * El equipo posee código y base de datos, y define las interfaces oficiales para usar el contexto [Destilado cap. 2].
 * Vernon recomienda un repositorio de código por contexto y separar también el esquema [Destilado cap. 2].
 
-Sobre el repositorio `[Fuera de los libros]`: un monorepo es compatible si cada contexto tiene su carpeta raíz, sus dependencias declaradas y una regla automática que impida importar el dominio de otro contexto (en TypeScript, con `eslint-plugin-boundaries`, `dependency-cruiser` o las restricciones de proyecto de Nx). Sin esa regla automática, el monorepo erosiona las fronteras con el tiempo. Cómo encaja con la estructura de proyecto de tu organización se ve en `ddd-arquitectura`.
+Sobre el repositorio `[Fuera de los libros]`: un monorepo es compatible si cada contexto tiene su carpeta raíz, sus dependencias declaradas y una regla automática que impida importar el dominio de otro contexto (en TypeScript, con `eslint-plugin-boundaries`, `dependency-cruiser` o las restricciones de proyecto de Nx). Sin esa regla automática, el monorepo erosiona las fronteras con el tiempo. Cómo encaja con la estructura de proyecto de tu organización se ve en `ddd-skills/ddd-arquitectura/GUIA.md`.
 
 ## Microservicios
 

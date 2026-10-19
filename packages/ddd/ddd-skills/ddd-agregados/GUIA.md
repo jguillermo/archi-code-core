@@ -1,16 +1,21 @@
 # Agregados
 
-> Guía de la suite DDD de @archi-code/ddd: se lee solo a través del skill `archi-code-ddd` (packages/ddd/SKILL.md), nunca como skill independiente.
+> Parte del skill `archi-code-ddd`: léela solo cuando ese skill te dirija aquí. Para escribir el código, traduce los ejemplos con `ddd-skills/archi-code-ddd/suite-to-package.md`; si esta guía y las reglas del paquete discrepan, ganan las del paquete.
+>
+> **Cuándo consultar esta guía.** Diseño e implementación de agregados DDD en TypeScript, la guía central del diseño táctico. Cubre las cuatro reglas (proteger invariantes reales dentro del límite, agregados pequeños, referencias por identidad, consistencia eventual fuera del límite), el procedimiento para dimensionar agregados preguntando a negocio por los plazos de consistencia, la heurística de "¿de quién es el trabajo?", cuándo está justificado romper las reglas, la raíz del agregado, partes como value objects, fábricas, concurrencia optimista, registro de eventos de dominio y tests. Consúltala siempre que haya que decidir qué objetos van juntos, qué se guarda en una transacción, por qué hay conflictos de concurrencia o bloqueos, si un objeto debe contener una colección de otro, cómo coordinar cambios en varias entidades, o cuando aparezca un objeto enorme que carga medio modelo, aunque no se diga "agregado".
 
-**Cuándo usarla.** Úsala siempre que haya que decidir qué objetos van juntos, qué se guarda en una transacción, por qué hay conflictos de concurrencia o bloqueos, si un objeto debe contener una colección de otro, cómo coordinar cambios en varias entidades, o cuando aparezca un objeto enorme que carga medio modelo, aunque no se diga "agregado".
+## Con @archi-code/ddd
+
+[Fuera de los libros: convención de @archi-code/ddd]
+
+* La raíz extiende `AggregateRoot<Id, Event>` y llama a `super(id)`; `version`, `markPersisted()` y `restoreVersion()` están en la base y solo los usan los repositorios; los eventos se obtienen con `pullDomainEvents()`.
+* Todo el estado son value objects, composites o entidades hijas con getter público; constructor privado, una factoría de negocio y `fromPrimitives`, y `toPrimitives()` con datos planos (las seis reglas de `layers.md`).
+* Las identidades nuevas salen del value object (`OrderId.generate()`), no de `repository.nextId()`.
+* Los métodos del dominio reciben `clock: { now(): Date }` y lo pasan a los eventos (`{ clock }`).
+* Una fábrica en otra raíz (`customer.placeOrder(...)`): el caso de uso lee `Customer` con `AggregateFinder` y guarda solo el nuevo `Order` con `AggregateSaver`.
 
 Un agregado es un grupo de entidades y value objects con una entidad raíz que lo nombra y lo controla, y que forma un **límite de consistencia transaccional**: al confirmar la transacción, todo lo de dentro cumple las reglas del negocio [Destilado cap. 5]. No es un grafo de objetos cómodo de navegar; es una decisión sobre consistencia [IDDD cap. 10].
 
-## Convenciones de la suite DDD
-
-* **Trazabilidad.** Cada regla indica su origen: `[Destilado cap. N]`, `[IDDD cap. N]`, `[PHP: capítulo]`. Lo que no sale de esos libros va marcado `[Fuera de los libros]`. Respeta estas marcas al responder.
-* **Idioma.** Responde en el idioma de la persona. El código de ejemplo es TypeScript.
-* **Honestidad del modelo.** Los plazos de consistencia y las invariantes los decide negocio. Si no hay experto, preséntalos como supuestos a validar.
 
 ## Las cuatro reglas
 
@@ -27,7 +32,7 @@ Corolario operativo: **una transacción modifica una sola instancia de agregado*
 
 ### Paso 1. Partir de los candidatos
 
-Del Event Storming salen agregados candidatos con sus comandos y eventos (`ddd-descubrimiento-dominio`). Si no hay, lístalos desde el glosario: sustantivos con ciclo de vida que reciben comandos.
+Del Event Storming salen agregados candidatos con sus comandos y eventos (`ddd-skills/ddd-descubrimiento-dominio/GUIA.md`). Si no hay, lístalos desde el glosario: sustantivos con ciclo de vida que reciben comandos.
 
 ### Paso 2. Dimensionar con el procedimiento de Vernon
 
@@ -41,7 +46,7 @@ Del Event Storming salen agregados candidatos con sus comandos y eventos (`ddd-d
 
 Desconfía si negocio dice "inmediato" para todo. Suele venir de una mentalidad de base de datos; muestra cómo fallarían las transacciones con usuarios concurrentes en un agregado grande y cuánta memoria consumiría [Destilado cap. 5]. Los expertos suelen tolerar retrasos mejor que los desarrolladores, porque recuerdan cómo funcionaba el negocio en papel [IDDD cap. 10; Destilado cap. 5].
 
-Usa `assets/hoja-diseno-agregado.md` para registrar el resultado.
+Usa `ddd-skills/ddd-agregados/assets/hoja-diseno-agregado.md` para registrar el resultado.
 
 ### Paso 3. Desempatar con "¿de quién es el trabajo?"
 
@@ -57,20 +62,20 @@ Modela el lenguaje ubicuo explícitamente. Nada de `ScrumElement` con un `typeNa
 
 ### Paso 6. Implementar
 
-Guía completa en `references/implementacion-ts.md`. Lo esencial:
+Guía completa en `ddd-skills/ddd-agregados/references/implementacion-ts.md`. Lo esencial:
 
 * La raíz tiene identidad global; las entidades internas solo identidad local [IDDD cap. 10].
 * Partes internas como **value objects** siempre que se puedan reemplazar enteras [IDDD cap. 10].
 * Comportamiento con nombres del lenguaje; sin setters públicos. Ley de Demeter y "Tell, Don't Ask": los clientes piden a la raíz que haga algo, no navegan por dentro [IDDD cap. 10].
 * **No inyectes repositorios ni servicios en el agregado.** Busca antes lo que necesite (en el servicio de aplicación) y pásaselo al método [IDDD cap. 10].
 * **Concurrencia optimista** con versión en la raíz [IDDD cap. 10].
-* El agregado **registra** sus eventos; la capa de aplicación los publica tras guardar (ver `ddd-eventos-dominio`).
+* El agregado **registra** sus eventos; la capa de aplicación los publica tras guardar (ver `ddd-skills/ddd-eventos-dominio/GUIA.md`).
 * **Distingue comandos de hechos.** Un comando de usuario puede rechazarse con un error de negocio. Un método que registra un hecho ya ocurrido en otro agregado o contexto es idempotente y no lanza: si el hecho no encaja, registra un evento de negocio para que otra política compense [Destilado cap. 6]. Una excepción en un consumidor de mensajes provoca reintentos sin fin.
-* Creación con **fábricas**: método en la raíz de otro agregado cuando el nuevo nace de él, o servicio cuando la creación necesita traducir de otro contexto [IDDD cap. 11; PHP: Factories]. Ver `references/fabricas.md`.
+* Creación con **fábricas**: método en la raíz de otro agregado cuando el nuevo nace de él, o servicio cuando la creación necesita traducir de otro contexto [IDDD cap. 11; PHP: Factories]. Ver `ddd-skills/ddd-agregados/references/fabricas.md`.
 
 ### Paso 7. Coordinar agregados
 
-Consistencia eventual dentro y fuera del contexto: suscriptores, reintentos, compensaciones y procesos. `references/consistencia-eventual.md`.
+Consistencia eventual dentro y fuera del contexto: suscriptores, reintentos, compensaciones y procesos. `ddd-skills/ddd-agregados/references/consistencia-eventual.md`.
 
 ## Cuándo romper las reglas
 
@@ -98,14 +103,14 @@ Destilado añade una vía de aprendizaje: mientras el equipo se acostumbra, pued
 
 ## Programación funcional
 
-Con un estilo funcional, separar datos y comportamiento no es anemia: el agregado es un tipo inmutable y las funciones devuelven un estado nuevo o un evento. Parte de esta guía orientada a objetos no aplica tal cual [Destilado cap. 5]. `references/implementacion-ts.md` incluye una variante funcional.
+Con un estilo funcional, separar datos y comportamiento no es anemia: el agregado es un tipo inmutable y las funciones devuelven un estado nuevo o un evento. Parte de esta guía orientada a objetos no aplica tal cual [Destilado cap. 5]. `ddd-skills/ddd-agregados/references/implementacion-ts.md` incluye una variante funcional.
 
 ## Ejemplo completo
 
-`references/ejemplo-ecommerce.md` aplica el procedimiento de dimensionado a Pedido, Pago y Reserva de stock, con la tabla de reacciones y plazos, el código del agregado `Order` y la política de confirmación.
+`ddd-skills/ddd-agregados/references/ejemplo-ecommerce.md` aplica el procedimiento de dimensionado a Pedido, Pago y Reserva de stock, con la tabla de reacciones y plazos, el código del agregado `Order` y la política de confirmación.
 
-## Siguiente skill
+## Siguiente guía
 
-* Diseño, publicación y consumo de eventos → `ddd-eventos-dominio`.
-* Repositorio del agregado → `ddd-repositorios-persistencia`.
-* Casos de uso que cargan, invocan y guardan agregados → `ddd-servicios-capa-aplicacion`.
+* Diseño, publicación y consumo de eventos → `ddd-skills/ddd-eventos-dominio/GUIA.md`.
+* Repositorio del agregado → `ddd-skills/ddd-repositorios-persistencia/GUIA.md`.
+* Casos de uso que cargan, invocan y guardan agregados → `ddd-skills/ddd-servicios-capa-aplicacion/GUIA.md`.

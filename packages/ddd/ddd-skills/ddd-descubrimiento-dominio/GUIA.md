@@ -1,16 +1,18 @@
 # Descubrimiento del dominio
 
-> Guía de la suite DDD de @archi-code/ddd: se lee solo a través del skill `archi-code-ddd` (packages/ddd/SKILL.md), nunca como skill independiente.
+> Parte del skill `archi-code-ddd`: léela solo cuando ese skill te dirija aquí. Para escribir el código, traduce los ejemplos con `ddd-skills/archi-code-ddd/suite-to-package.md`; si esta guía y las reglas del paquete discrepan, ganan las del paquete.
+>
+> **Cuándo consultar esta guía.** Descubrimiento y exploración del dominio con Domain-Driven Design. Guía Event Storming (preparar una sesión, hacerla de forma asistida a partir de documentación o código, o digitalizar sus resultados), la construcción del Ubiquitous Language y su glosario, escenarios concretos convertidos en especificaciones Given/When/Then y tests de aceptación en TypeScript, y la planificación del modelado (modeling spikes, deuda de modelo, estimación, tiempo con expertos). Consúltala siempre que alguien quiera empezar un proyecto con DDD, hacer una lluvia de ideas del dominio, entender un negocio antes de modelar, preparar o interpretar un Event Storming, definir o revisar el lenguaje ubicuo, escribir escenarios de negocio, o cuando pida "por dónde empiezo con DDD", aunque no mencione estos términos.
 
-**Cuándo usarla.** Úsala siempre que alguien quiera empezar un proyecto con DDD, hacer una lluvia de ideas del dominio, entender un negocio antes de modelar, preparar o interpretar un Event Storming, definir o revisar el lenguaje ubicuo, escribir escenarios de negocio, o cuando pida "por dónde empiezo con DDD", aunque no mencione estos términos. Es el primer paso de la suite DDD; sus salidas alimentan ddd-subdominios-bounded-contexts y ddd-agregados.
+## Con @archi-code/ddd
 
-Este skill cubre la fase en la que todavía no hay modelo, solo un negocio que entender. Su salida es conocimiento compartido y verificable, no clases. La idea de fondo de Vernon es que la conversación entre expertos y desarrolladores vale más que cualquier documento, y que al final el código es el modelo [Destilado cap. 2]. Todo lo que se produce aquí (notas, glosarios, bocetos) es andamio para llegar a ese código.
+[Fuera de los libros: convención de @archi-code/ddd]
 
-## Convenciones de la suite DDD
+* El descubrimiento no depende del paquete: sus salidas (glosario, Event Storming, escenarios) se traducen a código en las guías tácticas.
+* En los tests de aceptación, los eventos se leen con `pullDomainEvents()` y se identifican por su clase o su `eventName` (no hay `pendingEvents()` ni campo `type`); un escenario que cruza un caso de uso se prueba con `UseCase.execute` y adaptadores en memoria (`InMemoryRepository`, `InMemoryOutbox`, `FixedClock`).
 
-* **Trazabilidad.** Cada regla indica su origen: `[Destilado cap. N]` (Domain-Driven Design Destilado / Distilled, Vernon), `[IDDD cap. N]` (Implementing Domain-Driven Design, Vernon), `[PHP: capítulo]` (Domain-Driven Design in PHP). Lo que no sale de esos libros va marcado `[Fuera de los libros]`. Respeta estas marcas al responder: si apoyas una recomendación en algo marcado así, dilo.
-* **Idioma.** Responde en el idioma de la persona. El código de ejemplo es TypeScript.
-* **Honestidad del modelo.** Nunca presentes como validado por negocio algo que no ha pasado por un experto del dominio. Si trabajas sin expertos, todo sale como hipótesis.
+Esta guía cubre la fase en la que todavía no hay modelo, solo un negocio que entender. Su salida es conocimiento compartido y verificable, no clases. La idea de fondo de Vernon es que la conversación entre expertos y desarrolladores vale más que cualquier documento, y que al final el código es el modelo [Destilado cap. 2]. Todo lo que se produce aquí (notas, glosarios, bocetos) es andamio para llegar a ese código.
+
 
 ## Elige el modo de trabajo antes de empezar
 
@@ -43,7 +45,7 @@ Avisa si detectas intención de hacer **DDD-Lite**: usar patrones tácticos (ent
 
 ### Paso 2. Event Storming
 
-Resumen del método de Vernon [Destilado cap. 7]. El detalle (colores, facilitación, notación textual, errores típicos) está en `references/event-storming.md`. Léelo antes de preparar o ejecutar una sesión.
+Resumen del método de Vernon [Destilado cap. 7]. El detalle (colores, facilitación, notación textual, errores típicos) está en `ddd-skills/ddd-descubrimiento-dominio/references/event-storming.md`. Léelo antes de preparar o ejecutar una sesión.
 
 1. **Eventos de dominio** en naranja, en pasado, de izquierda a derecha en orden temporal. Lo paralelo va en vertical. Más eventos de los necesarios es mejor que pocos.
 2. **Hotspots** en púrpura o rojo donde haya dudas, conflictos o dolor. Son la mejor señal de dónde hay que aprender más.
@@ -69,15 +71,15 @@ Sustituye términos genéricos por los del negocio. El ejemplo del libro: `User`
 
 ### Paso 4. Escenarios concretos
 
-El lenguaje no son solo sustantivos. Escribe escenarios de cómo funciona el modelo (no casos de uso ni historias de usuario) y desafíalos con preguntas de quién, qué condiciones y quién se entera [Destilado cap. 2]. Luego pásalos a Given/When/Then y a un test de aceptación que se ejecuta contra el modelo de dominio. Plantillas, preguntas de refinamiento y ejemplos en TypeScript en `references/escenarios-y-especificaciones.md`.
+El lenguaje no son solo sustantivos. Escribe escenarios de cómo funciona el modelo (no casos de uso ni historias de usuario) y desafíalos con preguntas de quién, qué condiciones y quién se entera [Destilado cap. 2]. Luego pásalos a Given/When/Then y a un test de aceptación que se ejecuta contra el modelo de dominio. Plantillas, preguntas de refinamiento y ejemplos en TypeScript en `ddd-skills/ddd-descubrimiento-dominio/references/escenarios-y-especificaciones.md`.
 
 ### Paso 5. Glosario del lenguaje ubicuo
 
-Hay **un lenguaje ubicuo por Bounded Context**; intentar uno para toda la empresa fracasa [IDDD cap. 1]. Construye un glosario por contexto con la plantilla de `assets/plantilla-glosario.md` y las reglas de `references/lenguaje-ubicuo.md`, que incluyen cómo decidir el idioma de los identificadores en código.
+Hay **un lenguaje ubicuo por Bounded Context**; intentar uno para toda la empresa fracasa [IDDD cap. 1]. Construye un glosario por contexto con la plantilla de `ddd-skills/ddd-descubrimiento-dominio/assets/plantilla-glosario.md` y las reglas de `ddd-skills/ddd-descubrimiento-dominio/references/lenguaje-ubicuo.md`, que incluyen cómo decidir el idioma de los identificadores en código.
 
 ### Paso 6. Planificar el modelado
 
-Si el trabajo va a entrar en un proyecto ágil, usa `references/planificacion-agil.md`: análisis DOFA, modeling spikes, deuda de modelo, estimación por componentes, timeboxed modeling y cuánto tiempo pedir a los expertos [Destilado cap. 7].
+Si el trabajo va a entrar en un proyecto ágil, usa `ddd-skills/ddd-descubrimiento-dominio/references/planificacion-agil.md`: análisis DOFA, modeling spikes, deuda de modelo, estimación por componentes, timeboxed modeling y cuánto tiempo pedir a los expertos [Destilado cap. 7].
 
 ## Entregable
 
@@ -92,8 +94,8 @@ Modo: A | B | C    Estado: hipótesis | validado con <expertos, fecha DD/MM/AAAA
 ## 3. Línea temporal de eventos (notación de references/event-storming.md)
 ## 4. Hotspots abiertos (pregunta, a quién, impacto)
 ## 5. Desafiar y unificar (en contexto / fuera / fuera de alcance)
-## 6. Contextos y subdominios candidatos (solo propuesta; se decide en ddd-subdominios-bounded-contexts)
-## 7. Agregados candidatos (solo nombres y comandos; se diseñan en ddd-agregados)
+## 6. Contextos y subdominios candidatos (solo propuesta; se decide en ddd-skills/ddd-subdominios-bounded-contexts/GUIA.md)
+## 7. Agregados candidatos (solo nombres y comandos; se diseñan en ddd-skills/ddd-agregados/GUIA.md)
 ## 8. Glosario por contexto
 ## 9. Escenarios clave en Given/When/Then
 ## 10. Siguientes pasos y deuda de modelo
@@ -112,10 +114,10 @@ Detén el trabajo y avisa si ves alguna de estas:
 
 ## Ejemplo completo
 
-`references/ejemplo-ecommerce.md` recorre todo el flujo para una tienda online (pedidos, pagos, almacén): línea temporal, hotspots, desafío de términos, glosario, escenario y test. Úsalo como patrón de calidad del entregable.
+`ddd-skills/ddd-descubrimiento-dominio/references/ejemplo-ecommerce.md` recorre todo el flujo para una tienda online (pedidos, pagos, almacén): línea temporal, hotspots, desafío de términos, glosario, escenario y test. Úsalo como patrón de calidad del entregable.
 
-## Siguiente skill
+## Siguiente guía
 
-* Contextos y subdominios candidatos → `ddd-subdominios-bounded-contexts`.
-* Relaciones entre contextos y eventos que cruzan límites → `ddd-context-mapping`.
-* Agregados candidatos con sus comandos y eventos → `ddd-agregados`.
+* Contextos y subdominios candidatos → `ddd-skills/ddd-subdominios-bounded-contexts/GUIA.md`.
+* Relaciones entre contextos y eventos que cruzan límites → `ddd-skills/ddd-context-mapping/GUIA.md`.
+* Agregados candidatos con sus comandos y eventos → `ddd-skills/ddd-agregados/GUIA.md`.

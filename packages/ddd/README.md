@@ -2151,8 +2151,10 @@ written in Spanish, each rule with its source in Vernon's books and _DDD in PHP_
 the only skill you install and the only one you call: it classifies each request, reads the
 matching skill of the suite from `node_modules/@archi-code/ddd/ddd-skills/`, and turns the
 suite's examples into code that uses this package. For the full API it points to this README
-inside `node_modules/@archi-code/ddd`, so both stay valid when you update the package. Do not
-copy `ddd-skills/` into `.claude/skills/`. To install it in your project:
+inside `node_modules/@archi-code/ddd`, so both stay valid when you update the package. Its rules,
+patterns and common mistakes are split into `ddd-skills/archi-code-ddd/` (where each class goes,
+the translation from the suite, the rules per layer, patterns, what not to do), which `SKILL.md`
+reads from the package too. Do not copy `ddd-skills/` into `.claude/skills/`. To install it in your project:
 
 ```bash
 mkdir -p .claude/skills/archi-code-ddd && cp node_modules/@archi-code/ddd/SKILL.md .claude/skills/archi-code-ddd/SKILL.md

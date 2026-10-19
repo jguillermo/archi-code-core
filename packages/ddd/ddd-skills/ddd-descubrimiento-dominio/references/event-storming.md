@@ -39,7 +39,7 @@ Material [Destilado cap. 7]:
 * Rotulador negro de punta gruesa por persona; se escriben pocas palabras.
 * Rollo de papel en una pared de al menos 10 m de ancho y 1 m de alto. El ancho importa más que el alto. La pizarra funciona poco tiempo porque las notas se despegan.
 
-Códigos de color usados en esta suite (los de Vernon) [Destilado cap. 7]:
+Códigos de color usados en estas fuentes (los de Vernon) [Destilado cap. 7]:
 
 | Color | Elemento |
 |---|---|
@@ -79,7 +79,7 @@ Brandolini y otras fuentes usan colores algo distintos (por ejemplo rosa para si
 * Nota amarilla con un sustantivo, detrás y algo por encima de sus pares comando/evento.
 * Si a negocio le confunde "agregado", llámalo entidad o datos [Destilado cap. 7].
 * **No reordenes la línea temporal** para agrupar todo bajo un agregado. Repite la nota del agregado donde haga falta [Destilado cap. 7].
-* Si un agregado acumula demasiado, puede convenir partirlo en un proceso gestionado (lila) [Destilado cap. 7]. Esto se decide con detalle en `ddd-agregados`.
+* Si un agregado acumula demasiado, puede convenir partirlo en un proceso gestionado (lila) [Destilado cap. 7]. Esto se decide con detalle en `ddd-skills/ddd-agregados/GUIA.md`.
 
 ### Paso 4. Límites y flujos (opcional)
 

@@ -1,6 +1,6 @@
 # Ejemplo completo: mapa estratégico de la tienda online
 
-Continúa el caso de `ddd-descubrimiento-dominio` (venta online de menaje). Supuesto: los hotspots se han resuelto con los expertos así: el stock se reserva al realizar el pedido, no se admite reserva parcial y la autorización de pago dura 7 días.
+Continúa el caso de `ddd-skills/ddd-descubrimiento-dominio/GUIA.md` (venta online de menaje). Supuesto: los hotspots se han resuelto con los expertos así: el stock se reserva al realizar el pedido, no se admite reserva parcial y la autorización de pago dura 7 días.
 
 ---
 
@@ -81,7 +81,7 @@ flowchart LR
   classDef ext fill:#ffffff,color:#000,stroke-dasharray: 5 5
 ```
 
-Las relaciones (flechas, tipo de relación y dirección) se añaden en `ddd-context-mapping`.
+Las relaciones (flechas, tipo de relación y dirección) se añaden en `ddd-skills/ddd-context-mapping/GUIA.md`.
 
 ## 8. Riesgos y preguntas abiertas
 

@@ -65,7 +65,7 @@ Dos sustituciones de lenguaje: `Usuario` pasa a ser `Cliente` en Ventas; `Pedido
 
 ## 6. Contextos y subdominios candidatos
 
-Propuesta para trabajar en `ddd-subdominios-bounded-contexts`, no una decisión:
+Propuesta para trabajar en `ddd-skills/ddd-subdominios-bounded-contexts/GUIA.md`, no una decisión:
 
 * **Ventas**: candidato a Core Domain (la diferenciación está en preventa y en no vender sin stock).
 * **Almacén**: supporting.
@@ -75,7 +75,7 @@ Propuesta para trabajar en `ddd-subdominios-bounded-contexts`, no una decisión:
 
 ## 7. Agregados candidatos
 
-Solo nombres, comandos y eventos. Límites, invariantes y tamaño se deciden en `ddd-agregados`.
+Solo nombres, comandos y eventos. Límites, invariantes y tamaño se deciden en `ddd-skills/ddd-agregados/GUIA.md`.
 
 | Agregado | Comandos | Eventos |
 |---|---|---|
@@ -119,11 +119,11 @@ Escenario: se confirma un pedido con pago autorizado y stock reservado
   Y se registra el evento PedidoConfirmado
 ```
 
-El test correspondiente en TypeScript está en `escenarios-y-especificaciones.md`.
+El test correspondiente en TypeScript está en `ddd-skills/ddd-descubrimiento-dominio/references/escenarios-y-especificaciones.md`.
 
 ## 10. Siguientes pasos y deuda de modelo
 
 * Sesión de 2 h con Ventas y Almacén juntos para los dos primeros hotspots.
 * Validar el glosario de Ventas con la responsable de e-commerce.
-* Pasar a `ddd-subdominios-bounded-contexts` con los contextos candidatos.
+* Pasar a `ddd-skills/ddd-subdominios-bounded-contexts/GUIA.md` con los contextos candidatos.
 * Deuda anotada: el `Carrito` podría no ser un agregado de Ventas sino algo de sesión sin reglas de negocio. Revisar tras resolver el primer hotspot.

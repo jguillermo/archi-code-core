@@ -14,15 +14,15 @@ Ninguno es obligatorio. Úsalos cuando mitiguen un riesgo con alta probabilidad 
 
 **Si el modelo de consultas es eventualmente consistente**, la interfaz debe asumir lo peor. Opciones de IDDD: mostrar temporalmente los datos enviados en el comando; mostrar la fecha y hora de los datos para que el usuario sepa su antigüedad (técnica con defensores y detractores, a validar con usuarios); notificaciones push; o simplemente avisar de que la petición se procesará [IDDD cap. 4].
 
-Más detalle en `ddd-event-sourcing-cqrs`.
+Más detalle en `ddd-skills/ddd-event-sourcing-cqrs/GUIA.md`.
 
 ## Arquitectura dirigida por eventos
 
-Contextos que se comunican publicando y consumiendo eventos de dominio. Es la base de la integración robusta descrita en `ddd-context-mapping` y del diseño de `ddd-eventos-dominio`. Dentro de un contexto, los eventos también desacoplan efectos secundarios del caso de uso.
+Contextos que se comunican publicando y consumiendo eventos de dominio. Es la base de la integración robusta descrita en `ddd-skills/ddd-context-mapping/GUIA.md` y del diseño de `ddd-skills/ddd-eventos-dominio/GUIA.md`. Dentro de un contexto, los eventos también desacoplan efectos secundarios del caso de uso.
 
 ## Event Sourcing
 
-El estado de un agregado se guarda como la secuencia de sus eventos y se reconstruye aplicándolos [Destilado cap. 6; IDDD cap. 4]. Aporta historial completo y auditoría, pero cambia por completo la persistencia y las consultas. Ver `ddd-event-sourcing-cqrs` antes de decidir.
+El estado de un agregado se guarda como la secuencia de sus eventos y se reconstruye aplicándolos [Destilado cap. 6; IDDD cap. 4]. Aporta historial completo y auditoría, pero cambia por completo la persistencia y las consultas. Ver `ddd-skills/ddd-event-sourcing-cqrs/GUIA.md` antes de decidir.
 
 ## Tabla de decisión
 

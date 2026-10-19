@@ -20,7 +20,7 @@ Cada vuelta suele añadir un término al glosario. Si no añade nada, probableme
 
 ## De escenario a especificación
 
-Formato Given/When/Then (Dado/Cuando/Entonces), propio de Specification by Example y BDD [Destilado cap. 2]. Plantilla en `assets/plantilla-escenario.feature`.
+Formato Given/When/Then (Dado/Cuando/Entonces), propio de Specification by Example y BDD [Destilado cap. 2]. Plantilla en `ddd-skills/ddd-descubrimiento-dominio/assets/plantilla-escenario.feature`.
 
 ```gherkin
 Escenario: <acción del lenguaje ubicuo>
@@ -90,7 +90,7 @@ describe('Confirmar pedido', () => {
 
 Detalles que importan:
 * Las funciones `anOrderPlacedBy`, `line`, `aReservationFor` o `aPaymentAuthorizationFor` son constructores de datos de test con nombres del lenguaje. Mantienen el test legible para el experto.
-* El test describe el uso desde el punto de vista del cliente del modelo. Las clases (`Order`, `PaymentAuthorization`) aún no tienen por qué existir: el test las va a diseñar (ver abajo). Cómo llega al pedido la noticia de la reserva, que vive en otro contexto, se decide en `ddd-agregados` y `ddd-eventos-dominio`; aquí solo se fija el comportamiento esperado.
+* El test describe el uso desde el punto de vista del cliente del modelo. Las clases (`Order`, `PaymentAuthorization`) aún no tienen por qué existir: el test las va a diseñar (ver abajo). Cómo llega al pedido la noticia de la reserva, que vive en otro contexto, se decide en `ddd-skills/ddd-agregados/GUIA.md` y `ddd-skills/ddd-eventos-dominio/GUIA.md`; aquí solo se fija el comportamiento esperado.
 * La excepción tiene nombre de negocio, no `Error('invalid')`.
 
 ## Diseñar desde el test

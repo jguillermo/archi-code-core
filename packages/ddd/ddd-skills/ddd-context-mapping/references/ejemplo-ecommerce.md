@@ -1,6 +1,6 @@
 # Ejemplo completo: context map de la tienda online
 
-Continúa el mapa estratégico de `ddd-subdominios-bounded-contexts`.
+Continúa el mapa estratégico de `ddd-skills/ddd-subdominios-bounded-contexts/GUIA.md`.
 
 ## Diagrama
 

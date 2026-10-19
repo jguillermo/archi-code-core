@@ -22,7 +22,7 @@ CREATE TABLE orders (
 
 Una fila por agregado: lectura rápida, sin joins, y la versión protege todo el agregado [IDDD cap. 10].
 
-Convención de versiones de esta suite: un agregado nuevo tiene versión 0 en memoria; al insertarlo se guarda con 1 y `markPersisted()` lo lleva a 1. Cada actualización exige que la versión en base de datos coincida con la del objeto y la incrementa en ambos lados. Si la transacción se revierte después de `markPersisted()`, descarta el objeto y vuelve a cargarlo.
+Convención de versiones de estas fuentes: un agregado nuevo tiene versión 0 en memoria; al insertarlo se guarda con 1 y `markPersisted()` lo lleva a 1. Cada actualización exige que la versión en base de datos coincida con la del objeto y la incrementa en ambos lados. Si la transacción se revierte después de `markPersisted()`, descarta el objeto y vuelve a cargarlo.
 
 ## Mapper
 
@@ -67,11 +67,12 @@ Las factorías de los value objects validan al cargar: un dato corrupto falla aq
 ## Repositorio con pg
 
 ```ts
-// Solo obtiene y persiste: findById, save, delete [Fuera de los libros: convención de @archi-code/ddd]
-export class PostgresOrderRepository implements AggregateFinder<Order>, AggregateSaver<Order> {
-  constructor(private readonly tx: PgTransactionRunner) {}
+export class PostgresOrderRepository implements OrderRepository {
+  constructor(private readonly tx: TransactionRunner, private readonly ids: IdGenerator) {}
 
-  async findById(id: OrderId): Promise<Order | null> {
+  nextId(): OrderId { return OrderId.of(`ord-${this.ids.next()}`); }
+
+  async byId(id: OrderId): Promise<Order | null> {
     const { rows } = await this.tx.current().query(`SELECT * FROM orders WHERE id = $1`, [id.value]);
     return rows[0] ? OrderMapper.toDomain(rows[0]) : null;
   }
@@ -89,23 +90,17 @@ export class PostgresOrderRepository implements AggregateFinder<Order>, Aggregat
         [row.id, order.version, row.status, row.lines, row.shipping_address, row.reservation_id, row.payment_auth, row.total_minor, row.total_currency]);
       if (res.rowCount === 0) throw new ConcurrencyConflict('Order', row.id, order.version);
     }
+    await appendEvents(db, row.id, order.pullEvents());   // outbox (ddd-skills/ddd-eventos-dominio/GUIA.md)
     order.markPersisted();                                // la versión en memoria sigue a la persistida
   }
-}
 
-// Consulta de lectura de la capa de aplicación, fuera del repositorio
-export class PgStaleOrders implements StaleOrders {
-  constructor(private readonly db: Queryable) {}
-
-  async ids(olderThan: Date, limit: number): Promise<string[]> {
-    const { rows } = await this.db.query(
-      `SELECT id FROM orders WHERE status = 'PENDING' AND placed_at < $1 ORDER BY placed_at LIMIT $2`, [olderThan, limit]);
-    return rows.map((row) => row.id);
+  async pendingOlderThan(moment: Date, limit: number): Promise<Order[]> {
+    const { rows } = await this.tx.current().query(
+      `SELECT * FROM orders WHERE status = 'PENDING' AND placed_at < $1 ORDER BY placed_at LIMIT $2`, [moment, limit]);
+    return rows.map(OrderMapper.toDomain);
   }
 }
 ```
-
-Los eventos no los guarda el repositorio: el caso de uso los publica en el outbox dentro de la misma transacción (`ddd-eventos-dominio`). La identidad la genera el value object (`OrderId.generate()`) antes de crear el agregado.
 
 ## Con Prisma
 

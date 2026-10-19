@@ -1,6 +1,6 @@
 # Ejemplo: Ventas en la tienda online
 
-Objetos del contexto de Ventas, con la decisión razonada. Los límites de agregado se deciden en `ddd-agregados`; aquí solo se decide valor o entidad y su comportamiento.
+Objetos del contexto de Ventas, con la decisión razonada. Los límites de agregado se deciden en `ddd-skills/ddd-agregados/GUIA.md`; aquí solo se decide valor o entidad y su comportamiento.
 
 | Concepto | Decisión | Razón |
 |---|---|---|

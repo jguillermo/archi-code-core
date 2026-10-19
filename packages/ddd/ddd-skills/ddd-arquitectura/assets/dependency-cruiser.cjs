@@ -1,62 +1,64 @@
 /**
- * Reglas de dependencia DDD para dependency-cruiser.
+ * Reglas de dependencia DDD para dependency-cruiser, adaptadas a @archi-code/ddd.
  * Uso: npx depcruise src --config .dependency-cruiser.cjs
- * Probado con dependency-cruiser 16.10.0 y TypeScript 5.6.
- * Acepta src/contexts y src/app/contexts; ajusta las rutas si el proyecto usa otra carpeta.
+ * Funciona con src/contexts/<contexto>/ y con src/app/contexts/<contexto>/ (estructura con la lógica en src/app/).
+ * Probado con dependency-cruiser 16.10.0 y TypeScript 5.6, con un paquete simulado que expone
+ * @archi-code/ddd/{domain,application,infrastructure,exceptions}. Si la estructura publicada del
+ * paquete difiere, ajusta ARCHI_LAYER.
  */
 // Grupo no capturante para app/: así $1 en las reglas es siempre el nombre del contexto.
 const CTX = '^src/(?:app/)?contexts/([^/]+)/';
-// [Fuera de los libros: convención de @archi-code/ddd] El dominio solo importa sus módulos domain y exceptions y @archi-code/validation; la aplicación, además, application; ninguno de los dos importa infrastructure.
-const ARCHI_CODE_DDD = 'node_modules/@archi-code/ddd/dist/(cjs|esm)/';
+// Ruta resuelta de un punto de entrada del paquete: node_modules/@archi-code/ddd/<...>/<capa>/...
+const ARCHI_LAYER = (layers) => `node_modules/@archi-code/ddd/.*(?:${layers})[/.]`;
 
 module.exports = {
   forbidden: [
     {
-      name: 'domain-sin-dependencias-externas',
-      comment: 'El dominio no depende de paquetes de npm (salvo los permitidos) ni de otras zonas.',
+      name: 'domain-solo-paquetes-permitidos',
+      comment:
+        'El dominio solo usa @archi-code/ddd (domain y exceptions) y @archi-code/validation; nada más de npm.',
       severity: 'error',
       from: { path: CTX + 'domain/' },
       to: {
         dependencyTypes: ['npm', 'npm-dev', 'npm-optional', 'npm-peer'],
-        pathNot: [
-          'node_modules/(uuid|decimal\\.js)/',
-          ARCHI_CODE_DDD + '(domain|exceptions)/',
-          'node_modules/@archi-code/validation/',
-        ],
+        pathNot: ['node_modules/@archi-code/(?:ddd|validation)/'],
       },
+    },
+    {
+      name: 'domain-sin-capas-exteriores-del-paquete',
+      comment: 'El dominio nunca importa @archi-code/ddd/application ni @archi-code/ddd/infrastructure.',
+      severity: 'error',
+      from: { path: CTX + 'domain/' },
+      to: { path: ARCHI_LAYER('application|infrastructure') },
     },
     {
       name: 'domain-no-mira-afuera',
       severity: 'error',
       from: { path: CTX + 'domain/' },
-      to: { path: CTX + '(application|infrastructure|interfaces)/' },
+      to: { path: CTX + '(?:application|infrastructure|interfaces)/' },
     },
     {
-      name: 'application-no-conoce-adaptadores',
+      name: 'application-sin-infraestructura',
+      comment: 'La aplicación no conoce adaptadores propios ni @archi-code/ddd/infrastructure.',
       severity: 'error',
       from: { path: CTX + 'application/' },
-      to: { path: CTX + '(infrastructure|interfaces)/' },
-    },
-    {
-      name: 'archi-code-ddd-infraestructura-fuera-del-nucleo',
-      comment: 'Con @archi-code/ddd, ni el dominio ni la aplicación importan su módulo infrastructure; eso lo cablea el composition root.',
-      severity: 'error',
-      from: { path: CTX + '(domain|application)/' },
-      to: { path: ARCHI_CODE_DDD + 'infrastructure/' },
-    },
-    {
-      name: 'nadie-importa-el-composition-root',
-      comment: 'Con @archi-code/ddd, composition.ts solo lo importa el arranque del proceso, nunca una capa.',
-      severity: 'error',
-      from: { path: CTX + '(domain|application|infrastructure|interfaces)/' },
-      to: { path: '^src/(?:app/)?contexts/[^/]+/composition\\.[cm]?[jt]s$' },
+      to: { path: [CTX + '(?:infrastructure|interfaces)/', ARCHI_LAYER('infrastructure')] },
     },
     {
       name: 'interfaces-no-saltan-a-infraestructura',
-      comment: 'Los controladores usan casos de uso, no repositorios concretos.',
+      comment:
+        'Los puntos de entrada llaman a casos de uso; no importan repositorios ni adaptadores. ' +
+        'Pueden importar HttpErrorMapper de @archi-code/ddd/infrastructure.',
       severity: 'error',
       from: { path: CTX + 'interfaces/' },
       to: { path: CTX + 'infrastructure/' },
+    },
+    {
+      name: 'nadie-importa-composition',
+      comment: 'El composition root construye y conecta todo; ninguna capa lo importa.',
+      severity: 'error',
+      from: { path: CTX },
+      to: { path: CTX + 'composition\\.ts$' },
     },
     {
       name: 'contextos-aislados',
@@ -65,7 +67,7 @@ module.exports = {
       from: { path: '^src/(?:app/)?contexts/([^/]+)/' },
       to: {
         path: '^src/(?:app/)?contexts/',
-        pathNot: '^src/(?:app/)?contexts/$1/',   // $1 = contexto del fichero de origen
+        pathNot: '^src/(?:app/)?contexts/$1/', // $1 = contexto del fichero de origen
       },
     },
     {
@@ -77,9 +79,14 @@ module.exports = {
   ],
   options: {
     tsConfig: { fileName: 'tsconfig.json' },
-    // Imprescindible en TypeScript: sin esto se ignoran los imports usados solo como tipos,
-    // y un dominio que importa un tipo de infraestructura pasaría la comprobación.
+    // Imprescindible en TypeScript: sin esto se ignoran los imports usados solo como tipos
+    // (import type { AggregateSaver } ...), y un dominio que importa un tipo prohibido pasaría.
     tsPreCompilationDeps: true,
     doNotFollow: { path: 'node_modules' },
+    // Resolver los subpaths del campo "exports" del paquete (@archi-code/ddd/domain, etc.).
+    enhancedResolveOptions: {
+      exportsFields: ['exports'],
+      conditionNames: ['import', 'require', 'node', 'default', 'types'],
+    },
   },
 };
