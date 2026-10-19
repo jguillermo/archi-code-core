@@ -35,8 +35,8 @@ skill says so. Locate it as the README: `node_modules/@archi-code/ddd/ddd-skills
 `ddd-skills/` folder next to the `package.json` that
 `node -p "require.resolve('@archi-code/ddd/package.json')"` prints (in this monorepo,
 `packages/ddd/ddd-skills/`). Each guide is a folder with a `GUIA.md` (no skill frontmatter), its
-`references/` and `assets/`: they are never loaded on their own, only read when this skill routes
-to them. Paths inside the guides (`ddd-skills/ddd-agregados/GUIA.md`) are relative to the package
+`references/` and, when it has them, `assets/` (templates) and `scripts/`: they are never loaded
+on their own, only read when this skill routes to them. Paths inside the guides (`ddd-skills/ddd-agregados/GUIA.md`) are relative to the package
 folder.
 
 How to use it, for every design question or task:
@@ -51,20 +51,20 @@ How to use it, for every design question or task:
 2. **Read the `GUIA.md` of the matching guide** before answering, and the `references/` it points
    to for the case at hand:
 
-   | Situation                                                              | Read `ddd-skills/…/GUIA.md`        |
-   | ---------------------------------------------------------------------- | ---------------------------------- |
-   | Unclear request, "where do I start", the essential rules               | `ddd-orquestador`                  |
-   | Understand a business, Event Storming, glossary, scenarios             | `ddd-descubrimiento-dominio`       |
-   | What is core, how many contexts or services, where the boundaries go   | `ddd-subdominios-bounded-contexts` |
-   | How contexts and external systems relate and integrate, ACL            | `ddd-context-mapping`              |
-   | Folder structure, layers, dependencies, modules, composition root      | `ddd-arquitectura`                 |
-   | Value object or entity, ids, primitives, validation, Specification     | `ddd-value-objects-entidades`      |
-   | What goes together, invariants, transactions, concurrency, factories   | `ddd-agregados`                    |
-   | Events, messaging, outbox, idempotence, versions                       | `ddd-eventos-dominio`              |
-   | Loading and saving aggregates, mappers, transactions, repository tests | `ddd-repositorios-persistencia`    |
-   | Domain services, use cases, where the logic goes, authorization        | `ddd-servicios-capa-aplicacion`    |
-   | Full history, read models, CQRS                                        | `ddd-event-sourcing-cqrs`          |
-   | Review or migrate existing code                                        | `ddd-auditoria-refactorizacion`    |
+   | Situation                                                                                          | Read `ddd-skills/…/GUIA.md`        |
+   | -------------------------------------------------------------------------------------------------- | ---------------------------------- |
+   | Unclear request, "where do I start", the essential rules                                           | `ddd-orquestador`                  |
+   | Understand a business, Event Storming, glossary, scenarios                                         | `ddd-descubrimiento-dominio`       |
+   | What is core, how many contexts or services, where the boundaries go, a term with several meanings | `ddd-subdominios-bounded-contexts` |
+   | How contexts and external systems relate and integrate, ACL                                        | `ddd-context-mapping`              |
+   | Folder structure, layers, dependencies, modules, composition root                                  | `ddd-arquitectura`                 |
+   | Value object or entity, ids, primitives, validation, Specification                                 | `ddd-value-objects-entidades`      |
+   | What goes together, invariants, transactions, concurrency, factories                               | `ddd-agregados`                    |
+   | Events, messaging, outbox, idempotence, versions                                                   | `ddd-eventos-dominio`              |
+   | Loading and saving aggregates, mappers, transactions, repository tests                             | `ddd-repositorios-persistencia`    |
+   | Domain services, use cases, where the logic goes, authorization                                    | `ddd-servicios-capa-aplicacion`    |
+   | Full history, read models, CQRS, Event Sourcing                                                    | `ddd-event-sourcing-cqrs`          |
+   | Review or migrate existing code                                                                    | `ddd-auditoria-refactorizacion`    |
 
    A new project follows the orchestrator's sequence (discovery → subdomains → context map →
    architecture → aggregates and value objects → events → repositories → use cases).

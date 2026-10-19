@@ -65,7 +65,7 @@ Plantilla, variantes y errores frecuentes en `ddd-skills/ddd-servicios-capa-apli
 * La autorización del caso de uso ("¿puede este usuario cancelar pedidos?") es responsabilidad de la aplicación [IDDD cap. 14].
 * Si la regla es de negocio ("solo el cliente que hizo el pedido puede cancelarlo mientras está pendiente"), pertenece al modelo y se expresa con conceptos del contexto (`Customer`, no `User`) [IDDD cap. 2].
 * La identidad del solicitante viene del token en el adaptador, nunca del cuerpo de la petición.
-* En proyectos de la organización, la autenticación de aplicaciones web y APIs sigue el patrón corporativo (SGSI-PRO-007, skill corporativo `seabery-gobernanza:autenticacion-web`); esta guía solo cubre dónde encaja la autorización en la arquitectura.
+* La autenticación (quién es el solicitante) la resuelve la plataforma o el adaptador de entrada según las normas del proyecto; esta guía solo cubre dónde encaja la autorización en la arquitectura.
 
 ## Paso 5. Probar
 

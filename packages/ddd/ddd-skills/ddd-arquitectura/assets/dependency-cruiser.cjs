@@ -1,7 +1,7 @@
 /**
  * Reglas de dependencia DDD para dependency-cruiser, adaptadas a @archi-code/ddd.
  * Uso: npx depcruise src --config .dependency-cruiser.cjs
- * Funciona con src/contexts/<contexto>/ y con src/app/contexts/<contexto>/ (estándar SBR-IA-EST-001).
+ * Funciona con src/contexts/<contexto>/ y con src/app/contexts/<contexto>/ (proyectos con la lógica en src/app/).
  * Probado con dependency-cruiser 16.10.0 y TypeScript 5.6, con un paquete simulado que expone
  * @archi-code/ddd/{domain,application,infrastructure,exceptions}. Si la estructura publicada del
  * paquete difiere, ajusta ARCHI_LAYER.

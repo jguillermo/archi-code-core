@@ -63,9 +63,9 @@ Decisiones:
 * `domain/shared/` es compartido **dentro** del contexto. Nada de un `shared/` global con modelos de varios contextos.
 * El composition root vive por contexto para que cada contexto se pueda desplegar por separado si un día hace falta.
 
-## Variante para proyectos con el estándar SBR-IA-EST-001
+## Variante para proyectos con la lógica en `src/app/`
 
-Ese estándar fija `src/app/` para la lógica principal, `tests/` en raíz, `docs/` para decisiones funcionales y ADRs en `_codex_architect/`, y pide no crear carpetas raíz nuevas sin justificación. La estructura DDD encaja así:
+Algunos proyectos fijan `src/app/` para la lógica principal, `tests/` en raíz y `docs/` para las decisiones, y piden no crear carpetas raíz nuevas sin justificación `[Fuera de los libros]`. La estructura DDD encaja así:
 
 ```
 src/
@@ -75,14 +75,14 @@ src/
       warehouse/
     main.ts
   prompts/      (si el proyecto usa IA; nunca dentro del dominio)
-  utils/        (logger corporativo; se inyecta en infraestructura, nunca en domain/)
+  utils/        (logger; se inyecta en infraestructura, nunca en domain/)
 config/
 tests/
   contexts/sales/...
 docs/
   dominio/      (mapa estratégico, context map, glosarios por contexto)
-_codex_architect/
-  ADR-xxx-*.md  (decisiones: patrón de relación elegido, CQRS sí/no, etc.)
+  adr/
+    ADR-xxx-*.md  (decisiones: patrón de relación elegido, CQRS sí/no, etc.)
 ```
 
 Reglas de encaje:

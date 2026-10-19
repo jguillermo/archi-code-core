@@ -4,6 +4,14 @@
 >
 > **Cuándo consultar esta guía.** Descubrimiento y exploración del dominio con Domain-Driven Design. Guía Event Storming (preparar una sesión, hacerla de forma asistida a partir de documentación o código, o digitalizar sus resultados), la construcción del Ubiquitous Language y su glosario, escenarios concretos convertidos en especificaciones Given/When/Then y tests de aceptación en TypeScript, y la planificación del modelado (modeling spikes, deuda de modelo, estimación, tiempo con expertos). Consúltala siempre que alguien quiera empezar un proyecto con DDD, hacer una lluvia de ideas del dominio, entender un negocio antes de modelar, preparar o interpretar un Event Storming, definir o revisar el lenguaje ubicuo, escribir escenarios de negocio, o cuando pida "por dónde empiezo con DDD", aunque no mencione estos términos.
 
+## Con @archi-code/ddd
+
+[Fuera de los libros: convención de @archi-code/ddd]
+
+* Los tests de aceptación de `references/escenarios-y-especificaciones.md` se escriben con el paquete: los eventos se leen con `order.pullDomainEvents()` (no `pendingEvents()`) y se comprueban por su clase o su `eventName` (`'order.confirmed'`), no por un campo `type`.
+* Las excepciones con nombre de negocio (`StockNotReservedForOrder`) extienden `DomainException` de `@archi-code/ddd/exceptions` con un código propio.
+* Las clases que el test hace aparecer se crean con las reglas de `ddd-skills/archi-code-ddd/where-each-class-goes.md`.
+
 Esta guía cubre la fase en la que todavía no hay modelo, solo un negocio que entender. Su salida es conocimiento compartido y verificable, no clases. La idea de fondo de Vernon es que la conversación entre expertos y desarrolladores vale más que cualquier documento, y que al final el código es el modelo [Destilado cap. 2]. Todo lo que se produce aquí (notas, glosarios, bocetos) es andamio para llegar a ese código.
 
 

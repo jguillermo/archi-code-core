@@ -20,10 +20,10 @@ Pregunta, o deduce y declara: qué parte del sistema importa más al negocio (ca
 
 ## Paso 1. Escaneo automático
 
-Si tienes acceso al repositorio:
+Si tienes acceso al repositorio, desde la carpeta del paquete (la que contiene `ddd-skills/`; `SKILL.md` explica cómo localizarla):
 
 ```bash
-python3 ddd-skills/ddd-auditoria-refactorizacion/scripts/scan_ddd_smells.py <ruta-del-repo> --json informe-escaneo.json
+python3 -I ddd-skills/ddd-auditoria-refactorizacion/scripts/scan_ddd_smells.py <ruta-del-repo> --json informe-escaneo.json
 ```
 
 El script es heurístico y solo lee ficheros. Detecta los síntomas de `ddd-skills/ddd-auditoria-refactorizacion/references/lista-comprobacion.md` que se pueden ver con patrones de texto. Lo que no detecta (lenguaje, invariantes, límites de contexto) se revisa a mano en el paso 2.
