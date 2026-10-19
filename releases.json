@@ -20,6 +20,9 @@
     },
     "@archi-code/criteria-adapters": {
       "main": "3.0.0-alpha.2"
+    },
+    "@archi-code/ddd": {
+      "main": "3.0.0-alpha.1"
     }
   },
   "deploys": [
@@ -382,6 +385,18 @@
             "commits (minor)"
           ],
           "dependencies": {}
+        },
+        {
+          "name": "@archi-code/ddd",
+          "previous": null,
+          "version": "3.0.0-alpha.1",
+          "bump": "major",
+          "reasons": [
+            "completes the reset of the whole set (3.0.0-alpha.1)"
+          ],
+          "dependencies": {
+            "@archi-code/validation": "3.0.0-alpha.5"
+          }
         }
       ]
     }
