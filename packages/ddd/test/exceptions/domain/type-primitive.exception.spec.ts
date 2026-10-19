@@ -15,6 +15,14 @@ describe('TypePrimitiveException', () => {
     );
   });
 
+  it('quotes at most 64 characters of what it received', () => {
+    const pastedDocument = 'x'.repeat(10_000);
+
+    expect(new TypePrimitiveException('UUID', pastedDocument).message).toBe(
+      `Validation Error: Expected a valid UUID, but received "${'x'.repeat(64)}…".`,
+    );
+  });
+
   it('accepts its own wording for types such as enums', () => {
     const exception = new TypePrimitiveException('Expected one of [paid, shipped]', 'lost', '');
 

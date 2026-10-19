@@ -1,7 +1,7 @@
 import { DomainException } from './domain.exception';
 import { ExceptionBrand } from '../brand/exception-brand';
 import { ExceptionCode } from '../exception-code';
-import { anyToString } from '@archi-code/validation';
+import { ReceivedValue } from '../received/received-value';
 
 export class RequiredValueException extends DomainException {
   static {
@@ -9,8 +9,7 @@ export class RequiredValueException extends DomainException {
   }
 
   constructor(typeName: string, receivedValue: unknown) {
-    const received =
-      typeof receivedValue === 'string' ? `"${receivedValue}"` : anyToString(receivedValue);
+    const received = ReceivedValue.describe(receivedValue);
     super(`Validation Error: ${typeName} is required, but received ${received}.`, [
       ExceptionCode.RequiredValue,
     ]);

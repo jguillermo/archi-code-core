@@ -30,7 +30,7 @@ class SendInvoice extends UseCase<{ invoiceId: string; to: string }, InvoiceId, 
   }
 }
 
-@ListensTo(InvoiceIssued)
+@ListensTo(InvoiceIssued, { consumer: 'send-invoice-on-invoice-issued' })
 class SendInvoiceOnInvoiceIssued extends EventListener<InvoiceIssued> {
   constructor(private readonly sendInvoice: SendInvoice) {
     super();

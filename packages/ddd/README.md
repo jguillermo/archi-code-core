@@ -307,7 +307,8 @@ object is also required (`class FullName extends Name {}`). `Required(...)` acce
 `AbstractType`, including your own and abstract ones (`Required(StatusType)`, `Required(Tags)`).
 
 `Required(...)` also declares the `isRequired` validation, so the rules of a required type include
-it too.
+it too. Its class is named `Required(<type>)` (`Required(StringType)`), so the messages of a
+required value built inline from plain JavaScript still name the type it requires.
 
 ### Validations: always valid from the constructor
 
@@ -1333,9 +1334,17 @@ wiring   ──► EventSubscriber ─┤  DomainEventBus  (freeze, toJSON, @Lis
 
 A listener is what the application does when an event happens. It extends
 `EventListener<Event>`, implements `handle(event)` (sync or async) and is marked with
-`@ListensTo(EventClass)`, which stores the event's `static eventName` on the listener class. A
-listener listens to exactly one event (decorating it twice throws `ApplicationException`) and any
-number of listeners may listen to the same event. A subclass does not inherit the mark.
+`@ListensTo(EventClass, { consumer })`, which stores the event's `static eventName` and the
+consumer name on the listener class. A listener listens to exactly one event (decorating it twice
+throws `ApplicationException`) and any number of listeners may listen to the same event. A
+subclass does not inherit the mark.
+
+The consumer name is required (a missing, blank or non-text one throws `ApplicationException`):
+it is the identity the channel gives the listener, such as the name of its durable queue in a
+broker. Keep it stable and unique per listener: it never comes from the class name, because a
+minifier renames classes between builds and two listeners in different modules may share a class
+name, which with a broker would move the listener to a new queue or make both compete for the
+same messages.
 
 Its name is `<Action>On<Event>`, and its body only turns the event into the input of the one use
 case it receives by constructor:
@@ -1343,7 +1352,7 @@ case it receives by constructor:
 ```ts
 import { EventListener, ListensTo } from '@archi-code/ddd/application';
 
-@ListensTo(OrderPlaced)
+@ListensTo(OrderPlaced, { consumer: 'reserve-stock-on-order-placed' })
 class ReserveStockOnOrderPlaced extends EventListener<OrderPlaced> {
   constructor(private readonly reserveStock: ReserveStock) {
     super();
@@ -1355,8 +1364,10 @@ class ReserveStockOnOrderPlaced extends EventListener<OrderPlaced> {
 }
 ```
 
-`ListensTo.eventOf(listener)` returns the event name a listener instance listens to (and throws
-`ApplicationException` when its class has no `@ListensTo`). The mark is kept under a `Symbol.for`
+`ListensTo.eventOf(listener)` returns the event name a listener instance listens to,
+`ListensTo.consumerOf(listener)` its consumer name and `ListensTo.subscriptionOf(listener)` both
+as `{ eventName, consumer }`; the three throw `ApplicationException` when its class has no
+`@ListensTo`. The mark is kept under a `Symbol.for`
 key, so a listener decorated with one build (CJS or ESM) is read by the other. Neither the
 aggregates nor the use cases know the listeners: only the wiring subscribes them to the bus.
 
@@ -1394,16 +1405,16 @@ interface EventChannel {
 A channel only moves serialized events (`toJSON()`), so the same contract fits a process, a broker
 and a table. The rules every channel follows:
 
-| Concern           | Rule                                                                                                                            |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Payload           | `SerializedEvent`s (JSON-safe), never instances                                                                                 |
-| Consumer identity | `receive(eventName, consumer, handler)`; `DomainEventBus` passes the listener class name (a durable queue name, a consumer row) |
-| One per consumer  | a second `receive` for the same event and consumer while the first is open throws `InfrastructureException`                     |
-| Lifecycle         | `receive` resolves to a `ChannelSubscription`; `close()` is async and can be called more than once                              |
-| `send` resolves   | when the channel accepted the events; whether the handlers already ran is the channel's choice                                  |
-| Order             | one consumer receives the events of one `send` in their order                                                                   |
-| Delivery          | at least once: a listener ignores an `eventId` it already processed                                                             |
-| Handler failure   | the channel's choice (the in-memory channel rejects `send`; a broker retries or dead-letters)                                   |
+| Concern           | Rule                                                                                                                                                         |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Payload           | `SerializedEvent`s (JSON-safe), never instances                                                                                                              |
+| Consumer identity | `receive(eventName, consumer, handler)`; `DomainEventBus` passes the `consumer` the listener declares in `@ListensTo` (a durable queue name, a consumer row) |
+| One per consumer  | a second `receive` for the same event and consumer while the first is open throws `InfrastructureException`                                                  |
+| Lifecycle         | `receive` resolves to a `ChannelSubscription`; `close()` is async and can be called more than once                                                           |
+| `send` resolves   | when the channel accepted the events; whether the handlers already ran is the channel's choice                                                               |
+| Order             | one consumer receives the events of one `send` in their order                                                                                                |
+| Delivery          | at least once: a listener ignores an `eventId` it already processed                                                                                          |
+| Handler failure   | the channel's choice (the in-memory channel rejects `send`; a broker retries or dead-letters)                                                                |
 
 ### `DomainEventBus` and `EventRegistry`
 
@@ -1425,10 +1436,10 @@ await reserving.unsubscribe();
 ```
 
 - `publish(events)` deep-freezes each event and sends their JSON to the channel in one `send`.
-- `subscribe(listener)` reads the event with `ListensTo.eventOf` (`ApplicationException` without
+- `subscribe(listener)` reads the event and the consumer with `ListensTo.subscriptionOf` (`ApplicationException` without
   `@ListensTo`), refuses an event the registry cannot rebuild (`UnknownEventException`, at wiring
   time rather than at the first delivery) and calls
-  `channel.receive(eventName, listener.constructor.name, handler)`; the handler rebuilds the event
+  `channel.receive(eventName, consumer, handler)`; the handler rebuilds the event
   with the registry and calls `listener.handle`. `unsubscribe()` closes the channel subscription.
 - Listeners always receive an event rebuilt from its JSON (frozen, equal by `toJSON()`), also in
   memory, so what works with the in-memory channel works the same with a broker.
@@ -1547,7 +1558,7 @@ class SendConfirmation extends UseCase<{ orderId: string; customer: string }, st
   }
 }
 
-@ListensTo(OrderPlaced)
+@ListensTo(OrderPlaced, { consumer: 'send-confirmation-on-order-placed' })
 class SendConfirmationOnOrderPlaced extends EventListener<OrderPlaced> {
   constructor(private readonly sendConfirmation: SendConfirmation) {
     super();
@@ -1761,7 +1772,10 @@ class ShipOrder extends UseCase<{ orderId: string }, OrderId, void> {
   same async flow, tracked with `AsyncLocalStorage`) joins it; runs that overlap in time (two
   `execute` calls not awaited one after the other) wait their turn, so each one commits or rolls
   back only its own work. It is meant for tests and prototypes. After a rollback, discard the
-  aggregates you held: their version already moved.
+  aggregates you held: their version already moved. A nested `run` joins only when it starts in
+  the same async flow: a work that awaits a `run` started from a detached context (a callback
+  bound with `AsyncResource.bind`, a handler of another event loop resource) waits for itself and
+  never ends.
 - **Events and the commit**: the in-memory channel delivers as soon as `publish` is called, inside
   the transaction. When the events must be stored in the same transaction as the aggregate and
   delivered only after the commit [Destilado ch. 6; IDDD ch. 8], implement a durable channel (an
@@ -1837,7 +1851,9 @@ await orders.save(byLuis);
 | `InfrastructureException` and anything unknown       | 500    |
 
 Every 5xx answer has the message `Internal server error`: messages of infrastructure errors (SQL,
-hosts, secrets…) never reach the client. Unknown errors get the code `E000`.
+hosts, secrets…) never reach the client. Unknown errors get the code `E000`. The overrides are
+read only from the object you pass (a code such as `constructor` or `toString` is not taken from
+`Object.prototype`).
 
 `InMemoryEventChannel` is the in-process `EventChannel` behind `DomainEventBus` (see
 [Events](#events-the-contract-in-applicationevent)). It reimplements the techniques of
@@ -2074,7 +2090,9 @@ All of them extend `AbstractException` (which extends `Error`) and have:
 `ValidationIssue` (`{ field: string | null; code: string; message: string }`) whose `code` is
 optional: it defaults to `'DOM001'`. `TypePrimitiveException` and
 `RequiredValueException` are the ones value objects throw; the `template` of
-`TypePrimitiveException` replaces `'Expected a valid '`. The built-in codes are exported as the
+`TypePrimitiveException` replaces `'Expected a valid '`. Both quote at most 64 characters of the
+value they received (`"…"` marks the cut), so a long text pasted into a field, or a whole object,
+is never copied into logs or HTTP answers. The built-in codes are exported as the
 `ExceptionCode` enum (`ExceptionCode.AggregateNotFound === 'APP002'`).
 
 `AggregateNotFoundException` and `NotAllowedException` belong to the application: a use case
@@ -2335,7 +2353,7 @@ class SendWelcomeEmail extends UseCase<{ email: string }, Email, void> {
   }
 }
 
-@ListensTo(UserRegistered)
+@ListensTo(UserRegistered, { consumer: 'send-welcome-email-on-user-registered' })
 class SendWelcomeEmailOnUserRegistered extends EventListener<UserRegistered> {
   constructor(private readonly sendWelcomeEmail: SendWelcomeEmail) {
     super();
@@ -2415,15 +2433,16 @@ await new RegisterUser(users, bus, clock)
 
 `@archi-code/ddd/application`:
 
-| Export                                                  | Kind                 |
-| ------------------------------------------------------- | -------------------- |
-| `UseCase`, `EventListener`                              | abstract classes     |
-| `ListensTo`                                             | decorator            |
-| `DomainEventBus`, `EventRegistry`                       | classes              |
-| `EventBus`, `EventSubscriber`, `Subscription`           | types (event ports)  |
-| `EventChannel`, `ChannelHandler`, `ChannelSubscription` | types (channel port) |
-| `EventFactory`                                          | type                 |
-| `Clock`, `TransactionRunner`                            | types (ports)        |
+| Export                                                  | Kind                  |
+| ------------------------------------------------------- | --------------------- |
+| `UseCase`, `EventListener`                              | abstract classes      |
+| `ListensTo`                                             | decorator             |
+| `ListensToOptions`                                      | type (`{ consumer }`) |
+| `DomainEventBus`, `EventRegistry`                       | classes               |
+| `EventBus`, `EventSubscriber`, `Subscription`           | types (event ports)   |
+| `EventChannel`, `ChannelHandler`, `ChannelSubscription` | types (channel port)  |
+| `EventFactory`                                          | type                  |
+| `Clock`, `TransactionRunner`                            | types (ports)         |
 
 `@archi-code/ddd/infrastructure`:
 

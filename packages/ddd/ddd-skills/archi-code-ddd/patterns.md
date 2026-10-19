@@ -230,7 +230,7 @@ class PrepareShipment extends UseCase<
   }
 }
 
-@ListensTo(OrderLineAdded)
+@ListensTo(OrderLineAdded, { consumer: 'prepare-shipment-on-order-line-added' })
 class PrepareShipmentOnOrderLineAdded extends EventListener<OrderLineAdded> {
   constructor(private readonly prepareShipment: PrepareShipment) {
     super();
@@ -354,7 +354,7 @@ Another messaging technology is one `EventChannel` class in `infrastructure/mess
 use cases, the listeners and `DomainEventBus` stay the same, and the composition root changes one
 line (`new DomainEventBus(new RabbitMqEventChannel(amqpChannel), registry)`). A RabbitMQ channel
 over the methods of an amqplib channel it uses, declared structurally: one durable topic exchange,
-the event name as routing key, one durable queue per consumer (the listener class name) and event,
+the event name as routing key, one durable queue per consumer (the `consumer` of `@ListensTo`) and event,
 `ack` when the listener finished and `nack` without requeue when it failed (a dead-letter
 exchange on the queue keeps those messages):
 

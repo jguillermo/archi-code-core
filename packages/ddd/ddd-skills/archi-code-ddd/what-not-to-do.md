@@ -12,6 +12,9 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   from a use case: build them in `toCommand`.
 - A listener without `@ListensTo`, decorated with two events, or one that holds business rules,
   saves aggregates or calls several use cases.
+- A listener consumer name taken from the class (`ListensTo(X, { consumer: this.name })`), shared by
+  two listeners or renamed casually: it is the listener's identity in the channel (its queue in a
+  broker), so it must be a stable literal, unique per listener.
 - Subscribing listeners by a text name or calling them from a use case: the composition root
   subscribes them with `bus.subscribe(listener)`, which reads their `@ListensTo`.
 - Declaring `eventName()` as a method in an event: declare `static readonly eventName`.

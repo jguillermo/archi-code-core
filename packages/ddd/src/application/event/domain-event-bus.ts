@@ -22,14 +22,12 @@ export class DomainEventBus<Event extends EventBase = EventBase>
   }
 
   async subscribe(listener: EventListener<Event>): Promise<Subscription> {
-    const eventName = ListensTo.eventOf(listener);
+    const { eventName, consumer } = ListensTo.subscriptionOf(listener);
     if (!this.registry.has(eventName)) {
       throw new UnknownEventException(eventName);
     }
-    const subscription = await this.channel.receive(
-      eventName,
-      listener.constructor.name,
-      async (serialized) => listener.handle(this.registry.fromJSON(serialized)),
+    const subscription = await this.channel.receive(eventName, consumer, async (serialized) =>
+      listener.handle(this.registry.fromJSON(serialized)),
     );
     return { unsubscribe: () => subscription.close() };
   }

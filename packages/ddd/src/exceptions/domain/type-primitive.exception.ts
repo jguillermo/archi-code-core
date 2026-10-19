@@ -1,7 +1,7 @@
 import { DomainException } from './domain.exception';
 import { ExceptionBrand } from '../brand/exception-brand';
 import { ExceptionCode } from '../exception-code';
-import { anyToString } from '@archi-code/validation';
+import { ReceivedValue } from '../received/received-value';
 
 export class TypePrimitiveException extends DomainException {
   static {
@@ -9,8 +9,7 @@ export class TypePrimitiveException extends DomainException {
   }
 
   constructor(expectedType: string, receivedValue: unknown, template = 'Expected a valid ') {
-    const received =
-      typeof receivedValue === 'string' ? `"${receivedValue}"` : anyToString(receivedValue);
+    const received = ReceivedValue.describe(receivedValue);
     super(`Validation Error: ${template}${expectedType}, but received ${received}.`, [
       ExceptionCode.TypeFailed,
     ]);

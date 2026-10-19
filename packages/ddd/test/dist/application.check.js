@@ -101,7 +101,7 @@ function smoke(m) {
       },
     ],
     [
-      'a listener marked with ListensTo is read back by the event name',
+      'a listener marked with ListensTo is read back by its event and consumer names',
       async () => {
         const { OrderPlaced } = orderModel();
         const received = [];
@@ -110,11 +110,13 @@ function smoke(m) {
             received.push(event.aggregateId);
           }
         }
-        m.ListensTo(OrderPlaced)(ConfirmOrderOnOrderPlaced);
+        m.ListensTo(OrderPlaced, { consumer: 'confirm-order' })(ConfirmOrderOnOrderPlaced);
         const listener = new ConfirmOrderOnOrderPlaced();
         await listener.handle(new OrderPlaced(ORDER_ID));
         return (
-          (m.ListensTo.eventOf(listener) === 'OrderPlaced' && received[0] === ORDER_ID) ||
+          (m.ListensTo.eventOf(listener) === 'OrderPlaced' &&
+            m.ListensTo.consumerOf(listener) === 'confirm-order' &&
+            received[0] === ORDER_ID) ||
           `unexpected ${m.ListensTo.eventOf(listener)} / ${received}`
         );
       },
@@ -124,6 +126,7 @@ function smoke(m) {
       async () => {
         const { Order, OrderPlaced } = orderModel();
         const receivers = new Map();
+        const consumers = [];
         const channel = {
           async send(events) {
             for (const event of events) {
@@ -131,6 +134,7 @@ function smoke(m) {
             }
           },
           async receive(eventName, consumer, handler) {
+            consumers.push(consumer);
             receivers.set(eventName, handler);
             return { close: async () => receivers.delete(eventName) };
           },
@@ -141,7 +145,7 @@ function smoke(m) {
             received.push(event);
           }
         }
-        m.ListensTo(OrderPlaced)(ConfirmOrderOnOrderPlaced);
+        m.ListensTo(OrderPlaced, { consumer: 'confirm-order' })(ConfirmOrderOnOrderPlaced);
         const registry = new m.EventRegistry().register(
           OrderPlaced,
           (json) => new OrderPlaced(json.aggregateId, json),
@@ -155,6 +159,7 @@ function smoke(m) {
           (received.length === 1 &&
             received[0] instanceof OrderPlaced &&
             received[0].eventId === events[0].eventId &&
+            consumers[0] === 'confirm-order' &&
             receivers.size === 0) ||
           `unexpected bus result: ${received.length}`
         );

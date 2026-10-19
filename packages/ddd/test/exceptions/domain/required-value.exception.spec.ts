@@ -17,6 +17,14 @@ describe('RequiredValueException', () => {
     );
   });
 
+  it('quotes at most 64 characters of a blank text full of spaces', () => {
+    const exception = new RequiredValueException('CustomerEmail', ' '.repeat(1_000));
+
+    expect(exception.message).toBe(
+      `Validation Error: CustomerEmail is required, but received "${' '.repeat(64)}…".`,
+    );
+  });
+
   it('is a domain exception with the code DOM004', () => {
     const exception = new RequiredValueException('CustomerEmail', null);
 

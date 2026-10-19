@@ -32,7 +32,7 @@ class OrderShipped extends EventBase {
 
 type OrderEvent = OrderPlaced | OrderShipped;
 
-@ListensTo(OrderPlaced)
+@ListensTo(OrderPlaced, { consumer: 'reserve-stock-on-order-placed' })
 class ReserveStockOnOrderPlaced extends EventListener<OrderPlaced> {
   readonly reserved: OrderPlaced[] = [];
 
@@ -41,7 +41,7 @@ class ReserveStockOnOrderPlaced extends EventListener<OrderPlaced> {
   }
 }
 
-@ListensTo(OrderShipped)
+@ListensTo(OrderShipped, { consumer: 'invoice-order-on-order-shipped' })
 class InvoiceOrderOnOrderShipped extends EventListener<OrderShipped> {
   handle(): void {
     return undefined;
@@ -110,7 +110,7 @@ describe('DomainEventBus: the bus every channel shares', () => {
     expect(Object.isFrozen(placed.lines)).toBe(true);
   });
 
-  it('subscribes a listener under its event name, with its class name as consumer', async () => {
+  it('subscribes a listener under its event name, with the consumer name it declares', async () => {
     const channel = new RecordingChannel();
     const bus = new DomainEventBus(channel, orderEvents());
 
@@ -119,8 +119,8 @@ describe('DomainEventBus: the bus every channel shares', () => {
 
     expect(channel.receivers.map(({ eventName, consumer }) => [eventName, consumer])).toStrictEqual(
       [
-        ['OrderPlaced', 'ReserveStockOnOrderPlaced'],
-        ['OrderShipped', 'InvoiceOrderOnOrderShipped'],
+        ['OrderPlaced', 'reserve-stock-on-order-placed'],
+        ['OrderShipped', 'invoice-order-on-order-shipped'],
       ],
     );
   });
@@ -176,7 +176,7 @@ describe('DomainEventBus: the bus every channel shares', () => {
   });
 
   it('propagates what the channel reports when a listener fails', async () => {
-    @ListensTo(OrderShipped)
+    @ListensTo(OrderShipped, { consumer: 'print-label-on-order-shipped' })
     class PrintLabelOnOrderShipped extends EventListener<OrderShipped> {
       handle(): void {
         throw new Error('label printer offline');

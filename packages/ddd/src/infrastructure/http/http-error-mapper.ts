@@ -35,7 +35,9 @@ export class HttpErrorMapper {
         body: { code: ExceptionCode.ErrorException, message: INTERNAL_MESSAGE },
       };
     }
-    const status = this.statusByCode[error.code] ?? HttpErrorMapper.defaultStatus(error);
+    const status = Object.prototype.hasOwnProperty.call(this.statusByCode, error.code)
+      ? this.statusByCode[error.code]
+      : HttpErrorMapper.defaultStatus(error);
     if (status >= 500) {
       return { status, body: { code: error.code, message: INTERNAL_MESSAGE } };
     }

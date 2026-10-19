@@ -11,7 +11,7 @@ class OrderPlaced extends EventBase {
   static readonly eventName = 'OrderPlaced';
 }
 
-@ListensTo(OrderPlaced)
+@ListensTo(OrderPlaced, { consumer: 'reserve-stock-on-order-placed' })
 class ReserveStockOnOrderPlaced extends EventListener<OrderPlaced> {
   handle(): void {
     return undefined;

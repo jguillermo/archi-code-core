@@ -20,6 +20,16 @@ class InvoiceTotal extends Required(AmountInCents) {}
 const isRequiredError = { validator: 'isRequired', message: 'Value does not satisfy isRequired' };
 
 describe('Required', () => {
+  describe('built inline from plain JavaScript, without a class of its own', () => {
+    it('names the type it requires in its messages', () => {
+      const RequiredAmount = Required(AmountInCents) as unknown as new (value: unknown) => object;
+      expect(RequiredAmount.name).toBe('Required(AmountInCents)');
+      expect(() => new RequiredAmount(null)).toThrow(
+        'Validation Error: Required(AmountInCents) is required, but received null.',
+      );
+    });
+  });
+
   describe('turning an optional amount into a required invoice total', () => {
     it('asks for a number in the constructor and holds a number', () => {
       expectTypeOf<ConstructorParameters<typeof InvoiceTotal>>().toEqualTypeOf<[value: number]>();

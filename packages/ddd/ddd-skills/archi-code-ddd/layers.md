@@ -140,7 +140,7 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   call `super(aggregateId, metadata)`; `event.eventName()` returns it. The payload is primitives
   taken from value objects (`customer.value`, money as `{ amount, currency }`), only what
   consumers need: never value objects, `toPrimitives()` nor personal data nobody needs. Listeners and registries refer to
-  the event by its class (`@ListensTo(OrderPlaced)`, `register(OrderPlaced, …)`). The
+  the event by its class (`@ListensTo(OrderPlaced, { consumer: 'reserve-stock-on-order-placed' })`, `register(OrderPlaced, …)`). The
   base sets `eventId` (UUID v4) and `occurredOn` (immutable `Date`, from `metadata.clock` when
   given, otherwise the system time); pass `{ eventId, occurredOn }` only when rebuilding an event
   a channel delivered. Inside an aggregate method, always pass the clock it received:
@@ -254,8 +254,10 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   `committed`/`rolledBack`; a run inside another joins it, and runs that overlap in time wait
   their turn) and `new DomainEventBus(new InMemoryEventChannel(), registry)` (`channel.sent` lists
   what was published; `{ delivery: 'parallel' }` runs the listeners of an event together).
-- Listeners extend `EventListener<Event>`, are decorated with `@ListensTo(EventClass)` (one event
-  per listener, any number of listeners per event), receive the one use case they run by
+- Listeners extend `EventListener<Event>`, are decorated with `@ListensTo(EventClass, { consumer })`
+  (one event per listener, any number of listeners per event; `consumer` is a stable name, unique
+  per listener, that the channel uses as its identity, such as its queue; never derived from the
+  class name, which a minifier changes), receive the one use case they run by
   constructor and their `handle(event)` only maps the event to that use case's input.
 - The bus is built and connected in the composition root:
   `const bus = new DomainEventBus(channel, registry)`, then `await bus.subscribe(listener)` for

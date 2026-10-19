@@ -15,6 +15,7 @@ export function Required<C extends TypeClass>(Base: C): RequiredType<C> {
   abstract class RequiredValue extends (Base as unknown as abstract new (
     ...args: any[]
   ) => AbstractType<unknown>) {}
+  Object.defineProperty(RequiredValue, 'name', { value: `Required(${Base.name})` });
   RequiredMark.mark(RequiredValue.prototype);
   return RequiredValue as unknown as RequiredType<C>;
 }

@@ -83,6 +83,18 @@ describe('HttpErrorMapper: the error handler of an HTTP controller', () => {
       });
     });
 
+    it('a long text pasted into a numeric field comes back cut at 64 characters', () => {
+      const pasted = 'x'.repeat(5_000);
+      const error = thrownBy(() => new Quantity(pasted as unknown as number));
+      expect(mapper.map(error)).toEqual({
+        status: 400,
+        body: {
+          code: 'DOM003',
+          message: `Validation Error: Expected a valid Number, but received "${'x'.repeat(64)}…".`,
+        },
+      });
+    });
+
     it('a missing required field is a 400', () => {
       const error = thrownBy(() => new Email(''));
       expect(error).toBeInstanceOf(RequiredValueException);
@@ -177,6 +189,21 @@ describe('HttpErrorMapper: the error handler of an HTTP controller', () => {
     it('leaves the codes it does not mention with their default status', () => {
       expect(custom.map(new ConcurrencyException('Order', orderId, 1)).status).toBe(409);
     });
+
+    it.each(['constructor', 'toString', '__proto__', 'hasOwnProperty'])(
+      'reads only the overrides it was given, never a name inherited from Object (%s)',
+      (code) => {
+        class RuleBrokenException extends DomainException {
+          constructor() {
+            super('Order total is below the minimum', [code]);
+          }
+        }
+        expect(custom.map(new RuleBrokenException())).toEqual({
+          status: 422,
+          body: { code, message: 'Order total is below the minimum' },
+        });
+      },
+    );
   });
 
   it('maps an exception thrown by another copy of the package (CJS and ESM builds side by side)', async () => {

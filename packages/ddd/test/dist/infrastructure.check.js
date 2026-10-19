@@ -170,7 +170,9 @@ function smoke(m) {
             received.push(event);
           }
         }
-        application.ListensTo(OrderPlaced)(ConfirmOrderOnOrderPlaced);
+        application.ListensTo(OrderPlaced, { consumer: 'confirm-order' })(
+          ConfirmOrderOnOrderPlaced,
+        );
         const channel = new m.InMemoryEventChannel();
         const registry = new application.EventRegistry().register(
           OrderPlaced,
