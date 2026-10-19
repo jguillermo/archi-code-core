@@ -8,7 +8,7 @@ import type { EventMetadata } from '../../../src/domain/index';
 import { InfrastructureException } from '../../../src/exceptions/index';
 
 class OrderPlaced extends EventBase {
-  static readonly eventName = 'order.placed';
+  static readonly eventName = 'OrderPlaced';
 
   constructor(
     orderId: string,
@@ -21,7 +21,7 @@ class OrderPlaced extends EventBase {
 }
 
 class OrderLinesChanged extends EventBase {
-  static readonly eventName = 'order.lines_changed';
+  static readonly eventName = 'OrderLinesChanged';
 }
 
 const orderId = '9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c';
@@ -29,7 +29,7 @@ const eventId = 'e7c1a1b0-1d2e-4f3a-8b4c-5d6e7f8a9b0c';
 
 function salesLanguage(): PublishedLanguage {
   return new PublishedLanguage().expose(OrderPlaced, {
-    name: 'sales.order_placed',
+    name: 'sales.order.OrderPlaced',
     version: 1,
     data: (event) => ({ orderId: event.aggregateId, totalCents: event.totalCents }),
   });
@@ -44,24 +44,28 @@ function placed(): OrderPlaced {
 
 describe('PublishedLanguage: what this context promises to other contexts', () => {
   it('turns an internal event into the published contract, without the data others do not need', () => {
-    expect(salesLanguage().translate(placed().toJSON())).toEqual({
-      name: 'sales.order_placed',
-      version: 1,
-      messageId: eventId,
-      occurredOn: '2026-03-01T09:30:00.000Z',
-      data: { orderId, totalCents: 2500 },
-    });
+    expect(salesLanguage().translate(placed().toJSON())).toEqual([
+      {
+        name: 'sales.order.OrderPlaced',
+        version: 1,
+        messageId: eventId,
+        occurredOn: '2026-03-01T09:30:00.000Z',
+        data: { orderId, totalCents: 2500 },
+      },
+    ]);
   });
 
   it('keeps internal events inside the context', () => {
     const language = salesLanguage();
-    expect(language.translate(new OrderLinesChanged(orderId).toJSON())).toBeNull();
-    expect(language.isPublished('order.lines_changed')).toBe(false);
-    expect(language.isPublished('order.placed')).toBe(true);
+    expect(language.translate(new OrderLinesChanged(orderId).toJSON())).toEqual([]);
+    expect(language.isPublished('OrderLinesChanged')).toBe(false);
+    expect(language.isPublished('OrderPlaced')).toBe(true);
   });
 
   it('gives a frozen message, so a broker adapter cannot change the contract', () => {
-    const message = salesLanguage().translate(placed().toJSON()) as PublishedMessage;
+    const messages = salesLanguage().translate(placed().toJSON());
+    const [message] = messages;
+    expect(Object.isFrozen(messages)).toBe(true);
     expect(Object.isFrozen(message)).toBe(true);
     expect(Object.isFrozen(message.data)).toBe(true);
   });
@@ -72,33 +76,55 @@ describe('PublishedLanguage: what this context promises to other contexts', () =
     const language = salesLanguage();
     const broker: PublishedMessage[] = [];
     const relay = new OutboxRelay(outbox, (event) => {
-      const message = language.translate(event);
-      if (message !== null) {
-        broker.push(message);
-      }
+      broker.push(...language.translate(event));
     });
     expect(await relay.forward()).toBe(2);
-    expect(broker.map((message) => message.name)).toEqual(['sales.order_placed']);
+    expect(broker.map((message) => message.name)).toEqual(['sales.order.OrderPlaced']);
   });
 
-  it('refuses to expose the same event twice', () => {
+  it('publishes both versions of a contract while consumers move from v1 to v2', () => {
+    const language = salesLanguage().expose(OrderPlaced, {
+      name: 'sales.order.OrderPlaced',
+      version: 2,
+      data: (event) => ({
+        orderId: event.aggregateId,
+        total: { amount: event.totalCents, currency: 'EUR' },
+      }),
+    });
+    expect(
+      language.translate(placed().toJSON()).map(({ name, version, data }) => ({
+        name,
+        version,
+        data,
+      })),
+    ).toEqual([
+      { name: 'sales.order.OrderPlaced', version: 1, data: { orderId, totalCents: 2500 } },
+      {
+        name: 'sales.order.OrderPlaced',
+        version: 2,
+        data: { orderId, total: { amount: 2500, currency: 'EUR' } },
+      },
+    ]);
+  });
+
+  it('refuses to expose the same contract version of an event twice', () => {
     const expose = () =>
       salesLanguage().expose(OrderPlaced, {
-        name: 'sales.order_placed',
-        version: 2,
+        name: 'sales.order.OrderPlaced',
+        version: 1,
         data: () => ({}),
       });
     expect(expose).toThrow(InfrastructureException);
-    expect(expose).toThrow('Event "order.placed" is already exposed.');
+    expect(expose).toThrow('Event "OrderPlaced" is already exposed as sales.order.OrderPlaced v1.');
   });
 
   it.each([
     ['a blank name', { name: ' ', version: 1 }],
-    ['version 0', { name: 'sales.order_placed', version: 0 }],
-    ['a decimal version', { name: 'sales.order_placed', version: 1.5 }],
+    ['version 0', { name: 'sales.order.OrderPlaced', version: 0 }],
+    ['a decimal version', { name: 'sales.order.OrderPlaced', version: 1.5 }],
   ])('refuses a contract with %s', (_, contract) => {
     expect(() =>
       new PublishedLanguage().expose(OrderPlaced, { ...contract, data: () => ({}) }),
-    ).toThrow('Event "order.placed" needs a published name and a version from 1.');
+    ).toThrow('Event "OrderPlaced" needs a published name and a version from 1.');
   });
 });

@@ -1,6 +1,6 @@
 # Eventos de dominio
 
-> Parte del skill `archi-code-ddd`: léela solo cuando ese skill te dirija aquí. Para escribir el código, traduce los ejemplos con `ddd-skills/archi-code-ddd/suite-to-package.md`; si esta guía y las reglas del paquete discrepan, ganan las del paquete.
+> Parte del skill `archi-code-ddd`: léela solo cuando ese skill te dirija aquí. Para escribir el código, traduce los ejemplos con `ddd-skills/archi-code-ddd/suite-to-package.md`; las guías son la fuente de verdad: el paquete solo se aparta de ellas donde lo marca `[Fuera de los libros: convención de @archi-code/ddd]`, y cualquier otra discrepancia es un defecto del paquete.
 >
 > **Cuándo consultar esta guía.** Eventos de dominio en DDD con TypeScript. Cubre cómo descubrirlos en la conversación con expertos, nombrarlos en pasado con el lenguaje ubicuo, decidir qué datos llevan (ni el objeto entero ni eventos "XxxUpdated"), eventos causados por el paso del tiempo, diferencia entre comando y evento, registrarlos en el agregado, guardarlos en la misma transacción (event store u outbox) y publicarlos después, consumidores idempotentes, orden causal, versionado, eventos internos frente a eventos publicados a otros contextos y tolerancia a la latencia. Consúltala siempre que se diseñe un evento, un mensaje entre servicios, una notificación de "cuando pase X", un webhook propio, una cola o un bus, que se pierdan o dupliquen mensajes, o que un cambio deba disparar acciones en otra parte del sistema, aunque no se diga "domain event".
 
@@ -8,8 +8,9 @@
 
 [Fuera de los libros: convención de @archi-code/ddd]
 
-* Los eventos extienden `EventBase`, declaran `static readonly eventName = '<agregado>.<hecho_en_pasado>'` y `eventVersion` si cambian de forma incompatible; `eventId` y `occurredOn` los pone la base. El payload son primitivos, nunca value objects.
+* Los eventos extienden `EventBase`, declaran `static readonly eventName` con el nombre de su clase en pasado (`'OrderPlaced'`) y su payload, y `eventVersion` cuando el payload cambia de forma incompatible; `eventId` y `occurredOn` los pone la base. El payload son primitivos, nunca value objects.
 * El outbox es el puerto `EventBus`, publicado dentro de `transactions.run` en el caso de uso; lo entrega `OutboxRelay` tras el commit. La idempotencia se consigue con `EventDispatcher(listeners, { inbox, transactions })`.
+* El repositorio nunca publica ni vacía los eventos: lo hace el caso de uso dentro de la transacción. `PublishedLanguage.translate` devuelve una lista (un mensaje por versión publicada, `[]` para eventos internos).
 * Los consumidores reconstruyen eventos con `DomainEventRegistry` pasando el JSON como metadatos; el relay usa `dispatchSerialized(json, registry)`.
 
 Un evento de dominio es el registro de algo que ha ocurrido y que importa al negocio en un Bounded Context [Destilado cap. 6]. Es parte de pleno derecho del modelo [IDDD cap. 8, citando a Evans] y la pieza que hace posible la consistencia eventual entre agregados y la integración entre contextos.

@@ -61,7 +61,7 @@ export class PostgresOrderRepository implements OrderRepository {
 }
 ```
 
-Que el repositorio vacíe los eventos al guardar es una opción cómoda `[Fuera de los libros]`. La alternativa es que el caso de uso llame a `pullEvents()` y a un `EventStore.append` dentro de la misma transacción. Elige una y sé consistente.
+Que el repositorio vacíe los eventos al guardar es una opción cómoda `[Fuera de los libros]`. La alternativa es que el caso de uso llame a `pullEvents()` y a un `EventStore.append` dentro de la misma transacción. Elige una y sé consistente. Con el paquete solo vale la segunda: el repositorio no publica, el caso de uso llama a `events.publish(order.pullDomainEvents())` dentro de `transactions.run` `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ## Reenviador
 
@@ -77,7 +77,7 @@ export class StoredEventForwarder {
         `SELECT * FROM stored_events WHERE published_at IS NULL
          ORDER BY sequence LIMIT $1 FOR UPDATE SKIP LOCKED`, [limit]);
       for (const r of rows) {
-        const message = this.translate.toPublished(r);      // null si el evento es solo interno
+        const message = this.translate.toPublished(r);      // null si el evento es solo interno (con el paquete, `translate` devuelve una lista: un mensaje por versión publicada, `[]` si es interno)
         if (message) await this.bus.publish(message.topic, message.body, { messageId: r.event_id });
       }
       await client.query(
@@ -125,7 +125,7 @@ export class InboxGuard {
 
 ## Despacho interno
 
-Para políticas del mismo contexto se puede usar el mismo reenviador (más simple y robusto) o un despachador en proceso que se ejecute **después** del commit. Nunca dentro de la transacción si la política modifica otro agregado [IDDD cap. 8].
+Para políticas del mismo contexto se puede usar el mismo reenviador (más simple y robusto) o un despachador en proceso que se ejecute **después** del commit. Nunca dentro de la transacción si la política modifica otro agregado [IDDD cap. 8]. `InMemoryEventBus` entrega en el acto: solo sirve para tests rápidos sin transacción; con transacciones, `InMemoryOutbox` y `OutboxRelay` `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ## Notificaciones por REST
 

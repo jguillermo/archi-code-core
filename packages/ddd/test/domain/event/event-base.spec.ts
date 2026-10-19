@@ -7,7 +7,7 @@ import { TypePrimitiveException } from '../../../src/exceptions/domain/type-prim
 import { InternalErrorException } from '../../../src/exceptions/infrastructure/internal-error.exception';
 
 class PaymentCaptured extends EventBase {
-  static readonly eventName = 'payment.captured';
+  static readonly eventName = 'PaymentCaptured';
 
   constructor(
     orderId: string,
@@ -20,7 +20,7 @@ class PaymentCaptured extends EventBase {
 }
 
 class StockReserved extends EventBase {
-  static readonly eventName = 'stock.reserved';
+  static readonly eventName = 'StockReserved';
 
   constructor(
     productId: string,
@@ -37,13 +37,13 @@ const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-
 describe('EventBase: a fact the domain publishes', () => {
   describe('its name', () => {
     it('is declared once on the class, so listeners and registries refer to it without an instance', () => {
-      expect(PaymentCaptured.eventName).toBe('payment.captured');
-      expect(new PaymentCaptured(orderId, 10, 'EUR').eventName()).toBe('payment.captured');
+      expect(PaymentCaptured.eventName).toBe('PaymentCaptured');
+      expect(new PaymentCaptured(orderId, 10, 'EUR').eventName()).toBe('PaymentCaptured');
     });
 
     it('is inherited by a subclass that does not declare its own', () => {
       class CardPaymentCaptured extends PaymentCaptured {}
-      expect(new CardPaymentCaptured(orderId, 10, 'EUR').eventName()).toBe('payment.captured');
+      expect(new CardPaymentCaptured(orderId, 10, 'EUR').eventName()).toBe('PaymentCaptured');
     });
 
     it.each([
@@ -189,13 +189,13 @@ describe('EventBase: a fact the domain publishes', () => {
       }
       const event = new PaymentCapturedV2(orderId, 10, 'EUR');
       expect(event.eventVersion()).toBe(2);
-      expect(event.eventName()).toBe('payment.captured');
+      expect(event.eventName()).toBe('PaymentCaptured');
       expect(event.toJSON().eventVersion).toBe(2);
     });
 
     it.each([0, -1, 1.5, Number.NaN])('refuses the version %s', (version) => {
       class BrokenVersion extends EventBase {
-        static readonly eventName = 'order.archived';
+        static readonly eventName = 'OrderArchived';
         static readonly eventVersion = version;
       }
       expect(() => new BrokenVersion(orderId)).toThrow(
@@ -211,7 +211,7 @@ describe('EventBase: a fact the domain publishes', () => {
         occurredOn: '2026-03-01T09:30:00Z',
       });
       expect(JSON.parse(JSON.stringify(event))).toEqual({
-        eventName: 'payment.captured',
+        eventName: 'PaymentCaptured',
         eventVersion: 1,
         eventId,
         aggregateId: orderId,
@@ -238,7 +238,7 @@ describe('EventBase: a fact the domain publishes', () => {
     it('serializes value objects in the payload as their plain value', () => {
       const event = new StockReserved('PRODUCT-7', new NumberType(3));
       expect(JSON.parse(JSON.stringify(event))).toMatchObject({
-        eventName: 'stock.reserved',
+        eventName: 'StockReserved',
         aggregateId: 'PRODUCT-7',
         units: 3,
       });

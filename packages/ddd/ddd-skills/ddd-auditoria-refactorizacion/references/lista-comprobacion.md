@@ -26,7 +26,9 @@ La columna "Script" indica si `scan_ddd_smells.py` lo detecta (sí / parcial / n
 | A4 | ¿Las transacciones se gestionan en la capa de aplicación? | [IDDD cap. 12] | no | Media |
 | A5 | ¿La API expone los agregados tal cual? | [IDDD cap. 4; Destilado cap. 4] | no | Media |
 | A6 | ¿Módulos nombrados por patrón (`entities/`, `services/`)? | [PHP: Modules] | no | Baja |
-| A7 | ¿El dominio lee `process.env` o usa el logger? | `[Fuera de los libros]` | sí | Media |
+| A7 | ¿El dominio lee `process.env` o usa el logger? | `[Fuera de los libros]` | parcial (solo `process.env`) | Media |
+| A8 | ¿El dominio importa `@archi-code/ddd/application` o `/infrastructure`? | `[Fuera de los libros: convención de @archi-code/ddd]` | sí | Alta |
+| A9 | ¿`new Date()` en dominio o aplicación en vez de un reloj inyectado? | `[Fuera de los libros: convención de @archi-code/ddd]` | sí | Media |
 
 ## Táctico
 

@@ -18,7 +18,7 @@ export class InMemoryOutbox<Event extends EventBase = EventBase>
       this.lastSequence += 1;
       return Object.freeze({
         sequence: this.lastSequence,
-        event: Object.freeze(JSON.parse(JSON.stringify(event)) as SerializedEvent),
+        event: InMemoryOutbox.freeze(JSON.parse(JSON.stringify(event)) as SerializedEvent),
         published: false,
       });
     });
@@ -37,6 +37,14 @@ export class InMemoryOutbox<Event extends EventBase = EventBase>
     this.entries = this.entries.map((entry) =>
       sequences.has(entry.sequence) ? Object.freeze({ ...entry, published: true }) : entry,
     );
+  }
+
+  private static freeze<Value>(value: Value): Value {
+    if (typeof value === 'object' && value !== null) {
+      Object.freeze(value);
+      Object.values(value).forEach((child) => InMemoryOutbox.freeze(child));
+    }
+    return value;
   }
 
   snapshot(): () => void {

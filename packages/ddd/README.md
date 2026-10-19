@@ -79,11 +79,11 @@ what it may import and what it must never do; the package itself is organized th
 | Value object (`extends StringType`…)                                                      | domain         | One concept of the business; converts and validates its own value                                  | other value objects, `@archi-code/validation`, exceptions                     | mutate, know about storage or transport                                      |
 | Aggregate (`extends AggregateRoot`)                                                       | domain         | Business rules and invariants; records an event for every fact                                     | its value objects, child entities, events, domain services, domain ports      | read a repository, publish events, use `new Date()`                          |
 | Composite value object (`Composite({...})`)                                               | domain         | Several values that only make sense together (money, a date range, an order line)                  | value objects, other composites                                               | change, hold an id, be loaded or saved on its own                            |
-| Child entity (`extends Entity`)                                                           | domain         | A part of an aggregate with its own id; holds its id and value objects, no methods                 | value objects                                                                 | hold business rules, change itself, be loaded or saved on its own            |
+| Child entity (`extends Entity`)                                                           | domain         | A part of an aggregate with its own id; value objects and business methods only the root calls     | value objects                                                                 | setters, be called from outside its aggregate, be loaded or saved on its own |
 | Specification (`extends Specification`)                                                   | domain         | A named business rule that validates, selects or builds; combinable                                | value objects, aggregates, data already loaded                                | read a repository, protect an aggregate invariant                            |
-| Domain event (`extends EventBase`)                                                        | domain         | A fact that happened, named in the past (`OrderPlaced`, `'order.placed'`), with primitive data     | value objects (to take its primitives from them)                              | carry behavior or value objects, reference infrastructure                    |
+| Domain event (`extends EventBase`)                                                        | domain         | A fact that happened, named in the past (`OrderPlaced`, `'OrderPlaced'`), with primitive data      | value objects (to take its primitives from them)                              | carry behavior or value objects, reference infrastructure                    |
 | Repository contract (`AggregateFinder`…)                                                  | domain         | Only gets and persists aggregates, one role per interface; no business logic                       | the aggregate                                                                 | be implemented in the domain, hold rules, answer business queries            |
-| Domain service                                                                            | domain         | A business rule that spans several aggregates or fits none                                         | aggregates, value objects, repository contracts, domain ports                 | I/O, transactions, publishing events                                         |
+| Domain service                                                                            | domain         | A business rule that spans several aggregates or fits none                                         | aggregates, value objects, `AggregateFinder` (to read), domain ports          | I/O, saving, transactions, publishing                                        |
 | Domain port (`ProductPricing`)                                                            | domain         | What the model needs from another context or an external service, in its own words                 | value objects of this context                                                 | contain code, expose the other system's model                                |
 | Use case (`extends UseCase`)                                                              | application    | One business action: input → command of value objects → change one aggregate                       | domain, application ports, exceptions                                         | import another use case or a listener, persist or call the network by itself |
 | Listener (`extends EventListener`)                                                        | application    | What happens after an event: turns it into the input of one use case; lives next to that use case  | one use case (by constructor), the event                                      | hold business rules, save aggregates, call several use cases                 |
@@ -167,18 +167,20 @@ test/                       mirrors src/
   commands a user can be told about.
 - **Money is never a `NumberType`**: model it as a composite (`Money({ amount: Cents, currency })`)
   with whole minor units, and decide the rounding of every division explicitly.
-- **Repositories only get and persist**: `findById`, `save`, `delete`, with no business rule and no
+- **Repositories only get and persist**: `findById`, `save`, `remove`, with no business rule and no
   business query. Ids come from the value object (`OrderId.generate()`), not from the repository.
   Lists and searches for screens are read queries of the application (SQL, a view, a read model),
   outside the repositories.
-- **Child entities hold only their id and value objects**: the aggregate root owns every rule and
-  changes a child by replacing it with a new one (see
-  [Aggregates and domain events](#aggregates-and-domain-events)); the child has no methods.
+- **Child entities behave, through their root**: a child entity holds its id and value objects and
+  may have business methods named after the language (`seat.relabel(label)`), never setters; only
+  its aggregate root calls them (Tell, Don't Ask), and the root keeps the rules that span several
+  parts [IDDD ch. 5 and 10] (see [Aggregates and domain events](#aggregates-and-domain-events)).
 - **Derived values are methods, never getters** (`order.total()`, not `get total()`), on
   aggregates, child entities and composites alike: a getter becomes a key of `PrimitiveTypes` and
   `toPrimitives()` no longer matches the stored data.
-- **Event names**: internal events are `'<aggregate>.<past_fact>'` (`'order.placed'`); contracts
-  published to other contexts are `'<context>.<fact>'` (`'sales.order_placed'`, see
+- **Event names**: an event's `eventName` is its class name, a fact in the past tense
+  (`'OrderPlaced'`) [IDDD ch. 8]; contracts published to other contexts are
+  `'<context>.<module>.<Event>'` (`'sales.order.OrderPlaced'`) [IDDD ch. 13] (see
   [`PublishedLanguage`](#events-for-other-contexts-publishedlanguage)). An event carries
   primitives taken from value objects (ids as strings, money as `{ amount, currency }`), never value
   objects nor the whole state of the aggregate.
@@ -255,7 +257,7 @@ the browser? of the server?). Send it with `Z` or an offset, or send only the da
 | `value`         | `T \| null` (or `T`)  | The converted value; `T` if the type is required (`Required`)                           |
 | `isNull`        | `boolean`             | `true` if there is no value                                                             |
 | `toString()`    | `string`              | Text of the value; `''` if it is `null`. `DateType` gives ISO 8601, `JsonType` the JSON |
-| `toJSON()`      | `T \| null` (or `T`)  | The value, so `JSON.stringify` writes the plain value                                   |
+| `toJSON()`      | `T \| null` (or `T`)  | The value (a date as its ISO `string`), so `JSON.stringify` writes the plain value      |
 | `equals(other)` | `boolean`             | Same class and same value (dates by instant, arrays and objects by content)             |
 | `validate()`    | `ValidationResult<T>` | Runs the `@Validations` rules again; never throws (always ok on a built value object)   |
 
@@ -368,6 +370,9 @@ inputs get paths such as `lines.1.units`.
 
 ```ts
 import { IdType, NumberType, Required, StringType, ValueObjects } from '@archi-code/ddd/domain';
+import { Validations } from '@archi-code/validation';
+
+// Email as in the previous block; input is the raw request body
 
 class OrderId extends IdType {}
 class Sku extends Required(StringType) {}
@@ -776,7 +781,7 @@ repository. It does not protect the invariants of an aggregate: those stay in th
 
 - `AggregateRoot<Id = IdType, Event = EventBase>`: abstract class for aggregates. `new (id)` stores
   `readonly id`; `equals(other)` is true for the same class and an equal id, whatever the other
-  attributes are. `Id` may be any value object (`IdType`, a `Required(StringType)` code…); `record(event)` is `protected`; `pullDomainEvents()` returns the events typed as `Event[]`, in order, and empties
+  attributes are. `Id` may be any value object (`IdType`, a `Required(StringType)` code…); `record(event)` is `protected` and deep-freezes the event (a fact never changes [IDDD ch. 8]); `pullDomainEvents()` returns the events typed as `Event[]`, in order, and empties
   the list. Pending events are not an enumerable property: they never show up in
   `JSON.stringify(aggregate)`, `{ ...aggregate }` or `Object.keys`.
 - Every aggregate has a `version` for optimistic concurrency (see
@@ -788,30 +793,52 @@ repository. It does not protect the invariants of an aggregate: those stay in th
 - Parts of an aggregate are composite value objects when nobody looks them up by an id of their
   own (the lines of an order). A part that does need its own identity inside the aggregate (a seat
   of a room) is a child entity: it extends `Entity<Id>`, which only stores `readonly id` and
-  compares by class and id, and it holds value objects and no methods. The root changes a child by
-  replacing it with a new instance. Its id only needs to be unique inside the aggregate, so it may
-  be a local value object (`class SeatNumber extends Required(NumberType) {}`) instead of a UUID.
+  compares by class and id; it holds value objects and may have business methods with the rules of
+  that part, but no setters, and only the root calls them [IDDD ch. 5 and 10]. Its identity is
+  local: unique only inside its aggregate and never used to look it up from outside [IDDD ch. 10],
+  so a small value object is enough (`class SeatNumber extends Required(NumberType) {}`).
   `AggregateRoot` extends `Entity` too, and only the root is loaded and saved by repositories.
 
   ```ts
   import {
     AggregateRoot,
+    BooleanType,
     Entity,
     IdType,
     NumberType,
     Required,
     StringType,
   } from '@archi-code/ddd/domain';
+  import { DomainException } from '@archi-code/ddd/exceptions';
 
   class SeatNumber extends Required(NumberType) {}
   class SeatLabel extends Required(StringType) {}
+  class Sold extends Required(BooleanType) {}
+
+  class SeatAlreadySold extends DomainException {
+    constructor(seat: number) {
+      super(`Seat ${seat} is already sold and keeps its label`, ['ROOM001']);
+    }
+  }
 
   class Seat extends Entity<SeatNumber> {
     constructor(
       id: SeatNumber,
-      readonly label: SeatLabel,
+      private _label: SeatLabel,
+      readonly sold: Sold,
     ) {
       super(id);
+    }
+
+    get label(): SeatLabel {
+      return this._label;
+    }
+
+    relabel(label: SeatLabel): void {
+      if (this.sold.value) {
+        throw new SeatAlreadySold(this.id.value);
+      }
+      this._label = label;
     }
   }
 
@@ -823,27 +850,26 @@ repository. It does not protect the invariants of an aggregate: those stay in th
     }
 
     relabelSeat(id: SeatNumber, label: SeatLabel): void {
-      this._seats = this._seats.map((seat) => (seat.id.equals(id) ? new Seat(id, label) : seat));
+      this._seats.find((seat) => seat.id.equals(id))?.relabel(label);
     }
   }
 
-  new Seat(new SeatNumber(7), new SeatLabel('A1')).equals(
-    new Seat(new SeatNumber(7), new SeatLabel('B7')),
+  new Seat(new SeatNumber(7), new SeatLabel('A1'), new Sold(false)).equals(
+    new Seat(new SeatNumber(7), new SeatLabel('B7'), new Sold(true)),
   ); // true
   ```
 
 - `EventBase`: abstract class for events; declare
-  `static readonly eventName = '<aggregate>.<past_fact>'` (`'order.placed'`; the
-  `'<context>.<fact>'` names are for the contracts other contexts read, see
+  `static readonly eventName = '<ClassName>'` (`'OrderPlaced'` [IDDD ch. 8]; the
+  `'<context>.<module>.<Event>'` names are for the contracts other contexts read, see
   [`PublishedLanguage`](#events-for-other-contexts-publishedlanguage)) (listeners and registries refer to the event by its class, without an instance; `eventName()`
   returns it, and a subclass inherits it). Creating an event whose class has no non-blank
-  `eventName` throws `InternalErrorException`. `new (aggregateId,
-metadata?)` sets `aggregateId`, a new `eventId` (UUID v4) and an immutable `occurredOn`. Pass
+  `eventName` throws `InternalErrorException`. `new (aggregateId, metadata?)` sets `aggregateId`, a new `eventId` (UUID v4) and an immutable `occurredOn`. Pass
   `{ clock }` (any `{ now(): Date }`, such as the `Clock` port) to take the moment from it; without
   a clock it is the system time. When you rebuild an event read from an outbox or a broker, pass
   `{ eventId, occurredOn }` (`Date` or ISO string with zone) to keep them; a stored `occurredOn`
-  wins over a clock. The clock is not kept in the event nor in its JSON. `toJSON()` gives `{ eventName, eventVersion, eventId, aggregateId, occurredOn
-(ISO), ...payload }`.
+  wins over a clock. The clock is not kept in the event nor in its JSON. `toJSON()` gives
+  `{ eventName, eventVersion, eventId, aggregateId, occurredOn (ISO), ...payload }`.
 - The shape of an event's data has a version: `static readonly eventVersion = 2` when it changes
   in a way old readers cannot follow (renaming or removing a field, changing its meaning; adding an
   optional field needs no new version). It is 1 when not declared, `event.eventVersion()` returns
@@ -866,7 +892,7 @@ class OrderId extends IdType {}
 class CustomerName extends Required(StringType) {}
 
 class OrderPlaced extends EventBase {
-  static readonly eventName = 'order.placed';
+  static readonly eventName = 'OrderPlaced';
 
   constructor(
     orderId: string,
@@ -893,7 +919,7 @@ const order = Order.place(
 const [placed] = order.pullDomainEvents(); // OrderPlaced[]
 order.pullDomainEvents(); // []
 JSON.stringify(placed);
-// {"eventName":"order.placed","eventVersion":1,"eventId":"…","aggregateId":"9b2f6c1e-…","occurredOn":"2026-10-17T10:00:00.000Z","customer":"Ana"}
+// {"eventName":"OrderPlaced","eventVersion":1,"eventId":"…","aggregateId":"9b2f6c1e-…","occurredOn":"2026-10-17T10:00:00.000Z","customer":"Ana"}
 ```
 
 ### Primitive types
@@ -936,7 +962,7 @@ type PersonData = DataTypes<Person>; // { name?: string; nickname?: string | nul
 
 ## Repository contracts
 
-The domain declares what it needs to load, save and delete aggregates; infrastructure implements
+The domain declares what it needs to load, save and remove aggregates; infrastructure implements
 it (types only, nothing to instantiate). The repository is split by role, following the interface
 segregation principle:
 
@@ -950,7 +976,7 @@ interface AggregateSaver<Aggregate extends AggregateRoot<any, any>> {
 }
 
 interface AggregateRemover<Aggregate extends AggregateRoot<any, any>> {
-  delete(id: Aggregate['id']): Promise<void>;
+  remove(id: Aggregate['id']): Promise<void>;
 }
 ```
 
@@ -995,27 +1021,59 @@ repository follows the same contract:
 
 The version lives next to the primitives (a `version` column or field), never inside them. After a
 `ConcurrencyException`, either tell the user that someone else changed it, or run the command
-again, which loads the aggregate again. A retry lives in the entry point or in the composition (a
-wrapper around `execute`), only for commands that are safe to repeat against the new state; never
-in a use case that calls another one:
+again, which loads the aggregate again. The use case may retry by itself when its command is safe
+to repeat against the new state [IDDD ch. 10; IDDD appendix A]: each attempt is a whole new
+`transactions.run` that loads the aggregate again, written in `handle` (there is no helper), and
+it never calls another use case. That holds only when `handle` is not already inside another
+`run`: a nested run joins the outer transaction, so a use case run by a listener under
+`EventDispatcher` with an inbox does not retry; it lets the conflict propagate and the relay
+delivers the event again:
 
 ```ts
-import { ConcurrencyException } from '@archi-code/ddd/exceptions';
+import { UseCase } from '@archi-code/ddd/application';
+import { AggregateNotFoundException, ConcurrencyException } from '@archi-code/ddd/exceptions';
 
-async function retryOnConflict<Output>(run: () => Promise<Output>, attempts = 3): Promise<Output> {
-  for (let attempt = 1; ; attempt += 1) {
-    try {
-      return await run();
-    } catch (error) {
-      if (!(error instanceof ConcurrencyException) || attempt === attempts) {
-        throw error;
+interface AddOrderLineInput {
+  orderId: string;
+  sku: string;
+  units: number;
+}
+
+interface AddOrderLineCommand {
+  orderId: OrderId;
+  sku: Sku;
+  units: Units;
+}
+
+class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand, void> {
+  // constructor (orders, events, transactions, clock) as in "Transactions and the outbox";
+  // toCommand builds orderId, sku and units with ValueObjects.build;
+  // Order, OrderLine, Sku and Units as in "Persisting aggregates with AggregateMapper"
+
+  protected async handle(command: AddOrderLineCommand): Promise<void> {
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return await this.transactions.run(async () => {
+          const order = await this.orders.findById(command.orderId);
+          if (order === null) {
+            throw new AggregateNotFoundException('Order', command.orderId.value);
+          }
+          order.addLine(new OrderLine({ sku: command.sku, units: command.units }));
+          await this.orders.save(order);
+          await this.events.publish(order.pullDomainEvents());
+        });
+      } catch (error) {
+        if (!(error instanceof ConcurrencyException) || attempt === 3) {
+          throw error;
+        }
       }
     }
   }
 }
-
-await retryOnConflict(() => addLine.execute(input));
 ```
+
+A command that is not safe to repeat (it would charge twice, or the user decided on data that
+changed) does not retry: the `ConcurrencyException` reaches the entry point (HTTP 409).
 
 If a transaction is rolled back after `markPersisted()`, discard the object and load it again.
 
@@ -1137,7 +1195,8 @@ describe('MongoOrderRepository', () => {
 Two rules shape every use case:
 
 - **It does one thing.** One business action per class and one `handle`: it changes one aggregate
-  and saves it once. A flow with several actions is several use cases, chained by domain events or
+  and saves it once [Destilado ch. 5; IDDD ch. 10], except the cases IDDD ch. 10 accepts (such as
+  creating several aggregates in one batch), written down as an explicit decision. A flow with several actions is several use cases, chained by domain events or
   called in order by whoever orchestrates them, never one use case whose input switches between
   behaviors.
 - **It has a business name.** A verb and a noun a domain expert would say: `PlaceOrder`,
@@ -1367,7 +1426,7 @@ const events = new DomainEventRegistry<OrderEvent>().register(
 const relay = new OutboxRelay(outbox, (json) => listeners.dispatchSerialized(json, events));
 
 await shipOrder.execute({ orderId });
-await outbox.pending(10); // [{ sequence: 1, event: { eventName: 'order.shipped', … } }]
+await outbox.pending(10); // [{ sequence: 1, event: { eventName: 'OrderShipped', … } }]
 await relay.forward(); // 1: the listener ran after the commit
 transactions.committed; // 1
 ```
@@ -1375,9 +1434,10 @@ transactions.committed; // 1
 - **`InMemoryTransactionRunner(participants)`** takes a snapshot of each participant
   (`InMemoryRepository`, `InMemoryOutbox` or anything with `snapshot(): () => void`) when a
   transaction starts and restores them, in reverse order, if the work throws; `committed` and
-  `rolledBack` count the outcomes. A `run` inside another joins it. It runs one transaction at a
-  time: runs that overlap in time (two `execute` calls not awaited one after the other) join each
-  other too, so it is meant for tests and prototypes. After a rollback, discard the aggregates you
+  `rolledBack` count the outcomes. A `run` inside another (in the same async flow, tracked with
+  `AsyncLocalStorage`) joins it; runs that overlap in time (two `execute` calls not awaited one after
+  the other) wait their turn, so each one commits or rolls back only its own work. It is meant for
+  tests and prototypes. After a rollback, discard the aggregates you
   held: their version already moved.
 - **`InMemoryOutbox`** stores each event as its JSON (`toJSON()`), frozen and numbered by
   `sequence`, like a row of an outbox table; `pending(limit)` returns the oldest undelivered entries
@@ -1401,7 +1461,9 @@ transactions.committed; // 1
   use its connection (in Node, `AsyncLocalStorage` avoids passing it around); your outbox table
   implements `EventBus` (insert in the current transaction) and `OutboxStore` (select pending rows
   in `sequence` order, for example `FOR UPDATE SKIP LOCKED`, and update them as published).
-  Deliver to a broker with `new OutboxRelay(table, (json) => broker.publish(json.eventName, json))`.
+  Deliver to a broker of other contexts through the published language:
+  `new OutboxRelay(table, async (json) => { for (const message of published.translate(json)) await broker.publish(message.name, message); })`
+  (see [`PublishedLanguage`](#events-for-other-contexts-publishedlanguage)).
 - **`InMemoryEventBus`** dispatches as soon as `publish` is called: use it only for a quick test
   without a transaction; with `TransactionRunner`, use the outbox and the relay.
 
@@ -1447,27 +1509,28 @@ they do not use) [IDDD ch. 13; Destilado ch. 4]. Never send the domain classes o
 import { OutboxRelay, PublishedLanguage } from '@archi-code/ddd/infrastructure';
 
 const published = new PublishedLanguage().expose(OrderPlaced, {
-  name: 'sales.order_placed',
+  name: 'sales.order.OrderPlaced',
   version: 1,
   data: (json) => ({ orderId: json.aggregateId }),
 });
 
 const relay = new OutboxRelay(outbox, async (event) => {
-  const message = published.translate(event); // null for internal events
-  if (message !== null) {
+  for (const message of published.translate(event)) {
     await broker.publish(message.name, message);
   }
 });
-// message: { name: 'sales.order_placed', version: 1, messageId: <eventId>, occurredOn, data: { orderId } }
+// translate: [{ name: 'sales.order.OrderPlaced', version: 1, messageId: <eventId>, occurredOn, data: { orderId } }]
+// an internal event translates to []
 ```
 
-`data` receives the serialized event (`toJSON()`: `aggregateId`, `eventId`, `occurredOn` and the
+`data` receives the serialized event (`toJSON()`: `eventName`, `eventVersion`, `aggregateId`, `eventId`, `occurredOn` and the
 payload) and returns only what the consumers need: here the order id, not the customer name that
-`OrderPlaced` also carries. `expose` refuses an event exposed twice or a contract without a name or with a version below 1
-(`InfrastructureException`); `isPublished(eventName)` tells whether an event leaves the context.
-The message is frozen; its `messageId` is the `eventId`, so consumers in other contexts can
-deduplicate too. Change a contract by exposing a new version, and keep publishing the old one
-while consumers move.
+`OrderPlaced` also carries. `expose` refuses the same contract name and version exposed twice for an event, or a contract
+without a name or with a version below 1 (`InfrastructureException`); `isPublished(eventName)` tells whether an event leaves the context.
+The list and every message are frozen; a message's `messageId` is the `eventId`, so consumers in
+other contexts can deduplicate too. Change a contract by exposing a new version next to the old
+one: `translate` returns one message per exposed version, so both are published while consumers
+move; stop exposing the old one when nobody reads it.
 
 ## Event Sourcing and CQRS: only for a concrete risk
 
@@ -1506,7 +1569,7 @@ Ready adapters for tests, prototypes and the edges of an API:
 | `InMemoryOutbox`                                        | `EventBus` + `OutboxStore`: events as numbered JSON rows; `pending(limit)`, `markPublished(entries)`                                                              |
 | `OutboxRelay(store, deliver)`                           | `forward(limit?)`: delivers pending outbox entries in order after the commit, passing `(event, sequence)`, and marks them                                         |
 | `InMemoryInbox`                                         | `InboxStore` for `EventDispatcher(listeners, { inbox, transactions })`: each event once per listener                                                              |
-| `PublishedLanguage`                                     | `expose(EventClass, { name, version, data })`, `translate(json)`: the contract other contexts read                                                                |
+| `PublishedLanguage`                                     | `expose(EventClass, { name, version, data })`, `translate(json)` → one message per exposed version: the contract other contexts read                              |
 
 `InMemoryRepository` follows the [optimistic concurrency](#optimistic-concurrency) contract like a
 real adapter: it stores a copy of the primitives with their version, rejects a stale save (or a new
@@ -1566,7 +1629,7 @@ const listeners = new EventDispatcher([
 
 const bus = new InMemoryEventBus<OrderEvent>(listeners); // in-process delivery
 
-queue.onMessage((body) => listeners.dispatchSerialized(JSON.parse(body), events)); // queue delivery
+queue.onMessage((body) => listeners.dispatchSerialized(JSON.parse(body), events)); // queue delivery; events: the DomainEventRegistry of the next block
 ```
 
 `EventDispatcher` throws `ApplicationException` for a listener without `@ListensTo`, when the
@@ -1592,10 +1655,11 @@ The factory must pass the serialized event as the metadata of the new event (`js
 argument), so the rebuilt event keeps its `eventId` and `occurredOn`: consumers deduplicate by
 `eventId`, and a new one would make every redelivery look like a new event. `fromJSON` checks it
 and throws `InternalErrorException`
-(`the factory of "order.placed" must pass the serialized event as metadata, so it keeps its eventId and occurredOn`)
+(`the factory of "OrderPlaced" must pass the serialized event as metadata, so it keeps its eventId and occurredOn`)
 when the rebuilt `eventId` (compared without case) or the `occurredOn` instant differs from the
 JSON. It also throws `UnknownEventException` for a name nobody registered and
-`InternalErrorException` for text that is not a JSON object or has no `eventName`.
+`InternalErrorException` for text that is not a JSON object or has no `eventName`. The rebuilt
+event is deep-frozen, like the ones an aggregate records.
 
 ## Persisting aggregates with `AggregateMapper`
 
@@ -1662,7 +1726,7 @@ class Units extends Required(NumberType) {}
 class OrderLine extends Composite({ sku: Sku, units: Units }) {}
 
 class OrderPlaced extends EventBase {
-  static readonly eventName = 'order.placed';
+  static readonly eventName = 'OrderPlaced';
 
   constructor(
     orderId: string,
@@ -1674,7 +1738,7 @@ class OrderPlaced extends EventBase {
 }
 
 class OrderShipped extends EventBase {
-  static readonly eventName = 'order.shipped';
+  static readonly eventName = 'OrderShipped';
 }
 
 type OrderEvent = OrderPlaced | OrderShipped;
@@ -1896,7 +1960,7 @@ class Blocked extends Required(BooleanType) {}
 class Email extends Required(StringType) {}
 
 class UserRegistered extends EventBase {
-  static readonly eventName = 'user.registered';
+  static readonly eventName = 'UserRegistered';
 
   constructor(
     userId: string,
@@ -1908,7 +1972,7 @@ class UserRegistered extends EventBase {
 }
 
 class UserRenamed extends EventBase {
-  static readonly eventName = 'user.renamed';
+  static readonly eventName = 'UserRenamed';
 
   constructor(
     userId: string,
@@ -2077,7 +2141,7 @@ const id = await new RegisterUser(users, bus, clock).execute({
 });
 await new RenameUser(users, bus, clock).execute({ id, name: 'Ana María' });
 
-bus.published.map((event) => event.eventName()); // ['user.registered', 'user.renamed']
+bus.published.map((event) => event.eventName()); // ['UserRegistered', 'UserRenamed']
 emails; // ['Welcome, ana@example.com']
 (await users.findById(new UserId(id)))?.toPrimitives();
 // { id, name: 'Ana María', email: 'ana@example.com', blocked: false, createdAt: 2026-01-01T09:00:00.000Z }

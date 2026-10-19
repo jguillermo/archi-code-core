@@ -10,7 +10,7 @@ import type { EventMetadata, SerializedEvent } from '../../../src/domain/index';
 import { DomainEventRegistry } from '../../../src/infrastructure/event/domain-event-registry';
 
 class OrderPlaced extends EventBase {
-  static readonly eventName = 'order.placed';
+  static readonly eventName = 'OrderPlaced';
 
   constructor(
     orderId: string,
@@ -22,11 +22,23 @@ class OrderPlaced extends EventBase {
 }
 
 class OrderShipped extends EventBase {
-  static readonly eventName = 'order.shipped';
+  static readonly eventName = 'OrderShipped';
 
   constructor(
     orderId: string,
     readonly carrier: string,
+    metadata?: EventMetadata,
+  ) {
+    super(orderId, metadata);
+  }
+}
+
+class OrderLinesChanged extends EventBase {
+  static readonly eventName = 'OrderLinesChanged';
+
+  constructor(
+    orderId: string,
+    readonly lines: { sku: string; units: number }[],
     metadata?: EventMetadata,
   ) {
     super(orderId, metadata);
@@ -60,7 +72,7 @@ describe('DomainEventRegistry: rebuilding events read from an outbox or a broker
 
   it('a broker consumer rebuilds the event from the parsed message body', () => {
     const body: SerializedEvent = {
-      eventName: 'order.shipped',
+      eventName: 'OrderShipped',
       eventVersion: 1,
       eventId,
       aggregateId: orderId,
@@ -72,13 +84,44 @@ describe('DomainEventRegistry: rebuilding events read from an outbox or a broker
     expect(rebuilt).toMatchObject({ eventId, carrier: 'SEUR' });
   });
 
+  it('gives listeners an immutable fact, down to the lines it carries', () => {
+    const changed = new DomainEventRegistry<OrderLinesChanged>()
+      .register(
+        OrderLinesChanged,
+        (e) => new OrderLinesChanged(e.aggregateId, e.lines as { sku: string; units: number }[], e),
+      )
+      .fromJSON(
+        JSON.stringify(
+          new OrderLinesChanged(orderId, [{ sku: 'TORCH-01', units: 2 }], { eventId }),
+        ),
+      );
+    expect(Object.isFrozen(changed)).toBe(true);
+    expect(Object.isFrozen(changed.lines)).toBe(true);
+    expect(() => {
+      changed.lines[0].units = 5;
+    }).toThrow(TypeError);
+    expect(changed.lines).toEqual([{ sku: 'TORCH-01', units: 2 }]);
+  });
+
   it('registers each event by its class, under its static eventName', () => {
     const registry = new DomainEventRegistry<OrderEvent>().register(
       OrderShipped,
       (e) => new OrderShipped(e.aggregateId, e.carrier as string, e),
     );
     expect(registry.has(OrderShipped.eventName)).toBe(true);
-    expect(registry.has('OrderShipped')).toBe(false);
+    expect(registry.has('order.shipped')).toBe(false);
+  });
+
+  it('keeps reading stored events after the class is renamed in code, by their eventName', () => {
+    class OrderDispatched extends EventBase {
+      static readonly eventName = 'OrderShipped';
+    }
+    const registry = new DomainEventRegistry().register(
+      OrderDispatched,
+      (e) => new OrderDispatched(e.aggregateId, e),
+    );
+    expect(registry.has('OrderShipped')).toBe(true);
+    expect(registry.has('OrderDispatched')).toBe(false);
   });
 
   it('registers events one after another in a single expression', () => {
@@ -90,28 +133,28 @@ describe('DomainEventRegistry: rebuilding events read from an outbox or a broker
 
   it('tells which events it can rebuild', () => {
     const registry = orderEvents();
-    expect(registry.has('order.placed')).toBe(true);
-    expect(registry.has('order.cancelled')).toBe(false);
+    expect(registry.has('OrderPlaced')).toBe(true);
+    expect(registry.has('OrderCancelled')).toBe(false);
   });
 
   it('refuses to register the same event twice, a wiring mistake at start-up', () => {
     const register = () =>
       orderEvents().register(OrderPlaced, (e) => new OrderPlaced(e.aggregateId, 'x'));
     expect(register).toThrow(InfrastructureException);
-    expect(register).toThrow('Event "order.placed" is already registered.');
+    expect(register).toThrow('Event "OrderPlaced" is already registered.');
   });
 
   it('refuses an event it does not know with UnknownEventException', () => {
     const read = () =>
       orderEvents().fromJSON({
-        eventName: 'order.cancelled',
+        eventName: 'OrderCancelled',
         eventVersion: 1,
         eventId,
         aggregateId: orderId,
         occurredOn: '2026-03-02T10:00:00.000Z',
       });
     expect(read).toThrow(UnknownEventException);
-    expect(read).toThrow('Unknown event "order.cancelled": register it before reading it.');
+    expect(read).toThrow('Unknown event "OrderCancelled": register it before reading it.');
     try {
       read();
     } catch (error) {
@@ -146,7 +189,7 @@ describe('DomainEventRegistry: rebuilding events read from an outbox or a broker
   it.each([
     ['null', 'null'],
     ['a number', '42'],
-    ['a string', '"order.placed"'],
+    ['a string', '"OrderPlaced"'],
   ])('refuses a message whose JSON is %s', (_, text) => {
     const read = () => orderEvents().fromJSON(text);
     expect(read).toThrow(InternalErrorException);
@@ -166,7 +209,7 @@ describe('DomainEventRegistry: rebuilding events read from an outbox or a broker
     const rebuild = () => forgetful.fromJSON(delivered.toJSON());
     expect(rebuild).toThrow(InternalErrorException);
     expect(rebuild).toThrow(
-      'the factory of "order.shipped" must pass the serialized event as metadata, so it keeps its eventId and occurredOn',
+      'the factory of "OrderShipped" must pass the serialized event as metadata, so it keeps its eventId and occurredOn',
     );
   });
 
@@ -185,7 +228,7 @@ describe('DomainEventRegistry: rebuilding events read from an outbox or a broker
 
   it('accepts the same identity written by another producer: upper case id, time without milliseconds', () => {
     const rebuilt = orderEvents().fromJSON({
-      eventName: 'order.shipped',
+      eventName: 'OrderShipped',
       eventVersion: 1,
       eventId: eventId.toUpperCase(),
       aggregateId: orderId,
@@ -199,7 +242,7 @@ describe('DomainEventRegistry: rebuilding events read from an outbox or a broker
   it('propagates the error of a factory that rejects the stored data', () => {
     expect(() =>
       orderEvents().fromJSON({
-        eventName: 'order.placed',
+        eventName: 'OrderPlaced',
         eventVersion: 1,
         eventId: 'not-an-id',
         aggregateId: orderId,
@@ -211,7 +254,7 @@ describe('DomainEventRegistry: rebuilding events read from an outbox or a broker
 
   it('hands the stored version to the factory, so a consumer can read an older shape', () => {
     class CustomerRenamed extends EventBase {
-      static readonly eventName = 'customer.renamed';
+      static readonly eventName = 'CustomerRenamed';
       static readonly eventVersion = 2;
 
       constructor(
@@ -239,7 +282,7 @@ describe('DomainEventRegistry: rebuilding events read from an outbox or a broker
       },
     );
     const storedLastYear = registry.fromJSON({
-      eventName: 'customer.renamed',
+      eventName: 'CustomerRenamed',
       eventVersion: 1,
       eventId,
       aggregateId: orderId,

@@ -60,7 +60,7 @@ export const OrderMapper = {
 };
 ```
 
-`toSnapshot()` es la única puerta de infraestructura al estado interno `[Fuera de los libros]`. Alternativa: que el agregado exponga getters de solo lectura; lo importante es no exponer setters.
+`toSnapshot()` es la única puerta de infraestructura al estado interno `[Fuera de los libros]`. Alternativa: que el agregado exponga getters de solo lectura; lo importante es no exponer setters. Con el paquete, esa puerta es `toPrimitives()` (datos planos) y `fromPrimitives()`, y el repositorio los usa a través de `AggregateMapper.of(Order)` `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 Las factorías de los value objects validan al cargar: un dato corrupto falla aquí y no dentro del modelo.
 
@@ -68,9 +68,7 @@ Las factorías de los value objects validan al cargar: un dato corrupto falla aq
 
 ```ts
 export class PostgresOrderRepository implements OrderRepository {
-  constructor(private readonly tx: TransactionRunner, private readonly ids: IdGenerator) {}
-
-  nextId(): OrderId { return OrderId.of(`ord-${this.ids.next()}`); }
+  constructor(private readonly tx: TransactionRunner) {}
 
   async byId(id: OrderId): Promise<Order | null> {
     const { rows } = await this.tx.current().query(`SELECT * FROM orders WHERE id = $1`, [id.value]);
@@ -90,14 +88,8 @@ export class PostgresOrderRepository implements OrderRepository {
         [row.id, order.version, row.status, row.lines, row.shipping_address, row.reservation_id, row.payment_auth, row.total_minor, row.total_currency]);
       if (res.rowCount === 0) throw new ConcurrencyConflict('Order', row.id, order.version);
     }
-    await appendEvents(db, row.id, order.pullEvents());   // outbox (ddd-skills/ddd-eventos-dominio/GUIA.md)
+    await appendEvents(db, row.id, order.pullEvents());   // outbox (ddd-skills/ddd-eventos-dominio/GUIA.md); con el paquete, lo hace el caso de uso
     order.markPersisted();                                // la versión en memoria sigue a la persistida
-  }
-
-  async pendingOlderThan(moment: Date, limit: number): Promise<Order[]> {
-    const { rows } = await this.tx.current().query(
-      `SELECT * FROM orders WHERE status = 'PENDING' AND placed_at < $1 ORDER BY placed_at LIMIT $2`, [moment, limit]);
-    return rows.map(OrderMapper.toDomain);
   }
 }
 ```

@@ -5,9 +5,10 @@
 | El total es la suma de las líneas | `OrderLines` (value object) | Cálculo sobre valores |
 | Un pedido confirmado no admite cambios | `Order` (agregado) | Regla sobre su estado |
 | Gastos de envío según zona, peso y promociones | `ShippingCostCalculator` (servicio de dominio) | Necesita líneas, dirección y promociones; forzado en cualquiera de ellos |
-| Solo el cliente dueño puede cancelar | `SalesAccessPolicy` en aplicación, con concepto `Customer` | Autorización del caso de uso |
+| Solo el cliente que hizo el pedido puede cancelarlo mientras está pendiente | `Order` (agregado), con concepto `Customer` | Regla de negocio [IDDD cap. 2] |
+| Quien pide cancelar tiene permiso para cancelar pedidos (rol, sesión activa) | `SalesAccessPolicy` en aplicación | Autorización del caso de uso [IDDD cap. 14] |
 | Cargar pedido, cancelar, guardar | `CancelOrder` (servicio de aplicación) | Coordinación |
-| Cuando Almacén reserva, registrar en el pedido | `RegisterReservationOnOrder` (política en aplicación) | Reacción a evento; invoca al agregado |
+| Cuando Almacén reserva, registrar en el pedido | `RegisterReservationOnOrder` (política en aplicación; con el paquete, el listener `RegisterReservationOnStockReserved` y su caso de uso `[Fuera de los libros: convención de @archi-code/ddd]`) | Reacción a evento; invoca al agregado |
 | Precio vigente de una referencia | `ProductPricing` (puerto de dominio, ACL en infraestructura) | Viene de otro contexto |
 
 `PlaceOrder` completo:
@@ -35,7 +36,7 @@ export class PlaceOrder {
     const address = ShippingAddress.from(cmd.address);
 
     return this.tx.run(async () => {
-      const order = customer.placeOrder(this.orders.nextId(), lines, address); // fábrica en la raíz
+      const order = customer.placeOrder(OrderId.generate(), lines, address); // fábrica en la raíz
       await this.orders.save(order);                 // solo se guarda Order: una transacción, un agregado
       return order.id.value;
     });

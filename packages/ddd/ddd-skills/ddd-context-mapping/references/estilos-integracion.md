@@ -63,14 +63,14 @@ Para que sea seguro, `add` y el cambio del agregado deben ir en la misma transac
 * Dos opciones para intercambiar estructuras: distribuir clases e interfaces a todos los sistemas (tipado fuerte, pero recompilaciones y riesgo de usar objetos ajenos como propios) o un contrato basado en estándar, un media type propio que es un Published Language [IDDD cap. 13].
 * Con contrato, el consumidor solo lee datos; no tiene acceso a comportamiento del otro modelo, y IDDD lo ve como protección, no como carencia. Los cálculos los hace el productor y los envía como atributos del evento [IDDD cap. 13].
 * Los eventos y notificaciones llevan versión. Si se diseñan con cuidado, muchos consumidores pueden leer cualquier versión como si fuera la 1 y no necesitan cambiar [IDDD cap. 13].
-* Los value objects estables (identificadores) se pueden incluir en el evento; quedan congelados en la estructura [IDDD cap. 13].
+* Los value objects estables (identificadores) se pueden incluir en el evento; quedan congelados en la estructura [IDDD cap. 13]. Con el paquete, el payload lleva solo primitivos tomados de los value objects (`orderId: string`), también los identificadores `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 Envoltorio recomendado, basado en la notificación de IDDD:
 
 ```json
 {
   "notificationId": 1842,
-  "typeName": "ventas.pedido.PedidoConfirmado",
+  "typeName": "sales.order.OrderConfirmed",
   "version": 1,
   "occurredOn": "2026-10-18T10:15:00Z",
   "event": { "orderId": "ord-7f3a", "customerId": "cus-91", "total": { "amount": "17.00", "currency": "EUR" } }

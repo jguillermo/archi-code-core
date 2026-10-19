@@ -25,7 +25,7 @@ class CustomerName extends Required(StringType) {}
 class Shipped extends Required(BooleanType) {}
 
 class OrderShipped extends EventBase {
-  static readonly eventName = 'order.shipped';
+  static readonly eventName = 'OrderShipped';
 }
 
 class OrderAlreadyShipped extends DomainException {
@@ -131,7 +131,7 @@ describe('InMemoryTransactionRunner: the transactions of a use case test', () =>
       await shipOrder.execute({ orderId });
       expect((await storedOrder(orders)).shipped.value).toBe(true);
       expect((await outbox.pending(10)).map((entry) => entry.event.eventName)).toEqual([
-        'order.shipped',
+        'OrderShipped',
       ]);
       expect(transactions.committed).toBe(1);
       expect(transactions.rolledBack).toBe(0);
@@ -207,6 +207,31 @@ describe('InMemoryTransactionRunner: the transactions of a use case test', () =>
       ).rejects.toThrow('payment declined');
       expect((await storedOrder(other.orders)).shipped.value).toBe(false);
       expect(other.transactions.rolledBack).toBe(1);
+    });
+
+    it('runs two concurrent use cases one after the other, so a failure rolls back only its own', async () => {
+      const { orders, outbox, transactions, shipOrder } = await shop();
+      const extra = '3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f';
+      const steps: string[] = [];
+      const [placed, shipped] = await Promise.allSettled([
+        transactions.run(async () => {
+          steps.push('place starts');
+          await orders.save(Order.place(extra, 'Luis'));
+          await Promise.resolve();
+          steps.push('place ends');
+        }),
+        transactions.run(async () => {
+          steps.push('ship starts');
+          await shipOrder.execute({ orderId, failAfterSaving: true });
+        }),
+      ]);
+      expect(placed.status).toBe('fulfilled');
+      expect(shipped.status).toBe('rejected');
+      expect(steps).toEqual(['place starts', 'place ends', 'ship starts']);
+      expect((await orders.findById(new OrderId(extra)))?.customer.value).toBe('Luis');
+      expect((await storedOrder(orders)).shipped.value).toBe(false);
+      expect(await outbox.pending(10)).toEqual([]);
+      expect([transactions.committed, transactions.rolledBack]).toEqual([1, 1]);
     });
 
     it('opens a new transaction after the previous one ended, even if it failed', async () => {

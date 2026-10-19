@@ -1,6 +1,6 @@
 # Event Sourcing y CQRS
 
-> Parte del skill `archi-code-ddd`: léela solo cuando ese skill te dirija aquí. Para escribir el código, traduce los ejemplos con `ddd-skills/archi-code-ddd/suite-to-package.md`; si esta guía y las reglas del paquete discrepan, ganan las del paquete.
+> Parte del skill `archi-code-ddd`: léela solo cuando ese skill te dirija aquí. Para escribir el código, traduce los ejemplos con `ddd-skills/archi-code-ddd/suite-to-package.md`; las guías son la fuente de verdad: el paquete solo se aparta de ellas donde lo marca `[Fuera de los libros: convención de @archi-code/ddd]`, y cualquier otra discrepancia es un defecto del paquete.
 >
 > **Cuándo consultar esta guía.** Event Sourcing (agregados persistidos como secuencia de eventos, A+ES) y CQRS (modelo de comandos separado de modelos de lectura) con DDD en TypeScript. Empieza por decidir si compensan, y cubre stream de eventos por agregado, reconstitución, control de concurrencia con versión esperada, event store, snapshots, proyecciones y read models reconstruibles, consistencia eventual en la interfaz, enriquecimiento y versionado de eventos, y cómo cumplir el RGPD con eventos inmutables. Consúltala siempre que alguien mencione event sourcing, CQRS, read models, proyecciones, auditoría completa de cambios, "volver a un estado anterior", event store, o pantallas lentas que cruzan muchos agregados, aunque la pregunta sea solo "¿debería usar...?".
 
@@ -42,7 +42,7 @@ Inconvenientes que el propio apéndice reconoce [IDDD apéndice A]:
 * Herramientas y conocimiento menos maduros; pocos desarrolladores con experiencia.
 * Obliga a CQRS: más carga cognitiva y curva de aprendizaje.
 
-Recomendación de estas fuentes `[Fuera de los libros]`: Event Sourcing solo en agregados del Core Domain donde el historial es un requisito de negocio (o legal) o donde las preguntas "¿cómo llegó a este estado?" son frecuentes. No en todo el sistema. Si solo hace falta auditoría, el outbox de `ddd-skills/ddd-eventos-dominio/GUIA.md` ya deja un registro de eventos sin cambiar la persistencia.
+Recomendación de estas fuentes `[Fuera de los libros]`: Event Sourcing solo en agregados del Core Domain donde el historial es un requisito de negocio (o legal) o donde las preguntas "¿cómo llegó a este estado?" son frecuentes. No en todo el sistema. Si solo hace falta auditoría, el outbox de `ddd-skills/ddd-eventos-dominio/GUIA.md` ya deja un registro de eventos sin cambiar la persistencia. Con el paquete, el `OutboxStore` solo entrega pendientes y no relee lo publicado: para auditar, guarda los eventos en una tabla propia que no se borre `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 Registra la decisión como ADR (por ejemplo, en `docs/adr/`).
 

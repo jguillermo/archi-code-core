@@ -161,7 +161,7 @@ export const CustomerId = (v: string): CustomerId => {
 
 ## 4. Valores de un atributo
 
-¿Merece la pena envolver un único atributo? Si tiene reglas o comportamiento (formato, normalización, comparación), sí. Un booleano o un número autocontenido sin comportamiento puede quedarse como primitivo; envolver de más es un error menor y se corrige refactorizando [IDDD cap. 6].
+¿Merece la pena envolver un único atributo? Si tiene reglas o comportamiento (formato, normalización, comparación), sí. Un booleano o un número autocontenido sin comportamiento puede quedarse como primitivo; envolver de más es un error menor y se corrige refactorizando [IDDD cap. 6]. Con el paquete, todo el estado de un agregado es value objects, también un booleano (`class Shipped extends Required(BooleanType) {}`): así infraestructura lo guarda sin leer campos sueltos `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ```ts
 export class Email extends ValueObject<{ value: string }> {

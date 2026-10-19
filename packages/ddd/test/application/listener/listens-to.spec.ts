@@ -5,12 +5,12 @@ import { EventBase } from '../../../src/domain/index';
 import { ApplicationException } from '../../../src/exceptions/index';
 
 class PaymentCaptured extends EventBase {
-  static readonly eventName = 'payment.captured';
+  static readonly eventName = 'PaymentCaptured';
   readonly amount = 49.9;
 }
 
 class PaymentRefunded extends EventBase {
-  static readonly eventName = 'payment.refunded';
+  static readonly eventName = 'PaymentRefunded';
   readonly reason = 'damaged';
 }
 
@@ -26,11 +26,11 @@ class EmailReceiptOnPaymentCaptured extends EventListener<PaymentCaptured> {
 
 describe('@ListensTo: the event a listener is subscribed to', () => {
   it('marks the listener with the static eventName of the event class', () => {
-    expect(ListensTo.eventOf(new ShipOrderOnPaymentCaptured())).toBe('payment.captured');
+    expect(ListensTo.eventOf(new ShipOrderOnPaymentCaptured())).toBe('PaymentCaptured');
   });
 
   it('lets several listeners subscribe to the same event', () => {
-    expect(ListensTo.eventOf(new EmailReceiptOnPaymentCaptured())).toBe('payment.captured');
+    expect(ListensTo.eventOf(new EmailReceiptOnPaymentCaptured())).toBe('PaymentCaptured');
   });
 
   it('a listener listens to exactly one event: decorating it twice is refused', () => {
@@ -65,7 +65,7 @@ describe('@ListensTo: the event a listener is subscribed to', () => {
       (ShipOrderOnPaymentCaptured as unknown as Record<symbol, string>)[
         Symbol.for('@archi-code/ddd/listens-to.v1')
       ],
-    ).toBe('payment.captured');
+    ).toBe('PaymentCaptured');
   });
 
   it('refuses at compile time an event class for a listener of another event', () => {

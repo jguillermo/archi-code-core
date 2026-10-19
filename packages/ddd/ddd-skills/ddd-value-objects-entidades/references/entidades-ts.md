@@ -26,19 +26,17 @@ Antes de crear una, comprueba si el concepto es en realidad un valor. Y si un si
 ### Momento: temprana o tardía
 
 * **Tardía** (al persistir): el evento de creación se publicaría sin identidad y, si `equals` compara ids, varios objetos nuevos parecerían el mismo en un `Set` [IDDD cap. 5].
-* **Temprana** (al construir): el repositorio ofrece `nextId()` y el id se pasa al constructor [IDDD cap. 5]. IDDD prefiere esta opción frente a hacer `equals` por atributos.
+* **Temprana** (al construir): el id se genera antes de crear la entidad y se pasa al constructor [IDDD cap. 5]. IDDD prefiere esta opción frente a hacer `equals` por atributos.
+* Lo genera el propio value object de identidad, nunca el repositorio: el repositorio solo obtiene y persiste, sin `nextId()` `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ```ts
-export interface OrderRepository {
-  nextId(): OrderId;
-  // ...
-}
-
-export class PostgresOrderRepository implements OrderRepository {
-  nextId(): OrderId {
-    return OrderId.of(`ord-${uuidv7()}`);
+export class OrderId extends ValueObject<{ value: string }> {
+  static generate(): OrderId {
+    return new OrderId({ value: `ord-${uuidv7()}` });
   }
 }
+
+const order = Order.place(OrderId.generate(), customerId, lines, address);
 ```
 
 ### Identidad sustituta
@@ -104,7 +102,7 @@ Fíjate en:
 * Constructor privado y dos factorías con nombre: `register` (lenguaje del negocio) y `reconstitute` (técnica, solo para infraestructura).
 * Ningún setter; cada cambio es un comportamiento con nombre y sus reglas.
 * Los atributos son value objects; cambiar el correo es reemplazar un `Email`.
-* Getters solo para lo que los clientes necesitan leer.
+* Getters solo para lo que los clientes necesitan leer. Con el paquete, cada campo que se guarda tiene un getter público con su nombre sin `_`, porque `toPrimitives()` y `AggregateMapper` los leen `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ## Seguimiento de cambios
 

@@ -4,7 +4,7 @@ import { InfrastructureException } from '../../../src/exceptions/infrastructure/
 import { InternalErrorException } from '../../../src/exceptions/infrastructure/internal-error.exception';
 import { ExceptionCode } from '../../../src/exceptions/exception-code';
 
-const knownEvents = new Set(['order.placed', 'order.shipped']);
+const knownEvents = new Set(['OrderPlaced', 'OrderShipped']);
 
 function readMessage(message: { eventName: string }): string {
   if (!knownEvents.has(message.eventName)) {
@@ -15,15 +15,15 @@ function readMessage(message: { eventName: string }): string {
 
 describe('UnknownEventException', () => {
   it('is what a broker consumer throws for a message no handler knows', () => {
-    expect(readMessage({ eventName: 'order.placed' })).toBe('order.placed');
-    expect(() => readMessage({ eventName: 'order.refunded' })).toThrow(UnknownEventException);
-    expect(() => readMessage({ eventName: 'order.refunded' })).toThrow(
-      'Unknown event "order.refunded": register it before reading it.',
+    expect(readMessage({ eventName: 'OrderPlaced' })).toBe('OrderPlaced');
+    expect(() => readMessage({ eventName: 'OrderRefunded' })).toThrow(UnknownEventException);
+    expect(() => readMessage({ eventName: 'OrderRefunded' })).toThrow(
+      'Unknown event "OrderRefunded": register it before reading it.',
     );
   });
 
   it('is an infrastructure exception with the code INF002', () => {
-    const exception = new UnknownEventException('order.refunded');
+    const exception = new UnknownEventException('OrderRefunded');
     expect(exception).toBeInstanceOf(InfrastructureException);
     expect(exception).not.toBeInstanceOf(InternalErrorException);
     expect(exception.code).toBe(ExceptionCode.UnknownEvent);

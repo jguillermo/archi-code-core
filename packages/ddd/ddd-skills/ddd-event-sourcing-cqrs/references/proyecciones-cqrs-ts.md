@@ -66,7 +66,7 @@ Las consultas no pasan por agregados ni repositorios. Los comandos sí.
 
 ## CQRS sin Event Sourcing
 
-Con persistencia de estado normal, las proyecciones se alimentan de los eventos del outbox (`ddd-skills/ddd-eventos-dominio/GUIA.md`). Mismo patrón: checkpoint, idempotencia, reconstrucción desde el log de eventos guardados.
+Con persistencia de estado normal, las proyecciones se alimentan de los eventos del outbox (`ddd-skills/ddd-eventos-dominio/GUIA.md`). Mismo patrón: checkpoint, idempotencia, reconstrucción desde el log de eventos guardados. Con el paquete, la proyección es un `EventListener` con inbox y reconstruirla desde cero exige un log de eventos propio: el outbox no conserva historial legible `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ## Proyecciones para otros agregados
 

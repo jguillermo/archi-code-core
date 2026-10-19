@@ -27,6 +27,6 @@ Antes de convertir un valor en entidad "porque tiene tabla", responde [IDDD cap.
 ## En TypeScript
 
 `[Fuera de los libros]`
-* Mapea en un `Mapper` de infraestructura (`OrderMapper.toRow`, `OrderMapper.toDomain`), no con decoradores en las clases de dominio.
+* Mapea en un `Mapper` de infraestructura (`OrderMapper.toRow`, `OrderMapper.toDomain`), no con decoradores en las clases de dominio. Con el paquete, el agregado da sus datos planos con `toPrimitives()` y se rehace con `fromPrimitives()`, y el repositorio usa `AggregateMapper.of(Order)`; el formato de la fila sigue en infraestructura `[Fuera de los libros: convención de @archi-code/ddd]`.
 * Con Prisma o Drizzle, el esquema es de infraestructura; el mapper convierte filas en value objects con sus factorías, de modo que un dato corrupto falla al cargar en vez de propagarse.
 * Al reconstituir, usa las factorías de los value objects (que validan) y `Entity.reconstitute` (que no repite reglas de creación).

@@ -5,7 +5,7 @@ import { UseCase } from '../../../src/application/use-case/use-case';
 import { EventBase, IdType } from '../../../src/domain/index';
 
 class InvoiceIssued extends EventBase {
-  static readonly eventName = 'invoice.issued';
+  static readonly eventName = 'InvoiceIssued';
 
   constructor(
     invoiceId: string,

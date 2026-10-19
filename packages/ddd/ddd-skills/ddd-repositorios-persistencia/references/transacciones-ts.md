@@ -62,4 +62,4 @@ export class CancelOrder {
 
 ## Reintentos ante conflicto de versión
 
-Si el comando es seguro de repetir contra el estado recargado, la aplicación puede reintentar una o dos veces ante `ConcurrencyConflict`. Si no, devuelve un error comprensible al usuario `[Fuera de los libros]`.
+Si el comando es seguro de repetir contra el estado recargado, la aplicación puede reintentar una o dos veces ante `ConcurrencyConflict`. Si no, devuelve un error comprensible al usuario [IDDD cap. 10; IDDD apéndice A].

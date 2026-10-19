@@ -52,7 +52,7 @@ class Shipped extends Required(BooleanType) {}
 class OrderLine extends Composite({ sku: Sku, units: Units }) {}
 
 class OrderPlaced extends EventBase {
-  static readonly eventName = 'order.placed';
+  static readonly eventName = 'OrderPlaced';
 
   constructor(
     orderId: string,
@@ -64,7 +64,7 @@ class OrderPlaced extends EventBase {
 }
 
 class OrderLineAdded extends EventBase {
-  static readonly eventName = 'order.line_added';
+  static readonly eventName = 'OrderLineAdded';
 
   constructor(
     orderId: string,
@@ -301,7 +301,7 @@ await new AddOrderLine(orders, outbox, transactions, clock).execute({
   units: 2,
 });
 await outbox.pending(10); // the OrderLineAdded event, committed with the order
-await relay.forward(); // after the commit: PrepareShipment runs; OrderPlaced has no listener and is skipped
+await relay.forward(); // after the commit: PrepareShipment runs
 
 const errors = new HttpErrorMapper({ ORD001: 409 }); // a domain rule defaults to 422
 const { status, body } = errors.map(caughtError);
@@ -327,8 +327,8 @@ describe('Order', () => {
       lines: [{ sku: 'TORCH-01', units: 2 }],
     });
     expect(order.pullDomainEvents().map((event) => event.toJSON())).toMatchObject([
-      { eventName: 'order.placed', aggregateId: orderId, customer: 'Ana' },
-      { eventName: 'order.line_added', sku: 'TORCH-01', units: 2 },
+      { eventName: 'OrderPlaced', aggregateId: orderId, customer: 'Ana' },
+      { eventName: 'OrderLineAdded', sku: 'TORCH-01', units: 2 },
     ]);
   });
 });

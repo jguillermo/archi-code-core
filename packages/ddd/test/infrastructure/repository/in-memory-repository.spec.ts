@@ -342,33 +342,33 @@ describe('InMemoryRepository: the repository of a use case test or a prototype',
       expect(await repository.findById(new OrderId(otherOrderId))).toBeNull();
     });
 
-    it('brings back an order deleted after the snapshot', async () => {
+    it('brings back an order removed after the snapshot', async () => {
       const repository = await storedOrder();
       const restore = repository.snapshot();
-      await repository.delete(new OrderId(orderId));
+      await repository.remove(new OrderId(orderId));
       restore();
       expect(await repository.findById(new OrderId(orderId))).not.toBeNull();
     });
   });
 
-  describe('deleting an order', () => {
+  describe('removing an order', () => {
     it('removes it from the store', async () => {
       const repository = await storedOrder();
-      await repository.delete(new OrderId(orderId));
+      await repository.remove(new OrderId(orderId));
       expect(await repository.findById(new OrderId(orderId))).toBeNull();
       expect(await repository.findAll()).toEqual([]);
     });
 
     it('lets a new order reuse the id', async () => {
       const repository = await storedOrder();
-      await repository.delete(new OrderId(orderId));
+      await repository.remove(new OrderId(orderId));
       await repository.save(Order.place(orderId, 'Luis', clock));
       expect((await repository.findById(new OrderId(orderId)))?.customer.value).toBe('Luis');
     });
 
     it('does nothing for an order that is not there', async () => {
       const repository = await storedOrder();
-      await expect(repository.delete(new OrderId(otherOrderId))).resolves.toBeUndefined();
+      await expect(repository.remove(new OrderId(otherOrderId))).resolves.toBeUndefined();
       expect(await repository.findAll()).toHaveLength(1);
     });
   });

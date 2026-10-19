@@ -1,8 +1,10 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import type { TransactionRunner } from '../../application/index';
 import type { TransactionParticipant } from './transaction-participant';
 
 export class InMemoryTransactionRunner implements TransactionRunner {
-  private depth = 0;
+  private readonly open = new AsyncLocalStorage<true>();
+  private turn: Promise<unknown> = Promise.resolve();
   private commits = 0;
   private rollbacks = 0;
 
@@ -16,22 +18,25 @@ export class InMemoryTransactionRunner implements TransactionRunner {
     return this.rollbacks;
   }
 
-  async run<Result>(work: () => Promise<Result>): Promise<Result> {
-    if (this.depth > 0) {
+  run<Result>(work: () => Promise<Result>): Promise<Result> {
+    if (this.open.getStore() === true) {
       return work();
     }
+    const transaction = this.turn.then(() => this.runAlone(work));
+    this.turn = transaction.catch(() => undefined);
+    return transaction;
+  }
+
+  private async runAlone<Result>(work: () => Promise<Result>): Promise<Result> {
     const restores = this.participants.map((participant) => participant.snapshot());
-    this.depth += 1;
     try {
-      const result = await work();
+      const result = await this.open.run(true, work);
       this.commits += 1;
       return result;
     } catch (error) {
       restores.reverse().forEach((restore) => restore());
       this.rollbacks += 1;
       throw error;
-    } finally {
-      this.depth -= 1;
     }
   }
 }

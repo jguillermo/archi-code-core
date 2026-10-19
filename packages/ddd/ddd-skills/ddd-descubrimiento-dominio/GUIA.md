@@ -1,6 +1,6 @@
 # Descubrimiento del dominio
 
-> Parte del skill `archi-code-ddd`: léela solo cuando ese skill te dirija aquí. Para escribir el código, traduce los ejemplos con `ddd-skills/archi-code-ddd/suite-to-package.md`; si esta guía y las reglas del paquete discrepan, ganan las del paquete.
+> Parte del skill `archi-code-ddd`: léela solo cuando ese skill te dirija aquí. Para escribir el código, traduce los ejemplos con `ddd-skills/archi-code-ddd/suite-to-package.md`; las guías son la fuente de verdad: el paquete solo se aparta de ellas donde lo marca `[Fuera de los libros: convención de @archi-code/ddd]`, y cualquier otra discrepancia es un defecto del paquete.
 >
 > **Cuándo consultar esta guía.** Descubrimiento y exploración del dominio con Domain-Driven Design. Guía Event Storming (preparar una sesión, hacerla de forma asistida a partir de documentación o código, o digitalizar sus resultados), la construcción del Ubiquitous Language y su glosario, escenarios concretos convertidos en especificaciones Given/When/Then y tests de aceptación en TypeScript, y la planificación del modelado (modeling spikes, deuda de modelo, estimación, tiempo con expertos). Consúltala siempre que alguien quiera empezar un proyecto con DDD, hacer una lluvia de ideas del dominio, entender un negocio antes de modelar, preparar o interpretar un Event Storming, definir o revisar el lenguaje ubicuo, escribir escenarios de negocio, o cuando pida "por dónde empiezo con DDD", aunque no mencione estos términos.
 
@@ -8,7 +8,7 @@
 
 [Fuera de los libros: convención de @archi-code/ddd]
 
-* Los tests de aceptación de `references/escenarios-y-especificaciones.md` se escriben con el paquete: los eventos se leen con `order.pullDomainEvents()` (no `pendingEvents()`) y se comprueban por su clase o su `eventName` (`'order.confirmed'`), no por un campo `type`.
+* Los tests de aceptación de `references/escenarios-y-especificaciones.md` se escriben con el paquete: los eventos se leen con `order.pullDomainEvents()` (no `pendingEvents()`) y se comprueban por su clase (`toBeInstanceOf`), con `event.eventName()` (`'OrderConfirmed'`; es un método) o sobre `event.toJSON()`, no por un campo `type`.
 * Las excepciones con nombre de negocio (`StockNotReservedForOrder`) extienden `DomainException` de `@archi-code/ddd/exceptions` con un código propio.
 * Las clases que el test hace aparecer se crean con las reglas de `ddd-skills/archi-code-ddd/where-each-class-goes.md`.
 

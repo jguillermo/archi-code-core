@@ -41,7 +41,15 @@ export class DomainEventRegistry<Event extends EventBase = EventBase> {
     }
     const rebuilt = factory(event);
     DomainEventRegistry.assertSameIdentity(event, rebuilt);
-    return rebuilt;
+    return DomainEventRegistry.freeze(rebuilt);
+  }
+
+  private static freeze<Value>(value: Value): Value {
+    if (typeof value === 'object' && value !== null && !Object.isFrozen(value)) {
+      Object.freeze(value);
+      Object.values(value).forEach((child) => DomainEventRegistry.freeze(child));
+    }
+    return value;
   }
 
   private static assertSameIdentity(serialized: SerializedEvent, rebuilt: EventBase): void {

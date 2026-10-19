@@ -9,7 +9,7 @@ import { InMemoryTransactionRunner } from '../../../src/infrastructure/transacti
 import type { EventMetadata } from '../../../src/domain/index';
 
 class OrderPlaced extends EventBase {
-  static readonly eventName = 'order.placed';
+  static readonly eventName = 'OrderPlaced';
 
   constructor(
     orderId: string,
@@ -21,7 +21,7 @@ class OrderPlaced extends EventBase {
 }
 
 class OrderCancelled extends EventBase {
-  static readonly eventName = 'order.cancelled';
+  static readonly eventName = 'OrderCancelled';
 }
 
 const delay = (milliseconds: number) =>
@@ -89,8 +89,8 @@ describe('EventDispatcher: hands each event to the listeners subscribed to it', 
     const empty = new EventDispatcher();
     const listener = new NotifyCustomerOnOrderPlaced();
     expect(empty.add(listener)).toBe(empty);
-    expect(empty.listenersOf('order.placed')).toEqual([listener]);
-    expect(empty.listenersOf('order.cancelled')).toEqual([]);
+    expect(empty.listenersOf('OrderPlaced')).toEqual([listener]);
+    expect(empty.listenersOf('OrderCancelled')).toEqual([]);
   });
 
   it('refuses a listener without @ListensTo at start-up, a wiring mistake', () => {
@@ -125,7 +125,7 @@ describe('EventDispatcher: hands each event to the listeners subscribed to it', 
     it('skips an event nobody listens to without rebuilding it, so it never blocks the outbox', async () => {
       const listeners = new EventDispatcher([new ReserveStockOnOrderPlaced()]);
       log.length = 0;
-      const shippedRow = { ...new OrderCancelled(orderId).toJSON(), eventName: 'order.shipped' };
+      const shippedRow = { ...new OrderCancelled(orderId).toJSON(), eventName: 'OrderShipped' };
       await expect(listeners.dispatchSerialized(shippedRow, placedOnly())).resolves.toBeUndefined();
       expect(log).toEqual([]);
     });
@@ -133,7 +133,7 @@ describe('EventDispatcher: hands each event to the listeners subscribed to it', 
     it('still refuses an event that has listeners but no factory, a wiring mistake', async () => {
       const cancelled = new OrderCancelled(orderId).toJSON();
       await expect(dispatcher().dispatchSerialized(cancelled, placedOnly())).rejects.toThrow(
-        'order.cancelled',
+        'OrderCancelled',
       );
     });
   });

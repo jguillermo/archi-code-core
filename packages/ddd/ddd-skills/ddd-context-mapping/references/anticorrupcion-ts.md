@@ -134,7 +134,7 @@ export class PlaceOrder {
       if (!product) throw new ProductNotSellable(item.sku);
       lines.push(OrderLine.of(product.sku, product.name, Quantity.of(item.quantity), product.unitPrice));
     }
-    const order = Order.place(this.orders.nextId(), CustomerId.of(cmd.customerId), lines);
+    const order = Order.place(OrderId.generate(), CustomerId.of(cmd.customerId), lines);
     await this.orders.save(order);
     return order.id.value;
   }

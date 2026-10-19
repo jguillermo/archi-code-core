@@ -1,6 +1,6 @@
 # Agregados
 
-> Parte del skill `archi-code-ddd`: léela solo cuando ese skill te dirija aquí. Para escribir el código, traduce los ejemplos con `ddd-skills/archi-code-ddd/suite-to-package.md`; si esta guía y las reglas del paquete discrepan, ganan las del paquete.
+> Parte del skill `archi-code-ddd`: léela solo cuando ese skill te dirija aquí. Para escribir el código, traduce los ejemplos con `ddd-skills/archi-code-ddd/suite-to-package.md`; las guías son la fuente de verdad: el paquete solo se aparta de ellas donde lo marca `[Fuera de los libros: convención de @archi-code/ddd]`, y cualquier otra discrepancia es un defecto del paquete.
 >
 > **Cuándo consultar esta guía.** Diseño e implementación de agregados DDD en TypeScript, la guía central del diseño táctico. Cubre las cuatro reglas (proteger invariantes reales dentro del límite, agregados pequeños, referencias por identidad, consistencia eventual fuera del límite), el procedimiento para dimensionar agregados preguntando a negocio por los plazos de consistencia, la heurística de "¿de quién es el trabajo?", cuándo está justificado romper las reglas, la raíz del agregado, partes como value objects, fábricas, concurrencia optimista, registro de eventos de dominio y tests. Consúltala siempre que haya que decidir qué objetos van juntos, qué se guarda en una transacción, por qué hay conflictos de concurrencia o bloqueos, si un objeto debe contener una colección de otro, cómo coordinar cambios en varias entidades, o cuando aparezca un objeto enorme que carga medio modelo, aunque no se diga "agregado".
 
@@ -12,6 +12,7 @@
 * Todo el estado son value objects, composites o entidades hijas con getter público; constructor privado, una factoría de negocio y `fromPrimitives`, y `toPrimitives()` con datos planos (las seis reglas de `layers.md`).
 * Las identidades nuevas salen del value object (`OrderId.generate()`), no de `repository.nextId()`.
 * Los métodos del dominio reciben `clock: { now(): Date }` y lo pasan a los eventos (`{ clock }`).
+* La variante funcional (estado inmutable + funciones que devuelven `[estado, eventos]`) no la da el paquete: necesita clases `AggregateRoot`, `PrimitiveTypes` y `AggregateMapper`.
 * Una fábrica en otra raíz (`customer.placeOrder(...)`): el caso de uso lee `Customer` con `AggregateFinder` y guarda solo el nuevo `Order` con `AggregateSaver`.
 
 Un agregado es un grupo de entidades y value objects con una entidad raíz que lo nombra y lo controla, y que forma un **límite de consistencia transaccional**: al confirmar la transacción, todo lo de dentro cumple las reglas del negocio [Destilado cap. 5]. No es un grafo de objetos cómodo de navegar; es una decisión sobre consistencia [IDDD cap. 10].
@@ -103,7 +104,7 @@ Destilado añade una vía de aprendizaje: mientras el equipo se acostumbra, pued
 
 ## Programación funcional
 
-Con un estilo funcional, separar datos y comportamiento no es anemia: el agregado es un tipo inmutable y las funciones devuelven un estado nuevo o un evento. Parte de esta guía orientada a objetos no aplica tal cual [Destilado cap. 5]. `ddd-skills/ddd-agregados/references/implementacion-ts.md` incluye una variante funcional.
+Con un estilo funcional, separar datos y comportamiento no es anemia: el agregado es un tipo inmutable y las funciones devuelven un estado nuevo o un evento. Parte de esta guía orientada a objetos no aplica tal cual [Destilado cap. 5]. `ddd-skills/ddd-agregados/references/implementacion-ts.md` incluye una variante funcional; el paquete no la da `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ## Ejemplo completo
 

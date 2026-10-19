@@ -2,6 +2,7 @@ import { Entity } from '../entity/entity';
 import type { EventBase } from '../event/event-base';
 import type { AbstractType } from '../type/abstract-type';
 import type { IdType } from '../type/id-type';
+import { Immutable } from '../type/immutable/immutable';
 import { InternalErrorException } from '../../exceptions/index';
 
 export abstract class AggregateRoot<
@@ -22,7 +23,7 @@ export abstract class AggregateRoot<
   }
 
   protected record(event: Event): void {
-    this.domainEvents.push(event);
+    this.domainEvents.push(Immutable.freeze(event));
   }
 
   pullDomainEvents(): Event[] {

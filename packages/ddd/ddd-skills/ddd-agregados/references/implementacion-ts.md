@@ -17,7 +17,7 @@ export abstract class AggregateRoot<Id extends ValueObject<any>> extends Entity<
     this.pending.push(event);
   }
 
-  /** Lo llama la capa de aplicación (o el repositorio) tras guardar. */
+  /** Lo llama la capa de aplicación (o el repositorio) tras guardar; con el paquete, solo el caso de uso. */
   pullEvents(): DomainEvent[] {
     const events = this.pending;
     this.pending = [];
@@ -35,7 +35,7 @@ export abstract class AggregateRoot<Id extends ValueObject<any>> extends Entity<
 
 Sin `markPersisted`, el objeto en memoria conserva la versión antigua tras guardar y un segundo `save` del mismo objeto (por ejemplo, dos comandos seguidos en el mismo proceso) daría un falso conflicto de concurrencia `[Fuera de los libros]`.
 
-Por qué registrar en vez de publicar: IDDD publica desde el agregado con un publicador estático [IDDD cap. 8]. Registrar y dejar que la aplicación publique tras confirmar evita publicar eventos de cambios que luego se revierten, y no requiere un singleton global en el dominio. *DDD in PHP* discute ambas variantes [PHP: Domain Events].
+Por qué registrar en vez de publicar: IDDD publica desde el agregado con un publicador estático [IDDD cap. 8]. Registrar y dejar que la aplicación los guarde en la misma transacción (outbox) y se entreguen tras confirmar evita publicar eventos de cambios que luego se revierten (con el paquete, `events.publish(...)` dentro de `transactions.run`; nunca después `[Fuera de los libros: convención de @archi-code/ddd]`), y no requiere un singleton global en el dominio. *DDD in PHP* discute ambas variantes [PHP: Domain Events].
 
 ## 2. Construcción paso a paso
 
@@ -44,7 +44,7 @@ Orden que sigue Destilado para construir la raíz [Destilado cap. 5]:
 1. Clase de la raíz.
 2. Identidad global única como value object (en multi-tenant, también el `TenantId`).
 3. Atributos intrínsecos necesarios para encontrarlo (nombre, descripción).
-4. Getters solo si hacen falta; **sin setters públicos**.
+4. Getters solo si hacen falta; **sin setters públicos**. Con el paquete, cada campo que se guarda tiene un getter público `[Fuera de los libros: convención de @archi-code/ddd]`.
 5. Comportamiento complejo con nombres del lenguaje (`planBacklogItem`, `scheduleRelease`).
 
 ## 3. Agregado completo: Order

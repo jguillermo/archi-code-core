@@ -12,7 +12,7 @@ const ALLOWED_MODULE_DEPENDENCIES: Record<string, readonly string[]> = {
   infrastructure: ['application', 'domain', 'exceptions'],
 };
 
-const ALLOWED_PACKAGES = ['@archi-code/validation', 'uuid'];
+const ALLOWED_PACKAGES = ['@archi-code/validation', 'uuid', 'node:async_hooks'];
 
 function listTs(dir: string): string[] {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {

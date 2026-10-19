@@ -21,8 +21,9 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   `DOM004`, conversion `DOM003`, a rule name, or the code of any `DomainException`, such as your
   `ORD003`); `ValueObjects.buildList(list, (item) => …)` names list items by position
   (`lines.1.units`). It returns the command typed field by field.
-- **Which layer validates what:** the input adapter checks only the shape of the request (it parses,
-  a field is a string), never a business rule; value objects check each value (built in
+- **Which layer validates what:** the input adapter checks the shape and format of the request (it
+  parses, a field is a string, an empty field or a length for a good user experience [IDDD ch. 4]),
+  never a business rule, and that never replaces the value object; value objects check each value (built in
   `toCommand`); the aggregate checks invariants over several values; a domain service checks rules
   over several aggregates; the use case checks authorization. The input of a use case arrives
   unvalidated on purpose: every adapter goes through it.
@@ -64,11 +65,11 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
 - The aggregate root passes the id to `super(id)`, exposed as `readonly id`; do not redeclare it
   (no `_id` + getter). `equals` compares class and id only. A child entity (a part with an identity
   of its own inside the aggregate) extends `Entity<Id>` (`super(id)`, `equals` by class and id)
-  and holds only its id and value objects, **no business logic**: the root owns every rule and
-  changes a child by replacing it
-  (`this._seats = this._seats.map((seat) => seat.id.equals(id) ? new Seat(id, label) : seat)`),
-  never through setters or methods of the child. Its id may be local to the aggregate
-  (`class SeatNumber extends Required(NumberType)`). `AggregateRoot` extends `Entity` too.
+  and holds its id and value objects; it may have business methods named after the language
+  (`seat.relabel(label)`) with the rules of that part, never setters, and only its root calls them
+  (Tell, Don't Ask: `room.relabelSeat(id, label)` finds the seat and tells it) [IDDD ch. 5 and
+  10]; rules over several parts stay in the root. Its identity is local: unique only inside its
+  aggregate, never used from outside [IDDD ch. 10] (`class SeatNumber extends Required(NumberType)`). `AggregateRoot` extends `Entity` too.
 - **Derived values are methods, never getters** (`total()`, `isEditable()`), on aggregates, child
   entities and composites: `PrimitiveTypes` sees every getter as a field, so a computed getter
   breaks `toPrimitives()` at compile time.
@@ -80,7 +81,9 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   domain code; a repository receives an aggregate and stores it. `AggregateMapper` is imported from
   `@archi-code/ddd/infrastructure`.
 - **Aggregates and their primitives** (every aggregate follows these six rules so infrastructure can
-  store it):
+  store it; rules 1, 2, 4 and 5, and the name `fromPrimitives` of rule 3, are package conventions, `[Fuera de los libros: convención de
+  @archi-code/ddd]`: the books allow a primitive without behavior [IDDD ch. 6], getters only where
+  needed [Destilado ch. 5] and a mapper in infrastructure [IDDD ch. 6]):
   1. All its state is value objects: each persisted field is a value object, a composite, a list
      of them or a child entity (`extends Entity<Id>`) whose fields are value objects. A flag is
      `class Shipped extends Required(BooleanType) {}`, never `boolean`; a moment is `DateType` /
@@ -112,13 +115,16 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   primitives; when nothing was written throw
   `ConcurrencyException(mapper.aggregateName, id, aggregate.version)` (HTTP 409); after a write
   call `aggregate.markPersisted()`. Keep the driver error: `ConcurrencyException(…, { cause })`.
-  After a conflict, repeat the command only if it is safe against the new state, from the entry
-  point or the composition (a wrapper around `execute`), never from a use case; otherwise report it
-  to the user.
-- `record(event)` is `protected`; `pullDomainEvents()` returns the events (typed `Event[]`) in order
+  After a conflict, the use case may repeat its own work when the command is safe against the new
+  state [IDDD ch. 10; IDDD appendix A]: a loop in `handle` around the whole `transactions.run`, so
+  each attempt is a new transaction that loads the aggregate again (a few attempts, then rethrow);
+  otherwise the conflict reaches the user (409). A nested `run` joins the outer transaction, so a
+  use case run by a listener with an inbox does not retry: the relay delivers the event again.
+- `record(event)` is `protected` and deep-freezes the event (facts never change [IDDD ch. 8]); `pullDomainEvents()` returns the events (typed `Event[]`) in order
   and empties the list. Pull them after persisting, to publish.
-- Events extend `EventBase`, declare `static readonly eventName = '<aggregate>.<past_fact>'`
-  (`order.placed`; a published contract is named `<context>.<fact>`, `sales.order_placed`) and
+- Events extend `EventBase`, declare `static readonly eventName` with their class name, a fact in
+  the past tense (`'OrderPlaced'`) [IDDD ch. 8] (a published contract is named
+  `<context>.<module>.<Event>`, `sales.order.OrderPlaced` [IDDD ch. 13]) and
   call `super(aggregateId, metadata)`; `event.eventName()` returns it. The payload is primitives
   taken from value objects (`customer.value`, money as `{ amount, currency }`), only what
   consumers need: never value objects, `toPrimitives()` nor personal data nobody needs. Listeners and registries refer to
@@ -127,7 +133,8 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   given, otherwise the system time); pass `{ eventId, occurredOn }` only when rebuilding an event
   read from an outbox or a broker. Inside an aggregate method, always pass the clock it received:
   `new OrderPlaced(id.value, customer.value, { clock })`. Serialize with `JSON.stringify` /
-  `toJSON()` (`eventName`, `eventId`, `aggregateId`, ISO `occurredOn` and the payload).
+  `toJSON()` (`eventName`, `eventVersion`, `eventId`, `aggregateId`, ISO `occurredOn` and the
+  payload).
 - `PrimitiveTypes<T>` only sees **public** non-method members (it strips the leading `_`): expose
   VOs with public getters or public `readonly` properties. For an aggregate it includes `id`;
   child entities become their primitives; raw `string`/`number`/`boolean`/`Date`
@@ -143,14 +150,18 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
     `{ cause: error }` when wrapping another error.
   - `TypePrimitiveException` and `RequiredValueException` are thrown by the VOs; throw them yourself
     only inside the `filter` of a custom type.
-- Map errors to HTTP with `HttpErrorMapper` (overrides by code for your own codes): 400 for
-  conversion and required values, 403 `NotAllowedException`, 404 `AggregateNotFoundException`, 409
+- Map errors to HTTP with `HttpErrorMapper` (overrides by code for your own codes): 400 for a
+  conversion or required error thrown alone (a value object built with `new` outside
+  `ValueObjects.build`; inside it they become a `ValidationException`, 422, with `DOM003`/`DOM004`
+  in `errors`), 403 `NotAllowedException`, 404 `AggregateNotFoundException`, 409
   `ConcurrencyException`, 422 `ValidationException` and any other `DomainException` (a broken
-  business rule), 500 otherwise; never hand-write status tables that leak infrastructure
+  business rule), 400 any other `ApplicationException`, 500 otherwise; never hand-write status tables that leak infrastructure
   messages. For logs or messages use `error.code` and the exported `ExceptionCode` enum, or
   `instanceof`: the built-in exceptions are recognized across the CJS and ESM builds.
 - A use case does **one thing**: one business action, one class, one `handle`. It changes one
-  aggregate and saves it once; a flow that needs several actions is several use cases (chained by
+  aggregate and saves it once [Destilado ch. 5; IDDD ch. 10] (the exceptions IDDD ch. 10 accepts, such
+  as creating several aggregates in one batch that changes nothing semantically, are written down
+  as an explicit decision); a flow that needs several actions is several use cases (chained by
   domain events or called one after another by whoever orchestrates them), never one use case with
   flags or a `type` field in its input that switch between behaviors.
 - A use case is **named after the business action**, a verb and a noun from the ubiquitous language
@@ -158,10 +169,10 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   `RegisterUser`, `ApproveRefund`. Never technical or CRUD names (`CreateOrder` when the business
   says "place", `UpdateOrder`, `SaveUser`, `OrderService`, `OrderManager`, `ProcessOrder`,
   `HandleData`, `OrderUseCase`).
-- The repository contracts belong to the domain (`import type { AggregateSaver } from
-'@archi-code/ddd/domain'`). Interface segregation: a use case depends only on the repository roles it uses —
+- The repository contracts belong to the domain
+  (`import type { AggregateSaver } from '@archi-code/ddd/domain'`). Interface segregation: a use case depends only on the repository roles it uses —
   `AggregateFinder<A>` (`findById`), `AggregateSaver<A>` (`save`), `AggregateRemover<A>`
-  (`delete`), combined with `&` when it needs several. There is no all-in-one `Repository` port:
+  (`remove`), combined with `&` when it needs several. There is no all-in-one `Repository` port:
   an adapter implements each role it supports.
 - Use cases extend `UseCase<Input, Command, Output>`, receive ports by constructor
   (`AggregateSaver<Order>`, `EventBus<OrderEvent>`, `TransactionRunner`, `Clock`) and are called
@@ -182,18 +193,23 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   (`SalesAccessPolicy`) throws `NotAllowedException`. A rule that is business (only the owner may
   change the order) stays in the aggregate.
 - **Domain services** are plain classes in `domain/` (no base class) named after the business
-  operation; they receive aggregates and loaded data, never open transactions nor publish. A
+  operation; they receive aggregates and loaded data, and may read other aggregates through an
+  `AggregateFinder` to validate or calculate over several of them [IDDD ch. 5 and 7]; they never
+  save, open transactions nor publish. A
   technical one (`ExchangeRates`) is an interface in `domain/` implemented in infrastructure.
-- **Repositories only get and persist** (`findById`, `save`, `delete`): no business logic, no
+- **Repositories only get and persist** (`findById`, `save`, `remove`): no business logic, no
   business queries (`pendingOlderThan`), no `nextId()`; new ids come from the value object
-  (`OrderId.generate()`). `InMemoryRepository.findAll()` is a convenience of the test adapter.
+  (`OrderId.generate()`). `InMemoryRepository.findAll()` is a convenience of the test adapter only
+  (`[Fuera de los libros: convención de @archi-code/ddd]`; a real repository has no `findAll()`).
 - **Another aggregate is referenced by its id** (`customerId: CustomerId`), never by the object.
 - **A command can be refused, a fact cannot**: a method that registers something that already
   happened elsewhere (`registerStockReservation`, called by a listener) is idempotent and never
   throws a business error; if the fact does not fit, it records an event so another listener
   compensates.
-- **Money is a composite with whole minor units** (`Money({ amount: Cents, currency })`), never a
-  `NumberType`; rounding is explicit.
+- **Money is a composite with whole minor units** (`Money({ amount: Cents, currency })`, `Cents` a
+  `Required(NumberType)` with `isInt`), never a decimal amount; it is exact up to
+  `Number.MAX_SAFE_INTEGER` cents (the books use `bigint`, `[Fuera de los libros: convención de
+  @archi-code/ddd]`); rounding is explicit.
 - **Transactions belong to the application, events to the outbox** [IDDD ch. 12; Destilado ch. 6]:
   the use case opens the transaction with the `TransactionRunner` port (`run(work)`; a nested run
   joins the outer one) and publishes inside it, so the aggregate and its events are committed
@@ -210,19 +226,23 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
 - **Consumers are idempotent**: wire `new EventDispatcher(listeners, { inbox, transactions })`;
   each listener runs in its own transaction that marks `eventId` for that listener in the inbox
   (`InMemoryInbox` or a table implementing `InboxStore`) and skips an event already processed.
-- **Other contexts never receive domain classes**: `new PublishedLanguage().expose(OrderPlaced, {
-name: 'sales.order_placed', version: 1, data: (json) => ({ … }) })` and, in the relay,
-  `published.translate(json)` (`null` for internal events) before sending to the broker. Publish
-  only what consumers need; a new contract version for incompatible changes.
+- **Other contexts never receive domain classes**:
+  `new PublishedLanguage().expose(OrderPlaced, { name: 'sales.order.OrderPlaced', version: 1, data: (json) => ({ … }) })`
+  and, in the relay,
+  `published.translate(json)` (one message per exposed version, `[]` for internal events) before
+  sending to the broker. Publish only what consumers need; a new contract version for incompatible
+  changes, exposed next to the old one while consumers move.
 - Event Sourcing and CQRS are optional, only for a concrete need (full history, read models very
   different from the model); read queries straight to the database come first. A projection is
   an `EventListener` with the inbox that writes a read table; a read query is an application
   interface implemented in infrastructure that returns DTOs or ids.
 - Tests use `InMemoryTransactionRunner([repository, outbox])` (restores both when the work throws;
-  `committed`/`rolledBack`; one transaction at a time: concurrent runs join each other),
+  `committed`/`rolledBack`; a run inside another joins it, and runs that overlap in time wait
+  their turn),
   `InMemoryOutbox` (events stored as JSON, `pending(limit)`) and
   `OutboxRelay`. `InMemoryEventBus` dispatches immediately: only for a quick test without
-  transactions.
+  transactions (the books deliver after the commit [IDDD ch. 8]; the package keeps this bus as a
+  test convenience, `[Fuera de los libros: convención de @archi-code/ddd]`).
 - Listeners extend `EventListener<Event>`, are decorated with `@ListensTo(EventClass)` (one event
   per listener, any number of listeners per event), receive the one use case they run by
   constructor and their `handle(event)` only maps the event to that use case's input.

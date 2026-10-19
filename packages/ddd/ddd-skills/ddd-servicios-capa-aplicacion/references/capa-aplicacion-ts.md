@@ -52,7 +52,7 @@ Para pantallas, mejor una consulta de lectura aparte que devuelve un DTO sin pas
 ## Eventos en la capa de aplicación
 
 * La aplicación puede registrar suscriptores para guardar y reenviar eventos, dejando el dominio libre de mensajería [IDDD cap. 4].
-* Con outbox, el repositorio o el caso de uso guarda los eventos en la transacción; la publicación ocurre fuera (`ddd-skills/ddd-eventos-dominio/GUIA.md`).
+* Con outbox, el repositorio o el caso de uso guarda los eventos en la transacción; la publicación ocurre fuera (`ddd-skills/ddd-eventos-dominio/GUIA.md`). Con el paquete, siempre el caso de uso: `events.publish(order.pullDomainEvents())` dentro de `transactions.run` `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ## Errores
 

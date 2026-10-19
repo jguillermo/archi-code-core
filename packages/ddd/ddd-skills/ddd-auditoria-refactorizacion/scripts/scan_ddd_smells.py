@@ -32,7 +32,7 @@ PRIMITIVE_STATUS_RE = re.compile(r"\b(status|estado|state)\s*\??\s*:\s*string\b"
 SMELLY_NAME_RE = re.compile(r"\bclass\s+\w*(Manager|Helper|Utils?|Processor)\b")
 REPO_CLASS_RE = re.compile(r"\b(?:class|interface)\s+(\w+)Repository\b")
 # Cualquier receptor que guarde: this.orders.save(...), orderRepository.save(...), repo.persist(...)
-SAVE_CALL_RE = re.compile(r"(?:this\.)?(\w+)\s*\.\s*(?:save|add|persist)\s*\(")
+SAVE_CALL_RE = re.compile(r"(?:this\.)?(\w+)\s*\.\s*(?:save|add|persist|remove)\s*\(")
 NOT_A_REPOSITORY = {"events", "eventbus", "bus", "outbox", "inbox", "list", "set", "map", "array", "items", "tags"}
 ARCHI_OUTER_LAYER_RE = re.compile(r"""['"]@archi-code/ddd/(application|infrastructure)['"]""")
 NEW_DATE_RE = re.compile(r"\bnew\s+Date\s*\(\s*\)")

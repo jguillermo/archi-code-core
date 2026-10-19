@@ -38,7 +38,7 @@ export class RegisterReservationOnOrder {
 
 Reglas para políticas:
 * Una política, un agregado modificado.
-* Nombre con el lenguaje del negocio (`RegisterReservationOnOrder`), no `StockReservedHandler`.
+* Nombre con el lenguaje del negocio (`RegisterReservationOnOrder`), no `StockReservedHandler`. Con el paquete, la política se parte en un listener `<Acción>On<Evento>` (`RegisterReservationOnStockReserved`, con `@ListensTo`) que solo traduce el evento a la entrada de un caso de uso, y ese caso de uso carga, invoca y guarda `[Fuera de los libros: convención de @archi-code/ddd]`.
 * La regla de negocio está en el agregado; la política solo lo invoca.
 * El método invocado no lanza errores de negocio (ver "Comandos frente a hechos" en `ddd-skills/ddd-agregados/references/implementacion-ts.md`). Los errores técnicos (base de datos caída, conflicto de versión) sí se propagan para que la mensajería reintente.
 

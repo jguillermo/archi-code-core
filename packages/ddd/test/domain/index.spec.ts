@@ -70,7 +70,7 @@ describe('@archi-code/ddd/domain', () => {
   it('exports the repository contracts as types, one per role', () => {
     expectTypeOf<keyof AggregateFinder<AggregateRoot>>().toEqualTypeOf<'findById'>();
     expectTypeOf<keyof AggregateSaver<AggregateRoot>>().toEqualTypeOf<'save'>();
-    expectTypeOf<keyof AggregateRemover<AggregateRoot>>().toEqualTypeOf<'delete'>();
+    expectTypeOf<keyof AggregateRemover<AggregateRoot>>().toEqualTypeOf<'remove'>();
     expectTypeOf<AggregateSaver<AggregateRoot>['save']>().toEqualTypeOf<
       (aggregate: AggregateRoot) => Promise<void>
     >();

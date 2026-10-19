@@ -9,7 +9,7 @@ const ORDER_ID = '9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c';
 
 function orderModel() {
   class OrderPlaced extends domain.EventBase {
-    static eventName = 'order.placed';
+    static eventName = 'OrderPlaced';
   }
   class Order extends domain.AggregateRoot {
     static place(id) {
@@ -34,7 +34,7 @@ function smoke(m) {
           save: async (order) => {
             saved.push(order.id.value);
           },
-          delete: async () => undefined,
+          remove: async () => undefined,
         };
         const bus = {
           publish: async (events) => {
@@ -55,7 +55,7 @@ function smoke(m) {
         }
         const id = await new PlaceOrder().execute({ id: ORDER_ID });
         return (
-          (id === ORDER_ID && saved[0] === ORDER_ID && published[0] === 'order.placed') ||
+          (id === ORDER_ID && saved[0] === ORDER_ID && published[0] === 'OrderPlaced') ||
           `unexpected ${JSON.stringify({ id, saved, published })}`
         );
       },
@@ -66,7 +66,7 @@ function smoke(m) {
         const repository = {
           findById: async () => null,
           save: async () => {},
-          delete: async () => {},
+          remove: async () => {},
         };
         class ShipOrder extends m.UseCase {
           toCommand(input) {
@@ -114,7 +114,7 @@ function smoke(m) {
         const listener = new ConfirmOrderOnOrderPlaced();
         await listener.handle(new OrderPlaced(ORDER_ID));
         return (
-          (m.ListensTo.eventOf(listener) === 'order.placed' && received[0] === ORDER_ID) ||
+          (m.ListensTo.eventOf(listener) === 'OrderPlaced' && received[0] === ORDER_ID) ||
           `unexpected ${m.ListensTo.eventOf(listener)} / ${received}`
         );
       },

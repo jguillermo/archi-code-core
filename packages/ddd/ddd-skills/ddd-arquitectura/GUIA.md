@@ -1,6 +1,6 @@
 # Arquitectura de un Bounded Context
 
-> Parte del skill `archi-code-ddd`: léela solo cuando ese skill te dirija aquí. Para escribir el código, traduce los ejemplos con `ddd-skills/archi-code-ddd/suite-to-package.md`; si esta guía y las reglas del paquete discrepan, ganan las del paquete.
+> Parte del skill `archi-code-ddd`: léela solo cuando ese skill te dirija aquí. Para escribir el código, traduce los ejemplos con `ddd-skills/archi-code-ddd/suite-to-package.md`; las guías son la fuente de verdad: el paquete solo se aparta de ellas donde lo marca `[Fuera de los libros: convención de @archi-code/ddd]`, y cualquier otra discrepancia es un defecto del paquete.
 >
 > **Cuándo consultar esta guía.** Arquitectura interna de un Bounded Context con DDD en TypeScript/Node. Cubre capas e inversión de dependencias, arquitectura hexagonal (puertos y adaptadores), qué va en dominio, aplicación, infraestructura e interfaz, módulos con nombres del lenguaje ubicuo, estructura de carpetas, composition root e inyección de dependencias, reglas automáticas de dependencias, cómo exponer REST sin exponer el modelo y cuándo (y cuándo no) añadir CQRS, arquitectura dirigida por eventos o Event Sourcing. Consúltala siempre que haya que crear o reorganizar la estructura de un proyecto o servicio con DDD, decidir dónde va un fichero o una clase, separar dominio de framework u ORM, montar la inyección de dependencias, configurar límites entre módulos, o cuando el dominio importe Express, Prisma, TypeORM o similares, aunque no se diga "arquitectura hexagonal".
 

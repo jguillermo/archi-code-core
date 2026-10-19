@@ -127,7 +127,7 @@ export class EventSourcedPaymentRepository {
 }
 ```
 
-El reintento recarga y vuelve a ejecutar el comando contra el estado nuevo, como propone IDDD [IDDD apéndice A]. Si el comando ya no es válido, el error de negocio sale normalmente.
+El reintento recarga y vuelve a ejecutar el comando contra el estado nuevo, como propone IDDD [IDDD apéndice A]. Si el comando ya no es válido, el error de negocio sale normalmente. Con el paquete, el repositorio solo carga y anexa (`load`/`append`); el bucle de reintento va en el `handle` del caso de uso, cada intento en un `transactions.run` nuevo `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ## Snapshots
 

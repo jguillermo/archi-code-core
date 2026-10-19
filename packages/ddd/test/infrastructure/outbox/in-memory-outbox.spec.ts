@@ -6,7 +6,7 @@ import type { EventMetadata } from '../../../src/domain/index';
 import type { EventBus } from '../../../src/application/index';
 
 class OrderPlaced extends EventBase {
-  static readonly eventName = 'order.placed';
+  static readonly eventName = 'OrderPlaced';
 
   constructor(
     orderId: string,
@@ -19,7 +19,7 @@ class OrderPlaced extends EventBase {
 }
 
 class OrderShipped extends EventBase {
-  static readonly eventName = 'order.shipped';
+  static readonly eventName = 'OrderShipped';
 }
 
 const orderId = '9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c';
@@ -44,7 +44,7 @@ describe('InMemoryOutbox: where a use case leaves its events, in the same transa
         {
           sequence: 1,
           event: {
-            eventName: 'order.placed',
+            eventName: 'OrderPlaced',
             eventVersion: 1,
             eventId: event.eventId,
             aggregateId: orderId,
@@ -53,7 +53,7 @@ describe('InMemoryOutbox: where a use case leaves its events, in the same transa
             placedAt: '2026-03-01T09:30:00.000Z',
           },
         },
-        { sequence: 2, event: expect.objectContaining({ eventName: 'order.shipped' }) },
+        { sequence: 2, event: expect.objectContaining({ eventName: 'OrderShipped' }) },
       ]);
     });
 
@@ -79,6 +79,27 @@ describe('InMemoryOutbox: where a use case leaves its events, in the same transa
       expect(() => ((entry.event as unknown as { customer: string }).customer = 'Mallory')).toThrow(
         TypeError,
       );
+    });
+
+    it('freezes the nested data of a stored event too, such as the lines it carries', async () => {
+      class OrderLinesChanged extends EventBase {
+        static readonly eventName = 'OrderLinesChanged';
+
+        constructor(
+          id: string,
+          readonly lines: { sku: string; units: number }[],
+        ) {
+          super(id);
+        }
+      }
+      const outbox = new InMemoryOutbox();
+      await outbox.publish([new OrderLinesChanged(orderId, [{ sku: 'TORCH-01', units: 2 }])]);
+      const [entry] = await outbox.pending(10);
+      const lines = entry.event.lines as { sku: string; units: number }[];
+      expect(Object.isFrozen(lines[0])).toBe(true);
+      expect(() => {
+        lines[0].units = 5;
+      }).toThrow(TypeError);
     });
   });
 

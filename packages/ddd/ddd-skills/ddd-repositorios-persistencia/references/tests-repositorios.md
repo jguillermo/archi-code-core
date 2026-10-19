@@ -9,8 +9,6 @@ export class InMemoryOrderRepository implements OrderRepository {
   private readonly rows = new Map<string, OrderRow & { version: number }>();
   readonly publishedEvents: DomainEvent[] = [];
 
-  nextId(): OrderId { return OrderId.of(`ord-${crypto.randomUUID()}`); }
-
   async byId(id: OrderId): Promise<Order | null> {
     const row = this.rows.get(id.value);
     return row ? OrderMapper.toDomain(structuredClone(row)) : null;
@@ -24,18 +22,10 @@ export class InMemoryOrderRepository implements OrderRepository {
     this.publishedEvents.push(...order.pullEvents());
     order.markPersisted();
   }
-
-  async pendingOlderThan(moment: Date, limit: number): Promise<Order[]> {
-    return [...this.rows.values()]
-      .filter((r) => r.status === 'PENDING' && r.placed_at < moment)
-      .sort((a, b) => +a.placed_at - +b.placed_at)
-      .slice(0, limit)
-      .map((r) => OrderMapper.toDomain(structuredClone(r)));
-  }
 }
 ```
 
-Usar el mapper real también en memoria prueba de paso que el mapeo es reversible.
+Usar el mapper real también en memoria prueba de paso que el mapeo es reversible. Con el paquete, el repositorio en memoria no guarda `publishedEvents`: los eventos se leen del outbox (`outbox.pending(n)`) que alimenta el caso de uso `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ## Tests de contrato compartidos
 
@@ -43,7 +33,7 @@ Usar el mapper real también en memoria prueba de paso que el mapeo es reversibl
 export function orderRepositoryContract(make: () => Promise<OrderRepository>) {
   it('recupera lo que guarda', async () => {
     const repo = await make();
-    const order = aPendingOrder(repo.nextId());
+    const order = aPendingOrder(OrderId.generate());
     await repo.save(order);
     const loaded = await repo.byId(order.id);
     expect(loaded?.total().equals(order.total())).toBe(true);
@@ -51,7 +41,7 @@ export function orderRepositoryContract(make: () => Promise<OrderRepository>) {
 
   it('permite guardar dos veces seguidas el mismo objeto', async () => {
     const repo = await make();
-    const order = aPendingOrder(repo.nextId());
+    const order = aPendingOrder(OrderId.generate());
     await repo.save(order);
     order.changeQuantity(Sku.of('TAZA-350'), Quantity.of(3));
     await expect(repo.save(order)).resolves.toBeUndefined();
@@ -59,7 +49,7 @@ export function orderRepositoryContract(make: () => Promise<OrderRepository>) {
 
   it('rechaza guardar una versión obsoleta', async () => {
     const repo = await make();
-    const order = aPendingOrder(repo.nextId());
+    const order = aPendingOrder(OrderId.generate());
     await repo.save(order);
     const a = (await repo.byId(order.id))!;
     const b = (await repo.byId(order.id))!;

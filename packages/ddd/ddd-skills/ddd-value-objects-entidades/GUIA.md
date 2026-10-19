@@ -1,6 +1,6 @@
 # Value Objects y entidades
 
-> Parte del skill `archi-code-ddd`: léela solo cuando ese skill te dirija aquí. Para escribir el código, traduce los ejemplos con `ddd-skills/archi-code-ddd/suite-to-package.md`; si esta guía y las reglas del paquete discrepan, ganan las del paquete.
+> Parte del skill `archi-code-ddd`: léela solo cuando ese skill te dirija aquí. Para escribir el código, traduce los ejemplos con `ddd-skills/archi-code-ddd/suite-to-package.md`; las guías son la fuente de verdad: el paquete solo se aparta de ellas donde lo marca `[Fuera de los libros: convención de @archi-code/ddd]`, y cualquier otra discrepancia es un defecto del paquete.
 >
 > **Cuándo consultar esta guía.** Diseño táctico DDD de Value Objects y entidades en TypeScript. Decide si un concepto es value object o entidad, cómo implementar value objects inmutables con igualdad por valor y comportamiento sin efectos secundarios (Money, identificadores, rangos, direcciones, tipos estándar y estados), cómo diseñar entidades con identidad estable y comportamiento con nombres del negocio en lugar de setters, estrategias y momento de generación de identidad, los tres niveles de validación (atributo, objeto completo, composición) y cómo persistir value objects sin que la base de datos deforme el modelo. Consúltala siempre que se cree o revise una clase del dominio, aparezcan primitivos sueltos (string para emails, number para dinero), getters y setters públicos, dudas sobre igualdad, ids o validaciones, o se pregunte "¿esto es una entidad?", aunque no se mencione DDD.
 
@@ -10,6 +10,7 @@
 
 * No hay clase base `ValueObject` ni factorías `of()`: un valor simple es una subclase con nombre (`class Email extends Required(StringType) {}`) con `@Validations`, válida por construcción con `new`; la normalización va en `filter`.
 * Un valor de varios atributos (`Money`, `DateRange`, `OrderLine`) es `Composite({...})`; un estado, un `EnumType`; un id, `IdType` con `OrderId.generate()`.
+* `Money` va en céntimos enteros con `Required(NumberType)` + `isInt` en lugar de `bigint`: exacto hasta `Number.MAX_SAFE_INTEGER` (9.007.199.254.740.991 céntimos); el paquete no tiene tipo `bigint`.
 * Los errores de un input se recogen con `ValueObjects.build({...})`, no con un manejador de notificación.
 * `Specification<T>` y `Entity<Id>` vienen de `@archi-code/ddd/domain`. Los valores derivados son métodos, nunca getters calculados.
 
@@ -73,7 +74,7 @@ Elige la estrategia con `ddd-skills/ddd-value-objects-entidades/references/entid
 | La genera la base de datos (secuencia) | Llega tarde: el evento de creación sale sin id, y los objetos nuevos parecen iguales en colecciones |
 | La asigna otro contexto | Sincronización con el origen; la más compleja |
 
-Recomendación por defecto: identidad generada por la aplicación, **temprana** (antes de persistir), expuesta por el repositorio con `nextId()` [IDDD cap. 5]. En TypeScript, UUID v7 si conviene orden temporal en índices `[Fuera de los libros]`.
+Recomendación por defecto: identidad generada por la aplicación, **temprana** (antes de persistir), generada por el propio value object de identidad (`OrderId.generate()`), nunca por el repositorio [IDDD cap. 5 para la identidad temprana; `[Fuera de los libros: convención de @archi-code/ddd]` para quién la genera]. En TypeScript, UUID v7 si conviene orden temporal en índices `[Fuera de los libros]`.
 
 ## Paso 4. Validación en tres niveles
 

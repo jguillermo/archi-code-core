@@ -136,7 +136,7 @@ describe('HttpErrorMapper: the error handler of an HTTP controller', () => {
         new InternalErrorException('connection string mongodb://admin:x@db'),
         'INF001',
       ],
-      ['an unknown event', new UnknownEventException('order.cancelled'), 'INF002'],
+      ['an unknown event', new UnknownEventException('OrderCancelled'), 'INF002'],
     ])('%s is a 500 with a generic message', (_, error, code) => {
       expect(mapper.map(error)).toEqual({
         status: 500,

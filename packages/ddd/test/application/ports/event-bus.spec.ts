@@ -4,7 +4,7 @@ import { EventBase } from '../../../src/domain/index';
 import type { SerializedEvent } from '../../../src/domain/index';
 
 class OrderPlaced extends EventBase {
-  static readonly eventName = 'order.placed';
+  static readonly eventName = 'OrderPlaced';
 
   constructor(
     orderId: string,
@@ -15,7 +15,7 @@ class OrderPlaced extends EventBase {
 }
 
 class OrderCancelled extends EventBase {
-  static readonly eventName = 'order.cancelled';
+  static readonly eventName = 'OrderCancelled';
 }
 
 class OutboxEventBus implements EventBus<OrderPlaced | OrderCancelled> {
@@ -40,8 +40,8 @@ describe('EventBus: the port that publishes what the domain recorded', () => {
     const bus = new OutboxEventBus();
     await bus.publish([new OrderPlaced(orderId, 'Ana'), new OrderCancelled(orderId)]);
     expect(bus.rows).toMatchObject([
-      { eventName: 'order.placed', aggregateId: orderId, customer: 'Ana' },
-      { eventName: 'order.cancelled', aggregateId: orderId },
+      { eventName: 'OrderPlaced', aggregateId: orderId, customer: 'Ana' },
+      { eventName: 'OrderCancelled', aggregateId: orderId },
     ]);
   });
 
@@ -54,7 +54,7 @@ describe('EventBus: the port that publishes what the domain recorded', () => {
   it('refuses events the bus is not typed for', async () => {
     const bus: EventBus<OrderPlaced> = { publish: async () => undefined };
     // @ts-expect-error a bus of OrderPlaced does not accept a plain string
-    await bus.publish(['order.placed']);
+    await bus.publish(['OrderPlaced']);
     expect(true).toBe(true);
   });
 });

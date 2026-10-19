@@ -5,7 +5,7 @@ import { EventBase } from '../../../src/domain/index';
 import type { SerializedEvent } from '../../../src/domain/index';
 
 class OrderShipped extends EventBase {
-  static readonly eventName = 'order.shipped';
+  static readonly eventName = 'OrderShipped';
 }
 
 const orderIds = [

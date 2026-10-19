@@ -6,7 +6,7 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
 | ------------------------------------------------------------ | --------------------------------------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
 | Value object, composite                                      | domain                                  | other value objects, `@archi-code/validation`, exceptions                                 | mutate, know about storage or transport                                    |
 | Aggregate root (`extends AggregateRoot`)                     | domain                                  | value objects, child entities, events; a domain service or loaded data as method argument | read a repository, publish, `new Date()`, services received by constructor |
-| Child entity (`extends Entity`)                              | domain                                  | its id (global or local) and value objects                                                | business logic, being loaded or saved on its own                           |
+| Child entity (`extends Entity`)                              | domain                                  | its local id, value objects, business methods the root calls                              | setters, being called from outside the root, loaded or saved on its own    |
 | Domain event (`OrderPlaced`)                                 | domain                                  | primitives taken from value objects                                                       | behavior, value objects or the whole state in its payload                  |
 | Repository contract (`AggregateFinder`…)                     | domain                                  | the aggregate                                                                             | business logic or queries, an all-in-one `Repository`                      |
 | Domain service                                               | domain                                  | aggregates, value objects, specifications, repository contracts (to read), domain ports   | I/O code, transactions, publishing                                         |
@@ -34,8 +34,13 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   ```
   src/contexts/sales/
   ├── domain/order/            Order, OrderId, OrderLine, OrderPlaced, ProductPricing (port)
-  ├── application/order/       PlaceOrder, ReserveStockOnOrderPlaced, OrderSummaries (read query)
-  ├── infrastructure/order/    MongoOrderRepository, HttpProductPricing (ACL), MongoOrderSummaries
+  ├── application/
+  │   ├── place-order/         PlaceOrder
+  │   ├── reserve-stock/       ReserveStock, ReserveStockOnOrderPlaced
+  │   └── order-summaries/     OrderSummaries (read query)
+  ├── infrastructure/
+  │   ├── persistence/         MongoOrderRepository, MongoOutbox, MongoOrderSummaries
+  │   └── catalog/             HttpProductPricing, CatalogTranslator (ACL)
   ├── interfaces/http/         OrderController
   └── composition.ts
   ```

@@ -162,7 +162,7 @@ function smoke(m) {
       'aggregate records events with metadata',
       () => {
         class OrderPlaced extends m.EventBase {
-          static eventName = 'order.placed';
+          static eventName = 'OrderPlaced';
         }
         class Order extends m.AggregateRoot {
           static place(id) {
@@ -175,7 +175,7 @@ function smoke(m) {
         const [event] = order.pullDomainEvents();
         const json = JSON.parse(JSON.stringify(event));
         return (
-          json.eventName === 'order.placed' &&
+          json.eventName === 'OrderPlaced' &&
           json.aggregateId === ORDER_ID &&
           typeof json.eventId === 'string' &&
           order.pullDomainEvents().length === 0

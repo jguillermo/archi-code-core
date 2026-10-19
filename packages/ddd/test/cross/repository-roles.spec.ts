@@ -43,14 +43,14 @@ class KeyValueCustomerRepository
     this.store.set(customer.id.value, JSON.stringify(customer.toPrimitives()));
   }
 
-  async delete(id: CustomerId): Promise<void> {
+  async remove(id: CustomerId): Promise<void> {
     this.store.delete(id.value);
   }
 }
 
 const customerId = '0f8c2b6e-3c1a-4c55-9a4e-0d6c1b2f7a10';
 
-describe('Repository roles: the domain contracts a use case loads, saves and deletes aggregates through', () => {
+describe('Repository roles: the domain contracts a use case loads, saves and removes aggregates through', () => {
   it('is typed by the aggregate and its id type', () => {
     expectTypeOf<AggregateFinder<Customer>['findById']>().toEqualTypeOf<
       (id: CustomerId) => Promise<Customer | null>
@@ -58,7 +58,7 @@ describe('Repository roles: the domain contracts a use case loads, saves and del
     expectTypeOf<AggregateSaver<Customer>['save']>().toEqualTypeOf<
       (aggregate: Customer) => Promise<void>
     >();
-    expectTypeOf<AggregateRemover<Customer>['delete']>().toEqualTypeOf<
+    expectTypeOf<AggregateRemover<Customer>['remove']>().toEqualTypeOf<
       (id: CustomerId) => Promise<void>
     >();
   });
@@ -74,10 +74,10 @@ describe('Repository roles: the domain contracts a use case loads, saves and del
     expect(await new KeyValueCustomerRepository().findById(new CustomerId(customerId))).toBeNull();
   });
 
-  it('forgets a deleted customer', async () => {
+  it('forgets a removed customer', async () => {
     const repository = new KeyValueCustomerRepository();
     await repository.save(new Customer(new CustomerId(customerId), new CustomerName('Ana')));
-    await repository.delete(new CustomerId(customerId));
+    await repository.remove(new CustomerId(customerId));
     expect(await repository.findById(new CustomerId(customerId))).toBeNull();
   });
 
@@ -139,7 +139,7 @@ describe('Repository roles: the domain contracts a use case loads, saves and del
       }
 
       protected async handle(id: CustomerId): Promise<void> {
-        await this.customers.delete(id);
+        await this.customers.remove(id);
       }
     }
 
@@ -154,7 +154,7 @@ describe('Repository roles: the domain contracts a use case loads, saves and del
       expect(saved).toEqual(['Ana']);
     });
 
-    it('a read-only query receives a finder and cannot save or delete through it', async () => {
+    it('a read-only query receives a finder and cannot save or remove through it', async () => {
       const finder: AggregateFinder<Customer> = {
         findById: async (id) => new Customer(id, new CustomerName('Ana')),
       };
@@ -164,10 +164,10 @@ describe('Repository roles: the domain contracts a use case loads, saves and del
       expect(() => finder.save).toBeDefined();
     });
 
-    it('the GDPR erasure use case only depends on delete', async () => {
+    it('the GDPR erasure use case only depends on remove', async () => {
       const removed: string[] = [];
       const remover: AggregateRemover<Customer> = {
-        delete: async (id) => {
+        remove: async (id) => {
           removed.push(id.value);
         },
       };

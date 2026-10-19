@@ -44,8 +44,11 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   waits behind it.
 - A use case run by a listener that throws `AggregateNotFoundException` or a business error: the
   relay retries it forever; return, or record an event that compensates.
-- Retrying a `ConcurrencyException` inside a use case, or a use case calling itself again: retry
-  from the entry point or the composition, only for commands safe to repeat.
+- Retrying a `ConcurrencyException` with the same loaded aggregate, inside the transaction that
+  failed, without a limit, or for a command that is not safe to repeat: each attempt is a new
+  `transactions.run` that loads again, and only for commands safe to repeat. A use case never
+  calls itself nor another use case to retry, and one run by a listener with an inbox (its `run`
+  joins the listener's transaction) never retries: the relay redelivers the event.
 - A read query that loads aggregates through `AggregateFinder`, or a repository method that
   returns DTOs: reads go straight to the database through an application interface.
 - Importing `@archi-code/ddd/infrastructure` from domain code, or `application` from the domain.
@@ -58,7 +61,8 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   sending to a broker) inside the transaction: events are stored in the transaction and delivered
   by the relay after the commit.
 - Opening transactions (`BEGIN`/`COMMIT`) in a repository or in the domain, or saving two
-  aggregates in one `run`: the use case owns one transaction for one aggregate.
+  aggregates in one `run` without one of the exceptions IDDD ch. 10 accepts, written down as a
+  decision: the use case owns one transaction for one aggregate.
 - Using `InMemoryEventBus` with a `TransactionRunner`: it dispatches before the commit; use
   `InMemoryOutbox` + `OutboxRelay`.
 - A listener that breaks when the relay delivers the same event twice: delivery is at least once;
@@ -78,8 +82,8 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
 - Folders named after patterns (`entities/`, `services/`, `valueobjects/`): name modules after the
   business (`order/`, `invoicing/`).
 - A use case that does several things (`UpdateOrder` that ships, cancels or renames depending on
-  the input) or that saves more than one aggregate: split it into one use case per business
-  action.
+  the input) or that saves more than one aggregate outside the IDDD ch. 10 exceptions written down
+  as an explicit decision: split it into one use case per business action.
 - Technical or CRUD names for use cases (`OrderService`, `UpdateUser`, `SaveOrder`,
   `ProcessPayment` when the business says `CapturePayment`): name them after the business action.
 - Declaring an all-in-one `Repository` interface in the project, or a use case that receives the
@@ -98,8 +102,9 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
 - Calling `assertValid()`: it does not exist; the constructor already throws `ValidationException`.
 - Building the value objects of an input one after another with `new` in `toCommand`: the first
   invalid field hides the rest. Use `ValueObjects.build` so every field is reported.
-- Repeating a value object's rule in the request schema or the controller (`isEmail` in a DTO
-  validator): the adapter checks only the shape; the value object owns the rule.
+- Moving a value object's rule to the request schema or the controller (`isEmail` in a DTO
+  validator instead of the `Email` value object): the adapter may check format for the user
+  (empty, length) [IDDD ch. 4], but the value object owns the rule and always checks it.
 - Catching the `ValidationException` of a value object to keep an invalid value, or creating
   `ValidationException` by hand from `validate()` results (a domain service that collects
   `ValidationIssue`s of an existing object may throw `new ValidationException(issues)`).
@@ -108,8 +113,8 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   is for `any`/`unknown` input.
 - Using `Required(StringType)` directly as a property type instead of a named subclass.
 - Declaring `private readonly _id` + `get id()` in an aggregate: the id goes to `super(id)`.
-- A child entity as a plain class, or with business methods or setters: it extends `Entity<Id>`
-  and only holds its id and value objects; the aggregate root replaces it to change it.
+- A child entity as a plain class, with setters, or called from outside its aggregate: it extends
+  `Entity<Id>`, holds value objects, and its business methods are called only by its root.
 - Modeling an amount with its currency, a date range or an address as loose fields of the
   aggregate, as a `JsonType`, or as a child entity with an id nobody looks up: use `Composite`.
 - `Required(Composite(...))`, or `Composite({ amount: Required(NumberType) })` without a named

@@ -1,6 +1,6 @@
 # Auditoría y refactorización con DDD
 
-> Parte del skill `archi-code-ddd`: léela solo cuando ese skill te dirija aquí. Para escribir el código, traduce los ejemplos con `ddd-skills/archi-code-ddd/suite-to-package.md`; si esta guía y las reglas del paquete discrepan, ganan las del paquete.
+> Parte del skill `archi-code-ddd`: léela solo cuando ese skill te dirija aquí. Para escribir el código, traduce los ejemplos con `ddd-skills/archi-code-ddd/suite-to-package.md`; las guías son la fuente de verdad: el paquete solo se aparta de ellas donde lo marca `[Fuera de los libros: convención de @archi-code/ddd]`, y cualquier otra discrepancia es un defecto del paquete.
 >
 > **Cuándo consultar esta guía.** Auditar un proyecto existente contra las reglas de DDD y planificar su refactorización incremental. Incluye un script que escanea un repositorio TypeScript en busca de síntomas (dominio que importa frameworks u ORM, setters y campos públicos, servicios gigantes, repositorios de partes internas, importaciones entre contextos, transacciones con varios agregados), una lista de comprobación estratégica y táctica con severidad, un informe con formato fijo y un plan de migración por pasos (tests de caracterización, capa anticorrupción, extracción de contextos y agregados, estrangulamiento del legado). Consúltala siempre que alguien pida revisar, auditar, evaluar o "pasar a DDD" un código existente, modernizar un monolito, sacar un servicio de un sistema heredado, o pregunte "¿está bien hecho este DDD?", aunque solo pegue unos ficheros.
 
@@ -9,7 +9,7 @@
 [Fuera de los libros: convención de @archi-code/ddd]
 
 * En código hecho con el paquete, aplica además cada punto de `ddd-skills/archi-code-ddd/what-not-to-do.md` como lista de comprobación.
-* El escáner detecta guardados de cualquier variable (`this.orders.save(...)`) dentro del mismo bloque transaccional, imports de `@archi-code/ddd/application` o `/infrastructure` desde el dominio y `new Date()` en dominio y aplicación.
+* El escáner detecta guardados de cualquier variable (`this.orders.save(...)`) dentro del mismo bloque transaccional, imports de `@archi-code/ddd/application` o `/infrastructure` desde el dominio y `new Date()` en dominio y aplicación. Marca `amount: number` o `status: string` también dentro de los eventos: ahí son esperables, porque el payload de un evento son primitivos.
 
 No puedes cambiar todo el software mal diseñado de una vez; puedes hacer bien tu parte e integrarte con el resto [IDDD cap. 2]. Esta guía convierte esa idea en un procedimiento: medir, priorizar por valor de negocio y cambiar por pasos seguros.
 

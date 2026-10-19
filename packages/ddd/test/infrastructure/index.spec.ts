@@ -37,7 +37,7 @@ const PUBLIC_API = [
 ];
 
 class OrderPlaced extends EventBase {
-  static readonly eventName = 'order.placed';
+  static readonly eventName = 'OrderPlaced';
 }
 
 describe('@archi-code/ddd/infrastructure', () => {

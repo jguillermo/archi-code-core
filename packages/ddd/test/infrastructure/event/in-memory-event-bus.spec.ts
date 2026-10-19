@@ -6,7 +6,7 @@ import { EventDispatcher } from '../../../src/infrastructure/event/event-dispatc
 import { InMemoryEventBus } from '../../../src/infrastructure/event/in-memory-event-bus';
 
 class OrderPlaced extends EventBase {
-  static readonly eventName = 'order.placed';
+  static readonly eventName = 'OrderPlaced';
 
   constructor(
     orderId: string,
@@ -17,7 +17,7 @@ class OrderPlaced extends EventBase {
 }
 
 class OrderShipped extends EventBase {
-  static readonly eventName = 'order.shipped';
+  static readonly eventName = 'OrderShipped';
 }
 
 type OrderEvent = OrderPlaced | OrderShipped;
@@ -89,8 +89,8 @@ describe('InMemoryEventBus: publishing domain events inside one process', () => 
       await bus.publish([shipped]);
       expect(bus.published).toEqual([placed, shipped]);
       expect(bus.published.map((event) => event.eventName())).toEqual([
-        'order.placed',
-        'order.shipped',
+        'OrderPlaced',
+        'OrderShipped',
       ]);
     });
 

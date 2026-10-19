@@ -99,19 +99,17 @@ La especificación recibe datos de otros agregados ya cargados (`StockSnapshot`)
 
 ## 3. Specification para consultar
 
-*DDD in PHP* propone sustituir los métodos `find...` que crecen sin fin en los repositorios por un método `query(specification)`. Para no acoplar el servicio a una implementación concreta (SQL o memoria), las especificaciones se crean con una fábrica abstracta cuya implementación depende de la infraestructura [PHP: Repositories; PHP: Factories].
+*DDD in PHP* propone sustituir los métodos `find...` que crecen sin fin en los repositorios por un método `query(specification)` [PHP: Repositories; PHP: Factories]. Aquí no se hace: el repositorio solo obtiene y persiste, sin lógica ni consultas de negocio `[Fuera de los libros: convención de @archi-code/ddd]`. Una selección con nombre del negocio ("pedidos pendientes desde hace más de un día") es una consulta de lectura: una interfaz en `application/`, implementada en infraestructura directamente sobre la base de datos, que devuelve ids o DTOs.
 
 ```ts
-// Dominio
-export interface OrderSpecificationFactory {
-  pendingOlderThan(moment: Date): OrderQuerySpecification;
+// application/order/StaleOrders.ts
+export interface StaleOrders {
+  ids(pendingSince: Date, limit: number): Promise<OrderId[]>;
 }
-export interface OrderRepository {
-  query(spec: OrderQuerySpecification, limit: number): Promise<Order[]>;
-}
-// Infraestructura: PgOrderSpecificationFactory produce especificaciones que saben generar SQL;
-// InMemoryOrderSpecificationFactory, especificaciones que filtran en memoria.
+// Infraestructura: PgStaleOrders consulta SQL; el caso de uso carga cada pedido por id con el repositorio.
 ```
+
+La Specification se queda para validar, seleccionar sobre datos ya cargados o construir.
 
 Úsalo con mesura `[Fuera de los libros]`: si acabas construyendo un lenguaje de consultas genérico, has reinventado el ORM. Para pantallas, mejor consultas de lectura (`ddd-skills/ddd-repositorios-persistencia/GUIA.md`).
 

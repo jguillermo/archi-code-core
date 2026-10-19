@@ -11,7 +11,7 @@ const ORDER_ID = '9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c';
 
 function orderModel() {
   class OrderPlaced extends domain.EventBase {
-    static eventName = 'order.placed';
+    static eventName = 'OrderPlaced';
 
     constructor(id, customer, metadata) {
       super(id, metadata);
@@ -99,7 +99,7 @@ function smoke(m) {
       },
     ],
     [
-      'the in-memory repository saves, loads copies, checks versions and deletes',
+      'the in-memory repository saves, loads copies, checks versions and removes',
       async () => {
         const { Order } = orderModel();
         const repository = new m.InMemoryRepository(m.AggregateMapper.of(Order));
@@ -115,15 +115,15 @@ function smoke(m) {
           conflict = error;
         }
         const stored = await repository.findById(id);
-        await repository.delete(id);
-        const deleted = await repository.findById(id);
+        await repository.remove(id);
+        const removed = await repository.findById(id);
         return (
           (first.customer.value === 'Ana' &&
             first !== second &&
             first.version === 2 &&
             stored.version === 2 &&
             conflict instanceof exceptions.ConcurrencyException &&
-            deleted === null) ||
+            removed === null) ||
           'unexpected in-memory repository behavior'
         );
       },
@@ -201,17 +201,17 @@ function smoke(m) {
         await dispatcher.dispatch(event);
         await dispatcher.dispatch(event);
         const language = new m.PublishedLanguage().expose(OrderPlaced, {
-          name: 'sales.order_placed',
+          name: 'sales.order.OrderPlaced',
           version: 1,
           data: (json) => ({ orderId: json.aggregateId }),
         });
-        const message = language.translate(event.toJSON());
+        const [message] = language.translate(event.toJSON());
         return (
           (handled.length === 1 &&
-            message.name === 'sales.order_placed' &&
+            message.name === 'sales.order.OrderPlaced' &&
             message.messageId === event.eventId &&
             event.toJSON().eventVersion === 1 &&
-            language.translate({ ...event.toJSON(), eventName: 'order.internal' }) === null) ||
+            language.translate({ ...event.toJSON(), eventName: 'OrderInternal' }).length === 0) ||
           'unexpected inbox or published language behavior'
         );
       },

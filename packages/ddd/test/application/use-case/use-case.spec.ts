@@ -33,7 +33,7 @@ class CustomerName extends Required(StringType) {}
 class Shipped extends Required(BooleanType) {}
 
 class OrderPlaced extends EventBase {
-  static readonly eventName = 'order.placed';
+  static readonly eventName = 'OrderPlaced';
 
   constructor(
     orderId: string,
@@ -44,7 +44,7 @@ class OrderPlaced extends EventBase {
 }
 
 class OrderShipped extends EventBase {
-  static readonly eventName = 'order.shipped';
+  static readonly eventName = 'OrderShipped';
 }
 
 type OrderEvent = OrderPlaced | OrderShipped;
@@ -122,7 +122,7 @@ class FakeOrderRepository
     this.rows.set(order.id.value, order.toPrimitives());
   }
 
-  async delete(id: OrderId): Promise<void> {
+  async remove(id: OrderId): Promise<void> {
     this.rows.delete(id.value);
   }
 }
@@ -285,7 +285,7 @@ describe('UseCase: an application service a controller or a message handler call
     it('saves the order before publishing its events', async () => {
       const { placeOrder, log, orders, bus } = setup();
       await placeOrder.execute({ orderId, customer: 'Ana' });
-      expect(log).toEqual([`save ${orderId}`, 'publish order.placed']);
+      expect(log).toEqual([`save ${orderId}`, 'publish OrderPlaced']);
       expect(orders.rows.get(orderId)).toEqual({
         id: orderId,
         customer: 'Ana',
@@ -380,8 +380,8 @@ describe('UseCase: an application service a controller or a message handler call
       await placeOrder.execute({ orderId, customer: 'Ana' });
       await shipOrder.execute({ orderId });
       expect(bus.published.map((event) => event.eventName())).toEqual([
-        'order.placed',
-        'order.shipped',
+        'OrderPlaced',
+        'OrderShipped',
       ]);
       expect(orders.rows.get(orderId)).toMatchObject({ shipped: true });
     });

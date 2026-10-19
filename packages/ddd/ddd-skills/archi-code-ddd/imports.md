@@ -4,7 +4,9 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
 
 ```ts
 import {
+  AbstractType,
   AggregateRoot,
+  ArrayType,
   BooleanType,
   Composite,
   CreatedAt,
@@ -13,22 +15,28 @@ import {
   EnumType,
   EventBase,
   IdType,
+  JsonType,
   NumberType,
   Required,
   Specification,
   StringType,
   UpdatedAt,
+  UuidType,
   ValueObjects,
 } from '@archi-code/ddd/domain';
 import {
   AggregateNotFoundException,
+  ApplicationException,
   ConcurrencyException,
   DomainException,
   ExceptionCode,
   InternalErrorException,
   NotAllowedException,
+  RequiredValueException,
+  TypePrimitiveException,
   ValidationException,
 } from '@archi-code/ddd/exceptions';
+import type { ValidationIssue } from '@archi-code/ddd/exceptions';
 import type {
   AggregateFinder,
   AggregateRemover,
@@ -51,6 +59,7 @@ import {
   InMemoryTransactionRunner,
   OutboxRelay,
   PublishedLanguage,
+  SystemClock,
 } from '@archi-code/ddd/infrastructure';
 import { Validations } from '@archi-code/validation';
 ```

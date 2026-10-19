@@ -73,14 +73,15 @@ How to use it, for every design question or task:
    TypeScript; translate every one of them with the table in
    `ddd-skills/archi-code-ddd/suite-to-package.md`. Every guide but the orchestrator opens with a
    "Con @archi-code/ddd" box that lists where it diverges from this package, marked
-   `[Fuera de los libros: convención de @archi-code/ddd]`. Where a guide rule carries that mark, or
-   where it disagrees with the rules of this package (`ddd-skills/archi-code-ddd/`), this skill
-   wins.
+   `[Fuera de los libros: convención de @archi-code/ddd]`. The guides are the source of truth:
+   the package departs from them only where that mark says so, and then the package rule wins.
+   Any other disagreement between a guide and this package (`ddd-skills/archi-code-ddd/` or its
+   code) is a defect of the package: follow the guide.
 4. **Audits of code built on this package** (`ddd-auditoria-refactorizacion`): apply its checklist
    and also every item of `ddd-skills/archi-code-ddd/what-not-to-do.md`. Its scanner needs Python 3:
    `python3 -I "$(dirname "$(node -p "require.resolve('@archi-code/ddd/package.json')")")/ddd-skills/ddd-auditoria-refactorizacion/scripts/scan_ddd_smells.py" <folder>`.
-   It flags any two receivers saved inside the same transaction block (`this.orders.save(…)` and
-   `this.invoices.save(…)`), domain code importing `@archi-code/ddd/application` or
+   It flags any two receivers written inside the same transaction block (`this.orders.save(…)` and
+   `this.invoices.save(…)` or `remove(…)`), domain code importing `@archi-code/ddd/application` or
    `/infrastructure`, and `new Date()` in domain or application code; its findings are hints to
    confirm by reading the code, and a use case that saves through a helper or outside a
    `run(...)` block still needs a manual check. Without Python, apply the checklist by hand. For

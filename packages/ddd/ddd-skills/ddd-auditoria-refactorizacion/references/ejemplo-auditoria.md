@@ -12,7 +12,6 @@ API monolítica en TypeScript con Express y Prisma. Unos 180 ficheros. Un equipo
 [alta ] controlador-escribe-en-bd: 37
 [alta ] varios-agregados-en-una-transaccion: 9
 [media] servicio-grande: 3   (OrderService ~52 métodos, 1.900 líneas)
-[media] dinero-como-number: 24
 [baja ] clase-con-nombre-generico: 6
 Aviso: no se ha encontrado ninguna carpeta 'domain'.
 ```

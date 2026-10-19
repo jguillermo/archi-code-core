@@ -47,7 +47,7 @@ export class InMemoryRepository<
     aggregate.markPersisted();
   }
 
-  async delete(id: Aggregate['id']): Promise<void> {
+  async remove(id: Aggregate['id']): Promise<void> {
     this.rows.delete(id.toString());
   }
 
