@@ -11,6 +11,7 @@ export { NumberType } from './number-type';
 export { StringType } from './string-type';
 export { IdType } from './id-type';
 export { UuidType } from './uuid-type';
+export { Immutable } from './immutable/immutable';
 export { ValueObjects } from './value-objects/value-objects';
 export { Composite } from './composite/composite';
 export type {

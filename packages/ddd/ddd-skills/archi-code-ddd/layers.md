@@ -134,8 +134,8 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   use case run inside another transaction does not retry: the caller or the channel's redelivery
   tries again.
 - `record(event)` is `protected` and deep-freezes the event (facts never change [IDDD ch. 8]); `pullDomainEvents()` returns the events (typed `Event[]`) in order
-  and empties the list. Pull them after persisting, to publish. `DomainEventBus.publish` freezes
-  every event it receives too, also one that never went through an aggregate.
+  and empties the list. Pull them after persisting, to publish. `DomainEventBus.publish` does not freeze
+  them again: it only sends the `toJSON()` of each event to the channel.
 - Events extend `EventBase`, declare `static readonly eventName` with their class name, a fact in
   the past tense (`'OrderPlaced'`) [IDDD ch. 8] (a published contract is named
   `<context>.<module>.<Event>`, `sales.order.OrderPlaced` [IDDD ch. 13]) and
@@ -234,11 +234,14 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
 - **Events have a schema version** (`static readonly eventVersion = 2` when their data changes
   incompatibly; 1 by default, written in `toJSON()`); an `EventRegistry` factory reads older
   stored versions from `json.eventVersion`.
-- **The event contract lives in the application, in `application/event`**: `EventListener`,
-  `@ListensTo`, the ports `EventBus` (`publish`, what use cases see), `EventSubscriber`
-  (`subscribe(listener)` → `{ unsubscribe() }`, both async) and `EventChannel`
-  (`send(serialized)`, `receive(eventName, consumer, handler)` → `{ close() }`), and the classes
-  `DomainEventBus(channel, registry)` and `EventRegistry`. A messaging technology implements only
+- **The application holds only the event contract, in `application/event`**: to publish, the
+  port `EventBus` (`publish`, the only thing use cases see); to listen, `EventListener` and
+  `@ListensTo` (`ListensTo.subscriptionOf(listener)` → `{ eventName, consumer }`). What moves the
+  events is infrastructure, used only by the wiring (composition root), and is imported from
+  `@archi-code/ddd/infrastructure`: `DomainEventBus(channel, registry)` (implements `EventBus`;
+  `subscribe(listener)` → `Subscription { unsubscribe() }`, both async), `EventRegistry` and the
+  port `EventChannel` (`send(serialized)`, `receive(eventName, consumer, handler)` →
+  `ChannelSubscription { close() }`, with `ChannelHandler`). A messaging technology implements only
   `EventChannel` (`InMemoryEventChannel` in the package; RabbitMQ, a table or Kafka in your
   infrastructure); swapping it changes one line of the wiring.
 - **Consumers are idempotent**: delivery is at least once, so a listener ignores an `eventId` it

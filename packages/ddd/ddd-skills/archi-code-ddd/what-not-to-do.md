@@ -122,8 +122,12 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
 - Removing by id without loading the aggregate, or a `remove` with no version condition: `remove`
   receives the loaded aggregate and refuses a stale one with `ConcurrencyException`.
 - Putting listeners or event ports under `application/ports/` or a separate listener folder of the
-  package API: the event contract (`EventListener`, `@ListensTo`, `EventBus`, `EventSubscriber`,
-  `EventChannel`, `DomainEventBus`, `EventRegistry`) is imported from `@archi-code/ddd/application`.
+  package API: the event contract (`EventListener`, `@ListensTo`, `EventBus`) is imported from
+  `@archi-code/ddd/application`.
+- Importing `DomainEventBus`, `EventRegistry`, `EventChannel`, `ChannelHandler`,
+  `ChannelSubscription` or `Subscription` from `@archi-code/ddd/application`, or using them in a use
+  case or a listener: they are infrastructure (`@archi-code/ddd/infrastructure`), used only by the
+  composition root and by channel implementations.
 - A child entity as a plain class, with setters, or called from outside its aggregate: it extends
   `Entity<Id>`, holds value objects, and its business methods are called only by its root.
 - Modeling an amount with its currency, a date range or an address as loose fields of the

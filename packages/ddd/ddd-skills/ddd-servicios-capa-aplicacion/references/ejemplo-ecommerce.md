@@ -291,9 +291,10 @@ El test comprueba lo que el listener provoca, no que se le llame, y entrega el m
 
 ```ts
 import { describe, expect, it } from 'vitest';
-import { DomainEventBus, EventRegistry } from '@archi-code/ddd/application';
 import {
   AggregateMapper,
+  DomainEventBus,
+  EventRegistry,
   FixedClock,
   InMemoryEventChannel,
   InMemoryRepository,

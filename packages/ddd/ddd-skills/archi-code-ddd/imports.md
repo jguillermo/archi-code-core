@@ -50,25 +50,17 @@ import type {
   SatisfiedBy,
   SerializedEvent,
 } from '@archi-code/ddd/domain';
-import {
-  DomainEventBus,
-  EventListener,
-  EventRegistry,
-  ListensTo,
-  UseCase,
-} from '@archi-code/ddd/application';
+import { EventListener, ListensTo, UseCase } from '@archi-code/ddd/application';
 import type {
-  ChannelHandler,
-  ChannelSubscription,
   Clock,
   EventBus,
-  EventChannel,
-  EventSubscriber,
-  Subscription,
+  ListenerSubscription,
   TransactionRunner,
 } from '@archi-code/ddd/application';
 import {
   AggregateMapper,
+  DomainEventBus,
+  EventRegistry,
   FixedClock,
   HttpErrorMapper,
   InMemoryEventChannel,
@@ -76,7 +68,13 @@ import {
   InMemoryTransactionRunner,
   SystemClock,
 } from '@archi-code/ddd/infrastructure';
-import type { TransactionParticipant } from '@archi-code/ddd/infrastructure';
+import type {
+  ChannelHandler,
+  ChannelSubscription,
+  EventChannel,
+  Subscription,
+  TransactionParticipant,
+} from '@archi-code/ddd/infrastructure';
 import { Validations } from '@archi-code/validation';
 ```
 

@@ -1,4 +1,5 @@
-import type { ChannelHandler, ChannelSubscription, EventChannel } from '../../../application/index';
+import type { ChannelHandler, ChannelSubscription, EventChannel } from '../event-channel';
+import { Immutable } from '../../../domain/index';
 import type { SerializedEvent } from '../../../domain/index';
 import { InfrastructureException } from '../../../exceptions/index';
 import { Emitter } from './emitter';
@@ -59,8 +60,6 @@ export class InMemoryEventChannel implements EventChannel {
   }
 
   private static frozenCopy(event: SerializedEvent): SerializedEvent {
-    return JSON.parse(JSON.stringify(event), (_, value) =>
-      typeof value === 'object' && value !== null ? Object.freeze(value) : value,
-    );
+    return Immutable.freeze(JSON.parse(JSON.stringify(event)));
   }
 }

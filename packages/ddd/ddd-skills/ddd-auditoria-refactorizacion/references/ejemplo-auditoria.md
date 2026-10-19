@@ -271,12 +271,13 @@ Test de la corrección, con los adaptadores en memoria del paquete (`OrderLineDa
 import { expect } from 'vitest';
 import {
   AggregateMapper,
+  DomainEventBus,
+  EventRegistry,
   FixedClock,
   InMemoryEventChannel,
   InMemoryRepository,
   InMemoryTransactionRunner,
 } from '@archi-code/ddd/infrastructure';
-import { DomainEventBus, EventRegistry } from '@archi-code/ddd/application';
 import { ValidationException } from '@archi-code/ddd/exceptions';
 
 const orders = new InMemoryRepository(AggregateMapper.of(Order));

@@ -350,7 +350,7 @@ export class RegisterStockReservationOnStockReserved extends EventListener<Stock
 
 ```ts
 // src/contexts/sales/composition.ts (extracto)
-import { DomainEventBus, EventRegistry } from '@archi-code/ddd/application';
+import { DomainEventBus, EventRegistry } from '@archi-code/ddd/infrastructure';
 
 const warehouseEvents = new EventRegistry<StockReserved>().register(
   StockReserved,

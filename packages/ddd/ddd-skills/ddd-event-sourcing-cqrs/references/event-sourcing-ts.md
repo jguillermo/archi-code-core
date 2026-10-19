@@ -242,7 +242,7 @@ La infraestructura lo implementa: reconstruye cada fila con `EventRegistry.fromJ
 
 ```ts
 import type { SerializedEvent } from '@archi-code/ddd/domain';
-import { EventRegistry } from '@archi-code/ddd/application';
+import { EventRegistry } from '@archi-code/ddd/infrastructure';
 import { ConcurrencyException, InternalErrorException } from '@archi-code/ddd/exceptions';
 
 export const paymentEvents = new EventRegistry<PaymentEvent>()
@@ -379,8 +379,8 @@ Publicar: IDDD publica con un proceso en segundo plano que lee lo anexado [IDDD 
 Una implementación en memoria del stream que participa en `InMemoryTransactionRunner` (implementa `TransactionParticipant`: `snapshot()` devuelve la función que restaura) sirve como doble de pruebas y como referencia del contrato:
 
 ```ts
-import { DomainEventBus } from '@archi-code/ddd/application';
 import {
+  DomainEventBus,
   FixedClock,
   InMemoryEventChannel,
   InMemoryTransactionRunner,

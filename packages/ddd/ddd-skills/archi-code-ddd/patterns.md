@@ -359,7 +359,7 @@ the event name as routing key, one durable queue per consumer (the `consumer` of
 exchange on the queue keeps those messages):
 
 ```ts
-import type { ChannelHandler, ChannelSubscription, EventChannel } from '@archi-code/ddd/application';
+import type { ChannelHandler, ChannelSubscription, EventChannel } from '@archi-code/ddd/infrastructure';
 import type { SerializedEvent } from '@archi-code/ddd/domain';
 
 interface AmqpMessage {

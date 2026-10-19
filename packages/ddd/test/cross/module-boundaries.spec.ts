@@ -36,11 +36,7 @@ function resolveImport(from: string, specifier: string): string {
   return found === undefined ? `unresolved:${specifier}` : path.relative(SRC, found);
 }
 
-const EVENT_PORTS = [
-  'application/event/event-bus.ts',
-  'application/event/event-channel.ts',
-  'application/event/event-subscriber.ts',
-];
+const EVENT_PORTS = ['application/event/event-bus.ts', 'infrastructure/event/event-channel.ts'];
 
 interface Imports {
   readonly relative: string[];
@@ -143,7 +139,7 @@ describe('layer boundaries: exceptions ← domain ← application ← infrastruc
     expect(packages).toEqual([]);
   });
 
-  it('declares the repository contracts in the domain and the technical and event ports in the application, as types only', () => {
+  it('declares the repository contracts in the domain, the ports in the application and the event channel in infrastructure, as types only', () => {
     const contracts = Array.from(imports.keys()).filter(
       (file) =>
         file.startsWith('domain/repository/') ||
@@ -171,6 +167,17 @@ describe('layer boundaries: exceptions ← domain ← application ← infrastruc
         : [],
     );
     expect(coupled).toEqual([]);
+  });
+
+  it('keeps in the application only the contract to publish and to listen to events', () => {
+    const applicationEvent = Array.from(imports.keys())
+      .filter((file) => file.startsWith('application/event/'))
+      .sort();
+    expect(applicationEvent).toEqual([
+      'application/event/event-bus.ts',
+      'application/event/event-listener.ts',
+      'application/event/listens-to.ts',
+    ]);
   });
 
   it('has no import cycles', () => {

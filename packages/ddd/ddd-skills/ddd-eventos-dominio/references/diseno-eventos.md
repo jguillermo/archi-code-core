@@ -98,7 +98,7 @@ A veces un evento no resulta de un comando sobre un agregado sino que un usuario
 ```ts
 import { EventBase } from '@archi-code/ddd/domain';
 import type { EventMetadata } from '@archi-code/ddd/domain';
-import { EventRegistry } from '@archi-code/ddd/application';
+import { EventRegistry } from '@archi-code/ddd/infrastructure';
 
 export class OrderCancelled extends EventBase {
   static readonly eventName = 'OrderCancelled';

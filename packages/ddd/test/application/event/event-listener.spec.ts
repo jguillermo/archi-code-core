@@ -1,8 +1,8 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
-import { EventListener } from '../../../src/application/event/event-listener';
-import { ListensTo } from '../../../src/application/event/listens-to';
-import { UseCase } from '../../../src/application/use-case/use-case';
-import { EventBase, IdType } from '../../../src/domain/index';
+import { EventListener } from '../../../src/application';
+import { ListensTo } from '../../../src/application';
+import { UseCase } from '../../../src/application';
+import { EventBase, IdType } from '../../../src/domain';
 
 class InvoiceIssued extends EventBase {
   static readonly eventName = 'InvoiceIssued';

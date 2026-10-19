@@ -3,7 +3,7 @@ import type {
   ChannelHandler,
   ChannelSubscription,
   EventChannel,
-} from '../../../src/application/event/event-channel';
+} from '../../../src/infrastructure/event/event-channel';
 import type { SerializedEvent } from '../../../src/domain/index';
 
 class QueueTable implements EventChannel {

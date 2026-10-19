@@ -147,7 +147,7 @@ addLine(line: OrderLine, clock: { now(): Date }): void {
 El registro del contexto reconstruye cada evento desde su JSON; cada fábrica pasa el JSON como último argumento para conservar `eventId` y `occurredOn`, que los consumidores usan para deduplicar:
 
 ```ts
-import { EventRegistry } from '@archi-code/ddd/application';
+import { EventRegistry } from '@archi-code/ddd/infrastructure';
 
 export const orderEvents = new EventRegistry<OrderEvent>()
   .register(

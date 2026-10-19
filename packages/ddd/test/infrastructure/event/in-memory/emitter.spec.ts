@@ -41,13 +41,13 @@ describe('Emitter: the emittery techniques behind the in-memory channel', () => 
     expect(calls).toStrictEqual([]);
   });
 
-  it('ignores off for a name or a listener it does not know', async () => {
+  it('unsubscribing one listener keeps the others of the same name', async () => {
     const emitter = new Emitter<string>();
     const calls: string[] = [];
     emitter.on('OrderPlaced', (orderId) => void calls.push(orderId));
+    const off = emitter.on('OrderPlaced', () => undefined);
 
-    emitter.off('OrderShipped', () => undefined);
-    emitter.off('OrderPlaced', () => undefined);
+    off();
     await emitter.emitSerial('OrderPlaced', 'ORD-1');
 
     expect(calls).toStrictEqual(['ORD-1']);
@@ -76,9 +76,9 @@ describe('Emitter: the emittery techniques behind the in-memory channel', () => 
   it('emit skips a listener removed by an earlier one of the same emit', async () => {
     const emitter = new Emitter<string>();
     const calls: string[] = [];
-    const confirm = (orderId: string) => void calls.push(orderId);
-    emitter.on('OrderPlaced', () => emitter.off('OrderPlaced', confirm));
-    emitter.on('OrderPlaced', confirm);
+    let offConfirm: () => void = () => undefined;
+    emitter.on('OrderPlaced', () => offConfirm());
+    offConfirm = emitter.on('OrderPlaced', (orderId) => void calls.push(orderId));
 
     await emitter.emit('OrderPlaced', 'ORD-1');
 

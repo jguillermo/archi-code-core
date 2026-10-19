@@ -1,10 +1,6 @@
-import {
-  ApplicationException,
-  InternalErrorException,
-  UnknownEventException,
-} from '../../exceptions/index';
+import { InternalErrorException, UnknownEventException } from '../../exceptions/index';
+import { Immutable } from '../../domain/index';
 import type { EventBase, EventClass, SerializedEvent } from '../../domain/index';
-import { Frozen } from './frozen';
 
 export type EventFactory<Event extends EventBase> = (serialized: SerializedEvent) => Event;
 
@@ -17,7 +13,7 @@ export class EventRegistry<Event extends EventBase = EventBase> {
   ): this {
     const { eventName } = event;
     if (this.factories.has(eventName)) {
-      throw new ApplicationException(`Event "${eventName}" is already registered.`);
+      throw new InternalErrorException(`event "${eventName}" is already registered`);
     }
     this.factories.set(eventName, factory);
     return this;
@@ -27,8 +23,7 @@ export class EventRegistry<Event extends EventBase = EventBase> {
     return this.factories.has(eventName);
   }
 
-  fromJSON(serialized: SerializedEvent | string): Event {
-    const event = typeof serialized === 'string' ? EventRegistry.parse(serialized) : serialized;
+  fromJSON(event: SerializedEvent): Event {
     if (typeof event !== 'object' || event === null) {
       throw new InternalErrorException('a serialized event must be a JSON object');
     }
@@ -41,7 +36,7 @@ export class EventRegistry<Event extends EventBase = EventBase> {
     }
     const rebuilt = factory(event);
     EventRegistry.assertSameIdentity(event, rebuilt);
-    return Frozen.deep(rebuilt);
+    return Immutable.freeze(rebuilt);
   }
 
   private static assertSameIdentity(serialized: SerializedEvent, rebuilt: EventBase): void {
@@ -52,14 +47,6 @@ export class EventRegistry<Event extends EventBase = EventBase> {
       throw new InternalErrorException(
         `the factory of "${serialized.eventName}" must pass the serialized event as metadata, so it keeps its eventId and occurredOn`,
       );
-    }
-  }
-
-  private static parse(text: string): SerializedEvent {
-    try {
-      return JSON.parse(text) as SerializedEvent;
-    } catch (error) {
-      throw new InternalErrorException('a serialized event is not valid JSON', { cause: error });
     }
   }
 }

@@ -174,11 +174,11 @@ function smoke(m) {
           ConfirmOrderOnOrderPlaced,
         );
         const channel = new m.InMemoryEventChannel();
-        const registry = new application.EventRegistry().register(
+        const registry = new m.EventRegistry().register(
           OrderPlaced,
           (json) => new OrderPlaced(json.aggregateId, json.customer, json),
         );
-        const bus = new application.DomainEventBus(channel, registry);
+        const bus = new m.DomainEventBus(channel, registry);
         const subscription = await bus.subscribe(new ConfirmOrderOnOrderPlaced());
         const events = Order.place(ORDER_ID, 'Ana').pullDomainEvents();
         await bus.publish(events);
@@ -193,6 +193,52 @@ function smoke(m) {
             Object.isFrozen(received[0]) &&
             channel.sent.length === 2) ||
           'unexpected bus or channel result'
+        );
+      },
+    ],
+    [
+      'the domain event bus sends JSON to its channel and hands listeners the rebuilt event',
+      async () => {
+        const { Order, OrderPlaced } = orderModel();
+        const receivers = new Map();
+        const consumers = [];
+        const channel = {
+          async send(events) {
+            for (const event of events) {
+              await receivers.get(event.eventName)?.(event);
+            }
+          },
+          async receive(eventName, consumer, handler) {
+            consumers.push(consumer);
+            receivers.set(eventName, handler);
+            return { close: async () => receivers.delete(eventName) };
+          },
+        };
+        const received = [];
+        class ConfirmOrderOnOrderPlaced extends application.EventListener {
+          handle(event) {
+            received.push(event);
+          }
+        }
+        application.ListensTo(OrderPlaced, { consumer: 'confirm-order' })(
+          ConfirmOrderOnOrderPlaced,
+        );
+        const registry = new m.EventRegistry().register(
+          OrderPlaced,
+          (json) => new OrderPlaced(json.aggregateId, json.customer, json),
+        );
+        const bus = new m.DomainEventBus(channel, registry);
+        const subscription = await bus.subscribe(new ConfirmOrderOnOrderPlaced());
+        const events = Order.place(ORDER_ID, 'Ana').pullDomainEvents();
+        await bus.publish(events);
+        await subscription.unsubscribe();
+        return (
+          (received.length === 1 &&
+            received[0] instanceof OrderPlaced &&
+            received[0].eventId === events[0].eventId &&
+            consumers[0] === 'confirm-order' &&
+            receivers.size === 0) ||
+          `unexpected bus result: ${received.length}`
         );
       },
     ],

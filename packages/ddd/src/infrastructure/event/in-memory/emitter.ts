@@ -4,7 +4,7 @@
  */
 import { EventDeliveryException } from '../../../exceptions/index';
 
-export type EmitterListener<Data> = (data: Data) => Promise<void> | void;
+type EmitterListener<Data> = (data: Data) => Promise<void> | void;
 
 export class Emitter<Data> {
   private static readonly resolved = Promise.resolve();
@@ -18,7 +18,7 @@ export class Emitter<Data> {
     return () => this.off(eventName, listener);
   }
 
-  off(eventName: string, listener: EmitterListener<Data>): void {
+  private off(eventName: string, listener: EmitterListener<Data>): void {
     const listeners = this.events.get(eventName);
     if (listeners === undefined) {
       return;

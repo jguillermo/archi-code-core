@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { EventChannel } from '../../src/application/index';
+import type { EventChannel } from '../../src/infrastructure/index';
 import type { SerializedEvent } from '../../src/domain/index';
 import { InfrastructureException } from '../../src/exceptions/index';
 

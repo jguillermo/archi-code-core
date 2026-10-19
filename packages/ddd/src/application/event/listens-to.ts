@@ -8,7 +8,7 @@ export interface ListensToOptions {
   readonly consumer: string;
 }
 
-interface Subscription {
+export interface ListenerSubscription {
   readonly eventName: string;
   readonly consumer: string;
 }
@@ -29,23 +29,20 @@ export function ListensTo<Event extends EventBase>(
         `${listener.name} needs a consumer name: @ListensTo(<event class>, { consumer: '<name>' })`,
       );
     }
-    const subscription: Subscription = Object.freeze({ eventName: event.eventName, consumer });
+    const subscription: ListenerSubscription = Object.freeze({
+      eventName: event.eventName,
+      consumer,
+    });
     Object.defineProperty(listener, LISTENED_EVENT, { value: subscription });
   };
 }
 
-ListensTo.subscriptionOf = (listener: EventListener<any>): Subscription => {
+ListensTo.subscriptionOf = (listener: EventListener<any>): ListenerSubscription => {
   const listenerClass = listener.constructor;
   if (!Object.prototype.hasOwnProperty.call(listenerClass, LISTENED_EVENT)) {
     throw new ApplicationException(
       `${listenerClass.name} needs @ListensTo(<event class>, { consumer: '<name>' })`,
     );
   }
-  return (listenerClass as unknown as Record<symbol, Subscription>)[LISTENED_EVENT];
+  return (listenerClass as unknown as Record<symbol, ListenerSubscription>)[LISTENED_EVENT];
 };
-
-ListensTo.eventOf = (listener: EventListener<any>): string =>
-  ListensTo.subscriptionOf(listener).eventName;
-
-ListensTo.consumerOf = (listener: EventListener<any>): string =>
-  ListensTo.subscriptionOf(listener).consumer;

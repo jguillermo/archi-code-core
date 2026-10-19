@@ -26,11 +26,13 @@ class EmailReceiptOnPaymentCaptured extends EventListener<PaymentCaptured> {
 
 describe('@ListensTo: the event a listener is subscribed to', () => {
   it('marks the listener with the static eventName of the event class', () => {
-    expect(ListensTo.eventOf(new ShipOrderOnPaymentCaptured())).toBe('PaymentCaptured');
+    expect(ListensTo.subscriptionOf(new ShipOrderOnPaymentCaptured()).eventName).toBe(
+      'PaymentCaptured',
+    );
   });
 
   it('names the consumer explicitly, so a minified or repeated class name never changes its queue', () => {
-    expect(ListensTo.consumerOf(new ShipOrderOnPaymentCaptured())).toBe(
+    expect(ListensTo.subscriptionOf(new ShipOrderOnPaymentCaptured()).consumer).toBe(
       'ship-order-on-payment-captured',
     );
     expect(ListensTo.subscriptionOf(new EmailReceiptOnPaymentCaptured())).toStrictEqual({
@@ -60,7 +62,9 @@ describe('@ListensTo: the event a listener is subscribed to', () => {
   });
 
   it('lets several listeners subscribe to the same event', () => {
-    expect(ListensTo.eventOf(new EmailReceiptOnPaymentCaptured())).toBe('PaymentCaptured');
+    expect(ListensTo.subscriptionOf(new EmailReceiptOnPaymentCaptured()).eventName).toBe(
+      'PaymentCaptured',
+    );
   });
 
   it('a listener listens to exactly one event: decorating it twice is refused', () => {
@@ -78,7 +82,7 @@ describe('@ListensTo: the event a listener is subscribed to', () => {
 
   it('a subclass does not inherit the subscription: it declares its own', () => {
     class AuditedShipOrderOnPaymentCaptured extends ShipOrderOnPaymentCaptured {}
-    expect(() => ListensTo.eventOf(new AuditedShipOrderOnPaymentCaptured())).toThrow(
+    expect(() => ListensTo.subscriptionOf(new AuditedShipOrderOnPaymentCaptured())).toThrow(
       "AuditedShipOrderOnPaymentCaptured needs @ListensTo(<event class>, { consumer: '<name>' })",
     );
   });
@@ -87,7 +91,7 @@ describe('@ListensTo: the event a listener is subscribed to', () => {
     class LogPayment extends EventListener {
       handle(): void {}
     }
-    expect(() => ListensTo.eventOf(new LogPayment())).toThrow(ApplicationException);
+    expect(() => ListensTo.subscriptionOf(new LogPayment())).toThrow(ApplicationException);
   });
 
   it('keeps the mark under a shared symbol, so the CJS and ESM builds read the same one', () => {

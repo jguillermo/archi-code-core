@@ -1,24 +1,22 @@
 import { UnknownEventException } from '../../exceptions/index';
 import type { EventBase } from '../../domain/index';
-import type { EventListener } from './event-listener';
-import { ListensTo } from './listens-to';
-import type { EventBus } from './event-bus';
+import { ListensTo } from '../../application/index';
+import type { EventBus, EventListener } from '../../application/index';
 import type { EventChannel } from './event-channel';
-import type { EventSubscriber, Subscription } from './event-subscriber';
 import type { EventRegistry } from './event-registry';
-import { Frozen } from './frozen';
 
-export class DomainEventBus<Event extends EventBase = EventBase>
-  implements EventBus<Event>, EventSubscriber<Event>
-{
+export interface Subscription {
+  unsubscribe(): Promise<void>;
+}
+
+export class DomainEventBus<Event extends EventBase = EventBase> implements EventBus<Event> {
   constructor(
     private readonly channel: EventChannel,
     private readonly registry: EventRegistry<Event>,
   ) {}
 
   async publish(events: readonly Event[]): Promise<void> {
-    const serialized = events.map((event) => Frozen.deep(event).toJSON());
-    await this.channel.send(serialized);
+    await this.channel.send(events.map((event) => event.toJSON()));
   }
 
   async subscribe(listener: EventListener<Event>): Promise<Subscription> {

@@ -142,7 +142,7 @@ export class PgOrderSummaryProjection implements OrderSummaryProjection {
 En la composición se suscriben como cualquier listener (`channel` es el `EventChannel` del proyecto: `InMemoryEventChannel` en pruebas, tu canal duradero o de broker en producción):
 
 ```ts
-import { DomainEventBus, EventRegistry } from '@archi-code/ddd/application';
+import { DomainEventBus, EventRegistry } from '@archi-code/ddd/infrastructure';
 
 export const orderEvents = new EventRegistry<OrderEvent>()
   .register(
@@ -183,9 +183,8 @@ Para cambiar una vista: crear `order_summaries_v2`, proyectar desde la posición
 
 ```ts
 import type { SerializedEvent } from '@archi-code/ddd/domain';
-import { DomainEventBus } from '@archi-code/ddd/application';
-import type { EventRegistry } from '@archi-code/ddd/application';
-import { InMemoryEventChannel } from '@archi-code/ddd/infrastructure';
+import type { EventRegistry } from '@archi-code/ddd/infrastructure';
+import { DomainEventBus, InMemoryEventChannel } from '@archi-code/ddd/infrastructure';
 
 export interface EventLog {
   read(after: number, limit: number): Promise<{ position: number; event: SerializedEvent }[]>;

@@ -111,8 +111,12 @@ Con el paquete, una tecnología de mensajería solo implementa `EventChannel` (`
 ```ts
 // src/contexts/sales/composition.ts
 import { MongoClient } from 'mongodb';
-import { DomainEventBus, EventRegistry } from '@archi-code/ddd/application';
-import { HttpErrorMapper, SystemClock } from '@archi-code/ddd/infrastructure';
+import {
+  DomainEventBus,
+  EventRegistry,
+  HttpErrorMapper,
+  SystemClock,
+} from '@archi-code/ddd/infrastructure';
 import { OrderLineAdded, OrderPlaced } from './domain/order/events';
 import type { MoneyData, OrderEvent, OrderLineData } from './domain/order/events';
 import { PlaceOrder } from './application/place-order/PlaceOrder';
@@ -197,7 +201,7 @@ export async function composeSales(
 ```
 
 Qué hace cada pieza:
-* Del paquete: `EventRegistry` (reconstruye cada evento desde su JSON; la factoría pasa el JSON como metadata para conservar `eventId` y `occurredOn`), `DomainEventBus` (implementa `EventBus`, lo único que reciben los casos de uso, y `EventSubscriber`), `SystemClock` (implementa `Clock`) y `HttpErrorMapper` (códigos propios como `ORD001` se sobrescriben por código).
+* Del paquete, en `@archi-code/ddd/infrastructure`: `EventRegistry` (reconstruye cada evento desde su JSON; la factoría pasa el JSON como metadata para conservar `eventId` y `occurredOn`), `DomainEventBus` (implementa `EventBus`, lo único que reciben los casos de uso; su `subscribe(listener)` solo lo llama el composition root), `SystemClock` (implementa `Clock`) y `HttpErrorMapper` (códigos propios como `ORD001` se sobrescriben por código).
 * Código del proyecto sobre los puertos del paquete `[Fuera de los libros: convención de @archi-code/ddd]`: `MongoOrderRepository` (roles de repositorio + `AggregateMapper.of(Order)` + control de `version`, ver `ddd-skills/ddd-repositorios-persistencia/GUIA.md`), `MongoTransactionRunner` (implementa `TransactionRunner`: `run(work)` abre una sesión con transacción y la deja disponible a los repositorios, una ejecución anidada se une a la exterior, `inTransaction()`), `RabbitMqEventChannel` (implementa `EventChannel`, ver `ddd-skills/ddd-eventos-dominio/GUIA.md`) y `HttpWarehouse` (implementa el puerto `Warehouse`).
 * Cada listener se suscribe con `bus.subscribe(listener)`, que lee su `@ListensTo(OrderLineAdded, { consumer: 'prepare-shipment-on-order-line-added' })` y rechaza un evento que el registro no sabe reconstruir.
 * Cambiar RabbitMQ por un outbox o por memoria cambia solo la línea del canal.
@@ -209,9 +213,10 @@ Por qué sin contenedor: en TypeScript las interfaces desaparecen en tiempo de e
 Los tests de `application/` montan el contexto con los adaptadores en memoria del paquete; los casos de uso y los listeners son los mismos:
 
 ```ts
-import { DomainEventBus, EventRegistry } from '@archi-code/ddd/application';
 import {
   AggregateMapper,
+  DomainEventBus,
+  EventRegistry,
   FixedClock,
   InMemoryEventChannel,
   InMemoryRepository,

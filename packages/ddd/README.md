@@ -2,12 +2,12 @@
 
 Domain-Driven Design building blocks for TypeScript, one entry point per layer:
 
-| Entry point                      | Layer          | What it gives you                                                                                                                                                                                |
-| -------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `@archi-code/ddd/exceptions`     | Shared         | Exceptions of every layer with codes, causes and `instanceof` across builds                                                                                                                      |
-| `@archi-code/ddd/domain`         | Domain         | Value objects, `Required(...)`, `Composite(...)`, `Entity`, `AggregateRoot`, `EventBase`, `Specification` and the repository contracts (`AggregateFinder`, `AggregateSaver`, `AggregateRemover`) |
-| `@archi-code/ddd/application`    | Application    | `UseCase`, the event contract (`EventListener`, `@ListensTo`, `EventBus`, `EventSubscriber`, `EventChannel`, `DomainEventBus`, `EventRegistry`) and the ports `Clock` and `TransactionRunner`    |
-| `@archi-code/ddd/infrastructure` | Infrastructure | `InMemoryRepository`, `AggregateMapper`, `InMemoryEventChannel`, `InMemoryTransactionRunner`, `HttpErrorMapper`, clocks                                                                          |
+| Entry point                      | Layer          | What it gives you                                                                                                                                                                                             |
+| -------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@archi-code/ddd/exceptions`     | Shared         | Exceptions of every layer with codes, causes and `instanceof` across builds                                                                                                                                   |
+| `@archi-code/ddd/domain`         | Domain         | Value objects, `Required(...)`, `Composite(...)`, `Immutable`, `Entity`, `AggregateRoot`, `EventBase`, `Specification` and the repository contracts (`AggregateFinder`, `AggregateSaver`, `AggregateRemover`) |
+| `@archi-code/ddd/application`    | Application    | `UseCase`, the event contract (`EventListener`, `@ListensTo` to listen, `EventBus` to publish) and the ports `Clock` and `TransactionRunner`                                                                  |
+| `@archi-code/ddd/infrastructure` | Infrastructure | `InMemoryRepository`, `AggregateMapper`, the event wiring (`DomainEventBus`, `EventRegistry`, the `EventChannel` port, `InMemoryEventChannel`), `InMemoryTransactionRunner`, `HttpErrorMapper`, clocks        |
 
 The layers only depend inwards: `exceptions` imports nothing, `domain` imports only `exceptions`,
 `application` imports `domain` and `exceptions`, and `infrastructure` imports all three. The
@@ -451,6 +451,9 @@ one:
 - `ArrayType.withItem()` and `withoutItem()` return a **new** instance and leave the original
   untouched, so a value object shared by two aggregates never changes under one of them.
 - To touch an `UpdatedAt`, replace it: `this._updatedAt = UpdatedAt.now()`.
+- The same helpers are exported for your own value objects: `Immutable.freeze(value)` deep-freezes
+  an object or array and returns it, and `Immutable.date(date)` returns a copy of a `Date` whose
+  setters throw.
 
 ### `UuidType` and `IdType`
 
@@ -1329,26 +1332,29 @@ protected async handle(command: RefundPaymentCommand): Promise<void> {
 
 ## Events: the contract in `application/event`
 
-Everything about events in the application layer lives in one folder, `application/event`: the
-listeners, the ports and the bus every technology shares. Changing the messaging technology (in
-memory today, RabbitMQ, a database table or Kafka tomorrow) means **changing only the channel**: use
-cases, listeners and wiring stay as they are.
+The application layer holds only the contract to publish and to listen, in one folder,
+`application/event`: `EventBus` (the port a use case publishes through) and `EventListener` +
+`@ListensTo` (what the application does when an event happens). Everything that moves events (the
+bus, the registry that rebuilds them and the channel port) is infrastructure, used only by the
+wiring (the composition root). Changing the messaging technology (in memory today, RabbitMQ, a
+database table or Kafka tomorrow) means **changing only the channel**: use cases, listeners and
+wiring stay as they are.
 
 ```
-use case ──► EventBus (port) ─┐
-wiring   ──► EventSubscriber ─┤  DomainEventBus  (freeze, toJSON, @ListensTo, rebuild, listener.handle)
-                              └──► EventChannel (port)  ◄── InMemoryEventChannel   (@archi-code/ddd/infrastructure)
-                                   send / receive         ◄── your RabbitMQ, database or Kafka channel
+use case ──► EventBus (port, @archi-code/ddd/application)
+                 ▲ implements
+wiring   ──► DomainEventBus  (toJSON, @ListensTo, rebuild, listener.handle)   (@archi-code/ddd/infrastructure)
+                 └──► EventChannel (port)  ◄── InMemoryEventChannel   (@archi-code/ddd/infrastructure)
+                      send / receive         ◄── your RabbitMQ, database or Kafka channel
 ```
 
-| Piece                                                   | Kind             | Role                                                                                                                 |
-| ------------------------------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `EventListener`, `@ListensTo`                           | class, decorator | What the application does when an event happens                                                                      |
-| `EventBus`                                              | port (type)      | `publish(events)`: the only thing a use case knows                                                                   |
-| `EventSubscriber`, `Subscription`                       | port (types)     | `subscribe(listener)` → `{ unsubscribe() }`, both async: used by the wiring                                          |
-| `EventChannel`, `ChannelHandler`, `ChannelSubscription` | port (types)     | `send(serialized)` / `receive(eventName, consumer, handler)` → `{ close() }`: the only thing a technology implements |
-| `DomainEventBus(channel, registry)`                     | class            | Implements `EventBus` and `EventSubscriber` over any `EventChannel`                                                  |
-| `EventRegistry`, `EventFactory`                         | class, type      | Rebuilds an event from its JSON, keeping its `eventId` and `occurredOn`                                              |
+| Piece                                                   | Module         | Kind             | Role                                                                                                                 |
+| ------------------------------------------------------- | -------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `EventListener`, `@ListensTo`                           | application    | class, decorator | What the application does when an event happens                                                                      |
+| `EventBus`                                              | application    | port (type)      | `publish(events)`: the only thing a use case knows                                                                   |
+| `DomainEventBus(channel, registry)`, `Subscription`     | infrastructure | class, type      | Implements `EventBus` over any `EventChannel`; `subscribe(listener)` → `{ unsubscribe() }`, both async               |
+| `EventChannel`, `ChannelHandler`, `ChannelSubscription` | infrastructure | port (types)     | `send(serialized)` / `receive(eventName, consumer, handler)` → `{ close() }`: the only thing a technology implements |
+| `EventRegistry`, `EventFactory`                         | infrastructure | class, type      | Rebuilds an event from its JSON, keeping its `eventId` and `occurredOn`                                              |
 
 ### Listeners: `EventListener` and `@ListensTo`
 
@@ -1384,14 +1390,17 @@ class ReserveStockOnOrderPlaced extends EventListener<OrderPlaced> {
 }
 ```
 
-`ListensTo.eventOf(listener)` returns the event name a listener instance listens to,
-`ListensTo.consumerOf(listener)` its consumer name and `ListensTo.subscriptionOf(listener)` both
-as `{ eventName, consumer }`; the three throw `ApplicationException` when its class has no
-`@ListensTo`. The mark is kept under a `Symbol.for`
+`ListensTo.subscriptionOf(listener)` returns the event name and the consumer name a listener
+instance listens with, as a `ListenerSubscription` (`{ eventName, consumer }`); it throws
+`ApplicationException` when its class has no `@ListensTo`. The mark is kept under a `Symbol.for`
 key, so a listener decorated with one build (CJS or ESM) is read by the other. Neither the
 aggregates nor the use cases know the listeners: only the wiring subscribes them to the bus.
 
 ### The ports
+
+`EventBus` comes from `@archi-code/ddd/application`; the channel port (`EventChannel`,
+`ChannelHandler`, `ChannelSubscription`) and `Subscription` come from
+`@archi-code/ddd/infrastructure`:
 
 ```ts
 interface EventBus<Event extends EventBase = EventBase> {
@@ -1400,10 +1409,6 @@ interface EventBus<Event extends EventBase = EventBase> {
 
 interface Subscription {
   unsubscribe(): Promise<void>;
-}
-
-interface EventSubscriber<Event extends EventBase = EventBase> {
-  subscribe(listener: EventListener<Event>): Promise<Subscription>;
 }
 
 type ChannelHandler = (event: SerializedEvent) => Promise<void>;
@@ -1438,9 +1443,14 @@ and a table. The rules every channel follows:
 
 ### `DomainEventBus` and `EventRegistry`
 
+Both live in `@archi-code/ddd/infrastructure` and are used only by the composition root:
+
 ```ts
-import { DomainEventBus, EventRegistry } from '@archi-code/ddd/application';
-import { InMemoryEventChannel } from '@archi-code/ddd/infrastructure';
+import {
+  DomainEventBus,
+  EventRegistry,
+  InMemoryEventChannel,
+} from '@archi-code/ddd/infrastructure';
 
 const events = new EventRegistry<OrderEvent>()
   .register(OrderPlaced, (json) => new OrderPlaced(json.aggregateId, json.customer as string, json))
@@ -1455,7 +1465,10 @@ await placeOrder.execute({ customer: 'Ana' }); // ReserveStock ran with a rebuil
 await reserving.unsubscribe();
 ```
 
-- `publish(events)` deep-freezes each event and sends their JSON to the channel in one `send`.
+- `DomainEventBus` implements `EventBus`; `subscribe(listener)` is its own method, called only by
+  the wiring.
+- `publish(events)` sends the `toJSON()` of each event to the channel in one `send` (events
+  recorded by an aggregate are already frozen by `record()`).
 - `subscribe(listener)` reads the event and the consumer with `ListensTo.subscriptionOf` (`ApplicationException` without
   `@ListensTo`), refuses an event the registry cannot rebuild (`UnknownEventException`, at wiring
   time rather than at the first delivery) and calls
@@ -1465,7 +1478,8 @@ await reserving.unsubscribe();
   memory, so what works with the in-memory channel works the same with a broker.
 
 `EventRegistry`: `register(EventClass, factory)` (the same event twice throws
-`ApplicationException`), `has(eventName)` and `fromJSON(json)` (a `SerializedEvent` or its text).
+`InternalErrorException`: a wiring mistake), `has(eventName)` and `fromJSON(json)` (a parsed
+`SerializedEvent`: turning a message body into JSON is the channel's job).
 The factory must pass the serialized event as the metadata of the new event (`json` as the last
 argument), so the rebuilt event keeps its `eventId` and `occurredOn`: consumers deduplicate by
 `eventId`, and a new one would make every redelivery look like a new event. `fromJSON` checks it
@@ -1486,16 +1500,12 @@ root chooses the channel:
 ```ts
 import { AggregateRoot, EventBase, IdType, Required, StringType } from '@archi-code/ddd/domain';
 import type { AggregateSaver, EventMetadata, PrimitiveTypes } from '@archi-code/ddd/domain';
-import {
-  DomainEventBus,
-  EventListener,
-  EventRegistry,
-  ListensTo,
-  UseCase,
-} from '@archi-code/ddd/application';
+import { EventListener, ListensTo, UseCase } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
 import {
   AggregateMapper,
+  DomainEventBus,
+  EventRegistry,
   FixedClock,
   InMemoryEventChannel,
   InMemoryRepository,
@@ -1629,7 +1639,8 @@ A new technology implements one class, `EventChannel`, in its own infrastructure
 project (for example `infrastructure/messaging/RabbitMqEventChannel.ts`): `send` publishes each
 JSON (a message per event, a row per event…), `receive` declares what the consumer needs (a queue
 named after `consumer` bound to `eventName`, a consumer row…) and calls `handler` for each delivery,
-and `close` cancels it.
+and `close` cancels it. The channel imports its port types (`EventChannel`, `ChannelHandler`,
+`ChannelSubscription`) from `@archi-code/ddd/infrastructure`.
 
 A RabbitMQ channel, written against the few methods of an
 [amqplib](https://www.npmjs.com/package/amqplib) channel it uses (declared structurally, so the
@@ -1642,7 +1653,7 @@ import type {
   ChannelHandler,
   ChannelSubscription,
   EventChannel,
-} from '@archi-code/ddd/application';
+} from '@archi-code/ddd/infrastructure';
 import type { SerializedEvent } from '@archi-code/ddd/domain';
 
 interface AmqpMessage {
@@ -1892,8 +1903,11 @@ consumer gets the same frozen JSON copy, `send` resolves once the handlers finis
 returns a copy of what was sent, in order (for tests).
 
 ```ts
-import { DomainEventBus } from '@archi-code/ddd/application';
-import { HttpErrorMapper, InMemoryEventChannel } from '@archi-code/ddd/infrastructure';
+import {
+  DomainEventBus,
+  HttpErrorMapper,
+  InMemoryEventChannel,
+} from '@archi-code/ddd/infrastructure';
 
 const channel = new InMemoryEventChannel({ delivery: 'parallel' });
 const bus = new DomainEventBus<OrderEvent>(channel, events); // events: the EventRegistry of "Events"
@@ -2192,16 +2206,12 @@ import type {
   EventMetadata,
   PrimitiveTypes,
 } from '@archi-code/ddd/domain';
-import {
-  DomainEventBus,
-  EventListener,
-  EventRegistry,
-  ListensTo,
-  UseCase,
-} from '@archi-code/ddd/application';
+import { EventListener, ListensTo, UseCase } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
 import {
   AggregateMapper,
+  DomainEventBus,
+  EventRegistry,
   FixedClock,
   HttpErrorMapper,
   InMemoryEventChannel,
@@ -2444,6 +2454,7 @@ await new RegisterUser(users, bus, clock)
 | `Specification`                                                                                                 | abstract class     |
 | `CompositeSchema`, `CompositeProps`, `CompositePrimitives`, `CompositeInput`, `CompositeType`, `CompositeValue` | types              |
 | `ValueObjects` (`build`, `buildList`)                                                                           | class              |
+| `Immutable` (`freeze`, `date`)                                                                                  | class              |
 | `Entity`, `AggregateRoot`, `EventBase`                                                                          | abstract classes   |
 | `AggregateFinder`, `AggregateSaver`, `AggregateRemover`                                                         | types (contracts)  |
 | `RequiredType`, `JsonTypeValue`, `PrimitiveType`, `PrimitiveTypes`, `DataTypes`                                 | types              |
@@ -2453,23 +2464,24 @@ await new RegisterUser(users, bus, clock)
 
 `@archi-code/ddd/application`:
 
-| Export                                                  | Kind                  |
-| ------------------------------------------------------- | --------------------- |
-| `UseCase`, `EventListener`                              | abstract classes      |
-| `ListensTo`                                             | decorator             |
-| `ListensToOptions`                                      | type (`{ consumer }`) |
-| `DomainEventBus`, `EventRegistry`                       | classes               |
-| `EventBus`, `EventSubscriber`, `Subscription`           | types (event ports)   |
-| `EventChannel`, `ChannelHandler`, `ChannelSubscription` | types (channel port)  |
-| `EventFactory`                                          | type                  |
-| `Clock`, `TransactionRunner`                            | types (ports)         |
+| Export                       | Kind                             |
+| ---------------------------- | -------------------------------- |
+| `UseCase`, `EventListener`   | abstract classes                 |
+| `ListensTo`                  | decorator                        |
+| `ListensToOptions`           | type (`{ consumer }`)            |
+| `ListenerSubscription`       | type (`{ eventName, consumer }`) |
+| `EventBus`                   | type (event port)                |
+| `Clock`, `TransactionRunner` | types (ports)                    |
 
 `@archi-code/ddd/infrastructure`:
 
-| Export                                                                                                                                       | Kind    |
-| -------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| `InMemoryRepository`, `AggregateMapper`, `InMemoryEventChannel`, `InMemoryTransactionRunner`, `HttpErrorMapper`, `SystemClock`, `FixedClock` | classes |
-| `AggregateClass`, `HttpError`, `HttpErrorBody`, `TransactionParticipant`, `InMemoryEventChannelOptions`                                      | types   |
+| Export                                                                                                                                       | Kind                   |
+| -------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| `InMemoryRepository`, `AggregateMapper`, `InMemoryEventChannel`, `InMemoryTransactionRunner`, `HttpErrorMapper`, `SystemClock`, `FixedClock` | classes                |
+| `DomainEventBus`, `EventRegistry`                                                                                                            | classes (event wiring) |
+| `EventChannel`, `ChannelHandler`, `ChannelSubscription`                                                                                      | types (channel port)   |
+| `Subscription`, `EventFactory`                                                                                                               | types                  |
+| `AggregateClass`, `HttpError`, `HttpErrorBody`, `TransactionParticipant`, `InMemoryEventChannelOptions`                                      | types                  |
 
 ## AI assistant skill
 

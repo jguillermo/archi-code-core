@@ -1,15 +1,14 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
-import { DomainEventBus } from '../../../src/application/event/domain-event-bus';
-import { EventRegistry } from '../../../src/application/event/event-registry';
-import { EventListener } from '../../../src/application/event/event-listener';
-import { ListensTo } from '../../../src/application/event/listens-to';
+import { DomainEventBus } from '../../../src/infrastructure/event/domain-event-bus';
+import type { Subscription } from '../../../src/infrastructure/event/domain-event-bus';
+import { EventRegistry } from '../../../src/infrastructure/event/event-registry';
 import type {
   ChannelHandler,
   ChannelSubscription,
-  EventBus,
   EventChannel,
-  EventSubscriber,
-} from '../../../src/application/index';
+} from '../../../src/infrastructure/event/event-channel';
+import { EventListener, ListensTo } from '../../../src/application/index';
+import type { EventBus } from '../../../src/application/index';
 import { EventBase } from '../../../src/domain/index';
 import type { EventMetadata, SerializedEvent } from '../../../src/domain/index';
 import { ApplicationException, UnknownEventException } from '../../../src/exceptions/index';
@@ -84,9 +83,11 @@ function orderEvents() {
 }
 
 describe('DomainEventBus: the bus every channel shares', () => {
-  it('is the EventBus of use cases and the EventSubscriber of the wiring', () => {
+  it('is the EventBus of use cases and subscribes the listeners of the wiring', () => {
     expectTypeOf<DomainEventBus<OrderEvent>>().toMatchTypeOf<EventBus<OrderEvent>>();
-    expectTypeOf<DomainEventBus<OrderEvent>>().toMatchTypeOf<EventSubscriber<OrderEvent>>();
+    expectTypeOf<DomainEventBus<OrderEvent>['subscribe']>().toEqualTypeOf<
+      (listener: EventListener<OrderEvent>) => Promise<Subscription>
+    >();
   });
 
   it('sends the JSON of every published event to the channel in one send, in order', async () => {
@@ -98,16 +99,6 @@ describe('DomainEventBus: the bus every channel shares', () => {
     await bus.publish([placed, shipped]);
 
     expect(channel.sends).toStrictEqual([[placed.toJSON(), shipped.toJSON()]]);
-  });
-
-  it('freezes what it publishes: a published fact never changes', async () => {
-    const bus = new DomainEventBus(new RecordingChannel(), orderEvents());
-    const placed = new OrderPlaced(orderId, [{ sku: 'TORCH-01', units: 2 }]);
-
-    await bus.publish([placed]);
-
-    expect(Object.isFrozen(placed)).toBe(true);
-    expect(Object.isFrozen(placed.lines)).toBe(true);
   });
 
   it('subscribes a listener under its event name, with the consumer name it declares', async () => {

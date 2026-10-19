@@ -118,9 +118,10 @@ export class RegisterStockReservationOnStockReserved extends EventListener<Stock
 La raíz de composición registra el evento y suscribe el listener; en los tests, con los adaptadores en memoria del paquete:
 
 ```ts
-import { DomainEventBus, EventRegistry } from '@archi-code/ddd/application';
 import {
   AggregateMapper,
+  DomainEventBus,
+  EventRegistry,
   FixedClock,
   InMemoryEventChannel,
   InMemoryRepository,

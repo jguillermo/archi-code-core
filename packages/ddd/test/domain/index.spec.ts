@@ -30,6 +30,7 @@ const PUBLIC_API = [
   'EnumType',
   'EventBase',
   'IdType',
+  'Immutable',
   'JsonType',
   'NumberType',
   'Required',

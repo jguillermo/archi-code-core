@@ -220,10 +220,11 @@ Con los adaptadores en memoria del paquete: `InMemoryRepository(AggregateMapper.
 
 ```ts
 import { describe, expect, it } from 'vitest';
-import { DomainEventBus, EventRegistry } from '@archi-code/ddd/application';
 import { NotAllowedException } from '@archi-code/ddd/exceptions';
 import {
   AggregateMapper,
+  DomainEventBus,
+  EventRegistry,
   FixedClock,
   InMemoryEventChannel,
   InMemoryRepository,

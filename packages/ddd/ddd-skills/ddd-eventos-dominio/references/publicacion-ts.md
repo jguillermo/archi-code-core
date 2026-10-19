@@ -22,7 +22,8 @@ Qué pone `@archi-code/ddd` y qué escribe el proyecto:
 | Pieza | Dónde |
 |---|---|
 | `EventBase`, `AggregateRoot.record()`/`pullDomainEvents()` | `@archi-code/ddd/domain` |
-| `EventBus` (lo único que ve el caso de uso), `EventChannel`, `DomainEventBus`, `EventRegistry`, `EventListener`, `@ListensTo`, `TransactionRunner` | `@archi-code/ddd/application` |
+| `EventBus` (lo único que ve el caso de uso), `EventListener`, `@ListensTo`, `TransactionRunner` | `@archi-code/ddd/application` |
+| `DomainEventBus`, `EventRegistry`, `EventChannel`, `ChannelHandler`, `ChannelSubscription` (cableado del composition root y puerto del canal) | `@archi-code/ddd/infrastructure` |
 | `InMemoryEventChannel`, `InMemoryTransactionRunner`, `InMemoryRepository` (tests) | `@archi-code/ddd/infrastructure` |
 | Outbox (`OutboxEventChannel`), reenviador, deduplicación, traducción al lenguaje publicado, canal del broker | tu infraestructura, sobre esos puertos |
 
@@ -93,9 +94,9 @@ En los tests, `InMemoryEventChannel` guarda lo publicado en `channel.sent` (JSON
 
 ```ts
 import { describe, expect, it } from 'vitest';
-import { DomainEventBus } from '@archi-code/ddd/application';
 import {
   AggregateMapper,
+  DomainEventBus,
   FixedClock,
   InMemoryEventChannel,
   InMemoryRepository,
@@ -241,7 +242,7 @@ import type {
   ChannelHandler,
   ChannelSubscription,
   EventChannel,
-} from '@archi-code/ddd/application';
+} from '@archi-code/ddd/infrastructure';
 import type { SerializedEvent } from '@archi-code/ddd/domain';
 
 export class OutboxEventChannel implements EventChannel {
@@ -284,7 +285,7 @@ export class OutboxEventChannel implements EventChannel {
 ## Reenviador
 
 ```ts
-import type { EventChannel } from '@archi-code/ddd/application';
+import type { EventChannel } from '@archi-code/ddd/infrastructure';
 import type { SerializedEvent } from '@archi-code/ddd/domain';
 import { InternalErrorException } from '@archi-code/ddd/exceptions';
 
@@ -340,8 +341,7 @@ Cada reacción corre en su transacción: el reenviador usa su propia conexión, 
 El composition root elige los canales; los casos de uso y los listeners no cambian:
 
 ```ts
-import { DomainEventBus } from '@archi-code/ddd/application';
-import { InMemoryEventChannel, SystemClock } from '@archi-code/ddd/infrastructure';
+import { DomainEventBus, InMemoryEventChannel, SystemClock } from '@archi-code/ddd/infrastructure';
 
 const transactions = new PgTransactionRunner(pool);
 const delivery = new ContractPublishingChannel(broker, new InMemoryEventChannel());
@@ -372,7 +372,7 @@ import type {
   ChannelHandler,
   ChannelSubscription,
   EventChannel,
-} from '@archi-code/ddd/application';
+} from '@archi-code/ddd/infrastructure';
 import type { SerializedEvent } from '@archi-code/ddd/domain';
 
 interface Broker {

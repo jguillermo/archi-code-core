@@ -1,13 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { EventBase } from '../../../src/domain/index';
 import {
-  ApplicationException,
   ExceptionCode,
   InternalErrorException,
   UnknownEventException,
 } from '../../../src/exceptions/index';
 import type { EventMetadata, SerializedEvent } from '../../../src/domain/index';
-import { EventRegistry } from '../../../src/application/event/event-registry';
+import { EventRegistry } from '../../../src/infrastructure/event/event-registry';
 
 class OrderPlaced extends EventBase {
   static readonly eventName = 'OrderPlaced';
@@ -63,7 +62,7 @@ describe('EventRegistry: rebuilding the events a channel delivers', () => {
       occurredOn: '2026-03-01T09:30:00Z',
     });
     const row = JSON.stringify(recorded);
-    const rebuilt = orderEvents().fromJSON(row);
+    const rebuilt = orderEvents().fromJSON(JSON.parse(row));
     expect(rebuilt).toBeInstanceOf(OrderPlaced);
     expect(rebuilt).toMatchObject({ eventId, aggregateId: orderId, customer: 'Ana' });
     expect(rebuilt.occurredOn.toISOString()).toBe('2026-03-01T09:30:00.000Z');
@@ -91,8 +90,10 @@ describe('EventRegistry: rebuilding the events a channel delivers', () => {
         (e) => new OrderLinesChanged(e.aggregateId, e.lines as { sku: string; units: number }[], e),
       )
       .fromJSON(
-        JSON.stringify(
-          new OrderLinesChanged(orderId, [{ sku: 'TORCH-01', units: 2 }], { eventId }),
+        JSON.parse(
+          JSON.stringify(
+            new OrderLinesChanged(orderId, [{ sku: 'TORCH-01', units: 2 }], { eventId }),
+          ),
         ),
       );
     expect(Object.isFrozen(changed)).toBe(true);
@@ -140,8 +141,8 @@ describe('EventRegistry: rebuilding the events a channel delivers', () => {
   it('refuses to register the same event twice, a wiring mistake at start-up', () => {
     const register = () =>
       orderEvents().register(OrderPlaced, (e) => new OrderPlaced(e.aggregateId, 'x'));
-    expect(register).toThrow(ApplicationException);
-    expect(register).toThrow('Event "OrderPlaced" is already registered.');
+    expect(register).toThrow(InternalErrorException);
+    expect(register).toThrow('Failed, internal error: event "OrderPlaced" is already registered');
   });
 
   it('refuses an event it does not know with UnknownEventException', () => {
@@ -167,23 +168,10 @@ describe('EventRegistry: rebuilding the events a channel delivers', () => {
     ['without an event name', '{"aggregateId":"x"}'],
     ['whose event name is not text', '{"eventName":42,"aggregateId":"x"}'],
   ])('refuses a message %s, saying what is missing', (_, message) => {
-    expect(() => orderEvents().fromJSON(message)).toThrow(InternalErrorException);
-    expect(() => orderEvents().fromJSON(message)).toThrow(
+    expect(() => orderEvents().fromJSON(JSON.parse(message))).toThrow(InternalErrorException);
+    expect(() => orderEvents().fromJSON(JSON.parse(message))).toThrow(
       'Failed, internal error: a serialized event needs its eventName',
     );
-  });
-
-  it('refuses a corrupt row, keeping the parse error as cause', () => {
-    try {
-      orderEvents().fromJSON('{"eventName":');
-      expect.unreachable();
-    } catch (error) {
-      expect(error).toBeInstanceOf(InternalErrorException);
-      expect((error as InternalErrorException).message).toBe(
-        'Failed, internal error: a serialized event is not valid JSON',
-      );
-      expect((error as InternalErrorException).cause).toBeInstanceOf(SyntaxError);
-    }
   });
 
   it.each([
@@ -191,7 +179,7 @@ describe('EventRegistry: rebuilding the events a channel delivers', () => {
     ['a number', '42'],
     ['a string', '"OrderPlaced"'],
   ])('refuses a message whose JSON is %s', (_, text) => {
-    const read = () => orderEvents().fromJSON(text);
+    const read = () => orderEvents().fromJSON(JSON.parse(text));
     expect(read).toThrow(InternalErrorException);
     expect(read).toThrow('Failed, internal error: a serialized event must be a JSON object');
   });
