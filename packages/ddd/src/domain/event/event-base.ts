@@ -1,7 +1,6 @@
 import { CreatedAt } from '../type/date-type';
 import { IdType } from '../type/id-type';
 import { UuidType } from '../type/uuid-type';
-import { TypeInput } from '../type/input/type-input';
 import { InternalErrorException, RequiredValueException } from '../../exceptions/index';
 
 export interface EventMetadata {
@@ -40,7 +39,11 @@ export abstract class EventBase {
         `${this.constructor.name}.eventVersion must be a whole number from 1`,
       );
     }
-    if (TypeInput.isMissing(aggregateId)) {
+    if (
+      aggregateId === null ||
+      aggregateId === undefined ||
+      (typeof aggregateId === 'string' && aggregateId.trim() === '')
+    ) {
       throw new RequiredValueException(`${this.constructor.name}.aggregateId`, aggregateId);
     }
     this.aggregateId = aggregateId;

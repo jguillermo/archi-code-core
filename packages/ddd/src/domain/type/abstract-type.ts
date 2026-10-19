@@ -1,9 +1,9 @@
 import { anyToString, runValidations } from '@archi-code/validation';
 import type { Validatable, ValidatedClass, ValidationResult } from '@archi-code/validation';
-import { TypeInput } from './input/type-input';
 import { ValueEquality } from './equality/value-equality';
+import { RequiredMark } from './required/required-mark';
 import type { ValueOf } from './required/required-mark';
-import { ValidationException } from '../../exceptions/index';
+import { RequiredValueException, ValidationException } from '../../exceptions/index';
 import type { ValidationIssue } from '../../exceptions/index';
 
 type JsonValue<T> = T extends Date ? string : T;
@@ -28,7 +28,7 @@ export abstract class AbstractType<T, Input = T> implements Validatable<T | null
   }
 
   constructor(value: Input | null = null) {
-    this._value = TypeInput.accept(this, value, (input) => this.filter(input));
+    this._value = this.acceptInput(value);
     const brokenRules = this.brokenRules(this._value);
     if (brokenRules.length > 0) {
       throw new ValidationException(brokenRules);
@@ -76,4 +76,18 @@ export abstract class AbstractType<T, Input = T> implements Validatable<T | null
   }
 
   protected abstract filter(value: unknown): T | null;
+
+  private acceptInput(value: unknown): T | null {
+    const accepted = AbstractType.isMissingInput(value) ? null : this.filter(value);
+    if (accepted === null && RequiredMark.isMarked(this)) {
+      throw new RequiredValueException(this.constructor.name, value);
+    }
+    return accepted;
+  }
+
+  private static isMissingInput(value: unknown): boolean {
+    return (
+      value === null || value === undefined || (typeof value === 'string' && value.trim() === '')
+    );
+  }
 }

@@ -155,6 +155,24 @@ describe('AbstractType: writing a custom value object', () => {
       expect(new Discount('none' as unknown as number).value).toBeNull();
     });
 
+    it.each([
+      ['NaN', NaN],
+      ['an empty list', []],
+      ['an empty object', {}],
+      ['a name with surrounding spaces', ' pt '],
+    ])('hands %s to filter: only null, undefined and blank text count as missing', (_, input) => {
+      const { SpiedCountry, filterSpy } = spiedCountryCode();
+      new SpiedCountry(input as string);
+      expect(filterSpy).toHaveBeenCalledWith(input);
+    });
+
+    it('reports what the user typed when a required type turns it into null', () => {
+      class RequiredDiscount extends Required(Discount) {}
+      expect(() => new RequiredDiscount('none' as unknown as number)).toThrow(
+        'Validation Error: RequiredDiscount is required, but received "none".',
+      );
+    });
+
     it('rejects input filter does not understand, with the exception filter throws', () => {
       const create = () => new CountryCode('Spain');
       expect(create).toThrow(TypePrimitiveException);
