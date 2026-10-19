@@ -5,3 +5,4 @@ export * from './primitive/primitive-types';
 export type { AggregateFinder } from './repository/aggregate-finder';
 export type { AggregateSaver } from './repository/aggregate-saver';
 export type { AggregateRemover } from './repository/aggregate-remover';
+export { Specification } from './specification/specification';

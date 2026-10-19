@@ -1,6 +1,6 @@
 ---
 name: archi-code-ddd
-description: Rules, patterns and common mistakes for writing TypeScript code with @archi-code/ddd (archi-code DDD by layer - where each class goes and what it may import; domain value objects, Required(...), ValueObjects.build, AggregateRoot with identity and events, EventBase, repository contracts and exceptions; application UseCase with toCommand/handle, EventListener with @ListensTo and the ports EventBus/Clock; infrastructure InMemoryRepository, EventDispatcher, InMemoryEventBus, DomainEventRegistry, HttpErrorMapper and clocks). Use it when creating or changing value objects, entities, aggregates, events, domain services, use cases, listeners, repositories or adapters, deciding in which layer a class goes, mapping errors to HTTP, or whenever the code imports @archi-code/ddd.
+description: Rules, patterns and common mistakes for writing TypeScript code with @archi-code/ddd (archi-code DDD by layer - where each class goes and what it may import; domain value objects, Required(...), ValueObjects.build, Composite value objects, Specification, AggregateRoot with identity and events, EventBase, repository contracts and exceptions; application UseCase with toCommand/handle, EventListener with @ListensTo and the ports EventBus/Clock; infrastructure InMemoryRepository, EventDispatcher, InMemoryEventBus, DomainEventRegistry, HttpErrorMapper and clocks). Use it when creating or changing value objects, entities, aggregates, events, domain services, use cases, listeners, repositories or adapters, deciding in which layer a class goes, mapping errors to HTTP, or whenever the code imports @archi-code/ddd.
 ---
 
 # archi-code-ddd
@@ -36,11 +36,14 @@ If they are installed in the project, use them together with this one:
 import {
   AggregateRoot,
   BooleanType,
+  Composite,
   CreatedAt,
+  DateType,
   EventBase,
   IdType,
   NumberType,
   Required,
+  Specification,
   StringType,
   UpdatedAt,
   ValueObjects,
@@ -149,17 +152,31 @@ const { Required, StringType } = require('@archi-code/ddd/domain');
   (it receives input already known to be non-empty; it returns the value or throws
   `TypePrimitiveException`). If restricting an existing type is enough, extend it and use
   `@Validations`.
+- **Concepts of several attributes are composite value objects**, not entities nor loose fields:
+  `class Money extends Composite({ amount: Cents, currency: Currency }) {}`. The schema names each
+  field's class: a value object class, another composite, or a list `[OrderLine]`. Fields are
+  exposed read-only with their value object type; the instance is frozen; `equals` compares class
+  and every field; `toPrimitives()` gives plain data (dates stay `Date`); `JSON.stringify` writes
+  the values; `X.fromPrimitives(data)` rebuilds it reporting every invalid field with its path
+  (`lines.1.units`). Rules over several fields (end ≥ start, one currency) are `@Validations`
+  `custom` rules on the composite class: `fn` receives the built composite, after its fields are
+  valid. Behavior returns new instances (`add(other): Money`). Prefer a composite over a child
+  entity: an order line with no id anybody looks it up by is a value [IDDD ch. 6].
 - Only the aggregate root has a base class: it passes the id to `super(id)`, exposed as
   `readonly id`; do not redeclare it (no `_id` + getter). `equals` compares class and id only.
-  Child entities (the lines of an order) are plain classes with a value object id, created and
-  changed only through their aggregate.
+  Child entities (a part with a lifecycle that is looked up by its own id) are plain classes with a
+  value object id, created and changed only through their aggregate.
+- **A named business rule that selects, validates or combines is a `Specification<T>`**:
+  `class EligibleForExpressShipping extends Specification<Order> { isSatisfiedBy(order) {…} }`,
+  combined with `and`, `or` and `not`. It receives data already loaded (never a repository) and is
+  never used to protect an invariant of an aggregate: invariants stay inside the aggregate.
 - **The domain knows nothing about persistence**: no mapper, repository nor storage concern in
   domain code; a repository receives an aggregate and stores it. `AggregateMapper` is imported from
   `@archi-code/ddd/infrastructure`.
 - **Aggregates and their primitives** (every aggregate follows these six rules so infrastructure can
   store it):
-  1. All its state is value objects: each persisted field is a value object, a list of them or a
-     child entity (plain class) whose fields are value objects. A flag is
+  1. All its state is value objects: each persisted field is a value object, a composite, a list
+     of them or a child entity (plain class) whose fields are value objects. A flag is
      `class Shipped extends Required(BooleanType) {}`, never `boolean`; a moment is `DateType` /
      `CreatedAt`, never `Date`.
   2. Private field + public getter with the same name without `_` (or a public `readonly`). No
@@ -290,7 +307,7 @@ const command = ValueObjects.build({
 // errors: [{ field: 'email', message: 'Email: …' }, { field: 'quantity', message: 'Quantity: Must be even' }]
 ```
 
-Aggregate with typed id, child entities and events:
+Aggregate with typed id, a list of composite value objects and events:
 
 ```ts
 class OrderId extends IdType {}
@@ -299,13 +316,7 @@ class Units extends Required(NumberType) {}
 class CustomerName extends Required(StringType) {}
 class Shipped extends Required(BooleanType) {}
 
-class OrderLine {
-  constructor(
-    readonly id: IdType,
-    readonly sku: Sku,
-    readonly units: Units,
-  ) {}
-}
+class OrderLine extends Composite({ sku: Sku, units: Units }) {}
 
 class OrderPlaced extends EventBase {
   static readonly eventName = 'order.placed';
@@ -362,9 +373,7 @@ class Order extends AggregateRoot<OrderId, OrderEvent> {
     return new Order(
       new OrderId(primitives.id),
       new CustomerName(primitives.customer),
-      primitives.lines.map(
-        (line) => new OrderLine(new IdType(line.id), new Sku(line.sku), new Units(line.units)),
-      ),
+      primitives.lines.map((line) => OrderLine.fromPrimitives(line)),
       new Shipped(primitives.shipped),
       new UpdatedAt(primitives.updatedAt),
       new CreatedAt(primitives.createdAt),
@@ -387,8 +396,7 @@ class Order extends AggregateRoot<OrderId, OrderEvent> {
     if (this._shipped.value) {
       throw new OrderShippedException(this.id.value);
     }
-    const line = new OrderLine(new IdType(IdType.random()), sku, units);
-    this._lines = [...this._lines, line];
+    this._lines = [...this._lines, new OrderLine({ sku, units })];
     this._updatedAt = UpdatedAt.now();
     this.record(new OrderLineAdded(this.id.value, sku.value, units.value));
   }
@@ -397,11 +405,7 @@ class Order extends AggregateRoot<OrderId, OrderEvent> {
     return {
       id: this.id.value,
       customer: this.customer.value,
-      lines: this._lines.map((line) => ({
-        id: line.id.value,
-        sku: line.sku.value,
-        units: line.units.value,
-      })),
+      lines: this._lines.map((line) => line.toPrimitives()),
       shipped: this.shipped.value,
       updatedAt: this.updatedAt.value,
       createdAt: this.createdAt.value,
@@ -578,6 +582,51 @@ describe('Order', () => {
 });
 ```
 
+Composite value objects and specifications:
+
+```ts
+class Cents extends Required(NumberType) {}
+class Currency extends Required(StringType) {}
+
+class Money extends Composite({ amount: Cents, currency: Currency }) {
+  add(other: Money): Money {
+    return new Money({
+      amount: new Cents(this.amount.value + other.amount.value),
+      currency: this.currency,
+    });
+  }
+}
+
+class StartDate extends Required(DateType) {}
+class EndDate extends Required(DateType) {}
+
+@Validations([
+  {
+    custom: 'endsAfterItStarts',
+    fn: (range) => (range as Promotion).end.value >= (range as Promotion).start.value,
+    message: 'A promotion cannot end before it starts',
+  },
+])
+class Promotion extends Composite({ start: StartDate, end: EndDate }) {}
+
+const price = Money.fromPrimitives({ amount: 1250, currency: 'EUR' });
+price.toPrimitives(); // { amount: 1250, currency: 'EUR' }
+price.equals(Money.fromPrimitives({ amount: 1250, currency: 'EUR' })); // true
+
+class OrderAbove extends Specification<Order> {
+  constructor(private readonly minimumUnits: number) {
+    super();
+  }
+
+  isSatisfiedBy(order: Order): boolean {
+    return order.lines.reduce((sum, line) => sum + line.units.value, 0) >= this.minimumUnits;
+  }
+}
+
+const freeShipping = new OrderAbove(10).and(new OrderAbove(100).not());
+freeShipping.isSatisfiedBy(order);
+```
+
 ## What not to do
 
 - Putting a class in the wrong layer: a repository implementation, a mapper or a driver in the
@@ -596,7 +645,7 @@ describe('Order', () => {
 - Importing the repository contracts from `@archi-code/ddd/application`: they live in `/domain`.
 
 - Do not invent API: there is no root `@archi-code/ddd` import, no `toPrimitives()` in the base
-  classes, no generic `ValueObject`, no `setNow()`, `addItem()`, `setItem()` or `removeItem()`.
+  classes, no generic `ValueObject` (a value object of several fields is `Composite({...})`), no `setNow()`, `addItem()`, `setItem()` or `removeItem()`.
   When in doubt, check the installed README.
 - Importing `@archi-code/ddd/infrastructure` from domain code, or `application` from the domain.
 - Importing an exception from `@archi-code/ddd/domain`: exceptions live in
@@ -635,6 +684,16 @@ describe('Order', () => {
 - Using `Required(StringType)` directly as a property type instead of a named subclass.
 - Declaring `private readonly _id` + `get id()` in an aggregate: the id goes to `super(id)`.
 - Looking for an `Entity` base class: there is none; child entities are plain classes.
+- Modeling an amount with its currency, a date range or an address as loose fields of the
+  aggregate, as a `JsonType`, or as a child entity with an id nobody looks up: use `Composite`.
+- `Required(Composite(...))`, or `Composite({ amount: Required(NumberType) })` without a named
+  class: every field class is a named subclass, and composite fields are always present (an
+  optional composite is a `Money | null` field of the aggregate).
+- Mutating a composite or adding state to it (instance fields, setters): it is frozen; return a new
+  instance from its methods.
+- Returning a composite from `toPrimitives()` instead of `composite.toPrimitives()`.
+- A specification that loads data through a repository, a generic one without a business name
+  (`FieldEquals`), or one used instead of the aggregate to protect an invariant.
 - Raw state in an aggregate (`private _shipped: boolean`, `private _at: Date`, a `string` field):
   wrap it in a value object.
 - A private field without its public getter: it would be lost when saving (`AggregateMapper` throws

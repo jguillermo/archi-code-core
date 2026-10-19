@@ -101,6 +101,50 @@ function smoke(m) {
       },
     ],
     [
+      'Composite builds, compares and rebuilds a value object of several fields',
+      () => {
+        class Cents extends m.Required(m.NumberType) {}
+        class Currency extends m.Required(m.StringType) {}
+        class Money extends m.Composite({ amount: Cents, currency: Currency }) {}
+        class Cart extends m.Composite({ prices: [Money] }) {}
+        const cart = Cart.fromPrimitives({ prices: [{ amount: 1250, currency: 'EUR' }] });
+        let fields = [];
+        try {
+          Cart.fromPrimitives({ prices: [{ amount: 'x', currency: '' }] });
+        } catch (error) {
+          fields = error.errors.map((issue) => issue.field);
+        }
+        return (
+          (cart.prices[0] instanceof Money &&
+            cart.equals(Cart.fromPrimitives(cart.toPrimitives())) &&
+            JSON.stringify(cart) === '{"prices":[{"amount":1250,"currency":"EUR"}]}' &&
+            fields.join(',') === 'prices.0.amount,prices.0.currency') ||
+          `unexpected composite behavior ${fields.join(',')}`
+        );
+      },
+    ],
+    [
+      'Specification combines named rules',
+      () => {
+        class Above extends m.Specification {
+          constructor(limit) {
+            super();
+            this.limit = limit;
+          }
+          isSatisfiedBy(value) {
+            return value > this.limit;
+          }
+        }
+        const between = new Above(10).and(new Above(20).not());
+        return (
+          (between.isSatisfiedBy(15) &&
+            !between.isSatisfiedBy(25) &&
+            new Above(10).or(new Above(0)).isSatisfiedBy(5)) ||
+          'unexpected specification result'
+        );
+      },
+    ],
+    [
       'aggregate records events with metadata',
       () => {
         class OrderPlaced extends m.EventBase {

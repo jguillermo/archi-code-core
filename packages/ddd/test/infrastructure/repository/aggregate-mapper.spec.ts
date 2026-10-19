@@ -8,6 +8,8 @@ import { IdType } from '../../../src/domain/type/id-type';
 import { NumberType } from '../../../src/domain/type/number-type';
 import { Required } from '../../../src/domain/type/required/required';
 import { StringType } from '../../../src/domain/type/string-type';
+import { Composite } from '../../../src/domain/type/composite/composite';
+import { InMemoryRepository } from '../../../src/infrastructure/repository/in-memory-repository';
 import type { PrimitiveTypes } from '../../../src/domain/primitive/primitive-types';
 import { InternalErrorException } from '../../../src/exceptions/infrastructure/internal-error.exception';
 
@@ -438,6 +440,119 @@ describe('AggregateMapper: the only bridge between an aggregate and its stored p
     ])('refuses to store %s', (_, save, message) => {
       expect(save).toThrow(InternalErrorException);
       expect(save).toThrow(`Failed, internal error: ${message}`);
+    });
+  });
+
+  describe('aggregates that hold composite value objects', () => {
+    class Cents extends Required(NumberType) {}
+    class Currency extends Required(StringType) {}
+    class Money extends Composite({ amount: Cents, currency: Currency }) {}
+    class ProductId extends IdType {}
+    class ProductName extends Required(StringType) {}
+
+    class Product extends AggregateRoot<ProductId> {
+      private constructor(
+        id: ProductId,
+        readonly name: ProductName,
+        private _price: Money,
+        readonly discount: Money | null,
+      ) {
+        super(id);
+      }
+
+      static list(id: string, name: string, price: Money): Product {
+        return new Product(new ProductId(id), new ProductName(name), price, null);
+      }
+
+      static fromPrimitives(primitives: PrimitiveTypes<Product>): Product {
+        return new Product(
+          new ProductId(primitives.id),
+          new ProductName(primitives.name),
+          Money.fromPrimitives(primitives.price),
+          primitives.discount === null ? null : Money.fromPrimitives(primitives.discount),
+        );
+      }
+
+      get price(): Money {
+        return this._price;
+      }
+
+      reprice(price: Money): void {
+        this._price = price;
+      }
+
+      toPrimitives(): PrimitiveTypes<Product> {
+        return {
+          id: this.id.value,
+          name: this.name.value,
+          price: this.price.toPrimitives(),
+          discount: this.discount?.toPrimitives() ?? null,
+        };
+      }
+    }
+
+    const productId = '5d6e7f80-9a1b-4c2d-8e3f-4a5b6c7d8e9f';
+    const torch = () =>
+      Product.list(
+        productId,
+        'Welding torch',
+        Money.fromPrimitives({ amount: 1250, currency: 'EUR' }),
+      );
+
+    it('types the composite field as its primitives, and a missing one as null', () => {
+      expectTypeOf<PrimitiveTypes<Product>>().toEqualTypeOf<{
+        id: string;
+        name: string;
+        price: { amount: number; currency: string };
+        discount: { amount: number; currency: string } | null;
+      }>();
+    });
+
+    it('stores the composite as plain data and rebuilds it as the same value', () => {
+      const mapper = AggregateMapper.of(Product);
+      const stored = mapper.toPrimitives(torch());
+      expect(stored).toEqual({
+        id: productId,
+        name: 'Welding torch',
+        price: { amount: 1250, currency: 'EUR' },
+        discount: null,
+      });
+      const loaded = mapper.fromPrimitives(stored);
+      expect(loaded.price).toBeInstanceOf(Money);
+      expect(loaded.price.equals(torch().price)).toBe(true);
+    });
+
+    it('goes through the in-memory repository like any other value object', async () => {
+      const products = new InMemoryRepository(AggregateMapper.of(Product));
+      const product = torch();
+      await products.save(product);
+      product.reprice(Money.fromPrimitives({ amount: 990, currency: 'EUR' }));
+      await products.save(product);
+      const loaded = await products.findById(new ProductId(productId));
+      expect(loaded?.price.toPrimitives()).toEqual({ amount: 990, currency: 'EUR' });
+    });
+
+    it('refuses toPrimitives() that returns the composite instead of its primitives', () => {
+      class Voucher extends AggregateRoot<ProductId> {
+        constructor(
+          id: ProductId,
+          readonly value: Money,
+        ) {
+          super(id);
+        }
+
+        static fromPrimitives(primitives: PrimitiveTypes<Voucher>): Voucher {
+          return new Voucher(new ProductId(primitives.id), Money.fromPrimitives(primitives.value));
+        }
+
+        toPrimitives(): PrimitiveTypes<Voucher> {
+          return { id: this.id.value, value: this.value as never };
+        }
+      }
+      const voucher = new Voucher(new ProductId(productId), torch().price);
+      expect(() => AggregateMapper.of(Voucher).toPrimitives(voucher)).toThrow(
+        'Failed, internal error: Voucher.toPrimitives() returns a value object at primitives.value.amount; return its value',
+      );
     });
   });
 });

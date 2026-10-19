@@ -74,19 +74,21 @@ library built on this package): the exceptions of one build are `instanceof` the
 Every class of a project built on this package goes in exactly one layer. The table says where,
 what it may import and what it must never do; the package itself is organized the same way.
 
-| Class                                      | Layer          | Responsibility                                                                     | May depend on                                              | Never                                                                        |
-| ------------------------------------------ | -------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| Value object (`extends StringType`…)       | domain         | One concept of the business; converts and validates its own value                  | other value objects, `@archi-code/validation`, exceptions  | mutate, know about storage or transport                                      |
-| Aggregate (`extends AggregateRoot`)        | domain         | Business rules and invariants; records an event for every fact                     | its value objects, child entities, events, domain services | read a repository, publish events, use `new Date()`                          |
-| Child entity                               | domain         | A part of an aggregate with its own id (an order line)                             | value objects                                              | be loaded or saved on its own                                                |
-| Domain event (`extends EventBase`)         | domain         | A fact that happened, named in the past (`OrderPlaced`), with `static eventName`   | value objects (to validate its data)                       | carry behavior, reference infrastructure                                     |
-| Repository contract (`AggregateFinder`…)   | domain         | What the domain needs to load, save or delete an aggregate, one role per interface | the aggregate                                              | be implemented in the domain, become an all-in-one `Repository`              |
-| Domain service                             | domain         | A business rule that spans several aggregates or fits none                         | aggregates, value objects, repository contracts            | I/O, transactions, publishing events                                         |
-| Use case (`extends UseCase`)               | application    | One business action: input → command of value objects → change one aggregate       | domain, application ports, exceptions                      | import another use case or a listener, persist or call the network by itself |
-| Listener (`extends EventListener`)         | application    | What happens after an event: turns it into the input of one use case               | one use case (by constructor), the event                   | hold business rules, save aggregates, call several use cases                 |
-| Port (`EventBus`, `Clock`)                 | application    | A technical capability the application needs, as a type                            | domain types                                               | contain code                                                                 |
-| Adapter (repository, bus, mapper, clock…)  | infrastructure | Implements a contract with a database, a queue, a broker, HTTP or memory           | domain, application, exceptions, drivers                   | contain business rules                                                       |
-| Wiring (controllers, workers, composition) | infrastructure | Builds adapters, use cases and listeners and calls `execute`                       | everything                                                 | be imported by the domain or the application                                 |
+| Class                                       | Layer          | Responsibility                                                                     | May depend on                                              | Never                                                                        |
+| ------------------------------------------- | -------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Value object (`extends StringType`…)        | domain         | One concept of the business; converts and validates its own value                  | other value objects, `@archi-code/validation`, exceptions  | mutate, know about storage or transport                                      |
+| Aggregate (`extends AggregateRoot`)         | domain         | Business rules and invariants; records an event for every fact                     | its value objects, child entities, events, domain services | read a repository, publish events, use `new Date()`                          |
+| Composite value object (`Composite({...})`) | domain         | Several values that only make sense together (money, a date range, an order line)  | value objects, other composites                            | change, hold an id, be loaded or saved on its own                            |
+| Child entity                                | domain         | A part of an aggregate with its own id and lifecycle                               | value objects                                              | be loaded or saved on its own                                                |
+| Specification (`extends Specification`)     | domain         | A named business rule that validates, selects or builds; combinable                | value objects, aggregates, data already loaded             | read a repository, protect an aggregate invariant                            |
+| Domain event (`extends EventBase`)          | domain         | A fact that happened, named in the past (`OrderPlaced`), with `static eventName`   | value objects (to validate its data)                       | carry behavior, reference infrastructure                                     |
+| Repository contract (`AggregateFinder`…)    | domain         | What the domain needs to load, save or delete an aggregate, one role per interface | the aggregate                                              | be implemented in the domain, become an all-in-one `Repository`              |
+| Domain service                              | domain         | A business rule that spans several aggregates or fits none                         | aggregates, value objects, repository contracts            | I/O, transactions, publishing events                                         |
+| Use case (`extends UseCase`)                | application    | One business action: input → command of value objects → change one aggregate       | domain, application ports, exceptions                      | import another use case or a listener, persist or call the network by itself |
+| Listener (`extends EventListener`)          | application    | What happens after an event: turns it into the input of one use case               | one use case (by constructor), the event                   | hold business rules, save aggregates, call several use cases                 |
+| Port (`EventBus`, `Clock`)                  | application    | A technical capability the application needs, as a type                            | domain types                                               | contain code                                                                 |
+| Adapter (repository, bus, mapper, clock…)   | infrastructure | Implements a contract with a database, a queue, a broker, HTTP or memory           | domain, application, exceptions, drivers                   | contain business rules                                                       |
+| Wiring (controllers, workers, composition)  | infrastructure | Builds adapters, use cases and listeners and calls `execute`                       | everything                                                 | be imported by the domain or the application                                 |
 
 Dependencies only point inwards: `domain` imports only `exceptions` (the shared module every layer
 throws from), `application` imports `domain` and `exceptions`, and `infrastructure` imports all of
@@ -520,6 +522,133 @@ class Discount extends Required(Percentage) {}
 
 To restrict an existing type, it is enough to extend it and declare `@Validations`, like `Email`.
 
+### Composite value objects: `Composite({...})`
+
+A concept made of several values that only make sense together (an amount and its currency, a
+date range, an address, an order line) is one value object, not loose fields of an aggregate nor a
+child entity [IDDD ch. 6]. `Composite(schema)` builds its base class from a schema that names the
+class of each field:
+
+| Field in the schema  | Holds                      | Primitive            |
+| -------------------- | -------------------------- | -------------------- |
+| A value object class | An instance of that class  | Its value            |
+| A composite class    | An instance of that class  | Its primitives       |
+| `[ItemClass]`        | A frozen list of instances | A list of primitives |
+
+```ts
+import { Validations } from '@archi-code/validation';
+import { Composite, DateType, NumberType, Required, StringType } from '@archi-code/ddd/domain';
+
+class Cents extends Required(NumberType) {}
+
+@Validations([{ validator: 'isIn', properties: { values: ['EUR', 'USD'] } }])
+class Currency extends Required(StringType) {}
+
+class Money extends Composite({ amount: Cents, currency: Currency }) {
+  add(other: Money): Money {
+    return new Money({
+      amount: new Cents(this.amount.value + other.amount.value),
+      currency: this.currency,
+    });
+  }
+}
+
+const price = new Money({ amount: new Cents(1250), currency: new Currency('EUR') });
+price.amount; // Cents (read-only)
+price.add(price).toPrimitives(); // { amount: 2500, currency: 'EUR' }
+price.equals(Money.fromPrimitives({ amount: 1250, currency: 'EUR' })); // true
+JSON.stringify(price); // '{"amount":1250,"currency":"EUR"}'
+```
+
+- **The constructor** takes value objects only. A missing field throws `RequiredValueException`
+  (`Money.currency is required`) and an instance of another class `TypePrimitiveException`, even
+  when TypeScript accepts it because both classes have the same shape.
+- **Rules over several fields** are `@Validations` `custom` rules on the composite class. They run
+  in the constructor, once every field is valid, and `fn` receives the built composite. A broken
+  rule throws `ValidationException` (`field: null`), like any value object:
+
+  ```ts
+  class StartDate extends Required(DateType) {}
+  class EndDate extends Required(DateType) {}
+
+  @Validations([
+    {
+      custom: 'endsAfterItStarts',
+      fn: (range) => (range as Promotion).end.value >= (range as Promotion).start.value,
+      message: 'A promotion cannot end before it starts',
+    },
+  ])
+  class Promotion extends Composite({ start: StartDate, end: EndDate }) {}
+
+  Promotion.fromPrimitives({ start: '2026-06-20', end: '2026-03-20' } as any);
+  // ValidationException: Validation failed, Promotion: A promotion cannot end before it starts
+  ```
+
+- **It never changes**: the instance and its lists are frozen and its fields are read-only, so
+  behavior returns a new instance. Do not add instance fields to the subclass.
+- **`X.fromPrimitives(data)`** rebuilds it from stored or received data, converting each primitive
+  like the value objects do, and reports every invalid field with its path, also nested ones. It
+  works inside `ValueObjects.build`, so a command reports `price.amount`:
+
+  ```ts
+  class Sku extends Required(StringType) {}
+  class Units extends Required(NumberType) {}
+  class OrderLine extends Composite({ sku: Sku, units: Units, unitPrice: Money }) {}
+  class Cart extends Composite({ lines: [OrderLine] }) {}
+
+  Cart.fromPrimitives({
+    lines: [{ sku: '', units: 'two', unitPrice: { amount: 1250, currency: 'GBP' } }],
+  } as any);
+  // ValidationException, error.errors:
+  // [
+  //   { field: 'lines.0.sku', message: 'Validation Error: Sku is required, but received "".' },
+  //   { field: 'lines.0.units', message: 'Validation Error: Expected a valid Number, but received "two".' },
+  //   { field: 'lines.0.unitPrice.currency', message: 'Currency: Value does not satisfy isIn' },
+  // ]
+  ```
+
+- **`equals(other)`** compares the class and every field (dates by instant, lists in order):
+  a `Price` and a `Money` with the same fields are different. **`toPrimitives()`** gives plain data
+  for repositories (dates stay `Date`); `JSON.stringify` writes ISO dates.
+- **In an aggregate**, a composite is a field like any value object: `AggregateMapper` accepts it,
+  `PrimitiveTypes<Order>` types it as its primitives, and an optional one is a `Money | null`
+  field. Write `this.price.toPrimitives()` in `toPrimitives()` and `Money.fromPrimitives(...)` in
+  `fromPrimitives`. Fields inside a composite are always present.
+
+## Specifications
+
+A business rule with a name ("eligible for express shipping", "customer in arrears") that is used in
+several places or combined with others is a `Specification<T>` [IDDD ch. 5]: it validates,
+selects or builds, and combines with `and`, `or` and `not` (each returns a `Specification<T>`, so
+they keep combining; `and`/`or` stop at the first answer that decides).
+
+```ts
+import { Specification } from '@archi-code/ddd/domain';
+
+class ShipsToThePeninsula extends Specification<Order> {
+  isSatisfiedBy(order: Order): boolean {
+    return order.destination.zone.value === 'PENINSULA';
+  }
+}
+
+class InCentralStock extends Specification<Order> {
+  constructor(private readonly stock: StockSnapshot) {
+    super();
+  }
+
+  isSatisfiedBy(order: Order): boolean {
+    return order.lines.every((line) => this.stock.covers(line.sku, line.units));
+  }
+}
+
+const expressShipping = new ShipsToThePeninsula().and(new InCentralStock(stock));
+expressShipping.isSatisfiedBy(order); // validate
+orders.filter((order) => expressShipping.isSatisfiedBy(order)); // select
+```
+
+A specification receives the data it needs already loaded (a snapshot of the stock), never a
+repository. It does not protect the invariants of an aggregate: those stay in the aggregate.
+
 ## Aggregates and domain events
 
 - `AggregateRoot<Id = IdType, Event = EventBase>`: abstract class for aggregates. `new (id)` stores
@@ -533,9 +662,10 @@ To restrict an existing type, it is enough to extend it and declare `@Validation
   calling `super(id)`, and the version is neither a field, nor in its primitives, nor in its JSON.
   Only repositories touch it, with `restoreVersion(version)` when they load and `markPersisted()`
   after they save.
-- Child entities of an aggregate (the lines of an order) are plain classes with a value object id:
-  the aggregate root is the only one with a base class, and the only one repositories load and
-  save.
+- Parts of an aggregate are composite value objects when nobody looks them up by an id of their
+  own (the lines of an order). A child entity (a part with its own id and lifecycle inside the
+  aggregate) is a plain class with a value object id: the aggregate root is the only one with a
+  base class, and the only one repositories load and save.
 - `EventBase`: abstract class for events; declare `static readonly eventName = '<context>.<fact>'`
   (listeners and registries refer to the event by its class, without an instance; `eventName()`
   returns it, and a subclass inherits it). Creating an event whose class has no non-blank
@@ -955,6 +1085,7 @@ checks the rest at runtime on every `toPrimitives`, throwing `InternalErrorExcep
 import {
   AggregateRoot,
   BooleanType,
+  Composite,
   CreatedAt,
   IdType,
   NumberType,
@@ -970,13 +1101,7 @@ class Shipped extends Required(BooleanType) {}
 class Sku extends Required(StringType) {}
 class Units extends Required(NumberType) {}
 
-class OrderLine {
-  constructor(
-    readonly id: IdType,
-    readonly sku: Sku,
-    readonly units: Units,
-  ) {}
-}
+class OrderLine extends Composite({ sku: Sku, units: Units }) {}
 
 class Order extends AggregateRoot<OrderId> {
   private constructor(
@@ -994,9 +1119,7 @@ class Order extends AggregateRoot<OrderId> {
       new OrderId(primitives.id),
       new CustomerName(primitives.customer),
       new Shipped(primitives.shipped),
-      primitives.lines.map(
-        (line) => new OrderLine(new IdType(line.id), new Sku(line.sku), new Units(line.units)),
-      ),
+      primitives.lines.map((line) => OrderLine.fromPrimitives(line)),
       new CreatedAt(primitives.placedAt),
     );
   }
@@ -1022,11 +1145,7 @@ class Order extends AggregateRoot<OrderId> {
       id: this.id.value,
       customer: this.customer.value,
       shipped: this.shipped.value,
-      lines: this._lines.map((line) => ({
-        id: line.id.value,
-        sku: line.sku.value,
-        units: line.units.value,
-      })),
+      lines: this._lines.map((line) => line.toPrimitives()),
       placedAt: this.placedAt.value,
     };
   }
@@ -1373,19 +1492,21 @@ await new RegisterUser(users, bus, clock)
 
 `@archi-code/ddd/domain`:
 
-| Export                                                                                     | Kind               |
-| ------------------------------------------------------------------------------------------ | ------------------ |
-| `AbstractType`                                                                             | abstract class     |
-| `StringType`, `NumberType`, `BooleanType`, `DateType`, `UuidType`, `JsonType`              | classes            |
-| `EnumType`, `ArrayType`                                                                    | abstract classes   |
-| `CreatedAt`, `UpdatedAt`, `IdType`                                                         | classes (required) |
-| `Required`                                                                                 | function           |
-| `ValueObjects` (`build`, `buildList`)                                                      | class              |
-| `AggregateRoot`, `EventBase`                                                               | abstract classes   |
-| `AggregateFinder`, `AggregateSaver`, `AggregateRemover`                                    | types (contracts)  |
-| `RequiredType`, `JsonTypeValue`, `PrimitiveType`, `PrimitiveTypes`, `DataTypes`            | types              |
-| `EventMetadata`, `SerializedEvent`, `EventClass`                                           | types              |
-| `Properties`, `PropertiesData`, `MutablePropertiesData`, `Methods`, `MethodsAndProperties` | types              |
+| Export                                                                                        | Kind               |
+| --------------------------------------------------------------------------------------------- | ------------------ |
+| `AbstractType`                                                                                | abstract class     |
+| `StringType`, `NumberType`, `BooleanType`, `DateType`, `UuidType`, `JsonType`                 | classes            |
+| `EnumType`, `ArrayType`                                                                       | abstract classes   |
+| `CreatedAt`, `UpdatedAt`, `IdType`                                                            | classes (required) |
+| `Required`, `Composite`                                                                       | functions          |
+| `Specification`                                                                               | abstract class     |
+| `CompositeSchema`, `CompositeProps`, `CompositePrimitives`, `CompositeType`, `CompositeValue` | types              |
+| `ValueObjects` (`build`, `buildList`)                                                         | class              |
+| `AggregateRoot`, `EventBase`                                                                  | abstract classes   |
+| `AggregateFinder`, `AggregateSaver`, `AggregateRemover`                                       | types (contracts)  |
+| `RequiredType`, `JsonTypeValue`, `PrimitiveType`, `PrimitiveTypes`, `DataTypes`               | types              |
+| `EventMetadata`, `SerializedEvent`, `EventClass`                                              | types              |
+| `Properties`, `PropertiesData`, `MutablePropertiesData`, `Methods`, `MethodsAndProperties`    | types              |
 
 `@archi-code/ddd/application`:
 
