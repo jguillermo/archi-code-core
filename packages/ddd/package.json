@@ -86,7 +86,8 @@
   },
   "files": [
     "dist/",
-    "SKILL.md"
+    "SKILL.md",
+    "ddd-skills/"
   ],
   "scripts": {
     "prebuild": "rm -rf dist || true",

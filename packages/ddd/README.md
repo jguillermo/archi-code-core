@@ -1820,9 +1820,15 @@ await new RegisterUser(users, bus, clock)
 ## AI assistant skill
 
 The package includes `SKILL.md`, a Claude Code skill with the rules, patterns and common mistakes of
-`@archi-code/ddd`. For the full API it points to this README inside
-`node_modules/@archi-code/ddd`, so it stays valid when you update the package. To install it in
-your project:
+`@archi-code/ddd`, and `ddd-skills/`, a suite of Domain-Driven Design skills (discovery and Event
+Storming, subdomains and bounded contexts, context mapping, architecture, value objects and
+entities, aggregates, events, repositories, application services, event sourcing and CQRS, audits;
+written in Spanish, each rule with its source in Vernon's books and _DDD in PHP_). `SKILL.md` is
+the only skill you install and the only one you call: it classifies each request, reads the
+matching skill of the suite from `node_modules/@archi-code/ddd/ddd-skills/`, and turns the
+suite's examples into code that uses this package. For the full API it points to this README
+inside `node_modules/@archi-code/ddd`, so both stay valid when you update the package. Do not
+copy `ddd-skills/` into `.claude/skills/`. To install it in your project:
 
 ```bash
 mkdir -p .claude/skills/archi-code-ddd && cp node_modules/@archi-code/ddd/SKILL.md .claude/skills/archi-code-ddd/SKILL.md
@@ -1841,6 +1847,12 @@ description:
 
 ```text
 Add a ChangeEmail use case that loads the User, records an EmailChanged event and saves it
+```
+
+Design questions go through the same skill, which reads the right part of the suite first:
+
+```text
+/archi-code-ddd we sell welding courses and simulators: which bounded contexts should we have?
 ```
 
 It also works for reviewing code that already uses the package:

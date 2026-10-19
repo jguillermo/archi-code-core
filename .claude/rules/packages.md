@@ -151,6 +151,11 @@ people (and the AI assistants) that consume the package:
 Only when the package needs them, and documented in its README:
 
 - Extra `compilerOptions` in `tsconfig.json` (e.g. `lib`).
+- A bundled skill suite (only `ddd` today: `ddd-skills/`): a folder of extra skills listed in
+  `files` and read only through the package's `SKILL.md`, which routes to each of them (consumers
+  install only `SKILL.md`); `test/cross/skill-suite.spec.ts` checks that it is packed, that
+  `SKILL.md` routes to every skill of the suite and that their references exist. It is kept as
+  written (excluded from Prettier, ESLint and EditorConfig, see `.claude/rules/tooling.md`).
 - Extra folders (`benchmark/`, `docs/`): their own tsconfig type-checked in `check:types` and one
   script to run them (e.g. `benchmark`); the root lint and format already cover them. Generated
   output goes in the root ignore lists (`eslint.config.js`, `.prettierignore`,

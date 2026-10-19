@@ -1,6 +1,6 @@
 ---
 name: archi-code-ddd
-description: Rules, patterns and common mistakes for writing TypeScript code with @archi-code/ddd (archi-code DDD by layer - where each class goes and what it may import; domain value objects, Required(...), ValueObjects.build, Composite value objects, Specification, Entity, AggregateRoot with identity and events, EventBase, repository contracts and exceptions; application UseCase with toCommand/handle, EventListener with @ListensTo and the ports EventBus/Clock/TransactionRunner; infrastructure InMemoryRepository, InMemoryTransactionRunner, InMemoryOutbox, OutboxRelay, InMemoryInbox, PublishedLanguage, EventDispatcher, InMemoryEventBus, DomainEventRegistry, HttpErrorMapper and clocks). Use it when creating or changing value objects, entities, aggregates, events, domain services, use cases, listeners, repositories or adapters, deciding in which layer a class goes, mapping errors to HTTP, or whenever the code imports @archi-code/ddd.
+description: The single entry point for Domain-Driven Design with @archi-code/ddd - it routes design questions to the DDD skill suite shipped in the package (discovery and Event Storming, subdomains and bounded contexts, context mapping, architecture, value objects and entities, aggregates, domain events, repositories, application services, event sourcing and CQRS, audits) and gives the rules, patterns and common mistakes for writing TypeScript code with @archi-code/ddd (archi-code DDD by layer - where each class goes and what it may import; domain value objects, Required(...), ValueObjects.build, Composite value objects, Specification, Entity, AggregateRoot with identity and events, EventBase, repository contracts and exceptions; application UseCase with toCommand/handle, EventListener with @ListensTo and the ports EventBus/Clock/TransactionRunner; infrastructure InMemoryRepository, InMemoryTransactionRunner, InMemoryOutbox, OutboxRelay, InMemoryInbox, PublishedLanguage, EventDispatcher, InMemoryEventBus, DomainEventRegistry, HttpErrorMapper and clocks). Use it whenever someone applies DDD, designs or reviews a domain model, splits a system into contexts or services, creates or changes value objects, entities, aggregates, events, domain services, use cases, listeners, repositories or adapters, decides in which layer a class goes, maps errors to HTTP, or whenever the code imports @archi-code/ddd.
 ---
 
 # archi-code-ddd
@@ -25,6 +25,50 @@ If that path does not exist (monorepo with workspaces, pnpm…), locate the pack
 folder.
 
 ## Related skills
+
+This is the **only skill to load** for Domain-Driven Design with this package. It brings a suite
+of DDD skills (in Spanish, with the source of each rule: Vernon's _Implementing Domain-Driven
+Design_ and _Domain-Driven Design Distilled_, and _DDD in PHP_) inside the package, in
+`ddd-skills/`; never copy the suite into `.claude/skills/`: read it from the package when this
+skill says so. Locate it as the README: `node_modules/@archi-code/ddd/ddd-skills/`, or the
+`ddd-skills/` folder next to the `package.json` that
+`node -p "require.resolve('@archi-code/ddd/package.json')"` prints (in this monorepo,
+`packages/ddd/ddd-skills/`).
+
+How to use it, for every design question or task:
+
+1. **Classify the request** (as `ddd-skills/ddd-orquestador/SKILL.md` does): strategic (split the
+   system, contexts, integration), architecture (folders, layers, where a file goes), tactical
+   (classes, aggregates, events, repositories, use cases) or mixed. If it is unclear, read that
+   orchestrator first; its `references/chuleta-reglas.md` has every essential rule with its source.
+2. **Read the `SKILL.md` of the matching suite skill** before answering, and the `references/` it
+   points to for the case at hand:
+
+   | Situation                                                              | Read `ddd-skills/…/SKILL.md`       |
+   | ---------------------------------------------------------------------- | ---------------------------------- |
+   | Unclear request, "where do I start", the essential rules               | `ddd-orquestador`                  |
+   | Understand a business, Event Storming, glossary, scenarios             | `ddd-descubrimiento-dominio`       |
+   | What is core, how many contexts or services, where the boundaries go   | `ddd-subdominios-bounded-contexts` |
+   | How contexts and external systems relate and integrate, ACL            | `ddd-context-mapping`              |
+   | Folder structure, layers, dependencies, modules, composition root      | `ddd-arquitectura`                 |
+   | Value object or entity, ids, primitives, validation, Specification     | `ddd-value-objects-entidades`      |
+   | What goes together, invariants, transactions, concurrency, factories   | `ddd-agregados`                    |
+   | Events, messaging, outbox, idempotence, versions                       | `ddd-eventos-dominio`              |
+   | Loading and saving aggregates, mappers, transactions, repository tests | `ddd-repositorios-persistencia`    |
+   | Domain services, use cases, where the logic goes, authorization        | `ddd-servicios-capa-aplicacion`    |
+   | Full history, read models, CQRS                                        | `ddd-event-sourcing-cqrs`          |
+   | Review or migrate existing code                                        | `ddd-auditoria-refactorizacion`    |
+
+   A new project follows the orchestrator's sequence (discovery → subdomains → context map →
+   architecture → aggregates and value objects → events → repositories → use cases).
+
+3. **Design with the suite, write the code with this package.** The suite's examples are plain
+   TypeScript; translate every one of them with the table in
+   [From the DDD suite to this package](#from-the-ddd-suite-to-this-package). Where a suite rule is
+   marked `[Fuera de los libros: convención de @archi-code/ddd]`, or where it disagrees with the
+   rules below, this skill wins.
+4. Keep the suite's conventions in your answers: say which rule comes from which book, present what
+   no domain expert validated as an assumption, and answer in the person's language.
 
 If they are installed in the project, use them together with this one:
 
@@ -123,6 +167,34 @@ const { Required, StringType } = require('@archi-code/ddd/domain');
 - Names: use cases are business verbs (`PlaceOrder`), events are facts in the past
   (`OrderPlaced`), listeners are `<Action>On<Event>` (`ReserveStockOnOrderPlaced`, where
   `<Action>` is the use case it runs).
+
+### From the DDD suite to this package
+
+| The suite writes                                                              | With `@archi-code/ddd`                                                                                                             |
+| ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `ValueObject<{ value }>` with `static of()` and `props`                       | `class Email extends Required(StringType) {}` + `@Validations`; built with `new`, valid by construction                            |
+| `ValueObject<{ a; b }>` (`Money`, `DateRange`, `OrderLine`)                   | `class Money extends Composite({ amount: Cents, currency: Currency }) {}`; rules with `@Validations` custom                        |
+| `Money` in `bigint` minor units                                               | `Composite` with an integer `Cents extends Required(NumberType)` (`isInt`); explicit rounding in methods                           |
+| A state as a value object with static instances (`OrderStatus.Pending`)       | `class OrderStatus extends Required(StatusType)` where `StatusType extends EnumType<Status>`, with methods                         |
+| `OrderId.of('ord-…')`, branded string ids, `repository.nextId()`              | `class OrderId extends IdType {}` (UUID); a new one with `OrderId.generate()`                                                      |
+| `Entity<Id>` with `equals` by id                                              | `Entity<Id>` from `/domain`; a child entity holds only its id and value objects, no logic                                          |
+| `AggregateRoot(id, version)`, `markPersisted()`, `pullEvents()`               | `AggregateRoot<Id, Event>` with `super(id)`; `version` and `markPersisted()` are automatic for repositories; `pullDomainEvents()`  |
+| `static reconstitute(snapshot)`, `toSnapshot()`, `OrderMapper.toRow/toDomain` | `static fromPrimitives(PrimitiveTypes<X>)`, `toPrimitives()`, and `AggregateMapper.of(X)` in the repository                        |
+| `DomainEvent { type, eventId, occurredOn, version }`                          | `class OrderPlaced extends EventBase` with `static readonly eventName` and optional `eventVersion`; `super(aggregateId, metadata)` |
+| `OrderRepository { byId, save, nextId, pendingOlderThan }`                    | `AggregateFinder<X>` / `AggregateSaver<X>` / `AggregateRemover<X>` only; selections are read queries                               |
+| `ConcurrencyConflict`                                                         | `ConcurrencyException(mapper.aggregateName, id, aggregate.version)`                                                                |
+| `DomainError` with a `code`, `OrderNotFound`, `NotAllowed`                    | `DomainException(message, ['ORD001'])`, `AggregateNotFoundException`, `NotAllowedException`                                        |
+| `ValidationNotificationHandler` collecting errors                             | `ValueObjects.build({...})` (every field) and `ValidationException.errors` (`{ field, message }`)                                  |
+| `CompositeSpecification<T>` with `and`/`or`/`not`                             | `Specification<T>` from `/domain`                                                                                                  |
+| An application service `execute(cmd)` that loads, invokes and saves           | `UseCase<Input, Command, Output>`: `toCommand` with `ValueObjects.build`, `handle` inside `transactions.run`                       |
+| A policy `when(event)` (`RegisterReservationOnOrder`)                         | `@ListensTo(StockReserved) class RegisterReservationOnStockReserved extends EventListener` + one use case                          |
+| `TransactionRunner` + `AsyncLocalStorage` (`PgTransactionRunner`)             | the `TransactionRunner` port; your adapter implements it; tests use `InMemoryTransactionRunner([...])`                             |
+| `stored_events` outbox + `StoredEventForwarder`                               | `EventBus.publish` inside the transaction (your outbox, `InMemoryOutbox` in tests) + `OutboxRelay`                                 |
+| `InboxGuard.once(messageId, work)`                                            | `new EventDispatcher(listeners, { inbox, transactions })` with an `InboxStore` (`InMemoryInbox`)                                   |
+| `PublishedLanguageMapper.toPublished(row)`                                    | `PublishedLanguage.expose(Event, { name, version, data })` and `translate(json)` in the relay                                      |
+| `Clock` injected in the aggregate                                             | `clock: { now(): Date }` in domain methods; the `Clock` port and `FixedClock` in application and tests                             |
+| Controller mapping errors to 404/403/409/422                                  | `HttpErrorMapper` (same table), in `interfaces/`                                                                                   |
+| `PgEventStore`, `Payment.fromHistory` (Event Sourcing)                        | not provided: only when the suite's decision table says so, built in your infrastructure                                           |
 
 ### Domain, application and infrastructure
 
