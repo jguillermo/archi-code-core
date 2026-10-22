@@ -47,11 +47,11 @@ module.exports = {
     {
       name: 'interfaces-no-saltan-a-infraestructura',
       comment:
-        'Los puntos de entrada llaman a casos de uso; no importan repositorios ni adaptadores. ' +
-        'Pueden importar HttpErrorMapper de @archi-code/ddd/infrastructure.',
+        'Los puntos de entrada llaman a casos de uso; no importan repositorios, adaptadores ni ' +
+        '@archi-code/ddd/infrastructure. Traducen los errores con ExceptionClassifier de @archi-code/ddd/exceptions.',
       severity: 'error',
       from: { path: CTX + 'interfaces/' },
-      to: { path: CTX + 'infrastructure/' },
+      to: { path: [CTX + 'infrastructure/', ARCHI_LAYER('infrastructure')] },
     },
     {
       name: 'nadie-importa-composition',

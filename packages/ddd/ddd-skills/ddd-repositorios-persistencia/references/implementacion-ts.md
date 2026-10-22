@@ -131,7 +131,7 @@ export class MongoOrderRepository
 
 * Alta (`version === 0`): `insertOne`; un `_id` ya ocupado (error 11000) es `ConcurrencyException` con el error del driver como `cause`.
 * Cambio: `replaceOne` con la condición `{ _id, version: order.version }`; si no casa ningún documento, otro guardó antes.
-* Un conflicto es `ConcurrencyException`: el caso de uso puede reintentar volviendo a cargar y a guardar, y `HttpErrorMapper` responde 409, no 500.
+* Un conflicto es `ConcurrencyException`: el caso de uso puede reintentar volviendo a cargar y a guardar, y `ExceptionClassifier` lo clasifica como `ExceptionKind.Conflict` (409 en HTTP), no como error interno.
 * Borrado: `deleteOne` con la misma condición. Un agregado que nunca se guardó (versión 0) no tiene nada que borrar, salvo que su id ya esté ocupado: entonces es un conflicto, igual que en el `InMemoryOrderRepository` de los tests (`ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`).
 * Cualquier otro error del driver al escribir es `InternalErrorException` con el error como `cause`.
 * Cuidado con la serialización: IDDD advierte de que en estos almacenes hay que cuidar el formato serializado, que no es gratis [IDDD cap. 12]. Los primitivos son datos planos y `Date`, que el driver guarda tal cual.

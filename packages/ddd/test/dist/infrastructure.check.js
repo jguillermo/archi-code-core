@@ -5,7 +5,6 @@ const path = require('path');
 const application = require(path.resolve(__dirname, '../../dist/cjs/application/index.js'));
 const domain = require(path.resolve(__dirname, '../../dist/cjs/domain/index.js'));
 const exceptions = require(path.resolve(__dirname, '../../dist/cjs/exceptions/index.js'));
-const esmExceptionsUrl = path.resolve(__dirname, '../../dist/esm/exceptions/index.js');
 
 const ORDER_ID = '9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c';
 const OTHER_ORDER_ID = '3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f';
@@ -248,8 +247,6 @@ function smoke(m) {
         );
         await bus.subscribe(new ReserveStockOnOrderPlaced());
         await bus.publish([new OrderPlaced(ORDER_ID, 'Ana')]).catch(() => undefined);
-        const mapper = new m.HttpErrorMapper({ logger: memory });
-        mapper.map(new Error('disk full'));
         new m.SilentLogger().error('ignored');
         const levels = memory.entries.map((entry) => `${entry.level}:${entry.message}`);
         return (
@@ -257,54 +254,24 @@ function smoke(m) {
             written[0].level === 'warn' &&
             written[0].time === '2026-10-19T09:30:00.000Z' &&
             written[0].context.at === '2026-10-19T09:30:00.000Z' &&
-            levels.join() ===
-              'info:event_listener_subscribed,error:event_listener_failed,error:http_request_failed') ||
+            levels.join() === 'info:event_listener_subscribed,error:event_listener_failed') ||
           `unexpected logging: ${JSON.stringify(written)} ${levels.join()}`
         );
       },
     ],
     [
-      'errors map to HTTP without leaking internals, and clocks are injectable',
+      'clocks are injectable',
       () => {
-        const mapper = new m.HttpErrorMapper();
-        const notFound = mapper.map(new exceptions.AggregateNotFoundException('Order', ORDER_ID));
-        const internal = mapper.map(new exceptions.InternalErrorException('password=secret'));
-        const forbidden = mapper.map(new exceptions.NotAllowedException('cus-luis cannot cancel'));
-        const rule = mapper.map(
-          new exceptions.DomainException('Order already shipped', ['ORD001']),
-        );
         const clock = new m.FixedClock('2026-01-01T00:00:00Z');
         clock.advance(1000);
         return (
-          (notFound.status === 404 &&
-            forbidden.status === 403 &&
-            rule.status === 422 &&
-            internal.status === 500 &&
-            internal.body.message === 'Internal server error' &&
-            clock.now().toISOString() === '2026-01-01T00:00:01.000Z' &&
+          (clock.now().toISOString() === '2026-01-01T00:00:01.000Z' &&
             new m.SystemClock().now() instanceof Date) ||
-          'unexpected mapping or clock'
+          'unexpected clock'
         );
       },
     ],
   ];
 }
 
-function crossBuild(cjs) {
-  return [
-    [
-      'the CJS mapper maps exceptions thrown by the ESM exceptions',
-      async () => {
-        const esmExceptions = await import(esmExceptionsUrl);
-        const mapped = new cjs.HttpErrorMapper().map(
-          new esmExceptions.ValidationException([
-            { field: 'email', message: 'Email: Value does not satisfy isEmail' },
-          ]),
-        );
-        return mapped.status === 422 || `unexpected status ${mapped.status}`;
-      },
-    ],
-  ];
-}
-
-module.exports = { smoke, crossBuild };
+module.exports = { smoke };

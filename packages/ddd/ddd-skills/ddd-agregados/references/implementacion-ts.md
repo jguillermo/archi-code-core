@@ -483,7 +483,7 @@ Cómo encaja con las reglas:
 
 * Los métodos que reaccionan a hechos son **idempotentes** y **no lanzan errores de negocio**.
 * Si el hecho no encaja con las reglas, el agregado registra un evento con nombre del negocio (`PaymentAuthorizationInsufficient`) y otra política decide la compensación (anular la autorización, avisar al cliente). Así el problema queda visible en el modelo en vez de perdido en una cola de errores.
-* Los errores de negocio con excepción (`DomainException` con su código) quedan para comandos de usuario (`cancel`, `addLine`), donde alguien puede recibir la respuesta (`HttpErrorMapper` los traduce a 422 salvo que se le indique otro estado para su código).
+* Los errores de negocio con excepción (`DomainException` con su código) quedan para comandos de usuario (`cancel`, `addLine`), donde alguien puede recibir la respuesta (`ExceptionClassifier.classify(error)` los clasifica como `ExceptionKind.Invalid`, 422 en HTTP, y el punto de entrada puede dar otro estado a su código).
 
 Qué protege este agregado (sus invariantes, regla 1):
 * El total es siempre la suma de sus líneas (las líneas son un value object con su regla).
@@ -572,7 +572,7 @@ UPDATE orders
  WHERE id = $1 AND version = $4;
 ```
 
-Si la sentencia no afecta a ninguna fila, el repositorio lanza `new ConcurrencyException('Order', order.id.value, order.version)` (de `@archi-code/ddd/exceptions`, HTTP 409 con `HttpErrorMapper`; el nombre del agregado va como texto literal porque los minificadores renombran las clases); si escribe, llama a `order.markPersisted()`. En los tests lo cumple el `InMemoryOrderRepository` que el proyecto escribe en `test/support/`; el repositorio real y su suite de contrato están en `ddd-repositorios-persistencia`.
+Si la sentencia no afecta a ninguna fila, el repositorio lanza `new ConcurrencyException('Order', order.id.value, order.version)` (de `@archi-code/ddd/exceptions`; `ExceptionKind.Conflict`, 409 en HTTP; el nombre del agregado va como texto literal porque los minificadores renombran las clases); si escribe, llama a `order.markPersisted()`. En los tests lo cumple el `InMemoryOrderRepository` que el proyecto escribe en `test/support/`; el repositorio real y su suite de contrato están en `ddd-repositorios-persistencia`.
 
 Reintentar automáticamente solo es seguro si el comando es idempotente o se vuelve a evaluar contra el estado recargado: con el paquete, un bucle con límite en `handle` en el que cada intento vuelve a cargar el agregado y vuelve a guardarlo (unos pocos intentos y después se relanza); un caso de uso que ejecuta un listener no reintenta por su cuenta, lo hace la reentrega del canal `[Fuera de los libros: convención de @archi-code/ddd]`. Ejemplo en `ddd-skills/ddd-repositorios-persistencia/references/transacciones-ts.md`.
 

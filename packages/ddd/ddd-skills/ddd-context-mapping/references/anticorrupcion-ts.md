@@ -166,7 +166,7 @@ export class CatalogHttpProductPricing implements ProductPricing {
 Decisiones visibles:
 * Timeout explícito: la red falla y hay latencia [IDDD cap. 13].
 * Validación del contrato al entrar: si Catálogo rompe el esquema, el error se detecta en el borde y no dentro del modelo. Un valor inválido de Catálogo no llega al usuario como `ValidationException` de Ventas: el adaptador la envuelve en `CatalogContractViolation` con la original como `cause`.
-* Errores con nombre y código propios (`InfrastructureException` con `CAT001`, `CAT002`). El punto de entrada los traduce con `HttpErrorMapper`, que responde 500 por defecto a cualquier error de infraestructura; para avisar de que Catálogo no está disponible se configura por código: `new HttpErrorMapper({ statusByCode: { CAT001: 503 } })` (con 5xx el cuerpo lleva un mensaje genérico, nunca el del error).
+* Errores con nombre y código propios (`InfrastructureException` con `CAT001`, `CAT002`). `ExceptionClassifier.classify(error)` clasifica cualquier error de infraestructura como `ExceptionKind.Internal` (500 en HTTP); para avisar de que Catálogo no está disponible, el punto de entrada traduce su código (`CAT001` → 503) antes de mirar el tipo (con 5xx el cuerpo lleva un mensaje genérico, nunca el del error).
 
 ### 5. Uso desde la capa de aplicación
 
@@ -246,16 +246,16 @@ export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, stri
 }
 ```
 
-El precio se copia en la línea del pedido: Ventas guarda el estado remoto **mínimo** que necesita y deja de depender de Catálogo para ese pedido [IDDD cap. 3]. La consulta a Catálogo va antes de crear y guardar el pedido; como la transacción solo existe dentro del `save` del repositorio, nunca queda una abierta mientras se espera a la red `[Fuera de los libros: convención de @archi-code/ddd]`. `ProductNotSellable` es una `DomainException` de Ventas con código propio (`ORD003`), que `HttpErrorMapper` responde con 422.
+El precio se copia en la línea del pedido: Ventas guarda el estado remoto **mínimo** que necesita y deja de depender de Catálogo para ese pedido [IDDD cap. 3]. La consulta a Catálogo va antes de crear y guardar el pedido; como la transacción solo existe dentro del `save` del repositorio, nunca queda una abierta mientras se espera a la red `[Fuera de los libros: convención de @archi-code/ddd]`. `ProductNotSellable` es una `DomainException` de Ventas con código propio (`ORD003`), que `ExceptionClassifier` clasifica como `ExceptionKind.Invalid` (422 en HTTP).
 
 ## ACL con un webhook entrante
 
-Mismo patrón con un producto externo que llama a este contexto: el punto de entrada es el adaptador, la forma del mensaje es el contrato y la traducción produce la entrada de un caso de uso en el lenguaje local. Vive en `interfaces/` (como cualquier controlador) y solo conoce casos de uso y `HttpErrorMapper` [IDDD cap. 4]. El router ya ha comprobado la firma del emisor y la forma del cuerpo antes de llamarlo `[Fuera de los libros]`.
+Mismo patrón con un producto externo que llama a este contexto: el punto de entrada es el adaptador, la forma del mensaje es el contrato y la traducción produce la entrada de un caso de uso en el lenguaje local. Vive en `interfaces/` (como cualquier controlador) y solo conoce casos de uso y `@archi-code/ddd/exceptions` [IDDD cap. 4]. Traduce cada `ExceptionKind` a lo que entiende el emisor: lo que merece reintento (un conflicto, un error interno) responde 5xx para que la pasarela vuelva a enviarlo, y lo que no cambiaría al reintentar responde 4xx `[Fuera de los libros]`. El router ya ha comprobado la firma del emisor y la forma del cuerpo antes de llamarlo `[Fuera de los libros]`.
 
 ```ts
 // src/contexts/payments/interfaces/http/PaymentGatewayWebhook.ts
-import { HttpErrorMapper } from '@archi-code/ddd/infrastructure';
-import type { HttpErrorBody } from '@archi-code/ddd/infrastructure';
+import { ExceptionClassifier, ExceptionKind } from '@archi-code/ddd/exceptions';
+import type { Logger } from '@archi-code/ddd/application';
 import type { RecordPaymentAuthorization } from '../../application/record-payment-authorization/RecordPaymentAuthorization';
 import type { RecordPaymentRejection } from '../../application/record-payment-rejection/RecordPaymentRejection';
 
@@ -268,14 +268,26 @@ export interface GatewayEvent {
   metadata: { paymentId: string };
 }
 
+function statusOf(kind: ExceptionKind): number {
+  switch (kind) {
+    case ExceptionKind.Conflict:
+    case ExceptionKind.Internal:
+      return 503;
+    case ExceptionKind.NotFound:
+      return 404;
+    default:
+      return 422;
+  }
+}
+
 export class PaymentGatewayWebhook {
   constructor(
     private readonly recordAuthorization: RecordPaymentAuthorization,
     private readonly recordRejection: RecordPaymentRejection,
-    private readonly errors: HttpErrorMapper,
+    private readonly logger: Logger,
   ) {}
 
-  async receive(event: GatewayEvent): Promise<{ status: number; body?: HttpErrorBody }> {
+  async receive(event: GatewayEvent): Promise<{ status: number }> {
     try {
       switch (event.type) {
         case 'charge.authorized':
@@ -294,7 +306,11 @@ export class PaymentGatewayWebhook {
       }
       return { status: 204 };
     } catch (error) {
-      return this.errors.map(error);
+      const kind = ExceptionClassifier.classify(error);
+      if (kind === ExceptionKind.Internal) {
+        this.logger.error('payment_webhook_failed', { type: event.type, error });
+      }
+      return { status: statusOf(kind) };
     }
   }
 }

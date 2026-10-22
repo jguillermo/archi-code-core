@@ -104,7 +104,7 @@ export class EcbExchangeRates implements ExchangeRates {
 
 Un servicio de dominio es buen sitio para validar que varios agregados sean coherentes entre sí [IDDD cap. 5]. Recibe los agregados que el caso de uso ya cargó y comprueba. Si detecta un problema, informa (error o evento); no corrige varios agregados a la vez: cada agregado se guarda en su propia escritura atómica.
 
-Para informar de todos los problemas a la vez, reúne `ValidationIssue`s y lanza una sola `ValidationException` (HTTP 422 con `HttpErrorMapper`, cada problema con su `field` y su `code`); si basta con uno, lanza una `DomainException` con nombre y código propio:
+Para informar de todos los problemas a la vez, reúne `ValidationIssue`s y lanza una sola `ValidationException` (`ExceptionKind.Invalid`, 422 en HTTP, cada problema con su `field` y su `code`); si basta con uno, lanza una `DomainException` con nombre y código propio:
 
 ```ts
 import { ValidationException } from '@archi-code/ddd/exceptions';

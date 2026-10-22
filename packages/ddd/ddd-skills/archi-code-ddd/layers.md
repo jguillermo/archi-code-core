@@ -124,7 +124,7 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   and treat an existing id as a conflict; save an existing one only where the stored version still
   equals `aggregate.version`, storing `aggregate.version + 1` next to (never inside) the
   primitives; when nothing was written throw
-  `ConcurrencyException('Order', id, aggregate.version)` (HTTP 409); after a write
+  `ConcurrencyException('Order', id, aggregate.version)` (`ExceptionKind.Conflict`); after a write
   call `aggregate.markPersisted()`. Keep the driver error: `ConcurrencyException(…, { cause })`.
   Removing is a change too: `remove(aggregate)` receives the loaded aggregate and deletes only
   where the stored version still equals `aggregate.version`, or throws `ConcurrencyException`
@@ -165,13 +165,17 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
     `{ cause: error }` when wrapping another error.
   - `TypePrimitiveException` and `RequiredValueException` are thrown by the VOs; throw them yourself
     only inside the `filter` of a custom type.
-- Map errors to HTTP with `HttpErrorMapper` (overrides by code for your own codes): 400 for a
-  conversion or required error thrown alone (a value object built with `new` outside
-  `ValueObjects.build`; inside it they become a `ValidationException`, 422, with `DOM003`/`DOM004`
-  in `errors`), 403 `NotAllowedException`, 404 `AggregateNotFoundException`, 409
-  `ConcurrencyException`, 422 `ValidationException` and any other `DomainException` (a broken
-  business rule), 400 any other `ApplicationException`, 500 otherwise; never hand-write status tables that leak infrastructure
-  messages. For logs or messages use `error.code` and the exported `ExceptionCode` enum, or
+- The package speaks no protocol: each entry point (HTTP, gRPC, queue consumer, CLI) translates
+  errors itself from `ExceptionClassifier.classify(error)` (`/exceptions`), which returns the
+  `ExceptionKind`: `Malformed` for a conversion or required error thrown alone (a value object
+  built with `new` outside `ValueObjects.build`; inside it they become a `ValidationException` with
+  `DOM003`/`DOM004` in `errors`), `NotAllowed` for `NotAllowedException`, `NotFound` for
+  `AggregateNotFoundException`, `Conflict` for `ConcurrencyException`, `Invalid` for
+  `ValidationException` and any other `DomainException` (a broken business rule), `Rejected` for
+  any other `ApplicationException`, `Internal` otherwise. The entry point maps the kind to its
+  protocol (HTTP: 400, 403, 404, 409, 422, 400, 500), handles your own codes with `error.code`,
+  returns the `errors` of a `ValidationException`, never sends the message of an `Internal`
+  failure and logs it once; never classify exceptions with hand-written `instanceof` chains. For logs or messages use `error.code` and the exported `ExceptionCode` enum, or
   `instanceof`: the built-in exceptions are recognized across the CJS and ESM builds.
 - A use case does **one thing**: one business action, one class, one `handle`. It changes one
   aggregate and saves it once [Destilado ch. 5; IDDD ch. 10] (the exceptions IDDD ch. 10 accepts, such
@@ -274,7 +278,7 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   provider: `ConsoleLogger({ level })` (one JSON line per entry), an adapter over pino or winston,
   `InMemoryLogger` in tests (`entries`), `SilentLogger` by default. Pass it to
   `new DomainEventBus(channel, registry, logger)` (listener failures, subscriptions, what was
-  published) and `new HttpErrorMapper({ statusByCode, logger })` (5xx as `error`, 4xx at `debug`):
+  published) and to the entry points, which log an `Internal` failure as `error`:
   each error is logged once, where it is handled, never logged and rethrown in every layer.
 - Tests use the project's `InMemoryOrderRepository` (in `test/support/`) and
   `new DomainEventBus(new InMemoryEventChannel(), registry)` (`channel.sent` lists

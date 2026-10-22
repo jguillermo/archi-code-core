@@ -12,3 +12,5 @@ export * from './domain/validation.exception';
 export * from './domain/domain.exception';
 export * from './domain/required-value.exception';
 export * from './domain/type-primitive.exception';
+export * from './kind/exception-kind';
+export * from './kind/exception-classifier';

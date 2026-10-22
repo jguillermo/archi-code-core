@@ -93,4 +93,4 @@ export class OrderMustHaveLines extends DomainException {
 }
 ```
 
-`error.code` es `'ORD002'`. En la entrada, `HttpErrorMapper` (de `@archi-code/ddd/infrastructure`) traduce sin tablas escritas a mano: 422 para una `ValidationException` o cualquier `DomainException`, 400 para un error de conversión u obligatoriedad lanzado solo, y cambios por código cuando el negocio lo pide (`new HttpErrorMapper({ statusByCode: { ORD001: 409 } })`).
+`error.code` es `'ORD002'`. En la entrada, `ExceptionClassifier.classify(error)` (de `@archi-code/ddd/exceptions`) da el tipo de fallo sin tablas por excepción: `ExceptionKind.Invalid` para una `ValidationException` o cualquier `DomainException` (422 en HTTP) y `ExceptionKind.Malformed` para un error de conversión u obligatoriedad lanzado solo (400); el punto de entrada cambia el estado de un código cuando el negocio lo pide (`ORD001` → 409).

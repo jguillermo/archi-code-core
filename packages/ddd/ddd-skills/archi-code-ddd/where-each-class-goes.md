@@ -17,14 +17,14 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
 | Read query (`OrderSummaries`, `StaleOrders`)                 | application (interface), infrastructure | DTOs and ids, `@archi-code/criteria`                                                      | loading aggregates, repositories, business rules                           |
 | Adapter (repository, event channel, ACL translator, logger provider) | infrastructure                          | domain, application, exceptions, drivers                                                  | business rules                                                             |
 | Event wiring (`DomainEventBus`, `EventRegistry`, `EventChannel` port and its implementations) | infrastructure (composition root) | `@archi-code/ddd/infrastructure`, domain events, listeners                     | being seen by use cases (they only see `EventBus`) or listeners             |
-| Entry point (controller, consumer, scheduler, CLI)           | interfaces                              | application, exceptions, `HttpErrorMapper`; domain types only if unavoidable              | business rules, repositories or other adapters                             |
+| Entry point (controller, consumer, scheduler, CLI)           | interfaces                              | application, exceptions (`ExceptionClassifier`); domain types only if unavoidable         | business rules, repositories or other adapters                             |
 | Composition root (`composition.ts`)                          | per context                             | everything                                                                                | being imported by any layer                                                |
 
 - Dependencies only point inwards: the domain imports only `@archi-code/ddd/domain`,
   `@archi-code/ddd/exceptions` and `@archi-code/validation` (not "nothing external" as the suite
   says: these are the package convention); the application adds `@archi-code/ddd/application`;
-  only infrastructure and the composition root import `@archi-code/ddd/infrastructure`, with one
-  exception: an entry point may import `HttpErrorMapper` (or receive it from the composition root).
+  only infrastructure and the composition root import `@archi-code/ddd/infrastructure`; an entry
+  point never does (it translates errors with `ExceptionClassifier` of `/exceptions`).
   Entry points (`interfaces/`: controllers, message consumers, schedulers, CLI) call use cases
   only. The composition root of each context is the only place that builds and connects everything
   (repositories, event channel, `DomainEventBus`, `EventRegistry`, listeners) and reads

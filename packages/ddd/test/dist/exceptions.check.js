@@ -42,6 +42,34 @@ function smoke(m) {
         );
       },
     ],
+    [
+      'the classifier tells entry points the kind of every failure',
+      () => {
+        const kinds = [
+          new m.AggregateNotFoundException('Order', ORDER_ID),
+          new m.NotAllowedException('cus-luis cannot cancel'),
+          new m.ConcurrencyException('Order', ORDER_ID, 3),
+          new m.RequiredValueException('Email', ''),
+          new m.DomainException('Order already shipped', ['ORD001']),
+          new m.ApplicationException('Email already used', ['USR001']),
+          new m.InternalErrorException('password=secret'),
+          new Error('disk full'),
+        ].map((error) => m.ExceptionClassifier.classify(error));
+        return (
+          kinds.join() ===
+            [
+              m.ExceptionKind.NotFound,
+              m.ExceptionKind.NotAllowed,
+              m.ExceptionKind.Conflict,
+              m.ExceptionKind.Malformed,
+              m.ExceptionKind.Invalid,
+              m.ExceptionKind.Rejected,
+              m.ExceptionKind.Internal,
+              m.ExceptionKind.Internal,
+            ].join() || `unexpected kinds ${kinds.join()}`
+        );
+      },
+    ],
   ];
 }
 
@@ -69,6 +97,20 @@ function crossBuild(cjs, esm) {
             delivery instanceof cjs.EventDeliveryException &&
             delivery instanceof cjs.InfrastructureException) ||
           'an exception of one build is not recognized by the other'
+        );
+      },
+    ],
+    [
+      'the classifier of one build classifies exceptions thrown by the other',
+      () => {
+        const invalid = new esm.ValidationException([
+          { field: 'email', message: 'Email: Value does not satisfy isEmail' },
+        ]);
+        const notFound = new cjs.AggregateNotFoundException('Order', ORDER_ID);
+        return (
+          (cjs.ExceptionClassifier.classify(invalid) === 'invalid' &&
+            esm.ExceptionClassifier.classify(notFound) === 'not_found') ||
+          'a classifier does not recognize the exceptions of the other build'
         );
       },
     ],

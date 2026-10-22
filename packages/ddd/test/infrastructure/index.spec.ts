@@ -6,9 +6,6 @@ import type {
   ConsoleLoggerOptions,
   EventChannel,
   EventFactory,
-  HttpError,
-  HttpErrorBody,
-  HttpErrorMapperOptions,
   InMemoryEventChannelOptions,
   LogEntry,
   Subscription,
@@ -17,14 +14,12 @@ import type { EventBase, SerializedEvent } from '../../src/domain/index';
 import type { Clock, LogContext, Logger, LogLevel } from '../../src/application/index';
 import { DomainEventBus } from '../../src/infrastructure/event/domain-event-bus';
 import { EventRegistry } from '../../src/infrastructure/event/event-registry';
-import type { ValidationIssue } from '../../src/exceptions/index';
 
 const PUBLIC_API = [
   'ConsoleLogger',
   'DomainEventBus',
   'EventRegistry',
   'FixedClock',
-  'HttpErrorMapper',
   'InMemoryEventChannel',
   'InMemoryLogger',
   'SilentLogger',
@@ -46,9 +41,11 @@ describe('@archi-code/ddd/infrastructure', () => {
   });
 
   it('exports no aggregate mapper: each aggregate converts itself', () => {
-    expect(Object.keys(infrastructure).filter((name) => /Aggregate|Mapper/.test(name))).toEqual([
-      'HttpErrorMapper',
-    ]);
+    expect(Object.keys(infrastructure).filter((name) => /Aggregate|Mapper/.test(name))).toEqual([]);
+  });
+
+  it('exports no protocol adapter: each entry point translates the ExceptionKind itself', () => {
+    expect(Object.keys(infrastructure).filter((name) => /Http|Grpc|Amqp/.test(name))).toEqual([]);
   });
 
   it('exports the loggers that implement the Logger port of the application', () => {
@@ -65,12 +62,6 @@ describe('@archi-code/ddd/infrastructure', () => {
   });
 
   it('exports the public types', () => {
-    expectTypeOf<HttpErrorBody>().toEqualTypeOf<{
-      code: string;
-      message: string;
-      errors?: readonly ValidationIssue[];
-    }>();
-    expectTypeOf<HttpError>().toEqualTypeOf<{ status: number; body: HttpErrorBody }>();
     expectTypeOf<EventChannel['send']>().toEqualTypeOf<
       (events: readonly SerializedEvent[]) => Promise<void>
     >();
@@ -80,10 +71,6 @@ describe('@archi-code/ddd/infrastructure', () => {
     expectTypeOf<EventFactory<EventBase>>().toEqualTypeOf<
       (serialized: SerializedEvent) => EventBase
     >();
-    expectTypeOf<HttpErrorMapperOptions>().toEqualTypeOf<{
-      readonly statusByCode?: Readonly<Record<string, number>>;
-      readonly logger?: Logger;
-    }>();
     expectTypeOf<ConsoleLoggerOptions>().toEqualTypeOf<{
       readonly level?: LogLevel;
       readonly clock?: Clock;

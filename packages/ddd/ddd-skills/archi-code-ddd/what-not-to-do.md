@@ -183,7 +183,7 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
 - Logging from the domain, or importing a logging library (pino, winston, `console`) in a use case:
   inject the `Logger` port and choose the provider in the composition root.
 - Logging an error and rethrowing it in every layer: the edge that handles it logs it once
-  (`HttpErrorMapper` and `DomainEventBus` with a logger already do).
+  (`DomainEventBus` with a logger already does; an entry point logs an `Internal` failure).
 - Interpolating data into the message (`` `order ${id} failed` ``) or logging passwords, tokens or
   personal data that the entry does not need: keep a stable message and put only what is needed in
   the context.

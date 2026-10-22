@@ -333,7 +333,7 @@ export class PgPaymentStream implements PaymentStream {
 
 ## Caso de uso y reintento
 
-El caso de uso carga, decide, anexa y publica; no abre transacciones ni recibe un puerto para ello. Ante un conflicto puede reintentar recargando y reejecutando el comando contra el estado nuevo, como propone IDDD [IDDD apéndice A]; si el comando ya no es válido, el error de negocio sale normalmente. `[Fuera de los libros: convención de @archi-code/ddd]` El stream solo carga y anexa; el bucle de reintento va en el `handle` del caso de uso, cada intento vuelve a cargar y vuelve a anexar, unos pocos intentos y después relanza la `ConcurrencyException` (HTTP 409 con `HttpErrorMapper`). Reintenta solo comandos seguros de repetir; un caso de uso que lanza un listener no lleva este bucle: el reintento lo hace la reentrega del canal.
+El caso de uso carga, decide, anexa y publica; no abre transacciones ni recibe un puerto para ello. Ante un conflicto puede reintentar recargando y reejecutando el comando contra el estado nuevo, como propone IDDD [IDDD apéndice A]; si el comando ya no es válido, el error de negocio sale normalmente. `[Fuera de los libros: convención de @archi-code/ddd]` El stream solo carga y anexa; el bucle de reintento va en el `handle` del caso de uso, cada intento vuelve a cargar y vuelve a anexar, unos pocos intentos y después relanza la `ConcurrencyException` (`ExceptionKind.Conflict`, 409 en HTTP). Reintenta solo comandos seguros de repetir; un caso de uso que lanza un listener no lleva este bucle: el reintento lo hace la reentrega del canal.
 
 ```ts
 import { UseCase } from '@archi-code/ddd/application';

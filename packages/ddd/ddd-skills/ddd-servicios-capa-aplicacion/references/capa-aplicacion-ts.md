@@ -170,10 +170,11 @@ export class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand
 * El dominio lanza `DomainException` con nombre y código propio (`class OrderCannotBeCancelled extends DomainException`, `super(message, ['ORD002'])`); los value objects y `ValueObjects.build` lanzan `ValidationException`.
 * La aplicación añade las suyas: `AggregateNotFoundException('Order', id)` cuando `findById` devuelve `null`, `NotAllowedException(message)` cuando el solicitante no puede ejecutar la acción, `ApplicationException` para otros errores de aplicación. Al traducir otro error, siempre con `{ cause: error }`.
 * Los errores se dejan propagar: no se capturan en `handle` para relanzarlos; `execute` deja pasar las excepciones del paquete y envuelve el resto en `InternalErrorException`.
-* El punto de entrada los traduce con `HttpErrorMapper` de `@archi-code/ddd/infrastructure`: 404 `AggregateNotFoundException`, 403 `NotAllowedException`, 409 `ConcurrencyException`, 422 `ValidationException` y cualquier otra `DomainException` (regla de negocio), 400 otros errores de aplicación y 500, con mensaje genérico, para lo demás. Los códigos propios se ajustan por código (`new HttpErrorMapper({ statusByCode: { ORD001: 409 } })`) `[Fuera de los libros: convención de @archi-code/ddd]`.
+* El punto de entrada los clasifica con `ExceptionClassifier.classify(error)` de `@archi-code/ddd/exceptions`, que no sabe de ningún protocolo: `NotFound` (`AggregateNotFoundException`), `NotAllowed` (`NotAllowedException`), `Conflict` (`ConcurrencyException`), `Malformed` (`TypePrimitiveException`, `RequiredValueException`), `Invalid` (`ValidationException` y cualquier otra `DomainException`), `Rejected` (otros errores de aplicación) e `Internal` (lo demás). Cada protocolo traduce el `ExceptionKind` a sus códigos (en HTTP: 404, 403, 409, 400, 422, 400 y 500), usa `error.code` para los códigos propios (`ORD001` → 409), oculta el mensaje de `Internal`, devuelve los `errors` de una `ValidationException` y registra él mismo los fallos internos `[Fuera de los libros: convención de @archi-code/ddd]`. Un controlador HTTP usa el `toHttpError` del proyecto (en `interfaces/http/`; completo en `ddd-skills/ddd-arquitectura/references/estructura-hexagonal-ts.md`):
 
 ```ts
-import type { HttpErrorMapper } from '@archi-code/ddd/infrastructure';
+import type { Logger } from '@archi-code/ddd/application';
+import { toHttpError } from './httpError';
 
 interface HttpRequest {
   params: { orderId: string };
@@ -189,7 +190,7 @@ interface HttpResponse {
 export class CancelOrderController {
   constructor(
     private readonly cancelOrder: CancelOrder,
-    private readonly errors: HttpErrorMapper,
+    private readonly logger: Logger,
   ) {}
 
   async cancel(request: HttpRequest): Promise<HttpResponse> {
@@ -201,7 +202,7 @@ export class CancelOrderController {
       });
       return { status: 204 };
     } catch (error) {
-      return this.errors.map(error);
+      return toHttpError(error, this.logger);
     }
   }
 }

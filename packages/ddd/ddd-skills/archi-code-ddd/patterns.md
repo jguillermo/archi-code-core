@@ -333,7 +333,7 @@ export class InMemoryOrderRepository
 }
 ```
 
-Wiring and tests with the in-memory adapters (repository, event channel) and the HTTP mapper:
+Wiring and tests with the in-memory adapters (repository, event channel), and the kind of an error:
 
 ```ts
 const orders = new InMemoryOrderRepository();
@@ -354,8 +354,7 @@ await new AddOrderLine(orders, bus, clock).execute({
 });
 channel.sent.map((event) => event.eventName); // ['OrderLineAdded']: PrepareShipment already ran
 
-const errors = new HttpErrorMapper({ statusByCode: { ORD001: 409 } }); // a domain rule defaults to 422
-const { status, body } = errors.map(caughtError);
+ExceptionClassifier.classify(new OrderShippedException(orderId)); // ExceptionKind.Invalid ('invalid')
 ```
 
 A test of the event flow asserts on what the listener caused and on what the channel carried,

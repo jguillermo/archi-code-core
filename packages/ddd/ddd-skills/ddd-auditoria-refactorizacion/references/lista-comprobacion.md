@@ -20,7 +20,7 @@ La columna "Script" indica si `scan_ddd_smells.py` lo detecta (sí / parcial / n
 |---|---|---|---|---|
 | A1 | ¿El dominio importa frameworks, ORM o clientes HTTP? | [Destilado cap. 2; IDDD cap. 4] | sí | Alta |
 | A2 | ¿Decoradores del ORM en clases de dominio? | [IDDD cap. 6] | sí | Alta |
-| A3 | ¿Controladores con lógica de negocio, que importan repositorios o acceden a la base de datos? Un punto de entrada solo llama a casos de uso y traduce errores con `HttpErrorMapper` | [IDDD cap. 4] | parcial | Alta |
+| A3 | ¿Controladores con lógica de negocio, que importan repositorios o acceden a la base de datos? Un punto de entrada solo llama a casos de uso y traduce errores según el `ExceptionKind` de `ExceptionClassifier` | [IDDD cap. 4] | parcial | Alta |
 | A4 | ¿Un caso de uso, servicio de aplicación o el dominio abre o maneja transacciones (`BEGIN`/`COMMIT`, `startSession`, `withTransaction`) o recibe un runner de transacciones o una unidad de trabajo? IDDD pone la transacción en la aplicación [IDDD cap. 12; IDDD cap. 14]; con el paquete se mueve al adaptador del repositorio, que hace atómico cada `save`/`remove` | `[Fuera de los libros: convención de @archi-code/ddd]` | sí | Media |
 | A5 | ¿Un caso de uso devuelve el agregado al controlador o la API expone `toPrimitives()` tal cual? | [IDDD cap. 4; Destilado cap. 4] | no | Media |
 | A6 | ¿Módulos nombrados por patrón (`entities/`, `services/`, `listeners/`)? | [PHP: Modules] | no | Baja |
