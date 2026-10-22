@@ -192,5 +192,5 @@ describe('Customer.placeOrder', () => {
 
 ## Cuándo no
 
-* Para reconstituir desde base de datos: eso es `static fromPrimitives(primitives)`, que el repositorio llama directamente (`Order.fromPrimitives(row).restoreVersion(row.version)`), sin reglas de creación ni eventos.
+* Para reconstituir desde base de datos: eso es `static fromPrimitives(primitives)`, que el repositorio llama directamente (`Order.fromPrimitives(row.primitives)`; la versión de la fila la recuerda el repositorio en su `WeakMap`, no el agregado), sin reglas de creación ni eventos.
 * "Fábricas" genéricas que reciben un DTO y rellenan campos: un constructor con setters disfrazado.

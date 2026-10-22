@@ -11,10 +11,10 @@ Un caso de uso modifica un solo agregado y lo guarda una vez [IDDD cap. 10]. El 
 Lo que hace el adaptador del repositorio, y nadie más:
 
 * Que cada `save` y cada `remove` sea atómico. En MongoDB, un documento por agregado: una sola escritura, atómica por sí misma. Si el agregado ocupa varias tablas SQL, el repositorio abre la transacción de la base de datos **dentro** de `save`/`remove`, con su propia conexión o sesión, y la confirma o la revierte antes de volver.
-* La comprobación optimista de la versión: una versión almacenada distinta de `order.version` (o un id ya ocupado al dar de alta) es `ConcurrencyException('Order', order.id.value, order.version)`.
+* La versión de concurrencia optimista, que es solo suya: recuerda la de cada agregado que cargó o guardó en un `WeakMap<Order, number>` privado (`versions`; `0` si no lo conoce, es nuevo). Una versión almacenada distinta de la recordada (o un id ya ocupado al dar de alta) es `ConcurrencyException('Order', order.id.value, version)`.
 * La conexión, la sesión y el pool.
 * Envolver los errores del driver en `InternalErrorException` con `{ cause }`.
-* `markPersisted()` tras escribir con éxito y, al cargar, `Order.fromPrimitives(row).restoreVersion(version)`.
+* `this.versions.set(order, version + 1)` solo tras escribir con éxito y, al cargar, `Order.fromPrimitives(...)` seguido de `this.versions.set(order, row.version)`. El agregado no declara ni mapea la versión y el caso de uso nunca la ve.
 
 ## Varias tablas en PostgreSQL
 
@@ -68,6 +68,8 @@ interface OrderRow {
 }
 
 export class PostgresOrderRepository implements AggregateFinder<Order>, AggregateSaver<Order> {
+  private readonly versions = new WeakMap<Order, number>();
+
   constructor(private readonly pool: PgPool) {}
 
   async findById(id: OrderId): Promise<Order | null> {
@@ -87,27 +89,33 @@ export class PostgresOrderRepository implements AggregateFinder<Order>, Aggregat
       [id.value],
     );
     const row = rows[0];
-    return row ? Order.fromPrimitives({ ...row.data, lines: { items: row.items } }).restoreVersion(row.version) : null;
+    if (row === undefined) {
+      return null;
+    }
+    const order = Order.fromPrimitives({ ...row.data, lines: { items: row.items } });
+    this.versions.set(order, row.version);
+    return order;
   }
 
   async save(order: Order): Promise<void> {
+    const version = this.versions.get(order) ?? 0;
     const { lines, ...data } = order.toPrimitives();
     const client = await this.pool.connect();
     let broken = false;
     try {
       await client.query('BEGIN');
       const { rowCount } =
-        order.version === 0
+        version === 0
           ? await client.query(
               'INSERT INTO orders (id, version, customer_id, status, data) VALUES ($1, 1, $2, $3, $4) ON CONFLICT (id) DO NOTHING',
               [data.id, data.customerId, data.status, data],
             )
           : await client.query(
               'UPDATE orders SET version = version + 1, status = $3, data = $4 WHERE id = $1 AND version = $2',
-              [data.id, order.version, data.status, data],
+              [data.id, version, data.status, data],
             );
       if (rowCount === 0) {
-        throw new ConcurrencyException('Order', order.id.value, order.version);
+        throw new ConcurrencyException('Order', order.id.value, version);
       }
       await client.query('DELETE FROM order_lines WHERE order_id = $1', [data.id]);
       for (const [position, line] of lines.items.entries()) {
@@ -128,14 +136,14 @@ export class PostgresOrderRepository implements AggregateFinder<Order>, Aggregat
     } finally {
       client.release(broken);
     }
-    order.markPersisted();
+    this.versions.set(order, version + 1);
   }
 }
 ```
 
 * La transacción empieza y termina dentro de `save`: el caso de uso solo ve una escritura que se hace entera o no se hace.
 * El `UPDATE` con `version = $2` bloquea la fila del pedido hasta el `COMMIT`; otro `save` del mismo pedido espera y después no casa ninguna fila, así que recibe `ConcurrencyException`.
-* `markPersisted()` se llama solo después del `COMMIT`: si la transacción se revierte, el objeto conserva su versión y el caso de uso puede descartarlo y volver a cargarlo.
+* `this.versions.set(order, version + 1)` se hace solo después del `COMMIT`: si la transacción se revierte, el repositorio sigue recordando la versión anterior y el caso de uso puede descartar el objeto y volver a cargarlo.
 * Si el `ROLLBACK` falla (la conexión se cayó), se relanza el error del trabajo, no el del `ROLLBACK`, y `release(true)` destruye la conexión en vez de devolver al pool una con la transacción a medias.
 * La lectura es una sola sentencia, así que ve el pedido y sus líneas en el mismo instante.
 * Un `remove` sigue el mismo patrón: `DELETE FROM orders WHERE id = $1 AND version = $2` dentro de su propia transacción (las líneas caen con `ON DELETE CASCADE`).

@@ -107,27 +107,26 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
      from its primitive and records nothing.
   4. `toPrimitives(): PrimitiveTypes<Order>` returns only plain data (`vo.value`, child primitives),
      never a value object.
-  5. Repositories only call `order.toPrimitives()` and `Order.fromPrimitives(row)` (plus
-     `.restoreVersion(version)`); they never read the aggregate's fields. There is no mapper.
+  5. Repositories only call `order.toPrimitives()` and `Order.fromPrimitives(row)`; they never
+     read the aggregate's fields. There is no mapper.
   6. One round-trip test per aggregate: `Order.fromPrimitives(order.toPrimitives()).toPrimitives()`
      equals `order.toPrimitives()`.
      The compiler rejects public raw state (`PrimitiveTypes` gives `never`); nothing checks private
      state at run time: a private field left out of `toPrimitives()` compiles and is lost when
      saving, so rule 2 and the round-trip test of rule 6 are the aggregate's responsibility. An enum value object stores its option (`PrimitiveType` is the enum type),
      so `new OrderStatus(primitives.status)` needs no cast.
-- Aggregates extend `AggregateRoot<Id, Event>` and call `super(id)`. **Every aggregate has a
-  `version`** for optimistic concurrency: `0` when new, the stored one when loaded, `+1` after each
-  save. The aggregate never declares, stores nor maps it (it is not a field nor in
-  `PrimitiveTypes`); only repositories touch it.
-- **Every repository checks the version** (contract): load with
-  `Order.fromPrimitives(row).restoreVersion(storedVersion)`; save a new aggregate (`version === 0`) as version 1
-  and treat an existing id as a conflict; save an existing one only where the stored version still
-  equals `aggregate.version`, storing `aggregate.version + 1` next to (never inside) the
-  primitives; when nothing was written throw
-  `ConcurrencyException('Order', id, aggregate.version)` (`ExceptionKind.Conflict`); after a write
-  call `aggregate.markPersisted()`. Keep the driver error: `ConcurrencyException(…, { cause })`.
+- Aggregates extend `AggregateRoot<Id, Event>` and call `super(id)`. The aggregate carries **no
+  version**: it never declares, stores nor maps one; optimistic concurrency is the repository's.
+- **Every repository checks the version** (contract): it remembers the version of each aggregate
+  object it loaded or saved in a private `WeakMap<Order, number>` (`versions`); load with
+  `Order.fromPrimitives(row)` and `versions.set(order, row.version)`; on save take
+  `versions.get(order) ?? 0`, save a new aggregate (`0`) as version 1 and treat an existing id as a
+  conflict; save an existing one only where the stored version still equals the remembered one,
+  storing one more next to (never inside) the primitives; when nothing was written throw
+  `ConcurrencyException('Order', id, version)` (`ExceptionKind.Conflict`); after a write
+  remember `version + 1`. Keep the driver error: `ConcurrencyException(…, { cause })`.
   Removing is a change too: `remove(aggregate)` receives the loaded aggregate and deletes only
-  where the stored version still equals `aggregate.version`, or throws `ConcurrencyException`
+  where the stored version still equals the remembered one, or throws `ConcurrencyException`
   (someone changed or removed it after it was loaded) [IDDD ch. 10].
   After a conflict, the use case may repeat its own work when the command is safe against the new
   state [IDDD ch. 10; IDDD appendix A]: a loop in `handle` where each attempt loads the aggregate
@@ -225,9 +224,9 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   a pool), never an aggregate class nor a mapper; aggregates only go in and out through its
   methods. The aggregate converts itself (`toPrimitives()` / `static fromPrimitives()`), never a
   domain service nor a mapper; the repository calls those methods directly
-  (`Order.fromPrimitives(row).restoreVersion(row.version)` on load, `order.toPrimitives()` with
-  `order.version + 1` on save, `ConcurrencyException('Order', …)` on a conflict) and maps the
-  primitives to its storage.
+  (`Order.fromPrimitives(row)` on load, `order.toPrimitives()` on save, with the version it keeps
+  in its own `WeakMap`, `ConcurrencyException('Order', …)` on a conflict) and maps the primitives
+  to its storage.
   The package ships no repository: the in-memory one is written in the project's `test/support/`.
 - **Another aggregate is referenced by its id** (`customerId: CustomerId`), never by the object.
 - **A command can be refused, a fact cannot**: a method that registers something that already

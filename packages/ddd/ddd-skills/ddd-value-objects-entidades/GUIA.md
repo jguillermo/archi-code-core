@@ -94,7 +94,7 @@ Revisa el diseño con los patrones de diseño flexible (Supple Design): interfac
 
 ## Paso 6. Persistencia sin fugas
 
-Cómo guardar value objects (columnas embebidas, JSON, tabla propia para colecciones) sin convertirlos en entidades del modelo: `ddd-skills/ddd-value-objects-entidades/references/persistencia-valores.md`. La regla: diseña el modelo de datos al servicio del modelo de dominio [IDDD cap. 6]. Con el paquete, el repositorio parte de `order.toPrimitives()` (y carga con `Order.fromPrimitives(row).restoreVersion(version)`) y decide en infraestructura cómo reparte los primitivos en columnas.
+Cómo guardar value objects (columnas embebidas, JSON, tabla propia para colecciones) sin convertirlos en entidades del modelo: `ddd-skills/ddd-value-objects-entidades/references/persistencia-valores.md`. La regla: diseña el modelo de datos al servicio del modelo de dominio [IDDD cap. 6]. Con el paquete, el repositorio parte de `order.toPrimitives()` (y carga con `Order.fromPrimitives(...)`, recordando la versión de la fila en su propio `WeakMap`, nunca en el agregado) y decide en infraestructura cómo reparte los primitivos en columnas.
 
 ## Señales de alarma
 

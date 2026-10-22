@@ -818,14 +818,11 @@ repository. It does not protect the invariants of an aggregate: those stay in th
 - `AggregateRoot<Id = IdType, Event = EventBase>`: abstract class for aggregates. `new (id)` stores
   `readonly id`; `equals(other)` is true for the same class and an equal id, whatever the other
   attributes are. `Id` may be any required value object (`EntityId`: `IdType`, a `Required(StringType)` code…); an optional value object cannot be an id, and an id that holds no value throws `RequiredValueException`, so two new entities are never taken for the same one [IDDD ch. 5]; `record(event)` is `protected` and deep-freezes the event (a fact never changes [IDDD ch. 8]); `pullDomainEvents()` returns the events typed as `Event[]`, in order, and empties
-  the list. Pending events are not an enumerable property: they never show up in
-  `JSON.stringify(aggregate)`, `{ ...aggregate }` or `Object.keys`.
-- Every aggregate has a `version` for optimistic concurrency (see
-  [Optimistic concurrency](#optimistic-concurrency)): `0` for a new one, the stored version for a
-  loaded one, one more after each successful save. The aggregate does nothing with it: it keeps
-  calling `super(id)`, and the version is neither a field, nor in its primitives, nor in its JSON.
-  Only repositories touch it, with `restoreVersion(version)` when they load and `markPersisted()`
-  after they save.
+  the list. Pending events are a plain private array: repositories store `toPrimitives()`, never
+  the aggregate itself.
+- The aggregate carries no version: optimistic concurrency belongs to the repository, which
+  remembers the version of every aggregate it loaded or saved (see
+  [Optimistic concurrency](#optimistic-concurrency)). The aggregate only calls `super(id)`.
 - Parts of an aggregate are composite value objects when nobody looks them up by an id of their
   own (the lines of an order). A part that does need its own identity inside the aggregate (a seat
   of a room) is a child entity: it extends `Entity<Id>`, which only stores `readonly id` and
@@ -914,8 +911,8 @@ repository. It does not protect the invariants of an aggregate: those stay in th
 - The data of an event are primitives taken from value objects (`id.value`, money as
   `{ amount, currency }`), never value objects nor the whole state of the aggregate: the event is
   serialized as it is, and its readers must not depend on the model.
-- `version` counts saves, not events: it grows by 1 on each save, however many events the change
-  recorded. Event Sourcing is not provided: an event-sourced aggregate manages the version of its
+- The version a repository stores counts saves, not events: it grows by 1 on each save, however
+  many events the change recorded. Event Sourcing is not provided: an event-sourced aggregate manages the version of its
   stream itself.
 
 ```ts
@@ -1016,7 +1013,7 @@ interface AggregateRemover<Aggregate extends AggregateRoot<any, any>> {
 ```
 
 `remove` receives the loaded aggregate, not its id: removing is a change like any other, so the
-repository removes it only where the stored version still equals `aggregate.version`, and throws
+repository removes it only where the stored version still equals the one it loaded, and throws
 `ConcurrencyException` when someone changed or removed it after it was loaded [IDDD ch. 10]. A
 use case loads it with `findById`, decides, and removes it.
 
@@ -1048,17 +1045,19 @@ interface OrderSummaries {
 ### Optimistic concurrency
 
 Two users load the same order, both change it and both save: without a check, the second save
-silently erases the first. `AggregateRoot` carries the version that prevents it, and every
+silently erases the first. The repository prevents it with a version it keeps itself: the
+aggregate knows nothing about it. It remembers the version of each aggregate object it loaded or
+saved in a `WeakMap<Order, number>` (an object it never saw is new, version `0`), and every
 repository follows the same contract:
 
-| Moment                       | The repository                                                                                               |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Load                         | Rebuilds with `Order.fromPrimitives(row).restoreVersion(storedVersion)`: `aggregate.version` is what it read |
-| Save a new aggregate         | `aggregate.version` is `0`: inserts with version `1`; if the id already exists, it is a conflict             |
-| Save an existing aggregate   | Writes only where the stored version still equals `aggregate.version`, and stores `aggregate.version + 1`    |
-| Nothing written (stale data) | Throws `ConcurrencyException('Order', id, aggregate.version)` (HTTP 409)                                     |
-| Written                      | Calls `aggregate.markPersisted()`, so the same object can be changed and saved again                         |
-| Remove                       | Deletes only where the stored version still equals `aggregate.version`; otherwise `ConcurrencyException`     |
+| Moment                       | The repository                                                                              |
+| ---------------------------- | ------------------------------------------------------------------------------------------- |
+| Load                         | Rebuilds with `Order.fromPrimitives(row)` and remembers `row.version` for that object       |
+| Save a new aggregate         | Version `0`: inserts with version `1`; if the id already exists, it is a conflict           |
+| Save an existing aggregate   | Writes only where the stored version still equals the remembered one, and stores one more   |
+| Nothing written (stale data) | Throws `ConcurrencyException('Order', id, version)` (HTTP 409) with the version it expected |
+| Written                      | Remembers the new version, so the same object can be changed and saved again                |
+| Remove                       | Deletes only where the stored version still equals the remembered one; otherwise a conflict |
 
 The version lives next to the primitives (a `version` column or field), never inside them. After a
 `ConcurrencyException`, either tell the user that someone else changed it, or run the command
@@ -1117,6 +1116,8 @@ import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
 import { ConcurrencyException, InternalErrorException } from '@archi-code/ddd/exceptions';
 
 class MongoOrderRepository implements AggregateFinder<Order>, AggregateSaver<Order> {
+  private readonly versions = new WeakMap<Order, number>();
+
   constructor(private readonly collection: Collection<OrderDocument>) {}
 
   async findById(id: OrderId): Promise<Order | null> {
@@ -1125,20 +1126,22 @@ class MongoOrderRepository implements AggregateFinder<Order>, AggregateSaver<Ord
       return null;
     }
     const { _id, version, ...primitives } = document;
-    return Order.fromPrimitives(primitives).restoreVersion(version);
+    const order = Order.fromPrimitives(primitives);
+    this.versions.set(order, version);
+    return order;
   }
 
   async save(order: Order): Promise<void> {
-    const data = { ...order.toPrimitives(), version: order.version + 1 };
+    const version = this.versions.get(order) ?? 0;
+    const data = { ...order.toPrimitives(), version: version + 1 };
     const written =
-      order.version === 0
+      version === 0
         ? await this.insert(data)
-        : (await this.collection.replaceOne({ _id: data.id, version: order.version }, data))
-            .matchedCount === 1;
+        : (await this.collection.replaceOne({ _id: data.id, version }, data)).matchedCount === 1;
     if (!written) {
-      throw new ConcurrencyException('Order', order.id.value, order.version);
+      throw new ConcurrencyException('Order', order.id.value, version);
     }
-    order.markPersisted();
+    this.versions.set(order, version + 1);
   }
 
   private async insert(data: OrderDocument): Promise<boolean> {
@@ -1190,7 +1193,7 @@ export function orderRepositoryContract(
     await orders.save(order);
     order.ship(clock);
     await orders.save(order);
-    expect((await orders.findById(order.id))?.version).toBe(2);
+    expect((await orders.findById(order.id))?.toPrimitives()).toStrictEqual(order.toPrimitives());
   });
 
   it('refuses a stale save', async () => {
@@ -1810,8 +1813,8 @@ The repository is responsible for the transaction and for everything else about 
   database transaction that the repository opens and commits (or rolls back) within `save` itself,
   with its own connection.
 - **Concurrency**: it checks the stored version and throws `ConcurrencyException` (see
-  [Optimistic concurrency](#optimistic-concurrency)), calls `markPersisted()` after a write and
-  rebuilds with `Order.fromPrimitives(row).restoreVersion(version)` on load.
+  [Optimistic concurrency](#optimistic-concurrency)) and remembers the version of every aggregate
+  it loaded or saved, outside the aggregate.
 - **Connections and errors**: pools, sessions and driver retries stay inside the adapter, and driver
   errors are wrapped in `InternalErrorException` with `{ cause }`.
 - **Events that must not be lost**: `publish` runs after `save`, so a failure in between loses the
@@ -1826,7 +1829,7 @@ follows the same contract: every `save` and `remove` is applied whole or not at 
 ## Event Sourcing and CQRS: only for a concrete risk
 
 Neither is required, and both add complexity [IDDD ch. 4]. This package persists the state of
-aggregates; it does not ship an event store nor Event Sourcing support: `version` grows by 1 per
+aggregates; it does not ship an event store nor Event Sourcing support: the stored version grows by 1 per
 save, not per event, and an event-sourced aggregate manages the version of its stream itself.
 
 | Situation                                                     | Recommendation                                                |
@@ -2104,8 +2107,8 @@ class Order extends AggregateRoot<OrderId, OrderEvent> {
 }
 
 const order = Order.place(OrderId.generate(), new CustomerName('Ana'), { now: () => new Date() });
-const stored = order.toPrimitives(); // plain data the repository writes with order.version + 1
-Order.fromPrimitives(stored).restoreVersion(1); // what the repository returns on load
+const stored = order.toPrimitives(); // plain data the repository writes next to its version
+Order.fromPrimitives(stored); // what the repository returns on load
 ```
 
 ### Writing a repository
@@ -2120,8 +2123,8 @@ domain it supports (`AggregateFinder`, `AggregateSaver`, `AggregateRemover`):
   `remove(order)`, `findById(id)` → `Order | null`.
 - **The aggregate converts itself**: `order.toPrimitives()` and `Order.fromPrimitives(row)` are
   the aggregate's snapshot, never a domain service nor a mapper. The repository calls them
-  directly, gives back the stored version with `restoreVersion(version)` and maps the primitives to
-  its storage format.
+  directly, maps the primitives to its storage format and keeps the version of each aggregate
+  itself.
 - **It owns persistence**: atomic writes, the version check, connections and driver errors (see
   [Persistence belongs to the repository](#persistence-belongs-to-the-repository)).
 
@@ -2140,31 +2143,37 @@ export class InMemoryOrderRepository
   implements AggregateFinder<Order>, AggregateSaver<Order>, AggregateRemover<Order>
 {
   private readonly rows = new Map<string, { version: number; primitives: PrimitiveTypes<Order> }>();
+  private readonly versions = new WeakMap<Order, number>();
 
   async findById(id: OrderId): Promise<Order | null> {
     const row = this.rows.get(id.value);
-    return row === undefined
-      ? null
-      : Order.fromPrimitives(structuredClone(row.primitives)).restoreVersion(row.version);
+    if (row === undefined) {
+      return null;
+    }
+    const order = Order.fromPrimitives(structuredClone(row.primitives));
+    this.versions.set(order, row.version);
+    return order;
   }
 
   async save(order: Order): Promise<void> {
-    const key = this.currentKey(order);
+    const version = this.checkedVersion(order);
     const primitives = structuredClone(order.toPrimitives());
-    this.rows.set(key, { version: order.version + 1, primitives });
-    order.markPersisted();
+    this.rows.set(order.id.value, { version: version + 1, primitives });
+    this.versions.set(order, version + 1);
   }
 
   async remove(order: Order): Promise<void> {
-    this.rows.delete(this.currentKey(order));
+    this.checkedVersion(order);
+    this.rows.delete(order.id.value);
   }
 
-  private currentKey(order: Order): string {
+  private checkedVersion(order: Order): number {
     const key = order.id.value;
-    if ((this.rows.get(key)?.version ?? 0) !== order.version) {
-      throw new ConcurrencyException('Order', key, order.version);
+    const version = this.versions.get(order) ?? 0;
+    if ((this.rows.get(key)?.version ?? 0) !== version) {
+      throw new ConcurrencyException('Order', key, version);
     }
-    return key;
+    return version;
   }
 }
 
@@ -2185,17 +2194,22 @@ A Mongo repository has the same shape; only the storage changes:
 class MongoOrderRepository
   implements AggregateFinder<Order>, AggregateSaver<Order>, AggregateRemover<Order>
 {
+  private readonly versions = new WeakMap<Order, number>();
+
   constructor(private readonly collection: Collection<OrderDocument>) {}
 
   async findById(id: OrderId): Promise<Order | null> {
     const document = await this.collection.findOne({ _id: id.value });
-    return document === null
-      ? null
-      : Order.fromPrimitives(document.data).restoreVersion(document.version);
+    if (document === null) {
+      return null;
+    }
+    const order = Order.fromPrimitives(document.data);
+    this.versions.set(order, document.version);
+    return order;
   }
 
-  // save: updateOne({ _id, version: order.version }, { $set: { data, version: order.version + 1 } }),
-  // or insertOne when order.version is 0; no match → ConcurrencyException; then order.markPersisted()
+  // save: version = versions.get(order) ?? 0; updateOne({ _id, version }, { $set: { data, version: version + 1 } }),
+  // or insertOne when version is 0; no match → ConcurrencyException; then versions.set(order, version + 1)
 }
 ```
 

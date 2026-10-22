@@ -4,7 +4,7 @@ Contenido: 1. Raíz base · 2. Construcción paso a paso · 3. Agregado completo
 
 ## 1. Raíz base
 
-La raíz no se escribe a mano: se extiende `AggregateRoot<Id, Event>` de `@archi-code/ddd/domain`, que ya trae lo que IDDD cap. 10 describe para la raíz (identidad, igualdad por identidad, versión para la concurrencia optimista y lista de eventos registrados) `[Fuera de los libros: convención de @archi-code/ddd]`.
+La raíz no se escribe a mano: se extiende `AggregateRoot<Id, Event>` de `@archi-code/ddd/domain`, que ya trae lo que IDDD cap. 10 describe para la raíz salvo la versión (identidad, igualdad por identidad y lista de eventos registrados); la versión para la concurrencia optimista la guarda el repositorio, no el agregado (sección 5) `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ```ts
 import { AggregateRoot } from '@archi-code/ddd/domain';
@@ -24,10 +24,7 @@ La clase completa está en la sección 3. Lo que da la base:
 * `readonly id` y `equals(other)` (misma clase y mismo id) de `Entity<Id>`; un id sin valor lanza `RequiredValueException`.
 * `protected record(event)`: guarda el evento congelado (los hechos no cambian [IDDD cap. 8]).
 * `pullDomainEvents()`: devuelve los eventos en orden (tipados como `Event[]`) y vacía la lista; lo llama el caso de uso tras guardar.
-* `version`: `0` si es nuevo; no es un campo del agregado ni aparece en `PrimitiveTypes`.
-* `restoreVersion(v)` y `markPersisted()`: solo para repositorios (al cargar y tras escribir).
-
-Sin `markPersisted`, el objeto en memoria conservaría la versión antigua tras guardar y un segundo `save` del mismo objeto (por ejemplo, dos comandos seguidos en el mismo proceso) daría un falso conflicto de concurrencia `[Fuera de los libros]`. Los repositorios que sigan el contrato lo llaman siempre, también el `InMemoryOrderRepository` que el proyecto escribe en `test/support/` para los tests.
+La base no trae versión: el agregado no la declara, no la mapea en `toPrimitives()` y el caso de uso nunca la ve. Cada repositorio recuerda la versión de cada agregado que cargó o guardó en un `WeakMap<Order, number>` propio y la actualiza solo cuando la escritura ha ido bien; así un segundo `save` del mismo objeto (por ejemplo, dos comandos seguidos en el mismo proceso) no da un falso conflicto de concurrencia `[Fuera de los libros: convención de @archi-code/ddd]`. Lo cumplen todos los repositorios, también el `InMemoryOrderRepository` que el proyecto escribe en `test/support/` para los tests.
 
 Por qué registrar en vez de publicar: IDDD publica desde el agregado con un publicador estático [IDDD cap. 8]. Registrar y dejar que la aplicación publique no requiere un singleton global en el dominio y, con una bandeja de salida (outbox), evita entregar eventos de cambios que no llegaron a guardarse. *DDD in PHP* discute ambas variantes [PHP: Domain Events]. Con el paquete, el caso de uso llama a `await this.orders.save(order)` y después a `events.publish(order.pullDomainEvents())`; la aplicación no abre transacciones, porque la transacción es del repositorio. Si `publish` falla tras `save`, el evento puede perderse; cuando eso no es admisible, el repositorio guarda el agregado y sus eventos pendientes en la misma escritura atómica (outbox) y un proceso aparte los entrega por un `EventChannel`, y el caso de uso no cambia `[Fuera de los libros: convención de @archi-code/ddd]`.
 
@@ -474,7 +471,7 @@ Cómo encaja con las reglas:
 
 * `customerId` es una referencia por identidad (regla 3); `stockReservation` es la identidad de otro agregado de otro contexto, y `paymentAuthorization` un value object con lo mínimo que el pedido necesita de Pagos.
 * Las líneas son un value object (`OrderLines`, parte reemplazable entera); `addLine` sustituye la colección por la que devuelve `withLine`, y la regla de SKU único la comprueba el propio value object.
-* Constructor privado, una factoría de negocio (`place`, que registra `OrderPlaced`) y `fromPrimitives`, que reconstruye sin reglas de creación ni eventos; `toPrimitives()` devuelve solo datos planos. La conversión es solo del propio agregado (instantánea): el repositorio, cuyo constructor recibe solo las dependencias de su tecnología, llama directamente a `order.toPrimitives()` al escribir y a `Order.fromPrimitives(row).restoreVersion(row.version)` al leer, sin mapper ni comprobación de forma en medio, y no lee los campos. Quien añade un campo lo añade a `toPrimitives`/`fromPrimitives`, y el spec del agregado comprueba la ida y vuelta `[Fuera de los libros: convención de @archi-code/ddd]`.
+* Constructor privado, una factoría de negocio (`place`, que registra `OrderPlaced`) y `fromPrimitives`, que reconstruye sin reglas de creación ni eventos; `toPrimitives()` devuelve solo datos planos. La conversión es solo del propio agregado (instantánea): el repositorio, cuyo constructor recibe solo las dependencias de su tecnología, llama directamente a `order.toPrimitives()` al escribir y a `Order.fromPrimitives(row.primitives)` al leer (la versión de la fila la guarda en su `WeakMap`, no en el agregado), sin mapper ni comprobación de forma en medio, y no lee los campos. Quien añade un campo lo añade a `toPrimitives`/`fromPrimitives`, y el spec del agregado comprueba la ida y vuelta `[Fuera de los libros: convención de @archi-code/ddd]`.
 * Cada método recibe el reloj (`clock: { now(): Date }`) y lo pasa a los eventos (`{ clock }`): el dominio no llama a `new Date()` y los tests son deterministas.
 
 ### Comandos frente a hechos
@@ -560,7 +557,7 @@ El agregado recibe valores, no repositorios. Como registra un hecho (lo ejecuta 
 
 ## 5. Concurrencia optimista
 
-* Versión en la raíz, incrementada con cada comando que cambie estado en cualquier parte del agregado [IDDD cap. 10]. Con el paquete es la `version` de `AggregateRoot`: el agregado no la declara ni la mapea, y solo la tocan los repositorios (`restoreVersion` al cargar, `markPersisted` tras escribir) `[Fuera de los libros: convención de @archi-code/ddd]`.
+* Versión en la raíz, incrementada con cada comando que cambie estado en cualquier parte del agregado [IDDD cap. 10]. Con el paquete la versión es solo del repositorio: el agregado no la declara ni la mapea y el caso de uso nunca la ve. El repositorio recuerda la versión de cada agregado que cargó o guardó en un `WeakMap<Order, number>` (`0` si no la conoce: es nuevo), escribe solo donde la versión guardada es esa, guarda `version + 1` junto a los primitivos (nunca dentro) y actualiza el `WeakMap` solo cuando la escritura ha ido bien (en SQL, tras el `COMMIT`) `[Fuera de los libros: convención de @archi-code/ddd]`.
 * Si las partes internas son entidades y el ORM no detecta su cambio como cambio de la raíz, es una señal más para reducir el agregado a raíz más value objects [IDDD cap. 10].
 * En almacenes de documentos o clave-valor el agregado se guarda entero y la versión se comprueba en una sola operación [IDDD cap. 10].
 
@@ -572,7 +569,7 @@ UPDATE orders
  WHERE id = $1 AND version = $4;
 ```
 
-Si la sentencia no afecta a ninguna fila, el repositorio lanza `new ConcurrencyException('Order', order.id.value, order.version)` (de `@archi-code/ddd/exceptions`; `ExceptionKind.Conflict`, 409 en HTTP; el nombre del agregado va como texto literal porque los minificadores renombran las clases); si escribe, llama a `order.markPersisted()`. En los tests lo cumple el `InMemoryOrderRepository` que el proyecto escribe en `test/support/`; el repositorio real y su suite de contrato están en `ddd-repositorios-persistencia`.
+`$4` es la versión que el repositorio recordaba (`this.versions.get(order) ?? 0`). Si la sentencia no afecta a ninguna fila, el repositorio lanza `new ConcurrencyException('Order', order.id.value, version)` (de `@archi-code/ddd/exceptions`; `ExceptionKind.Conflict`, 409 en HTTP; el nombre del agregado va como texto literal porque los minificadores renombran las clases); un agregado nuevo (versión `0`) se inserta y un id que ya existe es también un conflicto. Si escribe, hace `this.versions.set(order, version + 1)`. En los tests lo cumple el `InMemoryOrderRepository` que el proyecto escribe en `test/support/`; el repositorio real y su suite de contrato están en `ddd-repositorios-persistencia`.
 
 Reintentar automáticamente solo es seguro si el comando es idempotente o se vuelve a evaluar contra el estado recargado: con el paquete, un bucle con límite en `handle` en el que cada intento vuelve a cargar el agregado y vuelve a guardarlo (unos pocos intentos y después se relanza); un caso de uso que ejecuta un listener no reintenta por su cuenta, lo hace la reentrega del canal `[Fuera de los libros: convención de @archi-code/ddd]`. Ejemplo en `ddd-skills/ddd-repositorios-persistencia/references/transacciones-ts.md`.
 

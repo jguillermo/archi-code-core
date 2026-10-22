@@ -51,32 +51,38 @@ function smoke(m) {
         class InMemoryOrderRepository {
           constructor() {
             this.rows = new Map();
+            this.versions = new WeakMap();
           }
 
           async findById(id) {
             const row = this.rows.get(id.value);
-            return row === undefined
-              ? null
-              : Order.fromPrimitives(structuredClone(row.primitives)).restoreVersion(row.version);
+            if (row === undefined) {
+              return null;
+            }
+            const order = Order.fromPrimitives(structuredClone(row.primitives));
+            this.versions.set(order, row.version);
+            return order;
           }
 
           async save(order) {
-            const key = this.currentKey(order);
+            const version = this.checkedVersion(order);
             const primitives = structuredClone(order.toPrimitives());
-            this.rows.set(key, { version: order.version + 1, primitives });
-            order.markPersisted();
+            this.rows.set(order.id.value, { version: version + 1, primitives });
+            this.versions.set(order, version + 1);
           }
 
           async remove(order) {
-            this.rows.delete(this.currentKey(order));
+            this.checkedVersion(order);
+            this.rows.delete(order.id.value);
           }
 
-          currentKey(order) {
+          checkedVersion(order) {
             const key = order.id.value;
-            if ((this.rows.get(key)?.version ?? 0) !== order.version) {
-              throw new exceptions.ConcurrencyException('Order', key, order.version);
+            const version = this.versions.get(order) ?? 0;
+            if ((this.rows.get(key)?.version ?? 0) !== version) {
+              throw new exceptions.ConcurrencyException('Order', key, version);
             }
-            return key;
+            return version;
           }
         }
         const repository = new InMemoryOrderRepository();
@@ -97,8 +103,8 @@ function smoke(m) {
         return (
           (first.customer.value === 'Ana' &&
             first !== second &&
-            first.version === 2 &&
-            stored.version === 2 &&
+            repository.versions.get(first) === 2 &&
+            repository.versions.get(stored) === 2 &&
             conflict instanceof exceptions.ConcurrencyException &&
             removed === null) ||
           'unexpected in-memory repository behavior'

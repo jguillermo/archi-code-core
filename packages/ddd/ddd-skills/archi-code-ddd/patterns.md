@@ -246,6 +246,8 @@ which receives the loaded aggregate) and wraps driver errors with their cause:
 class MongoOrderRepository
   implements AggregateFinder<Order>, AggregateSaver<Order>, AggregateRemover<Order>
 {
+  private readonly versions = new WeakMap<Order, number>();
+
   constructor(private readonly collection: Collection<OrderDocument>) {}
 
   async findById(id: OrderId): Promise<Order | null> {
@@ -254,34 +256,34 @@ class MongoOrderRepository
       return null;
     }
     const { _id, version, ...primitives } = document;
-    return Order.fromPrimitives(primitives).restoreVersion(version);
+    const order = Order.fromPrimitives(primitives);
+    this.versions.set(order, version);
+    return order;
   }
 
   async save(order: Order): Promise<void> {
-    const data = { ...order.toPrimitives(), version: order.version + 1 };
+    const version = this.versions.get(order) ?? 0;
+    const data = { ...order.toPrimitives(), version: version + 1 };
     let written: boolean;
     try {
       written =
-        order.version === 0
+        version === 0
           ? await this.insertUnlessTaken(data)
-          : (await this.collection.replaceOne({ _id: data.id, version: order.version }, data))
-              .matchedCount === 1;
+          : (await this.collection.replaceOne({ _id: data.id, version }, data)).matchedCount === 1;
     } catch (error) {
       throw new InternalErrorException('saving order', { cause: error });
     }
     if (!written) {
-      throw new ConcurrencyException('Order', order.id.value, order.version);
+      throw new ConcurrencyException('Order', order.id.value, version);
     }
-    order.markPersisted();
+    this.versions.set(order, version + 1);
   }
 
   async remove(order: Order): Promise<void> {
-    const { deletedCount } = await this.collection.deleteOne({
-      _id: order.id.value,
-      version: order.version,
-    });
-    if (deletedCount === 0 && order.version > 0) {
-      throw new ConcurrencyException('Order', order.id.value, order.version);
+    const version = this.versions.get(order) ?? 0;
+    const { deletedCount } = await this.collection.deleteOne({ _id: order.id.value, version });
+    if (deletedCount === 0 && version > 0) {
+      throw new ConcurrencyException('Order', order.id.value, version);
     }
   }
 }
@@ -304,31 +306,37 @@ export class InMemoryOrderRepository
   implements AggregateFinder<Order>, AggregateSaver<Order>, AggregateRemover<Order>
 {
   private readonly rows = new Map<string, { version: number; primitives: PrimitiveTypes<Order> }>();
+  private readonly versions = new WeakMap<Order, number>();
 
   async findById(id: OrderId): Promise<Order | null> {
     const row = this.rows.get(id.value);
-    return row === undefined
-      ? null
-      : Order.fromPrimitives(structuredClone(row.primitives)).restoreVersion(row.version);
+    if (row === undefined) {
+      return null;
+    }
+    const order = Order.fromPrimitives(structuredClone(row.primitives));
+    this.versions.set(order, row.version);
+    return order;
   }
 
   async save(order: Order): Promise<void> {
-    const key = this.currentKey(order);
+    const version = this.checkedVersion(order);
     const primitives = structuredClone(order.toPrimitives());
-    this.rows.set(key, { version: order.version + 1, primitives });
-    order.markPersisted();
+    this.rows.set(order.id.value, { version: version + 1, primitives });
+    this.versions.set(order, version + 1);
   }
 
   async remove(order: Order): Promise<void> {
-    this.rows.delete(this.currentKey(order));
+    this.checkedVersion(order);
+    this.rows.delete(order.id.value);
   }
 
-  private currentKey(order: Order): string {
+  private checkedVersion(order: Order): number {
     const key = order.id.value;
-    if ((this.rows.get(key)?.version ?? 0) !== order.version) {
-      throw new ConcurrencyException('Order', key, order.version);
+    const version = this.versions.get(order) ?? 0;
+    if ((this.rows.get(key)?.version ?? 0) !== version) {
+      throw new ConcurrencyException('Order', key, version);
     }
-    return key;
+    return version;
   }
 }
 ```

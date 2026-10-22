@@ -126,8 +126,6 @@ const storedOrder: OrderPrimitives = {
   createdAt: new Date('2026-01-10T08:00:00.000Z'),
 };
 
-class InvoiceTotal extends Required(NumberType) {}
-
 describe('PrimitiveTypes', () => {
   it('describes the row a repository stores for an aggregate, with its id', () => {
     expectTypeOf<PrimitiveTypes<Order>>().toEqualTypeOf<OrderPrimitives>();
@@ -140,28 +138,6 @@ describe('PrimitiveTypes', () => {
 
     expect(primitives).toEqual(storedOrder);
     expect(primitives.createdAt.toISOString()).toBe('2026-01-10T08:00:00.000Z');
-  });
-
-  it('leaves out the version every aggregate inherits: the repository stores it apart', () => {
-    class Invoice extends AggregateRoot {
-      constructor(
-        id: IdType,
-        readonly total: InvoiceTotal,
-      ) {
-        super(id);
-      }
-    }
-
-    expectTypeOf<Invoice['version']>().toEqualTypeOf<number>();
-    expectTypeOf<PrimitiveTypes<Invoice>>().toEqualTypeOf<{ id: string; total: number }>();
-  });
-
-  it('keeps a version member of a child entity, which is plain state of the aggregate', () => {
-    class Revision {
-      constructor(readonly version: InvoiceTotal) {}
-    }
-
-    expectTypeOf<PrimitiveTypes<Revision>>().toEqualTypeOf<{ version: number }>();
   });
 
   it('a getter that exposes a raw boolean makes its key never, so toPrimitives cannot be written', () => {

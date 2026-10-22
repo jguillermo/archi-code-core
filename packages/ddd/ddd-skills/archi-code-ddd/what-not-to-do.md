@@ -156,15 +156,15 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
 - Converting an aggregate to or from primitives outside the aggregate (a domain service, a
   hand-written mapper reading its fields): the aggregate owns `toPrimitives()` and
   `static fromPrimitives()`.
-- Declaring a `version` field in an aggregate, or putting it in `toPrimitives()`: the base already
-  has it, and the repository stores it next to the primitives.
+- Declaring a `version` field in an aggregate, or putting it in `toPrimitives()`: the version is
+  the repository's, which keeps it in its own `WeakMap` and stores it next to the primitives.
 - A repository (also the in-memory one of the tests) that saves with `upsert` and no version
   condition, or "last save wins": a stale save must throw `ConcurrencyException`.
-- Forgetting `markPersisted()` after a successful write (the next save of the same object becomes a
-  false conflict), or `Order.fromPrimitives(row)` without `.restoreVersion(storedVersion)` (every load looks
-  new, and the first save conflicts).
-- Calling `restoreVersion()` or `markPersisted()` from domain or application code: they are for
-  repositories.
+- A repository that forgets to remember `version + 1` after a successful write (the next save of
+  the same object becomes a false conflict), or the stored version on load (every load looks new,
+  and the first save conflicts).
+- Exposing the version to domain or application code: use cases load, change and save; only the
+  repository knows it.
 - Creating events without the aggregate id (`super()`), or generating `eventId`/`occurredOn`
   yourself for a new event: the base does it.
 - Wrapping or translating an error (`InternalErrorException`, `ConcurrencyException`,

@@ -195,6 +195,8 @@ interface OrderRow {
 }
 
 export class PostgresOrderRepository implements AggregateFinder<Order>, AggregateSaver<Order> {
+  private readonly versions = new WeakMap<Order, number>();
+
   constructor(private readonly pool: Pool) {}
 
   async findById(id: OrderId): Promise<Order | null> {
@@ -203,30 +205,36 @@ export class PostgresOrderRepository implements AggregateFinder<Order>, Aggregat
         'SELECT version, data FROM orders WHERE id = $1',
         [id.value],
       );
-      return rows[0] ? Order.fromPrimitives(rows[0].data).restoreVersion(rows[0].version) : null;
+      if (rows[0] === undefined) {
+        return null;
+      }
+      const order = Order.fromPrimitives(rows[0].data);
+      this.versions.set(order, rows[0].version);
+      return order;
     } catch (error) {
       throw new InternalErrorException('loading order', { cause: error });
     }
   }
 
   async save(order: Order): Promise<void> {
+    const version = this.versions.get(order) ?? 0;
     const primitives = order.toPrimitives();
     const events = order.pullDomainEvents().map((event) => event.toJSON());
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
       const { rowCount } =
-        order.version === 0
+        version === 0
           ? await client.query(
               'INSERT INTO orders (id, version, customer_id, status, data) VALUES ($1, 1, $2, $3, $4) ON CONFLICT (id) DO NOTHING',
               [primitives.id, primitives.customerId, primitives.status, primitives],
             )
           : await client.query(
               'UPDATE orders SET version = version + 1, status = $3, data = $4 WHERE id = $1 AND version = $2',
-              [primitives.id, order.version, primitives.status, primitives],
+              [primitives.id, version, primitives.status, primitives],
             );
       if (rowCount === 0) {
-        throw new ConcurrencyException('Order', order.id.value, order.version);
+        throw new ConcurrencyException('Order', order.id.value, version);
       }
       for (const event of events) {
         await client.query(
@@ -253,12 +261,12 @@ export class PostgresOrderRepository implements AggregateFinder<Order>, Aggregat
     } finally {
       client.release();
     }
-    order.markPersisted();
+    this.versions.set(order, version + 1);
   }
 }
 ```
 
-La transacción empieza y termina dentro de `save`: el pedido y sus eventos se confirman o se deshacen juntos, que es lo que pide "un agregado por transacción" [IDDD cap. 10]. `markPersisted()` se llama solo tras el `COMMIT`. Si la escritura falla, el caso de uso termina con el error y el agregado se descarta con sus eventos. El caso de uso no cambia: su `publish` recibe una lista vacía, porque los eventos de este pedido ya están en el outbox. El esquema de `orders` y el repositorio sin outbox están en `ddd-skills/ddd-repositorios-persistencia/references/implementacion-ts.md`.
+La transacción empieza y termina dentro de `save`: el pedido y sus eventos se confirman o se deshacen juntos, que es lo que pide "un agregado por transacción" [IDDD cap. 10]. El repositorio actualiza la versión que recuerda para el pedido (`this.versions.set(order, version + 1)`) solo tras el `COMMIT`. Si la escritura falla, el caso de uso termina con el error y el agregado se descarta con sus eventos. El caso de uso no cambia: su `publish` recibe una lista vacía, porque los eventos de este pedido ya están en el outbox. El esquema de `orders` y el repositorio sin outbox están en `ddd-skills/ddd-repositorios-persistencia/references/implementacion-ts.md`.
 
 ## Reenviador
 
