@@ -31,10 +31,10 @@ describe('LogSerializer: turns a log entry into one JSON line that never throws'
     });
   });
 
-  it('writes dates and value objects through their toJSON', () => {
+  it('writes dates through their toJSON and value objects as their fields', () => {
     expect(
       contextOf({ at: new Date('2026-10-19T09:30:00Z'), customer: new StringType('Ana') }),
-    ).toStrictEqual({ at: '2026-10-19T09:30:00.000Z', customer: 'Ana' });
+    ).toStrictEqual({ at: '2026-10-19T09:30:00.000Z', customer: { _value: 'Ana' } });
   });
 
   it('writes a bigint as text instead of throwing', () => {

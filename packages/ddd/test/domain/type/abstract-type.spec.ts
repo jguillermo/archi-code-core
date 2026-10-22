@@ -47,12 +47,6 @@ class Email extends AbstractType<string> {
 
 class CustomerEmail extends Required(Email) {}
 
-class Deadline extends AbstractType<Date> {
-  protected filter(value: unknown): Date {
-    return new Date(value as string);
-  }
-}
-
 function spiedCountryCode() {
   const filterSpy = vi.fn((value: unknown) => String(value));
   class SpiedCountry extends AbstractType<string> {
@@ -81,7 +75,6 @@ describe('AbstractType: writing a custom value object', () => {
         [value?: string | null]
       >();
       expectTypeOf<CountryCode['value']>().toEqualTypeOf<string | null>();
-      expectTypeOf<CountryCode['toJSON']>().toEqualTypeOf<() => string | null>();
       expectTypeOf<CountryCode['validate']>().toEqualTypeOf<
         () => ValidationResult<string | null>
       >();
@@ -91,7 +84,6 @@ describe('AbstractType: writing a custom value object', () => {
     it('a required value object takes only T and exposes T', () => {
       expectTypeOf<ConstructorParameters<typeof BillingCountry>>().toEqualTypeOf<[value: string]>();
       expectTypeOf<BillingCountry['value']>().toEqualTypeOf<string>();
-      expectTypeOf<BillingCountry['toJSON']>().toEqualTypeOf<() => string>();
       expectTypeOf<BillingCountry>().toMatchTypeOf<Validatable<string>>();
     });
 
@@ -207,22 +199,6 @@ describe('AbstractType: writing a custom value object', () => {
       const country = new CountryCode('it');
       expect(`Shipping to ${country}`).toBe('Shipping to IT');
       expect(String(new CountryCode())).toBe('');
-    });
-
-    it('is serialized as its plain value in an API response', () => {
-      const body = {
-        billing: new BillingCountry('es'),
-        shipping: new ShippingCountry(),
-        location: new GeoPoint({ lat: 37.26, lng: -6.95 }),
-        deadline: new Deadline(new Date('2026-05-01T12:00:00Z')),
-      };
-      expect(JSON.parse(JSON.stringify(body))).toEqual({
-        billing: 'ES',
-        shipping: null,
-        location: { lat: 37.26, lng: -6.95 },
-        deadline: '2026-05-01T12:00:00.000Z',
-      });
-      expectTypeOf<Deadline['toJSON']>().toEqualTypeOf<() => string | null>();
     });
   });
 

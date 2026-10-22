@@ -321,15 +321,5 @@ describe('EnumType', () => {
         'Your order is shipped',
       );
     });
-
-    it('serializes to its plain value inside an API response', () => {
-      expect(
-        JSON.stringify({
-          status: new OrderStatus(OrderStatusOption.PENDING),
-          priority: new TicketPriority(PriorityOption.LOW),
-          returnStatus: new ReturnStatus(),
-        }),
-      ).toBe('{"status":"pending","priority":1,"returnStatus":null}');
-    });
   });
 });

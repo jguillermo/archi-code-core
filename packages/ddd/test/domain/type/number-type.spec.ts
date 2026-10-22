@@ -257,11 +257,5 @@ describe('NumberType', () => {
     it('can be used in a template literal for a receipt line', () => {
       expect(`Total: ${new ProductPrice(12.5)} EUR`).toBe('Total: 12.5 EUR');
     });
-
-    it('serializes to its plain value inside an API response', () => {
-      expect(
-        JSON.stringify({ price: new ProductPrice(12.5), discount: new DiscountPercent() }),
-      ).toBe('{"price":12.5,"discount":null}');
-    });
   });
 });

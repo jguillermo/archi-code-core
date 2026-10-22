@@ -257,7 +257,6 @@ the browser? of the server?). Send it with `Z` or an offset, or send only the da
 | `value`         | `T \| null` (or `T`)  | The converted value; `T` if the type is required (`Required`)                           |
 | `isNull`        | `boolean`             | `true` if there is no value                                                             |
 | `toString()`    | `string`              | Text of the value; `''` if it is `null`. `DateType` gives ISO 8601, `JsonType` the JSON |
-| `toJSON()`      | `T \| null` (or `T`)  | The value (a date as its ISO `string`), so `JSON.stringify` writes the plain value      |
 | `equals(other)` | `boolean`             | Same class and same value (dates by instant, arrays and objects by content)             |
 | `validate()`    | `ValidationResult<T>` | Runs the `@Validations` rules again; never throws (always ok on a built value object)   |
 
@@ -267,7 +266,7 @@ class Country extends StringType {}
 
 const city = new City('Huelva');
 `Shipping to ${city}`; // 'Shipping to Huelva'
-JSON.stringify({ city }); // '{"city":"Huelva"}'
+JSON.stringify({ city: city.value }); // '{"city":"Huelva"}': write `value`, not the value object
 city.equals(new City('Huelva')); // true
 city.equals(new Country('Huelva')); // false: another concept, even with the same text
 new NumberType().toString(); // ''
@@ -715,7 +714,7 @@ price.add(new Money({ amount: new Cents(100), currency: new Currency('USD') }));
 new Cents(12.5);
 // ValidationException: Validation failed, Cents: Value does not satisfy isInt
 price.equals(Money.fromPrimitives({ amount: 1250, currency: 'EUR' })); // true
-JSON.stringify(price); // '{"amount":1250,"currency":"EUR"}'
+JSON.stringify(price.toPrimitives()); // '{"amount":1250,"currency":"EUR"}'
 ```
 
 - **The constructor** takes value objects only. A missing field throws `RequiredValueException`
@@ -771,7 +770,7 @@ JSON.stringify(price); // '{"amount":1250,"currency":"EUR"}'
 
 - **`equals(other)`** compares the class and every field (dates by instant, lists in order):
   a `Price` and a `Money` with the same fields are different. **`toPrimitives()`** gives plain data
-  for repositories (dates stay `Date`); `JSON.stringify` writes ISO dates.
+  for repositories (dates stay `Date`); `JSON.stringify` of them writes ISO dates.
 - **In an aggregate**, a composite is a field like any value object:
   `PrimitiveTypes<Order>` types it as its primitives, and an optional one is a `Money | null`
   field. Write `this.price.toPrimitives()` in `toPrimitives()` and `Money.fromPrimitives(...)` in
@@ -1918,8 +1917,8 @@ const bus = new DomainEventBus<OrderEvent>(channel, registry, logger);
 
 `ConsoleLogger` drops entries below `level` (`debug` < `info` < `warn` < `error`; an unknown level
 throws `InternalErrorException`), writes an `Error` in the context with its `name`, `code`,
-`message`, `errors`, `stack` and `cause` (which `JSON.stringify` would turn into `{}`), dates and
-value objects through their `toJSON`, a `bigint` as text and a circular reference as
+`message`, `errors`, `stack` and `cause` (which `JSON.stringify` would turn into `{}`), dates
+through their `toJSON`, a `bigint` as text and a circular reference as
 `'[Circular]'`; a context it cannot read becomes `'[Unserializable]'`, so logging never throws.
 
 What the package logs when it receives a logger:

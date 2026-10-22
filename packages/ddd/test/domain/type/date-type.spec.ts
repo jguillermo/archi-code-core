@@ -173,16 +173,6 @@ describe('DateType', () => {
       expect(new ShippedAt(null).toString()).toBe('');
       expect(`Shipped: [${new ShippedAt()}]`).toBe('Shipped: []');
     });
-
-    it('serializes as the ISO instant in an API response', () => {
-      const response = {
-        placedAt: new PlacedAt(new Date('2024-01-31T09:00:00.000Z')),
-        shippedAt: new ShippedAt(null),
-      };
-      expect(JSON.stringify(response)).toBe(
-        '{"placedAt":"2024-01-31T09:00:00.000Z","shippedAt":null}',
-      );
-    });
   });
 
   describe('equals', () => {

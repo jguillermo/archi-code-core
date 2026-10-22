@@ -149,16 +149,8 @@ describe('UuidType', () => {
       expect(`x-request-id: ${requestId}`).toBe(`x-request-id: ${STORED}`);
     });
 
-    it('a missing correlation id prints an empty text and serializes as null', () => {
-      const correlationId = new CorrelationId(null);
-      expect(correlationId.toString()).toBe('');
-      expect(JSON.stringify({ correlationId })).toBe('{"correlationId":null}');
-    });
-
-    it('serializes as the plain id in an API response', () => {
-      expect(JSON.stringify({ requestId: new RequestId(STORED) })).toBe(
-        `{"requestId":"${STORED}"}`,
-      );
+    it('a missing correlation id prints an empty text', () => {
+      expect(new CorrelationId(null).toString()).toBe('');
     });
   });
 

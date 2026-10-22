@@ -285,11 +285,5 @@ describe('StringType', () => {
       expect(`Hello, ${new CustomerName('Ana')}!`).toBe('Hello, Ana!');
       expect(`Nickname: ${new Nickname()}.`).toBe('Nickname: .');
     });
-
-    it('serializes to its plain value inside an API response', () => {
-      expect(JSON.stringify({ name: new CustomerName('Ana'), nickname: new Nickname() })).toBe(
-        '{"name":"Ana","nickname":null}',
-      );
-    });
   });
 });

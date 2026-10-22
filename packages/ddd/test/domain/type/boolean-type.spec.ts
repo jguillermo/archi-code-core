@@ -258,11 +258,5 @@ describe('BooleanType', () => {
     it('can be used in a template literal for an audit log line', () => {
       expect(`marketing=${new AcceptsMarketing(false)}`).toBe('marketing=false');
     });
-
-    it('serializes to its plain value inside an API response', () => {
-      expect(JSON.stringify({ verified: new EmailVerified(false), gift: new IsGift() })).toBe(
-        '{"verified":false,"gift":null}',
-      );
-    });
   });
 });

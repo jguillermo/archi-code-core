@@ -188,13 +188,9 @@ describe('Composite: a value object made of several value objects', () => {
       expect(Object.isFrozen(price)).toBe(true);
     });
 
-    it('holds only its fields: they are what JSON, spreads and mappers see', () => {
-      const price = Money.of(1250, 'EUR');
-      expect(Object.keys(price)).toEqual(['amount', 'currency']);
-      expect(JSON.stringify(price)).toBe('{"amount":1250,"currency":"EUR"}');
-      expect(JSON.stringify(DateRange.fromPrimitives(spring()))).toBe(
-        '{"start":"2026-03-20T00:00:00.000Z","end":"2026-06-20T00:00:00.000Z"}',
-      );
+    it('holds only its fields: they are what spreads and mappers see', () => {
+      expect(Object.keys(Money.of(1250, 'EUR'))).toEqual(['amount', 'currency']);
+      expect(Object.keys(DateRange.fromPrimitives(spring()))).toEqual(['start', 'end']);
     });
 
     it('freezes the lists it holds', () => {

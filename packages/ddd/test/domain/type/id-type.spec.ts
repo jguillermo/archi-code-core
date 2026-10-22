@@ -79,9 +79,8 @@ describe('IdType', () => {
     expect(new OrderId(STORED).equals(new CustomerId(STORED))).toBe(false);
   });
 
-  it('prints and serializes as the plain lowercase id', () => {
+  it('prints as the plain lowercase id', () => {
     const orderId = new OrderId('DF9EF000-21FC-4E06-B8F7-103C3A133D10');
     expect(`Order ${orderId} not paid`).toBe(`Order ${STORED} not paid`);
-    expect(JSON.stringify({ orderId })).toBe(`{"orderId":"${STORED}"}`);
   });
 });

@@ -360,16 +360,6 @@ describe('ArrayType', () => {
       const holidays = new HolidayDates([new Date(CHRISTMAS), new Date(NEW_YEAR)]);
       expect(`Closed on ${holidays}`).toBe(`Closed on ${CHRISTMAS}, ${NEW_YEAR}`);
     });
-
-    it('serializes as a plain JSON array', () => {
-      expect(
-        JSON.stringify({
-          tags: new Tags(['ddd']),
-          holidays: new HolidayDates([new Date(CHRISTMAS)]),
-          scores: new Scores(null),
-        }),
-      ).toBe(`{"tags":["ddd"],"holidays":["${CHRISTMAS}"],"scores":null}`);
-    });
   });
 
   describe('always valid: every tag and every rule of the list, all at once', () => {

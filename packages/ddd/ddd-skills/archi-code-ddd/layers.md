@@ -39,9 +39,9 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
 - Values are **immutable**: `_value` is `readonly`; to change a value, build a new VO.
   `ArrayType.withItem/withoutItem` return a new instance; `UpdatedAt` is replaced with
   `UpdatedAt.now()`.
-- `toString()` is a method, `toJSON()` returns the plain value, `equals(other)` compares class and
-  value (dates by instant, arrays and objects by content). Template literals and `JSON.stringify`
-  work on VOs.
+- `toString()` is a method, `equals(other)` compares class and
+  value (dates by instant, arrays and objects by content). Template literals work on VOs;
+  `JSON.stringify` does not unwrap them: serialize `value` or the aggregate's `toPrimitives()`.
 - Dates: `DateType` accepts `Date`, ISO dates (`'2024-01-31'`, UTC midnight) and ISO date-times
   **with** a zone (`Z` or offset); a date-time without a zone throws `TypePrimitiveException`.
   `UuidType`/`IdType` store lowercase. New ids: `OrderId.generate()` (an `OrderId`). Every id class

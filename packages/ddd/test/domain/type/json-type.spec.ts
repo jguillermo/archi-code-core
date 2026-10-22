@@ -334,14 +334,5 @@ describe('JsonType', () => {
         'ship to {"street":"Gran Vía 1","city":"Huelva"}',
       );
     });
-
-    it('serializes to its plain object inside an API response', () => {
-      expect(
-        JSON.stringify({
-          shipping: new ShippingAddress({ street: 'Gran Vía 1', city: 'Huelva' }),
-          billing: new BillingAddress(),
-        }),
-      ).toBe('{"shipping":{"street":"Gran Vía 1","city":"Huelva"},"billing":null}');
-    });
   });
 });
