@@ -39,11 +39,11 @@ const acceptedInputs: [string, string, string][] = [
 const emptyInputs: [string, unknown][] = [
   ['null', null],
   ['undefined', undefined],
-  ['an empty header', ''],
-  ['a header with only spaces', '   '],
 ];
 
 const invalidInputs: [string, unknown, string][] = [
+  ['an empty header', '', '""'],
+  ['a header with only spaces', '   ', '"   "'],
   ['a free text header', 'abc', '"abc"'],
   [
     'an id missing one digit',
@@ -119,10 +119,9 @@ describe('UuidType', () => {
     });
 
     it.each(emptyInputs)('a missing request id (%s) is refused', (_, input) => {
-      const received = typeof input === 'string' ? `"${input}"` : 'null';
       const create = () => new RequestId(input as string);
       expect(create).toThrow(RequiredValueException);
-      expect(create).toThrow(`Validation Error: RequestId is required, but received ${received}.`);
+      expect(create).toThrow(`Validation Error: RequestId is required, but received null.`);
     });
   });
 

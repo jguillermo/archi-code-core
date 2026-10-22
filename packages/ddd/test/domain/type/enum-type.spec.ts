@@ -52,11 +52,11 @@ class TicketPriority extends EnumType<PriorityOption> {
 const blankFormFields: [string, unknown][] = [
   ['a field sent as null', null],
   ['a field left out of the request', undefined],
-  ['an empty select', ''],
-  ['a select with only spaces', '   '],
 ];
 
 const unknownStatuses: [string, unknown, string][] = [
+  ['an empty select', '', '""'],
+  ['a select with only spaces', '   ', '"   "'],
   ['the key in capitals', 'PENDING', '"PENDING"'],
   ['a capitalized option', 'Pending', '"Pending"'],
   ['an option with spaces', ' pending ', '" pending "'],
@@ -212,12 +212,9 @@ describe('EnumType', () => {
     it.each(blankFormFields)(
       'rejects %s with a RequiredValueException naming the type',
       (_, input) => {
-        const received = typeof input === 'string' ? `"${input}"` : 'null';
         const create = () => new OrderStatus(input as OrderStatusOption);
         expect(create).toThrow(RequiredValueException);
-        expect(create).toThrow(
-          `Validation Error: OrderStatus is required, but received ${received}.`,
-        );
+        expect(create).toThrow(`Validation Error: OrderStatus is required, but received null.`);
       },
     );
 

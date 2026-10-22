@@ -32,11 +32,11 @@ const requestInputs: [string, unknown, number][] = [
 const blankFormFields: [string, unknown][] = [
   ['a field sent as null', null],
   ['a field left out of the request', undefined],
-  ['an empty number box', ''],
-  ['a number box with only spaces', '   '],
 ];
 
 const brokenClientInputs: [string, unknown, string][] = [
+  ['an empty number box', '', '""'],
+  ['a number box with only spaces', '   ', '"   "'],
   ['a word', 'abc', '"abc"'],
   ['a decimal comma', '1,5', '"1,5"'],
   ['a hexadecimal text', '0x10', '"0x10"'],
@@ -169,10 +169,9 @@ describe('NumberType', () => {
     it.each(blankFormFields)(
       'rejects %s with a RequiredValueException naming the type',
       (_, input) => {
-        const received = typeof input === 'string' ? `"${input}"` : 'null';
         const create = () => new ProductPrice(input as number);
         expect(create).toThrow(RequiredValueException);
-        expect(create).toThrow(requiredError('ProductPrice', received));
+        expect(create).toThrow(requiredError('ProductPrice', 'null'));
       },
     );
 

@@ -270,7 +270,7 @@ JSON.stringify({ city: city.value }); // '{"city":"Huelva"}': write `value`, not
 city.equals(new City('Huelva')); // true
 city.equals(new Country('Huelva')); // false: another concept, even with the same text
 new NumberType().toString(); // ''
-new StringType('   ').value; // null (blank strings count as empty)
+new StringType('   ').value; // '   ' (blank text is a value: only null and undefined are empty)
 new StringType(null).isNull; // true
 ```
 
@@ -297,11 +297,15 @@ const nickname: string | null = new Nickname().value; // null
 
 new Name(null); // type error and, at runtime:
 // RequiredValueException: Validation Error: Name is required, but received null.
-new Name('  ');
-// RequiredValueException: Validation Error: Name is required, but received "  ".
+new Name('  ').value; // '  ': blank text is a value, not a missing one
+new NumberType('  ');
+// TypePrimitiveException: Validation Error: Expected a valid Number, but received "  ".
 ```
 
-`null`, `undefined` and blank strings count as empty in every type. A subclass of a required value
+Only `null` and `undefined` count as empty. Any other input, a blank text included, goes through
+the type's conversion: `StringType` keeps it as written and the other types refuse it with
+`TypePrimitiveException`. Add a rule (`isLength`, a `custom` one) when a blank text must not be
+accepted. A subclass of a required value
 object is also required (`class FullName extends Name {}`). `Required(...)` accepts any subclass of
 `AbstractType`, including your own and abstract ones (`Required(StatusType)`, `Required(Tags)`).
 
@@ -406,12 +410,12 @@ const command = ValueObjects.build({
 });
 // command: { orderId: OrderId; email: Email; lines: { sku: Sku; quantity: Quantity }[] }
 
-// with input = { orderId: 'x', email: 'ana', lines: [{ sku: 'TORCH-01', quantity: 2 }, { sku: '', quantity: 0 }] }:
+// with input = { orderId: 'x', email: 'ana', lines: [{ sku: 'TORCH-01', quantity: 2 }, { sku: null, quantity: 0 }] }:
 // ValidationException, error.errors:
 // [
 //   { field: 'orderId', code: 'DOM003', message: 'Validation Error: Expected a valid UUID, but received "x".' },
 //   { field: 'email', code: 'isEmail', message: 'Email: Value does not satisfy isEmail' },
-//   { field: 'lines.1.sku', code: 'DOM004', message: 'Validation Error: Sku is required, but received "".' },
+//   { field: 'lines.1.sku', code: 'DOM004', message: 'Validation Error: Sku is required, but received null.' },
 //   { field: 'lines.1.quantity', code: 'isInt', message: 'Quantity: From 1 to 20 units' },
 // ]
 ```
@@ -626,20 +630,20 @@ An `ArrayType` builds every item and reports, at once, the rules of the list (`f
 the errors of each item with its position (`field: '1'`, from 0):
 
 ```ts
-new Tags(['ok', 'x', '']);
+new Tags(['ok', 'x', null] as any);
 // ValidationException, error.errors:
 // [
 //   { field: '1', code: 'isLength', message: 'Tag: Value does not satisfy isLength' },
-//   { field: '2', code: 'DOM004', message: 'Validation Error: Tag is required, but received "".' },
+//   { field: '2', code: 'DOM004', message: 'Validation Error: Tag is required, but received null.' },
 // ]
 ```
 
 ### Custom value objects with `AbstractType`
 
 For a new type, extend `AbstractType<T>` and implement `filter(value)`: it receives the input
-already known to be non-empty, returns the converted value and throws `TypePrimitiveException` if it
-is not valid. Empty input (`null`, `undefined`, blanks) and `Required(...)` are handled by the base
-class.
+already known not to be `null` nor `undefined` (a blank text does reach it), returns the converted
+value and throws `TypePrimitiveException` if it is not valid. Empty input (`null`, `undefined`) and
+`Required(...)` are handled by the base class.
 
 ```ts
 import { AbstractType, Required } from '@archi-code/ddd/domain';
@@ -758,11 +762,11 @@ JSON.stringify(price.toPrimitives()); // '{"amount":1250,"currency":"EUR"}'
   class Cart extends Composite({ lines: [OrderLine] }) {}
 
   Cart.fromPrimitives({
-    lines: [{ sku: '', quantity: 'two', unitPrice: { amount: 1250, currency: 'GBP' } }],
+    lines: [{ sku: null, quantity: 'two', unitPrice: { amount: 1250, currency: 'GBP' } }],
   } as any);
   // ValidationException, error.errors:
   // [
-  //   { field: 'lines.0.sku', code: 'DOM004', message: 'Validation Error: Sku is required, but received "".' },
+  //   { field: 'lines.0.sku', code: 'DOM004', message: 'Validation Error: Sku is required, but received null.' },
   //   { field: 'lines.0.quantity', code: 'DOM003', message: 'Validation Error: Expected a valid Number, but received "two".' },
   //   { field: 'lines.0.unitPrice.currency', code: 'isIn', message: 'Currency: Value does not satisfy isIn' },
   // ]

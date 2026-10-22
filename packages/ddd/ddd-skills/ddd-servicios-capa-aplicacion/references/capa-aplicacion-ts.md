@@ -18,7 +18,7 @@ export interface SalesPermissions {
 export interface CancelOrderInput {
   orderId: string;
   requesterId: string;
-  reason: string;
+  reason: string | null;
 }
 
 interface CancelOrderCommand {
@@ -43,7 +43,7 @@ export class CancelOrder extends UseCase<CancelOrderInput, CancelOrderCommand, v
     return ValueObjects.build({
       orderId: () => new OrderId(input.orderId),
       requester: () => new CustomerId(input.requesterId),
-      reason: () => new CancellationReason(input.reason),
+      reason: () => new CancellationReason(input.reason as string),
     });
   }
 
@@ -198,7 +198,7 @@ export class CancelOrderController {
       await this.cancelOrder.execute({
         orderId: request.params.orderId,
         requesterId: request.auth.customerId,
-        reason: typeof request.body.reason === 'string' ? request.body.reason : '',
+        reason: typeof request.body.reason === 'string' ? request.body.reason : null,
       });
       return { status: 204 };
     } catch (error) {

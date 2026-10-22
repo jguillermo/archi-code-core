@@ -127,13 +127,20 @@ describe('AbstractType: writing a custom value object', () => {
       ['a field that was not sent', []],
       ['a JSON null', [null]],
       ['an undefined property', [undefined]],
-      ['an empty text box', ['']],
-      ['a text box with only spaces and line breaks', [' \t\n ']],
     ])('%s is stored as null without calling filter', (_, args) => {
       const { SpiedCountry, filterSpy } = spiedCountryCode();
       const country = new SpiedCountry(...(args as [string | null]));
       expect(country.value).toBeNull();
       expect(filterSpy).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['an empty text box', ''],
+      ['a text box with only spaces and line breaks', ' \t\n '],
+    ])('%s is a value: filter receives it and decides', (_, input) => {
+      const { SpiedCountry, filterSpy } = spiedCountryCode();
+      expect(new SpiedCountry(input).value).toBe(input);
+      expect(filterSpy).toHaveBeenCalledWith(input);
     });
 
     it.each([
@@ -304,7 +311,7 @@ describe('AbstractType: writing a custom value object', () => {
       @Validations([{ custom: 'isCorporate', fn: isCorporate }])
       class WorkEmail extends Email {}
 
-      expect(new WorkEmail('').value).toBeNull();
+      expect(new WorkEmail().value).toBeNull();
       expect(isCorporate).not.toHaveBeenCalled();
     });
 
@@ -374,8 +381,8 @@ describe('AbstractType: writing a custom value object', () => {
     it('a missing billing country throws RequiredValueException with the class name', () => {
       // @ts-expect-error a required value object needs a value
       expect(() => new BillingCountry()).toThrow(RequiredValueException);
-      expect(() => new BillingCountry('  ')).toThrow(
-        'Validation Error: BillingCountry is required, but received "  ".',
+      expect(() => new BillingCountry(null as unknown as string)).toThrow(
+        'Validation Error: BillingCountry is required, but received null.',
       );
     });
 

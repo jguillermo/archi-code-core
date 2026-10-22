@@ -117,7 +117,11 @@ describe('ArrayType', () => {
     });
 
     it('keeps a missing optional score as null', () => {
-      expect(new Scores([9, null, '  '] as unknown as number[]).value).toEqual([9, null, null]);
+      expect(new Scores([9, null, undefined] as unknown as number[]).value).toEqual([
+        9,
+        null,
+        null,
+      ]);
     });
 
     it('converts every holiday into an immutable UTC date', () => {
@@ -132,6 +136,8 @@ describe('ArrayType', () => {
       ['a number', 18, '18'],
       ['a boolean', true, 'true'],
       ['an object', { tag: 'ddd' }, '{"tag":"ddd"}'],
+      ['an empty field', '', '""'],
+      ['a field with only spaces', '   ', '"   "'],
     ])('rejects %s', (_, input, received) => {
       const create = () => new Tags(input as unknown as string[]);
       expect(create).toThrow(TypePrimitiveException);
@@ -153,8 +159,6 @@ describe('ArrayType', () => {
     it.each([
       ['null', null],
       ['undefined', undefined],
-      ['an empty field', ''],
-      ['a field with only spaces', '   '],
     ])('a product without tags (%s) holds null', (_, input) => {
       expect(new Tags(input as unknown as string[]).value).toBeNull();
     });
@@ -293,8 +297,8 @@ describe('ArrayType', () => {
       expect(tags.value).toBeNull();
     });
 
-    it('throws for a tag that cannot be converted', () => {
-      expect(() => new Tags(['ddd']).withoutItem('')).toThrow(RequiredValueException);
+    it('throws for a tag that breaks its rules', () => {
+      expect(() => new Tags(['ddd']).withoutItem('')).toThrow(ValidationException);
     });
   });
 

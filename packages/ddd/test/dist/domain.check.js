@@ -18,7 +18,7 @@ function throwsInstanceOf(create, ExceptionClass) {
 function smoke(m) {
   return [
     ['StringType converts', () => new m.StringType(12).value === '12'],
-    ['StringType keeps blanks as null', () => new m.StringType('  ').value === null],
+    ['StringType keeps blank text as written', () => new m.StringType('  ').value === '  '],
     [
       'Required throws RequiredValueException',
       () => {
@@ -85,7 +85,7 @@ function smoke(m) {
         try {
           m.ValueObjects.build({
             orderId: () => new OrderId('not-an-id'),
-            customer: () => new Customer(''),
+            customer: () => new Customer(null),
           });
         } catch (error) {
           issues = error.errors.map((issue) => issue.field);
@@ -109,7 +109,7 @@ function smoke(m) {
         const cart = Cart.fromPrimitives({ prices: [{ amount: 1250, currency: 'EUR' }] });
         let fields = [];
         try {
-          Cart.fromPrimitives({ prices: [{ amount: 'x', currency: '' }] });
+          Cart.fromPrimitives({ prices: [{ amount: 'x', currency: null }] });
         } catch (error) {
           fields = error.errors.map((issue) => issue.field);
         }

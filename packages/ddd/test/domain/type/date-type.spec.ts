@@ -44,11 +44,11 @@ const zonelessInputs: [string, string][] = [
 const emptyInputs: [string, unknown][] = [
   ['null', null],
   ['undefined', undefined],
-  ['an empty form field', ''],
-  ['a field with only spaces', '   '],
 ];
 
 const invalidInputs: [string, unknown, string][] = [
+  ['an empty form field', '', '""'],
+  ['a field with only spaces', '   ', '"   "'],
   ['free text', 'tomorrow', '"tomorrow"'],
   ['a day that does not exist', '2018-02-30', '"2018-02-30"'],
   ['a European formatted date', '23/03/2018', '"23/03/2018"'],
@@ -136,10 +136,9 @@ describe('DateType', () => {
     });
 
     it.each(emptyInputs)('a placement date that is missing (%s) is refused', (_, input) => {
-      const received = typeof input === 'string' ? `"${input}"` : 'null';
       const create = () => new PlacedAt(input as Date);
       expect(create).toThrow(RequiredValueException);
-      expect(create).toThrow(`Validation Error: PlacedAt is required, but received ${received}.`);
+      expect(create).toThrow(`Validation Error: PlacedAt is required, but received null.`);
     });
   });
 

@@ -136,7 +136,7 @@ describe('ValueObjects: building every value object of an input at once', () => 
       expect(
         issuesOf(() =>
           ValueObjects.build({
-            email: () => new CustomerEmail(''),
+            email: () => new CustomerEmail(null as unknown as string),
             units: () => new Units('three' as unknown as number),
             otherUnits: () => new Units(30),
           }),
@@ -145,7 +145,7 @@ describe('ValueObjects: building every value object of an input at once', () => 
         {
           field: 'email',
           code: 'DOM004',
-          message: 'Validation Error: CustomerEmail is required, but received "".',
+          message: 'Validation Error: CustomerEmail is required, but received null.',
         },
         {
           field: 'units',
@@ -303,7 +303,7 @@ describe('ValueObjects: building every value object of an input at once', () => 
           email: 'ana@example.com',
           lines: [
             { sku: 'TORCH-01', units: 2 },
-            { sku: '', units: 0 },
+            { sku: null as unknown as string, units: 0 },
             { sku: 'MASK-02', units: 25 },
           ],
         });
@@ -312,13 +312,13 @@ describe('ValueObjects: building every value object of an input at once', () => 
         {
           field: 'lines.1.sku',
           code: 'DOM004',
-          message: 'Validation Error: Sku is required, but received "".',
+          message: 'Validation Error: Sku is required, but received null.',
         },
         { field: 'lines.1.units', code: 'isInt', message: 'Units: From 1 to 20 units' },
         { field: 'lines.2.units', code: 'isInt', message: 'Units: From 1 to 20 units' },
       ]);
       expect(() => place()).toThrow(
-        'Validation failed, lines.1.sku: Validation Error: Sku is required, but received "".',
+        'Validation failed, lines.1.sku: Validation Error: Sku is required, but received null.',
       );
     });
 

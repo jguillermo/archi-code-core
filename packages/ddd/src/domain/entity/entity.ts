@@ -7,7 +7,7 @@ export type EntityId = AbstractType<any> & RequiredMarked;
 
 export abstract class Entity<Id extends EntityId = IdType> {
   constructor(readonly id: Id) {
-    if (id?.isNull) {
+    if (id?.isNull !== false) {
       throw new RequiredValueException(`${new.target.name}.id`, id?.value);
     }
   }

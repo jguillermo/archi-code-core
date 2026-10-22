@@ -323,7 +323,9 @@ describe('UseCase: an application service a controller or a message handler call
 
     it('reports every invalid field of the input at once, never only the first one', async () => {
       const { placeOrder, log } = setup();
-      const error = await rejection(placeOrder.execute({ orderId: 'not-an-id', customer: '' }));
+      const error = await rejection(
+        placeOrder.execute({ orderId: 'not-an-id', customer: null as unknown as string }),
+      );
       expect(error).toBeInstanceOf(ValidationException);
       expect((error as ValidationException).errors).toEqual([
         {
@@ -334,7 +336,7 @@ describe('UseCase: an application service a controller or a message handler call
         {
           field: 'customer',
           code: 'DOM004',
-          message: 'Validation Error: CustomerName is required, but received "".',
+          message: 'Validation Error: CustomerName is required, but received null.',
         },
       ]);
       expect(log).toEqual([]);

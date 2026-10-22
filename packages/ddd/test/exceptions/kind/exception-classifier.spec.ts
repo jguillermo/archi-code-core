@@ -73,7 +73,7 @@ describe('ExceptionClassifier: the kind of failure an entry point answers with',
     });
 
     it('a missing required field is malformed', () => {
-      const error = thrownBy(() => new Email(''));
+      const error = thrownBy(() => new Email(null as unknown as string));
       expect(error).toBeInstanceOf(RequiredValueException);
       expect(ExceptionClassifier.classify(error)).toBe(ExceptionKind.Malformed);
     });

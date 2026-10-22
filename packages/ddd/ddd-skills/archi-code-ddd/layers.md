@@ -6,8 +6,9 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   de @archi-code/ddd]`: the books build every value object with a value and model an optional one
   as a field that may be `null` (`reservation: ReservationId | null`) [IDDD ch. 5 and 6]; both
   forms work here. `Required(XType)` makes them
-  required: the constructor demands `T` and, if it receives an empty value (`null`, `undefined` or a
-  blank string), throws `RequiredValueException` with the class name. `Required(...)` also declares
+  required: the constructor demands `T` and, if it receives an empty value (`null` or `undefined`),
+  throws `RequiredValueException` with the class name. A blank text is a value: `StringType` keeps
+  it and the other types refuse it with `TypePrimitiveException`. `Required(...)` also declares
   the `isRequired` validation. An id is always required (see the aggregate root below).
 - A domain VO is always a named subclass (`class Email extends ...`): the name appears in the error
   messages, and `equals` compares the class too (`BillingCountry('ES')` is not a

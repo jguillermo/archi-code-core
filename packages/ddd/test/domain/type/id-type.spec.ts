@@ -28,8 +28,8 @@ describe('IdType', () => {
 
   it('refuses a missing order id', () => {
     expect(() => new OrderId(null as unknown as string)).toThrow(RequiredValueException);
-    expect(() => new OrderId('  ')).toThrow(
-      'Validation Error: OrderId is required, but received "  ".',
+    expect(() => new OrderId(undefined as unknown as string)).toThrow(
+      'Validation Error: OrderId is required, but received null.',
     );
   });
 

@@ -45,11 +45,11 @@ const addressInputs: [string, unknown, Address][] = [
 const blankFormFields: [string, unknown][] = [
   ['a field sent as null', null],
   ['a field left out of the request', undefined],
-  ['an empty database column', ''],
-  ['a database column with only spaces', '   '],
 ];
 
 const brokenClientInputs: [string, unknown, string][] = [
+  ['an empty database column', '', '""'],
+  ['a database column with only spaces', '   ', '"   "'],
   ['an empty object', {}, '{}'],
   ['an empty JSON object text', '{}', '"{}"'],
   [
@@ -215,12 +215,9 @@ describe('JsonType', () => {
     it.each(blankFormFields)(
       'rejects %s with a RequiredValueException naming the type',
       (_, input) => {
-        const received = typeof input === 'string' ? `"${input}"` : 'null';
         const create = () => new ShippingAddress(input as Address);
         expect(create).toThrow(RequiredValueException);
-        expect(create).toThrow(
-          `Validation Error: ShippingAddress is required, but received ${received}.`,
-        );
+        expect(create).toThrow(`Validation Error: ShippingAddress is required, but received null.`);
       },
     );
 

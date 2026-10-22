@@ -31,11 +31,11 @@ const formInputs: [string, unknown, boolean][] = [
 const blankFormFields: [string, unknown][] = [
   ['a field sent as null', null],
   ['a field left out of the request', undefined],
-  ['an empty form value', ''],
-  ['a form value with only spaces', '   '],
 ];
 
 const brokenClientInputs: [string, unknown, string][] = [
+  ['an empty form value', '', '""'],
+  ['a form value with only spaces', '   ', '"   "'],
   ['"yes"', 'yes', '"yes"'],
   ['"no"', 'no', '"no"'],
   ['a word', 'abc', '"abc"'],
@@ -164,10 +164,9 @@ describe('BooleanType', () => {
     it.each(blankFormFields)(
       'rejects %s with a RequiredValueException naming the type',
       (_, input) => {
-        const received = typeof input === 'string' ? `"${input}"` : 'null';
         const create = () => new EmailVerified(input as boolean);
         expect(create).toThrow(RequiredValueException);
-        expect(create).toThrow(requiredError('EmailVerified', received));
+        expect(create).toThrow(requiredError('EmailVerified', 'null'));
       },
     );
 

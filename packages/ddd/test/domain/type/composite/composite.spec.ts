@@ -302,7 +302,14 @@ describe('Composite: a value object made of several value objects', () => {
 
     it('reports every invalid field at once, with the path of nested fields', () => {
       const broken = {
-        lines: [torch, { sku: '', units: 30, unitPrice: { amount: 10.5, currency: 'GBP' } }],
+        lines: [
+          torch,
+          {
+            sku: null as unknown as string,
+            units: 30,
+            unitPrice: { amount: 10.5, currency: 'GBP' },
+          },
+        ],
         note: null,
       };
       const rebuild = () => Cart.fromPrimitives(broken);
@@ -311,7 +318,7 @@ describe('Composite: a value object made of several value objects', () => {
         {
           field: 'lines.1.sku',
           code: 'DOM004',
-          message: 'Validation Error: Sku is required, but received "".',
+          message: 'Validation Error: Sku is required, but received null.',
         },
         { field: 'lines.1.units', code: 'isInt', message: 'Units: From 1 to 20' },
         {
