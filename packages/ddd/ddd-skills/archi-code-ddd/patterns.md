@@ -29,7 +29,7 @@ new Email('x');
 new PackSize(-3);
 // ValidationException: Validation failed, PackSize: Value does not satisfy isInt, PackSize: Must be even
 
-const command = ValueObjects.build({
+const command = ValueObjectBuilder.build({
   email: () => new Email(input.email),
   packSize: () => new PackSize(input.packSize),
 });
@@ -180,7 +180,7 @@ class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand, void>
   }
 
   protected toCommand(input: AddOrderLineInput): AddOrderLineCommand {
-    return ValueObjects.build({
+    return ValueObjectBuilder.build({
       orderId: () => new OrderId(input.orderId),
       sku: () => new Sku(input.sku),
       quantity: () => new Quantity(input.quantity),
@@ -216,7 +216,7 @@ class PrepareShipment extends UseCase<
   }
 
   protected toCommand(input: { orderId: string; sku: string }): { orderId: OrderId; sku: Sku } {
-    return ValueObjects.build({
+    return ValueObjectBuilder.build({
       orderId: () => new OrderId(input.orderId),
       sku: () => new Sku(input.sku),
     });

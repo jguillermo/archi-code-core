@@ -5,7 +5,7 @@
 Un caso de uso extiende `UseCase<Input, Command, Output>` de `@archi-code/ddd/application`. `execute(input)` llama a `toCommand(input)` y después a `handle(command)`; no hay que escribir `execute`.
 
 ```ts
-import { ValueObjects } from '@archi-code/ddd/domain';
+import { ValueObjectBuilder } from '@archi-code/ddd/domain';
 import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
 import { UseCase } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
@@ -40,7 +40,7 @@ export class CancelOrder extends UseCase<CancelOrderInput, CancelOrderCommand, v
   }
 
   protected toCommand(input: CancelOrderInput): CancelOrderCommand {
-    return ValueObjects.build({
+    return ValueObjectBuilder.build({
       orderId: () => new OrderId(input.orderId),
       requester: () => new CustomerId(input.requesterId),
       reason: () => new CancellationReason(input.reason as string),
@@ -72,7 +72,7 @@ Autorizar, cargar, invocar el dominio, guardar y publicar, y ninguna regla de ne
 ## Entrada
 
 * Primitivos o DTO o comando [PHP: Application, citando a Vernon]. Con el paquete, dos tipos por caso de uso `[Fuera de los libros: convención de @archi-code/ddd]`: el `Input`, plano y de primitivos (se puede serializar y encolar si un día hace falta [PHP: Application]), y el `Command`, de value objects, que construye `toCommand`.
-* La conversión a value objects ocurre en `toCommand` con `ValueObjects.build`: si algún campo no es válido lanza una sola `ValidationException` con el `field` y el `code` de cada problema (`ValueObjects.buildList` nombra los elementos de una lista por posición, `lines.1.quantity`), y `handle` no llega a ejecutarse.
+* La conversión a value objects ocurre en `toCommand` con `ValueObjectBuilder.build`: si algún campo no es válido lanza una sola `ValidationException` con el `field` y el `code` de cada problema (`ValueObjectBuilder.buildList` nombra los elementos de una lista por posición, `lines.1.quantity`), y `handle` no llega a ejecutarse.
 * El adaptador de entrada solo comprueba la forma de la petición (que un campo sea texto); las reglas de cada valor son de los value objects.
 * Nunca recibas el agregado desde el controlador.
 
@@ -130,7 +130,7 @@ export class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand
   }
 
   protected toCommand(input: AddOrderLineInput): AddOrderLineCommand {
-    return ValueObjects.build({
+    return ValueObjectBuilder.build({
       orderId: () => new OrderId(input.orderId),
       sku: () => new Sku(input.sku),
       quantity: () => new Quantity(input.quantity),
@@ -167,7 +167,7 @@ export class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand
 
 ## Errores
 
-* El dominio lanza `DomainException` con nombre y código propio (`class OrderCannotBeCancelled extends DomainException`, `super(message, ['ORD002'])`); los value objects y `ValueObjects.build` lanzan `ValidationException`.
+* El dominio lanza `DomainException` con nombre y código propio (`class OrderCannotBeCancelled extends DomainException`, `super(message, ['ORD002'])`); los value objects y `ValueObjectBuilder.build` lanzan `ValidationException`.
 * La aplicación añade las suyas: `AggregateNotFoundException('Order', id)` cuando `findById` devuelve `null`, `NotAllowedException(message)` cuando el solicitante no puede ejecutar la acción, `ApplicationException` para otros errores de aplicación. Al traducir otro error, siempre con `{ cause: error }`.
 * Los errores se dejan propagar: no se capturan en `handle` para relanzarlos; `execute` deja pasar las excepciones del paquete y envuelve el resto en `InternalErrorException`.
 * El punto de entrada los clasifica con `ExceptionClassifier.classify(error)` de `@archi-code/ddd/exceptions`, que no sabe de ningún protocolo: `NotFound` (`AggregateNotFoundException`), `NotAllowed` (`NotAllowedException`), `Conflict` (`ConcurrencyException`), `Malformed` (`TypePrimitiveException`, `RequiredValueException`), `Invalid` (`ValidationException` y cualquier otra `DomainException`), `Rejected` (otros errores de aplicación) e `Internal` (lo demás). Cada protocolo traduce el `ExceptionKind` a sus códigos (en HTTP: 404, 403, 409, 400, 422, 400 y 500), usa `error.code` para los códigos propios (`ORD001` → 409), oculta el mensaje de `Internal`, devuelve los `errors` de una `ValidationException` y registra él mismo los fallos internos `[Fuera de los libros: convención de @archi-code/ddd]`. Un controlador HTTP usa el `toHttpError` del proyecto (en `interfaces/http/`; completo en `ddd-skills/ddd-arquitectura/references/estructura-hexagonal-ts.md`):

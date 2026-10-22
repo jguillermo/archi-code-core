@@ -366,25 +366,31 @@ Validator names and their `properties` are in the `@archi-code/validation` docum
 `validate()` runs the rules again and returns a frozen `{ ok, value, errors }` without throwing;
 on a value object that was built it is always `ok`.
 
-### Building every value object of an input at once: `ValueObjects.build`
+### Building every value object of an input at once: `ValueObjectBuilder.build`
 
 The constructor of each value object stops at its own errors. To report **every field** of an
 input (a form, a JSON body, a message) at once, build the value objects with
-`ValueObjects.build`: it runs every factory, even after one fails, and throws one
+`ValueObjectBuilder.build`: it runs every factory, even after one fails, and throws one
 `ValidationException` whose `errors` name the field of each problem. It collects the three ways a
 value can be wrong: empty in a required type (`RequiredValueException`), not convertible
 (`TypePrimitiveException`) and broken rules (`ValidationException`), plus any other
 `DomainException` a factory throws. Any other error is a bug and goes through untouched, and it
 wins: the validation errors already collected are dropped, so a bug is never hidden behind a 422.
-`ValueObjects.buildList` does the same for a list and names each item by its position, so nested
+`ValueObjectBuilder.buildList` does the same for a list and names each item by its position, so nested
 inputs get paths such as `lines.1.quantity`. Factories are synchronous: a factory that returns a
 Promise does not compile in `build`, and both methods refuse it at run time with
-`InternalErrorException` (`ValueObjects: the factory of "email" returned a Promise; build value
+`InternalErrorException` (`ValueObjectBuilder: the factory of "email" returned a Promise; build value
 objects synchronously`), so an asynchronous check never skips the validation. Every field name is
 kept as written, `__proto__` included.
 
 ```ts
-import { IdType, NumberType, Required, StringType, ValueObjects } from '@archi-code/ddd/domain';
+import {
+  IdType,
+  NumberType,
+  Required,
+  StringType,
+  ValueObjectBuilder,
+} from '@archi-code/ddd/domain';
 import { Validations } from '@archi-code/validation';
 
 // Email as in the previous block; input is the raw request body
@@ -397,12 +403,12 @@ class Sku extends Required(StringType) {}
 ])
 class Quantity extends Required(NumberType) {}
 
-const command = ValueObjects.build({
+const command = ValueObjectBuilder.build({
   orderId: () => new OrderId(input.orderId),
   email: () => new Email(input.email),
   lines: () =>
-    ValueObjects.buildList(input.lines, (line) =>
-      ValueObjects.build({
+    ValueObjectBuilder.buildList(input.lines, (line) =>
+      ValueObjectBuilder.build({
         sku: () => new Sku(line.sku),
         quantity: () => new Quantity(line.quantity),
       }),
@@ -430,13 +436,13 @@ optional and defaults to `'DOM001'`.
 The input that reaches a use case is not validated yet, and that is on purpose: every adapter
 (HTTP, a queue, a CLI, a test) goes through the use case, so the rules live in one place.
 
-| What                                                      | Where                                                                       |
-| --------------------------------------------------------- | --------------------------------------------------------------------------- |
-| The shape of the request (it parses, a field is a string) | The input adapter (controller, consumer); no business rule                  |
-| One value: required, convertible, its rules               | The value object's constructor, through `ValueObjects.build` in `toCommand` |
-| Rules over several values of one aggregate (invariants)   | The aggregate's methods, with a `DomainException`                           |
-| Rules over several aggregates                             | A domain service                                                            |
-| Whether the caller may run the action                     | The use case (application)                                                  |
+| What                                                      | Where                                                                             |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| The shape of the request (it parses, a field is a string) | The input adapter (controller, consumer); no business rule                        |
+| One value: required, convertible, its rules               | The value object's constructor, through `ValueObjectBuilder.build` in `toCommand` |
+| Rules over several values of one aggregate (invariants)   | The aggregate's methods, with a `DomainException`                                 |
+| Rules over several aggregates                             | A domain service                                                                  |
+| Whether the caller may run the action                     | The use case (application)                                                        |
 
 Do not repeat a value object's rule in the request schema: the adapter checks that the email is a
 string, `Email` checks that it is an email. Invariants run after the fields are valid, because they
@@ -773,7 +779,7 @@ JSON.stringify(price.toPrimitives()); // '{"amount":1250,"currency":"EUR"}'
 - **`X.fromPrimitives(data)`** rebuilds it from stored or received data, converting each primitive
   like the value objects do, and reports every invalid field with its path, also nested ones.
   `data` is a `CompositeInput`: each field takes what its value object's constructor takes (a date
-  field takes a `Date` or ISO text). It works inside `ValueObjects.build`, so a command reports
+  field takes a `Date` or ISO text). It works inside `ValueObjectBuilder.build`, so a command reports
   `price.amount`:
 
   ```ts
@@ -1114,7 +1120,7 @@ interface AddOrderLineCommand {
 
 class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand, void> {
   // constructor (orders, events, clock) as in "Persistence belongs to the repository";
-  // toCommand builds orderId, sku and quantity with ValueObjects.build;
+  // toCommand builds orderId, sku and quantity with ValueObjectBuilder.build;
   // Order, OrderLine, Sku and Quantity as in "Persisting aggregates"
 
   protected async handle(command: AddOrderLineCommand): Promise<void> {
@@ -1274,7 +1280,7 @@ A use case has two steps, and `execute(input)` (which always returns a promise) 
 order:
 
 1. `protected toCommand(input: Input): Command` builds the value objects the action needs with
-   `ValueObjects.build({ orderId: () => new OrderId(input.orderId), email: () => new Email(input.email) })`
+   `ValueObjectBuilder.build({ orderId: () => new OrderId(input.orderId), email: () => new Email(input.email) })`
    (one value object alone can be built with `new`). If any field is invalid it throws one
    `ValidationException` listing every field, and `handle` never runs.
 2. `protected handle(command: Command)` (sync or async) coordinates the action with value objects
@@ -2409,7 +2415,7 @@ import {
   IdType,
   Required,
   StringType,
-  ValueObjects,
+  ValueObjectBuilder,
 } from '@archi-code/ddd/domain';
 import {
   AggregateNotFoundException,
@@ -2540,7 +2546,7 @@ class RegisterUser extends UseCase<{ name: string; email: string }, RegisterUser
   }
 
   protected toCommand(input: { name: string; email: string }): RegisterUserCommand {
-    return ValueObjects.build({
+    return ValueObjectBuilder.build({
       name: () => new Name(input.name),
       email: () => new Email(input.email),
     });
@@ -2670,7 +2676,7 @@ await new RegisterUser(users, bus, clock)
 | `Required`, `Composite`                                                                                         | functions          |
 | `Specification`                                                                                                 | abstract class     |
 | `CompositeSchema`, `CompositeProps`, `CompositePrimitives`, `CompositeInput`, `CompositeType`, `CompositeValue` | types              |
-| `ValueObjects` (`build`, `buildList`)                                                                           | class              |
+| `ValueObjectBuilder` (`build`, `buildList`)                                                                     | class              |
 | `Entity`, `AggregateRoot`, `EventBase`                                                                          | abstract classes   |
 | `AggregateFinder`, `AggregateSaver`, `AggregateRemover`                                                         | types (contracts)  |
 | `RequiredType`, `JsonTypeValue`, `PrimitiveType`, `PrimitiveTypes`, `DataTypes`                                 | types              |

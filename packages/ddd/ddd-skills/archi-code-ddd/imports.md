@@ -22,7 +22,7 @@ import {
   StringType,
   UpdatedAt,
   UuidType,
-  ValueObjects,
+  ValueObjectBuilder,
 } from '@archi-code/ddd/domain';
 import {
   AggregateNotFoundException,

@@ -338,7 +338,7 @@ export function ordersRouter(
 }
 ```
 
-El controlador no sabe qué es un `Order`. Comprueba solo la forma de la petición (un campo es texto o número) [IDDD cap. 4]; las reglas de cada valor son de los value objects que `toCommand` construye con `ValueObjects.build`, y llegan como una `ValidationException` con todos los campos (422). La identidad del cliente sale del token, no del body. `toHttpError` traduce los errores. El paquete no trae nada de HTTP: `ExceptionClassifier.classify(error)` de `@archi-code/ddd/exceptions` devuelve el `ExceptionKind` del fallo y cada protocolo (HTTP, un consumidor de mensajes, una CLI) lo traduce a sus códigos `[Fuera de los libros: convención de @archi-code/ddd]`:
+El controlador no sabe qué es un `Order`. Comprueba solo la forma de la petición (un campo es texto o número) [IDDD cap. 4]; las reglas de cada valor son de los value objects que `toCommand` construye con `ValueObjectBuilder.build`, y llegan como una `ValidationException` con todos los campos (422). La identidad del cliente sale del token, no del body. `toHttpError` traduce los errores. El paquete no trae nada de HTTP: `ExceptionClassifier.classify(error)` de `@archi-code/ddd/exceptions` devuelve el `ExceptionKind` del fallo y cada protocolo (HTTP, un consumidor de mensajes, una CLI) lo traduce a sus códigos `[Fuera de los libros: convención de @archi-code/ddd]`:
 
 ```ts
 // src/contexts/sales/interfaces/http/httpError.ts

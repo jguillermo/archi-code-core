@@ -6,7 +6,7 @@ import type {
   CompositePrimitives,
   CompositeProps,
 } from '../../../../src/domain/type/composite/composite';
-import { ValueObjects } from '../../../../src/domain/type/value-objects/value-objects';
+import { ValueObjectBuilder } from '../../../../src/domain/type/value-object-builder/value-object-builder';
 import { DateType } from '../../../../src/domain/type/date-type';
 import { NumberType } from '../../../../src/domain/type/number-type';
 import { StringType } from '../../../../src/domain/type/string-type';
@@ -366,10 +366,10 @@ describe('Composite: a value object made of several value objects', () => {
       expect(rebuild).toThrow('Expected a valid Money');
     });
 
-    it('nests in ValueObjects.build, so a command reports the path of every field', () => {
+    it('nests in ValueObjectBuilder.build, so a command reports the path of every field', () => {
       expect(
         issuesOf(() =>
-          ValueObjects.build({
+          ValueObjectBuilder.build({
             price: () => Money.fromPrimitives({ amount: 1.5, currency: 'EUR' }),
             promotion: () => DateRange.fromPrimitives(spring()),
           }),

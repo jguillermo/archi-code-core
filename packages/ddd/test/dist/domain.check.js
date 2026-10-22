@@ -72,18 +72,18 @@ function smoke(m) {
       },
     ],
     [
-      'validate, and ValueObjects.build reports every invalid field at once',
+      'validate, and ValueObjectBuilder.build reports every invalid field at once',
       () => {
         class OrderId extends m.IdType {}
         class Customer extends m.Required(m.StringType) {}
         const result = new m.StringType('abc').validate();
-        const built = m.ValueObjects.build({
+        const built = m.ValueObjectBuilder.build({
           orderId: () => new OrderId(ORDER_ID),
           customer: () => new Customer('Ana'),
         });
         let issues = [];
         try {
-          m.ValueObjects.build({
+          m.ValueObjectBuilder.build({
             orderId: () => new OrderId('not-an-id'),
             customer: () => new Customer(null),
           });

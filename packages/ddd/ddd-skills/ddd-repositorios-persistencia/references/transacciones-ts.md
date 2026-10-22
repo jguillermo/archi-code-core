@@ -174,7 +174,7 @@ El caso de uso carga, cambia, guarda y publica, sin abrir nada. Si el comando es
 ```ts
 import { UseCase } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
-import { ValueObjects } from '@archi-code/ddd/domain';
+import { ValueObjectBuilder } from '@archi-code/ddd/domain';
 import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
 import { AggregateNotFoundException, ConcurrencyException } from '@archi-code/ddd/exceptions';
 import { Order, OrderId, OrderLine } from '../../domain/order/order';
@@ -204,7 +204,7 @@ export class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand
   }
 
   protected toCommand(input: AddOrderLineInput): AddOrderLineCommand {
-    return ValueObjects.build({
+    return ValueObjectBuilder.build({
       orderId: () => new OrderId(input.orderId),
       line: () =>
         OrderLine.fromPrimitives({

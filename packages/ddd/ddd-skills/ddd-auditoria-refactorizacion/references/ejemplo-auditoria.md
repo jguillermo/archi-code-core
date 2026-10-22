@@ -108,7 +108,7 @@ addLine(line: OrderLine, clock: { now(): Date }): void;
 Enviar no es trabajo del pedido de Ventas: lo hace `Shipment` en Almacén, que publica `ShipmentDispatched` (`ddd-skills/ddd-agregados/references/ejemplo-ecommerce.md`), así que `status: 'shipped'` y su errata desaparecen de Ventas. `UpdateOrder` se parte en un caso de uso por acción de negocio (`AddOrderLine` aquí; el envío, en Almacén); cada uno construye sus value objects en `toCommand` y guarda un solo agregado:
 
 ```ts
-import { ValueObjects } from '@archi-code/ddd/domain';
+import { ValueObjectBuilder } from '@archi-code/ddd/domain';
 import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
 import { AggregateNotFoundException } from '@archi-code/ddd/exceptions';
 import { UseCase } from '@archi-code/ddd/application';
@@ -136,7 +136,7 @@ class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand, void>
   }
 
   protected toCommand(input: AddOrderLineInput): AddOrderLineCommand {
-    return ValueObjects.build({
+    return ValueObjectBuilder.build({
       orderId: () => new OrderId(input.orderId),
       line: () =>
         OrderLine.fromPrimitives({
@@ -198,7 +198,7 @@ class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, void> {
   }
 
   protected toCommand(input: PlaceOrderInput): PlaceOrderCommand {
-    return ValueObjects.build({
+    return ValueObjectBuilder.build({
       orderId: () => new OrderId(input.orderId),
       customerId: () => new CustomerId(input.customerId),
       lines: () => OrderLines.fromPrimitives({ items: input.lines }),
@@ -225,7 +225,7 @@ class AwardLoyaltyPoints extends UseCase<AwardLoyaltyPointsInput, AwardLoyaltyPo
   }
 
   protected toCommand(input: AwardLoyaltyPointsInput): AwardLoyaltyPointsCommand {
-    return ValueObjects.build({
+    return ValueObjectBuilder.build({
       customerId: () => new CustomerId(input.customerId),
       orderId: () => new OrderId(input.orderId),
     });

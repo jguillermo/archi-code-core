@@ -86,7 +86,7 @@ export class Customer extends AggregateRoot<CustomerId> {
 La regla de creación ("un cliente bloqueado no puede realizar pedidos") vive en `Customer`. El caso de uso lee el cliente con `AggregateFinder<Customer>`, genera la identidad nueva con `OrderId.generate()` y guarda solo el pedido con `AggregateSaver<Order>`; `Customer` no se guarda porque no ha cambiado:
 
 ```ts
-import { ValueObjects } from '@archi-code/ddd/domain';
+import { ValueObjectBuilder } from '@archi-code/ddd/domain';
 import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
 import { UseCase } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
@@ -115,7 +115,7 @@ export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, stri
   }
 
   protected toCommand(input: PlaceOrderInput): PlaceOrderCommand {
-    return ValueObjects.build({
+    return ValueObjectBuilder.build({
       customerId: () => new CustomerId(input.customerId),
       lines: () => OrderLines.fromPrimitives({ items: input.lines }),
       shippingAddress: () => ShippingAddress.fromPrimitives(input.shippingAddress),

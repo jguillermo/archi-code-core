@@ -172,7 +172,7 @@ Decisiones visibles:
 
 ```ts
 // src/contexts/sales/application/place-order/PlaceOrder.ts
-import { ValueObjects } from '@archi-code/ddd/domain';
+import { ValueObjectBuilder } from '@archi-code/ddd/domain';
 import type { AggregateSaver } from '@archi-code/ddd/domain';
 import { UseCase } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
@@ -207,12 +207,12 @@ export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, stri
   }
 
   protected toCommand(input: PlaceOrderInput): PlaceOrderCommand {
-    return ValueObjects.build({
+    return ValueObjectBuilder.build({
       orderId: () => OrderId.generate(),
       customerId: () => new CustomerId(input.customerId),
       items: () =>
-        ValueObjects.buildList(input.items, (item) =>
-          ValueObjects.build({
+        ValueObjectBuilder.buildList(input.items, (item) =>
+          ValueObjectBuilder.build({
             sku: () => new Sku(item.sku),
             quantity: () => new Quantity(item.quantity),
           }),

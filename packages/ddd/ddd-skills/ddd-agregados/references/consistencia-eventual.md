@@ -45,7 +45,7 @@ export class StockReserved extends EventBase {
 El caso de uso registra el hecho: un agregado, un `save` atómico, y si el pedido no existe (es de otro canal) vuelve sin error:
 
 ```ts
-import { ValueObjects } from '@archi-code/ddd/domain';
+import { ValueObjectBuilder } from '@archi-code/ddd/domain';
 import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
 import { UseCase } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
@@ -74,7 +74,7 @@ export class RegisterStockReservation extends UseCase<
   }
 
   protected toCommand(input: StockReservationInput): StockReservationCommand {
-    return ValueObjects.build({
+    return ValueObjectBuilder.build({
       orderId: () => new OrderId(input.orderId),
       reservationId: () => new ReservationId(input.reservationId),
     });

@@ -17,23 +17,23 @@ type Synchronous<F extends Factories> = {
       : F[Field];
 };
 
-export class ValueObjects {
+export class ValueObjectBuilder {
   static build<F extends Factories>(factories: F & Synchronous<F>): Built<F> {
     const built: Record<string, unknown> = {};
     const issues: ValidationIssue[] = [];
     for (const [field, factory] of Object.entries(factories)) {
       try {
         Object.defineProperty(built, field, {
-          value: ValueObjects.synchronous(field, factory()),
+          value: ValueObjectBuilder.synchronous(field, factory()),
           enumerable: true,
           writable: true,
           configurable: true,
         });
       } catch (error) {
-        issues.push(...ValueObjects.issuesOf(field, error));
+        issues.push(...ValueObjectBuilder.issuesOf(field, error));
       }
     }
-    ValueObjects.assertNoIssues(issues);
+    ValueObjectBuilder.assertNoIssues(issues);
     return built as Built<F>;
   }
 
@@ -45,22 +45,22 @@ export class ValueObjects {
     const issues: ValidationIssue[] = [];
     values.forEach((value, index) => {
       try {
-        built.push(ValueObjects.synchronous(String(index), factory(value, index)));
+        built.push(ValueObjectBuilder.synchronous(String(index), factory(value, index)));
       } catch (error) {
-        issues.push(...ValueObjects.issuesOf(String(index), error));
+        issues.push(...ValueObjectBuilder.issuesOf(String(index), error));
       }
     });
-    ValueObjects.assertNoIssues(issues);
+    ValueObjectBuilder.assertNoIssues(issues);
     return built;
   }
 
   private static synchronous<Result>(field: string, result: Result): Result {
-    if (!ValueObjects.isThenable(result)) {
+    if (!ValueObjectBuilder.isThenable(result)) {
       return result;
     }
     result.then(undefined, () => undefined);
     throw new InternalErrorException(
-      `ValueObjects: the factory of "${field}" returned a Promise; build value objects synchronously`,
+      `ValueObjectBuilder: the factory of "${field}" returned a Promise; build value objects synchronously`,
     );
   }
 

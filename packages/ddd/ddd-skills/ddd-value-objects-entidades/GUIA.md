@@ -11,7 +11,7 @@
 * Un value object es una subclase con nombre de un tipo del paquete (`class Email extends Required(StringType) {}`) con sus reglas en `@Validations` (de `@archi-code/validation`): se crea con `new` y su constructor lo deja siempre válido; no hay factorías `of()` ni `assertValid()`, y la normalización va en `filter`.
 * Un valor de varios atributos (`Money`, `DateRange`, `OrderLine`, `OrderLines`) es `Composite({...})`, con las reglas que combinan campos como `custom`; un estado, un `EnumType`; un id, `IdType`, generado por el propio value object (`OrderId.generate()`), nunca por el repositorio.
 * `Money` va en céntimos enteros (`Cents`, `Required(NumberType)` con `isInt`) en lugar de `bigint`: exacto hasta `Number.MAX_SAFE_INTEGER` (9.007.199.254.740.991 céntimos); el paquete no tiene tipo `bigint`.
-* Los errores de una entrada se recogen con `ValueObjects.build({...})` y `ValidationException.errors`, no con un manejador de notificación.
+* Los errores de una entrada se recogen con `ValueObjectBuilder.build({...})` y `ValidationException.errors`, no con un manejador de notificación.
 * Un value object es opcional por defecto (`value: T | null`) y `Required(XType)` lo hace obligatorio. Los libros crean siempre el valor con contenido y modelan lo opcional en el campo (`reservation: ReservationId | null`); con el paquete valen las dos formas.
 * La identidad de una entidad o raíz siempre es un value object obligatorio (`IdType` o `Required(...)`): un id sin valor lanza `RequiredValueException`, así dos entidades nuevas nunca son iguales por un id vacío [IDDD cap. 5].
 * Todo el estado de un agregado es value objects (también un booleano), cada campo guardado tiene un getter público con su nombre sin `_` y los valores derivados son métodos, nunca getters. La reconstitución es `static fromPrimitives(PrimitiveTypes<X>)` con su `toPrimitives()`, que el repositorio llama directamente y cuyo viaje de ida y vuelta prueba el spec del agregado (nada lo comprueba en ejecución). Los libros solo piden getters donde hacen falta y un mapper en infraestructura.
@@ -86,7 +86,7 @@ Recomendación por defecto: identidad generada por la aplicación, **temprana** 
 2. **Objeto completo:** reglas que combinan atributos (las de un valor de varios atributos, reglas `custom` de su `Composite`). IDDD sugiere un validador separado cuando esa validación cambia más que la entidad.
 3. **Composición:** reglas sobre varios objetos o agregados. Un servicio de dominio que recibe lo cargado o lee lo necesario con `AggregateFinder`.
 
-Detalle, cómo acumular todos los errores (`ValueObjects.build` en lugar del patrón de notificación) y qué validar en la interfaz frente al dominio en `ddd-skills/ddd-value-objects-entidades/references/validacion.md`.
+Detalle, cómo acumular todos los errores (`ValueObjectBuilder.build` en lugar del patrón de notificación) y qué validar en la interfaz frente al dominio en `ddd-skills/ddd-value-objects-entidades/references/validacion.md`.
 
 ## Paso 5. Diseño flexible y Specification
 

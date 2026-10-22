@@ -1,5 +1,5 @@
 import type { AbstractType } from '../abstract-type';
-import { ValueObjects } from '../value-objects/value-objects';
+import { ValueObjectBuilder } from '../value-object-builder/value-object-builder';
 import { RequiredValueException, TypePrimitiveException } from '../../../exceptions/index';
 
 const COMPOSITE: unique symbol = Symbol.for('@archi-code/ddd/composite.v1');
@@ -57,7 +57,7 @@ export class CompositeField {
       if (!Array.isArray(primitive)) {
         throw new TypePrimitiveException('Array', primitive);
       }
-      return ValueObjects.buildList(primitive, (item) =>
+      return ValueObjectBuilder.buildList(primitive, (item) =>
         CompositeField.fromPrimitive(spec[0], item),
       );
     }

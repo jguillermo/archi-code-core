@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { Validations } from '@archi-code/validation';
-import { ValueObjects } from '../../../../src/domain/type/value-objects/value-objects';
+import { ValueObjectBuilder } from '../../../../src/domain/type/value-object-builder/value-object-builder';
 import { ArrayType } from '../../../../src/domain/type/array-type';
 import { IdType } from '../../../../src/domain/type/id-type';
 import { NumberType } from '../../../../src/domain/type/number-type';
@@ -57,13 +57,16 @@ interface PlaceOrderInput {
 const orderId = '9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c';
 
 function placeOrderCommand(input: PlaceOrderInput) {
-  return ValueObjects.build({
+  return ValueObjectBuilder.build({
     orderId: () => new OrderId(input.orderId),
     email: () => new CustomerEmail(input.email),
     note: () => new Note(input.note),
     lines: () =>
-      ValueObjects.buildList(input.lines, (line) =>
-        ValueObjects.build({ sku: () => new Sku(line.sku), units: () => new Units(line.units) }),
+      ValueObjectBuilder.buildList(input.lines, (line) =>
+        ValueObjectBuilder.build({
+          sku: () => new Sku(line.sku),
+          units: () => new Units(line.units),
+        }),
       ),
   });
 }
@@ -77,7 +80,7 @@ function issuesOf(build: () => unknown): unknown {
   return undefined;
 }
 
-describe('ValueObjects: building every value object of an input at once', () => {
+describe('ValueObjectBuilder: building every value object of an input at once', () => {
   describe('build', () => {
     it('returns the command typed field by field when every value is valid', () => {
       const command = placeOrderCommand({
@@ -102,7 +105,7 @@ describe('ValueObjects: building every value object of an input at once', () => 
         orderId: OrderId;
         email: CustomerEmail;
       }
-      const command: ShipOrderCommand = ValueObjects.build({
+      const command: ShipOrderCommand = ValueObjectBuilder.build({
         orderId: () => new OrderId(orderId),
         email: () => new CustomerEmail('ana@example.com'),
       });
@@ -135,7 +138,7 @@ describe('ValueObjects: building every value object of an input at once', () => 
     it('reports missing, unconvertible and rule-breaking values together', () => {
       expect(
         issuesOf(() =>
-          ValueObjects.build({
+          ValueObjectBuilder.build({
             email: () => new CustomerEmail(null as unknown as string),
             units: () => new Units('three' as unknown as number),
             otherUnits: () => new Units(30),
@@ -160,7 +163,9 @@ describe('ValueObjects: building every value object of an input at once', () => 
       @Validations([{ validator: 'isLength', properties: { min: 8 } }])
       class SignUpEmail extends CustomerEmail {}
 
-      expect(issuesOf(() => ValueObjects.build({ email: () => new SignUpEmail('a@b') }))).toEqual([
+      expect(
+        issuesOf(() => ValueObjectBuilder.build({ email: () => new SignUpEmail('a@b') })),
+      ).toEqual([
         { field: 'email', code: 'isEmail', message: 'SignUpEmail: Value does not satisfy isEmail' },
         {
           field: 'email',
@@ -172,7 +177,7 @@ describe('ValueObjects: building every value object of an input at once', () => 
 
     it('reports a business exception thrown while building a value under its field', () => {
       const redeem = () =>
-        ValueObjects.build({
+        ValueObjectBuilder.build({
           email: () => new CustomerEmail('ana@example.com'),
           coupon: () => {
             throw new CouponExpired('SPRING');
@@ -186,7 +191,7 @@ describe('ValueObjects: building every value object of an input at once', () => 
     it('lets an error that is not a domain error through untouched, it is a bug', () => {
       const outage = new TypeError('Cannot read properties of undefined');
       expect(() =>
-        ValueObjects.build({
+        ValueObjectBuilder.build({
           email: () => new CustomerEmail('ana'),
           broken: () => {
             throw outage;
@@ -203,7 +208,7 @@ describe('ValueObjects: building every value object of an input at once', () => 
       }
       expect(
         issuesOf(() =>
-          ValueObjects.build({
+          ValueObjectBuilder.build({
             currency: () => {
               throw new UnknownCurrency('GBP');
             },
@@ -215,7 +220,7 @@ describe('ValueObjects: building every value object of an input at once', () => 
     it('lets an application exception through untouched: it is not a field of the input', () => {
       const missing = new AggregateNotFoundException('Order', orderId);
       expect(() =>
-        ValueObjects.build({
+        ValueObjectBuilder.build({
           email: () => new CustomerEmail('ana'),
           order: () => {
             throw missing;
@@ -225,13 +230,13 @@ describe('ValueObjects: building every value object of an input at once', () => 
     });
 
     it('an empty input builds an empty command', () => {
-      expect(ValueObjects.build({})).toEqual({});
+      expect(ValueObjectBuilder.build({})).toEqual({});
     });
 
     it('lets a bug win over the validation errors already collected: the bug is reported first', () => {
       const outage = new TypeError('Cannot read properties of undefined');
       expect(() =>
-        ValueObjects.build({
+        ValueObjectBuilder.build({
           email: () => new CustomerEmail('ana'),
           broken: () => {
             throw outage;
@@ -242,7 +247,7 @@ describe('ValueObjects: building every value object of an input at once', () => 
     });
 
     it('keeps a field named __proto__ as a field of the command, without touching its prototype', () => {
-      const command = ValueObjects.build({ ['__proto__']: () => new Sku('TORCH-01') });
+      const command = ValueObjectBuilder.build({ ['__proto__']: () => new Sku('TORCH-01') });
 
       expect(Object.keys(command)).toEqual(['__proto__']);
       expect(Object.getOwnPropertyDescriptor(command, '__proto__')?.value).toEqual(
@@ -254,7 +259,7 @@ describe('ValueObjects: building every value object of an input at once', () => 
     describe('asynchronous factories', () => {
       it('do not compile: a value object is built synchronously', () => {
         expect(() =>
-          ValueObjects.build({
+          ValueObjectBuilder.build({
             // @ts-expect-error a factory that returns a Promise would skip the validation
             email: async () => new CustomerEmail('ana@example.com'),
           }),
@@ -263,14 +268,14 @@ describe('ValueObjects: building every value object of an input at once', () => 
 
       it('are refused at run time with the field, before their result reaches the command', () => {
         const build = () =>
-          ValueObjects.build({
+          ValueObjectBuilder.build({
             orderId: () => new OrderId(orderId),
             email: (() => Promise.resolve(new CustomerEmail('ana@example.com'))) as () => unknown,
           });
 
         expect(build).toThrow(InternalErrorException);
         expect(build).toThrow(
-          'Failed, internal error: ValueObjects: the factory of "email" returned a Promise; build value objects synchronously',
+          'Failed, internal error: ValueObjectBuilder: the factory of "email" returned a Promise; build value objects synchronously',
         );
       });
 
@@ -279,9 +284,9 @@ describe('ValueObjects: building every value object of an input at once', () => 
         process.on('unhandledRejection', unhandled);
         const rejected = Promise.reject(new ValidationException([{ field: null, message: 'x' }]));
 
-        expect(() => ValueObjects.build({ email: (() => rejected) as () => unknown })).toThrow(
-          InternalErrorException,
-        );
+        expect(() =>
+          ValueObjectBuilder.build({ email: (() => rejected) as () => unknown }),
+        ).toThrow(InternalErrorException);
         await new Promise((resolve) => setTimeout(resolve, 0));
 
         process.off('unhandledRejection', unhandled);
@@ -290,7 +295,7 @@ describe('ValueObjects: building every value object of an input at once', () => 
 
       it('accept a value object that only has a then field that is not a function', () => {
         const scheduled = { then: 'tomorrow' };
-        expect(ValueObjects.build({ delivery: () => scheduled }).delivery).toBe(scheduled);
+        expect(ValueObjectBuilder.build({ delivery: () => scheduled }).delivery).toBe(scheduled);
       });
     });
   });
@@ -323,22 +328,28 @@ describe('ValueObjects: building every value object of an input at once', () => 
     });
 
     it('names an invalid item of a list value object by its position', () => {
-      expect(issuesOf(() => ValueObjects.build({ tags: () => new Tags(['ddd', 'x']) }))).toEqual([
-        { field: 'tags.1', code: 'isLength', message: 'Tag: A tag has 2 letters' },
-      ]);
+      expect(
+        issuesOf(() => ValueObjectBuilder.build({ tags: () => new Tags(['ddd', 'x']) })),
+      ).toEqual([{ field: 'tags.1', code: 'isLength', message: 'Tag: A tag has 2 letters' }]);
     });
 
     it('reports the field of a list value object for the rules of the whole list', () => {
       @Validations([{ custom: 'hasTags', fn: (value) => Array.isArray(value) && value.length > 0 }])
       class ProductTags extends Tags {}
 
-      expect(issuesOf(() => ValueObjects.build({ tags: () => new ProductTags([]) }))).toEqual([
-        { field: 'tags', code: 'hasTags', message: 'ProductTags: Value does not satisfy hasTags' },
-      ]);
+      expect(issuesOf(() => ValueObjectBuilder.build({ tags: () => new ProductTags([]) }))).toEqual(
+        [
+          {
+            field: 'tags',
+            code: 'hasTags',
+            message: 'ProductTags: Value does not satisfy hasTags',
+          },
+        ],
+      );
     });
 
     it('passes the index to the factory and keeps the order', () => {
-      const positions = ValueObjects.buildList(['TORCH-01', 'MASK-02'], (sku, index) => ({
+      const positions = ValueObjectBuilder.buildList(['TORCH-01', 'MASK-02'], (sku, index) => ({
         position: index + 1,
         sku: new Sku(sku),
       }));
@@ -349,14 +360,14 @@ describe('ValueObjects: building every value object of an input at once', () => 
     });
 
     it('builds an empty list from an empty input', () => {
-      expect(ValueObjects.buildList([], (sku: string) => new Sku(sku))).toEqual([]);
+      expect(ValueObjectBuilder.buildList([], (sku: string) => new Sku(sku))).toEqual([]);
     });
 
     it('refuses an asynchronous item factory at run time, naming its position', () => {
-      const build = () => ValueObjects.buildList(['TORCH-01'], async (sku) => new Sku(sku));
+      const build = () => ValueObjectBuilder.buildList(['TORCH-01'], async (sku) => new Sku(sku));
 
       expect(build).toThrow(
-        'Failed, internal error: ValueObjects: the factory of "0" returned a Promise; build value objects synchronously',
+        'Failed, internal error: ValueObjectBuilder: the factory of "0" returned a Promise; build value objects synchronously',
       );
     });
   });

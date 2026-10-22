@@ -2,7 +2,7 @@ import { toArray } from '@archi-code/validation';
 import type { ValidationError, ValidationResult } from '@archi-code/validation';
 import { AbstractType } from './abstract-type';
 import type { ValueOf } from './abstract-type';
-import { ValueObjects } from './value-objects/value-objects';
+import { ValueObjectBuilder } from './value-object-builder/value-object-builder';
 import { TypePrimitiveException, ValidationException } from '../../exceptions/index';
 
 type ItemValue<Item extends AbstractType<any>> = Item['value'];
@@ -56,7 +56,10 @@ export abstract class ArrayType<Item extends AbstractType<any>> extends Abstract
       throw new TypePrimitiveException('Array', value);
     }
     try {
-      const items = ValueObjects.buildList(converted.value, (item) => this.createItem(item).value);
+      const items = ValueObjectBuilder.buildList(
+        converted.value,
+        (item) => this.createItem(item).value,
+      );
       Object.freeze(items);
       return items;
     } catch (error) {

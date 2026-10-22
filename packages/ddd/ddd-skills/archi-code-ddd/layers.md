@@ -20,10 +20,10 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   validator or custom rule name, or the code of the exception). There is no `assertValid()`;
   `validate()` only re-runs the rules and is always ok on a built VO.
 - **Report every field, never only the first.** Build the value objects of an input with
-  `ValueObjects.build({ field: () => new X(input.field), … })`: it runs every factory and throws one
+  `ValueObjectBuilder.build({ field: () => new X(input.field), … })`: it runs every factory and throws one
   `ValidationException` whose `errors` carry the `field` and `code` of each problem (required
   `DOM004`, conversion `DOM003`, a rule name, or the code of any `DomainException`, such as your
-  `ORD003`); `ValueObjects.buildList(list, (item) => …)` names list items by position
+  `ORD003`); `ValueObjectBuilder.buildList(list, (item) => …)` names list items by position
   (`lines.1.quantity`). It returns the command typed field by field. Factories are synchronous (one
   that returns a Promise does not compile and is refused at run time with
   `InternalErrorException`), and an error that is not a `DomainException` is a bug that wins over the
@@ -161,7 +161,7 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   members become `never`.
 - Where to throw each exception:
   - Domain (aggregates, VOs, business rules): `DomainException` or a custom subclass with its own
-    code; `ValidationException` (thrown by value objects and `ValueObjects.build`).
+    code; `ValidationException` (thrown by value objects and `ValueObjectBuilder.build`).
   - Use cases: `AggregateNotFoundException` when a repository returns `null` (except a use case
     run by a listener to register a fact: it returns, so the listener is not retried forever),
     `NotAllowedException` when the requester may not run the action (authorization belongs to the
@@ -173,7 +173,7 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
 - The package speaks no protocol: each entry point (HTTP, gRPC, queue consumer, CLI) translates
   errors itself from `ExceptionClassifier.classify(error)` (`/exceptions`), which returns the
   `ExceptionKind`: `Malformed` for a conversion or required error thrown alone (a value object
-  built with `new` outside `ValueObjects.build`; inside it they become a `ValidationException` with
+  built with `new` outside `ValueObjectBuilder.build`; inside it they become a `ValidationException` with
   `DOM003`/`DOM004` in `errors`), `NotAllowed` for `NotAllowedException`, `NotFound` for
   `AggregateNotFoundException`, `Conflict` for `ConcurrencyException`, `Invalid` for
   `ValidationException` and any other `DomainException` (a broken business rule), `Rejected` for
@@ -202,7 +202,7 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   (`AggregateSaver<Order>`, `EventBus<OrderEvent>`, `Clock`) and are called
   with `execute(input)`.
   They implement two steps: `protected toCommand(input)` builds the value objects with
-  `ValueObjects.build` and returns the command (a small interface of value objects, or one value
+  `ValueObjectBuilder.build` and returns the command (a small interface of value objects, or one value
   object built with `new`); `protected handle(command)` works only with value objects. `UseCase` has no helpers:
   write every step in `handle` (load with `findById` and throw `AggregateNotFoundException` when it
   is `null` — or return, in a use case a listener runs —, change the aggregate, `save`, then

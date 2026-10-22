@@ -104,7 +104,7 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
 - Comparing VOs or entities with `===`: use `equals()`.
 - Calling `assertValid()`: it does not exist; the constructor already throws `ValidationException`.
 - Building the value objects of an input one after another with `new` in `toCommand`: the first
-  invalid field hides the rest. Use `ValueObjects.build` so every field is reported.
+  invalid field hides the rest. Use `ValueObjectBuilder.build` so every field is reported.
 - Moving a value object's rule to the request schema or the controller (`isEmail` in a DTO
   validator instead of the `Email` value object): the adapter may check format for the user
   (empty, length) [IDDD ch. 4], but the value object owns the rule and always checks it.

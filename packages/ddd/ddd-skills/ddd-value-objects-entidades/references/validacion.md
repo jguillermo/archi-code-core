@@ -24,15 +24,15 @@ Criterio práctico `[Fuera de los libros]`:
 
 Para devolver todos los errores en vez de parar en el primero, IDDD y *DDD in PHP* usan un manejador de notificación que recibe los fallos [IDDD cap. 5; PHP: Entities]. Con el paquete no se escribe ese manejador `[Fuera de los libros: convención de @archi-code/ddd]`:
 
-* **Entrada de un caso de uso:** `ValueObjects.build({...})` ejecuta todas las factorías y lanza una sola `ValidationException` cuyos `errors` (`ValidationIssue`: `{ field, code, message }`) llevan el campo y el código de cada problema; `ValueObjects.buildList` nombra los elementos de una lista por su posición (`lines.1.quantity`).
+* **Entrada de un caso de uso:** `ValueObjectBuilder.build({...})` ejecuta todas las factorías y lanza una sola `ValidationException` cuyos `errors` (`ValidationIssue`: `{ field, code, message }`) llevan el campo y el código de cada problema; `ValueObjectBuilder.buildList` nombra los elementos de una lista por su posición (`lines.1.quantity`).
 
 ```ts
-import { ValueObjects } from '@archi-code/ddd/domain';
+import { ValueObjectBuilder } from '@archi-code/ddd/domain';
 
-const command = ValueObjects.build({
+const command = ValueObjectBuilder.build({
   customerId: () => new CustomerId(input.customerId),
   email: () => new Email(input.email),
-  lines: () => ValueObjects.buildList(input.lines, (line) => OrderLine.fromPrimitives(line)),
+  lines: () => ValueObjectBuilder.buildList(input.lines, (line) => OrderLine.fromPrimitives(line)),
 });
 // input { customerId: 'x', email: 'ana', lines: [...] } → una ValidationException:
 // errors: [

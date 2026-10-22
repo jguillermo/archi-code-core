@@ -9,7 +9,7 @@ import {
   IdType,
   Required,
   StringType,
-  ValueObjects,
+  ValueObjectBuilder,
 } from '../../../src/domain/index';
 import {
   AggregateNotFoundException,
@@ -163,7 +163,7 @@ class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, { orderId: 
   }
 
   protected toCommand(input: PlaceOrderInput): PlaceOrderCommand {
-    return ValueObjects.build({
+    return ValueObjectBuilder.build({
       orderId: () => new OrderId(input.orderId),
       customer: () => new CustomerName(input.customer),
     });
