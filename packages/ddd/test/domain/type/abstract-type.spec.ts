@@ -36,6 +36,16 @@ class GeoPoint extends AbstractType<{ lat: number; lng: number }> {
   protected filter(value: unknown): { lat: number; lng: number } {
     return Object.freeze({ ...(value as { lat: number; lng: number }) });
   }
+
+  protected hasSameValue(other: { lat: number; lng: number } | null): boolean {
+    return this._value?.lat === other?.lat && this._value?.lng === other?.lng;
+  }
+}
+
+class Coordinates extends AbstractType<{ lat: number; lng: number }> {
+  protected filter(value: unknown): { lat: number; lng: number } {
+    return Object.freeze({ ...(value as { lat: number; lng: number }) });
+  }
 }
 
 @Validations([{ validator: 'isEmail' }])
@@ -96,7 +106,9 @@ describe('AbstractType: writing a custom value object', () => {
     it('exposes isNull, toString() and equals(), and no assertValid()', () => {
       expectTypeOf<CountryCode['isNull']>().toEqualTypeOf<boolean>();
       expectTypeOf<CountryCode['toString']>().toEqualTypeOf<() => string>();
-      expectTypeOf<CountryCode['equals']>().toEqualTypeOf<(other: unknown) => boolean>();
+      expectTypeOf<CountryCode['equals']>().toEqualTypeOf<
+        <E extends AbstractType<any>>(other: E) => boolean
+      >();
       expectTypeOf<CountryCode>().not.toHaveProperty('assertValid');
     });
 
@@ -255,19 +267,32 @@ describe('AbstractType: writing a custom value object', () => {
       expect(new ShippingCountry('es').equals(new CountryCode('es'))).toBe(false);
     });
 
-    it('compares structured values by content, not by reference', () => {
+    it('compares a structured value by content when the subclass says how (hasSameValue)', () => {
       const office = new GeoPoint({ lat: 37.26, lng: -6.95 });
       expect(office.equals(new GeoPoint({ lng: -6.95, lat: 37.26 }))).toBe(true);
       expect(office.equals(new GeoPoint({ lat: 37.26, lng: -6.9 }))).toBe(false);
+    });
+
+    it('compares a structured value by reference when the subclass does not say how', () => {
+      const office = { lat: 37.26, lng: -6.95 };
+      expect(new Coordinates(office).equals(new Coordinates(office))).toBe(false);
+      expect(new Coordinates().equals(new Coordinates(null))).toBe(true);
+    });
+
+    it('only accepts another value object at compile time', () => {
+      // @ts-expect-error a raw code is not a value object
+      expect(new CountryCode('es').equals('ES')).toBe(false);
+      // @ts-expect-error a missing country is not a value object
+      expect(new CountryCode('es').equals(null)).toBe(false);
     });
 
     it.each([
       ['null', null],
       ['undefined', undefined],
       ['the raw code', 'ES'],
-      ['a plain object with the same value', { _value: 'ES' }],
+      ['a plain object with the same value', { value: 'ES' }],
     ])('a country is never equal to %s', (_, other) => {
-      expect(new CountryCode('es').equals(other)).toBe(false);
+      expect(new CountryCode('es').equals(other as unknown as CountryCode)).toBe(false);
     });
   });
 

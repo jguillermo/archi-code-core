@@ -13,4 +13,35 @@ export class JsonType<T extends JsonTypeValue = JsonTypeValue> extends AbstractT
     }
     return Immutable.freeze(JSON.parse(JSON.stringify(converted.value))) as T;
   }
+
+  protected hasSameValue(other: T | null): boolean {
+    return JsonType.sameJson(this._value, other);
+  }
+
+  private static sameJson(left: unknown, right: unknown): boolean {
+    if (Array.isArray(left) || Array.isArray(right)) {
+      return (
+        Array.isArray(left) &&
+        Array.isArray(right) &&
+        left.length === right.length &&
+        left.every((item, index) => JsonType.sameJson(item, right[index]))
+      );
+    }
+    if (JsonType.isObject(left) && JsonType.isObject(right)) {
+      const keys = Object.keys(left);
+      return (
+        keys.length === Object.keys(right).length &&
+        keys.every(
+          (key) =>
+            Object.prototype.hasOwnProperty.call(right, key) &&
+            JsonType.sameJson(left[key], right[key]),
+        )
+      );
+    }
+    return left === right;
+  }
+
+  private static isObject(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null;
+  }
 }

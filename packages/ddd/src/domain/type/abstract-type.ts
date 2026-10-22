@@ -1,6 +1,5 @@
 import { anyToString, runValidations } from '@archi-code/validation';
 import type { Validatable, ValidatedClass, ValidationResult } from '@archi-code/validation';
-import { ValueEquality } from './equality/value-equality';
 import { RequiredMark } from './required/required-mark';
 import type { ValueOf } from './required/required-mark';
 import { RequiredValueException, ValidationException } from '../../exceptions/index';
@@ -48,13 +47,12 @@ export abstract class AbstractType<T, Input = T> implements Validatable<T | null
     return this.isNull ? '' : anyToString(this._value);
   }
 
-  equals(other: unknown): boolean {
-    return (
-      typeof other === 'object' &&
-      other !== null &&
-      other.constructor === this.constructor &&
-      ValueEquality.equals(this._value, (other as AbstractType<unknown>)._value)
-    );
+  equals<E extends AbstractType<any>>(other: E): boolean {
+    return other?.constructor === this.constructor && this.hasSameValue(other.value as T | null);
+  }
+
+  protected hasSameValue(other: T | null): boolean {
+    return this._value === other;
   }
 
   validate(): ValidationResult<ValueOf<T, this>> {

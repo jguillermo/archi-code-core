@@ -348,6 +348,16 @@ describe('ArrayType', () => {
     it('tags and limited tags are different types', () => {
       expect(new Tags(['ddd']).equals(new LimitedTags(['ddd']))).toBe(false);
     });
+
+    it('a product with one more tag has different tags', () => {
+      expect(new Tags(['ddd']).equals(new Tags(['ddd', 'node']))).toBe(false);
+    });
+
+    it('two products without tags are equal, and different from one with an empty list', () => {
+      expect(new Tags(null).equals(new Tags())).toBe(true);
+      expect(new Tags(null).equals(new Tags([]))).toBe(false);
+      expect(new Tags([]).equals(new Tags(null))).toBe(false);
+    });
   });
 
   describe('text and JSON', () => {

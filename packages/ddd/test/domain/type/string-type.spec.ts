@@ -288,9 +288,9 @@ describe('StringType', () => {
     });
 
     it('a nickname is not equal to its plain text, null or undefined', () => {
-      expect(new Nickname('Ana').equals('Ana')).toBe(false);
-      expect(new Nickname('Ana').equals(null)).toBe(false);
-      expect(new Nickname('Ana').equals(undefined)).toBe(false);
+      expect(new Nickname('Ana').equals('Ana' as unknown as Nickname)).toBe(false);
+      expect(new Nickname('Ana').equals(null as unknown as Nickname)).toBe(false);
+      expect(new Nickname('Ana').equals(undefined as unknown as Nickname)).toBe(false);
     });
   });
 

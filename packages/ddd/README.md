@@ -257,7 +257,7 @@ the browser? of the server?). Send it with `Z` or an offset, or send only the da
 | `value`         | `T \| null` (or `T`)  | The converted value; `T` if the type is required (`Required`)                           |
 | `isNull`        | `boolean`             | `true` if there is no value                                                             |
 | `toString()`    | `string`              | Text of the value; `''` if it is `null`. `DateType` gives ISO 8601, `JsonType` the JSON |
-| `equals(other)` | `boolean`             | Same class and same value (dates by instant, arrays and objects by content)             |
+| `equals(other)` | `boolean`             | Same class and same value: `===`; dates by instant, JSON by content, lists item by item |
 | `validate()`    | `ValidationResult<T>` | Runs the `@Validations` rules again; never throws (always ok on a built value object)   |
 
 ```ts
@@ -664,6 +664,26 @@ new Percentage(140);
 // TypePrimitiveException: Validation Error: Expected a valid Percentage, but received 140.
 
 class Discount extends Required(Percentage) {}
+```
+
+`equals` compares the class and then the values with `===`. A type whose value is an object or a
+list says how two of them compare by overriding `protected hasSameValue(other)` (it receives the
+other value, `null` included), like `DateType` (by instant), `JsonType` (by content) and
+`ArrayType` (each item with its `equals`) do:
+
+```ts
+class GeoPoint extends AbstractType<{ lat: number; lng: number }> {
+  protected filter(value: unknown): { lat: number; lng: number } {
+    const { lat, lng } = value as { lat: number; lng: number };
+    return Object.freeze({ lat: Number(lat), lng: Number(lng) });
+  }
+
+  protected hasSameValue(other: { lat: number; lng: number } | null): boolean {
+    return this._value?.lat === other?.lat && this._value?.lng === other?.lng;
+  }
+}
+
+new GeoPoint({ lat: 37.26, lng: -6.95 }).equals(new GeoPoint({ lng: -6.95, lat: 37.26 })); // true
 ```
 
 To restrict an existing type, it is enough to extend it and declare `@Validations`, like `Email`.

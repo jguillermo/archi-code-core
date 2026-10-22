@@ -2,7 +2,6 @@ import { toArray } from '@archi-code/validation';
 import type { ValidationError, ValidationResult } from '@archi-code/validation';
 import { AbstractType } from './abstract-type';
 import { Immutable } from './immutable/immutable';
-import { ValueEquality } from './equality/value-equality';
 import type { ValueOf } from './required/required-mark';
 import { ValueObjects } from './value-objects/value-objects';
 import { TypePrimitiveException, ValidationException } from '../../exceptions/index';
@@ -23,8 +22,8 @@ export abstract class ArrayType<Item extends AbstractType<any>> extends Abstract
   }
 
   hasItem(value: ItemValue<Item>): boolean {
-    const itemValue = this.createItem(value).value;
-    return (this._value ?? []).some((current) => ValueEquality.equals(current, itemValue));
+    const item = this.createItem(value);
+    return (this._value ?? []).some((current) => this.createItem(current).equals(item));
   }
 
   withItem(value: ItemValue<Item>): this {
@@ -35,9 +34,19 @@ export abstract class ArrayType<Item extends AbstractType<any>> extends Abstract
     if (this._value === null) {
       return this;
     }
-    const itemValue = this.createItem(value).value;
-    return this.copyWith(
-      this._value.filter((current) => !ValueEquality.equals(current, itemValue)),
+    const item = this.createItem(value);
+    return this.copyWith(this._value.filter((current) => !this.createItem(current).equals(item)));
+  }
+
+  protected hasSameValue(other: ItemValue<Item>[] | null): boolean {
+    if (this._value === null || other === null) {
+      return this._value === other;
+    }
+    return (
+      this._value.length === other.length &&
+      this._value.every((value, index) =>
+        this.createItem(value).equals(this.createItem(other[index])),
+      )
     );
   }
 
