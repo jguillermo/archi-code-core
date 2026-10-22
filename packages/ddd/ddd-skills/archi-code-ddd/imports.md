@@ -22,7 +22,6 @@ import {
   StringType,
   UpdatedAt,
   UuidType,
-  ValueObjectBuilder,
 } from '@archi-code/ddd/domain';
 import {
   AggregateNotFoundException,
@@ -52,7 +51,7 @@ import type {
   SatisfiedBy,
   SerializedEvent,
 } from '@archi-code/ddd/domain';
-import { EventListener, ListensTo, UseCase } from '@archi-code/ddd/application';
+import { EventListener, ListensTo, UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type {
   Clock,
   EventBus,

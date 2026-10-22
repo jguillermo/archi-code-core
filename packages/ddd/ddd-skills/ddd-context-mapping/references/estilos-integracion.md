@@ -40,9 +40,8 @@ El evento de Almacén llega por un `EventChannel` a un listener (`RegisterStockR
 
 ```ts
 // src/contexts/sales/application/register-stock-reservation/RegisterStockReservation.ts
-import { ValueObjectBuilder } from '@archi-code/ddd/domain';
 import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
-import { UseCase } from '@archi-code/ddd/application';
+import { UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
 import { Order, OrderEvent, OrderId, ReservationId } from '../../domain/order/Order';
 

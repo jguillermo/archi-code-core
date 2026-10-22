@@ -45,9 +45,8 @@ export class StockReserved extends EventBase {
 El caso de uso registra el hecho: un agregado, un `save` atómico, y si el pedido no existe (es de otro canal) vuelve sin error:
 
 ```ts
-import { ValueObjectBuilder } from '@archi-code/ddd/domain';
 import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
-import { UseCase } from '@archi-code/ddd/application';
+import { UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
 
 interface StockReservationInput {

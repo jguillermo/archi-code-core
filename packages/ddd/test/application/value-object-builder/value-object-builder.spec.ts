@@ -1,15 +1,15 @@
 import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { Validations } from '@archi-code/validation';
-import { ValueObjectBuilder } from '../../../../src/domain/type/value-object-builder/value-object-builder';
-import { ArrayType } from '../../../../src/domain/type/array-type';
-import { IdType } from '../../../../src/domain/type/id-type';
-import { NumberType } from '../../../../src/domain/type/number-type';
-import { StringType } from '../../../../src/domain/type/string-type';
-import { Required } from '../../../../src/domain/type/required/required-type';
-import { DomainException } from '../../../../src/exceptions/domain/domain.exception';
-import { ValidationException } from '../../../../src/exceptions/domain/validation.exception';
-import { AggregateNotFoundException } from '../../../../src/exceptions/application/aggregate-not-found.exception';
-import { InternalErrorException } from '../../../../src/exceptions/infrastructure/internal-error.exception';
+import { ValueObjectBuilder } from '../../../src/application/value-object-builder/value-object-builder';
+import { ArrayType } from '../../../src/domain/type/array-type';
+import { IdType } from '../../../src/domain/type/id-type';
+import { NumberType } from '../../../src/domain/type/number-type';
+import { StringType } from '../../../src/domain/type/string-type';
+import { Required } from '../../../src/domain/type/required/required-type';
+import { DomainException } from '../../../src/exceptions/domain/domain.exception';
+import { ValidationException } from '../../../src/exceptions/domain/validation.exception';
+import { AggregateNotFoundException } from '../../../src/exceptions/application/aggregate-not-found.exception';
+import { InternalErrorException } from '../../../src/exceptions/infrastructure/internal-error.exception';
 
 class OrderId extends IdType<'OrderId'> {}
 
@@ -297,6 +297,11 @@ describe('ValueObjectBuilder: building every value object of an input at once', 
         const scheduled = { then: 'tomorrow' };
         expect(ValueObjectBuilder.build({ delivery: () => scheduled }).delivery).toBe(scheduled);
       });
+
+      it('accept a function that is not a Promise as a value', () => {
+        const pricing = () => 1250;
+        expect(ValueObjectBuilder.build({ pricing: () => pricing }).pricing).toBe(pricing);
+      });
     });
   });
 
@@ -327,10 +332,10 @@ describe('ValueObjectBuilder: building every value object of an input at once', 
       );
     });
 
-    it('names an invalid item of a list value object by its position', () => {
+    it('reports an invalid item of a list value object under the field of the list', () => {
       expect(
         issuesOf(() => ValueObjectBuilder.build({ tags: () => new Tags(['ddd', 'x']) })),
-      ).toEqual([{ field: 'tags.1', code: 'isLength', message: 'Tag: A tag has 2 letters' }]);
+      ).toEqual([{ field: 'tags', code: 'isLength', message: 'Tag: A tag has 2 letters' }]);
     });
 
     it('reports the field of a list value object for the rules of the whole list', () => {

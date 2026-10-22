@@ -126,6 +126,32 @@ function smoke(m) {
         );
       },
     ],
+    [
+      'ValueObjectBuilder.build reports every invalid field at once',
+      () => {
+        class OrderId extends domain.IdType {}
+        class Customer extends domain.Required(domain.StringType) {}
+        const built = m.ValueObjectBuilder.build({
+          orderId: () => new OrderId(ORDER_ID),
+          customer: () => new Customer('Ana'),
+        });
+        let issues = [];
+        try {
+          m.ValueObjectBuilder.build({
+            orderId: () => new OrderId('not-an-id'),
+            customer: () => new Customer(null),
+          });
+        } catch (error) {
+          issues = error.errors.map((issue) => issue.field);
+        }
+        return (
+          (built.orderId.value === ORDER_ID &&
+            built.customer.value === 'Ana' &&
+            issues.join(',') === 'orderId,customer') ||
+          `unexpected fields ${issues.join(',')}`
+        );
+      },
+    ],
   ];
 }
 

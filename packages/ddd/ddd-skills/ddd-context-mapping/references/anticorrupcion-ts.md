@@ -172,9 +172,8 @@ Decisiones visibles:
 
 ```ts
 // src/contexts/sales/application/place-order/PlaceOrder.ts
-import { ValueObjectBuilder } from '@archi-code/ddd/domain';
 import type { AggregateSaver } from '@archi-code/ddd/domain';
-import { UseCase } from '@archi-code/ddd/application';
+import { UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
 import type { ProductPricing } from '../../domain/catalog/ProductPricing';
 import { CustomerId } from '../../domain/customer/CustomerId';

@@ -14,7 +14,7 @@ import { ListensTo } from '../../src/application/event/listens-to';
 import { UseCase } from '../../src/application/use-case/use-case';
 import type { EventBase } from '../../src/domain/index';
 
-const PUBLIC_API = ['EventListener', 'ListensTo', 'UseCase'];
+const PUBLIC_API = ['EventListener', 'ListensTo', 'UseCase', 'ValueObjectBuilder'];
 
 describe('@archi-code/ddd/application', () => {
   it('exports exactly the public API', () => {

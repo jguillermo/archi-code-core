@@ -2,7 +2,6 @@ import { runValidations } from '@archi-code/validation';
 import type { ValidatedClass } from '@archi-code/validation';
 import { CompositeField } from './composite-field';
 import type { FieldSpec } from './composite-field';
-import { ValueObjectBuilder } from '../value-object-builder/value-object-builder';
 import type { PrimitiveType } from '../../primitive/primitive-types';
 import { TypePrimitiveException, ValidationException } from '../../../exceptions/index';
 
@@ -59,15 +58,13 @@ export function Composite<Schema extends CompositeSchema>(schema: Schema): Compo
         throw new TypePrimitiveException(this.name, primitives);
       }
       const record = primitives as Record<string, unknown>;
-      const props = ValueObjectBuilder.build(
-        Object.fromEntries(
-          fields.map((field) => [
-            field,
-            () => CompositeField.fromPrimitive(schema[field], record[field]),
-          ]),
-        ),
+      const values = CompositeField.buildEach(
+        fields.map((field) => [
+          field,
+          () => CompositeField.fromPrimitive(schema[field], record[field]),
+        ]),
       );
-      return new this(props);
+      return new this(Object.fromEntries(fields.map((field, index) => [field, values[index]])));
     }
 
     constructor(props: Record<string, unknown>) {

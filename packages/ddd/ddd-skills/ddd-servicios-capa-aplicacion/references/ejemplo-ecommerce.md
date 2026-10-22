@@ -123,9 +123,8 @@ export class OrderCancellation {
 `ProductPricing` y `ProductNotSellable` son los de `ddd-skills/ddd-servicios-capa-aplicacion/references/capa-aplicacion-ts.md`.
 
 ```ts
-import { ValueObjectBuilder } from '@archi-code/ddd/domain';
 import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
-import { UseCase } from '@archi-code/ddd/application';
+import { UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
 import { AggregateNotFoundException } from '@archi-code/ddd/exceptions';
 
@@ -206,9 +205,9 @@ Los gastos de envío se han dejado fuera de este caso de uso para mantenerlo ali
 Una reacción a un evento es un listener `<Acción>On<Evento>`, decorado con `@ListensTo` y con un nombre de consumidor estable, que solo traduce el evento a la entrada de un caso de uso. Ese caso de uso registra un hecho que ya ocurrió: si el pedido no existe, retorna en vez de lanzar (el canal lo reentregaría sin fin), y `registerStockReservation` es idempotente, porque la entrega es al menos una vez.
 
 ```ts
-import { EventBase, ValueObjectBuilder } from '@archi-code/ddd/domain';
+import { EventBase } from '@archi-code/ddd/domain';
 import type { AggregateFinder, AggregateSaver, EventMetadata } from '@archi-code/ddd/domain';
-import { EventListener, ListensTo, UseCase } from '@archi-code/ddd/application';
+import { EventListener, ListensTo, UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
 
 export class StockReserved extends EventBase {

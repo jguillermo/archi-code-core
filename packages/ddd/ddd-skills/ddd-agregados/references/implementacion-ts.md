@@ -496,9 +496,8 @@ No inyectes repositorios ni servicios en el agregado. Busca antes lo necesario y
 El caso de uso construye los valores en `toCommand` y se los pasa al agregado en `handle`:
 
 ```ts
-import { ValueObjectBuilder } from '@archi-code/ddd/domain';
 import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
-import { UseCase } from '@archi-code/ddd/application';
+import { UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
 
 interface PaymentAuthorizationInput {

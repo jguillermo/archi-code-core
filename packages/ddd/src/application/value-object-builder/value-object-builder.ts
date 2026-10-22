@@ -1,9 +1,5 @@
-import {
-  DomainException,
-  InternalErrorException,
-  ValidationException,
-} from '../../../exceptions/index';
-import type { ValidationIssue } from '../../../exceptions/index';
+import { DomainException, InternalErrorException, ValidationException } from '../../exceptions';
+import type { ValidationIssue } from '../../exceptions';
 
 type Factories = Record<string, () => unknown>;
 

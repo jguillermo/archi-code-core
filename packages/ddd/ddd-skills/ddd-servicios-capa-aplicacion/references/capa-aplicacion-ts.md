@@ -5,9 +5,8 @@
 Un caso de uso extiende `UseCase<Input, Command, Output>` de `@archi-code/ddd/application`. `execute(input)` llama a `toCommand(input)` y después a `handle(command)`; no hay que escribir `execute`.
 
 ```ts
-import { ValueObjectBuilder } from '@archi-code/ddd/domain';
 import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
-import { UseCase } from '@archi-code/ddd/application';
+import { UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
 import { AggregateNotFoundException, NotAllowedException } from '@archi-code/ddd/exceptions';
 

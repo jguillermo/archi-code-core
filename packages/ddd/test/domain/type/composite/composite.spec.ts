@@ -6,7 +6,7 @@ import type {
   CompositePrimitives,
   CompositeProps,
 } from '../../../../src/domain/type/composite/composite';
-import { ValueObjectBuilder } from '../../../../src/domain/type/value-object-builder/value-object-builder';
+import { ValueObjectBuilder } from '../../../../src/application/value-object-builder/value-object-builder';
 import { DateType } from '../../../../src/domain/type/date-type';
 import { NumberType } from '../../../../src/domain/type/number-type';
 import { StringType } from '../../../../src/domain/type/string-type';
@@ -354,6 +354,17 @@ describe('Composite: a value object made of several value objects', () => {
           },
         ],
       );
+    });
+
+    it('lets an error that is not a domain error through untouched, it is a bug', () => {
+      const outage = new Error('currency table unavailable');
+      class CheckedCurrency extends Required(StringType) {
+        protected filter(): string {
+          throw outage;
+        }
+      }
+      class Charge extends Composite({ amount: Cents, currency: CheckedCurrency }) {}
+      expect(() => Charge.fromPrimitives({ amount: 1.5, currency: 'EUR' })).toThrow(outage);
     });
 
     it.each([

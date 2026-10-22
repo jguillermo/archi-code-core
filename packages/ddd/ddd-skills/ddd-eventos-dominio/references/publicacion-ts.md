@@ -32,9 +32,8 @@ Qué pone `@archi-code/ddd` y qué escribe el proyecto:
 El caso de uso guarda y después publica lo que devuelve `pullDomainEvents()`: si `save` falla no se publica nada, y los eventos nunca salen dos veces. No hay puerto de transacciones: el caso de uso recibe solo los roles de repositorio que usa, el `EventBus` y el `Clock`, y el repositorio garantiza que `save` es una escritura atómica `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ```ts
-import { ValueObjectBuilder } from '@archi-code/ddd/domain';
 import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
-import { UseCase } from '@archi-code/ddd/application';
+import { UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
 import { AggregateNotFoundException } from '@archi-code/ddd/exceptions';
 
@@ -429,8 +428,8 @@ export class ContractPublishingChannel implements EventChannel {
 La entrega es al menos una vez, así que el consumidor se salta un `eventId` que ya procesó, y lo anota **en la misma transacción** que su cambio [IDDD cap. 8]. El paquete no trae inbox. `[Fuera de los libros: convención de @archi-code/ddd]` Anotar el `eventId` y escribir el efecto es persistencia, así que lo hace el adaptador del puerto que escribe, en una sola escritura atómica; el listener solo pasa el `eventId` al caso de uso (como en `ddd-skills/ddd-eventos-dominio/GUIA.md`, paso 3), y el caso de uso se lo pasa al puerto:
 
 ```ts
-import { IdType, ValueObjectBuilder } from '@archi-code/ddd/domain';
-import { UseCase } from '@archi-code/ddd/application';
+import { IdType } from '@archi-code/ddd/domain';
+import { UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
 
 export class EventId extends IdType<'EventId'> {}
 

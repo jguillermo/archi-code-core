@@ -366,71 +366,6 @@ Validator names and their `properties` are in the `@archi-code/validation` docum
 `validate()` runs the rules again and returns a frozen `{ ok, value, errors }` without throwing;
 on a value object that was built it is always `ok`.
 
-### Building every value object of an input at once: `ValueObjectBuilder.build`
-
-The constructor of each value object stops at its own errors. To report **every field** of an
-input (a form, a JSON body, a message) at once, build the value objects with
-`ValueObjectBuilder.build`: it runs every factory, even after one fails, and throws one
-`ValidationException` whose `errors` name the field of each problem. It collects the three ways a
-value can be wrong: empty in a required type (`RequiredValueException`), not convertible
-(`TypePrimitiveException`) and broken rules (`ValidationException`), plus any other
-`DomainException` a factory throws. Any other error is a bug and goes through untouched, and it
-wins: the validation errors already collected are dropped, so a bug is never hidden behind a 422.
-`ValueObjectBuilder.buildList` does the same for a list and names each item by its position, so nested
-inputs get paths such as `lines.1.quantity`. Factories are synchronous: a factory that returns a
-Promise does not compile in `build`, and both methods refuse it at run time with
-`InternalErrorException` (`ValueObjectBuilder: the factory of "email" returned a Promise; build value
-objects synchronously`), so an asynchronous check never skips the validation. Every field name is
-kept as written, `__proto__` included.
-
-```ts
-import {
-  IdType,
-  NumberType,
-  Required,
-  StringType,
-  ValueObjectBuilder,
-} from '@archi-code/ddd/domain';
-import { Validations } from '@archi-code/validation';
-
-// Email as in the previous block; input is the raw request body
-
-class OrderId extends IdType<'OrderId'> {}
-class Sku extends Required(StringType) {}
-
-@Validations([
-  { validator: 'isInt', properties: { min: 1, max: 20 }, message: 'From 1 to 20 units' },
-])
-class Quantity extends Required(NumberType) {}
-
-const command = ValueObjectBuilder.build({
-  orderId: () => new OrderId(input.orderId),
-  email: () => new Email(input.email),
-  lines: () =>
-    ValueObjectBuilder.buildList(input.lines, (line) =>
-      ValueObjectBuilder.build({
-        sku: () => new Sku(line.sku),
-        quantity: () => new Quantity(line.quantity),
-      }),
-    ),
-});
-// command: { orderId: OrderId; email: Email; lines: { sku: Sku; quantity: Quantity }[] }
-
-// with input = { orderId: 'x', email: 'ana', lines: [{ sku: 'TORCH-01', quantity: 2 }, { sku: null, quantity: 0 }] }:
-// ValidationException, error.errors:
-// [
-//   { field: 'orderId', code: 'DOM003', message: 'Validation Error: Expected a valid UUID, but received "x".' },
-//   { field: 'email', code: 'isEmail', message: 'Email: Value does not satisfy isEmail' },
-//   { field: 'lines.1.sku', code: 'DOM004', message: 'Validation Error: Sku is required, but received null.' },
-//   { field: 'lines.1.quantity', code: 'isInt', message: 'Quantity: From 1 to 20 units' },
-// ]
-```
-
-`ExceptionClassifier` classifies it as `ExceptionKind.Invalid` (a 422 in HTTP) and the entry point
-returns the same `errors`, so a client can mark each input. To report a problem of your own in the same shape, throw
-`new ValidationException([{ field: 'deliveryDate', code: 'ORD003', message: '…' }])`; `code` is
-optional and defaults to `'DOM001'`.
-
 ### Which layer validates what
 
 The input that reaches a use case is not validated yet, and that is on purpose: every adapter
@@ -632,16 +567,15 @@ new Tags('abc' as any);
 // TypePrimitiveException: Validation Error: Expected a valid Array, but received "abc".
 ```
 
-An `ArrayType` builds every item and reports, at once, the rules of the list (`field: null`) and
-the errors of each item with its position (`field: '1'`, from 0):
+An `ArrayType` receives items that are already valid (checked by `toCommand` or read from
+storage), so it does not collect item errors: it builds the items in order and lets the error of
+the first invalid one through as the item throws it, and then runs the rules of the list
+(`field: null`):
 
 ```ts
 new Tags(['ok', 'x', null] as any);
 // ValidationException, error.errors:
-// [
-//   { field: '1', code: 'isLength', message: 'Tag: Value does not satisfy isLength' },
-//   { field: '2', code: 'DOM004', message: 'Validation Error: Tag is required, but received null.' },
-// ]
+// [{ field: null, code: 'isLength', message: 'Tag: Value does not satisfy isLength' }]
 ```
 
 ### Custom value objects with `AbstractType`
@@ -1329,6 +1263,67 @@ Save before publishing, and publish what `pullDomainEvents()` returns, so a fail
 nothing and events are never sent twice. A command with several values is a small interface of
 value objects (`interface PlaceOrderCommand { orderId: OrderId; customer: CustomerName }`); a
 use case never imports another use case.
+
+### Building every value object of an input at once: `ValueObjectBuilder.build`
+
+`ValueObjectBuilder` lives in `@archi-code/ddd/application`: it is used in `toCommand`, never in
+the domain. The constructor of each value object stops at its own errors. To report **every field** of an
+input (a form, a JSON body, a message) at once, build the value objects with
+`ValueObjectBuilder.build`: it runs every factory, even after one fails, and throws one
+`ValidationException` whose `errors` name the field of each problem. It collects the three ways a
+value can be wrong: empty in a required type (`RequiredValueException`), not convertible
+(`TypePrimitiveException`) and broken rules (`ValidationException`), plus any other
+`DomainException` a factory throws. Any other error is a bug and goes through untouched, and it
+wins: the validation errors already collected are dropped, so a bug is never hidden behind a 422.
+`ValueObjectBuilder.buildList` does the same for a list and names each item by its position, so nested
+inputs get paths such as `lines.1.quantity`. Factories are synchronous: a factory that returns a
+Promise does not compile in `build`, and both methods refuse it at run time with
+`InternalErrorException` (`ValueObjectBuilder: the factory of "email" returned a Promise; build value
+objects synchronously`), so an asynchronous check never skips the validation. Every field name is
+kept as written, `__proto__` included.
+
+```ts
+import { IdType, NumberType, Required, StringType } from '@archi-code/ddd/domain';
+import { ValueObjectBuilder } from '@archi-code/ddd/application';
+import { Validations } from '@archi-code/validation';
+
+// Email as in "Validations: always valid from the constructor"; input is the raw request body
+
+class OrderId extends IdType<'OrderId'> {}
+class Sku extends Required(StringType) {}
+
+@Validations([
+  { validator: 'isInt', properties: { min: 1, max: 20 }, message: 'From 1 to 20 units' },
+])
+class Quantity extends Required(NumberType) {}
+
+const command = ValueObjectBuilder.build({
+  orderId: () => new OrderId(input.orderId),
+  email: () => new Email(input.email),
+  lines: () =>
+    ValueObjectBuilder.buildList(input.lines, (line) =>
+      ValueObjectBuilder.build({
+        sku: () => new Sku(line.sku),
+        quantity: () => new Quantity(line.quantity),
+      }),
+    ),
+});
+// command: { orderId: OrderId; email: Email; lines: { sku: Sku; quantity: Quantity }[] }
+
+// with input = { orderId: 'x', email: 'ana', lines: [{ sku: 'TORCH-01', quantity: 2 }, { sku: null, quantity: 0 }] }:
+// ValidationException, error.errors:
+// [
+//   { field: 'orderId', code: 'DOM003', message: 'Validation Error: Expected a valid UUID, but received "x".' },
+//   { field: 'email', code: 'isEmail', message: 'Email: Value does not satisfy isEmail' },
+//   { field: 'lines.1.sku', code: 'DOM004', message: 'Validation Error: Sku is required, but received null.' },
+//   { field: 'lines.1.quantity', code: 'isInt', message: 'Quantity: From 1 to 20 units' },
+// ]
+```
+
+`ExceptionClassifier` classifies it as `ExceptionKind.Invalid` (a 422 in HTTP) and the entry point
+returns the same `errors`, so a client can mark each input. To report a problem of your own in the same shape, throw
+`new ValidationException([{ field: 'deliveryDate', code: 'ORD003', message: '…' }])`; `code` is
+optional and defaults to `'DOM001'`.
 
 ### Use cases run by a listener
 
@@ -2415,7 +2410,6 @@ import {
   IdType,
   Required,
   StringType,
-  ValueObjectBuilder,
 } from '@archi-code/ddd/domain';
 import {
   AggregateNotFoundException,
@@ -2428,7 +2422,7 @@ import type {
   EventMetadata,
   PrimitiveTypes,
 } from '@archi-code/ddd/domain';
-import { EventListener, ListensTo, UseCase } from '@archi-code/ddd/application';
+import { EventListener, ListensTo, UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
 import {
   DomainEventBus,
@@ -2676,7 +2670,6 @@ await new RegisterUser(users, bus, clock)
 | `Required`, `Composite`                                                                                         | functions          |
 | `Specification`                                                                                                 | abstract class     |
 | `CompositeSchema`, `CompositeProps`, `CompositePrimitives`, `CompositeInput`, `CompositeType`, `CompositeValue` | types              |
-| `ValueObjectBuilder` (`build`, `buildList`)                                                                     | class              |
 | `Entity`, `AggregateRoot`, `EventBase`                                                                          | abstract classes   |
 | `AggregateFinder`, `AggregateSaver`, `AggregateRemover`                                                         | types (contracts)  |
 | `RequiredType`, `JsonTypeValue`, `PrimitiveType`, `PrimitiveTypes`, `DataTypes`                                 | types              |
@@ -2686,15 +2679,16 @@ await new RegisterUser(users, bus, clock)
 
 `@archi-code/ddd/application`:
 
-| Export                     | Kind                             |
-| -------------------------- | -------------------------------- |
-| `UseCase`, `EventListener` | abstract classes                 |
-| `ListensTo`                | decorator                        |
-| `ListensToOptions`         | type (`{ consumer }`)            |
-| `ListenerSubscription`     | type (`{ eventName, consumer }`) |
-| `EventBus`                 | type (event port)                |
-| `Clock`, `Logger`          | types (ports)                    |
-| `LogLevel`, `LogContext`   | types (logger port)              |
+| Export                                      | Kind                             |
+| ------------------------------------------- | -------------------------------- |
+| `UseCase`, `EventListener`                  | abstract classes                 |
+| `ValueObjectBuilder` (`build`, `buildList`) | class                            |
+| `ListensTo`                                 | decorator                        |
+| `ListensToOptions`                          | type (`{ consumer }`)            |
+| `ListenerSubscription`                      | type (`{ eventName, consumer }`) |
+| `EventBus`                                  | type (event port)                |
+| `Clock`, `Logger`                           | types (ports)                    |
+| `LogLevel`, `LogContext`                    | types (logger port)              |
 
 `@archi-code/ddd/infrastructure`:
 

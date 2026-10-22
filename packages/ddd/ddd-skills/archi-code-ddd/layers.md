@@ -19,8 +19,9 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   (`errors: [{ field: null, code: 'isEmail', message: '<Class>: <message>' }]`; `code` is the
   validator or custom rule name, or the code of the exception). There is no `assertValid()`;
   `validate()` only re-runs the rules and is always ok on a built VO.
-- **Report every field, never only the first.** Build the value objects of an input with
-  `ValueObjectBuilder.build({ field: () => new X(input.field), … })`: it runs every factory and throws one
+- **Report every field, never only the first.** In `toCommand`, build the value objects of an
+  input with `ValueObjectBuilder.build({ field: () => new X(input.field), … })` from
+  `@archi-code/ddd/application` (the domain never uses it): it runs every factory and throws one
   `ValidationException` whose `errors` carry the `field` and `code` of each problem (required
   `DOM004`, conversion `DOM003`, a rule name, or the code of any `DomainException`, such as your
   `ORD003`); `ValueObjectBuilder.buildList(list, (item) => …)` names list items by position
@@ -28,6 +29,8 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   that returns a Promise does not compile and is refused at run time with
   `InternalErrorException`), and an error that is not a `DomainException` is a bug that wins over the
   validation errors already collected.
+- An `ArrayType` receives items that are already valid: it does not collect item errors and lets
+  the error of the first invalid item through as the item throws it.
 - **Which layer validates what:** the input adapter checks the shape and format of the request (it
   parses, a field is a string, an empty field or a length for a good user experience [IDDD ch. 4]),
   never a business rule, and that never replaces the value object; value objects check each value (built in

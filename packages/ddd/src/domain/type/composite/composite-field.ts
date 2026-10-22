@@ -1,6 +1,11 @@
 import type { AbstractType } from '../abstract-type';
-import { ValueObjectBuilder } from '../value-object-builder/value-object-builder';
-import { RequiredValueException, TypePrimitiveException } from '../../../exceptions/index';
+import {
+  DomainException,
+  RequiredValueException,
+  TypePrimitiveException,
+  ValidationException,
+} from '../../../exceptions/index';
+import type { ValidationIssue } from '../../../exceptions/index';
 
 const COMPOSITE: unique symbol = Symbol.for('@archi-code/ddd/composite.v1');
 
@@ -57,14 +62,33 @@ export class CompositeField {
       if (!Array.isArray(primitive)) {
         throw new TypePrimitiveException('Array', primitive);
       }
-      return ValueObjectBuilder.buildList(primitive, (item) =>
-        CompositeField.fromPrimitive(spec[0], item),
+      return CompositeField.buildEach(
+        primitive.map((item, index) => [
+          String(index),
+          () => CompositeField.fromPrimitive(spec[0], item),
+        ]),
       );
     }
     const fieldClass = spec as FieldClass;
     return CompositeField.isComposite(fieldClass.prototype)
       ? (fieldClass as CompositeClass).fromPrimitives(primitive)
       : new (fieldClass as ValueClass)(primitive);
+  }
+
+  static buildEach(builds: readonly (readonly [string, () => unknown])[]): unknown[] {
+    const built: unknown[] = [];
+    const issues: ValidationIssue[] = [];
+    for (const [field, build] of builds) {
+      try {
+        built.push(build());
+      } catch (error) {
+        issues.push(...CompositeField.issuesOf(field, error));
+      }
+    }
+    if (issues.length > 0) {
+      throw new ValidationException(issues);
+    }
+    return built;
   }
 
   static equals(left: unknown, right: unknown): boolean {
@@ -100,5 +124,19 @@ export class CompositeField {
       throw new TypePrimitiveException(`${fieldClass.name} for ${owner}.${field}`, value);
     }
     return value;
+  }
+
+  private static issuesOf(field: string, error: unknown): ValidationIssue[] {
+    if (error instanceof ValidationException) {
+      return error.errors.map((issue) => ({
+        field: issue.field === null ? field : `${field}.${issue.field}`,
+        code: issue.code,
+        message: issue.message,
+      }));
+    }
+    if (error instanceof DomainException) {
+      return [{ field, code: error.code, message: error.message }];
+    }
+    throw error;
   }
 }

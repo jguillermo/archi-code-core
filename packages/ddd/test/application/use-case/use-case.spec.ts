@@ -9,8 +9,8 @@ import {
   IdType,
   Required,
   StringType,
-  ValueObjectBuilder,
 } from '../../../src/domain/index';
+import { ValueObjectBuilder } from '../../../src/application/value-object-builder/value-object-builder';
 import {
   AggregateNotFoundException,
   ApplicationException,

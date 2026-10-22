@@ -37,7 +37,6 @@ const PUBLIC_API = [
   'StringType',
   'UpdatedAt',
   'UuidType',
-  'ValueObjectBuilder',
 ];
 
 describe('@archi-code/ddd/domain', () => {

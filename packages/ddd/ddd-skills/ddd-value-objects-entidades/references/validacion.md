@@ -27,7 +27,7 @@ Para devolver todos los errores en vez de parar en el primero, IDDD y *DDD in PH
 * **Entrada de un caso de uso:** `ValueObjectBuilder.build({...})` ejecuta todas las factorías y lanza una sola `ValidationException` cuyos `errors` (`ValidationIssue`: `{ field, code, message }`) llevan el campo y el código de cada problema; `ValueObjectBuilder.buildList` nombra los elementos de una lista por su posición (`lines.1.quantity`).
 
 ```ts
-import { ValueObjectBuilder } from '@archi-code/ddd/domain';
+import { ValueObjectBuilder } from '@archi-code/ddd/application';
 
 const command = ValueObjectBuilder.build({
   customerId: () => new CustomerId(input.customerId),
