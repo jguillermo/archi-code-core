@@ -28,11 +28,11 @@ class OrderPlaced extends EventBase {
   static readonly eventName = 'OrderPlaced';
 
   constructor(
-    orderId: string,
+    readonly orderId: string,
     readonly customer: string,
     metadata?: EventMetadata,
   ) {
-    super(orderId, metadata);
+    super(metadata);
   }
 }
 
@@ -40,11 +40,11 @@ class OrderLineAdded extends EventBase {
   static readonly eventName = 'OrderLineAdded';
 
   constructor(
-    orderId: string,
+    readonly orderId: string,
     readonly sku: string,
     readonly quantity: number,
   ) {
-    super(orderId);
+    super();
   }
 }
 
@@ -109,7 +109,7 @@ describe('AggregateRoot: an order that records what happened to it', () => {
       const events = Order.place(orderId, 'Ana').pullDomainEvents();
       expect(events).toHaveLength(1);
       expect(events[0]).toBeInstanceOf(OrderPlaced);
-      expect(events[0]).toMatchObject({ aggregateId: orderId, customer: 'Ana' });
+      expect(events[0]).toMatchObject({ orderId, customer: 'Ana' });
     });
 
     it('records events as immutable facts: nobody can change one after it happened', () => {
@@ -125,7 +125,7 @@ describe('AggregateRoot: an order that records what happened to it', () => {
       const order = Order.place(orderId, 'Ana');
       order.addLine('TORCH-01', 2);
       order.addLine('HELMET-02', 1);
-      expect(order.pullDomainEvents().map((event) => event.eventName())).toEqual([
+      expect(order.pullDomainEvents().map((event) => event.eventName)).toEqual([
         'OrderPlaced',
         'OrderLineAdded',
         'OrderLineAdded',

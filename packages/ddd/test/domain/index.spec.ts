@@ -102,7 +102,6 @@ describe('@archi-code/ddd/domain', () => {
     expectTypeOf<SerializedEvent>().toMatchTypeOf<{
       eventName: string;
       eventId: string;
-      aggregateId: string;
       occurredOn: string;
     }>();
   });

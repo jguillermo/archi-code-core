@@ -13,8 +13,9 @@ function orderModel() {
   class OrderPlaced extends domain.EventBase {
     static eventName = 'OrderPlaced';
 
-    constructor(id, customer, metadata) {
-      super(id, metadata);
+    constructor(orderId, customer, metadata) {
+      super(metadata);
+      this.orderId = orderId;
       this.customer = customer;
     }
   }
@@ -127,7 +128,7 @@ function smoke(m) {
         const channel = new m.InMemoryEventChannel();
         const registry = new m.EventRegistry().register(
           OrderPlaced,
-          (json) => new OrderPlaced(json.aggregateId, json.customer, json),
+          (json) => new OrderPlaced(json.orderId, json.customer, json),
         );
         const bus = new m.DomainEventBus(channel, registry);
         const subscription = await bus.subscribe(new ConfirmOrderOnOrderPlaced());
@@ -176,7 +177,7 @@ function smoke(m) {
         );
         const registry = new m.EventRegistry().register(
           OrderPlaced,
-          (json) => new OrderPlaced(json.aggregateId, json.customer, json),
+          (json) => new OrderPlaced(json.orderId, json.customer, json),
         );
         const bus = new m.DomainEventBus(channel, registry);
         const subscription = await bus.subscribe(new ConfirmOrderOnOrderPlaced());
@@ -207,7 +208,7 @@ function smoke(m) {
         const { OrderPlaced } = orderModel();
         let failure = null;
         try {
-          await channel.send([new OrderPlaced(ORDER_ID, 'Ana').toJSON()]);
+          await channel.send([{ ...new OrderPlaced(ORDER_ID, 'Ana') }]);
         } catch (error) {
           failure = error;
         }
@@ -247,7 +248,7 @@ function smoke(m) {
           new m.InMemoryEventChannel(),
           new m.EventRegistry().register(
             OrderPlaced,
-            (json) => new OrderPlaced(json.aggregateId, json.customer, json),
+            (json) => new OrderPlaced(json.orderId, json.customer, json),
           ),
           memory,
         );

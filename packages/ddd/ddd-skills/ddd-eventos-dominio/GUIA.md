@@ -8,7 +8,7 @@
 
 [Fuera de los libros: convención de @archi-code/ddd]
 
-* Los eventos extienden `EventBase`, declaran `static readonly eventName` con el nombre de su clase en pasado (`'OrderPlaced'`) y `static readonly eventVersion` cuando sus datos cambian de forma incompatible (1 si no se declara); llaman a `super(aggregateId, { clock })` y la base pone `eventId` (UUID v4) y `occurredOn`. El payload son primitivos sacados de los value objects (el dinero como `{ amount, currency }`), nunca value objects ni `toPrimitives()` del agregado.
+* Los eventos extienden `EventBase`, declaran `static readonly eventName` con el nombre de su clase en pasado (`'OrderPlaced'`); llaman a `super(metadata)` (con `{ clock }` dentro del agregado) y la base copia el nombre en el campo `eventName` y pone `eventId` (UUID v4) y `occurredOn` (texto ISO en UTC). Un evento es un objeto de datos primitivos sin métodos: `{ ...event }` y `JSON.stringify(event)` dan `{ eventName, eventId, occurredOn, ...campos }`. La identidad del agregado es un campo más que declara cada evento (`readonly orderId: string`). Regla, no comprobada en ejecución: cada evento declara como campos `readonly` del constructor solo los datos primitivos que necesita (texto, números finitos, booleanos, `null`, listas y objetos planos de ellos), sacados de los value objects (`.value`, el dinero como `{ amount, currency }`, las fechas en ISO), nunca value objects, `Date` ni `toPrimitives()` del agregado. Los eventos no llevan número de versión: un cambio incompatible de sus datos es un evento nuevo con otro `eventName`, o una fábrica del `EventRegistry` que lee las dos formas `[Fuera de los libros: convención de @archi-code/ddd]`.
 * El agregado registra con `record()` (que congela el evento) y el caso de uso publica con `await this.events.publish(order.pullDomainEvents())` justo después de `await this.orders.save(order)`. La aplicación nunca abre, une ni cierra transacciones y no hay puerto para ello: cada `save` es una escritura atómica que garantiza el repositorio. Si `publish` falla después de `save`, el evento se puede perder; cuando un evento no puede perderse, el adaptador del repositorio escribe el agregado y sus eventos pendientes en la misma escritura atómica (un outbox en el mismo documento o en la misma transacción de base de datos de `save`) y un reenviador los entrega después por un `EventChannel`. Es persistencia, así que va en el repositorio, y el caso de uso no cambia. Fuera de ese caso, el repositorio no toca los eventos.
 * La aplicación solo tiene el contrato de eventos, en `@archi-code/ddd/application`: para publicar, el puerto `EventBus` (lo único que ve el caso de uso); para escuchar, `EventListener` + `@ListensTo` (`ListensTo.subscriptionOf(listener)` da `{ eventName, consumer }`). Lo que mueve los eventos es infraestructura y lo usa solo el composition root, desde `@archi-code/ddd/infrastructure`: `DomainEventBus(channel, registry)` implementa `EventBus` sobre un `EventChannel` (con `ChannelHandler` y `ChannelSubscription`), que es lo único que implementa cada tecnología (`InMemoryEventChannel` en el paquete; un outbox o un broker en tu infraestructura). Los listeners reciben siempre el evento reconstruido desde su JSON por `EventRegistry`, cuya fábrica pasa el JSON como metadatos para conservar `eventId` y `occurredOn`.
 * Un listener extiende `EventListener<Event>`, escucha un único evento con `@ListensTo(EventClass, { consumer })` (un nombre de consumidor estable y explícito, su identidad en el canal), se llama `<Acción>On<Evento>` y solo traduce el evento a la entrada de un caso de uso.
@@ -63,7 +63,7 @@ export class PrepareShipmentOnOrderLineAdded extends EventListener<OrderLineAdde
   async handle(event: OrderLineAdded): Promise<void> {
     await this.prepareShipment.execute({
       eventId: event.eventId,
-      orderId: event.aggregateId,
+      orderId: event.orderId,
       sku: event.sku,
       quantity: event.quantity,
     });
@@ -82,7 +82,7 @@ export class PrepareShipmentOnOrderLineAdded extends EventListener<OrderLineAdde
 | Puede cambiar | Con el modelo | Solo con versión nueva y compatibilidad |
 | Contenido | Lo que el modelo necesita | Lo que el contrato promete; sin datos personales innecesarios |
 
-No publiques las clases de dominio ni su `toJSON()` tal cual hacia fuera. Traduce el evento serializado (`SerializedEvent`) al contrato publicado en el adaptador que habla con el broker, con `messageId` = `eventId` [IDDD cap. 13]; el paquete no trae esa traducción (ver "Lenguaje publicado en el adaptador del broker" en `ddd-skills/ddd-eventos-dominio/references/publicacion-ts.md`).
+No publiques los eventos de dominio tal cual (`{ ...event }`) hacia fuera. Traduce el evento serializado (`SerializedEvent`) al contrato publicado en el adaptador que habla con el broker, con `messageId` = `eventId` [IDDD cap. 13]; el paquete no trae esa traducción (ver "Lenguaje publicado en el adaptador del broker" en `ddd-skills/ddd-eventos-dominio/references/publicacion-ts.md`).
 
 ## Señales de alarma
 

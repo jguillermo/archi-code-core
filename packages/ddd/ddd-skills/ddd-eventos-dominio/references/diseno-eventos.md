@@ -21,7 +21,7 @@
 Pregunta guía: ¿qué estimuló la publicación del evento? Normalmente un comando, y el evento debería llevar las propiedades que llevaba ese comando [Destilado cap. 6]. IDDD añade [IDDD cap. 8]:
 
 * Marca de tiempo de cuándo ocurrió (`occurredOn`, que pone `EventBase`).
-* Lo necesario para "volver a disparar" el evento: identidad del agregado (`aggregateId`, el primer argumento de `super`) y de los agregados implicados.
+* Lo necesario para "volver a disparar" el evento: identidad del agregado (un campo del payload que declara el evento, como `orderId`; `EventBase` no la pone) y de los agregados implicados.
 * Parámetros del comando si se demuestran útiles.
 * Valores del estado resultante que ayuden a los suscriptores.
 * En entornos multi-tenant, siempre el `tenantId`, aunque no viniera en el comando.
@@ -51,11 +51,11 @@ export class OrderConfirmed extends EventBase {
   static readonly eventName = 'OrderConfirmed';
 
   constructor(
-    orderId: string,
+    readonly orderId: string,
     readonly total: MoneyData,
     metadata?: EventMetadata,
   ) {
-    super(orderId, metadata);
+    super(metadata);
   }
 }
 ```
@@ -71,13 +71,13 @@ private tryToConfirm(clock: { now(): Date }): void {
 }
 ```
 
-`EventBase` pone `eventId` (UUID v4) y `occurredOn` (del `clock`, o la hora del sistema), y `record()` congela el evento: inmutable y con constructor completo [IDDD cap. 8]. No generes tú el id ni la fecha de un evento nuevo; pasa `{ eventId, occurredOn }` (o el JSON entero) solo al reconstruir uno que entregó un canal. `toJSON()` da la forma que viaja:
+`EventBase` pone `eventName`, `eventId` (UUID v4) y `occurredOn` (texto ISO en UTC, del `clock` o de la hora del sistema), y `record()` congela el evento: inmutable y con constructor completo [IDDD cap. 8]. No generes tú el id ni la fecha de un evento nuevo; pasa `{ eventId, occurredOn }` (o el JSON entero) solo al reconstruir uno que entregó un canal. El evento ya es la forma que viaja:
 
 ```ts
 const [confirmed] = order.pullDomainEvents();
-confirmed.toJSON();
-// { eventName: 'OrderConfirmed', eventVersion: 1, eventId: '…', aggregateId: '9b2f6c1e-…',
-//   occurredOn: '2026-03-01T09:30:00.000Z', total: { amount: 7000, currency: 'EUR' } }
+({ ...confirmed });
+// { eventName: 'OrderConfirmed', eventId: '…', occurredOn: '2026-03-01T09:30:00.000Z',
+//   orderId: '9b2f6c1e-…', total: { amount: 7000, currency: 'EUR' } }
 ```
 
 ## Identidad del evento
@@ -93,7 +93,7 @@ A veces un evento no resulta de un comando sobre un agregado sino que un usuario
 
 * Los eventos publicados llevan versión. Diseñados con cuidado, muchos consumidores pueden leer cualquier versión como si fuera la 1 [IDDD cap. 13].
 * Cambios compatibles `[Fuera de los libros]`: añadir campos opcionales. Incompatibles: renombrar, quitar o cambiar el significado → nueva versión o nuevo evento, publicando ambas durante la transición.
-* Con el paquete, la versión de la forma interna es `static readonly eventVersion` (1 si no se declara; `toJSON()` la escribe). Los eventos guardados conservan la versión con la que se escribieron, así que la fábrica del `EventRegistry` lee las formas antiguas a partir de `json.eventVersion`:
+* Con el paquete, los eventos no llevan número de versión `[Fuera de los libros: convención de @archi-code/ddd]`. Un cambio incompatible de la forma interna se publica como un evento nuevo con otro `eventName` (`OrderCancelledV2`), o la fábrica del `EventRegistry`, que recibe cada evento guardado tal como se escribió, reconoce la forma antigua por sus campos:
 
 ```ts
 import { EventBase } from '@archi-code/ddd/domain';
@@ -102,30 +102,29 @@ import { EventRegistry } from '@archi-code/ddd/infrastructure';
 
 export class OrderCancelled extends EventBase {
   static readonly eventName = 'OrderCancelled';
-  static readonly eventVersion = 2;
 
   constructor(
-    orderId: string,
+    readonly orderId: string,
     readonly reason: string,
     readonly refund: MoneyData,
     metadata?: EventMetadata,
   ) {
-    super(orderId, metadata);
+    super(metadata);
   }
 }
 
 export const cancellations = new EventRegistry<OrderCancelled>().register(
   OrderCancelled,
   (json) =>
-    json.eventVersion === 1
+    typeof json.refundCents === 'number'
       ? new OrderCancelled(
-          json.aggregateId,
+          json.orderId as string,
           json.reason as string,
-          { amount: json.refundCents as number, currency: 'EUR' },
+          { amount: json.refundCents, currency: 'EUR' },
           json,
         )
-      : new OrderCancelled(json.aggregateId, json.reason as string, json.refund as MoneyData, json),
+      : new OrderCancelled(json.orderId as string, json.reason as string, json.refund as MoneyData, json),
 );
 ```
 
-La versión del contrato publicado a otros contextos es otra cosa: la decide el adaptador del broker, que puede seguir emitiendo la v1 del contrato aunque el evento interno esté en la v2 (ver `ddd-skills/ddd-eventos-dominio/references/publicacion-ts.md`).
+La versión del contrato publicado a otros contextos es otra cosa: la decide el adaptador del broker, que puede seguir emitiendo la v1 del contrato aunque cambie la forma del evento interno (ver `ddd-skills/ddd-eventos-dominio/references/publicacion-ts.md`).

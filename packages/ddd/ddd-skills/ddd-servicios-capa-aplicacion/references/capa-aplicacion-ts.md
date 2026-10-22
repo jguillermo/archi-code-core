@@ -246,7 +246,7 @@ describe('Cancelling an order', () => {
     await cancelOrder.execute({ orderId, requesterId: laura, reason: 'Wrong size' });
 
     expect(channel.sent).toMatchObject([
-      { eventName: 'OrderCancelled', aggregateId: orderId, reason: 'Wrong size' },
+      { eventName: 'OrderCancelled', orderId, reason: 'Wrong size' },
     ]);
   });
 

@@ -135,20 +135,24 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   again.
 - `record(event)` is `protected` and deep-freezes the event (facts never change [IDDD ch. 8]); `pullDomainEvents()` returns the events (typed `Event[]`) in order
   and empties the list. Pull them after persisting, to publish. `DomainEventBus.publish` does not freeze
-  them again: it only sends the `toJSON()` of each event to the channel.
+  them again: it only sends a plain copy of each event (`{ ...event }`) to the channel.
 - Events extend `EventBase`, declare `static readonly eventName` with their class name, a fact in
   the past tense (`'OrderPlaced'`) [IDDD ch. 8] (a published contract is named
   `<context>.<module>.<Event>`, `sales.order.OrderPlaced` [IDDD ch. 13]) and
-  call `super(aggregateId, metadata)`; `event.eventName()` returns it. The payload is primitives
-  taken from value objects (`customer.value`, money as `{ amount, currency }`), only what
-  consumers need: never value objects, `toPrimitives()` nor personal data nobody needs. Listeners and registries refer to
+  call `super(metadata)`; the base copies the name into the event's `eventName` field. An event
+  is plain data with no methods. The id of the aggregate is a field the event declares like any
+  other (`readonly orderId: string`). Rule (not checked at run time): each event declares as
+  `readonly` constructor fields only the primitive data it needs (text, finite numbers, booleans,
+  `null`, lists and plain objects of them), taken from value objects (`id.value`,
+  `customer.value`, money as `{ amount, currency }`, dates as ISO text): never value objects,
+  `Date`s, `toPrimitives()` nor personal data nobody needs. Listeners and registries refer to
   the event by its class (`@ListensTo(OrderPlaced, { consumer: 'reserve-stock-on-order-placed' })`, `register(OrderPlaced, …)`). The
-  base sets `eventId` (UUID v4) and `occurredOn` (immutable `Date`, from `metadata.clock` when
+  base sets `eventId` (UUID v4) and `occurredOn` (ISO text in UTC, from `metadata.clock` when
   given, otherwise the system time); pass `{ eventId, occurredOn }` only when rebuilding an event
   a channel delivered. Inside an aggregate method, always pass the clock it received:
-  `new OrderPlaced(id.value, customer.value, { clock })`. Serialize with `JSON.stringify` /
-  `toJSON()` (`eventName`, `eventVersion`, `eventId`, `aggregateId`, ISO `occurredOn` and the
-  payload).
+  `new OrderPlaced(id.value, customer.value, { clock })`. The event is its own JSON:
+  `{ ...event }` / `JSON.stringify(event)` give `eventName`, `eventId`, `occurredOn` and the
+  fields, in that order.
 - `PrimitiveTypes<T>` only sees **public** non-method members (it strips the leading `_`): expose
   VOs with public getters or public `readonly` properties. For an aggregate it includes `id`;
   child entities become their primitives; raw `string`/`number`/`boolean`/`Date`
@@ -246,9 +250,10 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   and wraps driver errors. When events must not be lost between `save` and `publish` [Destilado
   ch. 6; IDDD ch. 8], the repository stores them in the same atomic write (an outbox) and a relay
   delivers them through an `EventChannel`: use cases do not change.
-- **Events have a schema version** (`static readonly eventVersion = 2` when their data changes
-  incompatibly; 1 by default, written in `toJSON()`); an `EventRegistry` factory reads older
-  stored versions from `json.eventVersion`.
+- **Events carry no schema version.** Adding an optional field old readers can ignore is
+  compatible; a change they cannot follow is a new event with its own `eventName`
+  (`CustomerRenamedV2`), or the `EventRegistry` factory reads both shapes from the stored JSON
+  (`typeof json.name === 'string' ? … : …`).
 - **The application holds only the event contract, in `application/event`**: to publish, the
   port `EventBus` (`publish`, the only thing use cases see); to listen, `EventListener` and
   `@ListensTo` (`ListensTo.subscriptionOf(listener)` → `{ eventName, consumer }`). What moves the
@@ -260,8 +265,8 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   `EventChannel` (`InMemoryEventChannel` in the package; RabbitMQ, a table or Kafka in your
   infrastructure); swapping it changes one line of the wiring.
 - **Consumers are idempotent**: delivery is at least once, so a listener ignores an `eventId` it
-  already processed. Listeners always receive the event rebuilt from its JSON (frozen, equal by
-  `toJSON()`), also in memory, so nothing changes when the channel does.
+  already processed. Listeners always receive the event rebuilt from its JSON (frozen, equal field
+  by field), also in memory, so nothing changes when the channel does.
 - **Other contexts never receive domain classes**: translate the serialized event to a published,
   versioned contract (`sales.order.OrderPlaced`, only what consumers need, `messageId` = `eventId`)
   in the adapter that talks to the broker [IDDD ch. 13]; expose a new contract version next to the
@@ -297,6 +302,6 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   of the primitives with their version and follows the same concurrency contract.
 - `DomainEventBus` rebuilds events with `EventRegistry`: register a factory per
   event class that passes the JSON as metadata
-  (`register(OrderPlaced, (json) => new OrderPlaced(json.aggregateId, …, json))`); `fromJSON`
+  (`register(OrderPlaced, (json) => new OrderPlaced(json.orderId as string, …, json))`); `fromJSON`
   throws `InternalErrorException` when the rebuilt event lost its `eventId` or `occurredOn`, which
   listeners need to skip a redelivery.

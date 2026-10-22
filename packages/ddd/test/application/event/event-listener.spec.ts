@@ -8,10 +8,10 @@ class InvoiceIssued extends EventBase {
   static readonly eventName = 'InvoiceIssued';
 
   constructor(
-    invoiceId: string,
+    readonly invoiceId: string,
     readonly customerEmail: string,
   ) {
-    super(invoiceId);
+    super();
   }
 }
 
@@ -37,7 +37,7 @@ class SendInvoiceOnInvoiceIssued extends EventListener<InvoiceIssued> {
   }
 
   async handle(event: InvoiceIssued): Promise<void> {
-    await this.sendInvoice.execute({ invoiceId: event.aggregateId, to: event.customerEmail });
+    await this.sendInvoice.execute({ invoiceId: event.invoiceId, to: event.customerEmail });
   }
 }
 

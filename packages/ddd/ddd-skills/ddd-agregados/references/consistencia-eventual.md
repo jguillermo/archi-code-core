@@ -32,12 +32,12 @@ export class StockReserved extends EventBase {
   static readonly eventName = 'warehouse.stock.StockReserved';
 
   constructor(
-    stockItemId: string,
+    readonly stockItemId: string,
     readonly orderId: string,
     readonly reservationId: string,
     metadata?: EventMetadata,
   ) {
-    super(stockItemId, metadata);
+    super(metadata);
   }
 }
 ```
@@ -127,7 +127,7 @@ const orders = new InMemoryOrderRepository();
 const registry = new EventRegistry<OrderEvent | StockReserved>().register(
   StockReserved,
   (json) =>
-    new StockReserved(json.aggregateId, json.orderId as string, json.reservationId as string, json),
+    new StockReserved(json.stockItemId as string, json.orderId as string, json.reservationId as string, json),
 );
 const channel = new InMemoryEventChannel();
 const bus = new DomainEventBus<OrderEvent | StockReserved>(channel, registry);

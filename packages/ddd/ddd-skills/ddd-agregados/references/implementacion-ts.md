@@ -207,13 +207,13 @@ export class OrderPlaced extends EventBase {
   static readonly eventName = 'OrderPlaced';
 
   constructor(
-    orderId: string,
+    readonly orderId: string,
     readonly customerId: string,
     readonly lines: readonly OrderLineData[],
     readonly total: MoneyData,
     metadata?: EventMetadata,
   ) {
-    super(orderId, metadata);
+    super(metadata);
   }
 }
 
@@ -221,14 +221,14 @@ export class OrderLineAdded extends EventBase {
   static readonly eventName = 'OrderLineAdded';
 
   constructor(
-    orderId: string,
+    readonly orderId: string,
     readonly sku: string,
     readonly quantity: number,
     readonly unitPrice: MoneyData,
     readonly total: MoneyData,
     metadata?: EventMetadata,
   ) {
-    super(orderId, metadata);
+    super(metadata);
   }
 }
 
@@ -236,11 +236,11 @@ export class OrderConfirmed extends EventBase {
   static readonly eventName = 'OrderConfirmed';
 
   constructor(
-    orderId: string,
+    readonly orderId: string,
     readonly total: MoneyData,
     metadata?: EventMetadata,
   ) {
-    super(orderId, metadata);
+    super(metadata);
   }
 }
 
@@ -248,13 +248,13 @@ export class OrderCancelled extends EventBase {
   static readonly eventName = 'OrderCancelled';
 
   constructor(
-    orderId: string,
+    readonly orderId: string,
     readonly reason: string,
     readonly reservationId: string | null,
     readonly paymentId: string | null,
     metadata?: EventMetadata,
   ) {
-    super(orderId, metadata);
+    super(metadata);
   }
 }
 
@@ -262,13 +262,13 @@ export class PaymentAuthorizationInsufficient extends EventBase {
   static readonly eventName = 'PaymentAuthorizationInsufficient';
 
   constructor(
-    orderId: string,
+    readonly orderId: string,
     readonly paymentId: string,
     readonly authorized: MoneyData,
     readonly required: MoneyData,
     metadata?: EventMetadata,
   ) {
-    super(orderId, metadata);
+    super(metadata);
   }
 }
 
@@ -670,7 +670,7 @@ describe('Order', () => {
     expect(order.isConfirmed()).toBe(false);
     order.registerStockReservation(aReservation(), clock);
     expect(order.isConfirmed()).toBe(true);
-    expect(order.pullDomainEvents().map((event) => event.eventName())).toContain('OrderConfirmed');
+    expect(order.pullDomainEvents().map((event) => event.eventName)).toContain('OrderConfirmed');
   });
 
   it('records an insufficient authorization without throwing and without confirming', () => {
@@ -678,7 +678,7 @@ describe('Order', () => {
     order.registerStockReservation(aReservation(), clock);
     order.registerPaymentAuthorization(anAuthorizationOf(1000), clock);
     expect(order.isConfirmed()).toBe(false);
-    expect(order.pullDomainEvents().map((event) => event.eventName())).toContain(
+    expect(order.pullDomainEvents().map((event) => event.eventName)).toContain(
       'PaymentAuthorizationInsufficient',
     );
   });

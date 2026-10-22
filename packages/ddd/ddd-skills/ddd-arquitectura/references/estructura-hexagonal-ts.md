@@ -152,7 +152,7 @@ export async function composeSales(
       OrderPlaced,
       (json) =>
         new OrderPlaced(
-          json.aggregateId,
+          json.orderId as string,
           json.customerId as string,
           json.lines as OrderLineData[],
           json.total as MoneyData,
@@ -163,7 +163,7 @@ export async function composeSales(
       OrderLineAdded,
       (json) =>
         new OrderLineAdded(
-          json.aggregateId,
+          json.orderId as string,
           json.sku as string,
           json.quantity as number,
           json.unitPrice as MoneyData,
@@ -233,7 +233,7 @@ export async function salesForTests(warehouse: Warehouse) {
     OrderLineAdded,
     (json) =>
       new OrderLineAdded(
-        json.aggregateId,
+        json.orderId as string,
         json.sku as string,
         json.quantity as number,
         json.unitPrice as MoneyData,

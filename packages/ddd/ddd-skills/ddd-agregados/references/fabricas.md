@@ -173,7 +173,7 @@ describe('Customer.placeOrder', () => {
     );
     const order = customer.placeOrder(OrderId.generate(), lines, address, clock);
     expect(order.customerId.equals(customer.id)).toBe(true);
-    expect(order.pullDomainEvents().map((event) => event.eventName())).toEqual(['OrderPlaced']);
+    expect(order.pullDomainEvents().map((event) => event.eventName)).toEqual(['OrderPlaced']);
   });
 
   it('refuses an order from a blocked customer', () => {

@@ -160,7 +160,7 @@ Cuando un evento no puede perderse, el repositorio escribe el agregado y sus eve
 for (const event of order.pullDomainEvents()) {
   await client.query('INSERT INTO order_outbox (event_id, body) VALUES ($1, $2)', [
     event.eventId,
-    event.toJSON(),
+    { ...event },
   ]);
 }
 ```

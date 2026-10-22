@@ -17,7 +17,9 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   broker), so it must be a stable literal, unique per listener.
 - Subscribing listeners by a text name or calling them from a use case: the composition root
   subscribes them with `bus.subscribe(listener)`, which reads their `@ListensTo`.
-- Declaring `eventName()` as a method in an event: declare `static readonly eventName`.
+- Declaring `eventName` as a method or an instance field in an event, or adding methods to it:
+  declare `static readonly eventName`; the base copies it into the event's `eventName` field, and
+  an event is plain data.
 - Importing the repository contracts from `@archi-code/ddd/application`: they live in `/domain`.
 - Do not invent API: there is no root `@archi-code/ddd` import, no `toPrimitives()` in the base
   classes, no generic `ValueObject` (a value object of several fields is `Composite({...})`), no
@@ -38,7 +40,7 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   (`new OrderPlaced(id.value, customer.value)`): `occurredOn` becomes the system time and tests stop
   being deterministic.
 - A registry factory that does not pass the JSON as metadata
-  (`(json) => new OrderShipped(json.aggregateId)`): the event gets a new `eventId`, a listener
+  (`(json) => new OrderShipped(json.orderId as string)`): the event gets a new `eventId`, a listener
   cannot skip a redelivery, and `fromJSON` throws.
 - Subscribing a listener of an event the `EventRegistry` does not know: `bus.subscribe` refuses it
   with `UnknownEventException`; register every event a listener receives.
@@ -68,10 +70,10 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   them with the aggregate in the same atomic write (an outbox) and a relay delivers them.
 - A listener that breaks when a channel delivers the same event twice: delivery is at least once;
   skip an `eventId` already processed.
-- Sending `event.toJSON()` of a domain event to another context: translate it to a published,
+- Sending a domain event as it is (`{ ...event }`) to another context: translate it to a published,
   versioned contract.
-- Changing the data of a stored or published event without raising `eventVersion` (or the
-  contract version).
+- Changing the data of a stored or published event incompatibly under the same `eventName` (or
+  the same contract version) when no factory can read both shapes: publish a new event instead.
 - Repository methods with business names or rules (`pendingOlderThan`, `findOverdueInvoices`),
   `nextId()` in a repository, or a use case returning the aggregate to the controller.
 - Throwing `AggregateNotFoundException` from the domain or a repository: the use case throws it when
@@ -165,8 +167,11 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   and the first save conflicts).
 - Exposing the version to domain or application code: use cases load, change and save; only the
   repository knows it.
-- Creating events without the aggregate id (`super()`), or generating `eventId`/`occurredOn`
-  yourself for a new event: the base does it.
+- Creating events without the id of their aggregate as a payload field (`readonly orderId: string`),
+  or generating `eventId`/`occurredOn` yourself for a new event: the base does it.
+- Putting value objects, `Date`s, `undefined` or class instances in an event's fields (nothing
+  checks it at run time): each event declares only the primitive data it needs (`id.value`,
+  money as `{ amount, currency }`, `date.toISOString()`).
 - Wrapping or translating an error (`InternalErrorException`, `ConcurrencyException`,
   `NotAllowedException`, `AggregateNotFoundException`) without `{ cause: error }`.
 - `JsonType` with `{}` or with an array: throws `TypePrimitiveException` (it must be a non-empty

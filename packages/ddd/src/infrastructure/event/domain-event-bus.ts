@@ -27,12 +27,11 @@ export class DomainEventBus<Event extends EventBase = EventBase> implements Even
   ) {}
 
   async publish(events: readonly Event[]): Promise<void> {
-    await this.channel.send(events.map((event) => event.toJSON()));
+    await this.channel.send(events.map((event: EventBase): SerializedEvent => ({ ...event })));
     this.logger.debug('domain_events_published', {
       events: events.map((event) => ({
-        eventName: event.eventName(),
+        eventName: event.eventName,
         eventId: event.eventId,
-        aggregateId: event.aggregateId,
       })),
     });
   }
@@ -67,7 +66,6 @@ export class DomainEventBus<Event extends EventBase = EventBase> implements Even
         eventName,
         consumer,
         eventId: serialized.eventId,
-        aggregateId: serialized.aggregateId,
         error,
       };
       if (error instanceof DomainException || error instanceof ApplicationException) {

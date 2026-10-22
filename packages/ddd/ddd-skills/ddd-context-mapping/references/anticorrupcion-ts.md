@@ -331,11 +331,11 @@ export class StockReserved extends EventBase {
   static readonly eventName = 'warehouse.stock.StockReserved';
 
   constructor(
-    reservationId: string,
+    readonly reservationId: string,
     readonly orderId: string,
     metadata?: EventMetadata,
   ) {
-    super(reservationId, metadata);
+    super(metadata);
   }
 }
 ```
@@ -355,7 +355,7 @@ export class RegisterStockReservationOnStockReserved extends EventListener<Stock
   async handle(event: StockReserved): Promise<void> {
     await this.registerStockReservation.execute({
       orderId: event.orderId,
-      reservationId: event.aggregateId,
+      reservationId: event.reservationId,
     });
   }
 }
@@ -367,7 +367,7 @@ import { DomainEventBus, EventRegistry } from '@archi-code/ddd/infrastructure';
 
 const warehouseEvents = new EventRegistry<StockReserved>().register(
   StockReserved,
-  (json) => new StockReserved(json.aggregateId, json.orderId as string, json),
+  (json) => new StockReserved(json.reservationId as string, json.orderId as string, json),
 );
 const warehouseBus = new DomainEventBus<StockReserved>(
   new RabbitMqEventChannel(amqpChannel, 'warehouse.published'),

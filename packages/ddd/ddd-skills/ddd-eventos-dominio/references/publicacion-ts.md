@@ -128,7 +128,7 @@ describe('Adding a line to an order', () => {
     expect(channel.sent).toMatchObject([
       {
         eventName: 'OrderLineAdded',
-        aggregateId: orderId,
+        orderId,
         sku: 'GLOVES-02',
         quantity: 2,
         unitPrice: { amount: 1250, currency: 'EUR' },
@@ -156,7 +156,6 @@ CREATE TABLE stored_events (
   event_id      UUID        NOT NULL UNIQUE,
   aggregate_id  TEXT        NOT NULL,
   event_name    TEXT        NOT NULL,
-  event_version INT         NOT NULL,
   occurred_on   TIMESTAMPTZ NOT NULL,
   body          JSONB       NOT NULL,
   published_at  TIMESTAMPTZ NULL
@@ -164,7 +163,7 @@ CREATE TABLE stored_events (
 CREATE INDEX stored_events_unpublished ON stored_events (sequence) WHERE published_at IS NULL;
 ```
 
-`sequence` conserva el orden causal dentro del contexto; `body` es el `SerializedEvent` que produjo `toJSON()`.
+`sequence` conserva el orden causal dentro del contexto; `body` es el `SerializedEvent`, la copia plana del evento (`{ ...event }`).
 
 ### El repositorio
 
@@ -219,7 +218,7 @@ export class PostgresOrderRepository implements AggregateFinder<Order>, Aggregat
   async save(order: Order): Promise<void> {
     const version = this.versions.get(order) ?? 0;
     const primitives = order.toPrimitives();
-    const events = order.pullDomainEvents().map((event) => event.toJSON());
+    const events = order.pullDomainEvents().map((event) => ({ ...event }));
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
@@ -239,13 +238,12 @@ export class PostgresOrderRepository implements AggregateFinder<Order>, Aggregat
       for (const event of events) {
         await client.query(
           `INSERT INTO stored_events
-             (event_id, aggregate_id, event_name, event_version, occurred_on, body)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
+             (event_id, aggregate_id, event_name, occurred_on, body)
+           VALUES ($1, $2, $3, $4, $5)`,
           [
             event.eventId,
-            event.aggregateId,
+            primitives.id,
             event.eventName,
-            event.eventVersion,
             event.occurredOn,
             JSON.stringify(event),
           ],
@@ -346,7 +344,7 @@ Un lote que falla se queda en el outbox y lo reintenta la pasada siguiente; el `
 
 ## Lenguaje publicado en el adaptador del broker
 
-Los otros contextos no reciben las clases ni el `toJSON()` del dominio: reciben un contrato versionado [IDDD cap. 13]. El paquete no trae esa traducción; se hace en el adaptador que habla con el broker, a partir del `SerializedEvent`, con `messageId` = `eventId`. Un evento interno no produce ningún mensaje, y durante una transición un evento puede producir un mensaje por versión del contrato:
+Los otros contextos no reciben los eventos del dominio tal cual: reciben un contrato versionado [IDDD cap. 13]. El paquete no trae esa traducción; se hace en el adaptador que habla con el broker, a partir del `SerializedEvent`, con `messageId` = `eventId`. Un evento interno no produce ningún mensaje, y durante una transición un evento puede producir un mensaje por versión del contrato. El `SerializedEvent` no lleva campo de versión: cada versión incompatible del contrato se publica con su propio `eventName` (`sales.order.OrderPlacedV2`) `[Fuera de los libros: convención de @archi-code/ddd]`:
 
 ```ts
 import type {
@@ -363,9 +361,7 @@ interface Broker {
 export class SalesContracts {
   static toPublished(event: SerializedEvent): SerializedEvent[] {
     const envelope = {
-      eventVersion: 1,
       eventId: event.eventId,
-      aggregateId: event.aggregateId,
       occurredOn: event.occurredOn,
     };
     switch (event.eventName) {
@@ -374,7 +370,7 @@ export class SalesContracts {
           {
             ...envelope,
             eventName: 'sales.order.OrderPlaced',
-            orderId: event.aggregateId,
+            orderId: event.orderId,
             customerId: event.customerId,
             lines: (event.lines as OrderLineData[]).map((line) => ({
               sku: line.sku,
@@ -389,7 +385,7 @@ export class SalesContracts {
           {
             ...envelope,
             eventName: 'sales.order.OrderConfirmed',
-            orderId: event.aggregateId,
+            orderId: event.orderId,
             total: SalesContracts.money(event.total as MoneyData),
           },
         ];
@@ -426,7 +422,7 @@ export class ContractPublishingChannel implements EventChannel {
 }
 ```
 
-`SalesContracts` decide qué eventos salen del contexto y con qué forma, campo a campo (`MoneyData` y `OrderLineData` son los de `ddd-skills/ddd-eventos-dominio/references/ejemplo-ecommerce.md`), para que un campo nuevo del evento interno no se filtre al contrato (ver "Eventos internos y eventos publicados" en `ddd-skills/ddd-eventos-dominio/GUIA.md`); el contrato no cambia cuando cambia el evento interno, solo cuando se publica una versión nueva. El mensaje es un `SerializedEvent` plano con el nombre y la versión del contrato (`sales.order.OrderPlaced`, v1), que el consumidor lee con su propia clase `EventBase` (`ddd-skills/ddd-context-mapping/references/anticorrupcion-ts.md`). `Broker` es la parte del driver que el adaptador usa, declarada de forma estructural.
+`SalesContracts` decide qué eventos salen del contexto y con qué forma, campo a campo (`MoneyData` y `OrderLineData` son los de `ddd-skills/ddd-eventos-dominio/references/ejemplo-ecommerce.md`), para que un campo nuevo del evento interno no se filtre al contrato (ver "Eventos internos y eventos publicados" en `ddd-skills/ddd-eventos-dominio/GUIA.md`); el contrato no cambia cuando cambia el evento interno, solo cuando se publica una versión nueva. El mensaje es un `SerializedEvent` plano con el nombre del contrato (`sales.order.OrderPlaced`, la v1; una v2 incompatible llevaría otro nombre), que el consumidor lee con su propia clase `EventBase` (`ddd-skills/ddd-context-mapping/references/anticorrupcion-ts.md`). `Broker` es la parte del driver que el adaptador usa, declarada de forma estructural.
 
 ## Consumidor idempotente
 
@@ -522,7 +518,7 @@ La anotación y el efecto van en la misma transacción, abierta y cerrada dentro
 ## Orden y causalidad
 
 * El `sequence` de la tabla conserva el orden causal dentro del contexto [Destilado cap. 6], y el reenviador entrega en ese orden. Un mismo consumidor recibe los eventos de un `send` en su orden.
-* El bus puede desordenar. Opciones `[Fuera de los libros]`: particionar por `aggregateId` (Kafka, sesiones de Service Bus, un consumidor activo por cola en RabbitMQ) para mantener el orden por agregado; o que el consumidor compare `occurredOn` o una versión y aparque los eventos que llegan antes que su causa [Destilado cap. 6 describe la responsabilidad del consumidor].
+* El bus puede desordenar. Opciones `[Fuera de los libros]`: particionar por la identidad del agregado (`orderId`; Kafka, sesiones de Service Bus, un consumidor activo por cola en RabbitMQ) para mantener el orden por agregado; o que el consumidor compare `occurredOn` o una versión y aparque los eventos que llegan antes que su causa [Destilado cap. 6 describe la responsabilidad del consumidor].
 * Si un evento posterior hace irrelevante uno anterior, el consumidor puede ignorar el anterior [Destilado cap. 6].
 
 ## Despacho interno

@@ -44,13 +44,13 @@ export class OrderPlaced extends EventBase {
   static readonly eventName = 'OrderPlaced';
 
   constructor(
-    orderId: string,
+    readonly orderId: string,
     readonly customerId: string,
     readonly lines: readonly OrderLineData[],
     readonly total: MoneyData,
     metadata?: EventMetadata,
   ) {
-    super(orderId, metadata);
+    super(metadata);
   }
 }
 
@@ -58,14 +58,14 @@ export class OrderLineAdded extends EventBase {
   static readonly eventName = 'OrderLineAdded';
 
   constructor(
-    orderId: string,
+    readonly orderId: string,
     readonly sku: string,
     readonly quantity: number,
     readonly unitPrice: MoneyData,
     readonly total: MoneyData,
     metadata?: EventMetadata,
   ) {
-    super(orderId, metadata);
+    super(metadata);
   }
 }
 
@@ -73,11 +73,11 @@ export class OrderConfirmed extends EventBase {
   static readonly eventName = 'OrderConfirmed';
 
   constructor(
-    orderId: string,
+    readonly orderId: string,
     readonly total: MoneyData,
     metadata?: EventMetadata,
   ) {
-    super(orderId, metadata);
+    super(metadata);
   }
 }
 
@@ -154,7 +154,7 @@ export const orderEvents = new EventRegistry<OrderEvent>()
     OrderPlaced,
     (json) =>
       new OrderPlaced(
-        json.aggregateId,
+        json.orderId as string,
         json.customerId as string,
         json.lines as OrderLineData[],
         json.total as MoneyData,
@@ -165,7 +165,7 @@ export const orderEvents = new EventRegistry<OrderEvent>()
     OrderLineAdded,
     (json) =>
       new OrderLineAdded(
-        json.aggregateId,
+        json.orderId as string,
         json.sku as string,
         json.quantity as number,
         json.unitPrice as MoneyData,
@@ -175,13 +175,13 @@ export const orderEvents = new EventRegistry<OrderEvent>()
   )
   .register(
     OrderConfirmed,
-    (json) => new OrderConfirmed(json.aggregateId, json.total as MoneyData, json),
+    (json) => new OrderConfirmed(json.orderId as string, json.total as MoneyData, json),
   )
   .register(
     OrderCancelled,
     (json) =>
       new OrderCancelled(
-        json.aggregateId,
+        json.orderId as string,
         json.reason as string,
         json.reservationId as string | null,
         json.paymentId as string | null,
@@ -192,7 +192,7 @@ export const orderEvents = new EventRegistry<OrderEvent>()
     PaymentAuthorizationInsufficient,
     (json) =>
       new PaymentAuthorizationInsufficient(
-        json.aggregateId,
+        json.orderId as string,
         json.paymentId as string,
         json.authorized as MoneyData,
         json.required as MoneyData,

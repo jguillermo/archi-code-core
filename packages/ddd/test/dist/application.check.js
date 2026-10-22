@@ -10,6 +10,11 @@ const ORDER_ID = '9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c';
 function orderModel() {
   class OrderPlaced extends domain.EventBase {
     static eventName = 'OrderPlaced';
+
+    constructor(orderId) {
+      super();
+      this.orderId = orderId;
+    }
   }
   class Order extends domain.AggregateRoot {
     static place(id) {
@@ -38,7 +43,7 @@ function smoke(m) {
         };
         const bus = {
           publish: async (events) => {
-            published.push(...events.map((event) => event.eventName()));
+            published.push(...events.map((event) => event.eventName));
           },
         };
         class PlaceOrder extends m.UseCase {
@@ -107,7 +112,7 @@ function smoke(m) {
         const received = [];
         class ConfirmOrderOnOrderPlaced extends m.EventListener {
           handle(event) {
-            received.push(event.aggregateId);
+            received.push(event.orderId);
           }
         }
         m.ListensTo(OrderPlaced, { consumer: 'confirm-order' })(ConfirmOrderOnOrderPlaced);

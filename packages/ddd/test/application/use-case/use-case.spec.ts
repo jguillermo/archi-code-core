@@ -36,15 +36,19 @@ class OrderPlaced extends EventBase {
   static readonly eventName = 'OrderPlaced';
 
   constructor(
-    orderId: string,
+    readonly orderId: string,
     readonly customer: string,
   ) {
-    super(orderId);
+    super();
   }
 }
 
 class OrderShipped extends EventBase {
   static readonly eventName = 'OrderShipped';
+
+  constructor(readonly orderId: string) {
+    super();
+  }
 }
 
 type OrderEvent = OrderPlaced | OrderShipped;
@@ -133,7 +137,7 @@ class FakeEventBus implements EventBus<OrderEvent> {
   constructor(private readonly log: string[] = []) {}
 
   async publish(events: readonly OrderEvent[]): Promise<void> {
-    this.log.push(`publish ${events.map((event) => event.eventName()).join(',')}`);
+    this.log.push(`publish ${events.map((event) => event.eventName).join(',')}`);
     this.published.push(...events);
   }
 }
@@ -291,7 +295,7 @@ describe('UseCase: an application service a controller or a message handler call
         customer: 'Ana',
         shipped: false,
       });
-      expect(bus.published).toMatchObject([{ aggregateId: orderId, customer: 'Ana' }]);
+      expect(bus.published).toMatchObject([{ orderId, customer: 'Ana' }]);
     });
 
     it('publishes nothing when saving fails', async () => {
@@ -379,7 +383,7 @@ describe('UseCase: an application service a controller or a message handler call
       const { placeOrder, shipOrder, bus, orders } = setup();
       await placeOrder.execute({ orderId, customer: 'Ana' });
       await shipOrder.execute({ orderId });
-      expect(bus.published.map((event) => event.eventName())).toEqual([
+      expect(bus.published.map((event) => event.eventName)).toEqual([
         'OrderPlaced',
         'OrderShipped',
       ]);

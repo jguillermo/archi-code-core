@@ -10,8 +10,8 @@
 
 * El paquete no trae capa anticorrupción, Open Host Service ni Published Language: se escriben en el proyecto sobre sus clases y puertos. El puerto hacia otro contexto (`ProductPricing`) es una interfaz en `domain/` que recibe y devuelve value objects (`Sku`, un `Composite` `SellableProduct`); adaptador (`CatalogHttpProductPricing`) y traductor (`CatalogTranslator`) van en `infrastructure/` y lanzan una `InfrastructureException` con código propio (`CAT001`), que el punto de entrada traduce por su código (`CAT001` → 503 en HTTP; sin traducción propia, `ExceptionClassifier.classify` la clasifica como `ExceptionKind.Internal`).
 * Un webhook entrante es un punto de entrada en `interfaces/` que traduce el lenguaje del emisor a la entrada de un `UseCase` y responde según el `ExceptionKind` que devuelve `ExceptionClassifier.classify(error)` (de `@archi-code/ddd/exceptions`).
-* Los mensajes entre contextos viajan como `SerializedEvent` plano (`{ eventName, eventVersion, eventId, aggregateId, occurredOn, ...datos }`) por un `EventChannel` (tu canal de broker o de outbox), no con el envoltorio de IDDD `{ notificationId, typeName, version, occurredOn, event }`: `eventName` hace de `typeName` (`'sales.order.OrderPlaced'`), `eventVersion` de `version` y `eventId` identifica el mensaje para deduplicar. No hay `notificationId` secuencial: si un feed REST lo necesita, lo asigna tu canal duradero.
-* Lo que sale se traduce al Published Language en infraestructura, con un `EventChannel` propio en el adaptador del broker (`ContractPublishingChannel` + `SalesContracts`, en `ddd-skills/ddd-eventos-dominio/references/publicacion-ts.md`); nunca se publica fuera del contexto el `toJSON()` de un evento interno tal cual.
+* Los mensajes entre contextos viajan como `SerializedEvent` plano (`{ eventName, eventId, occurredOn, ...datos }`, con la identidad del agregado entre los datos, como `orderId`) por un `EventChannel` (tu canal de broker o de outbox), no con el envoltorio de IDDD `{ notificationId, typeName, version, occurredOn, event }`: `eventName` hace de `typeName` (`'sales.order.OrderPlaced'`) y también identifica la versión del contrato (una versión incompatible se publica con otro nombre, como `'sales.order.OrderPlacedV2'`), y `eventId` identifica el mensaje para deduplicar. No hay `notificationId` secuencial: si un feed REST lo necesita, lo asigna tu canal duradero.
+* Lo que sale se traduce al Published Language en infraestructura, con un `EventChannel` propio en el adaptador del broker (`ContractPublishingChannel` + `SalesContracts`, en `ddd-skills/ddd-eventos-dominio/references/publicacion-ts.md`); nunca se publica fuera del contexto un evento interno tal cual (`{ ...event }`).
 * Lo que entra de otro contexto se lee con una clase propia `extends EventBase` que lleva el nombre publicado y solo los campos que este contexto usa; la factoría de `EventRegistry` es el traductor, y un `EventListener` con `@ListensTo(Evento, { consumer })` ejecuta un caso de uso, que valida cada campo con value objects en `toCommand`.
 * Los procesos entre contextos se encadenan con eventos y listeners, cada uno con su caso de uso.
 
@@ -72,7 +72,7 @@ Para cada evento que cruza un contexto, decide entre **evento enriquecido** (má
 * API REST que devuelve el agregado serializado con todos sus campos.
 * Una petición de usuario que atraviesa tres servicios en cadena de forma síncrona.
 * Un consumidor de eventos sin control de duplicados.
-* Un contexto publica hacia fuera el `toJSON()` de sus eventos internos, o un listener recibe la clase de evento de otro contexto importada de su código.
+* Un contexto publica hacia fuera sus eventos internos tal cual (`{ ...event }`), o un listener recibe la clase de evento de otro contexto importada de su código.
 * "Shared Kernel" usado como excusa para compartir una librería de modelos que crece sin acuerdo [IDDD cap. 13].
 * El código copia sin traducir el modelo de un proveedor.
 

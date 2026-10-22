@@ -14,10 +14,9 @@ export function orderEvent(
 ): SerializedEvent {
   return {
     eventName,
-    eventVersion: 1,
     eventId,
-    aggregateId: orderId,
     occurredOn: '2026-10-19T09:30:00.000Z',
+    orderId,
     ...payload,
   };
 }

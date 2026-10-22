@@ -894,23 +894,28 @@ repository. It does not protect the invariants of an aggregate: those stay in th
 
 - `EventBase`: abstract class for events; declare
   `static readonly eventName = '<ClassName>'` (`'OrderPlaced'` [IDDD ch. 8]; the
-  `'<context>.<module>.<Event>'` names are for the contracts other contexts read) (listeners and registries refer to the event by its class, without an instance; `eventName()`
-  returns it, and a subclass inherits it). Creating an event whose class has no non-blank
-  `eventName` throws `InternalErrorException`. `new (aggregateId, metadata?)` sets `aggregateId`, a new `eventId` (UUID v4) and an immutable `occurredOn`. Pass
+  `'<context>.<module>.<Event>'` names are for the contracts other contexts read) (listeners and registries refer to the event by its class, without an instance, and a subclass
+  inherits it). An event is a plain object of primitive data with no methods: `new (metadata?)`
+  copies the static name into the `readonly eventName` field and sets `eventId` (a new UUID v4)
+  and `occurredOn` (ISO text in UTC, `'2026-10-17T10:00:00.000Z'`); everything else is data the
+  subclass declares as `readonly` constructor fields, including the id of the aggregate
+  (`readonly orderId: string`). Creating an event whose class has no non-blank `eventName` throws
+  `InternalErrorException`. Pass
   `{ clock }` (any `{ now(): Date }`, such as the `Clock` port) to take the moment from it; without
   a clock it is the system time. When you rebuild an event a channel delivered, pass
   `{ eventId, occurredOn }` (`Date` or ISO string with zone) to keep them; a stored `occurredOn`
-  wins over a clock. The clock is not kept in the event nor in its JSON. `toJSON()` gives
-  `{ eventName, eventVersion, eventId, aggregateId, occurredOn (ISO), ...payload }`.
-- The shape of an event's data has a version: `static readonly eventVersion = 2` when it changes
-  in a way old readers cannot follow (renaming or removing a field, changing its meaning; adding an
-  optional field needs no new version). It is 1 when not declared, `event.eventVersion()` returns
-  it, and a version below 1 or not whole throws `InternalErrorException`. Stored events keep the
-  version they were written with, so the `EventRegistry` factory can read old shapes
-  (`json.eventVersion === 1 ? … : …`).
-- The data of an event are primitives taken from value objects (`id.value`, money as
-  `{ amount, currency }`), never value objects nor the whole state of the aggregate: the event is
-  serialized as it is, and its readers must not depend on the model.
+  wins over a clock and is stored as UTC ISO text. The clock is not kept in the event. The event
+  is its own JSON: `{ ...event }` and `JSON.stringify(event)` give
+  `{ eventName, eventId, occurredOn, ...fields }`, in that order.
+- Rule: each event declares only the primitive data it needs (text, finite numbers, booleans,
+  `null`, and lists and plain objects of them), taken from value objects: a value object becomes
+  its `.value`, money `{ amount, currency }`, a date its ISO text. Never value objects, `Date`s,
+  class instances nor the whole state of the aggregate: the event travels as it is, and its
+  readers must not depend on the model. Nothing checks this at run time.
+- An event has no schema version. Adding an optional field that old readers can ignore is
+  compatible; a change old readers cannot follow (renaming or removing a field, changing its
+  meaning) is published as a new event with its own `eventName` (`CustomerRenamedV2`), or the
+  `EventRegistry` factory of the event reads both shapes (`typeof json.name === 'string' ? … : …`).
 - The version a repository stores counts saves, not events: it grows by 1 on each save, however
   many events the change recorded. Event Sourcing is not provided: an event-sourced aggregate manages the version of its
   stream itself.
@@ -927,11 +932,11 @@ class OrderPlaced extends EventBase {
   static readonly eventName = 'OrderPlaced';
 
   constructor(
-    orderId: string,
+    readonly orderId: string,
     readonly customer: string,
     metadata?: EventMetadata,
   ) {
-    super(orderId, metadata);
+    super(metadata);
   }
 }
 
@@ -951,7 +956,7 @@ const order = Order.place(
 const [placed] = order.pullDomainEvents(); // OrderPlaced[]
 order.pullDomainEvents(); // []
 JSON.stringify(placed);
-// {"eventName":"OrderPlaced","eventVersion":1,"eventId":"…","aggregateId":"9b2f6c1e-…","occurredOn":"2026-10-17T10:00:00.000Z","customer":"Ana"}
+// {"eventName":"OrderPlaced","eventId":"…","occurredOn":"2026-10-17T10:00:00.000Z","orderId":"9b2f6c1e-…","customer":"Ana"}
 ```
 
 ### Primitive types
@@ -1344,7 +1349,7 @@ wiring stay as they are.
 ```
 use case ──► EventBus (port, @archi-code/ddd/application)
                  ▲ implements
-wiring   ──► DomainEventBus  (toJSON, @ListensTo, rebuild, listener.handle)   (@archi-code/ddd/infrastructure)
+wiring   ──► DomainEventBus  ({ ...event }, @ListensTo, rebuild, listener.handle)   (@archi-code/ddd/infrastructure)
                  └──► EventChannel (port)  ◄── InMemoryEventChannel   (@archi-code/ddd/infrastructure)
                       send / receive         ◄── your RabbitMQ, database or Kafka channel
 ```
@@ -1386,7 +1391,7 @@ class ReserveStockOnOrderPlaced extends EventListener<OrderPlaced> {
   }
 
   async handle(event: OrderPlaced): Promise<void> {
-    await this.reserveStock.execute({ orderId: event.aggregateId });
+    await this.reserveStock.execute({ orderId: event.orderId });
   }
 }
 ```
@@ -1428,7 +1433,7 @@ interface EventChannel {
 }
 ```
 
-A channel only moves serialized events (`toJSON()`), so the same contract fits a process, a broker
+A channel only moves serialized events (`{ ...event }`), so the same contract fits a process, a broker
 and a table. The rules every channel follows:
 
 | Concern           | Rule                                                                                                                                                         |
@@ -1454,8 +1459,11 @@ import {
 } from '@archi-code/ddd/infrastructure';
 
 const events = new EventRegistry<OrderEvent>()
-  .register(OrderPlaced, (json) => new OrderPlaced(json.aggregateId, json.customer as string, json))
-  .register(OrderShipped, (json) => new OrderShipped(json.aggregateId, json));
+  .register(
+    OrderPlaced,
+    (json) => new OrderPlaced(json.orderId as string, json.customer as string, json),
+  )
+  .register(OrderShipped, (json) => new OrderShipped(json.orderId as string, json));
 
 const bus = new DomainEventBus<OrderEvent>(new InMemoryEventChannel(), events);
 const reserving = await bus.subscribe(new ReserveStockOnOrderPlaced(reserveStock));
@@ -1468,14 +1476,14 @@ await reserving.unsubscribe();
 
 - `DomainEventBus` implements `EventBus`; `subscribe(listener)` is its own method, called only by
   the wiring.
-- `publish(events)` sends the `toJSON()` of each event to the channel in one `send` (events
+- `publish(events)` sends a plain copy of each event (`{ ...event }`) to the channel in one `send` (events
   recorded by an aggregate are already frozen by `record()`).
 - `subscribe(listener)` reads the event and the consumer with `ListensTo.subscriptionOf` (`ApplicationException` without
   `@ListensTo`), refuses an event the registry cannot rebuild (`UnknownEventException`, at wiring
   time rather than at the first delivery) and calls
   `channel.receive(eventName, consumer, handler)`; the handler rebuilds the event
   with the registry and calls `listener.handle`. `unsubscribe()` closes the channel subscription.
-- Listeners always receive an event rebuilt from its JSON (frozen, equal by `toJSON()`), also in
+- Listeners always receive an event rebuilt from its JSON (frozen, equal field by field), also in
   memory, so what works with the in-memory channel works the same with a broker.
 - An optional third argument, a `Logger`, logs what was published, the subscriptions and every
   listener failure with its event and consumer (see [Logging](#logging)); without it, nothing is
@@ -1492,8 +1500,8 @@ and throws `InternalErrorException`
 when the rebuilt `eventId` (compared without case) or the `occurredOn` instant differs from the
 JSON. It also throws `UnknownEventException` for a name nobody registered and
 `InternalErrorException` for text that is not a JSON object or has no `eventName`. The rebuilt
-event is deep-frozen, like the ones an aggregate records. The factory receives the stored
-`eventVersion`, so it can read older shapes (`json.eventVersion === 1 ? … : …`).
+event is deep-frozen, like the ones an aggregate records. The factory receives the JSON as it was
+stored, so it can also read an older shape of the same event.
 
 ### Example: from the use case to the listener, in memory
 
@@ -1521,11 +1529,11 @@ class OrderPlaced extends EventBase {
   static readonly eventName = 'OrderPlaced';
 
   constructor(
-    orderId: string,
+    readonly orderId: string,
     readonly customer: string,
     metadata?: EventMetadata,
   ) {
-    super(orderId, metadata);
+    super(metadata);
   }
 }
 
@@ -1598,7 +1606,7 @@ class SendConfirmationOnOrderPlaced extends EventListener<OrderPlaced> {
   }
 
   async handle(event: OrderPlaced): Promise<void> {
-    await this.sendConfirmation.execute({ orderId: event.aggregateId, customer: event.customer });
+    await this.sendConfirmation.execute({ orderId: event.orderId, customer: event.customer });
   }
 }
 
@@ -1606,7 +1614,7 @@ class SendConfirmationOnOrderPlaced extends EventListener<OrderPlaced> {
 const mails: string[] = [];
 const events = new EventRegistry<OrderPlaced>().register(
   OrderPlaced,
-  (json) => new OrderPlaced(json.aggregateId, json.customer as string, json),
+  (json) => new OrderPlaced(json.orderId as string, json.customer as string, json),
 );
 const channel = new InMemoryEventChannel();
 const bus = new DomainEventBus<OrderPlaced>(channel, events);
@@ -1620,8 +1628,8 @@ const orderId = await placeOrder.execute({ customer: 'Ana' });
 
 mails; // ['Order <orderId> confirmed to Ana']: the listener ran before publish resolved
 channel.sent;
-// [{ eventName: 'OrderPlaced', eventVersion: 1, eventId: '…', aggregateId: orderId,
-//    occurredOn: '2026-10-19T09:30:00.000Z', customer: 'Ana' }]
+// [{ eventName: 'OrderPlaced', eventId: '…', occurredOn: '2026-10-19T09:30:00.000Z',
+//    orderId, customer: 'Ana' }]
 
 await bus.subscribe(new SendConfirmationOnOrderPlaced(new SendConfirmation(mails)));
 // InfrastructureException: SendConfirmationOnOrderPlaced already receives "OrderPlaced"
@@ -1916,12 +1924,12 @@ value objects through their `toJSON`, a `bigint` as text and a circular referenc
 
 What the package logs when it receives a logger:
 
-| Where            | Level   | Message                                                                                                   | Context                                                       |
-| ---------------- | ------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| `DomainEventBus` | `debug` | `domain_events_published` (after the channel accepted them)                                               | `events`: `{ eventName, eventId, aggregateId }[]`, no payload |
-| `DomainEventBus` | `info`  | `event_listener_subscribed`, `event_listener_unsubscribed`                                                | `eventName`, `consumer`                                       |
-| `DomainEventBus` | `warn`  | `event_listener_rejected`: a `DomainException` or `ApplicationException` (such as `ConcurrencyException`) | `eventName`, `consumer`, `eventId`, `aggregateId`, `error`    |
-| `DomainEventBus` | `error` | `event_listener_failed`: any other error, also an event the registry cannot rebuild                       | `eventName`, `consumer`, `eventId`, `aggregateId`, `error`    |
+| Where            | Level   | Message                                                                                                   | Context                                          |
+| ---------------- | ------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| `DomainEventBus` | `debug` | `domain_events_published` (after the channel accepted them)                                               | `events`: `{ eventName, eventId }[]`, no payload |
+| `DomainEventBus` | `info`  | `event_listener_subscribed`, `event_listener_unsubscribed`                                                | `eventName`, `consumer`                          |
+| `DomainEventBus` | `warn`  | `event_listener_rejected`: a `DomainException` or `ApplicationException` (such as `ConcurrencyException`) | `eventName`, `consumer`, `eventId`, `error`      |
+| `DomainEventBus` | `error` | `event_listener_failed`: any other error, also an event the registry cannot rebuild                       | `eventName`, `consumer`, `eventId`, `error`      |
 
 The bus still rethrows a listener's error after logging it, so the channel keeps its delivery
 semantics (the in-memory channel rejects `send`, a broker retries). The rule for your own code is
@@ -2013,16 +2021,23 @@ class OrderPlaced extends EventBase {
   static readonly eventName = 'OrderPlaced';
 
   constructor(
-    orderId: string,
+    readonly orderId: string,
     readonly customer: string,
     metadata?: EventMetadata,
   ) {
-    super(orderId, metadata);
+    super(metadata);
   }
 }
 
 class OrderShipped extends EventBase {
   static readonly eventName = 'OrderShipped';
+
+  constructor(
+    readonly orderId: string,
+    metadata?: EventMetadata,
+  ) {
+    super(metadata);
+  }
 }
 
 type OrderEvent = OrderPlaced | OrderShipped;
@@ -2406,11 +2421,11 @@ class UserRegistered extends EventBase {
   static readonly eventName = 'UserRegistered';
 
   constructor(
-    userId: string,
+    readonly userId: string,
     readonly email: string,
     metadata?: EventMetadata,
   ) {
-    super(userId, metadata);
+    super(metadata);
   }
 }
 
@@ -2418,11 +2433,11 @@ class UserRenamed extends EventBase {
   static readonly eventName = 'UserRenamed';
 
   constructor(
-    userId: string,
+    readonly userId: string,
     readonly name: string,
     metadata?: EventMetadata,
   ) {
-    super(userId, metadata);
+    super(metadata);
   }
 }
 
@@ -2577,9 +2592,12 @@ const channel = new InMemoryEventChannel();
 const events = new EventRegistry<UserEvent>()
   .register(
     UserRegistered,
-    (json) => new UserRegistered(json.aggregateId, json.email as string, json),
+    (json) => new UserRegistered(json.userId as string, json.email as string, json),
   )
-  .register(UserRenamed, (json) => new UserRenamed(json.aggregateId, json.name as string, json));
+  .register(
+    UserRenamed,
+    (json) => new UserRenamed(json.userId as string, json.name as string, json),
+  );
 const bus = new DomainEventBus<UserEvent>(channel, events);
 await bus.subscribe(new SendWelcomeEmailOnUserRegistered(new SendWelcomeEmail(emails)));
 const clock = new FixedClock('2026-01-01T09:00:00Z');

@@ -215,11 +215,11 @@ export class StockReserved extends EventBase {
   static readonly eventName = 'StockReserved';
 
   constructor(
-    reservationId: string,
+    readonly reservationId: string,
     readonly orderId: string,
     metadata?: EventMetadata,
   ) {
-    super(reservationId, metadata);
+    super(metadata);
   }
 }
 
@@ -273,7 +273,7 @@ export class RegisterReservationOnStockReserved extends EventListener<StockReser
   async handle(event: StockReserved): Promise<void> {
     await this.registerReservation.execute({
       orderId: event.orderId,
-      reservationId: event.aggregateId,
+      reservationId: event.reservationId,
     });
   }
 }
@@ -301,7 +301,7 @@ describe('Registering the stock reservation of an order', () => {
     const orders = new InMemoryOrderRepository();
     const registry = new EventRegistry<StockReserved>().register(
       StockReserved,
-      (json) => new StockReserved(json.aggregateId, json.orderId as string, json),
+      (json) => new StockReserved(json.reservationId as string, json.orderId as string, json),
     );
     const channel = new InMemoryEventChannel();
     const bus = new DomainEventBus<StockReserved>(channel, registry);

@@ -109,14 +109,12 @@ Aplicar dos veces "reserva registrada" no cambia nada la segunda vez ni graba un
 * Los eventos y notificaciones llevan versión. Si se diseñan con cuidado, muchos consumidores pueden leer cualquier versión como si fuera la 1 y no necesitan cambiar [IDDD cap. 13].
 * Los value objects estables (identificadores) se pueden incluir en el evento; quedan congelados en la estructura [IDDD cap. 13]. Con el paquete, el payload lleva solo primitivos tomados de los value objects (`orderId: string`), también los identificadores `[Fuera de los libros: convención de @archi-code/ddd]`.
 
-La notificación de IDDD envuelve el evento en `{ notificationId, typeName, version, occurredOn, event }` [IDDD cap. 13]. Con el paquete, el mensaje publicado es un `SerializedEvent` plano, con el nombre y la versión del Published Language `[Fuera de los libros: convención de @archi-code/ddd]`:
+La notificación de IDDD envuelve el evento en `{ notificationId, typeName, version, occurredOn, event }` [IDDD cap. 13]. Con el paquete, el mensaje publicado es un `SerializedEvent` plano, con el nombre del Published Language, que también identifica su versión `[Fuera de los libros: convención de @archi-code/ddd]`:
 
 ```json
 {
   "eventName": "sales.order.OrderPlaced",
-  "eventVersion": 1,
   "eventId": "6f1c2a3b-8d4e-4f5a-9b6c-7d8e9f0a1b2c",
-  "aggregateId": "9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c",
   "occurredOn": "2026-10-18T10:15:00.000Z",
   "orderId": "9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c",
   "customerId": "1c5e7a90-2b3d-4e6f-8a1b-2c3d4e5f6a7b",
@@ -127,7 +125,7 @@ La notificación de IDDD envuelve el evento en `{ notificationId, typeName, vers
 }
 ```
 
-`eventName` hace de `typeName`, `eventVersion` de `version` y `eventId` es el identificador con el que el consumidor deduplica. No hay `notificationId` secuencial: si publicas un feed REST de notificaciones, la secuencia la asigna tu canal duradero (la fila del outbox).
+`eventName` hace de `typeName` y de `version`: el mensaje no lleva campo de versión, y una versión incompatible del contrato se publica con otro nombre (`sales.order.OrderPlacedV2`) mientras los consumidores migran. `eventId` es el identificador con el que el consumidor deduplica. No hay `notificationId` secuencial: si publicas un feed REST de notificaciones, la secuencia la asigna tu canal duradero (la fila del outbox).
 
 El evento interno no sale tal cual. La traducción al Published Language vive en infraestructura, en el adaptador que habla con el broker: un `EventChannel` del proyecto (`ContractPublishingChannel`) que pasa cada `SerializedEvent` por `SalesContracts` (qué eventos salen y con qué contrato, uno por versión publicada, con `messageId` = `eventId`) y entrega todos al canal interno. El código está en `ddd-skills/ddd-eventos-dominio/references/publicacion-ts.md` ("Lenguaje publicado en el adaptador del broker"); los casos de uso siguen viendo solo `EventBus`, y un evento sin contrato es interno y no sale del contexto. Para no perder mensajes, la publicación al broker la hace el reenviador del outbox después del commit (ver "Publicar de forma fiable").
 

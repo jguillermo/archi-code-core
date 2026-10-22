@@ -55,11 +55,11 @@ class OrderPlaced extends EventBase {
   static readonly eventName = 'OrderPlaced';
 
   constructor(
-    orderId: string,
+    readonly orderId: string,
     readonly customer: string,
     metadata?: EventMetadata,
   ) {
-    super(orderId, metadata);
+    super(metadata);
   }
 }
 
@@ -67,12 +67,12 @@ class OrderLineAdded extends EventBase {
   static readonly eventName = 'OrderLineAdded';
 
   constructor(
-    orderId: string,
+    readonly orderId: string,
     readonly sku: string,
     readonly quantity: number,
     metadata?: EventMetadata,
   ) {
-    super(orderId, metadata);
+    super(metadata);
   }
 }
 
@@ -234,7 +234,7 @@ class PrepareShipmentOnOrderLineAdded extends EventListener<OrderLineAdded> {
   }
 
   async handle(event: OrderLineAdded): Promise<void> {
-    await this.prepareShipment.execute({ orderId: event.aggregateId, sku: event.sku });
+    await this.prepareShipment.execute({ orderId: event.orderId, sku: event.sku });
   }
 }
 ```
@@ -347,7 +347,7 @@ Wiring and tests with the in-memory adapters (repository, event channel), and th
 const orders = new InMemoryOrderRepository();
 const registry = new EventRegistry<OrderEvent>().register(
   OrderLineAdded,
-  (json) => new OrderLineAdded(json.aggregateId, json.sku as string, json.quantity as number, json),
+  (json) => new OrderLineAdded(json.orderId as string, json.sku as string, json.quantity as number, json),
 );
 const channel = new InMemoryEventChannel(); // swap for your RabbitMQ or database channel
 const bus = new DomainEventBus<OrderEvent>(channel, registry);
@@ -392,7 +392,7 @@ describe('Adding a line to an order', () => {
 
     expect(prepared).toEqual([`${orderId}:TORCH-01`]);
     expect(channel.sent).toMatchObject([
-      { eventName: 'OrderLineAdded', aggregateId: orderId, sku: 'TORCH-01', quantity: 2 },
+      { eventName: 'OrderLineAdded', orderId, sku: 'TORCH-01', quantity: 2 },
     ]);
   });
 });
@@ -485,9 +485,9 @@ integration test waits for the effect (polling until `prepared` has the line) in
 right after `execute`.
 
 Tests with Vitest: describe real situations, use a plain fixture factory in the project's
-`test/support/` and the native matchers (there is no archi-code test package). Dates held by VOs and
-events are immutable `Date` subclasses: compare them with `toEqual` or `.toISOString()`, not
-`toStrictEqual` against a plain `Date`.
+`test/support/` and the native matchers (there is no archi-code test package). Dates held by VOs are
+immutable `Date` subclasses: compare them with `toEqual` or `.toISOString()`, not
+`toStrictEqual` against a plain `Date`; an event's `occurredOn` is already ISO text.
 
 ```ts
 import { describe, expect, it } from 'vitest';
@@ -503,8 +503,8 @@ describe('Order', () => {
       id: orderId,
       lines: [{ sku: 'TORCH-01', quantity: 2 }],
     });
-    expect(order.pullDomainEvents().map((event) => event.toJSON())).toMatchObject([
-      { eventName: 'OrderPlaced', aggregateId: orderId, customer: 'Ana' },
+    expect(order.pullDomainEvents().map((event) => ({ ...event }))).toMatchObject([
+      { eventName: 'OrderPlaced', orderId, customer: 'Ana' },
       { eventName: 'OrderLineAdded', sku: 'TORCH-01', quantity: 2 },
     ]);
   });

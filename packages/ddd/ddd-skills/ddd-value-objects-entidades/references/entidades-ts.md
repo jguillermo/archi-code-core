@@ -127,11 +127,11 @@ export class CustomerBlocked extends EventBase {
   static readonly eventName = 'CustomerBlocked';
 
   constructor(
-    customerId: string,
+    readonly customerId: string,
     readonly reason: string,
     metadata?: EventMetadata,
   ) {
-    super(customerId, metadata);
+    super(metadata);
   }
 }
 

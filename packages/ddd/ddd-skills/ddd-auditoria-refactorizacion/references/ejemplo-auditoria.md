@@ -250,7 +250,7 @@ class AwardLoyaltyPointsOnOrderPlaced extends EventListener<OrderPlaced> {
   async handle(event: OrderPlaced): Promise<void> {
     await this.awardLoyaltyPoints.execute({
       customerId: event.customerId,
-      orderId: event.aggregateId,
+      orderId: event.orderId,
     });
   }
 }
@@ -276,7 +276,7 @@ const registry = new EventRegistry<OrderEvent>().register(
   OrderPlaced,
   (json) =>
     new OrderPlaced(
-      json.aggregateId,
+      json.orderId as string,
       json.customerId as string,
       json.lines as OrderLineData[],
       json.total as MoneyData,

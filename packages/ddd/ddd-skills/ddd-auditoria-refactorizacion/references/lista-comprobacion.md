@@ -12,7 +12,7 @@ La columna "Script" indica si `scan_ddd_smells.py` lo detecta (sí / parcial / n
 | E4 | ¿Las integraciones con sistemas externos pasan por una ACL (puerto del dominio con value objects, adaptador y traductor en `infrastructure/`)? | [Destilado cap. 4] | no | Alta |
 | E5 | ¿Hay cadenas de llamadas síncronas entre servicios dentro de una petición? | [Destilado cap. 4] | no | Alta |
 | E6 | ¿Usuarios y permisos mezclados en el modelo del núcleo? La autorización va en el caso de uso (`NotAllowedException`), no en el agregado | [IDDD cap. 2] | no | Media |
-| E7 | ¿Se envía `event.toJSON()` de un evento de dominio a otro contexto en vez de un contrato publicado y versionado? | [IDDD cap. 13] | no | Alta |
+| E7 | ¿Se envía un evento de dominio tal cual (`{ ...event }`) a otro contexto en vez de un contrato publicado y versionado? | [IDDD cap. 13] | no | Alta |
 
 ## Arquitectura
 

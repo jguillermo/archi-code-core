@@ -42,7 +42,7 @@ export class EventRegistry<Event extends EventBase = EventBase> {
   private static assertSameIdentity(serialized: SerializedEvent, rebuilt: EventBase): void {
     if (
       rebuilt.eventId !== String(serialized.eventId).toLowerCase() ||
-      rebuilt.occurredOn.getTime() !== new Date(serialized.occurredOn).getTime()
+      Date.parse(rebuilt.occurredOn) !== Date.parse(serialized.occurredOn)
     ) {
       throw new InternalErrorException(
         `the factory of "${serialized.eventName}" must pass the serialized event as metadata, so it keeps its eventId and occurredOn`,
