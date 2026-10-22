@@ -1,6 +1,6 @@
 export { AbstractType } from './abstract-type';
-export { Required } from './required/required';
-export type { RequiredType } from './required/required';
+export { Required } from './required/required-type';
+export type { RequiredType } from './required/required-type';
 export { ArrayType } from './array-type';
 export { BooleanType } from './boolean-type';
 export { CreatedAt, DateType, UpdatedAt } from './date-type';

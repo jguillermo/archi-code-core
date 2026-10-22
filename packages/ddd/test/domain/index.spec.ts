@@ -15,7 +15,7 @@ import type {
   SerializedEvent,
 } from '../../src/domain/index';
 import { AbstractType } from '../../src/domain/type/abstract-type';
-import { Required } from '../../src/domain/type/required/required';
+import { Required } from '../../src/domain/type/required/required-type';
 import { StringType } from '../../src/domain/type/string-type';
 
 const PUBLIC_API = [

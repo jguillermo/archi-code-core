@@ -5,7 +5,7 @@ import type { EventMetadata } from '../../../src/domain/event/event-base';
 import { BooleanType } from '../../../src/domain/type/boolean-type';
 import { IdType } from '../../../src/domain/type/id-type';
 import { NumberType } from '../../../src/domain/type/number-type';
-import { Required } from '../../../src/domain/type/required/required';
+import { Required } from '../../../src/domain/type/required/required-type';
 import { StringType } from '../../../src/domain/type/string-type';
 import { DomainException } from '../../../src/exceptions/domain/domain.exception';
 import type { PrimitiveTypes } from '../../../src/domain/primitive/primitive-types';

@@ -3,7 +3,7 @@ import { Validations } from '@archi-code/validation';
 import type { ValidationResult } from '@archi-code/validation';
 import { EnumType } from '../../../src/domain/type/enum-type';
 import { AbstractType } from '../../../src/domain/type/abstract-type';
-import { Required } from '../../../src/domain/type/required/required';
+import { Required } from '../../../src/domain/type/required/required-type';
 import { TypePrimitiveException } from '../../../src/exceptions/domain/type-primitive.exception';
 import { RequiredValueException } from '../../../src/exceptions/domain/required-value.exception';
 import { ValidationException } from '../../../src/exceptions/domain/validation.exception';

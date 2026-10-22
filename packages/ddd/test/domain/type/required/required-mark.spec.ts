@@ -1,6 +1,5 @@
-import { describe, expect, expectTypeOf, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { RequiredMark } from '../../../../src/domain/type/required/required-mark';
-import type { RequiredMarked, ValueOf } from '../../../../src/domain/type/required/required-mark';
 
 describe('RequiredMark', () => {
   describe('the shared symbol', () => {
@@ -39,17 +38,5 @@ describe('RequiredMark', () => {
     ])('does not treat %s as required', (_, instance) => {
       expect(RequiredMark.isMarked(instance)).toBe(false);
     });
-  });
-});
-
-describe('ValueOf', () => {
-  it('a required value object holds T', () => {
-    expectTypeOf<ValueOf<string, RequiredMarked>>().toEqualTypeOf<string>();
-    expectTypeOf<ValueOf<number, { id: string } & RequiredMarked>>().toEqualTypeOf<number>();
-  });
-
-  it('an optional value object holds T | null', () => {
-    expectTypeOf<ValueOf<string, object>>().toEqualTypeOf<string | null>();
-    expectTypeOf<ValueOf<string, Partial<RequiredMarked>>>().toEqualTypeOf<string | null>();
   });
 });

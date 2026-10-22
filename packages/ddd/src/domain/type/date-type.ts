@@ -1,6 +1,6 @@
 import { toDate } from '@archi-code/validation';
 import { AbstractType } from './abstract-type';
-import { Required } from './required/required';
+import { Required } from './required/required-type';
 import { TypePrimitiveException } from '../../exceptions/index';
 
 class ImmutableDate extends Date {

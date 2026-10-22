@@ -10,7 +10,7 @@ import { ValueObjects } from '../../../../src/domain/type/value-objects/value-ob
 import { DateType } from '../../../../src/domain/type/date-type';
 import { NumberType } from '../../../../src/domain/type/number-type';
 import { StringType } from '../../../../src/domain/type/string-type';
-import { Required } from '../../../../src/domain/type/required/required';
+import { Required } from '../../../../src/domain/type/required/required-type';
 import type { PrimitiveTypes } from '../../../../src/domain/primitive/primitive-types';
 import { RequiredValueException } from '../../../../src/exceptions/domain/required-value.exception';
 import { TypePrimitiveException } from '../../../../src/exceptions/domain/type-primitive.exception';

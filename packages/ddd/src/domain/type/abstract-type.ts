@@ -1,9 +1,11 @@
 import { anyToString, runValidations } from '@archi-code/validation';
 import type { Validatable, ValidatedClass, ValidationResult } from '@archi-code/validation';
 import { RequiredMark } from './required/required-mark';
-import type { ValueOf } from './required/required-mark';
+import type { RequiredMarked } from './required/required-mark';
 import { RequiredValueException, ValidationException } from '../../exceptions/index';
 import type { ValidationIssue } from '../../exceptions/index';
+
+export type ValueOf<T, I> = I extends RequiredMarked ? T : T | null;
 
 const VALUE_OBJECT: unique symbol = Symbol.for('@archi-code/ddd/value-object.v1');
 

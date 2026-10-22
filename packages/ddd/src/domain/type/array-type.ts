@@ -1,7 +1,7 @@
 import { toArray } from '@archi-code/validation';
 import type { ValidationError, ValidationResult } from '@archi-code/validation';
 import { AbstractType } from './abstract-type';
-import type { ValueOf } from './required/required-mark';
+import type { ValueOf } from './abstract-type';
 import { ValueObjects } from './value-objects/value-objects';
 import { TypePrimitiveException, ValidationException } from '../../exceptions/index';
 

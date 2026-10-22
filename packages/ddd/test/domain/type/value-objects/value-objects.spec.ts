@@ -5,7 +5,7 @@ import { ArrayType } from '../../../../src/domain/type/array-type';
 import { IdType } from '../../../../src/domain/type/id-type';
 import { NumberType } from '../../../../src/domain/type/number-type';
 import { StringType } from '../../../../src/domain/type/string-type';
-import { Required } from '../../../../src/domain/type/required/required';
+import { Required } from '../../../../src/domain/type/required/required-type';
 import { DomainException } from '../../../../src/exceptions/domain/domain.exception';
 import { ValidationException } from '../../../../src/exceptions/domain/validation.exception';
 import { AggregateNotFoundException } from '../../../../src/exceptions/application/aggregate-not-found.exception';

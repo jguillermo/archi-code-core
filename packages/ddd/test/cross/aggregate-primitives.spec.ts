@@ -5,7 +5,7 @@ import { CreatedAt } from '../../src/domain/type/date-type';
 import { EnumType } from '../../src/domain/type/enum-type';
 import { IdType } from '../../src/domain/type/id-type';
 import { NumberType } from '../../src/domain/type/number-type';
-import { Required } from '../../src/domain/type/required/required';
+import { Required } from '../../src/domain/type/required/required-type';
 import { StringType } from '../../src/domain/type/string-type';
 import { Composite } from '../../src/domain/type/composite/composite';
 import type { PrimitiveTypes } from '../../src/domain/primitive/primitive-types';

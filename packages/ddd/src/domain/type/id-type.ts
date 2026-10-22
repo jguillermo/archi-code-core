@@ -1,4 +1,4 @@
-import { Required } from './required/required';
+import { Required } from './required/required-type';
 import { UuidType } from './uuid-type';
 import { TypePrimitiveException } from '../../exceptions/index';
 

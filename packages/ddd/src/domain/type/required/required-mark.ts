@@ -13,5 +13,3 @@ export class RequiredMark {
 export interface RequiredMarked {
   readonly [RequiredMark.symbol]: true;
 }
-
-export type ValueOf<T, I> = I extends RequiredMarked ? T : T | null;

@@ -2,7 +2,9 @@ import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { Validations } from '@archi-code/validation';
 import type { Validatable, ValidationResult } from '@archi-code/validation';
 import { AbstractType } from '../../../src/domain/type/abstract-type';
-import { Required } from '../../../src/domain/type/required/required';
+import type { ValueOf } from '../../../src/domain/type/abstract-type';
+import { Required } from '../../../src/domain/type/required/required-type';
+import type { RequiredMarked } from '../../../src/domain/type/required/required-mark';
 import { RequiredValueException } from '../../../src/exceptions/domain/required-value.exception';
 import { TypePrimitiveException } from '../../../src/exceptions/domain/type-primitive.exception';
 import { ValidationException } from '../../../src/exceptions/domain/validation.exception';
@@ -449,5 +451,17 @@ describe('AbstractType: writing a custom value object', () => {
     it('does not make the wrapped type required', () => {
       expect(new CountryCode(null).validate()).toEqual(valid(null));
     });
+  });
+});
+
+describe('ValueOf', () => {
+  it('a required value object holds T', () => {
+    expectTypeOf<ValueOf<string, RequiredMarked>>().toEqualTypeOf<string>();
+    expectTypeOf<ValueOf<number, { id: string } & RequiredMarked>>().toEqualTypeOf<number>();
+  });
+
+  it('an optional value object holds T | null', () => {
+    expectTypeOf<ValueOf<string, object>>().toEqualTypeOf<string | null>();
+    expectTypeOf<ValueOf<string, Partial<RequiredMarked>>>().toEqualTypeOf<string | null>();
   });
 });

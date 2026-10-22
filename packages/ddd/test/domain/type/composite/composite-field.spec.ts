@@ -3,7 +3,7 @@ import { CompositeField } from '../../../../src/domain/type/composite/composite-
 import { Composite } from '../../../../src/domain/type/composite/composite';
 import { NumberType } from '../../../../src/domain/type/number-type';
 import { StringType } from '../../../../src/domain/type/string-type';
-import { Required } from '../../../../src/domain/type/required/required';
+import { Required } from '../../../../src/domain/type/required/required-type';
 
 class Cents extends Required(NumberType) {}
 class Currency extends Required(StringType) {}
