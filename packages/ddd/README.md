@@ -2,12 +2,12 @@
 
 Domain-Driven Design building blocks for TypeScript, one entry point per layer:
 
-| Entry point                      | Layer          | What it gives you                                                                                                                                                                                             |
-| -------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@archi-code/ddd/exceptions`     | Shared         | Exceptions of every layer with codes, causes and `instanceof` across builds, and `ExceptionClassifier`, which tells any entry point the `ExceptionKind` of an error                                           |
-| `@archi-code/ddd/domain`         | Domain         | Value objects, `Required(...)`, `Composite(...)`, `Immutable`, `Entity`, `AggregateRoot`, `EventBase`, `Specification` and the repository contracts (`AggregateFinder`, `AggregateSaver`, `AggregateRemover`) |
-| `@archi-code/ddd/application`    | Application    | `UseCase`, the event contract (`EventListener`, `@ListensTo` to listen, `EventBus` to publish) and the ports `Clock` and `Logger`                                                                             |
-| `@archi-code/ddd/infrastructure` | Infrastructure | The event wiring (`DomainEventBus`, `EventRegistry`, the `EventChannel` port, `InMemoryEventChannel`), clocks, loggers                                                                                        |
+| Entry point                      | Layer          | What it gives you                                                                                                                                                                                |
+| -------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `@archi-code/ddd/exceptions`     | Shared         | Exceptions of every layer with codes, causes and `instanceof` across builds, and `ExceptionClassifier`, which tells any entry point the `ExceptionKind` of an error                              |
+| `@archi-code/ddd/domain`         | Domain         | Value objects, `Required(...)`, `Composite(...)`, `Entity`, `AggregateRoot`, `EventBase`, `Specification` and the repository contracts (`AggregateFinder`, `AggregateSaver`, `AggregateRemover`) |
+| `@archi-code/ddd/application`    | Application    | `UseCase`, the event contract (`EventListener`, `@ListensTo` to listen, `EventBus` to publish) and the ports `Clock` and `Logger`                                                                |
+| `@archi-code/ddd/infrastructure` | Infrastructure | The event wiring (`DomainEventBus`, `EventRegistry`, the `EventChannel` port, `InMemoryEventChannel`), clocks, loggers                                                                           |
 
 The layers only depend inwards: `exceptions` imports nothing, `domain` imports only `exceptions`,
 `application` imports `domain` and `exceptions`, and `infrastructure` imports all three. The
@@ -454,13 +454,13 @@ one:
   // TypeError: Cannot call setFullYear: the date is immutable
   ```
 
-- `JsonType` and `ArrayType` hold deeply frozen copies (`Object.isFrozen(vo.value)` is `true`).
+- `JsonType` holds a deeply frozen copy and `ArrayType` a frozen list of its items' values
+  (`Object.isFrozen(vo.value)` is `true`).
 - `ArrayType.withItem()` and `withoutItem()` return a **new** instance and leave the original
   untouched, so a value object shared by two aggregates never changes under one of them.
 - To touch an `UpdatedAt`, replace it: `this._updatedAt = UpdatedAt.now()`.
-- The same helpers are exported for your own value objects: `Immutable.freeze(value)` deep-freezes
-  an object or array and returns it, and `Immutable.date(date)` returns a copy of a `Date` whose
-  setters throw.
+- Each value object guarantees its own immutability: a custom type that holds an object copies and
+  freezes it in its `filter` (see the `GeoPoint` example below).
 
 ### `UuidType` and `IdType`
 
@@ -1500,14 +1500,13 @@ await reserving.unsubscribe();
 
 - `DomainEventBus` implements `EventBus`; `subscribe(listener)` is its own method, called only by
   the wiring.
-- `publish(events)` sends a plain copy of each event (`{ ...event }`) to the channel in one `send` (events
-  recorded by an aggregate are already frozen by `record()`).
+- `publish(events)` sends a plain copy of each event (`{ ...event }`) to the channel in one `send`.
 - `subscribe(listener)` reads the event and the consumer with `ListensTo.subscriptionOf` (`ApplicationException` without
   `@ListensTo`), refuses an event the registry cannot rebuild (`UnknownEventException`, at wiring
   time rather than at the first delivery) and calls
   `channel.receive(eventName, consumer, handler)`; the handler rebuilds the event
   with the registry and calls `listener.handle`. `unsubscribe()` closes the channel subscription.
-- Listeners always receive an event rebuilt from its JSON (frozen, equal field by field), also in
+- Listeners always receive an event rebuilt from its JSON (equal field by field), also in
   memory, so what works with the in-memory channel works the same with a broker.
 - An optional third argument, a `Logger`, logs what was published, the subscriptions and every
   listener failure with its event and consumer (see [Logging](#logging)); without it, nothing is
@@ -1523,8 +1522,7 @@ and throws `InternalErrorException`
 (`the factory of "OrderPlaced" must pass the serialized event as metadata, so it keeps its eventId and occurredOn`)
 when the rebuilt `eventId` (compared without case) or the `occurredOn` instant differs from the
 JSON. It also throws `UnknownEventException` for a name nobody registered and
-`InternalErrorException` for text that is not a JSON object or has no `eventName`. The rebuilt
-event is deep-frozen, like the ones an aggregate records. The factory receives the JSON as it was
+`InternalErrorException` for text that is not a JSON object or has no `eventName`. The factory receives the JSON as it was
 stored, so it can also read an older shape of the same event.
 
 ### Example: from the use case to the listener, in memory
@@ -1904,7 +1902,7 @@ delivery is not called for it; one closed before its turn is skipped), and two d
 | `'parallel'`         | `emit`          | Consumers start together; all of them run, and the failures reject `send` with one `EventDeliveryException` (`errors` holds each) |
 
 Events go one after another in the order of the `send`; a failure stops the events after it. Every
-consumer gets the same frozen JSON copy, `send` resolves once the handlers finished, and `sent`
+consumer gets its own JSON copy, `send` resolves once the handlers finished, and `sent`
 returns a copy of what was sent, in order (for tests).
 
 ```ts
@@ -2673,7 +2671,6 @@ await new RegisterUser(users, bus, clock)
 | `Specification`                                                                                                 | abstract class     |
 | `CompositeSchema`, `CompositeProps`, `CompositePrimitives`, `CompositeInput`, `CompositeType`, `CompositeValue` | types              |
 | `ValueObjects` (`build`, `buildList`)                                                                           | class              |
-| `Immutable` (`freeze`, `date`)                                                                                  | class              |
 | `Entity`, `AggregateRoot`, `EventBase`                                                                          | abstract classes   |
 | `AggregateFinder`, `AggregateSaver`, `AggregateRemover`                                                         | types (contracts)  |
 | `RequiredType`, `JsonTypeValue`, `PrimitiveType`, `PrimitiveTypes`, `DataTypes`                                 | types              |

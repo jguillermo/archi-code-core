@@ -142,7 +142,6 @@ function smoke(m) {
             received[0] !== events[0] &&
             received[0].customer === 'Ana' &&
             received[0].eventId === events[0].eventId &&
-            Object.isFrozen(received[0]) &&
             channel.sent.length === 2) ||
           'unexpected bus or channel result'
         );

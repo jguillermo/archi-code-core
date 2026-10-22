@@ -1,7 +1,6 @@
 import { toArray } from '@archi-code/validation';
 import type { ValidationError, ValidationResult } from '@archi-code/validation';
 import { AbstractType } from './abstract-type';
-import { Immutable } from './immutable/immutable';
 import type { ValueOf } from './required/required-mark';
 import { ValueObjects } from './value-objects/value-objects';
 import { TypePrimitiveException, ValidationException } from '../../exceptions/index';
@@ -57,9 +56,9 @@ export abstract class ArrayType<Item extends AbstractType<any>> extends Abstract
       throw new TypePrimitiveException('Array', value);
     }
     try {
-      return Immutable.freeze(
-        ValueObjects.buildList(converted.value, (item) => this.createItem(item).value),
-      );
+      const items = ValueObjects.buildList(converted.value, (item) => this.createItem(item).value);
+      Object.freeze(items);
+      return items;
     } catch (error) {
       if (error instanceof ValidationException) {
         throw new ValidationException([...this.brokenRules(converted.value), ...error.errors]);

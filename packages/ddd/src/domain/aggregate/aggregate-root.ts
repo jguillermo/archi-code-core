@@ -2,7 +2,6 @@ import { Entity } from '../entity/entity';
 import type { EntityId } from '../entity/entity';
 import type { EventBase } from '../event/event-base';
 import type { IdType } from '../type/id-type';
-import { Immutable } from '../type/immutable/immutable';
 
 export abstract class AggregateRoot<
   Id extends EntityId = IdType,
@@ -11,7 +10,7 @@ export abstract class AggregateRoot<
   private readonly domainEvents: Event[] = [];
 
   protected record(event: Event): void {
-    this.domainEvents.push(Immutable.freeze(event));
+    this.domainEvents.push(event);
   }
 
   pullDomainEvents(): Event[] {

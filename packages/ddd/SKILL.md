@@ -7,7 +7,7 @@ description: The single entry point for Domain-Driven Design with @archi-code/dd
 
 `@archi-code/ddd` is archi-code's Domain-Driven Design package for TypeScript, one entry point per
 layer: `@archi-code/ddd/exceptions` (the exceptions every layer throws), `@archi-code/ddd/domain`
-(value objects, `Composite`, `Immutable`, `Specification`, `Entity`, `AggregateRoot`, `EventBase`
+(value objects, `Composite`, `Specification`, `Entity`, `AggregateRoot`, `EventBase`
 and the repository contracts `AggregateFinder`, `AggregateSaver`, `AggregateRemover`),
 `@archi-code/ddd/application` (`UseCase`, the event contract to listen, `EventListener` and
 `@ListensTo`, and to publish, `EventBus`, and the ports `Clock`, `Logger`) and

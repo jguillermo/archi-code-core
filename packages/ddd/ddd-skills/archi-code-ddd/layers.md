@@ -134,9 +134,10 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   again and saves it again (a few attempts, then rethrow); otherwise the conflict reaches the user
   (409). A use case run by a listener does not retry by itself: the channel's redelivery tries
   again.
-- `record(event)` is `protected` and deep-freezes the event (facts never change [IDDD ch. 8]); `pullDomainEvents()` returns the events (typed `Event[]`) in order
-  and empties the list. Pull them after persisting, to publish. `DomainEventBus.publish` does not freeze
-  them again: it only sends a plain copy of each event (`{ ...event }`) to the channel.
+- `record(event)` is `protected` and keeps the event as it is (facts never change [IDDD ch. 8]: the
+  event declares its fields `readonly`); `pullDomainEvents()` returns the events (typed `Event[]`) in order
+  and empties the list. Pull them after persisting, to publish. `DomainEventBus.publish` only sends a
+  plain copy of each event (`{ ...event }`) to the channel.
 - Events extend `EventBase`, declare `static readonly eventName` with their class name, a fact in
   the past tense (`'OrderPlaced'`) [IDDD ch. 8] (a published contract is named
   `<context>.<module>.<Event>`, `sales.order.OrderPlaced` [IDDD ch. 13]) and
@@ -266,7 +267,7 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   `EventChannel` (`InMemoryEventChannel` in the package; RabbitMQ, a table or Kafka in your
   infrastructure); swapping it changes one line of the wiring.
 - **Consumers are idempotent**: delivery is at least once, so a listener ignores an `eventId` it
-  already processed. Listeners always receive the event rebuilt from its JSON (frozen, equal field
+  already processed. Listeners always receive the event rebuilt from its JSON (equal field
   by field), also in memory, so nothing changes when the channel does.
 - **Other contexts never receive domain classes**: translate the serialized event to a published,
   versioned contract (`sales.order.OrderPlaced`, only what consumers need, `messageId` = `eventId`)

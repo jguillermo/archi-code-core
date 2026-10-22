@@ -129,7 +129,7 @@ describe('DomainEventBus: the bus every channel shares', () => {
     );
   });
 
-  it('hands the listener the event rebuilt from its JSON, frozen, as any channel would', async () => {
+  it('hands the listener the event rebuilt from its JSON, as any channel would', async () => {
     const bus = new DomainEventBus(new RecordingChannel(), orderEvents());
     const listener = new ReserveStockOnOrderPlaced();
     await bus.subscribe(listener);
@@ -141,7 +141,6 @@ describe('DomainEventBus: the bus every channel shares', () => {
     expect(received).toBeInstanceOf(OrderPlaced);
     expect(received).not.toBe(placed);
     expect({ ...received }).toStrictEqual({ ...placed });
-    expect(Object.isFrozen(received)).toBe(true);
   });
 
   it('closes the channel subscription on unsubscribe', async () => {

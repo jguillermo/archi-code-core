@@ -1,6 +1,5 @@
 import { toJson } from '@archi-code/validation';
 import { AbstractType } from './abstract-type';
-import { Immutable } from './immutable/immutable';
 import { TypePrimitiveException } from '../../exceptions/index';
 
 export type JsonTypeValue = Record<string, any>;
@@ -11,7 +10,7 @@ export class JsonType<T extends JsonTypeValue = JsonTypeValue> extends AbstractT
     if (!converted.ok) {
       throw new TypePrimitiveException('Json', value);
     }
-    return Immutable.freeze(JSON.parse(JSON.stringify(converted.value))) as T;
+    return JsonType.deepFreeze(JSON.parse(JSON.stringify(converted.value)));
   }
 
   protected hasSameValue(other: this): boolean {
@@ -39,6 +38,16 @@ export class JsonType<T extends JsonTypeValue = JsonTypeValue> extends AbstractT
       );
     }
     return left === right;
+  }
+
+  private static deepFreeze<V>(value: V): V {
+    if (JsonType.isObject(value)) {
+      Object.freeze(value);
+      for (const child of Object.values(value)) {
+        JsonType.deepFreeze(child);
+      }
+    }
+    return value;
   }
 
   private static isObject(value: unknown): value is Record<string, unknown> {

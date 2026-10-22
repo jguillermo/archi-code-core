@@ -112,13 +112,13 @@ describe('AggregateRoot: an order that records what happened to it', () => {
       expect(events[0]).toMatchObject({ orderId, customer: 'Ana' });
     });
 
-    it('records events as immutable facts: nobody can change one after it happened', () => {
-      const [placed] = Order.place(orderId, 'Ana').pullDomainEvents() as OrderPlaced[];
-      expect(Object.isFrozen(placed)).toBe(true);
-      expect(() => {
-        (placed as { customer: string }).customer = 'Luis';
-      }).toThrow(TypeError);
-      expect(placed.customer).toBe('Ana');
+    it('hands back the same event it recorded, which guards its own fields as readonly', () => {
+      const order = Order.place(orderId, 'Ana');
+      order.pullDomainEvents();
+      const placed = new OrderPlaced(orderId, 'Luis');
+      // @ts-expect-error record is protected: only the aggregate decides what happened
+      order.record(placed);
+      expect(order.pullDomainEvents()[0]).toBe(placed);
     });
 
     it('returns the events in the order they happened', () => {

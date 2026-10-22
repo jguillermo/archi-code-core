@@ -1,5 +1,4 @@
 import { InternalErrorException, UnknownEventException } from '../../exceptions/index';
-import { Immutable } from '../../domain/index';
 import type { EventBase, EventClass, SerializedEvent } from '../../domain/index';
 
 export type EventFactory<Event extends EventBase> = (serialized: SerializedEvent) => Event;
@@ -36,7 +35,7 @@ export class EventRegistry<Event extends EventBase = EventBase> {
     }
     const rebuilt = factory(event);
     EventRegistry.assertSameIdentity(event, rebuilt);
-    return Immutable.freeze(rebuilt);
+    return rebuilt;
   }
 
   private static assertSameIdentity(serialized: SerializedEvent, rebuilt: EventBase): void {
