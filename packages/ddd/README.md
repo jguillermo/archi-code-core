@@ -667,8 +667,9 @@ class Discount extends Required(Percentage) {}
 ```
 
 `equals` compares the class and then the values with `===`. A type whose value is an object or a
-list says how two of them compare by overriding `protected hasSameValue(other)` (it receives the
-other value, `null` included), like `DateType` (by instant), `JsonType` (by content) and
+list says how two of them compare by overriding `protected hasSameValue(other)` (it receives the other
+value object, already known to be of the same class, and compares `this._value` with
+`other._value`, either of them possibly `null`), like `DateType` (by instant), `JsonType` (by content) and
 `ArrayType` (each item with its `equals`) do:
 
 ```ts
@@ -678,8 +679,8 @@ class GeoPoint extends AbstractType<{ lat: number; lng: number }> {
     return Object.freeze({ lat: Number(lat), lng: Number(lng) });
   }
 
-  protected hasSameValue(other: { lat: number; lng: number } | null): boolean {
-    return this._value?.lat === other?.lat && this._value?.lng === other?.lng;
+  protected hasSameValue(other: this): boolean {
+    return this._value?.lat === other._value?.lat && this._value?.lng === other._value?.lng;
   }
 }
 

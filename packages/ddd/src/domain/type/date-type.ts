@@ -19,8 +19,8 @@ export class DateType extends AbstractType<Date, Date | string> {
     return this._value === null ? '' : this._value.toISOString();
   }
 
-  protected hasSameValue(other: Date | null): boolean {
-    return this._value?.getTime() === other?.getTime();
+  protected hasSameValue(other: this): boolean {
+    return this._value?.getTime() === other._value?.getTime();
   }
 }
 

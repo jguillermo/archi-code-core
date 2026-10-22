@@ -48,11 +48,11 @@ export abstract class AbstractType<T, Input = T> implements Validatable<T | null
   }
 
   equals<E extends AbstractType<any>>(other: E): boolean {
-    return other?.constructor === this.constructor && this.hasSameValue(other.value as T | null);
+    return other?.constructor === this.constructor && this.hasSameValue(other as unknown as this);
   }
 
-  protected hasSameValue(other: T | null): boolean {
-    return this._value === other;
+  protected hasSameValue(other: this): boolean {
+    return this._value === other._value;
   }
 
   validate(): ValidationResult<ValueOf<T, this>> {

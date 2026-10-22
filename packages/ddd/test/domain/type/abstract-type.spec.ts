@@ -37,8 +37,8 @@ class GeoPoint extends AbstractType<{ lat: number; lng: number }> {
     return Object.freeze({ ...(value as { lat: number; lng: number }) });
   }
 
-  protected hasSameValue(other: { lat: number; lng: number } | null): boolean {
-    return this._value?.lat === other?.lat && this._value?.lng === other?.lng;
+  protected hasSameValue(other: this): boolean {
+    return this._value?.lat === other._value?.lat && this._value?.lng === other._value?.lng;
   }
 }
 

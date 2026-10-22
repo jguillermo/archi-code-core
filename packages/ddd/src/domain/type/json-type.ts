@@ -14,8 +14,8 @@ export class JsonType<T extends JsonTypeValue = JsonTypeValue> extends AbstractT
     return Immutable.freeze(JSON.parse(JSON.stringify(converted.value))) as T;
   }
 
-  protected hasSameValue(other: T | null): boolean {
-    return JsonType.sameJson(this._value, other);
+  protected hasSameValue(other: this): boolean {
+    return JsonType.sameJson(this._value, other._value);
   }
 
   private static sameJson(left: unknown, right: unknown): boolean {

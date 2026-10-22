@@ -104,8 +104,10 @@ describe('ConsoleLogger: one JSON line per entry on the console', () => {
   });
 
   it('refuses a level it does not know, as a wiring mistake', () => {
-    expect(() => new ConsoleLogger({ level: 'warning' as LogLevel })).toThrow(
-      new InternalErrorException('unknown log level "warning": use debug, info, warn, error'),
+    const wireWithUnknownLevel = () => new ConsoleLogger({ level: 'warning' as LogLevel });
+    expect(wireWithUnknownLevel).toThrow(InternalErrorException);
+    expect(wireWithUnknownLevel).toThrow(
+      'unknown log level "warning": use debug, info, warn, error',
     );
   });
 });

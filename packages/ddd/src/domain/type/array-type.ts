@@ -38,14 +38,15 @@ export abstract class ArrayType<Item extends AbstractType<any>> extends Abstract
     return this.copyWith(this._value.filter((current) => !this.createItem(current).equals(item)));
   }
 
-  protected hasSameValue(other: ItemValue<Item>[] | null): boolean {
-    if (this._value === null || other === null) {
-      return this._value === other;
+  protected hasSameValue(other: this): boolean {
+    const otherValue = other._value;
+    if (this._value === null || otherValue === null) {
+      return this._value === otherValue;
     }
     return (
-      this._value.length === other.length &&
+      this._value.length === otherValue.length &&
       this._value.every((value, index) =>
-        this.createItem(value).equals(this.createItem(other[index])),
+        this.createItem(value).equals(this.createItem(otherValue[index])),
       )
     );
   }
