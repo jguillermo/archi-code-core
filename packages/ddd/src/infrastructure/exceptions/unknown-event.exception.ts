@@ -1,6 +1,6 @@
 import { InfrastructureException } from './infrastructure.exception';
-import { ExceptionBrand } from '../brand/exception-brand';
-import { ExceptionCode } from '../exception-code';
+import { ExceptionBrand } from '../../shared/exceptions/brand/exception-brand';
+import { ExceptionCode } from '../../shared/exceptions/exception-code';
 
 export class UnknownEventException extends InfrastructureException {
   static {

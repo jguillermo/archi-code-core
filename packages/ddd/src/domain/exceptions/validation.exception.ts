@@ -1,6 +1,6 @@
 import { DomainException } from './domain.exception';
-import { ExceptionBrand } from '../brand/exception-brand';
-import { ExceptionCode } from '../exception-code';
+import { ExceptionBrand } from '../../shared/exceptions/brand/exception-brand';
+import { ExceptionCode } from '../../shared/exceptions/exception-code';
 
 export interface ValidationIssue {
   readonly field: string | null;

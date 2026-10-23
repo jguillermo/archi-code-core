@@ -1,7 +1,7 @@
 import { DomainException } from './domain.exception';
-import { ExceptionBrand } from '../brand/exception-brand';
-import { ExceptionCode } from '../exception-code';
-import { ReceivedValue } from '../received/received-value';
+import { ExceptionBrand } from '../../shared/exceptions/brand/exception-brand';
+import { ExceptionCode } from '../../shared/exceptions/exception-code';
+import { ReceivedValue } from '../../shared/exceptions/received/received-value';
 
 export class RequiredValueException extends DomainException {
   static {

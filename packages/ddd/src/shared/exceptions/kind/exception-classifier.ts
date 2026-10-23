@@ -2,9 +2,9 @@ import { AggregateNotFoundException } from '../application/aggregate-not-found.e
 import { ApplicationException } from '../application/application.exception';
 import { ConcurrencyException } from '../application/concurrency.exception';
 import { NotAllowedException } from '../application/not-allowed.exception';
-import { DomainException } from '../domain/domain.exception';
-import { RequiredValueException } from '../domain/required-value.exception';
-import { TypePrimitiveException } from '../domain/type-primitive.exception';
+import { DomainException } from '../../../domain/exceptions/domain.exception';
+import { RequiredValueException } from '../../../domain/exceptions/required-value.exception';
+import { TypePrimitiveException } from '../../../domain/exceptions/type-primitive.exception';
 import { ExceptionKind } from './exception-kind';
 
 export class ExceptionClassifier {
