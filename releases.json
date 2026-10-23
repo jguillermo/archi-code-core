@@ -22,7 +22,7 @@
       "main": "3.0.0-alpha.3"
     },
     "@archi-code/ddd": {
-      "main": "3.0.0-alpha.2"
+      "main": "3.0.0-alpha.3"
     }
   },
   "deploys": [
@@ -446,6 +446,25 @@
           "reasons": [
             "commits (minor)",
             "cascade: @archi-code/validation → 3.0.0-alpha.6"
+          ],
+          "dependencies": {
+            "@archi-code/validation": "3.0.0-alpha.6"
+          }
+        }
+      ]
+    },
+    {
+      "date": "2026-10-23T05:54:47.664Z",
+      "commit": "18956cd68999fe591b42ca0d8ad3a2a166750dee",
+      "channel": "main",
+      "packages": [
+        {
+          "name": "@archi-code/ddd",
+          "previous": "3.0.0-alpha.2",
+          "version": "3.0.0-alpha.3",
+          "bump": "minor",
+          "reasons": [
+            "commits (minor)"
           ],
           "dependencies": {
             "@archi-code/validation": "3.0.0-alpha.6"
