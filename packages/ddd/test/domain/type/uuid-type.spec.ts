@@ -4,9 +4,9 @@ import type { ValidationResult } from '@archi-code/validation';
 import { UuidType } from '../../../src/domain/type/uuid-type';
 import { AbstractType } from '../../../src/domain/type/abstract-type';
 import { Required } from '../../../src/domain/type/required/required-type';
-import { TypePrimitiveException } from '../../../src/exceptions/domain/type-primitive.exception';
-import { RequiredValueException } from '../../../src/exceptions/domain/required-value.exception';
-import { ValidationException } from '../../../src/exceptions/domain/validation.exception';
+import { TypePrimitiveException } from '../../../src/domain/exceptions/type-primitive.exception';
+import { RequiredValueException } from '../../../src/domain/exceptions/required-value.exception';
+import { ValidationException } from '../../../src/domain/exceptions/validation.exception';
 
 class CorrelationId extends UuidType {}
 

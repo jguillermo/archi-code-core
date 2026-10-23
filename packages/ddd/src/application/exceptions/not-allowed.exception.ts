@@ -1,14 +1,14 @@
+import { ExceptionBrand } from '../../shared/index';
+import type { ExceptionOptions } from '../../shared/index';
+import { ApplicationExceptionCode } from './application-exception-code';
 import { ApplicationException } from './application.exception';
-import type { ExceptionOptions } from '../../shared/exceptions/abstract.exception';
-import { ExceptionBrand } from '../../shared/exceptions/brand/exception-brand';
-import { ExceptionCode } from '../../shared/exceptions/exception-code';
 
 export class NotAllowedException extends ApplicationException {
   static {
-    ExceptionBrand.brandClass(this, ExceptionCode.NotAllowed);
+    ExceptionBrand.brandClass(this, ApplicationExceptionCode.NotAllowed);
   }
 
   constructor(message: string, options: ExceptionOptions = {}) {
-    super(message, [ExceptionCode.NotAllowed], options);
+    super(message, [ApplicationExceptionCode.NotAllowed], options);
   }
 }

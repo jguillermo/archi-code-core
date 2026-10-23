@@ -56,7 +56,8 @@ import type {
   AggregateSaver,
   PrimitiveTypes,
 } from '@archi-code/ddd/domain';
-import { ConcurrencyException, InternalErrorException } from '@archi-code/ddd/exceptions';
+import { ConcurrencyException } from '@archi-code/ddd/application';
+import { InternalErrorException } from '@archi-code/ddd/infrastructure';
 import { Order, OrderId } from '../../domain/order/order';
 
 export type OrderDocument = PrimitiveTypes<Order> & { _id: string; version: number };
@@ -162,7 +163,8 @@ CREATE TABLE orders (
 
 ```ts
 import type { AggregateFinder, AggregateSaver, PrimitiveTypes } from '@archi-code/ddd/domain';
-import { ConcurrencyException, InternalErrorException } from '@archi-code/ddd/exceptions';
+import { ConcurrencyException } from '@archi-code/ddd/application';
+import { InternalErrorException } from '@archi-code/ddd/infrastructure';
 import { Order, OrderId } from '../../domain/order/order';
 import type { PgPool } from './pg-pool';
 

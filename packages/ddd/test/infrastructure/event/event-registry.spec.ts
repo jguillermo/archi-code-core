@@ -1,10 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { InfrastructureExceptionCode } from '../../../src/infrastructure/exceptions/infrastructure-exception-code';
 import { EventBase } from '../../../src/domain/index';
-import {
-  ExceptionCode,
-  InternalErrorException,
-  UnknownEventException,
-} from '../../../src/exceptions/index';
+import { InternalErrorException } from '../../../src/infrastructure/exceptions/internal-error.exception';
+import { UnknownEventException } from '../../../src/infrastructure/exceptions/unknown-event.exception';
 import type { EventMetadata, SerializedEvent } from '../../../src/domain/index';
 import { EventRegistry } from '../../../src/infrastructure/event/event-registry';
 
@@ -155,7 +153,7 @@ describe('EventRegistry: rebuilding the events a channel delivers', () => {
     try {
       read();
     } catch (error) {
-      expect((error as UnknownEventException).code).toBe(ExceptionCode.UnknownEvent);
+      expect((error as UnknownEventException).code).toBe(InfrastructureExceptionCode.UnknownEvent);
       expect((error as UnknownEventException).code).toBe('INF002');
     }
   });

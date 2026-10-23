@@ -1,50 +1,57 @@
-import { DomainException, ValidationException } from '../exceptions/index';
-import type { ValidationIssue } from '../exceptions/index';
+import { IssueCollectionError } from './issue-collection-error';
+import type { CollectedIssue } from './issue-collection-error';
 
 type Build<Built> = readonly [path: string, build: () => Built];
 
+export type IssueReader = (error: unknown) => readonly CollectedIssue[] | null;
+
 export class IssueCollector {
-  static collectFields(builds: Readonly<Record<string, () => unknown>>): Record<string, unknown> {
-    return Object.fromEntries(IssueCollector.collect(Object.entries(builds)));
+  static collectFields(
+    builds: Readonly<Record<string, () => unknown>>,
+    readIssues: IssueReader,
+  ): Record<string, unknown> {
+    return Object.fromEntries(IssueCollector.collect(Object.entries(builds), readIssues));
   }
 
   static collectItems<Item, Built>(
     items: readonly Item[],
     build: (item: Item, index: number) => Built,
+    readIssues: IssueReader,
   ): Built[] {
     const builds = items.map(
       (item, index): Build<Built> => [String(index), () => build(item, index)],
     );
-    return IssueCollector.collect(builds).map(([, built]) => built);
+    return IssueCollector.collect(builds, readIssues).map(([, built]) => built);
   }
 
-  private static collect<Built>(builds: readonly Build<Built>[]): [string, Built][] {
+  private static collect<Built>(
+    builds: readonly Build<Built>[],
+    readIssues: IssueReader,
+  ): [string, Built][] {
     const built: [string, Built][] = [];
-    const issues: ValidationIssue[] = [];
+    const issues: CollectedIssue[] = [];
     for (const [path, build] of builds) {
       try {
         built.push([path, build()]);
       } catch (error) {
-        issues.push(...IssueCollector.issuesAt(path, error));
+        issues.push(...IssueCollector.issuesAt(path, error, readIssues));
       }
     }
     if (issues.length > 0) {
-      throw new ValidationException(issues);
+      throw new IssueCollectionError(issues);
     }
     return built;
   }
 
-  private static issuesAt(path: string, error: unknown): ValidationIssue[] {
-    if (error instanceof ValidationException) {
-      return error.errors.map((issue) => ({
-        field: issue.field === null ? path : `${path}.${issue.field}`,
-        code: issue.code,
-        message: issue.message,
-      }));
+  private static issuesAt(path: string, error: unknown, readIssues: IssueReader): CollectedIssue[] {
+    const issues = readIssues(error);
+    if (issues === null) {
+      throw error;
     }
-    if (error instanceof DomainException) {
-      return [{ field: path, code: error.code, message: error.message }];
-    }
-    throw error;
+    return issues.map((issue) => ({
+      field: issue.field === null ? path : `${path}.${issue.field}`,
+      code: issue.code,
+      message: issue.message,
+    }));
   }
 }

@@ -11,13 +11,12 @@ import {
   StringType,
 } from '../../../src/domain/index';
 import { ValueObjectBuilder } from '../../../src/application/value-object-builder/value-object-builder';
-import {
-  AggregateNotFoundException,
-  ApplicationException,
-  DomainException,
-  InternalErrorException,
-  ValidationException,
-} from '../../../src/exceptions/index';
+import { AggregateNotFoundException } from '../../../src/application/exceptions/aggregate-not-found.exception';
+import { ApplicationException } from '../../../src/application/exceptions/application.exception';
+import { DomainException } from '../../../src/domain/exceptions/domain.exception';
+import { InternalErrorException } from '../../../src/infrastructure/exceptions/internal-error.exception';
+import { UnexpectedErrorException } from '../../../src/application/exceptions/unexpected-error.exception';
+import { ValidationException } from '../../../src/domain/exceptions/validation.exception';
 import type {
   AggregateFinder,
   AggregateRemover,
@@ -302,7 +301,7 @@ describe('UseCase: an application service a controller or a message handler call
       const { placeOrder, orders, bus } = setup();
       orders.failWith = new Error('connection reset');
       await expect(placeOrder.execute({ orderId, customer: 'Ana' })).rejects.toThrow(
-        InternalErrorException,
+        UnexpectedErrorException,
       );
       expect(bus.published).toEqual([]);
     });
@@ -364,9 +363,9 @@ describe('UseCase: an application service a controller or a message handler call
 
     it('wraps a raw error thrown while building the command, naming the use case', async () => {
       const error = await rejection(new RefundPayment().execute({ amount: 'ten' }));
-      expect(error).toBeInstanceOf(InternalErrorException);
-      expect((error as InternalErrorException).message).toBe(
-        'Failed, internal error: RefundPayment: "ten" is not an amount',
+      expect(error).toBeInstanceOf(UnexpectedErrorException);
+      expect((error as UnexpectedErrorException).message).toBe(
+        'Failed, unexpected error: RefundPayment: "ten" is not an amount',
       );
     });
 
@@ -412,17 +411,17 @@ describe('UseCase: an application service a controller or a message handler call
   });
 
   describe('unexpected failures', () => {
-    it('wraps a raw driver error in InternalErrorException naming the use case, keeping the cause', async () => {
+    it('wraps a raw driver error in UnexpectedErrorException naming the use case, keeping the cause', async () => {
       const { placeOrder, orders } = setup();
       const driverError = new Error('connection reset');
       orders.failWith = driverError;
       const error = await rejection(placeOrder.execute({ orderId, customer: 'Ana' }));
-      expect(error).toBeInstanceOf(InternalErrorException);
-      expect((error as InternalErrorException).message).toBe(
-        'Failed, internal error: PlaceOrder: connection reset',
+      expect(error).toBeInstanceOf(UnexpectedErrorException);
+      expect((error as UnexpectedErrorException).message).toBe(
+        'Failed, unexpected error: PlaceOrder: connection reset',
       );
-      expect((error as InternalErrorException).cause).toBe(driverError);
-      expect((error as InternalErrorException).code).toBe('INF001');
+      expect((error as UnexpectedErrorException).cause).toBe(driverError);
+      expect((error as UnexpectedErrorException).code).toBe('APP004');
     });
 
     it.each([
@@ -431,10 +430,10 @@ describe('UseCase: an application service a controller or a message handler call
       ['a thrown number', 42, '42'],
     ])('describes %s in the message', async (_, thrown, described) => {
       const error = await rejection(new Throwing(thrown).execute(undefined));
-      expect((error as InternalErrorException).message).toBe(
-        `Failed, internal error: Throwing: ${described}`,
+      expect((error as UnexpectedErrorException).message).toBe(
+        `Failed, unexpected error: Throwing: ${described}`,
       );
-      expect((error as InternalErrorException).cause).toBe(thrown);
+      expect((error as UnexpectedErrorException).cause).toBe(thrown);
     });
 
     it.each([

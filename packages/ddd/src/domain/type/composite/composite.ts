@@ -3,9 +3,10 @@ import type { ValidatedClass } from '@archi-code/validation';
 import { CompositeBrand } from './composite-brand';
 import { CompositeField } from './composite-field';
 import type { FieldSpec } from './composite-field';
-import { IssueCollector } from '../../../shared/index';
+import { CompositeIssues } from './composite-issues';
 import type { PrimitiveType } from '../../primitive/primitive-types';
-import { TypePrimitiveException, ValidationException } from '../../../exceptions/index';
+import { TypePrimitiveException } from '../../exceptions/type-primitive.exception';
+import { ValidationException } from '../../exceptions/validation.exception';
 
 export type CompositeSchema = Record<string, FieldSpec>;
 
@@ -67,7 +68,7 @@ export function Composite<Schema extends CompositeSchema>(schema: Schema): Compo
       const builds = Object.fromEntries(
         fields.map(([name, field]) => [name, () => field.fromPrimitive(record[name])]),
       );
-      return new this(IssueCollector.collectFields(builds));
+      return new this(CompositeIssues.collectFields(builds));
     }
 
     constructor(props: Readonly<Record<string, unknown>>) {

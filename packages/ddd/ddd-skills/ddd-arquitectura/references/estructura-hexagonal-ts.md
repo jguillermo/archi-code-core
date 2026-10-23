@@ -338,19 +338,19 @@ export function ordersRouter(
 }
 ```
 
-El controlador no sabe qué es un `Order`. Comprueba solo la forma de la petición (un campo es texto o número) [IDDD cap. 4]; las reglas de cada valor son de los value objects que `toCommand` construye con `ValueObjectBuilder.build`, y llegan como una `ValidationException` con todos los campos (422). La identidad del cliente sale del token, no del body. `toHttpError` traduce los errores. El paquete no trae nada de HTTP: `ExceptionClassifier.classify(error)` de `@archi-code/ddd/exceptions` devuelve el `ExceptionKind` del fallo y cada protocolo (HTTP, un consumidor de mensajes, una CLI) lo traduce a sus códigos `[Fuera de los libros: convención de @archi-code/ddd]`:
+El controlador no sabe qué es un `Order`. Comprueba solo la forma de la petición (un campo es texto o número) [IDDD cap. 4]; las reglas de cada valor son de los value objects que `toCommand` construye con `ValueObjectBuilder.build`, y llegan como una `ValidationException` con todos los campos (422). La identidad del cliente sale del token, no del body. `toHttpError` traduce los errores. El paquete no trae nada de HTTP: `ExceptionClassifier.classify(error)` de `@archi-code/ddd/infrastructure` devuelve el `ExceptionKind` del fallo y cada protocolo (HTTP, un consumidor de mensajes, una CLI) lo traduce a sus códigos `[Fuera de los libros: convención de @archi-code/ddd]`:
 
 ```ts
 // src/contexts/sales/interfaces/http/httpError.ts
-import {
-  AbstractException,
-  ExceptionClassifier,
-  ExceptionCode,
-  ExceptionKind,
-  ValidationException,
-} from '@archi-code/ddd/exceptions';
-import type { ValidationIssue } from '@archi-code/ddd/exceptions';
+import { DomainException, ValidationException } from '@archi-code/ddd/domain';
+import type { ValidationIssue } from '@archi-code/ddd/domain';
+import { ApplicationException, ApplicationExceptionCode } from '@archi-code/ddd/application';
 import type { Logger } from '@archi-code/ddd/application';
+import {
+  ExceptionClassifier,
+  ExceptionKind,
+  InfrastructureException,
+} from '@archi-code/ddd/infrastructure';
 
 export interface HttpError {
   status: number;
@@ -369,10 +369,20 @@ const STATUS_BY_KIND: Readonly<Record<ExceptionKind, number>> = {
 
 const STATUS_BY_CODE = new Map<string, number>([['ORD001', 409]]);
 
+type PackageException = DomainException | ApplicationException | InfrastructureException;
+
+function isPackageException(error: unknown): error is PackageException {
+  return (
+    error instanceof DomainException ||
+    error instanceof ApplicationException ||
+    error instanceof InfrastructureException
+  );
+}
+
 export function toHttpError(error: unknown, logger: Logger): HttpError {
-  const code = error instanceof AbstractException ? error.code : ExceptionCode.ErrorException;
+  const code = isPackageException(error) ? error.code : ApplicationExceptionCode.UnexpectedError;
   const status = STATUS_BY_CODE.get(code) ?? STATUS_BY_KIND[ExceptionClassifier.classify(error)];
-  if (status >= 500 || !(error instanceof AbstractException)) {
+  if (status >= 500 || !isPackageException(error)) {
     logger.error('http_request_failed', { status, code, error });
     return { status, body: { code, message: 'Internal server error' } };
   }
@@ -384,13 +394,13 @@ export function toHttpError(error: unknown, logger: Logger): HttpError {
 }
 ```
 
-En HTTP: 404 `AggregateNotFoundException`, 403 `NotAllowedException`, 409 `ConcurrencyException`, 400 un error de conversión u obligatoriedad, 422 `ValidationException` y cualquier otra `DomainException`, 400 otros errores de aplicación y 500 con un mensaje genérico para lo demás; los códigos propios (`ORD001`) se resuelven antes que el tipo. Cada 5xx se registra una vez como `error` (con su causa) y los 4xx solo en `debug`; el controlador no vuelve a registrarlos. Un consumidor de mensajes traduce el mismo `ExceptionKind` a confirmar, descartar o reintentar.
+En HTTP: 404 `AggregateNotFoundException`, 403 `NotAllowedException`, 409 `ConcurrencyException`, 400 un error de conversión u obligatoriedad, 422 `ValidationException` y cualquier otra `DomainException`, 400 otros errores de aplicación y 500 con un mensaje genérico para lo demás (también `UnexpectedErrorException`, el error ajeno que `UseCase.execute` envuelve); los códigos propios (`ORD001`) se resuelven antes que el tipo. Cada 5xx se registra una vez como `error` (con su causa) y los 4xx solo en `debug`; el controlador no vuelve a registrarlos. Un consumidor de mensajes traduce el mismo `ExceptionKind` a confirmar, descartar o reintentar.
 
 ## Configuración de TypeScript
 
 `[Fuera de los libros]`
 * `strict: true`. El dominio se apoya en el tipado para expresar invariantes.
 * `experimentalDecorators: true`: `@Validations` (value objects) y `@ListensTo` (listeners) son decoradores de clase.
-* `moduleResolution` `node16`, `nodenext` o `bundler` para resolver los subpaths `@archi-code/ddd/domain`, `/application`, `/infrastructure` y `/exceptions`; con `node` los resuelve el `typesVersions` del paquete.
+* `moduleResolution` `node16`, `nodenext` o `bundler` para resolver los subpaths `@archi-code/ddd/domain`, `/application` y `/infrastructure` (cada uno exporta las excepciones de su capa); con `node` los resuelve el `typesVersions` del paquete.
 * Alias por contexto (`"@sales/*": ["src/contexts/sales/*"]`, usado como `@sales/domain/order/Order`) para que los imports revelen la zona.
 * `exactOptionalPropertyTypes` y `noUncheckedIndexedAccess` ayudan a que los value objects no acepten estados a medias.

@@ -1,7 +1,8 @@
 import type { AbstractType } from '../abstract-type';
 import { CompositeBrand } from './composite-brand';
-import { IssueCollector } from '../../../shared/index';
-import { RequiredValueException, TypePrimitiveException } from '../../../exceptions/index';
+import { CompositeIssues } from './composite-issues';
+import { RequiredValueException } from '../../exceptions/required-value.exception';
+import { TypePrimitiveException } from '../../exceptions/type-primitive.exception';
 
 export type ValueClass = new (value: any) => AbstractType<any>;
 
@@ -110,7 +111,7 @@ class ListField extends CompositeField {
     if (!Array.isArray(primitive)) {
       throw new TypePrimitiveException(this.typeName, primitive);
     }
-    return IssueCollector.collectItems(primitive, (item) => this.item.fromPrimitive(item));
+    return CompositeIssues.collectItems(primitive, (item) => this.item.fromPrimitive(item));
   }
 
   toPrimitive(value: unknown): unknown {

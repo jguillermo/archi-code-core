@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { EventChannel } from '../../src/infrastructure/index';
 import type { SerializedEvent } from '../../src/domain/index';
-import { InfrastructureException } from '../../src/exceptions/index';
+import { InfrastructureException } from '../../src/infrastructure/exceptions/infrastructure.exception';
 
 export type EventChannelFactory = () => EventChannel | Promise<EventChannel>;
 

@@ -2,7 +2,7 @@
  * Adapted from emittery (https://github.com/sindresorhus/emittery), MIT License,
  * Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (https://sindresorhus.com).
  */
-import { EventDeliveryException } from '../../../exceptions/index';
+import { EventDeliveryException } from '../../exceptions/event-delivery.exception';
 
 type EmitterListener<Data> = (data: Data) => Promise<void> | void;
 

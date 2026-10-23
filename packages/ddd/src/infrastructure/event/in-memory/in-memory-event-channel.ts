@@ -1,6 +1,6 @@
 import type { ChannelHandler, ChannelSubscription, EventChannel } from '../event-channel';
 import type { SerializedEvent } from '../../../domain/index';
-import { InfrastructureException } from '../../../exceptions/index';
+import { InfrastructureException } from '../../exceptions/infrastructure.exception';
 import { Emitter } from './emitter';
 
 export interface InMemoryEventChannelOptions {

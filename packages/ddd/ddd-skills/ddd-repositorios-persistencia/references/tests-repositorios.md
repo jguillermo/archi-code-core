@@ -15,7 +15,7 @@ import type {
   AggregateSaver,
   PrimitiveTypes,
 } from '@archi-code/ddd/domain';
-import { ConcurrencyException } from '@archi-code/ddd/exceptions';
+import { ConcurrencyException } from '@archi-code/ddd/application';
 import { Order } from '../../src/contexts/sales/domain/order/order';
 import type { OrderId } from '../../src/contexts/sales/domain/order/order';
 
@@ -81,7 +81,7 @@ Un único conjunto de tests, en `test/support/order-repository-contract.ts` del 
 ```ts
 import { expect, it } from 'vitest';
 import type { AggregateFinder, AggregateRemover, AggregateSaver } from '@archi-code/ddd/domain';
-import { ConcurrencyException } from '@archi-code/ddd/exceptions';
+import { ConcurrencyException } from '@archi-code/ddd/application';
 import { FixedClock } from '@archi-code/ddd/infrastructure';
 import {
   CustomerId,

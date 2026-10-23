@@ -1,18 +1,22 @@
-import { AbstractException } from '../../shared/exceptions/abstract.exception';
-import type { ExceptionOptions } from '../../shared/exceptions/abstract.exception';
-import { ExceptionBrand } from '../../shared/exceptions/brand/exception-brand';
-import { ExceptionCode } from '../../shared/exceptions/exception-code';
+import { AbstractException, ExceptionBrand } from '../../shared/index';
+import type { ExceptionOptions } from '../../shared/index';
+import { InfrastructureExceptionCode } from './infrastructure-exception-code';
 
 export class InfrastructureException extends AbstractException {
   static {
-    ExceptionBrand.brandClass(this, ExceptionCode.InfrastructureException);
+    ExceptionBrand.brandClass(this, InfrastructureExceptionCode.InfrastructureException);
   }
 
   constructor(
     message: string,
-    exceptionCodes: (ExceptionCode | string)[] = [],
+    exceptionCodes: (InfrastructureExceptionCode | string)[] = [],
     options: ExceptionOptions = {},
   ) {
-    super(message, [ExceptionCode.InfrastructureException, ...exceptionCodes], options);
+    super(
+      message,
+      [InfrastructureExceptionCode.InfrastructureException, ...exceptionCodes],
+      options,
+      InfrastructureExceptionCode,
+    );
   }
 }

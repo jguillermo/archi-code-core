@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EventDeliveryException } from '../../../../src/exceptions/index';
+import { EventDeliveryException } from '../../../../src/infrastructure/exceptions/event-delivery.exception';
 import { Emitter } from '../../../../src/infrastructure/event/in-memory/emitter';
 
 describe('Emitter: the emittery techniques behind the in-memory channel', () => {

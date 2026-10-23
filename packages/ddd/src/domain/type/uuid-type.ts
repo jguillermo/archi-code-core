@@ -1,7 +1,7 @@
 import { v4 as uuidv4, v5 as uuidv5 } from 'uuid';
 import { isUUID, toString as convertToString } from '@archi-code/validation';
 import { AbstractType } from './abstract-type';
-import { TypePrimitiveException } from '../../exceptions/index';
+import { TypePrimitiveException } from '../exceptions/type-primitive.exception';
 
 const DNS_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
 

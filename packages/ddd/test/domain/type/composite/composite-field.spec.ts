@@ -4,8 +4,8 @@ import { Composite } from '../../../../src/domain/type/composite/composite';
 import { NumberType } from '../../../../src/domain/type/number-type';
 import { StringType } from '../../../../src/domain/type/string-type';
 import { Required } from '../../../../src/domain/type/required/required-type';
-import { RequiredValueException } from '../../../../src/exceptions/domain/required-value.exception';
-import { TypePrimitiveException } from '../../../../src/exceptions/domain/type-primitive.exception';
+import { RequiredValueException } from '../../../../src/domain/exceptions/required-value.exception';
+import { TypePrimitiveException } from '../../../../src/domain/exceptions/type-primitive.exception';
 
 class Cents extends Required(NumberType) {}
 class Currency extends Required(StringType) {}

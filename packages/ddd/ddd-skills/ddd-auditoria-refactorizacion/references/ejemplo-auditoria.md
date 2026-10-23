@@ -109,8 +109,7 @@ Enviar no es trabajo del pedido de Ventas: lo hace `Shipment` en Almacén, que p
 
 ```ts
 import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
-import { AggregateNotFoundException } from '@archi-code/ddd/exceptions';
-import { UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
+import { AggregateNotFoundException, UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
 
 interface AddOrderLineInput {
@@ -265,7 +264,7 @@ import {
   FixedClock,
   InMemoryEventChannel,
 } from '@archi-code/ddd/infrastructure';
-import { ValidationException } from '@archi-code/ddd/exceptions';
+import { ValidationException } from '@archi-code/ddd/domain';
 import { InMemoryCustomerRepository } from '../support/in-memory-customer-repository';
 import { InMemoryOrderRepository } from '../support/in-memory-order-repository';
 

@@ -1,8 +1,8 @@
 import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { EventBase } from '../../../src/domain/event/event-base';
 import type { EventMetadata, SerializedEvent } from '../../../src/domain/event/event-base';
-import { TypePrimitiveException } from '../../../src/exceptions/domain/type-primitive.exception';
-import { InternalErrorException } from '../../../src/exceptions/infrastructure/internal-error.exception';
+import { TypePrimitiveException } from '../../../src/domain/exceptions/type-primitive.exception';
+import { InvalidEventDefinitionException } from '../../../src/domain/exceptions/invalid-event-definition.exception';
 
 class PaymentCaptured extends EventBase {
   static readonly eventName = 'PaymentCaptured';
@@ -46,7 +46,7 @@ describe('EventBase: a fact the domain publishes', () => {
       ],
     ])('refuses to create an event %s, a mistake in the code', (_, OrderArchived) => {
       const create = () => new OrderArchived();
-      expect(create).toThrow(InternalErrorException);
+      expect(create).toThrow(InvalidEventDefinitionException);
       expect(create).toThrow('OrderArchived must declare a static eventName');
     });
   });

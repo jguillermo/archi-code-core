@@ -1,4 +1,4 @@
-import { ApplicationException } from '../../exceptions/index';
+import { ApplicationException } from '../exceptions/application.exception';
 import type { EventBase, EventClass } from '../../domain/index';
 import type { EventListener } from './event-listener';
 

@@ -3,7 +3,6 @@
 const path = require('path');
 
 const domain = require(path.resolve(__dirname, '../../dist/cjs/domain/index.js'));
-const exceptions = require(path.resolve(__dirname, '../../dist/cjs/exceptions/index.js'));
 
 const ORDER_ID = '9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c';
 
@@ -81,7 +80,7 @@ function smoke(m) {
           async handle(id) {
             const order = await repository.findById(id);
             if (order === null) {
-              throw new exceptions.AggregateNotFoundException('Order', id.value);
+              throw new m.AggregateNotFoundException('Order', id.value);
             }
             return order;
           }
@@ -98,9 +97,9 @@ function smoke(m) {
         const missing = await new ShipOrder().execute({ id: ORDER_ID }).catch((error) => error);
         const broken = await new Broken().execute({}).catch((error) => error);
         return (
-          (missing instanceof exceptions.AggregateNotFoundException &&
-            broken instanceof exceptions.InternalErrorException &&
-            broken.message === 'Failed, internal error: Broken: connection reset') ||
+          (missing instanceof m.AggregateNotFoundException &&
+            broken instanceof m.UnexpectedErrorException &&
+            broken.message === 'Failed, unexpected error: Broken: connection reset') ||
           `unexpected ${missing} / ${broken}`
         );
       },
@@ -152,7 +151,49 @@ function smoke(m) {
         );
       },
     ],
+    [
+      'application exceptions carry their codes, description and cause',
+      () => {
+        const cause = new Error('connection reset');
+        const unexpected = new m.UnexpectedErrorException('PlaceOrder: saving order', { cause });
+        const notFound = new m.AggregateNotFoundException('Order', ORDER_ID);
+        return (
+          (unexpected.cause === cause &&
+            unexpected.code === m.ApplicationExceptionCode.UnexpectedError &&
+            notFound.code === 'APP002' &&
+            notFound.description ===
+              'Application Exception (APP000), Aggregate Not Found (APP002)' &&
+            notFound instanceof m.ApplicationException &&
+            !(notFound instanceof domain.DomainException) &&
+            new m.NotAllowedException('cus-luis cannot cancel').code === 'APP003' &&
+            new m.ConcurrencyException('Order', ORDER_ID, 3).code === 'APP001' &&
+            JSON.parse(JSON.stringify(notFound)).message ===
+              `Order with ID ${ORDER_ID} not found.`) ||
+          'unexpected application exception shape'
+        );
+      },
+    ],
   ];
 }
 
-module.exports = { smoke };
+function crossBuild(cjs, esm) {
+  return [
+    [
+      'recognize application exceptions thrown by the other build',
+      () => {
+        const notFound = new esm.AggregateNotFoundException('Order', ORDER_ID);
+        const conflict = new cjs.ConcurrencyException('Order', ORDER_ID, 3);
+        return (
+          (notFound instanceof cjs.AggregateNotFoundException &&
+            notFound instanceof cjs.ApplicationException &&
+            !(notFound instanceof cjs.ConcurrencyException) &&
+            conflict instanceof esm.ConcurrencyException &&
+            conflict instanceof esm.ApplicationException) ||
+          'an application exception of one build is not recognized by the other'
+        );
+      },
+    ],
+  ];
+}
+
+module.exports = { smoke, crossBuild };

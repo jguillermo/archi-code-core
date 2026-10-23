@@ -1,4 +1,5 @@
-import { InternalErrorException, UnknownEventException } from '../../exceptions/index';
+import { InternalErrorException } from '../exceptions/internal-error.exception';
+import { UnknownEventException } from '../exceptions/unknown-event.exception';
 import type { EventBase, EventClass, SerializedEvent } from '../../domain/index';
 
 export type EventFactory<Event extends EventBase> = (serialized: SerializedEvent) => Event;

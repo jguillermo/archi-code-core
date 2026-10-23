@@ -104,7 +104,7 @@ La regla "solo se vende lo activo con precio web" es una decisión de traducció
 
 ```ts
 // src/contexts/sales/infrastructure/catalog/CatalogHttpProductPricing.ts
-import { InfrastructureException } from '@archi-code/ddd/exceptions';
+import { InfrastructureException } from '@archi-code/ddd/infrastructure';
 import type { ProductPricing, SellableProduct } from '../../domain/catalog/ProductPricing';
 import type { Sku } from '../../domain/order/OrderLine';
 import { CatalogTranslator } from './CatalogTranslator';
@@ -249,11 +249,11 @@ El precio se copia en la línea del pedido: Ventas guarda el estado remoto **mí
 
 ## ACL con un webhook entrante
 
-Mismo patrón con un producto externo que llama a este contexto: el punto de entrada es el adaptador, la forma del mensaje es el contrato y la traducción produce la entrada de un caso de uso en el lenguaje local. Vive en `interfaces/` (como cualquier controlador) y solo conoce casos de uso y `@archi-code/ddd/exceptions` [IDDD cap. 4]. Traduce cada `ExceptionKind` a lo que entiende el emisor: lo que merece reintento (un conflicto, un error interno) responde 5xx para que la pasarela vuelva a enviarlo, y lo que no cambiaría al reintentar responde 4xx `[Fuera de los libros]`. El router ya ha comprobado la firma del emisor y la forma del cuerpo antes de llamarlo `[Fuera de los libros]`.
+Mismo patrón con un producto externo que llama a este contexto: el punto de entrada es el adaptador, la forma del mensaje es el contrato y la traducción produce la entrada de un caso de uso en el lenguaje local. Vive en `interfaces/` (como cualquier controlador) y solo conoce casos de uso y `ExceptionClassifier` de `@archi-code/ddd/infrastructure` [IDDD cap. 4]. Traduce cada `ExceptionKind` a lo que entiende el emisor: lo que merece reintento (un conflicto, un error interno) responde 5xx para que la pasarela vuelva a enviarlo, y lo que no cambiaría al reintentar responde 4xx `[Fuera de los libros]`. El router ya ha comprobado la firma del emisor y la forma del cuerpo antes de llamarlo `[Fuera de los libros]`.
 
 ```ts
 // src/contexts/payments/interfaces/http/PaymentGatewayWebhook.ts
-import { ExceptionClassifier, ExceptionKind } from '@archi-code/ddd/exceptions';
+import { ExceptionClassifier, ExceptionKind } from '@archi-code/ddd/infrastructure';
 import type { Logger } from '@archi-code/ddd/application';
 import type { RecordPaymentAuthorization } from '../../application/record-payment-authorization/RecordPaymentAuthorization';
 import type { RecordPaymentRejection } from '../../application/record-payment-rejection/RecordPaymentRejection';

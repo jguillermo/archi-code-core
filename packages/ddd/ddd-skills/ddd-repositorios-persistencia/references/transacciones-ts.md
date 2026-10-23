@@ -55,7 +55,8 @@ En `infrastructure/persistence/postgres-order-repository.ts`:
 
 ```ts
 import type { AggregateFinder, AggregateSaver, PrimitiveTypes } from '@archi-code/ddd/domain';
-import { ConcurrencyException, InternalErrorException } from '@archi-code/ddd/exceptions';
+import { ConcurrencyException } from '@archi-code/ddd/application';
+import { InternalErrorException } from '@archi-code/ddd/infrastructure';
 import { Order, OrderId } from '../../domain/order/order';
 import type { PgPool } from './pg-pool';
 
@@ -172,10 +173,9 @@ El repositorio toma los eventos con `pullDomainEvents()`, así que el `publish` 
 El caso de uso carga, cambia, guarda y publica, sin abrir nada. Si el comando es seguro de repetir contra el estado recargado, la aplicación puede reintentar una o dos veces ante `ConcurrencyException`; si no, el conflicto llega al usuario como 409 [IDDD cap. 10; IDDD apéndice A]. Cada intento vuelve a cargar y vuelve a guardar dentro de `handle`, en un bucle con límite `[Fuera de los libros: convención de @archi-code/ddd]`. Un caso de uso que ejecuta un listener no reintenta por su cuenta: reintenta la reentrega del canal.
 
 ```ts
-import { UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
+import { AggregateNotFoundException, ConcurrencyException, UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
 import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
-import { AggregateNotFoundException, ConcurrencyException } from '@archi-code/ddd/exceptions';
 import { Order, OrderId, OrderLine } from '../../domain/order/order';
 import type { OrderEvent } from '../../domain/order/order';
 

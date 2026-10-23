@@ -1,5 +1,6 @@
 import { anyToString } from '@archi-code/validation';
-import { AbstractException, InternalErrorException } from '../../exceptions/index';
+import { AbstractException } from '../../shared/index';
+import { UnexpectedErrorException } from '../exceptions/unexpected-error.exception';
 
 export abstract class UseCase<Input, Command, Output> {
   async execute(input: Input): Promise<Output> {
@@ -9,7 +10,7 @@ export abstract class UseCase<Input, Command, Output> {
       if (error instanceof AbstractException) {
         throw error;
       }
-      throw new InternalErrorException(`${this.constructor.name}: ${UseCase.describe(error)}`, {
+      throw new UnexpectedErrorException(`${this.constructor.name}: ${UseCase.describe(error)}`, {
         cause: error,
       });
     }

@@ -1,7 +1,7 @@
-import { CreatedAt } from '../type';
-import { IdType } from '../type';
-import { UuidType } from '../type';
-import { InternalErrorException } from '../../exceptions';
+import { CreatedAt } from '../type/date-type';
+import { IdType } from '../type/id-type';
+import { UuidType } from '../type/uuid-type';
+import { InvalidEventDefinitionException } from '../exceptions/invalid-event-definition.exception';
 
 export interface EventMetadata {
   eventId?: string;
@@ -29,7 +29,7 @@ export abstract class EventBase {
   constructor(metadata: EventMetadata = {}) {
     const { eventName } = this.constructor as Partial<EventClass>;
     if (typeof eventName !== 'string' || eventName.trim() === '') {
-      throw new InternalErrorException(`${this.constructor.name} must declare a static eventName`);
+      throw new InvalidEventDefinitionException(this.constructor.name);
     }
     this.eventName = eventName;
     this.eventId = new IdType(metadata.eventId ?? UuidType.random()).value;

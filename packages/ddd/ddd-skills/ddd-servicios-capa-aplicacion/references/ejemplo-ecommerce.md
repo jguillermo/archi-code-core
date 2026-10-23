@@ -33,9 +33,8 @@ total(): Money;
 Lo que añade Ventas en esta guía:
 
 ```ts
-import { AggregateRoot, BooleanType, Required, Specification, StringType } from '@archi-code/ddd/domain';
+import { AggregateRoot, BooleanType, DomainException, Required, Specification, StringType } from '@archi-code/ddd/domain';
 import type { PrimitiveTypes } from '@archi-code/ddd/domain';
-import { DomainException } from '@archi-code/ddd/exceptions';
 
 export class OrderAbove extends Specification<Order> {
   constructor(private readonly minimum: Money) {
@@ -124,9 +123,8 @@ export class OrderCancellation {
 
 ```ts
 import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
-import { UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
+import { AggregateNotFoundException, UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
-import { AggregateNotFoundException } from '@archi-code/ddd/exceptions';
 
 export interface PlaceOrderInput {
   customerId: string;

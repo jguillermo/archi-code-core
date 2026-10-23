@@ -1,11 +1,11 @@
+import { ExceptionBrand } from '../../shared/index';
+import type { ExceptionOptions } from '../../shared/index';
+import { ApplicationExceptionCode } from './application-exception-code';
 import { ApplicationException } from './application.exception';
-import type { ExceptionOptions } from '../../shared/exceptions/abstract.exception';
-import { ExceptionBrand } from '../../shared/exceptions/brand/exception-brand';
-import { ExceptionCode } from '../../shared/exceptions/exception-code';
 
 export class ConcurrencyException extends ApplicationException {
   static {
-    ExceptionBrand.brandClass(this, ExceptionCode.ConcurrencyConflict);
+    ExceptionBrand.brandClass(this, ApplicationExceptionCode.ConcurrencyConflict);
   }
 
   constructor(
@@ -16,7 +16,7 @@ export class ConcurrencyException extends ApplicationException {
   ) {
     super(
       `${aggregateName} with ID ${id} was changed by someone else: expected version ${expectedVersion}.`,
-      [ExceptionCode.ConcurrencyConflict],
+      [ApplicationExceptionCode.ConcurrencyConflict],
       options,
     );
   }

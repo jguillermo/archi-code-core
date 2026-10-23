@@ -1,8 +1,6 @@
-import {
-  ApplicationException,
-  DomainException,
-  UnknownEventException,
-} from '../../exceptions/index';
+import { ApplicationException } from '../../application/index';
+import { DomainException } from '../../domain/index';
+import { UnknownEventException } from '../exceptions/unknown-event.exception';
 import type { EventBase, SerializedEvent } from '../../domain/index';
 import { ListensTo } from '../../application/index';
 import type {

@@ -123,8 +123,8 @@ people (and the AI assistants) that consume the package:
 ## Imports
 
 - Inside `src/`, import each symbol from the file that declares it
-  (`'../exceptions/domain/type-primitive.exception'`), never through an `index.ts` that only
-  re-exports it (`'../exceptions'`). Barrels inside a package hide dependencies and create import
+  (`'../exceptions/type-primitive.exception'`), never through an `index.ts` that only
+  re-exports it (`'../type'`). Barrels inside a package hide dependencies and create import
   cycles; `index.ts` files exist to expose the public API. The one exception is a package with
   subpath modules: across modules, import only through the other module's `index.ts` (its public
   API). Specs in `test/` may import from the `src` barrels.

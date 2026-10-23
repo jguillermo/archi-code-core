@@ -64,7 +64,7 @@ La implementación registra el `eventId` en `projection_inbox` y aplica el cambi
 
 ```ts
 import type { EventBase } from '@archi-code/ddd/domain';
-import { InfrastructureException } from '@archi-code/ddd/exceptions';
+import { InfrastructureException } from '@archi-code/ddd/infrastructure';
 
 interface Sql {
   query<Row>(text: string, values: readonly unknown[]): Promise<{ rows: Row[]; rowCount: number }>;
@@ -220,7 +220,7 @@ export async function rebuild(
 Una consulta de lectura es una interfaz de la aplicación que devuelve DTOs, implementada en infraestructura directamente sobre la base de datos:
 
 ```ts
-import { InternalErrorException } from '@archi-code/ddd/exceptions';
+import { InternalErrorException } from '@archi-code/ddd/infrastructure';
 
 export interface OrderSummary {
   readonly id: string;

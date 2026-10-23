@@ -7,9 +7,9 @@ import { NumberType } from '../../../src/domain/type/number-type';
 import { StringType } from '../../../src/domain/type/string-type';
 import { AbstractType } from '../../../src/domain/type/abstract-type';
 import { Required } from '../../../src/domain/type/required/required-type';
-import { TypePrimitiveException } from '../../../src/exceptions/domain/type-primitive.exception';
-import { RequiredValueException } from '../../../src/exceptions/domain/required-value.exception';
-import { ValidationException } from '../../../src/exceptions/domain/validation.exception';
+import { TypePrimitiveException } from '../../../src/domain/exceptions/type-primitive.exception';
+import { RequiredValueException } from '../../../src/domain/exceptions/required-value.exception';
+import { ValidationException } from '../../../src/domain/exceptions/validation.exception';
 
 @Validations([
   { validator: 'isLength', properties: { min: 2, max: 12 }, message: 'A tag has 2 to 12 letters' },

@@ -1,15 +1,15 @@
+import { ExceptionBrand } from '../../shared/index';
+import { InfrastructureExceptionCode } from './infrastructure-exception-code';
 import { InfrastructureException } from './infrastructure.exception';
-import { ExceptionBrand } from '../../shared/exceptions/brand/exception-brand';
-import { ExceptionCode } from '../../shared/exceptions/exception-code';
 
 export class UnknownEventException extends InfrastructureException {
   static {
-    ExceptionBrand.brandClass(this, ExceptionCode.UnknownEvent);
+    ExceptionBrand.brandClass(this, InfrastructureExceptionCode.UnknownEvent);
   }
 
   constructor(eventName: string) {
     super(`Unknown event "${eventName}": register it before reading it.`, [
-      ExceptionCode.UnknownEvent,
+      InfrastructureExceptionCode.UnknownEvent,
     ]);
   }
 }

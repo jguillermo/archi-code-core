@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { StringType } from '../../../src/domain/index';
-import { ValidationException } from '../../../src/exceptions/index';
+import { ValidationException } from '../../../src/domain/exceptions/validation.exception';
 import { LogSerializer } from '../../../src/infrastructure/logging/log-serializer';
 
 const entry = { time: '2026-10-19T09:30:00.000Z', level: 'error', message: 'order_failed' };

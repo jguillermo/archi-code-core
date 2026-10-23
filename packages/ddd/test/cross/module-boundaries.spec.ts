@@ -6,11 +6,10 @@ const ROOT = path.resolve(__dirname, '../..');
 const SRC = path.join(ROOT, 'src');
 
 const ALLOWED_MODULE_DEPENDENCIES: Record<string, readonly string[]> = {
-  exceptions: [],
-  shared: ['exceptions'],
-  domain: ['exceptions', 'shared'],
-  application: ['domain', 'exceptions', 'shared'],
-  infrastructure: ['application', 'domain', 'exceptions', 'shared'],
+  shared: [],
+  domain: ['shared'],
+  application: ['domain', 'shared'],
+  infrastructure: ['application', 'domain', 'shared'],
 };
 
 const INTERNAL_MODULES = ['shared'];
@@ -93,7 +92,7 @@ function findCycles(): string[][] {
   return cycles;
 }
 
-describe('layer boundaries: exceptions ← shared ← domain ← application ← infrastructure', () => {
+describe('layer boundaries: shared ← domain ← application ← infrastructure', () => {
   it('parses every module (sanity check of the parser itself)', () => {
     expect(files.length).toBeGreaterThan(10);
     expect(crossModuleImports().length).toBeGreaterThan(0);
@@ -132,7 +131,7 @@ describe('layer boundaries: exceptions ← shared ← domain ← application ←
     expect(outside).toEqual([]);
   });
 
-  it('exceptions depend on nothing, the domain only on exceptions and the application never on infrastructure', () => {
+  it('shared depends on nothing, the domain only on shared and the application never on infrastructure', () => {
     const forbidden = crossModuleImports()
       .filter(
         ([file, target]) => !ALLOWED_MODULE_DEPENDENCIES[moduleOf(file)].includes(moduleOf(target)),

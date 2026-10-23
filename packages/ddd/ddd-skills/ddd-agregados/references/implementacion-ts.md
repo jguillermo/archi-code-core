@@ -52,7 +52,7 @@ import {
   Required,
   StringType,
 } from '@archi-code/ddd/domain';
-import { DomainException } from '@archi-code/ddd/exceptions';
+import { DomainException } from '@archi-code/ddd/domain';
 import { Validations } from '@archi-code/validation';
 
 export class OrderId extends IdType<'OrderId'> {}
@@ -188,9 +188,8 @@ export class OrderStatus extends Required(StatusType) {
 Eventos (hechos en pasado, con primitivos tomados de los value objects) y errores de negocio:
 
 ```ts
-import { EventBase } from '@archi-code/ddd/domain';
+import { DomainException, EventBase } from '@archi-code/ddd/domain';
 import type { EventMetadata } from '@archi-code/ddd/domain';
-import { DomainException } from '@archi-code/ddd/exceptions';
 
 export interface MoneyData {
   readonly amount: number;
@@ -568,7 +567,7 @@ UPDATE orders
  WHERE id = $1 AND version = $4;
 ```
 
-`$4` es la versión que el repositorio recordaba (`this.versions.get(order) ?? 0`). Si la sentencia no afecta a ninguna fila, el repositorio lanza `new ConcurrencyException('Order', order.id.value, version)` (de `@archi-code/ddd/exceptions`; `ExceptionKind.Conflict`, 409 en HTTP; el nombre del agregado va como texto literal porque los minificadores renombran las clases); un agregado nuevo (versión `0`) se inserta y un id que ya existe es también un conflicto. Si escribe, hace `this.versions.set(order, version + 1)`. En los tests lo cumple el `InMemoryOrderRepository` que el proyecto escribe en `test/support/`; el repositorio real y su suite de contrato están en `ddd-repositorios-persistencia`.
+`$4` es la versión que el repositorio recordaba (`this.versions.get(order) ?? 0`). Si la sentencia no afecta a ninguna fila, el repositorio lanza `new ConcurrencyException('Order', order.id.value, version)` (de `@archi-code/ddd/application`; `ExceptionKind.Conflict`, 409 en HTTP; el nombre del agregado va como texto literal porque los minificadores renombran las clases); un agregado nuevo (versión `0`) se inserta y un id que ya existe es también un conflicto. Si escribe, hace `this.versions.set(order, version + 1)`. En los tests lo cumple el `InMemoryOrderRepository` que el proyecto escribe en `test/support/`; el repositorio real y su suite de contrato están en `ddd-repositorios-persistencia`.
 
 Reintentar automáticamente solo es seguro si el comando es idempotente o se vuelve a evaluar contra el estado recargado: con el paquete, un bucle con límite en `handle` en el que cada intento vuelve a cargar el agregado y vuelve a guardarlo (unos pocos intentos y después se relanza); un caso de uso que ejecuta un listener no reintenta por su cuenta, lo hace la reentrega del canal `[Fuera de los libros: convención de @archi-code/ddd]`. Ejemplo en `ddd-skills/ddd-repositorios-persistencia/references/transacciones-ts.md`.
 

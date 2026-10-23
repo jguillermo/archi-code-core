@@ -1,6 +1,6 @@
+import { ExceptionBrand } from '../../shared/index';
+import { DomainExceptionCode } from './domain-exception-code';
 import { DomainException } from './domain.exception';
-import { ExceptionBrand } from '../../shared/exceptions/brand/exception-brand';
-import { ExceptionCode } from '../../shared/exceptions/exception-code';
 
 export interface ValidationIssue {
   readonly field: string | null;
@@ -12,17 +12,17 @@ export type ValidationIssueInput = Omit<ValidationIssue, 'code'> & { readonly co
 
 export class ValidationException extends DomainException {
   static {
-    ExceptionBrand.brandClass(this, ExceptionCode.ValidationFailed);
+    ExceptionBrand.brandClass(this, DomainExceptionCode.ValidationFailed);
   }
 
   readonly errors: readonly ValidationIssue[];
 
   constructor(errors: readonly ValidationIssueInput[]) {
     super(`Validation failed, ${errors.map(ValidationException.describe).join(', ')}`, [
-      ExceptionCode.ValidationFailed,
+      DomainExceptionCode.ValidationFailed,
     ]);
     this.errors = Object.freeze(
-      errors.map(({ field, code = ExceptionCode.ValidationFailed, message }) =>
+      errors.map(({ field, code = DomainExceptionCode.ValidationFailed, message }) =>
         Object.freeze({ field, code, message }),
       ),
     );

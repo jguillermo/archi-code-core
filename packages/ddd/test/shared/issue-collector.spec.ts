@@ -1,18 +1,45 @@
 import { describe, expect, it } from 'vitest';
 import { IssueCollector } from '../../src/shared/issue-collector';
-import { NumberType } from '../../src/domain/type/number-type';
-import { StringType } from '../../src/domain/type/string-type';
-import { Required } from '../../src/domain/type/required/required-type';
-import { ValidationException } from '../../src/exceptions/domain/validation.exception';
+import type { IssueReader } from '../../src/shared/issue-collector';
+import { IssueCollectionError } from '../../src/shared/issue-collection-error';
 
-class Quantity extends Required(NumberType) {}
-class Sku extends Required(StringType) {}
+class InvalidUnitsError extends Error {
+  constructor(readonly units: unknown) {
+    super(`Units must be a positive number, but received ${String(units)}.`);
+  }
+}
+
+const readIssues: IssueReader = (error) => {
+  if (error instanceof IssueCollectionError) {
+    return error.issues;
+  }
+  if (error instanceof InvalidUnitsError) {
+    return [{ field: null, code: 'ORD010', message: error.message }];
+  }
+  return null;
+};
+
+function units(value: unknown): number {
+  if (typeof value !== 'number' || value <= 0) {
+    throw new InvalidUnitsError(value);
+  }
+  return value;
+}
+
+function sku(value: unknown): string {
+  if (typeof value !== 'string' || value === '') {
+    throw new IssueCollectionError([
+      { field: 'code', code: 'ORD011', message: 'A SKU needs a code.' },
+    ]);
+  }
+  return value;
+}
 
 function issuesOf(collect: () => unknown): unknown {
   try {
     collect();
   } catch (error) {
-    return (error as ValidationException).errors;
+    return (error as IssueCollectionError).issues;
   }
   return undefined;
 }
@@ -20,57 +47,56 @@ function issuesOf(collect: () => unknown): unknown {
 describe('IssueCollector: building every field before reporting what is wrong', () => {
   it('returns every field built, by name', () => {
     expect(
-      IssueCollector.collectFields({
-        sku: () => new Sku('TORCH-01'),
-        units: () => new Quantity(2),
-      }),
-    ).toEqual({ sku: new Sku('TORCH-01'), units: new Quantity(2) });
+      IssueCollector.collectFields(
+        { sku: () => sku('TORCH-01'), units: () => units(2) },
+        readIssues,
+      ),
+    ).toEqual({ sku: 'TORCH-01', units: 2 });
   });
 
   it('returns every item built, in order', () => {
-    expect(IssueCollector.collectItems([3, 1], (units) => new Quantity(units))).toEqual([
-      new Quantity(3),
-      new Quantity(1),
+    expect(IssueCollector.collectItems([3, 1], (value) => units(value), readIssues)).toEqual([
+      3, 1,
     ]);
   });
 
   it('hands each item its position', () => {
-    expect(IssueCollector.collectItems(['a', 'b'], (sku, index) => `${index}:${sku}`)).toEqual([
-      '0:a',
-      '1:b',
-    ]);
+    expect(
+      IssueCollector.collectItems(['a', 'b'], (value, index) => `${index}:${value}`, readIssues),
+    ).toEqual(['0:a', '1:b']);
   });
 
-  it('reports every failing field in one ValidationException, with its path', () => {
+  it('reports every failing field in its own IssueCollectionError, each issue with its path', () => {
     const collect = () =>
-      IssueCollector.collectFields({
-        sku: () => new Sku(null as unknown as string),
-        lines: () =>
-          IssueCollector.collectItems(['two', 1] as number[], (units) => new Quantity(units)),
-      });
-    expect(collect).toThrow(ValidationException);
+      IssueCollector.collectFields(
+        {
+          sku: () => sku(''),
+          lines: () => IssueCollector.collectItems([0, 1], (value) => units(value), readIssues),
+        },
+        readIssues,
+      );
+    expect(collect).toThrow(IssueCollectionError);
     expect(issuesOf(collect)).toEqual([
-      {
-        field: 'sku',
-        code: 'DOM004',
-        message: 'Validation Error: Sku is required, but received null.',
-      },
+      { field: 'sku.code', code: 'ORD011', message: 'A SKU needs a code.' },
       {
         field: 'lines.0',
-        code: 'DOM003',
-        message: 'Validation Error: Expected a valid Number, but received "two".',
+        code: 'ORD010',
+        message: 'Units must be a positive number, but received 0.',
       },
     ]);
   });
 
-  it('lets an error that is not a domain error through untouched', () => {
+  it('lets an error its reader does not know through untouched', () => {
     const outage = new Error('stock service unavailable');
     expect(() =>
-      IssueCollector.collectFields({
-        units: () => {
-          throw outage;
+      IssueCollector.collectFields(
+        {
+          units: () => {
+            throw outage;
+          },
         },
-      }),
+        readIssues,
+      ),
     ).toThrow(outage);
   });
 });

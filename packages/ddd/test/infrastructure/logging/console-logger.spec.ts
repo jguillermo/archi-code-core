@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 import type { MockInstance } from 'vitest';
 import type { Logger, LogLevel } from '../../../src/application/index';
-import { InternalErrorException } from '../../../src/exceptions/index';
+import { InternalErrorException } from '../../../src/infrastructure/exceptions/internal-error.exception';
 import { FixedClock } from '../../../src/infrastructure/clock/fixed-clock';
 import { ConsoleLogger } from '../../../src/infrastructure/logging/console-logger';
 

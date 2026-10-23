@@ -11,12 +11,10 @@ import { EventListener, ListensTo } from '../../../src/application/index';
 import type { EventBus } from '../../../src/application/index';
 import { EventBase } from '../../../src/domain/index';
 import type { EventMetadata, SerializedEvent } from '../../../src/domain/index';
-import {
-  ApplicationException,
-  ConcurrencyException,
-  DomainException,
-  UnknownEventException,
-} from '../../../src/exceptions/index';
+import { ApplicationException } from '../../../src/application/exceptions/application.exception';
+import { ConcurrencyException } from '../../../src/application/exceptions/concurrency.exception';
+import { DomainException } from '../../../src/domain/exceptions/domain.exception';
+import { UnknownEventException } from '../../../src/infrastructure/exceptions/unknown-event.exception';
 import { InMemoryLogger } from '../../../src/infrastructure/logging/in-memory-logger';
 
 class OrderPlaced extends EventBase {

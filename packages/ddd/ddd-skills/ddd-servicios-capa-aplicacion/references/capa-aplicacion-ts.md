@@ -6,9 +6,8 @@ Un caso de uso extiende `UseCase<Input, Command, Output>` de `@archi-code/ddd/ap
 
 ```ts
 import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
-import { UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
+import { AggregateNotFoundException, NotAllowedException, UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
-import { AggregateNotFoundException, NotAllowedException } from '@archi-code/ddd/exceptions';
 
 export interface SalesPermissions {
   canCancelOrders(requester: CustomerId): Promise<boolean>;
@@ -92,7 +91,7 @@ Para pantallas, mejor una consulta de lectura aparte que devuelve un DTO sin pas
 
 ## Command bus
 
-*DDD in PHP* presenta el bus de comandos (Tactician) para enlazar cada comando con su manejador; los objetos request se parecen ya a comandos [PHP: Application]. El paquete no trae bus de comandos `[Fuera de los libros: convención de @archi-code/ddd]`: el composition root construye cada caso de uso y se lo pasa al punto de entrada, que llama a `execute(input)`. Lo común a todos los casos de uso ya está en `UseCase.execute` (dejar pasar las excepciones del paquete y envolver cualquier otro error en `InternalErrorException` con `cause`), y la atomicidad de cada escritura es del repositorio.
+*DDD in PHP* presenta el bus de comandos (Tactician) para enlazar cada comando con su manejador; los objetos request se parecen ya a comandos [PHP: Application]. El paquete no trae bus de comandos `[Fuera de los libros: convención de @archi-code/ddd]`: el composition root construye cada caso de uso y se lo pasa al punto de entrada, que llama a `execute(input)`. Lo común a todos los casos de uso ya está en `UseCase.execute` (dejar pasar las excepciones del paquete y envolver cualquier otro error en `UnexpectedErrorException` con `cause`), y la atomicidad de cada escritura es del repositorio.
 
 ## Eventos en la capa de aplicación
 
@@ -104,7 +103,8 @@ Para pantallas, mejor una consulta de lectura aparte que devuelve un DTO sin pas
 Cada repositorio comprueba la versión del agregado y lanza `ConcurrencyException` (409) si otro lo cambió después de cargarlo. Si el comando es seguro de repetir sobre el nuevo estado, el caso de uso puede reintentarlo [IDDD cap. 10; IDDD apéndice A]: un bucle en `handle` en el que cada intento vuelve a cargar el agregado y vuelve a guardarlo; pocos intentos y después se relanza. Un caso de uso que ejecuta un listener no reintenta por sí mismo: reintenta la reentrega del canal.
 
 ```ts
-import { ConcurrencyException, DomainException } from '@archi-code/ddd/exceptions';
+import { DomainException } from '@archi-code/ddd/domain';
+import { ConcurrencyException } from '@archi-code/ddd/application';
 
 export interface ProductPricing {
   priceForSale(sku: Sku): Promise<Money | null>;
@@ -168,8 +168,8 @@ export class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand
 
 * El dominio lanza `DomainException` con nombre y código propio (`class OrderCannotBeCancelled extends DomainException`, `super(message, ['ORD002'])`); los value objects y `ValueObjectBuilder.build` lanzan `ValidationException`.
 * La aplicación añade las suyas: `AggregateNotFoundException('Order', id)` cuando `findById` devuelve `null`, `NotAllowedException(message)` cuando el solicitante no puede ejecutar la acción, `ApplicationException` para otros errores de aplicación. Al traducir otro error, siempre con `{ cause: error }`.
-* Los errores se dejan propagar: no se capturan en `handle` para relanzarlos; `execute` deja pasar las excepciones del paquete y envuelve el resto en `InternalErrorException`.
-* El punto de entrada los clasifica con `ExceptionClassifier.classify(error)` de `@archi-code/ddd/exceptions`, que no sabe de ningún protocolo: `NotFound` (`AggregateNotFoundException`), `NotAllowed` (`NotAllowedException`), `Conflict` (`ConcurrencyException`), `Malformed` (`TypePrimitiveException`, `RequiredValueException`), `Invalid` (`ValidationException` y cualquier otra `DomainException`), `Rejected` (otros errores de aplicación) e `Internal` (lo demás). Cada protocolo traduce el `ExceptionKind` a sus códigos (en HTTP: 404, 403, 409, 400, 422, 400 y 500), usa `error.code` para los códigos propios (`ORD001` → 409), oculta el mensaje de `Internal`, devuelve los `errors` de una `ValidationException` y registra él mismo los fallos internos `[Fuera de los libros: convención de @archi-code/ddd]`. Un controlador HTTP usa el `toHttpError` del proyecto (en `interfaces/http/`; completo en `ddd-skills/ddd-arquitectura/references/estructura-hexagonal-ts.md`):
+* Los errores se dejan propagar: no se capturan en `handle` para relanzarlos; `execute` deja pasar las excepciones del paquete y envuelve el resto en `UnexpectedErrorException` (de `@archi-code/ddd/application`).
+* El punto de entrada los clasifica con `ExceptionClassifier.classify(error)` de `@archi-code/ddd/infrastructure`, que no sabe de ningún protocolo: `NotFound` (`AggregateNotFoundException`), `NotAllowed` (`NotAllowedException`), `Conflict` (`ConcurrencyException`), `Malformed` (`TypePrimitiveException`, `RequiredValueException`), `Invalid` (`ValidationException` y cualquier otra `DomainException`), `Rejected` (otros errores de aplicación) e `Internal` (`UnexpectedErrorException`, `InvalidEventDefinitionException` y lo demás). Cada protocolo traduce el `ExceptionKind` a sus códigos (en HTTP: 404, 403, 409, 400, 422, 400 y 500), usa `error.code` para los códigos propios (`ORD001` → 409), oculta el mensaje de `Internal`, devuelve los `errors` de una `ValidationException` y registra él mismo los fallos internos `[Fuera de los libros: convención de @archi-code/ddd]`. Un controlador HTTP usa el `toHttpError` del proyecto (en `interfaces/http/`; completo en `ddd-skills/ddd-arquitectura/references/estructura-hexagonal-ts.md`):
 
 ```ts
 import type { Logger } from '@archi-code/ddd/application';
@@ -215,7 +215,7 @@ Con adaptadores en memoria: `InMemoryOrderRepository`, que el proyecto escribe e
 
 ```ts
 import { describe, expect, it } from 'vitest';
-import { NotAllowedException } from '@archi-code/ddd/exceptions';
+import { NotAllowedException } from '@archi-code/ddd/application';
 import {
   DomainEventBus,
   EventRegistry,

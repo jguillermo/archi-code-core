@@ -17,7 +17,7 @@ export interface ProductPricing {
 ```
 
 ```ts
-import { InternalErrorException } from '@archi-code/ddd/exceptions';
+import { InternalErrorException } from '@archi-code/ddd/infrastructure';
 
 interface LegacyArticleRow {
   article_code: string;

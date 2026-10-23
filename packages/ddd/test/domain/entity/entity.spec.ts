@@ -7,7 +7,7 @@ import { Required } from '../../../src/domain/type/required/required-type';
 import { StringType } from '../../../src/domain/type/string-type';
 import type { PrimitiveTypes } from '../../../src/domain/primitive/primitive-types';
 import type { RequiredMarked } from '../../../src/domain/type/required/required-mark';
-import { RequiredValueException } from '../../../src/exceptions/index';
+import { RequiredValueException } from '../../../src/domain/exceptions/required-value.exception';
 
 class SeatId extends IdType<'SeatId'> {}
 class SeatLabel extends Required(StringType) {}

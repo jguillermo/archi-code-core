@@ -1,7 +1,8 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import type { Clock } from '../../../src/application/index';
 import { AggregateRoot, CreatedAt, IdType, UpdatedAt } from '../../../src/domain/index';
-import { RequiredValueException, TypePrimitiveException } from '../../../src/exceptions/index';
+import { RequiredValueException } from '../../../src/domain/exceptions/required-value.exception';
+import { TypePrimitiveException } from '../../../src/domain/exceptions/type-primitive.exception';
 import { FixedClock } from '../../../src/infrastructure/clock/fixed-clock';
 
 class InvoiceId extends IdType<'InvoiceId'> {}

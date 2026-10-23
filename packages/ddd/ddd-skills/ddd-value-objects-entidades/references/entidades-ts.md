@@ -56,8 +56,7 @@ No se escribe una clase base `Entity`: viene de `@archi-code/ddd/domain`. `Entit
 Una raíz de agregado extiende `AggregateRoot`. Una entidad hija (una parte con identidad propia dentro del agregado, que se busca por ese id) extiende `Entity`, guarda su id local y value objects, y sus métodos de negocio solo los llama su raíz [IDDD cap. 5 y cap. 10]:
 
 ```ts
-import { BooleanType, Entity, NumberType, Required, StringType } from '@archi-code/ddd/domain';
-import { DomainException } from '@archi-code/ddd/exceptions';
+import { BooleanType, DomainException, Entity, NumberType, Required, StringType } from '@archi-code/ddd/domain';
 
 export class SeatNumber extends Required(NumberType) {}
 export class SeatLabel extends Required(StringType) {}
@@ -97,9 +96,8 @@ Separar dos caminos evita que la carga desde base de datos vuelva a disparar reg
 
 ```ts
 import { Validations } from '@archi-code/validation';
-import { AggregateRoot, EnumType, EventBase, Required, StringType } from '@archi-code/ddd/domain';
+import { AggregateRoot, DomainException, EnumType, EventBase, Required, StringType } from '@archi-code/ddd/domain';
 import type { EventMetadata, PrimitiveTypes } from '@archi-code/ddd/domain';
-import { DomainException } from '@archi-code/ddd/exceptions';
 
 export class CustomerName extends Required(StringType) {}
 

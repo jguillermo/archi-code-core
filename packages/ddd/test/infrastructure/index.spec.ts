@@ -18,13 +18,22 @@ import { EventRegistry } from '../../src/infrastructure/event/event-registry';
 const PUBLIC_API = [
   'ConsoleLogger',
   'DomainEventBus',
+  'EventDeliveryException',
   'EventRegistry',
+  'ExceptionClassifier',
+  'ExceptionKind',
   'FixedClock',
   'InMemoryEventChannel',
   'InMemoryLogger',
+  'InfrastructureException',
+  'InfrastructureExceptionCode',
+  'InternalErrorException',
   'SilentLogger',
   'SystemClock',
+  'UnknownEventException',
 ];
+
+const ENUMS = ['ExceptionKind', 'InfrastructureExceptionCode'];
 
 describe('@archi-code/ddd/infrastructure', () => {
   it('exports exactly the public API', () => {
@@ -55,8 +64,20 @@ describe('@archi-code/ddd/infrastructure', () => {
     }
   });
 
-  it('exports every value as a class', () => {
-    for (const name of PUBLIC_API) {
+  it('exports only the exceptions of the infrastructure, their codes and the classifier entry points use', () => {
+    expect(Object.keys(infrastructure).filter((name) => name.endsWith('Exception'))).toEqual([
+      'InfrastructureException',
+      'InternalErrorException',
+      'UnknownEventException',
+      'EventDeliveryException',
+    ]);
+    expect(infrastructure.InfrastructureExceptionCode.InternalError).toBe('INF001');
+    expect(infrastructure.ExceptionKind.NotFound).toBe('not_found');
+    expect(Object.keys(infrastructure)).not.toContain('AbstractException');
+  });
+
+  it('exports every value as a class, except the enums', () => {
+    for (const name of PUBLIC_API.filter((name) => !ENUMS.includes(name))) {
       expect(typeof infrastructure[name as keyof typeof infrastructure]).toBe('function');
     }
   });

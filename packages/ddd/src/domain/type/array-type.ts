@@ -2,7 +2,7 @@ import { toArray } from '@archi-code/validation';
 import type { ValidationError, ValidationResult } from '@archi-code/validation';
 import { AbstractType } from './abstract-type';
 import type { ValueOf } from './abstract-type';
-import { TypePrimitiveException } from '../../exceptions/index';
+import { TypePrimitiveException } from '../exceptions/type-primitive.exception';
 
 type ItemValue<Item extends AbstractType<any>> = Item['value'];
 

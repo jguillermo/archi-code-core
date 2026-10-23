@@ -1,8 +1,8 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import { IdType } from '../../../src/domain/type/id-type';
 import { UuidType } from '../../../src/domain/type/uuid-type';
-import { TypePrimitiveException } from '../../../src/exceptions/domain/type-primitive.exception';
-import { RequiredValueException } from '../../../src/exceptions/domain/required-value.exception';
+import { TypePrimitiveException } from '../../../src/domain/exceptions/type-primitive.exception';
+import { RequiredValueException } from '../../../src/domain/exceptions/required-value.exception';
 
 class OrderId extends IdType<'OrderId'> {}
 

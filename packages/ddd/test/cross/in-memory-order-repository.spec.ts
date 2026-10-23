@@ -9,7 +9,8 @@ import {
   StringType,
 } from '../../src/domain/index';
 import { FixedClock } from '../../src/infrastructure/index';
-import { ConcurrencyException, DomainException } from '../../src/exceptions/index';
+import { ConcurrencyException } from '../../src/application/exceptions/concurrency.exception';
+import { DomainException } from '../../src/domain/exceptions/domain.exception';
 import type { PrimitiveTypes } from '../../src/domain/index';
 
 class OrderId extends IdType<'OrderId'> {}

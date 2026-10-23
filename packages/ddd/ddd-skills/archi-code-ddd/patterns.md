@@ -300,7 +300,7 @@ import type {
   AggregateSaver,
   PrimitiveTypes,
 } from '@archi-code/ddd/domain';
-import { ConcurrencyException } from '@archi-code/ddd/exceptions';
+import { ConcurrencyException } from '@archi-code/ddd/application';
 
 export class InMemoryOrderRepository
   implements AggregateFinder<Order>, AggregateSaver<Order>, AggregateRemover<Order>

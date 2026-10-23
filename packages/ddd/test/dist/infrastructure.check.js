@@ -4,7 +4,6 @@ const path = require('path');
 
 const application = require(path.resolve(__dirname, '../../dist/cjs/application/index.js'));
 const domain = require(path.resolve(__dirname, '../../dist/cjs/domain/index.js'));
-const exceptions = require(path.resolve(__dirname, '../../dist/cjs/exceptions/index.js'));
 
 const ORDER_ID = '9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c';
 const OTHER_ORDER_ID = '3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f';
@@ -81,7 +80,7 @@ function smoke(m) {
             const key = order.id.value;
             const version = this.versions.get(order) ?? 0;
             if ((this.rows.get(key)?.version ?? 0) !== version) {
-              throw new exceptions.ConcurrencyException('Order', key, version);
+              throw new application.ConcurrencyException('Order', key, version);
             }
             return version;
           }
@@ -106,7 +105,7 @@ function smoke(m) {
             first !== second &&
             repository.versions.get(first) === 2 &&
             repository.versions.get(stored) === 2 &&
-            conflict instanceof exceptions.ConcurrencyException &&
+            conflict instanceof application.ConcurrencyException &&
             removed === null) ||
           'unexpected in-memory repository behavior'
         );
@@ -212,7 +211,7 @@ function smoke(m) {
           failure = error;
         }
         return (
-          (failure instanceof exceptions.EventDeliveryException &&
+          (failure instanceof m.EventDeliveryException &&
             failure.errors.length === 1 &&
             ran.join() === 'mail') ||
           `unexpected parallel delivery: ${failure}`
@@ -277,7 +276,89 @@ function smoke(m) {
         );
       },
     ],
+    [
+      'infrastructure exceptions carry their codes and cause',
+      () => {
+        const cause = new Error('ECONNRESET');
+        const internal = new m.InternalErrorException('saving order', { cause });
+        return (
+          (internal.cause === cause &&
+            internal.code === m.InfrastructureExceptionCode.InternalError &&
+            internal.description === 'Infrastructure Exception (INF000), Internal Error (INF001)' &&
+            internal instanceof m.InfrastructureException &&
+            new m.UnknownEventException('OrderCancelled').code === 'INF002') ||
+          'unexpected infrastructure exception shape'
+        );
+      },
+    ],
+    [
+      'the classifier tells entry points the kind of every failure of every layer',
+      () => {
+        const kinds = [
+          new application.AggregateNotFoundException('Order', ORDER_ID),
+          new application.NotAllowedException('cus-luis cannot cancel'),
+          new application.ConcurrencyException('Order', ORDER_ID, 3),
+          new domain.RequiredValueException('Email', ''),
+          new domain.DomainException('Order already shipped', ['ORD001']),
+          new application.ApplicationException('Email already used', ['USR001']),
+          new application.UnexpectedErrorException('PlaceOrder: boom'),
+          new domain.InvalidEventDefinitionException('OrderArchived'),
+          new m.InternalErrorException('password=secret'),
+          new Error('disk full'),
+        ].map((error) => m.ExceptionClassifier.classify(error));
+        return (
+          kinds.join() ===
+            [
+              m.ExceptionKind.NotFound,
+              m.ExceptionKind.NotAllowed,
+              m.ExceptionKind.Conflict,
+              m.ExceptionKind.Malformed,
+              m.ExceptionKind.Invalid,
+              m.ExceptionKind.Rejected,
+              m.ExceptionKind.Internal,
+              m.ExceptionKind.Internal,
+              m.ExceptionKind.Internal,
+              m.ExceptionKind.Internal,
+            ].join() || `unexpected kinds ${kinds.join()}`
+        );
+      },
+    ],
   ];
 }
 
-module.exports = { smoke };
+function crossBuild(cjs, esm) {
+  return [
+    [
+      'recognize infrastructure exceptions thrown by the other build',
+      () => {
+        const delivery = new esm.EventDeliveryException('OrderPlaced', [], 0);
+        return (
+          (delivery instanceof cjs.EventDeliveryException &&
+            delivery instanceof cjs.InfrastructureException &&
+            !(delivery instanceof cjs.InternalErrorException)) ||
+          'an infrastructure exception of one build is not recognized by the other'
+        );
+      },
+    ],
+    [
+      'the classifier of one build classifies exceptions thrown by the other',
+      async () => {
+        const esmDomain = await import('../../dist/esm/domain/index.js');
+        const esmApplication = await import('../../dist/esm/application/index.js');
+        const invalid = new esmDomain.ValidationException([
+          { field: 'email', message: 'Email: Value does not satisfy isEmail' },
+        ]);
+        const notFound = new application.AggregateNotFoundException('Order', ORDER_ID);
+        const unexpected = new esmApplication.UnexpectedErrorException('PlaceOrder: boom');
+        return (
+          (cjs.ExceptionClassifier.classify(invalid) === 'invalid' &&
+            esm.ExceptionClassifier.classify(notFound) === 'not_found' &&
+            cjs.ExceptionClassifier.classify(unexpected) === 'internal') ||
+          'a classifier does not recognize the exceptions of the other build'
+        );
+      },
+    ],
+  ];
+}
+
+module.exports = { smoke, crossBuild };

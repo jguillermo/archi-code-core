@@ -26,16 +26,6 @@
     "access": "public"
   },
   "exports": {
-    "./exceptions": {
-      "import": {
-        "types": "./dist/esm/exceptions/index.d.ts",
-        "default": "./dist/esm/exceptions/index.js"
-      },
-      "require": {
-        "types": "./dist/cjs/exceptions/index.d.ts",
-        "default": "./dist/cjs/exceptions/index.js"
-      }
-    },
     "./domain": {
       "import": {
         "types": "./dist/esm/domain/index.d.ts",
@@ -70,9 +60,6 @@
   },
   "typesVersions": {
     "*": {
-      "exceptions": [
-        "./dist/cjs/exceptions/index.d.ts"
-      ],
       "domain": [
         "./dist/cjs/domain/index.d.ts"
       ],

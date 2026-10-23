@@ -6,15 +6,16 @@ description: The single entry point for Domain-Driven Design with @archi-code/dd
 # archi-code-ddd
 
 `@archi-code/ddd` is archi-code's Domain-Driven Design package for TypeScript, one entry point per
-layer: `@archi-code/ddd/exceptions` (the exceptions every layer throws), `@archi-code/ddd/domain`
-(value objects, `Composite`, `Specification`, `Entity`, `AggregateRoot`, `EventBase`
-and the repository contracts `AggregateFinder`, `AggregateSaver`, `AggregateRemover`),
-`@archi-code/ddd/application` (`UseCase`, the event contract to listen, `EventListener` and
-`@ListensTo`, and to publish, `EventBus`, and the ports `Clock`, `Logger`) and
-`@archi-code/ddd/infrastructure` (aggregate mapper for your repositories, the
+layer, each with the exceptions of its layer: `@archi-code/ddd/domain` (value objects, `Composite`,
+`Specification`, `Entity`, `AggregateRoot`, `EventBase`, the repository contracts
+`AggregateFinder`, `AggregateSaver`, `AggregateRemover`, and `DomainException`,
+`ValidationException`…), `@archi-code/ddd/application` (`UseCase`, the event contract to listen,
+`EventListener` and `@ListensTo`, and to publish, `EventBus`, the ports `Clock`, `Logger`, and
+`AggregateNotFoundException`, `NotAllowedException`…) and `@archi-code/ddd/infrastructure` (the
 event wiring `DomainEventBus`, `EventRegistry` and the `EventChannel` port, in-memory event
-channel, clocks, loggers). `@archi-code/ddd/exceptions` also has `ExceptionClassifier`, which
-gives every entry point (HTTP, gRPC, queue, CLI) the `ExceptionKind` of an error.
+channel, clocks, loggers, `InternalErrorException`…). `@archi-code/ddd/infrastructure` also has
+`ExceptionClassifier`, which gives every entry point (HTTP, gRPC, queue, CLI) the `ExceptionKind`
+of an error.
 
 ## Full API
 

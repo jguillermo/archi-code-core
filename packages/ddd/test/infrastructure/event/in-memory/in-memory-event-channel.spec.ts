@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import type { ChannelSubscription, EventChannel } from '../../../../src/infrastructure/index';
 import type { SerializedEvent } from '../../../../src/domain/index';
-import { EventDeliveryException } from '../../../../src/exceptions/index';
+import { EventDeliveryException } from '../../../../src/infrastructure/exceptions/event-delivery.exception';
 import { InMemoryEventChannel } from '../../../../src/infrastructure/event/in-memory/in-memory-event-channel';
 import { describeEventChannelContract, orderEvent } from '../../../contract/event-channel-contract';
 

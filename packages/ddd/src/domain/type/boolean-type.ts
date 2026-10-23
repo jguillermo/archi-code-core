@@ -1,6 +1,6 @@
 import { toBoolean } from '@archi-code/validation';
 import { AbstractType } from './abstract-type';
-import { TypePrimitiveException } from '../../exceptions/index';
+import { TypePrimitiveException } from '../exceptions/type-primitive.exception';
 
 export class BooleanType extends AbstractType<boolean> {
   protected filter(value: unknown): boolean {

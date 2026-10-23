@@ -44,8 +44,8 @@ const command = ValueObjectBuilder.build({
 * **Un objeto ya construido** (la ficha de un producto que se quiere publicar, en el contexto de Catálogo): un servicio de dominio recoge los `ValidationIssue` y lanza una sola `new ValidationException(issues)`.
 
 ```ts
-import { ValidationException } from '@archi-code/ddd/exceptions';
-import type { ValidationIssue } from '@archi-code/ddd/exceptions';
+import { ValidationException } from '@archi-code/ddd/domain';
+import type { ValidationIssue } from '@archi-code/ddd/domain';
 
 export class ListingReadyToPublish {
   check(listing: ProductListing): void {
@@ -80,11 +80,11 @@ Un agregado puede estar en un estado intermedio legítimo en el que no procede v
 ## Errores con nombre
 
 `[Fuera de los libros]`
-* Una clase de error por regla de negocio (`OrderMustHaveLines`, `CurrencyMismatch`), con un código estable para traducir a mensajes de usuario y a códigos HTTP en el adaptador. Con el paquete, una subclase de `DomainException` (de `@archi-code/ddd/exceptions`) con su código en el segundo argumento.
+* Una clase de error por regla de negocio (`OrderMustHaveLines`, `CurrencyMismatch`), con un código estable para traducir a mensajes de usuario y a códigos HTTP en el adaptador. Con el paquete, una subclase de `DomainException` (de `@archi-code/ddd/domain`) con su código en el segundo argumento.
 * No uses `Error('invalid')` en el dominio.
 
 ```ts
-import { DomainException } from '@archi-code/ddd/exceptions';
+import { DomainException } from '@archi-code/ddd/domain';
 
 export class OrderMustHaveLines extends DomainException {
   constructor() {
@@ -93,4 +93,4 @@ export class OrderMustHaveLines extends DomainException {
 }
 ```
 
-`error.code` es `'ORD002'`. En la entrada, `ExceptionClassifier.classify(error)` (de `@archi-code/ddd/exceptions`) da el tipo de fallo sin tablas por excepción: `ExceptionKind.Invalid` para una `ValidationException` o cualquier `DomainException` (422 en HTTP) y `ExceptionKind.Malformed` para un error de conversión u obligatoriedad lanzado solo (400); el punto de entrada cambia el estado de un código cuando el negocio lo pide (`ORD001` → 409).
+`error.code` es `'ORD002'`. En la entrada, `ExceptionClassifier.classify(error)` (de `@archi-code/ddd/infrastructure`) da el tipo de fallo sin tablas por excepción: `ExceptionKind.Invalid` para una `ValidationException` o cualquier `DomainException` (422 en HTTP) y `ExceptionKind.Malformed` para un error de conversión u obligatoriedad lanzado solo (400); el punto de entrada cambia el estado de un código cuando el negocio lo pide (`ORD001` → 409).

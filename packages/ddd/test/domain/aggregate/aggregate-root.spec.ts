@@ -7,7 +7,7 @@ import { IdType } from '../../../src/domain/type/id-type';
 import { NumberType } from '../../../src/domain/type/number-type';
 import { Required } from '../../../src/domain/type/required/required-type';
 import { StringType } from '../../../src/domain/type/string-type';
-import { DomainException } from '../../../src/exceptions/domain/domain.exception';
+import { DomainException } from '../../../src/domain/exceptions/domain.exception';
 import type { PrimitiveTypes } from '../../../src/domain/primitive/primitive-types';
 
 class OrderId extends IdType<'OrderId'> {}

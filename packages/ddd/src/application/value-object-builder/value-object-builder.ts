@@ -1,5 +1,7 @@
-import { InternalErrorException } from '../../exceptions';
-import { IssueCollector } from '../../shared/index';
+import { DomainException, ValidationException } from '../../domain/index';
+import { IssueCollectionError, IssueCollector } from '../../shared/index';
+import type { CollectedIssue } from '../../shared/index';
+import { UnexpectedErrorException } from '../exceptions/unexpected-error.exception';
 
 type Factories = Record<string, () => unknown>;
 
@@ -21,15 +23,21 @@ export class ValueObjectBuilder {
         () => ValueObjectBuilder.synchronous(field, factory()),
       ]),
     );
-    return IssueCollector.collectFields(builds) as Built<F>;
+    return ValueObjectBuilder.validated(
+      () => IssueCollector.collectFields(builds, ValueObjectBuilder.read) as Built<F>,
+    );
   }
 
   static buildList<Value, Item>(
     values: readonly Value[],
     factory: (value: Value, index: number) => Item,
   ): Item[] {
-    return IssueCollector.collectItems(values, (value, index) =>
-      ValueObjectBuilder.synchronous(String(index), factory(value, index)),
+    return ValueObjectBuilder.validated(() =>
+      IssueCollector.collectItems(
+        values,
+        (value, index) => ValueObjectBuilder.synchronous(String(index), factory(value, index)),
+        ValueObjectBuilder.read,
+      ),
     );
   }
 
@@ -38,9 +46,30 @@ export class ValueObjectBuilder {
       return result;
     }
     result.then(undefined, () => undefined);
-    throw new InternalErrorException(
+    throw new UnexpectedErrorException(
       `ValueObjectBuilder: the factory of "${field}" returned a Promise; build value objects synchronously`,
     );
+  }
+
+  private static validated<Collected>(collect: () => Collected): Collected {
+    try {
+      return collect();
+    } catch (error) {
+      if (error instanceof IssueCollectionError) {
+        throw new ValidationException(error.issues);
+      }
+      throw error;
+    }
+  }
+
+  private static read(error: unknown): readonly CollectedIssue[] | null {
+    if (error instanceof ValidationException) {
+      return error.errors;
+    }
+    if (error instanceof DomainException) {
+      return [{ field: null, code: error.code, message: error.message }];
+    }
+    return null;
   }
 
   private static isThenable(result: unknown): result is PromiseLike<unknown> {

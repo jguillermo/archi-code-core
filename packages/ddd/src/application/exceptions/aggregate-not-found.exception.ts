@@ -1,14 +1,18 @@
+import { ExceptionBrand } from '../../shared/index';
+import type { ExceptionOptions } from '../../shared/index';
+import { ApplicationExceptionCode } from './application-exception-code';
 import { ApplicationException } from './application.exception';
-import type { ExceptionOptions } from '../../shared/exceptions/abstract.exception';
-import { ExceptionBrand } from '../../shared/exceptions/brand/exception-brand';
-import { ExceptionCode } from '../../shared/exceptions/exception-code';
 
 export class AggregateNotFoundException extends ApplicationException {
   static {
-    ExceptionBrand.brandClass(this, ExceptionCode.AggregateNotFound);
+    ExceptionBrand.brandClass(this, ApplicationExceptionCode.AggregateNotFound);
   }
 
   constructor(entity: string, id: string, options: ExceptionOptions = {}) {
-    super(`${entity} with ID ${id} not found.`, [ExceptionCode.AggregateNotFound], options);
+    super(
+      `${entity} with ID ${id} not found.`,
+      [ApplicationExceptionCode.AggregateNotFound],
+      options,
+    );
   }
 }

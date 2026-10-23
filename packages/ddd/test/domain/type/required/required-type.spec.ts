@@ -3,7 +3,7 @@ import { Validations, runValidations } from '@archi-code/validation';
 import { Required } from '../../../../src/domain/type/required/required-type';
 import { RequiredMark } from '../../../../src/domain/type/required/required-mark';
 import { AbstractType } from '../../../../src/domain/type/abstract-type';
-import { RequiredValueException } from '../../../../src/exceptions/domain/required-value.exception';
+import { RequiredValueException } from '../../../../src/domain/exceptions/required-value.exception';
 
 class AmountInCents extends AbstractType<number> {
   static zero(): AmountInCents {

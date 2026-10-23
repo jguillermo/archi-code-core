@@ -1,6 +1,6 @@
 import { toJson } from '@archi-code/validation';
 import { AbstractType } from './abstract-type';
-import { TypePrimitiveException } from '../../exceptions/index';
+import { TypePrimitiveException } from '../exceptions/type-primitive.exception';
 
 export type JsonTypeValue = Record<string, any>;
 

@@ -1,14 +1,17 @@
-import { ExceptionCode } from './exception-code';
 import { ExceptionBrand } from './brand/exception-brand';
 
 export interface ExceptionOptions {
   cause?: unknown;
 }
 
+export type ExceptionCodeNames = Readonly<Record<string, string>>;
+
 export abstract class AbstractException extends Error {
+  private static readonly fallbackCode = 'E000';
   declare readonly cause?: unknown;
-  private readonly exceptionCodes: (ExceptionCode | string)[];
-  public readonly code: ExceptionCode | string;
+  private readonly exceptionCodes: string[];
+  private readonly codeNames: ExceptionCodeNames;
+  public readonly code: string;
   private readonly createdAt: number;
 
   static {
@@ -24,16 +27,18 @@ export abstract class AbstractException extends Error {
 
   constructor(
     message: string,
-    exceptionCodes: (ExceptionCode | string)[],
+    exceptionCodes: string[],
     options: ExceptionOptions = {},
+    codeNames: ExceptionCodeNames = {},
   ) {
     super(message);
     this.name = this.constructor.name;
     this.exceptionCodes = exceptionCodes;
+    this.codeNames = codeNames;
     this.code =
       exceptionCodes.length > 0
         ? exceptionCodes[exceptionCodes.length - 1]
-        : ExceptionCode.ErrorException;
+        : AbstractException.fallbackCode;
     this.createdAt = Date.now();
     if ('cause' in options) {
       Object.defineProperty(this, 'cause', {
@@ -46,29 +51,17 @@ export abstract class AbstractException extends Error {
     Error.captureStackTrace?.(this, this.constructor);
   }
 
-  static readonly ExceptionCodeStrings: Record<ExceptionCode, string> = Object.keys(ExceptionCode)
-    .filter((key) => isNaN(Number(key)))
-    .reduce(
-      (acc, key) => {
-        const value = ExceptionCode[key as keyof typeof ExceptionCode];
-        acc[value as ExceptionCode] = key.replace(/([A-Z])/g, ' $1').trim();
-        return acc;
-      },
-      {} as Record<ExceptionCode, string>,
-    );
-
   public get timestamp(): Date {
     return new Date(this.createdAt);
   }
 
   public get description(): string {
-    return this.exceptionCodes
-      .map((code) => {
-        const codeString =
-          AbstractException.ExceptionCodeStrings[code as ExceptionCode] ?? this.name;
-        return `${codeString} (${code})`;
-      })
-      .join(', ');
+    return this.exceptionCodes.map((code) => `${this.labelOf(code)} (${code})`).join(', ');
+  }
+
+  private labelOf(code: string): string {
+    const name = Object.keys(this.codeNames).find((key) => this.codeNames[key] === code);
+    return name === undefined ? this.name : name.replace(/([A-Z])/g, ' $1').trim();
   }
 
   print(): string {

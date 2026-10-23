@@ -27,7 +27,7 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   `ORD003`); `ValueObjectBuilder.buildList(list, (item) => …)` names list items by position
   (`lines.1.quantity`). It returns the command typed field by field. Factories are synchronous (one
   that returns a Promise does not compile and is refused at run time with
-  `InternalErrorException`), and an error that is not a `DomainException` is a bug that wins over the
+  `UnexpectedErrorException`), and an error that is not a `DomainException` is a bug that wins over the
   validation errors already collected.
 - An `ArrayType` receives items that are already valid: it does not collect item errors and lets
   the error of the first invalid item through as the item throws it.
@@ -174,16 +174,18 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   - `TypePrimitiveException` and `RequiredValueException` are thrown by the VOs; throw them yourself
     only inside the `filter` of a custom type.
 - The package speaks no protocol: each entry point (HTTP, gRPC, queue consumer, CLI) translates
-  errors itself from `ExceptionClassifier.classify(error)` (`/exceptions`), which returns the
+  errors itself from `ExceptionClassifier.classify(error)` (`/infrastructure`), which returns the
   `ExceptionKind`: `Malformed` for a conversion or required error thrown alone (a value object
   built with `new` outside `ValueObjectBuilder.build`; inside it they become a `ValidationException` with
   `DOM003`/`DOM004` in `errors`), `NotAllowed` for `NotAllowedException`, `NotFound` for
   `AggregateNotFoundException`, `Conflict` for `ConcurrencyException`, `Invalid` for
   `ValidationException` and any other `DomainException` (a broken business rule), `Rejected` for
-  any other `ApplicationException`, `Internal` otherwise. The entry point maps the kind to its
+  any other `ApplicationException`, `Internal` for `UnexpectedErrorException`,
+  `InvalidEventDefinitionException` and anything else. The entry point maps the kind to its
   protocol (HTTP: 400, 403, 404, 409, 422, 400, 500), handles your own codes with `error.code`,
   returns the `errors` of a `ValidationException`, never sends the message of an `Internal`
-  failure and logs it once; never classify exceptions with hand-written `instanceof` chains. For logs or messages use `error.code` and the exported `ExceptionCode` enum, or
+  failure and logs it once; never classify exceptions with hand-written `instanceof` chains. For logs or messages use `error.code` and the code enum of each layer
+  (`DomainExceptionCode`, `ApplicationExceptionCode`, `InfrastructureExceptionCode`), or
   `instanceof`: the built-in exceptions are recognized across the CJS and ESM builds.
 - A use case does **one thing**: one business action, one class, one `handle`. It changes one
   aggregate and saves it once [Destilado ch. 5; IDDD ch. 10] (the exceptions IDDD ch. 10 accepts, such
@@ -211,7 +213,7 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   is `null` — or return, in a use case a listener runs —, change the aggregate, `save`, then
   `publish(aggregate.pullDomainEvents())`); it never opens a transaction. Let errors
   propagate: `execute` keeps package exceptions and wraps any other error (also from `toCommand`)
-  in `InternalErrorException` with `cause`.
+  in `UnexpectedErrorException` with `cause`.
 - A use case never imports nor calls another use case, and **returns an id, a DTO or nothing**,
   never an aggregate. Screens that read several aggregates use read queries, not repositories.
 - **Authorization belongs to the use case**: the entry point takes the requester id from the token

@@ -6,10 +6,10 @@ import { IdType } from '../../../src/domain/type/id-type';
 import { NumberType } from '../../../src/domain/type/number-type';
 import { StringType } from '../../../src/domain/type/string-type';
 import { Required } from '../../../src/domain/type/required/required-type';
-import { DomainException } from '../../../src/exceptions/domain/domain.exception';
-import { ValidationException } from '../../../src/exceptions/domain/validation.exception';
-import { AggregateNotFoundException } from '../../../src/exceptions/application/aggregate-not-found.exception';
-import { InternalErrorException } from '../../../src/exceptions/infrastructure/internal-error.exception';
+import { DomainException } from '../../../src/domain/exceptions/domain.exception';
+import { ValidationException } from '../../../src/domain/exceptions/validation.exception';
+import { AggregateNotFoundException } from '../../../src/application/exceptions/aggregate-not-found.exception';
+import { UnexpectedErrorException } from '../../../src/application/exceptions/unexpected-error.exception';
 
 class OrderId extends IdType<'OrderId'> {}
 
@@ -263,7 +263,7 @@ describe('ValueObjectBuilder: building every value object of an input at once', 
             // @ts-expect-error a factory that returns a Promise would skip the validation
             email: async () => new CustomerEmail('ana@example.com'),
           }),
-        ).toThrow(InternalErrorException);
+        ).toThrow(UnexpectedErrorException);
       });
 
       it('are refused at run time with the field, before their result reaches the command', () => {
@@ -273,9 +273,9 @@ describe('ValueObjectBuilder: building every value object of an input at once', 
             email: (() => Promise.resolve(new CustomerEmail('ana@example.com'))) as () => unknown,
           });
 
-        expect(build).toThrow(InternalErrorException);
+        expect(build).toThrow(UnexpectedErrorException);
         expect(build).toThrow(
-          'Failed, internal error: ValueObjectBuilder: the factory of "email" returned a Promise; build value objects synchronously',
+          'Failed, unexpected error: ValueObjectBuilder: the factory of "email" returned a Promise; build value objects synchronously',
         );
       });
 
@@ -286,7 +286,7 @@ describe('ValueObjectBuilder: building every value object of an input at once', 
 
         expect(() =>
           ValueObjectBuilder.build({ email: (() => rejected) as () => unknown }),
-        ).toThrow(InternalErrorException);
+        ).toThrow(UnexpectedErrorException);
         await new Promise((resolve) => setTimeout(resolve, 0));
 
         process.off('unhandledRejection', unhandled);
@@ -372,7 +372,7 @@ describe('ValueObjectBuilder: building every value object of an input at once', 
       const build = () => ValueObjectBuilder.buildList(['TORCH-01'], async (sku) => new Sku(sku));
 
       expect(build).toThrow(
-        'Failed, internal error: ValueObjectBuilder: the factory of "0" returned a Promise; build value objects synchronously',
+        'Failed, unexpected error: ValueObjectBuilder: the factory of "0" returned a Promise; build value objects synchronously',
       );
     });
   });

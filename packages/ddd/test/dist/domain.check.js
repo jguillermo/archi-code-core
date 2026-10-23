@@ -1,9 +1,5 @@
 'use strict';
 
-const path = require('path');
-
-const exceptions = require(path.resolve(__dirname, '../../dist/cjs/exceptions/index.js'));
-
 const ORDER_ID = '9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c';
 
 function throwsInstanceOf(create, ExceptionClass) {
@@ -23,26 +19,23 @@ function smoke(m) {
       'Required throws RequiredValueException',
       () => {
         class Name extends m.Required(m.StringType) {}
-        return throwsInstanceOf(() => new Name(null), exceptions.RequiredValueException);
+        return throwsInstanceOf(() => new Name(null), m.RequiredValueException);
       },
     ],
     [
       'NumberType rejects text',
-      () => throwsInstanceOf(() => new m.NumberType('abc'), exceptions.TypePrimitiveException),
+      () => throwsInstanceOf(() => new m.NumberType('abc'), m.TypePrimitiveException),
     ],
     [
       'DateType reads ISO and rejects a time without zone',
       () =>
         new m.DateType('2018-03-23').toString() === '2018-03-23T00:00:00.000Z' &&
-        throwsInstanceOf(
-          () => new m.DateType('2018-03-23T10:00:00'),
-          exceptions.TypePrimitiveException,
-        ),
+        throwsInstanceOf(() => new m.DateType('2018-03-23T10:00:00'), m.TypePrimitiveException),
     ],
     [
       'IdType is required and lowercase',
       () =>
-        throwsInstanceOf(() => new m.IdType(null), exceptions.RequiredValueException) &&
+        throwsInstanceOf(() => new m.IdType(null), m.RequiredValueException) &&
         new m.IdType(ORDER_ID.toUpperCase()).value === ORDER_ID,
     ],
     [
@@ -51,7 +44,8 @@ function smoke(m) {
         class City extends m.StringType {}
         const city = new City('Huelva');
         return (
-          !('DomainException' in m) &&
+          'DomainException' in m &&
+          !('AbstractException' in m) &&
           `${city}` === 'Huelva' &&
           city.equals(new City('Huelva')) &&
           !city.equals(new m.StringType('Huelva'))
@@ -107,7 +101,7 @@ function smoke(m) {
             new Seat(new m.StringType(null));
             return false;
           } catch (error) {
-            return error instanceof exceptions.RequiredValueException;
+            return error instanceof m.RequiredValueException;
           }
         };
         return (
@@ -169,6 +163,45 @@ function smoke(m) {
         );
       },
     ],
+    [
+      'domain exceptions carry their codes, and a custom one keeps its layer and code',
+      () => {
+        class OrderShippedException extends m.DomainException {
+          constructor(id) {
+            super(`Order ${id} is already shipped`, ['ORD001']);
+          }
+        }
+        const shipped = new OrderShippedException(ORDER_ID);
+        const invalid = new m.ValidationException([{ field: 'email', message: 'Email: invalid' }]);
+        return (
+          (shipped.code === 'ORD001' &&
+            shipped instanceof m.DomainException &&
+            shipped.description === 'Domain Exception (DOM000), OrderShippedException (ORD001)' &&
+            invalid.code === m.DomainExceptionCode.ValidationFailed &&
+            invalid.errors[0].code === 'DOM001' &&
+            invalid instanceof m.DomainException &&
+            JSON.parse(JSON.stringify(invalid)).code === 'DOM001') ||
+          'unexpected domain exception shape'
+        );
+      },
+    ],
+    [
+      'an event class without a static eventName throws InvalidEventDefinitionException',
+      () => {
+        class OrderArchived extends m.EventBase {}
+        try {
+          new OrderArchived();
+        } catch (error) {
+          return (
+            (error instanceof m.InvalidEventDefinitionException &&
+              error.code === 'DOM005' &&
+              error.message === 'OrderArchived must declare a static eventName') ||
+            `unexpected ${error}`
+          );
+        }
+        return 'no exception';
+      },
+    ],
   ];
 }
 
@@ -178,9 +211,23 @@ function crossBuild(cjs, esm) {
       'share the required mark',
       () => {
         class RequiredAcrossBuilds extends esm.Required(cjs.StringType) {}
-        return throwsInstanceOf(
-          () => new RequiredAcrossBuilds(null),
-          exceptions.RequiredValueException,
+        return throwsInstanceOf(() => new RequiredAcrossBuilds(null), cjs.RequiredValueException);
+      },
+    ],
+    [
+      'recognize domain exceptions thrown by the other build',
+      () => {
+        const invalid = new cjs.ValidationException([
+          { field: 'email', message: 'Email: Value does not satisfy isEmail' },
+        ]);
+        const malformed = new esm.TypePrimitiveException('Number', 'abc');
+        return (
+          (invalid instanceof esm.ValidationException &&
+            invalid instanceof esm.DomainException &&
+            !(invalid instanceof esm.TypePrimitiveException) &&
+            malformed instanceof cjs.TypePrimitiveException &&
+            malformed instanceof cjs.DomainException) ||
+          'a domain exception of one build is not recognized by the other'
         );
       },
     ],

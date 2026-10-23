@@ -15,9 +15,8 @@ No contradice la regla de una transacción por agregado: el creador no se modifi
 `Order`, `OrderId`, `OrderLines` y `ShippingAddress` son los de `references/implementacion-ts.md`:
 
 ```ts
-import { AggregateRoot, BooleanType, Required, StringType } from '@archi-code/ddd/domain';
+import { AggregateRoot, BooleanType, DomainException, Required, StringType } from '@archi-code/ddd/domain';
 import type { PrimitiveTypes } from '@archi-code/ddd/domain';
-import { DomainException } from '@archi-code/ddd/exceptions';
 import { Validations } from '@archi-code/validation';
 
 export class CustomerName extends Required(StringType) {}
@@ -87,9 +86,8 @@ La regla de creación ("un cliente bloqueado no puede realizar pedidos") vive en
 
 ```ts
 import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
-import { UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
+import { AggregateNotFoundException, UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
-import { AggregateNotFoundException } from '@archi-code/ddd/exceptions';
 
 interface PlaceOrderInput {
   customerId: string;

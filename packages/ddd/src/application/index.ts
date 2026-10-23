@@ -6,3 +6,9 @@ export type { ListenerSubscription, ListensToOptions } from './event/listens-to'
 export type { EventBus } from './event/event-bus';
 export type { Clock } from './ports/clock';
 export type { LogContext, Logger, LogLevel } from './ports/logger';
+export { ApplicationException } from './exceptions/application.exception';
+export { ConcurrencyException } from './exceptions/concurrency.exception';
+export { AggregateNotFoundException } from './exceptions/aggregate-not-found.exception';
+export { NotAllowedException } from './exceptions/not-allowed.exception';
+export { UnexpectedErrorException } from './exceptions/unexpected-error.exception';
+export { ApplicationExceptionCode } from './exceptions/application-exception-code';

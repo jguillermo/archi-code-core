@@ -33,9 +33,8 @@ El caso de uso guarda y después publica lo que devuelve `pullDomainEvents()`: s
 
 ```ts
 import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
-import { UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
+import { AggregateNotFoundException, UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
-import { AggregateNotFoundException } from '@archi-code/ddd/exceptions';
 
 interface AddOrderLineInput {
   orderId: string;
@@ -168,7 +167,8 @@ CREATE INDEX stored_events_unpublished ON stored_events (sequence) WHERE publish
 
 ```ts
 import type { AggregateFinder, AggregateSaver, PrimitiveTypes } from '@archi-code/ddd/domain';
-import { ConcurrencyException, InternalErrorException } from '@archi-code/ddd/exceptions';
+import { ConcurrencyException } from '@archi-code/ddd/application';
+import { InternalErrorException } from '@archi-code/ddd/infrastructure';
 
 interface QueryResult<Row> {
   rows: Row[];
@@ -270,7 +270,7 @@ La transacción empieza y termina dentro de `save`: el pedido y sus eventos se c
 ```ts
 import type { EventChannel } from '@archi-code/ddd/infrastructure';
 import type { SerializedEvent } from '@archi-code/ddd/domain';
-import { InternalErrorException } from '@archi-code/ddd/exceptions';
+import { InternalErrorException } from '@archi-code/ddd/infrastructure';
 
 export class OutboxForwarder {
   private static readonly lockKey = 8_201_001;
@@ -472,7 +472,7 @@ export class PrepareShipment extends UseCase<PrepareShipmentInput, PrepareShipme
 ```
 
 ```ts
-import { InternalErrorException } from '@archi-code/ddd/exceptions';
+import { InternalErrorException } from '@archi-code/ddd/infrastructure';
 
 export class PostgresWarehouse implements Warehouse {
   private static readonly consumer = 'prepare-shipment';

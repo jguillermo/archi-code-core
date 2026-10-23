@@ -5,9 +5,9 @@ import { AbstractType } from '../../../src/domain/type/abstract-type';
 import type { ValueOf } from '../../../src/domain/type/abstract-type';
 import { Required } from '../../../src/domain/type/required/required-type';
 import type { RequiredMarked } from '../../../src/domain/type/required/required-mark';
-import { RequiredValueException } from '../../../src/exceptions/domain/required-value.exception';
-import { TypePrimitiveException } from '../../../src/exceptions/domain/type-primitive.exception';
-import { ValidationException } from '../../../src/exceptions/domain/validation.exception';
+import { RequiredValueException } from '../../../src/domain/exceptions/required-value.exception';
+import { TypePrimitiveException } from '../../../src/domain/exceptions/type-primitive.exception';
+import { ValidationException } from '../../../src/domain/exceptions/validation.exception';
 
 class CountryCode extends AbstractType<string> {
   static spain(): CountryCode {

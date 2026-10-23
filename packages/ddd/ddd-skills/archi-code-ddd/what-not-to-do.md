@@ -56,8 +56,10 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
 - A read query that loads aggregates through `AggregateFinder`, or a repository method that
   returns DTOs: reads go straight to the database through an application interface.
 - Importing `@archi-code/ddd/infrastructure` from domain code, or `application` from the domain.
-- Importing an exception from `@archi-code/ddd/domain`: exceptions live in
-  `@archi-code/ddd/exceptions`.
+- Importing an exception from another layer's subpath: each layer exports its own
+  (`ValidationException` from `/domain`, `AggregateNotFoundException` from `/application`,
+  `InternalErrorException` from `/infrastructure`); there is no `/exceptions` subpath and the
+  common base class is not exported (check the three layer bases, or use `ExceptionClassifier`).
 - Catching errors inside `handle` just to rethrow them as `ApplicationException`: let them
   propagate; `execute` keeps package exceptions and wraps the rest.
 - Calling `bus.publish` before `repository.save`, or publishing without `pullDomainEvents()`.
