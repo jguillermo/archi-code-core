@@ -361,4 +361,96 @@ function crossBuild(cjs, esm) {
   ];
 }
 
-module.exports = { smoke, crossBuild };
+async function infrastructureInThePage(entry) {
+  const m = await import(entry);
+  const pageApplication = await import(new URL('../application/index.js', entry).href);
+  const pageDomain = await import(new URL('../domain/index.js', entry).href);
+  const failures = [];
+  const expect = (name, passed) => {
+    if (!passed) failures.push(name);
+  };
+
+  class OrderPlaced extends pageDomain.EventBase {
+    static eventName = 'OrderPlaced';
+
+    constructor(orderId, metadata) {
+      super(metadata);
+      this.orderId = orderId;
+    }
+  }
+  const received = [];
+  class ConfirmOrderOnOrderPlaced extends pageApplication.EventListener {
+    handle(event) {
+      received.push(event);
+    }
+  }
+  pageApplication.ListensTo(OrderPlaced, { consumer: 'confirm-order' })(ConfirmOrderOnOrderPlaced);
+  class ReserveStockOnOrderPlaced extends pageApplication.EventListener {
+    handle() {
+      throw new Error('warehouse offline');
+    }
+  }
+  pageApplication.ListensTo(OrderPlaced, { consumer: 'reserve-stock' })(ReserveStockOnOrderPlaced);
+
+  const logger = new m.InMemoryLogger();
+  const channel = new m.InMemoryEventChannel({ delivery: 'parallel' });
+  const registry = new m.EventRegistry().register(
+    OrderPlaced,
+    (json) => new OrderPlaced(json.orderId, json),
+  );
+  const bus = new m.DomainEventBus(channel, registry, logger);
+  await bus.subscribe(new ConfirmOrderOnOrderPlaced());
+  await bus.subscribe(new ReserveStockOnOrderPlaced());
+  const event = new OrderPlaced(pageDomain.UuidType.random());
+  const failure = await bus.publish([event]).catch((error) => error);
+  expect(
+    'the bus delivers the rebuilt event and reports the failing consumer',
+    received.length === 1 &&
+      received[0] instanceof OrderPlaced &&
+      received[0] !== event &&
+      received[0].eventId === event.eventId &&
+      failure instanceof m.EventDeliveryException &&
+      failure.errors.length === 1 &&
+      channel.sent.length === 1,
+  );
+  expect(
+    'the bus logs the failing listener',
+    logger.entries.some(
+      (logEntry) => logEntry.level === 'error' && logEntry.message === 'event_listener_failed',
+    ),
+  );
+
+  const lines = [];
+  const original = console.info;
+  console.info = (line) => lines.push(JSON.parse(line));
+  try {
+    new m.ConsoleLogger({ clock: new m.FixedClock('2026-10-19T09:30:00Z') }).info('order_placed', {
+      cause: new Error('ignored'),
+    });
+  } finally {
+    console.info = original;
+  }
+  expect(
+    'ConsoleLogger writes one JSON line',
+    lines.length === 1 &&
+      lines[0].time === '2026-10-19T09:30:00.000Z' &&
+      lines[0].context.cause.message === 'ignored',
+  );
+
+  expect(
+    'the classifier reads every layer',
+    m.ExceptionClassifier.classify(new pageApplication.AggregateNotFoundException('Order', 'x')) ===
+      m.ExceptionKind.NotFound &&
+      m.ExceptionClassifier.classify(new pageDomain.RequiredValueException('Email', '')) ===
+        m.ExceptionKind.Malformed &&
+      m.ExceptionClassifier.classify(new Error('disk full')) === m.ExceptionKind.Internal,
+  );
+
+  return failures.length === 0 || failures.join('; ');
+}
+
+function browser() {
+  return [['runs the event bus, the in-memory channel and the loggers', infrastructureInThePage]];
+}
+
+module.exports = { smoke, crossBuild, browser };

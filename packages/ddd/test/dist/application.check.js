@@ -196,4 +196,95 @@ function crossBuild(cjs, esm) {
   ];
 }
 
-module.exports = { smoke, crossBuild };
+async function applicationInThePage(entry) {
+  const m = await import(entry);
+  const pageDomain = await import(new URL('../domain/index.js', entry).href);
+  const failures = [];
+  const expect = (name, passed) => {
+    if (!passed) failures.push(name);
+  };
+
+  class OrderId extends pageDomain.IdType {}
+  class CustomerName extends pageDomain.Required(pageDomain.StringType) {}
+  class OrderPlaced extends pageDomain.EventBase {
+    static eventName = 'OrderPlaced';
+
+    constructor(orderId) {
+      super();
+      this.orderId = orderId;
+    }
+  }
+  class Order extends pageDomain.AggregateRoot {
+    static place(id) {
+      const order = new Order(id);
+      order.record(new OrderPlaced(id.value));
+      return order;
+    }
+  }
+
+  const saved = [];
+  const published = [];
+  class PlaceOrder extends m.UseCase {
+    toCommand(input) {
+      return m.ValueObjectBuilder.build({
+        orderId: () => new OrderId(input.orderId),
+        customer: () => new CustomerName(input.customer),
+      });
+    }
+
+    async handle(command) {
+      const order = Order.place(command.orderId);
+      saved.push(order.id.value);
+      published.push(...order.pullDomainEvents().map((event) => event.eventName));
+      return order.id.value;
+    }
+  }
+  const orderId = pageDomain.UuidType.random();
+  const placed = await new PlaceOrder().execute({ orderId, customer: 'Ana' });
+  expect(
+    'a use case saves and publishes',
+    placed === orderId && saved[0] === orderId && published[0] === 'OrderPlaced',
+  );
+
+  const invalid = await new PlaceOrder()
+    .execute({ orderId: 'not-an-id', customer: null })
+    .catch((error) => error);
+  expect(
+    'ValueObjectBuilder reports every field',
+    invalid instanceof pageDomain.ValidationException &&
+      invalid.errors.map((issue) => issue.field).join() === 'orderId,customer',
+  );
+
+  class Broken extends m.UseCase {
+    toCommand(input) {
+      return input;
+    }
+
+    async handle() {
+      throw new Error('network down');
+    }
+  }
+  const unexpected = await new Broken().execute({}).catch((error) => error);
+  expect(
+    'unknown errors are wrapped with their cause',
+    unexpected instanceof m.UnexpectedErrorException && unexpected.cause.message === 'network down',
+  );
+
+  class ConfirmOrderOnOrderPlaced extends m.EventListener {
+    handle() {}
+  }
+  m.ListensTo(OrderPlaced, { consumer: 'confirm-order' })(ConfirmOrderOnOrderPlaced);
+  const subscription = m.ListensTo.subscriptionOf(new ConfirmOrderOnOrderPlaced());
+  expect(
+    'ListensTo keeps the event and consumer',
+    subscription.eventName === 'OrderPlaced' && subscription.consumer === 'confirm-order',
+  );
+
+  return failures.length === 0 || failures.join('; ');
+}
+
+function browser() {
+  return [['runs use cases, the builder and listeners', applicationInThePage]];
+}
+
+module.exports = { smoke, crossBuild, browser };

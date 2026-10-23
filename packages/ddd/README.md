@@ -23,7 +23,10 @@ published with CJS and ESM builds.
 npm install @archi-code/ddd
 ```
 
-- Node.js `>=24` (`engines` field).
+- Node.js `>=24` (`engines` field) and browsers: every subpath runs unchanged in both. Its ESM
+  build imports `@archi-code/validation` and `uuid` by name, so in a browser use a bundler (Vite,
+  webpack, esbuild…) or an import map. `/domain`, `/application` and `/infrastructure` are checked
+  in Chromium and WebKit, `/domain` under a strict Content-Security-Policy without `unsafe-eval`.
 - Runtime dependencies, installed by npm automatically: `@archi-code/validation` and `uuid`.
 - To declare validations with `@Validations`, also install `@archi-code/validation` as a direct
   dependency of your project (the decorator is imported from it):

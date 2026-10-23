@@ -234,4 +234,110 @@ function crossBuild(cjs, esm) {
   ];
 }
 
-module.exports = { smoke, crossBuild };
+const STRICT_CSP = "default-src 'self'; script-src 'self'";
+
+async function domainInThePage(entry) {
+  const m = await import(entry);
+  const failures = [];
+  const expect = (name, passed) => {
+    if (!passed) failures.push(name);
+  };
+  const thrown = (create) => {
+    try {
+      create();
+    } catch (error) {
+      return error;
+    }
+    return null;
+  };
+
+  class CustomerName extends m.Required(m.StringType) {}
+  expect(
+    'Required refuses null',
+    thrown(() => new CustomerName(null)) instanceof m.RequiredValueException,
+  );
+  expect('StringType converts', new m.StringType(12).value === '12');
+
+  const placedOn = new m.DateType('2026-10-19T09:30:00+02:00');
+  expect('DateType reads a zone', placedOn.toString() === '2026-10-19T07:30:00.000Z');
+  expect(
+    'DateType is immutable',
+    thrown(() => placedOn.value.setFullYear(2000)) instanceof TypeError,
+  );
+  expect(
+    'DateType refuses a time without zone',
+    thrown(() => new m.DateType('2026-10-19T09:30:00')) instanceof m.TypePrimitiveException,
+  );
+
+  class OrderId extends m.IdType {}
+  const generated = OrderId.generate();
+  expect(
+    'IdType.generate gives a UUID v4',
+    /^[0-9a-f-]{36}$/.test(generated.value) && generated.value[14] === '4',
+  );
+  expect(
+    'UuidType.fromValue is deterministic',
+    m.UuidType.fromValue('order') === m.UuidType.fromValue('order'),
+  );
+
+  class Cents extends m.Required(m.NumberType) {}
+  class Currency extends m.Required(m.StringType) {}
+  class Money extends m.Composite({ amount: Cents, currency: Currency }) {}
+  const price = Money.fromPrimitives({ amount: 1250, currency: 'EUR' });
+  const invalid = thrown(() => Money.fromPrimitives({ amount: 'x', currency: null }));
+  expect('Composite round-trips', price.equals(Money.fromPrimitives(price.toPrimitives())));
+  expect(
+    'Composite reports every field',
+    invalid instanceof m.ValidationException &&
+      invalid.errors.map((issue) => issue.field).join() === 'amount,currency',
+  );
+
+  class OrderPlaced extends m.EventBase {
+    static eventName = 'OrderPlaced';
+
+    constructor(orderId) {
+      super();
+      this.orderId = orderId;
+    }
+  }
+  class Order extends m.AggregateRoot {
+    static place(id) {
+      const order = new Order(id);
+      order.record(new OrderPlaced(id.value));
+      return order;
+    }
+  }
+  const order = Order.place(generated);
+  const [event] = order.pullDomainEvents();
+  const json = JSON.parse(JSON.stringify(event));
+  expect(
+    'aggregate records serializable events',
+    json.eventName === 'OrderPlaced' &&
+      json.orderId === generated.value &&
+      /^[0-9a-f-]{36}$/.test(json.eventId) &&
+      !Number.isNaN(Date.parse(json.occurredOn)) &&
+      order.pullDomainEvents().length === 0,
+  );
+
+  class Above extends m.Specification {
+    constructor(limit) {
+      super();
+      this.limit = limit;
+    }
+
+    isSatisfiedBy(value) {
+      return value > this.limit;
+    }
+  }
+  expect('Specification combines rules', new Above(10).and(new Above(20).not()).isSatisfiedBy(15));
+
+  return failures.length === 0 || failures.join('; ');
+}
+
+function browser() {
+  return [
+    ['runs the domain building blocks under a strict CSP', domainInThePage, { csp: STRICT_CSP }],
+  ];
+}
+
+module.exports = { smoke, crossBuild, browser };

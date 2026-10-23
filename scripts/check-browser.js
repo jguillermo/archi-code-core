@@ -29,7 +29,8 @@ function loadPlaywright() {
 function esmEntry(manifest, subpath) {
   const target = manifest.exports && manifest.exports[subpath];
   if (typeof target === 'string') return target;
-  const pick = (condition) => (typeof condition === 'string' ? condition : condition?.default);
+  const pick = (condition) =>
+    typeof condition === 'string' ? condition : (condition?.import ?? condition?.default);
   return target ? (pick(target.browser) ?? pick(target.import) ?? null) : null;
 }
 
