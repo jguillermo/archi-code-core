@@ -1,7 +1,7 @@
 {
   "packages": {
     "@archi-code/criteria": {
-      "main": "3.0.0-alpha.5"
+      "main": "3.0.0-alpha.6"
     },
     "@archi-code/crypto-tools": {
       "main": "3.0.0-alpha.4"
@@ -16,9 +16,12 @@
       "main": "3.0.0-alpha.4"
     },
     "@archi-code/validation": {
-      "main": "3.0.0-alpha.4"
+      "main": "3.0.0-alpha.5"
     },
     "@archi-code/criteria-adapters": {
+      "main": "3.0.0-alpha.2"
+    },
+    "@archi-code/ddd": {
       "main": "3.0.0-alpha.1"
     }
   },
@@ -340,6 +343,59 @@
           ],
           "dependencies": {
             "@archi-code/criteria": "3.0.0-alpha.5"
+          }
+        }
+      ]
+    },
+    {
+      "date": "2026-10-19T17:16:37.277Z",
+      "commit": "bc311704e70020684524c1243de19329cb5c4511",
+      "channel": "main",
+      "reset": "3.0.0-alpha.1",
+      "packages": [
+        {
+          "name": "@archi-code/criteria",
+          "previous": "3.0.0-alpha.5",
+          "version": "3.0.0-alpha.6",
+          "bump": "minor",
+          "reasons": [
+            "commits (minor)"
+          ],
+          "dependencies": {}
+        },
+        {
+          "name": "@archi-code/criteria-adapters",
+          "previous": "3.0.0-alpha.1",
+          "version": "3.0.0-alpha.2",
+          "bump": "minor",
+          "reasons": [
+            "commits (minor)",
+            "cascade: @archi-code/criteria → 3.0.0-alpha.6"
+          ],
+          "dependencies": {
+            "@archi-code/criteria": "3.0.0-alpha.6"
+          }
+        },
+        {
+          "name": "@archi-code/validation",
+          "previous": "3.0.0-alpha.4",
+          "version": "3.0.0-alpha.5",
+          "bump": "minor",
+          "reasons": [
+            "commits (minor)"
+          ],
+          "dependencies": {}
+        },
+        {
+          "name": "@archi-code/ddd",
+          "previous": null,
+          "version": "3.0.0-alpha.1",
+          "bump": "major",
+          "reasons": [
+            "completes the reset of the whole set (3.0.0-alpha.1)"
+          ],
+          "dependencies": {
+            "@archi-code/validation": "3.0.0-alpha.5"
           }
         }
       ]
