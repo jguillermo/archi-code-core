@@ -19,7 +19,7 @@
       "main": "3.0.0-alpha.5"
     },
     "@archi-code/criteria-adapters": {
-      "main": "3.0.0-alpha.2"
+      "main": "3.0.0-alpha.3"
     },
     "@archi-code/ddd": {
       "main": "3.0.0-alpha.1"
@@ -414,6 +414,19 @@
             "commits (minor)"
           ],
           "dependencies": {}
+        },
+        {
+          "name": "@archi-code/criteria-adapters",
+          "previous": "3.0.0-alpha.2",
+          "version": "3.0.0-alpha.3",
+          "bump": "minor",
+          "reasons": [
+            "commits (minor)",
+            "cascade: @archi-code/criteria → 3.0.0-alpha.7"
+          ],
+          "dependencies": {
+            "@archi-code/criteria": "3.0.0-alpha.7"
+          }
         }
       ]
     }
