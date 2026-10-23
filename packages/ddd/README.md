@@ -2682,6 +2682,16 @@ await new RegisterUser(users, bus, clock)
 // 'invalid'
 ```
 
+## End-to-end example
+
+A larger example, an online shop with three bounded contexts (Sales, Payments and Shipping) that
+only integrate through domain events, shows the whole package at work: composites, child
+entities, specifications, a domain service with a domain port, use cases with authorization,
+optimistic concurrency with retry, compensation when a payment is rejected, a read model fed by
+listeners and simulated HTTP controllers that translate errors with `ExceptionClassifier`. It lives
+in the repository, not in the npm package:
+[`packages/ddd/example`](https://github.com/jguillermo/archi-code-core/tree/main/packages/ddd/example).
+
 ## Exports
 
 `@archi-code/ddd/domain`:

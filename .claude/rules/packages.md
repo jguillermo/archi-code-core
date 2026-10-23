@@ -174,6 +174,13 @@ Only when the package needs them, and documented in its README:
   script to run them (e.g. `benchmark`); the root lint and format already cover them. Generated
   output goes in the root ignore lists (`eslint.config.js`, `.prettierignore`,
   `.editorconfig-checker.json`).
+- An end-to-end example (only `ddd` today: `example/`), a kind of extra folder: a small project
+  written against the package's public modules (its `src/ddd/<module>.ts` files re-export
+  `src/<module>/index`, never a deeper file), with only `src/` (the example code and nothing else:
+  no specs, no command line, no tooling), a `README.md` and its own `tsconfig.json`, type-checked
+  in the package `check:types` (`tsc -p example/tsconfig.json --noEmit --incremental false`). It is
+  not in `files`, so the package README links it by its repository URL, and `SKILL.md` does not
+  mention it.
 - Extra `.gitignore` lines, `sideEffects`.
 - A web build: `browser` field + `browser` export condition (with its own `types`) +
   `sideEffects: false` + `check-browser.js` in `check:dist` + `browser` in `dist.check.js`

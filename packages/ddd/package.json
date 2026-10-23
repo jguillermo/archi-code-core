@@ -85,7 +85,7 @@
     "build": "npm run build:cjs && npm run build:esm",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "check:types": "tsc -p tsconfig.json --noEmit --incremental false",
+    "check:types": "tsc -p tsconfig.json --noEmit --incremental false && tsc -p example/tsconfig.json --noEmit --incremental false",
     "check:dist": "node ../../scripts/check-dist.js && attw --pack . && node ../../scripts/check-browser.js",
     "check:all": "npm run check:types && npm run test:coverage && npm run build && npm run check:dist"
   },
