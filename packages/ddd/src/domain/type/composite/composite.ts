@@ -1,7 +1,9 @@
 import { runValidations } from '@archi-code/validation';
 import type { ValidatedClass } from '@archi-code/validation';
+import { CompositeBrand } from './composite-brand';
 import { CompositeField } from './composite-field';
 import type { FieldSpec } from './composite-field';
+import { IssueCollector } from './issue-collector';
 import type { PrimitiveType } from '../../primitive/primitive-types';
 import { TypePrimitiveException, ValidationException } from '../../../exceptions/index';
 
@@ -47,9 +49,13 @@ export interface CompositeType<Schema extends CompositeSchema> {
 }
 
 export function Composite<Schema extends CompositeSchema>(schema: Schema): CompositeType<Schema> {
-  const fields = Object.keys(schema);
+  const fields = Object.entries(schema).map(
+    ([name, spec]) => [name, CompositeField.of(spec)] as const,
+  );
 
   class CompositeValueObject {
+    readonly [field: string]: unknown;
+
     static fromPrimitives(
       this: new (props: Record<string, unknown>) => CompositeValueObject,
       primitives: unknown,
@@ -57,21 +63,18 @@ export function Composite<Schema extends CompositeSchema>(schema: Schema): Compo
       if (typeof primitives !== 'object' || primitives === null || Array.isArray(primitives)) {
         throw new TypePrimitiveException(this.name, primitives);
       }
-      const record = primitives as Record<string, unknown>;
-      const values = CompositeField.buildEach(
-        fields.map((field) => [
-          field,
-          () => CompositeField.fromPrimitive(schema[field], record[field]),
-        ]),
+      const record = primitives as Readonly<Record<string, unknown>>;
+      const builds = Object.fromEntries(
+        fields.map(([name, field]) => [name, () => field.fromPrimitive(record[name])]),
       );
-      return new this(Object.fromEntries(fields.map((field, index) => [field, values[index]])));
+      return new this(IssueCollector.collectFields(builds));
     }
 
-    constructor(props: Record<string, unknown>) {
+    constructor(props: Readonly<Record<string, unknown>>) {
       const owner = this.constructor.name;
-      for (const field of fields) {
-        Object.defineProperty(this, field, {
-          value: CompositeField.accept(owner, field, schema[field], props?.[field]),
+      for (const [name, field] of fields) {
+        Object.defineProperty(this, name, {
+          value: field.accept(`${owner}.${name}`, props?.[name]),
           enumerable: true,
         });
       }
@@ -94,25 +97,19 @@ export function Composite<Schema extends CompositeSchema>(schema: Schema): Compo
         typeof other === 'object' &&
         other !== null &&
         other.constructor === this.constructor &&
-        fields.every((field) =>
-          CompositeField.equals(
-            (this as Record<string, unknown>)[field],
-            (other as Record<string, unknown>)[field],
-          ),
+        fields.every(([name, field]) =>
+          field.equals(this[name], (other as CompositeValueObject)[name]),
         )
       );
     }
 
     toPrimitives(): Record<string, unknown> {
       return Object.fromEntries(
-        fields.map((field) => [
-          field,
-          CompositeField.primitive((this as Record<string, unknown>)[field]),
-        ]),
+        fields.map(([name, field]) => [name, field.toPrimitive(this[name])]),
       );
     }
   }
 
-  CompositeField.brand(CompositeValueObject.prototype);
+  CompositeBrand.mark(CompositeValueObject.prototype);
   return CompositeValueObject as unknown as CompositeType<Schema>;
 }
