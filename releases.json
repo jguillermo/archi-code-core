@@ -16,13 +16,13 @@
       "main": "3.0.0-alpha.4"
     },
     "@archi-code/validation": {
-      "main": "3.0.0-alpha.5"
+      "main": "3.0.0-alpha.6"
     },
     "@archi-code/criteria-adapters": {
       "main": "3.0.0-alpha.3"
     },
     "@archi-code/ddd": {
-      "main": "3.0.0-alpha.1"
+      "main": "3.0.0-alpha.2"
     }
   },
   "deploys": [
@@ -426,6 +426,29 @@
           ],
           "dependencies": {
             "@archi-code/criteria": "3.0.0-alpha.7"
+          }
+        },
+        {
+          "name": "@archi-code/validation",
+          "previous": "3.0.0-alpha.5",
+          "version": "3.0.0-alpha.6",
+          "bump": "minor",
+          "reasons": [
+            "commits (minor)"
+          ],
+          "dependencies": {}
+        },
+        {
+          "name": "@archi-code/ddd",
+          "previous": "3.0.0-alpha.1",
+          "version": "3.0.0-alpha.2",
+          "bump": "minor",
+          "reasons": [
+            "commits (minor)",
+            "cascade: @archi-code/validation → 3.0.0-alpha.6"
+          ],
+          "dependencies": {
+            "@archi-code/validation": "3.0.0-alpha.6"
           }
         }
       ]
