@@ -217,7 +217,7 @@ describe('Composite: a value object made of several value objects', () => {
     it('refuses a list field that is not a list, and an item of another class', () => {
       expect(
         () => new Cart({ lines: 'TORCH-01' as unknown as OrderLine[], note: new StringType() }),
-      ).toThrow('Expected a valid list for Cart.lines');
+      ).toThrow('Expected a valid list of OrderLine for Cart.lines');
       expect(
         () =>
           new Cart({
@@ -350,7 +350,7 @@ describe('Composite: a value object made of several value objects', () => {
           {
             field: 'tags',
             code: 'DOM003',
-            message: 'Validation Error: Expected a valid Array, but received "ddd".',
+            message: 'Validation Error: Expected a valid list of Tag, but received "ddd".',
           },
         ],
       );

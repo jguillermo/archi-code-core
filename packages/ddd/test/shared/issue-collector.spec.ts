@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { IssueCollector } from '../../../../src/domain/type/composite/issue-collector';
-import { NumberType } from '../../../../src/domain/type/number-type';
-import { StringType } from '../../../../src/domain/type/string-type';
-import { Required } from '../../../../src/domain/type/required/required-type';
-import { ValidationException } from '../../../../src/exceptions/domain/validation.exception';
+import { IssueCollector } from '../../src/shared/issue-collector';
+import { NumberType } from '../../src/domain/type/number-type';
+import { StringType } from '../../src/domain/type/string-type';
+import { Required } from '../../src/domain/type/required/required-type';
+import { ValidationException } from '../../src/exceptions/domain/validation.exception';
 
 class Quantity extends Required(NumberType) {}
 class Sku extends Required(StringType) {}
@@ -31,6 +31,13 @@ describe('IssueCollector: building every field before reporting what is wrong', 
     expect(IssueCollector.collectItems([3, 1], (units) => new Quantity(units))).toEqual([
       new Quantity(3),
       new Quantity(1),
+    ]);
+  });
+
+  it('hands each item its position', () => {
+    expect(IssueCollector.collectItems(['a', 'b'], (sku, index) => `${index}:${sku}`)).toEqual([
+      '0:a',
+      '1:b',
     ]);
   });
 

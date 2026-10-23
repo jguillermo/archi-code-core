@@ -1,6 +1,6 @@
 import type { AbstractType } from '../abstract-type';
 import { CompositeBrand } from './composite-brand';
-import { IssueCollector } from './issue-collector';
+import { IssueCollector } from '../../../shared/index';
 import { RequiredValueException, TypePrimitiveException } from '../../../exceptions/index';
 
 export type ValueClass = new (value: any) => AbstractType<any>;
@@ -35,6 +35,8 @@ export abstract class CompositeField {
       : new ValueField(fieldClass as ValueClass);
   }
 
+  abstract readonly typeName: string;
+
   abstract accept(path: string, value: unknown): unknown;
 
   abstract fromPrimitive(primitive: unknown): unknown;
@@ -49,12 +51,16 @@ abstract class SingleField<Class extends FieldClass> extends CompositeField {
     super();
   }
 
+  get typeName(): string {
+    return this.fieldClass.name;
+  }
+
   accept(path: string, value: unknown): unknown {
     if (value === null || value === undefined) {
       throw new RequiredValueException(path, value);
     }
     if (!(value instanceof this.fieldClass)) {
-      throw new TypePrimitiveException(`${this.fieldClass.name} for ${path}`, value);
+      throw new TypePrimitiveException(`${this.typeName} for ${path}`, value);
     }
     return value;
   }
@@ -89,16 +95,20 @@ class ListField extends CompositeField {
     super();
   }
 
+  get typeName(): string {
+    return `list of ${this.item.typeName}`;
+  }
+
   accept(path: string, value: unknown): unknown {
     if (!Array.isArray(value)) {
-      throw new TypePrimitiveException(`list for ${path}`, value);
+      throw new TypePrimitiveException(`${this.typeName} for ${path}`, value);
     }
     return Object.freeze(value.map((item, index) => this.item.accept(`${path}.${index}`, item)));
   }
 
   fromPrimitive(primitive: unknown): unknown {
     if (!Array.isArray(primitive)) {
-      throw new TypePrimitiveException('Array', primitive);
+      throw new TypePrimitiveException(this.typeName, primitive);
     }
     return IssueCollector.collectItems(primitive, (item) => this.item.fromPrimitive(item));
   }

@@ -3,7 +3,7 @@ import type { ValidatedClass } from '@archi-code/validation';
 import { CompositeBrand } from './composite-brand';
 import { CompositeField } from './composite-field';
 import type { FieldSpec } from './composite-field';
-import { IssueCollector } from './issue-collector';
+import { IssueCollector } from '../../../shared/index';
 import type { PrimitiveType } from '../../primitive/primitive-types';
 import { TypePrimitiveException, ValidationException } from '../../../exceptions/index';
 

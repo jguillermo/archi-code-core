@@ -219,6 +219,9 @@ Only when the package needs them, and documented in its README:
   imports out of `src/`, deep imports into another module and imports of the package itself. Test
   harnesses shared by the modules (such as a contract) live in `test/<name>/` and are never
   published. One README (a section per module) and one `SKILL.md` cover every module.
+  A module may be internal (only `ddd/src/shared` today): code several modules share, with its own
+  `index.ts` and specs but no `exports`, `typesVersions` nor build hook; `module-boundaries.spec.ts`
+  lists it in `INTERNAL_MODULES` and checks that no public `index.ts` re-exports it.
 - Extra keys in `vitest.config.mts` (e.g. `coverage.exclude` for generated files).
 
 ## When adding a package

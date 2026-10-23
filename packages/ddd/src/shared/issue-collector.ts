@@ -1,5 +1,5 @@
-import { DomainException, ValidationException } from '../../../exceptions/index';
-import type { ValidationIssue } from '../../../exceptions/index';
+import { DomainException, ValidationException } from '../exceptions/index';
+import type { ValidationIssue } from '../exceptions/index';
 
 type Build<Built> = readonly [path: string, build: () => Built];
 
@@ -8,8 +8,13 @@ export class IssueCollector {
     return Object.fromEntries(IssueCollector.collect(Object.entries(builds)));
   }
 
-  static collectItems<Item, Built>(items: readonly Item[], build: (item: Item) => Built): Built[] {
-    const builds = items.map((item, index): Build<Built> => [String(index), () => build(item)]);
+  static collectItems<Item, Built>(
+    items: readonly Item[],
+    build: (item: Item, index: number) => Built,
+  ): Built[] {
+    const builds = items.map(
+      (item, index): Build<Built> => [String(index), () => build(item, index)],
+    );
     return IssueCollector.collect(builds).map(([, built]) => built);
   }
 

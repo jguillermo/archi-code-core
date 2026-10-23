@@ -7,10 +7,13 @@ const SRC = path.join(ROOT, 'src');
 
 const ALLOWED_MODULE_DEPENDENCIES: Record<string, readonly string[]> = {
   exceptions: [],
-  domain: ['exceptions'],
-  application: ['domain', 'exceptions'],
-  infrastructure: ['application', 'domain', 'exceptions'],
+  shared: ['exceptions'],
+  domain: ['exceptions', 'shared'],
+  application: ['domain', 'exceptions', 'shared'],
+  infrastructure: ['application', 'domain', 'exceptions', 'shared'],
 };
+
+const INTERNAL_MODULES = ['shared'];
 
 const ALLOWED_PACKAGES = ['@archi-code/validation', 'uuid'];
 
@@ -90,21 +93,34 @@ function findCycles(): string[][] {
   return cycles;
 }
 
-describe('layer boundaries: exceptions ← domain ← application ← infrastructure', () => {
+describe('layer boundaries: exceptions ← shared ← domain ← application ← infrastructure', () => {
   it('parses every module (sanity check of the parser itself)', () => {
     expect(files.length).toBeGreaterThan(10);
     expect(crossModuleImports().length).toBeGreaterThan(0);
   });
 
-  it('keeps every file inside a module that the package exports as a subpath', () => {
+  it('keeps every file inside a module that the package exports as a subpath, except the internal ones', () => {
     const modules = Array.from(new Set(Array.from(imports.keys(), moduleOf))).sort();
     expect(modules).toEqual(Object.keys(ALLOWED_MODULE_DEPENDENCIES).sort());
     const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
     const subpaths = Object.keys(manifest.exports).filter((key) => key !== './package.json');
-    expect(subpaths.sort()).toEqual(modules.map((name) => `./${name}`));
+    const published = modules.filter((name) => !INTERNAL_MODULES.includes(name));
+    expect(subpaths.sort()).toEqual(published.map((name) => `./${name}`));
+    expect(Object.keys(manifest.typesVersions['*']).sort()).toEqual(published);
     for (const name of modules) {
       expect(imports.has(`${name}/index.ts`)).toBe(true);
     }
+  });
+
+  it('never publishes an internal module through the index.ts of a public one', () => {
+    const leaks = Array.from(imports.entries())
+      .filter(([file]) => file.endsWith('/index.ts') && !INTERNAL_MODULES.includes(moduleOf(file)))
+      .flatMap(([file, { relative }]) =>
+        relative
+          .filter((target) => INTERNAL_MODULES.includes(moduleOf(target)))
+          .map((target) => `${file} -> ${target}`),
+      );
+    expect(leaks).toEqual([]);
   });
 
   it('only imports files inside src', () => {

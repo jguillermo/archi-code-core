@@ -35,7 +35,7 @@ describe('CompositeField: how a composite handles each field of its schema', () 
     it('freezes a list and names the position of a wrong item', () => {
       expect(Object.isFrozen(centsList.accept('Order.discounts', [new Cents(1)]))).toBe(true);
       expect(() => centsList.accept('Order.discounts', new Cents(1))).toThrow(
-        'Expected a valid list for Order.discounts',
+        'Expected a valid list of Cents for Order.discounts',
       );
       expect(() => centsList.accept('Order.discounts', [new Cents(1), null])).toThrow(
         'Order.discounts.1 is required',
@@ -50,8 +50,9 @@ describe('CompositeField: how a composite handles each field of its schema', () 
       expect(centsList.fromPrimitive([1, 2])).toEqual([new Cents(1), new Cents(2)]);
     });
 
-    it('refuses a list field whose primitive is not a list', () => {
+    it('refuses a list field whose primitive is not a list, naming the list type', () => {
       expect(() => centsList.fromPrimitive(1)).toThrow(TypePrimitiveException);
+      expect(() => centsList.fromPrimitive(1)).toThrow('Expected a valid list of Cents');
     });
   });
 
@@ -63,6 +64,14 @@ describe('CompositeField: how a composite handles each field of its schema', () 
         { amount: 100, currency: 'EUR' },
         { amount: 100, currency: 'EUR' },
       ]);
+    });
+  });
+
+  describe('naming the type of a field', () => {
+    it('names a value object or composite by its class and a list by its items', () => {
+      expect(cents.typeName).toBe('Cents');
+      expect(money.typeName).toBe('Money');
+      expect(CompositeField.of([Money]).typeName).toBe('list of Money');
     });
   });
 
