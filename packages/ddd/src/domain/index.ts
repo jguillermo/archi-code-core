@@ -1,7 +1,7 @@
 export * from './event/event-base';
 export * from './entity/entity';
 export * from './aggregate/aggregate-root';
-export * from './type';
+export * from './type/index';
 export * from './primitive/primitive-types';
 export type { AggregateFinder } from './repository/aggregate-finder';
 export type { AggregateSaver } from './repository/aggregate-saver';

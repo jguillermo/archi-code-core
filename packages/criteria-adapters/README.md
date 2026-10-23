@@ -23,7 +23,7 @@ Requires Node.js 24 or later. `@archi-code/criteria` is a dependency; `mongodb` 
 optional peer dependency that only `/mongodb` needs, and it never imports the driver itself. The
 package has no side effects (`sideEffects: false`). The entry points import `@archi-code/criteria`
 by name, so in a browser use a bundler (Vite, webpack, esbuild…) or an import map. `/memory` and
-`/indexeddb` are checked in Chromium, Firefox and WebKit, `/indexeddb` on each browser's own
+`/indexeddb` are checked in Chromium and WebKit, `/indexeddb` on each browser's own
 IndexedDB. TypeScript
 resolves the entry points with every `moduleResolution`, including the old `node`.
 

@@ -127,7 +127,8 @@ people (and the AI assistants) that consume the package:
   re-exports it (`'../type'`). Barrels inside a package hide dependencies and create import
   cycles; `index.ts` files exist to expose the public API. The one exception is a package with
   subpath modules: across modules, import only through the other module's `index.ts` (its public
-  API). Specs in `test/` may import from the `src` barrels.
+  API). Specs in `test/` may import from the `src` barrels. ESLint enforces it in every
+  `packages/*/src` with `archi-code/no-barrel-import` (see `.claude/rules/tooling.md`).
 - WebStorm's "Import can be shortened" inspection suggests the opposite: disable it, and the
   directory (`index`) import option in Code Style › TypeScript › Imports (`.idea/` is not shared).
 

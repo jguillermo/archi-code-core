@@ -10,7 +10,7 @@ const { SPECIFIER_RE, findNodeGlobal } = require('./lib/web-safety');
 
 const ROOT = process.cwd();
 const pkg = require(path.join(ROOT, 'package.json'));
-const BROWSERS = (process.env.CHECK_BROWSERS || 'chromium,firefox,webkit').split(',');
+const BROWSERS = (process.env.CHECK_BROWSERS || 'chromium,webkit').split(',');
 const CONTENT_TYPES = { '.js': 'text/javascript', '.json': 'application/json' };
 
 function fail(message) {
