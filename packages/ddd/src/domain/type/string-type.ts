@@ -1,6 +1,6 @@
 import { toString as convertToString } from '@archi-code/validation';
 import { AbstractType } from './abstract-type';
-import { TypePrimitiveException } from '../../exceptions/index';
+import { TypePrimitiveException } from '../exceptions/type-primitive.exception';
 
 export class StringType extends AbstractType<string> {
   protected filter(value: unknown): string {

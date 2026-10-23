@@ -1,5 +1,5 @@
-import { InternalErrorException, UnknownEventException } from '../../exceptions/index';
-import { Immutable } from '../../domain/index';
+import { InternalErrorException } from '../exceptions/internal-error.exception';
+import { UnknownEventException } from '../exceptions/unknown-event.exception';
 import type { EventBase, EventClass, SerializedEvent } from '../../domain/index';
 
 export type EventFactory<Event extends EventBase> = (serialized: SerializedEvent) => Event;
@@ -36,13 +36,13 @@ export class EventRegistry<Event extends EventBase = EventBase> {
     }
     const rebuilt = factory(event);
     EventRegistry.assertSameIdentity(event, rebuilt);
-    return Immutable.freeze(rebuilt);
+    return rebuilt;
   }
 
   private static assertSameIdentity(serialized: SerializedEvent, rebuilt: EventBase): void {
     if (
       rebuilt.eventId !== String(serialized.eventId).toLowerCase() ||
-      rebuilt.occurredOn.getTime() !== new Date(serialized.occurredOn).getTime()
+      Date.parse(rebuilt.occurredOn) !== Date.parse(serialized.occurredOn)
     ) {
       throw new InternalErrorException(
         `the factory of "${serialized.eventName}" must pass the serialized event as metadata, so it keeps its eventId and occurredOn`,

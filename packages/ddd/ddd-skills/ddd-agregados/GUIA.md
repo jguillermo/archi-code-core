@@ -8,7 +8,7 @@
 
 [Fuera de los libros: convención de @archi-code/ddd]
 
-* La raíz no se escribe: extiende `AggregateRoot<Id, Event>` y llama a `super(id)`; la `version` de la concurrencia optimista está en la base, fuera del estado del agregado, y solo la tocan los repositorios (`restoreVersion()` al cargar, `markPersisted()` tras escribir).
+* La raíz no se escribe: extiende `AggregateRoot<Id, Event>` y llama a `super(id)`; el agregado no declara ni mapea ninguna `version`: la de la concurrencia optimista es solo del repositorio, que recuerda la de cada agregado cargado o guardado en un `WeakMap<Order, number>` y la actualiza solo tras escribir con éxito; el caso de uso nunca la ve.
 * Todo el estado son value objects, composites o entidades hijas con getter público; constructor privado, una factoría de negocio y `fromPrimitives`, y `toPrimitives()` con datos planos (las seis reglas de `layers.md`).
 * Las identidades nuevas salen del value object (`OrderId.generate()`), no del repositorio.
 * Los métodos del dominio reciben `clock: { now(): Date }` y lo pasan a los eventos (`{ clock }`).
@@ -68,7 +68,7 @@ Guía completa en `ddd-skills/ddd-agregados/references/implementacion-ts.md`. Lo
 * Partes internas como **value objects** siempre que se puedan reemplazar enteras [IDDD cap. 10].
 * Comportamiento con nombres del lenguaje; sin setters públicos. Ley de Demeter y "Tell, Don't Ask": los clientes piden a la raíz que haga algo, no navegan por dentro [IDDD cap. 10].
 * **No inyectes repositorios ni servicios en el agregado.** Busca antes lo que necesite (en el servicio de aplicación) y pásaselo al método [IDDD cap. 10].
-* **Concurrencia optimista** con versión en la raíz [IDDD cap. 10]: la `version` de `AggregateRoot`, que el repositorio comprueba al guardar (`ConcurrencyException`).
+* **Concurrencia optimista** con versión en la raíz [IDDD cap. 10]: con el paquete la guarda el repositorio (un `WeakMap` con la versión de cada agregado que cargó o guardó, almacenada junto a los primitivos, nunca dentro) y la comprueba al guardar y al borrar (`ConcurrencyException`) `[Fuera de los libros: convención de @archi-code/ddd]`.
 * El agregado **registra** sus eventos (`record`); el caso de uso los publica tras guardar con `events.publish(order.pullDomainEvents())` (ver `ddd-skills/ddd-eventos-dominio/GUIA.md`).
 * **Distingue comandos de hechos.** Un comando de usuario puede rechazarse con un error de negocio. Un método que registra un hecho ya ocurrido en otro agregado o contexto es idempotente y no lanza: si el hecho no encaja, registra un evento de negocio para que otra política compense [Destilado cap. 6]. Una excepción en un consumidor de mensajes provoca reintentos sin fin.
 * Creación con **fábricas**: método en la raíz de otro agregado cuando el nuevo nace de él (`customer.placeOrder(...)`), o servicio cuando la creación necesita traducir de otro contexto [IDDD cap. 11; PHP: Factories]. Ver `ddd-skills/ddd-agregados/references/fabricas.md`.

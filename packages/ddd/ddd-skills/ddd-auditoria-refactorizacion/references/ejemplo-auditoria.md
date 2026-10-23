@@ -85,7 +85,7 @@ class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, void> {
 | 5 | Estado y total como primitivos (`_status: string`, `_total: number`) en vez de value objects | `domain/order/order.ts:5-6` | Media |
 | 6 | `toCommand` devuelve el input tal cual: ningún value object se construye ni valida antes de `handle` | `application/update-order/update-order.ts:14` | Media |
 | 7 | `new Date()` en el agregado: fechas no deterministas en tests | `domain/order/order.ts:10` | Media |
-| 8 | `throw new Error(...)` en vez de una `DomainException` con código: el `HttpErrorMapper` responde 500 | `application/update-order/update-order.ts:18` | Media |
+| 8 | `throw new Error(...)` en vez de una `DomainException` con código: `ExceptionClassifier` lo clasifica como `ExceptionKind.Internal` y el cliente recibe 500 | `application/update-order/update-order.ts:18` | Media |
 | 9 | Los casos de uso reciben un `UnitOfWork` del proyecto y abren la transacción con `unitOfWork.run`: la transacción y todo lo de persistencia son del adaptador del repositorio, que hace atómico cada `save` | `application/update-order/update-order.ts:17`, `application/place-order/place-order.ts:27` | Media |
 
 Los hallazgos 2, 3 y 6 se cruzan además con `ddd-skills/archi-code-ddd/what-not-to-do.md` (casos de uso CRUD, value objects fuera de `toCommand`, reglas de negocio fuera del agregado).
@@ -108,10 +108,8 @@ addLine(line: OrderLine, clock: { now(): Date }): void;
 Enviar no es trabajo del pedido de Ventas: lo hace `Shipment` en Almacén, que publica `ShipmentDispatched` (`ddd-skills/ddd-agregados/references/ejemplo-ecommerce.md`), así que `status: 'shipped'` y su errata desaparecen de Ventas. `UpdateOrder` se parte en un caso de uso por acción de negocio (`AddOrderLine` aquí; el envío, en Almacén); cada uno construye sus value objects en `toCommand` y guarda un solo agregado:
 
 ```ts
-import { ValueObjects } from '@archi-code/ddd/domain';
 import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
-import { AggregateNotFoundException } from '@archi-code/ddd/exceptions';
-import { UseCase } from '@archi-code/ddd/application';
+import { AggregateNotFoundException, UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
 
 interface AddOrderLineInput {
@@ -136,7 +134,7 @@ class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand, void>
   }
 
   protected toCommand(input: AddOrderLineInput): AddOrderLineCommand {
-    return ValueObjects.build({
+    return ValueObjectBuilder.build({
       orderId: () => new OrderId(input.orderId),
       line: () =>
         OrderLine.fromPrimitives({
@@ -198,7 +196,7 @@ class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, void> {
   }
 
   protected toCommand(input: PlaceOrderInput): PlaceOrderCommand {
-    return ValueObjects.build({
+    return ValueObjectBuilder.build({
       orderId: () => new OrderId(input.orderId),
       customerId: () => new CustomerId(input.customerId),
       lines: () => OrderLines.fromPrimitives({ items: input.lines }),
@@ -225,7 +223,7 @@ class AwardLoyaltyPoints extends UseCase<AwardLoyaltyPointsInput, AwardLoyaltyPo
   }
 
   protected toCommand(input: AwardLoyaltyPointsInput): AwardLoyaltyPointsCommand {
-    return ValueObjects.build({
+    return ValueObjectBuilder.build({
       customerId: () => new CustomerId(input.customerId),
       orderId: () => new OrderId(input.orderId),
     });
@@ -250,7 +248,7 @@ class AwardLoyaltyPointsOnOrderPlaced extends EventListener<OrderPlaced> {
   async handle(event: OrderPlaced): Promise<void> {
     await this.awardLoyaltyPoints.execute({
       customerId: event.customerId,
-      orderId: event.aggregateId,
+      orderId: event.orderId,
     });
   }
 }
@@ -266,7 +264,7 @@ import {
   FixedClock,
   InMemoryEventChannel,
 } from '@archi-code/ddd/infrastructure';
-import { ValidationException } from '@archi-code/ddd/exceptions';
+import { ValidationException } from '@archi-code/ddd/domain';
 import { InMemoryCustomerRepository } from '../support/in-memory-customer-repository';
 import { InMemoryOrderRepository } from '../support/in-memory-order-repository';
 
@@ -276,7 +274,7 @@ const registry = new EventRegistry<OrderEvent>().register(
   OrderPlaced,
   (json) =>
     new OrderPlaced(
-      json.aggregateId,
+      json.orderId as string,
       json.customerId as string,
       json.lines as OrderLineData[],
       json.total as MoneyData,
@@ -311,6 +309,6 @@ await expect(
 ## Plan
 
 * **Fase 0:** tests de caracterización de alta, envío y puntos de fidelidad sobre `InMemoryOrderRepository` e `InMemoryCustomerRepository` (dobles de test del proyecto en `test/support/`), `InMemoryEventChannel` y `FixedClock`.
-* **Fase 1:** borrar `OrderMapper`: la conversión pasa al agregado (`toPrimitives()` y `static fromPrimitives()`, con un test de ida y vuelta) y `MongoOrderRepository` la llama directamente (su constructor recibe solo la `collection`), sustituir `new Date()` por el `Clock` inyectado y `Error` por `DomainException` con código; `HttpErrorMapper` responde 422 a las reglas de negocio. Quitar el `UnitOfWork` de los casos de uso: `MongoOrderRepository` hace atómico cada `save` (una escritura de un documento con condición de versión) y los casos de uso solo reciben roles de repositorio, `EventBus` y `Clock`.
+* **Fase 1:** borrar `OrderMapper`: la conversión pasa al agregado (`toPrimitives()` y `static fromPrimitives()`, con un test de ida y vuelta) y `MongoOrderRepository` la llama directamente (su constructor recibe solo la `collection`), sustituir `new Date()` por el `Clock` inyectado y `Error` por `DomainException` con código; `ExceptionClassifier` clasifica las reglas de negocio como `ExceptionKind.Invalid` (422 en HTTP). Quitar el `UnitOfWork` de los casos de uso: `MongoOrderRepository` hace atómico cada `save` (una escritura de un documento con condición de versión) y los casos de uso solo reciben roles de repositorio, `EventBus` y `Clock`.
 * **Fase 2:** `OrderStatus`, `OrderLines` (con `OrderLine` y `Money`) como value objects; `addLine` sustituye a los setters; `UpdateOrder` se parte en `AddOrderLine` y el envío pasa a `Shipment` en Almacén.
 * **Fase 3:** `PlaceOrder` guarda solo el pedido; `AwardLoyaltyPointsOnOrderPlaced` ejecuta `AwardLoyaltyPoints` por evento. Para que `OrderPlaced` no se pierda si el proceso cae entre `save` y `publish`, `MongoOrderRepository` escribe el pedido y sus eventos pendientes en el mismo documento (outbox) y un relay los entrega después por el `EventChannel`; los casos de uso no cambian.

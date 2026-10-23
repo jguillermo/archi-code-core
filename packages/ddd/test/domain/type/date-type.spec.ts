@@ -3,10 +3,10 @@ import { Validations } from '@archi-code/validation';
 import type { ValidationResult } from '@archi-code/validation';
 import { CreatedAt, DateType, UpdatedAt } from '../../../src/domain/type/date-type';
 import { AbstractType } from '../../../src/domain/type/abstract-type';
-import { Required } from '../../../src/domain/type/required/required';
-import { TypePrimitiveException } from '../../../src/exceptions/domain/type-primitive.exception';
-import { RequiredValueException } from '../../../src/exceptions/domain/required-value.exception';
-import { ValidationException } from '../../../src/exceptions/domain/validation.exception';
+import { Required } from '../../../src/domain/type/required/required-type';
+import { TypePrimitiveException } from '../../../src/domain/exceptions/type-primitive.exception';
+import { RequiredValueException } from '../../../src/domain/exceptions/required-value.exception';
+import { ValidationException } from '../../../src/domain/exceptions/validation.exception';
 
 class ShippedAt extends DateType {}
 
@@ -44,11 +44,11 @@ const zonelessInputs: [string, string][] = [
 const emptyInputs: [string, unknown][] = [
   ['null', null],
   ['undefined', undefined],
-  ['an empty form field', ''],
-  ['a field with only spaces', '   '],
 ];
 
 const invalidInputs: [string, unknown, string][] = [
+  ['an empty form field', '', '""'],
+  ['a field with only spaces', '   ', '"   "'],
   ['free text', 'tomorrow', '"tomorrow"'],
   ['a day that does not exist', '2018-02-30', '"2018-02-30"'],
   ['a European formatted date', '23/03/2018', '"23/03/2018"'],
@@ -57,6 +57,25 @@ const invalidInputs: [string, unknown, string][] = [
   ['an epoch timestamp in milliseconds', 1521820800000, '1521820800000'],
   ['a boolean', true, 'true'],
   ['an object', { at: '2018-03-23' }, '{"at":"2018-03-23"}'],
+];
+
+const setters: [string, (date: Date) => unknown][] = [
+  ['setDate', (date) => date.setDate(1)],
+  ['setFullYear', (date) => date.setFullYear(2020)],
+  ['setHours', (date) => date.setHours(1)],
+  ['setMilliseconds', (date) => date.setMilliseconds(1)],
+  ['setMinutes', (date) => date.setMinutes(1)],
+  ['setMonth', (date) => date.setMonth(1)],
+  ['setSeconds', (date) => date.setSeconds(1)],
+  ['setTime', (date) => date.setTime(0)],
+  ['setUTCDate', (date) => date.setUTCDate(1)],
+  ['setUTCFullYear', (date) => date.setUTCFullYear(2020)],
+  ['setUTCHours', (date) => date.setUTCHours(1)],
+  ['setUTCMilliseconds', (date) => date.setUTCMilliseconds(1)],
+  ['setUTCMinutes', (date) => date.setUTCMinutes(1)],
+  ['setUTCMonth', (date) => date.setUTCMonth(1)],
+  ['setUTCSeconds', (date) => date.setUTCSeconds(1)],
+  ['setYear', (date) => (date as unknown as { setYear(year: number): number }).setYear(2020)],
 ];
 
 const dateError = (received: string) =>
@@ -136,10 +155,9 @@ describe('DateType', () => {
     });
 
     it.each(emptyInputs)('a placement date that is missing (%s) is refused', (_, input) => {
-      const received = typeof input === 'string' ? `"${input}"` : 'null';
       const create = () => new PlacedAt(input as Date);
       expect(create).toThrow(RequiredValueException);
-      expect(create).toThrow(`Validation Error: PlacedAt is required, but received ${received}.`);
+      expect(create).toThrow(`Validation Error: PlacedAt is required, but received null.`);
     });
   });
 
@@ -152,12 +170,28 @@ describe('DateType', () => {
       expect(shippedAt.toString()).toBe('2018-03-23T00:00:00.000Z');
     });
 
-    it('a handler cannot move the shipment by calling a setter on its value', () => {
-      const shippedAt = new ShippedAt(new Date('2018-03-23T00:00:00.000Z'));
-      expect(() => shippedAt.value?.setUTCFullYear(2020)).toThrow(
-        'Cannot call setUTCFullYear: the date is immutable',
-      );
-      expect(shippedAt.toString()).toBe('2018-03-23T00:00:00.000Z');
+    it.each(setters)(
+      'a handler calling %s on its value cannot move the shipment',
+      (setter, change) => {
+        const shippedAt = new ShippedAt(new Date('2018-03-23T00:00:00.000Z'));
+        expect(() => change(shippedAt.value as Date)).toThrow(
+          new TypeError(`Cannot call ${setter}: the date is immutable`),
+        );
+        expect(shippedAt.toString()).toBe('2018-03-23T00:00:00.000Z');
+      },
+    );
+
+    it('its value is a frozen Date, so no properties can be attached to it', () => {
+      const value = new ShippedAt('2018-03-23T16:02:15.000Z').value as Date;
+      expect(value).toBeInstanceOf(Date);
+      expect(Object.isFrozen(value)).toBe(true);
+      expect(JSON.stringify({ shippedAt: value })).toBe('{"shippedAt":"2018-03-23T16:02:15.000Z"}');
+    });
+
+    it('a report that needs to shift the date copies it into a regular Date', () => {
+      const copy = new Date(new ShippedAt('2018-03-23T16:02:15.000Z').value as Date);
+      copy.setUTCDate(copy.getUTCDate() + 7);
+      expect(copy.toISOString()).toBe('2018-03-30T16:02:15.000Z');
     });
   });
 
@@ -172,16 +206,6 @@ describe('DateType', () => {
     it('an order not shipped yet prints an empty text', () => {
       expect(new ShippedAt(null).toString()).toBe('');
       expect(`Shipped: [${new ShippedAt()}]`).toBe('Shipped: []');
-    });
-
-    it('serializes as the ISO instant in an API response', () => {
-      const response = {
-        placedAt: new PlacedAt(new Date('2024-01-31T09:00:00.000Z')),
-        shippedAt: new ShippedAt(null),
-      };
-      expect(JSON.stringify(response)).toBe(
-        '{"placedAt":"2024-01-31T09:00:00.000Z","shippedAt":null}',
-      );
     });
   });
 

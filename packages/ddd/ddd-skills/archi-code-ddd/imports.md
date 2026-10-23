@@ -11,34 +11,24 @@ import {
   Composite,
   CreatedAt,
   DateType,
+  DomainException,
+  DomainExceptionCode,
   Entity,
   EnumType,
   EventBase,
   IdType,
+  InvalidEventDefinitionException,
   JsonType,
   NumberType,
   Required,
+  RequiredValueException,
   Specification,
   StringType,
+  TypePrimitiveException,
   UpdatedAt,
   UuidType,
-  ValueObjects,
-} from '@archi-code/ddd/domain';
-import {
-  AggregateNotFoundException,
-  ApplicationException,
-  ConcurrencyException,
-  DomainException,
-  ExceptionCode,
-  InfrastructureException,
-  InternalErrorException,
-  NotAllowedException,
-  RequiredValueException,
-  TypePrimitiveException,
-  UnknownEventException,
   ValidationException,
-} from '@archi-code/ddd/exceptions';
-import type { ValidationIssue } from '@archi-code/ddd/exceptions';
+} from '@archi-code/ddd/domain';
 import type {
   AggregateFinder,
   AggregateRemover,
@@ -49,8 +39,20 @@ import type {
   PrimitiveTypes,
   SatisfiedBy,
   SerializedEvent,
+  ValidationIssue,
 } from '@archi-code/ddd/domain';
-import { EventListener, ListensTo, UseCase } from '@archi-code/ddd/application';
+import {
+  AggregateNotFoundException,
+  ApplicationException,
+  ApplicationExceptionCode,
+  ConcurrencyException,
+  EventListener,
+  ListensTo,
+  NotAllowedException,
+  UnexpectedErrorException,
+  UseCase,
+  ValueObjectBuilder,
+} from '@archi-code/ddd/application';
 import type {
   Clock,
   EventBus,
@@ -63,12 +65,17 @@ import {
   ConsoleLogger,
   DomainEventBus,
   EventRegistry,
+  ExceptionClassifier,
+  ExceptionKind,
   FixedClock,
-  HttpErrorMapper,
+  InfrastructureException,
+  InfrastructureExceptionCode,
   InMemoryEventChannel,
   InMemoryLogger,
+  InternalErrorException,
   SilentLogger,
   SystemClock,
+  UnknownEventException,
 } from '@archi-code/ddd/infrastructure';
 import type {
   ChannelHandler,
@@ -78,6 +85,9 @@ import type {
 } from '@archi-code/ddd/infrastructure';
 import { Validations } from '@archi-code/validation';
 ```
+
+Each layer exports its own exceptions and its own code enum; there is no `/exceptions` subpath
+and the common base class of the exceptions is internal.
 
 ```js
 const { Required, StringType } = require('@archi-code/ddd/domain');

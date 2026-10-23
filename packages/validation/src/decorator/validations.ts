@@ -1,5 +1,5 @@
-import { validator } from '../validators';
-import type { ValidatorRegistry } from '../validators';
+import { validator } from '../validators/index';
+import type { ValidatorRegistry } from '../validators/index';
 import { ValidationConfigError } from '../helpers/errors';
 import { hasOwn } from '../helpers/hasOwn';
 

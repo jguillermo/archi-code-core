@@ -14,9 +14,8 @@ Ejemplo de IDDD: autenticar a un usuario solo si su tenant está activo. Ponerlo
 El paquete no trae una clase base para servicios de dominio: son clases normales en `domain/`, con el nombre de la operación de negocio. Reciben agregados ya cargados y value objects, y devuelven un value object.
 
 ```ts
-import { Composite, Required, StringType } from '@archi-code/ddd/domain';
+import { Composite, DomainException, Required, StringType } from '@archi-code/ddd/domain';
 import type { SatisfiedBy } from '@archi-code/ddd/domain';
-import { DomainException } from '@archi-code/ddd/exceptions';
 import { Validations } from '@archi-code/validation';
 
 @Validations([{ validator: 'isIn', properties: { values: ['PENINSULA', 'BALEARES', 'CANARIAS'] } }])
@@ -79,7 +78,7 @@ export interface ExchangeRates {
 ```
 
 ```ts
-import { InternalErrorException } from '@archi-code/ddd/exceptions';
+import { InternalErrorException } from '@archi-code/ddd/infrastructure';
 
 interface EcbClient {
   rate(from: string, to: string, day: string): Promise<number>;
@@ -104,11 +103,11 @@ export class EcbExchangeRates implements ExchangeRates {
 
 Un servicio de dominio es buen sitio para validar que varios agregados sean coherentes entre sí [IDDD cap. 5]. Recibe los agregados que el caso de uso ya cargó y comprueba. Si detecta un problema, informa (error o evento); no corrige varios agregados a la vez: cada agregado se guarda en su propia escritura atómica.
 
-Para informar de todos los problemas a la vez, reúne `ValidationIssue`s y lanza una sola `ValidationException` (HTTP 422 con `HttpErrorMapper`, cada problema con su `field` y su `code`); si basta con uno, lanza una `DomainException` con nombre y código propio:
+Para informar de todos los problemas a la vez, reúne `ValidationIssue`s y lanza una sola `ValidationException` (`ExceptionKind.Invalid`, 422 en HTTP, cada problema con su `field` y su `code`); si basta con uno, lanza una `DomainException` con nombre y código propio:
 
 ```ts
-import { ValidationException } from '@archi-code/ddd/exceptions';
-import type { ValidationIssue } from '@archi-code/ddd/exceptions';
+import { ValidationException } from '@archi-code/ddd/domain';
+import type { ValidationIssue } from '@archi-code/ddd/domain';
 
 export class ShipmentCheck {
   assertCanShip(order: Order, customer: Customer): void {

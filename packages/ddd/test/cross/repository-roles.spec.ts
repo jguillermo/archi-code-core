@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import { UseCase } from '../../src/application/index';
 import { AggregateRoot, IdType, Required, StringType } from '../../src/domain/index';
-import { AggregateNotFoundException } from '../../src/exceptions/index';
+import { AggregateNotFoundException } from '../../src/application/exceptions/aggregate-not-found.exception';
 import type {
   AggregateFinder,
   AggregateRemover,

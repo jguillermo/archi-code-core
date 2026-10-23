@@ -1,5 +1,5 @@
 import type { Clock, LogContext, Logger, LogLevel } from '../../application/index';
-import { InternalErrorException } from '../../exceptions/index';
+import { InternalErrorException } from '../exceptions/internal-error.exception';
 import { SystemClock } from '../clock/system-clock';
 import { LogSerializer } from './log-serializer';
 

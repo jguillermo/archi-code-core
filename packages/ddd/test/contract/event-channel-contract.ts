@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { EventChannel } from '../../src/infrastructure/index';
 import type { SerializedEvent } from '../../src/domain/index';
-import { InfrastructureException } from '../../src/exceptions/index';
+import { InfrastructureException } from '../../src/infrastructure/exceptions/infrastructure.exception';
 
 export type EventChannelFactory = () => EventChannel | Promise<EventChannel>;
 
@@ -14,10 +14,9 @@ export function orderEvent(
 ): SerializedEvent {
   return {
     eventName,
-    eventVersion: 1,
     eventId,
-    aggregateId: orderId,
     occurredOn: '2026-10-19T09:30:00.000Z',
+    orderId,
     ...payload,
   };
 }

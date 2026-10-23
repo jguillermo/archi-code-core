@@ -5,10 +5,9 @@ import type { EventMetadata } from '../../../src/domain/event/event-base';
 import { BooleanType } from '../../../src/domain/type/boolean-type';
 import { IdType } from '../../../src/domain/type/id-type';
 import { NumberType } from '../../../src/domain/type/number-type';
-import { Required } from '../../../src/domain/type/required/required';
+import { Required } from '../../../src/domain/type/required/required-type';
 import { StringType } from '../../../src/domain/type/string-type';
-import { DomainException } from '../../../src/exceptions/domain/domain.exception';
-import { InternalErrorException } from '../../../src/exceptions/infrastructure/internal-error.exception';
+import { DomainException } from '../../../src/domain/exceptions/domain.exception';
 import type { PrimitiveTypes } from '../../../src/domain/primitive/primitive-types';
 
 class OrderId extends IdType<'OrderId'> {}
@@ -29,11 +28,11 @@ class OrderPlaced extends EventBase {
   static readonly eventName = 'OrderPlaced';
 
   constructor(
-    orderId: string,
+    readonly orderId: string,
     readonly customer: string,
     metadata?: EventMetadata,
   ) {
-    super(orderId, metadata);
+    super(metadata);
   }
 }
 
@@ -41,11 +40,11 @@ class OrderLineAdded extends EventBase {
   static readonly eventName = 'OrderLineAdded';
 
   constructor(
-    orderId: string,
+    readonly orderId: string,
     readonly sku: string,
     readonly quantity: number,
   ) {
-    super(orderId);
+    super();
   }
 }
 
@@ -110,23 +109,23 @@ describe('AggregateRoot: an order that records what happened to it', () => {
       const events = Order.place(orderId, 'Ana').pullDomainEvents();
       expect(events).toHaveLength(1);
       expect(events[0]).toBeInstanceOf(OrderPlaced);
-      expect(events[0]).toMatchObject({ aggregateId: orderId, customer: 'Ana' });
+      expect(events[0]).toMatchObject({ orderId, customer: 'Ana' });
     });
 
-    it('records events as immutable facts: nobody can change one after it happened', () => {
-      const [placed] = Order.place(orderId, 'Ana').pullDomainEvents() as OrderPlaced[];
-      expect(Object.isFrozen(placed)).toBe(true);
-      expect(() => {
-        (placed as { customer: string }).customer = 'Luis';
-      }).toThrow(TypeError);
-      expect(placed.customer).toBe('Ana');
+    it('hands back the same event it recorded, which guards its own fields as readonly', () => {
+      const order = Order.place(orderId, 'Ana');
+      order.pullDomainEvents();
+      const placed = new OrderPlaced(orderId, 'Luis');
+      // @ts-expect-error record is protected: only the aggregate decides what happened
+      order.record(placed);
+      expect(order.pullDomainEvents()[0]).toBe(placed);
     });
 
     it('returns the events in the order they happened', () => {
       const order = Order.place(orderId, 'Ana');
       order.addLine('TORCH-01', 2);
       order.addLine('HELMET-02', 1);
-      expect(order.pullDomainEvents().map((event) => event.eventName())).toEqual([
+      expect(order.pullDomainEvents().map((event) => event.eventName)).toEqual([
         'OrderPlaced',
         'OrderLineAdded',
         'OrderLineAdded',
@@ -162,14 +161,6 @@ describe('AggregateRoot: an order that records what happened to it', () => {
       expect(order.pullDomainEvents()).toHaveLength(1);
     });
 
-    it('pending events stay out of JSON, spreads and keys, so they never reach the database', () => {
-      const order = Order.place(orderId, 'Ana');
-      expect(Object.keys(order)).not.toContain('domainEvents');
-      expect(JSON.parse(JSON.stringify(order))).not.toHaveProperty('domainEvents');
-      expect({ ...order }).not.toHaveProperty('domainEvents');
-      expect(order.pullDomainEvents()).toHaveLength(1);
-    });
-
     it('two loads of the same row compare equal in tests even if one has pending events', () => {
       const row = { id: orderId, customer: 'Ana', shipped: false };
       const untouched = Order.fromPrimitives(row);
@@ -189,58 +180,12 @@ describe('AggregateRoot: an order that records what happened to it', () => {
   });
 
   describe('persistence', () => {
-    it('its primitives are what the repository stores: id and public state, never the version', () => {
+    it('its primitives are what the repository stores: id and public state', () => {
       expectTypeOf<PrimitiveTypes<Order>>().toEqualTypeOf<{
         id: string;
         customer: string;
         lines: { id: string; sku: string; quantity: number }[];
       }>();
-    });
-  });
-
-  describe('version for optimistic concurrency', () => {
-    it('a new order starts at version 0, before it is ever saved', () => {
-      expect(Order.place(orderId, 'Ana').version).toBe(0);
-    });
-
-    it('each successful save the repository confirms moves the version one step', () => {
-      const order = Order.place(orderId, 'Ana');
-      order.markPersisted();
-      order.addLine('TORCH-01', 2);
-      order.markPersisted();
-      expect(order.version).toBe(2);
-    });
-
-    it('a loaded order gets back the version the repository stored, and returns itself', () => {
-      const loaded = Order.fromPrimitives({ id: orderId, customer: 'Ana', shipped: false });
-      expect(loaded.restoreVersion(7)).toBe(loaded);
-      expect(loaded.version).toBe(7);
-    });
-
-    it.each([-1, 1.5, Number.NaN, Number.MAX_SAFE_INTEGER + 1])(
-      'refuses to restore the impossible version %s, a sign of a corrupt row',
-      (version) => {
-        const order = Order.place(orderId, 'Ana');
-        expect(() => order.restoreVersion(version)).toThrow(InternalErrorException);
-        expect(() => order.restoreVersion(version)).toThrow(
-          `Failed, internal error: Order cannot be restored with version ${version}`,
-        );
-        expect(order.version).toBe(0);
-      },
-    );
-
-    it('keeps the version out of the state, so mappers and serializers never see it', () => {
-      const order = Order.place(orderId, 'Ana');
-      order.markPersisted();
-      expect(Object.keys(order)).not.toContain('persistedVersion');
-      expect(JSON.stringify(order)).not.toContain('ersion');
-    });
-
-    it('cannot be assigned from outside: only the repository moves it, through its methods', () => {
-      const order = Order.place(orderId, 'Ana');
-      // @ts-expect-error version is read-only
-      expect(() => (order.version = 3)).toThrow(TypeError);
-      expect(order.version).toBe(0);
     });
   });
 

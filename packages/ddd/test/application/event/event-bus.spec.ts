@@ -7,22 +7,26 @@ class OrderPlaced extends EventBase {
   static readonly eventName = 'OrderPlaced';
 
   constructor(
-    orderId: string,
+    readonly orderId: string,
     readonly customer: string,
   ) {
-    super(orderId);
+    super();
   }
 }
 
 class OrderCancelled extends EventBase {
   static readonly eventName = 'OrderCancelled';
+
+  constructor(readonly orderId: string) {
+    super();
+  }
 }
 
 class OutboxEventBus implements EventBus<OrderPlaced | OrderCancelled> {
   readonly rows: SerializedEvent[] = [];
 
   async publish(events: readonly (OrderPlaced | OrderCancelled)[]): Promise<void> {
-    this.rows.push(...events.map((event) => event.toJSON()));
+    this.rows.push(...events.map((event) => ({ ...event })));
   }
 }
 
@@ -40,8 +44,8 @@ describe('EventBus: the port that publishes what the domain recorded', () => {
     const bus = new OutboxEventBus();
     await bus.publish([new OrderPlaced(orderId, 'Ana'), new OrderCancelled(orderId)]);
     expect(bus.rows).toMatchObject([
-      { eventName: 'OrderPlaced', aggregateId: orderId, customer: 'Ana' },
-      { eventName: 'OrderCancelled', aggregateId: orderId },
+      { eventName: 'OrderPlaced', orderId, customer: 'Ana' },
+      { eventName: 'OrderCancelled', orderId },
     ]);
   });
 

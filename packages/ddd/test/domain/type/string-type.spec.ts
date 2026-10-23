@@ -3,10 +3,10 @@ import { Validations } from '@archi-code/validation';
 import type { ValidationResult } from '@archi-code/validation';
 import { StringType } from '../../../src/domain/type/string-type';
 import { AbstractType } from '../../../src/domain/type/abstract-type';
-import { Required } from '../../../src/domain/type/required/required';
-import { TypePrimitiveException } from '../../../src/exceptions/domain/type-primitive.exception';
-import { RequiredValueException } from '../../../src/exceptions/domain/required-value.exception';
-import { ValidationException } from '../../../src/exceptions/domain/validation.exception';
+import { Required } from '../../../src/domain/type/required/required-type';
+import { TypePrimitiveException } from '../../../src/domain/exceptions/type-primitive.exception';
+import { RequiredValueException } from '../../../src/domain/exceptions/required-value.exception';
+import { ValidationException } from '../../../src/domain/exceptions/validation.exception';
 
 class CustomerName extends Required(StringType) {}
 class Nickname extends StringType {}
@@ -32,9 +32,12 @@ const formInputs: [string, unknown, string][] = [
   ['a false checkbox value', false, 'false'],
 ];
 
-const blankFormFields: [string, unknown][] = [
+const missingFormFields: [string, unknown][] = [
   ['a field sent as null', null],
   ['a field left out of the request', undefined],
+];
+
+const blankTextBoxes: [string, string][] = [
   ['an empty text box', ''],
   ['a text box with only spaces', '   '],
   ['a text area with only tabs and line breaks', '\t\n\r\n'],
@@ -114,7 +117,7 @@ describe('StringType', () => {
       expect(new Nickname(input as string).value).toBe(expected);
     });
 
-    it.each(blankFormFields)('stores %s as null', (_, input) => {
+    it.each(missingFormFields)('stores %s as null', (_, input) => {
       expect(new Nickname(input as string).value).toBeNull();
       expect(new Nickname(input as string).isNull).toBe(true);
     });
@@ -140,12 +143,17 @@ describe('StringType', () => {
       });
     });
 
-    it.each(blankFormFields)('is valid as null when it comes from %s', (_, input) => {
+    it.each(missingFormFields)('is valid as null when it comes from %s', (_, input) => {
       expect(new Nickname(input as string).validate()).toEqual({
         ok: true,
         value: null,
         errors: [],
       });
+    });
+
+    it.each(blankTextBoxes)('keeps %s as the text typed', (_, input) => {
+      expect(new Nickname(input).value).toBe(input);
+      expect(new Nickname(input).isNull).toBe(false);
     });
   });
 
@@ -176,15 +184,18 @@ describe('StringType', () => {
       });
     });
 
-    it.each(blankFormFields)(
+    it.each(missingFormFields)(
       'rejects %s with a RequiredValueException naming the type',
       (_, input) => {
-        const received = typeof input === 'string' ? `"${input}"` : 'null';
         const create = () => new CustomerName(input as string);
         expect(create).toThrow(RequiredValueException);
-        expect(create).toThrow(requiredError('CustomerName', received));
+        expect(create).toThrow(requiredError('CustomerName', 'null'));
       },
     );
+
+    it.each(blankTextBoxes)('keeps %s: blank text is a value, not a missing one', (_, input) => {
+      expect(new CustomerName(input).value).toBe(input);
+    });
 
     it('rejects an object sent instead of a name with TypePrimitiveException', () => {
       expect(() => new CustomerName({} as unknown as string)).toThrow(primitiveError('{}'));
@@ -208,7 +219,7 @@ describe('StringType', () => {
       ]);
     });
 
-    it.each(blankFormFields)(
+    it.each(missingFormFields)(
       'is valid without running the rule when the shopper leaves %s',
       (_, input) => {
         const { CouponCode, isShortCode } = couponCodes();
@@ -220,6 +231,12 @@ describe('StringType', () => {
         expect(isShortCode).not.toHaveBeenCalled();
       },
     );
+
+    it.each(blankTextBoxes)('runs the rule on %s, which is a value', (_, input) => {
+      const { CouponCode, isShortCode } = couponCodes();
+      thrownBy(() => new CouponCode(input));
+      expect(isShortCode).toHaveBeenCalledWith(input);
+    });
 
     it('a required referral code runs the same rule', () => {
       const { ReferralCode } = couponCodes();
@@ -263,20 +280,25 @@ describe('StringType', () => {
     });
 
     it('two empty nicknames are equal', () => {
-      expect(new Nickname(null).equals(new Nickname(''))).toBe(true);
+      expect(new Nickname(null).equals(new Nickname())).toBe(true);
+    });
+
+    it('an empty nickname is not equal to a blank one', () => {
+      expect(new Nickname(null).equals(new Nickname(''))).toBe(false);
     });
 
     it('a nickname is not equal to its plain text, null or undefined', () => {
-      expect(new Nickname('Ana').equals('Ana')).toBe(false);
-      expect(new Nickname('Ana').equals(null)).toBe(false);
-      expect(new Nickname('Ana').equals(undefined)).toBe(false);
+      expect(new Nickname('Ana').equals('Ana' as unknown as Nickname)).toBe(false);
+      expect(new Nickname('Ana').equals(null as unknown as Nickname)).toBe(false);
+      expect(new Nickname('Ana').equals(undefined as unknown as Nickname)).toBe(false);
     });
   });
 
   describe('showing and serializing a name', () => {
     it.each([
       ['a name', new Nickname('Ana'), 'Ana'],
-      ['an empty nickname', new Nickname('  '), ''],
+      ['an empty nickname', new Nickname(), ''],
+      ['a blank nickname', new Nickname('  '), '  '],
     ])('toString() of %s gives %o', (_, nickname, text) => {
       expect(nickname.toString()).toBe(text);
     });
@@ -284,12 +306,6 @@ describe('StringType', () => {
     it('can be used in a template literal for a greeting', () => {
       expect(`Hello, ${new CustomerName('Ana')}!`).toBe('Hello, Ana!');
       expect(`Nickname: ${new Nickname()}.`).toBe('Nickname: .');
-    });
-
-    it('serializes to its plain value inside an API response', () => {
-      expect(JSON.stringify({ name: new CustomerName('Ana'), nickname: new Nickname() })).toBe(
-        '{"name":"Ana","nickname":null}',
-      );
     });
   });
 });

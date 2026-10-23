@@ -5,7 +5,7 @@ import { CreatedAt } from '../../src/domain/type/date-type';
 import { EnumType } from '../../src/domain/type/enum-type';
 import { IdType } from '../../src/domain/type/id-type';
 import { NumberType } from '../../src/domain/type/number-type';
-import { Required } from '../../src/domain/type/required/required';
+import { Required } from '../../src/domain/type/required/required-type';
 import { StringType } from '../../src/domain/type/string-type';
 import { Composite } from '../../src/domain/type/composite/composite';
 import type { PrimitiveTypes } from '../../src/domain/primitive/primitive-types';
@@ -226,18 +226,6 @@ describe('aggregates convert themselves: toPrimitives and fromPrimitives are the
     it('rebuilds from a database row whose dates came back as ISO text', () => {
       const row = JSON.parse(JSON.stringify(shippedOrderWithCoupon().toPrimitives()));
       expect(Order.fromPrimitives(row).placedAt.toString()).toBe('2026-03-01T09:30:00.000Z');
-    });
-
-    it('gives the rebuilt order the version the repository stored next to the primitives', () => {
-      const stored = shippedOrderWithCoupon().toPrimitives();
-      expect(Order.fromPrimitives(stored).restoreVersion(3).version).toBe(3);
-      expect(Order.fromPrimitives(stored).version).toBe(0);
-    });
-
-    it('never writes the version into the primitives: the repository stores it apart', () => {
-      const order = shippedOrderWithCoupon();
-      order.markPersisted();
-      expect(order.toPrimitives()).not.toHaveProperty('version');
     });
 
     it('records no events when it rebuilds an order', () => {

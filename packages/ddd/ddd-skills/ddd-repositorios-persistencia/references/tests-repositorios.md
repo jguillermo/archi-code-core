@@ -4,7 +4,7 @@
 
 Un mapa con la identidad como clave y el agregado como valor [IDDD cap. 12]. Dos detalles para que no mienta `[Fuera de los libros]`: guardar copias (para que modificar un objeto sin `save` no "persista") y comprobar versiones.
 
-El paquete no lo da: cada proyecto escribe el suyo en `test/support/`, uno por agregado, como cualquier otra implementación de una tecnología `[Fuera de los libros: convención de @archi-code/ddd]`. Implementa los roles de `@archi-code/ddd/domain` para su agregado (`AggregateFinder<Order>`, `AggregateSaver<Order>`, `AggregateRemover<Order>`), su constructor no recibe nada (no hay tecnología de la que depender) y llama a `order.toPrimitives()` y `Order.fromPrimitives(row).restoreVersion(version)`, igual que un adaptador real.
+El paquete no lo da: cada proyecto escribe el suyo en `test/support/`, uno por agregado, como cualquier otra implementación de una tecnología `[Fuera de los libros: convención de @archi-code/ddd]`. Implementa los roles de `@archi-code/ddd/domain` para su agregado (`AggregateFinder<Order>`, `AggregateSaver<Order>`, `AggregateRemover<Order>`), su constructor no recibe nada (no hay tecnología de la que depender) llama a `order.toPrimitives()` y `Order.fromPrimitives(row.primitives)` y recuerda la versión de cada agregado en un `WeakMap`, igual que un adaptador real.
 
 En `test/support/in-memory-order-repository.ts`:
 
@@ -15,44 +15,58 @@ import type {
   AggregateSaver,
   PrimitiveTypes,
 } from '@archi-code/ddd/domain';
-import { ConcurrencyException } from '@archi-code/ddd/exceptions';
+import { ConcurrencyException } from '@archi-code/ddd/application';
 import { Order } from '../../src/contexts/sales/domain/order/order';
 import type { OrderId } from '../../src/contexts/sales/domain/order/order';
+
+interface StoredOrder {
+  version: number;
+  primitives: PrimitiveTypes<Order>;
+}
 
 export class InMemoryOrderRepository
   implements AggregateFinder<Order>, AggregateSaver<Order>, AggregateRemover<Order>
 {
-  private readonly rows = new Map<string, { version: number; primitives: PrimitiveTypes<Order> }>();
+  private readonly rows = new Map<string, StoredOrder>();
+  private readonly versions = new WeakMap<Order, number>();
 
   async findById(id: OrderId): Promise<Order | null> {
     const row = this.rows.get(id.value);
-    return row === undefined
-      ? null
-      : Order.fromPrimitives(structuredClone(row.primitives)).restoreVersion(row.version);
+    return row === undefined ? null : this.load(row);
   }
 
   async save(order: Order): Promise<void> {
-    const key = this.currentKey(order);
-    this.rows.set(key, { version: order.version + 1, primitives: structuredClone(order.toPrimitives()) });
-    order.markPersisted();
+    const key = order.id.value;
+    const version = this.checkedVersion(order);
+    const primitives = structuredClone(order.toPrimitives());
+    this.rows.set(key, { version: version + 1, primitives });
+    this.versions.set(order, version + 1);
   }
 
   async remove(order: Order): Promise<void> {
-    this.rows.delete(this.currentKey(order));
+    this.checkedVersion(order);
+    this.rows.delete(order.id.value);
   }
 
-  private currentKey(order: Order): string {
+  private checkedVersion(order: Order): number {
     const key = order.id.value;
-    if ((this.rows.get(key)?.version ?? 0) !== order.version) {
-      throw new ConcurrencyException('Order', key, order.version);
+    const version = this.versions.get(order) ?? 0;
+    if ((this.rows.get(key)?.version ?? 0) !== version) {
+      throw new ConcurrencyException('Order', key, version);
     }
-    return key;
+    return version;
+  }
+
+  private load(row: StoredOrder): Order {
+    const order = Order.fromPrimitives(structuredClone(row.primitives));
+    this.versions.set(order, row.version);
+    return order;
   }
 }
 ```
 
-* Guarda `structuredClone` de `order.toPrimitives()` con su versión al lado, y cada `findById` reconstruye un objeto nuevo con `Order.fromPrimitives(copy).restoreVersion(version)`: cambiar un agregado sin `save` no persiste nada.
-* Sigue el mismo contrato de concurrencia que un repositorio real: `save` y `remove` lanzan `ConcurrencyException` si la versión almacenada no coincide con `order.version` (también al dar de alta un id ocupado), y tras guardar llama a `markPersisted()`.
+* Guarda `structuredClone` de `order.toPrimitives()` con su versión al lado (nunca dentro), y cada `findById` reconstruye un objeto nuevo con `Order.fromPrimitives(copy)` y anota en `versions` la versión de la fila: cambiar un agregado sin `save` no persiste nada.
+* Sigue el mismo contrato de concurrencia que un repositorio real: la versión es solo del repositorio, que recuerda la de cada agregado que cargó o guardó en un `WeakMap<Order, number>` (`0` si no lo conoce: es nuevo). `save` y `remove` lanzan `ConcurrencyException` si la versión almacenada no coincide con la recordada (también al dar de alta un id ocupado), y `save` actualiza el `WeakMap` solo después de escribir. El agregado no declara ni mapea ninguna versión `[Fuera de los libros: convención de @archi-code/ddd]`.
 * Las claves son `id.value`; `IdType` y `UuidType` guardan el valor en minúsculas, así que la búsqueda no distingue mayúsculas.
 * Cada `save` y cada `remove` es atómico, como el de un repositorio real: no hay transacción que abrir ni estado que restaurar en los tests (la transacción es del repositorio, `ddd-skills/ddd-repositorios-persistencia/references/transacciones-ts.md`).
 * No tiene `findAll()` salvo que los tests del proyecto lo necesiten; si se añade, es solo comodidad de los tests y un repositorio real no lo tiene `[Fuera de los libros: convención de @archi-code/ddd]`. Nunca se usa en producción.
@@ -67,7 +81,7 @@ Un único conjunto de tests, en `test/support/order-repository-contract.ts` del 
 ```ts
 import { expect, it } from 'vitest';
 import type { AggregateFinder, AggregateRemover, AggregateSaver } from '@archi-code/ddd/domain';
-import { ConcurrencyException } from '@archi-code/ddd/exceptions';
+import { ConcurrencyException } from '@archi-code/ddd/application';
 import { FixedClock } from '@archi-code/ddd/infrastructure';
 import {
   CustomerId,

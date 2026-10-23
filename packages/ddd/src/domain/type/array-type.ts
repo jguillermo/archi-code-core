@@ -1,11 +1,8 @@
 import { toArray } from '@archi-code/validation';
 import type { ValidationError, ValidationResult } from '@archi-code/validation';
 import { AbstractType } from './abstract-type';
-import { Immutable } from './immutable/immutable';
-import { ValueEquality } from './equality/value-equality';
-import type { ValueOf } from './required/required-mark';
-import { ValueObjects } from './value-objects/value-objects';
-import { TypePrimitiveException, ValidationException } from '../../exceptions/index';
+import type { ValueOf } from './abstract-type';
+import { TypePrimitiveException } from '../exceptions/type-primitive.exception';
 
 type ItemValue<Item extends AbstractType<any>> = Item['value'];
 
@@ -23,8 +20,8 @@ export abstract class ArrayType<Item extends AbstractType<any>> extends Abstract
   }
 
   hasItem(value: ItemValue<Item>): boolean {
-    const itemValue = this.createItem(value).value;
-    return (this._value ?? []).some((current) => ValueEquality.equals(current, itemValue));
+    const item = this.createItem(value);
+    return (this._value ?? []).some((current) => this.createItem(current).equals(item));
   }
 
   withItem(value: ItemValue<Item>): this {
@@ -35,9 +32,20 @@ export abstract class ArrayType<Item extends AbstractType<any>> extends Abstract
     if (this._value === null) {
       return this;
     }
-    const itemValue = this.createItem(value).value;
-    return this.copyWith(
-      this._value.filter((current) => !ValueEquality.equals(current, itemValue)),
+    const item = this.createItem(value);
+    return this.copyWith(this._value.filter((current) => !this.createItem(current).equals(item)));
+  }
+
+  protected hasSameValue(other: this): boolean {
+    const otherValue = other._value;
+    if (this._value === null || otherValue === null) {
+      return this._value === otherValue;
+    }
+    return (
+      this._value.length === otherValue.length &&
+      this._value.every((value, index) =>
+        this.createItem(value).equals(this.createItem(otherValue[index])),
+      )
     );
   }
 
@@ -46,16 +54,9 @@ export abstract class ArrayType<Item extends AbstractType<any>> extends Abstract
     if (!converted.ok) {
       throw new TypePrimitiveException('Array', value);
     }
-    try {
-      return Immutable.freeze(
-        ValueObjects.buildList(converted.value, (item) => this.createItem(item).value),
-      );
-    } catch (error) {
-      if (error instanceof ValidationException) {
-        throw new ValidationException([...this.brokenRules(converted.value), ...error.errors]);
-      }
-      throw error;
-    }
+    const items = converted.value.map((item) => this.createItem(item).value);
+    Object.freeze(items);
+    return items;
   }
 
   validate(): ValidationResult<ValueOf<ItemValue<Item>[], this>> {

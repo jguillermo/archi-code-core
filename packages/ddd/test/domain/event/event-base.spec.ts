@@ -1,32 +1,19 @@
 import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { EventBase } from '../../../src/domain/event/event-base';
 import type { EventMetadata, SerializedEvent } from '../../../src/domain/event/event-base';
-import { NumberType } from '../../../src/domain/type/number-type';
-import { RequiredValueException } from '../../../src/exceptions/domain/required-value.exception';
-import { TypePrimitiveException } from '../../../src/exceptions/domain/type-primitive.exception';
-import { InternalErrorException } from '../../../src/exceptions/infrastructure/internal-error.exception';
+import { TypePrimitiveException } from '../../../src/domain/exceptions/type-primitive.exception';
+import { InvalidEventDefinitionException } from '../../../src/domain/exceptions/invalid-event-definition.exception';
 
 class PaymentCaptured extends EventBase {
   static readonly eventName = 'PaymentCaptured';
 
   constructor(
-    orderId: string,
+    readonly orderId: string,
     readonly amount: number,
     readonly currency: string,
     metadata?: EventMetadata,
   ) {
-    super(orderId, metadata);
-  }
-}
-
-class StockReserved extends EventBase {
-  static readonly eventName = 'StockReserved';
-
-  constructor(
-    productId: string,
-    readonly units: NumberType,
-  ) {
-    super(productId);
+    super(metadata);
   }
 }
 
@@ -38,12 +25,15 @@ describe('EventBase: a fact the domain publishes', () => {
   describe('its name', () => {
     it('is declared once on the class, so listeners and registries refer to it without an instance', () => {
       expect(PaymentCaptured.eventName).toBe('PaymentCaptured');
-      expect(new PaymentCaptured(orderId, 10, 'EUR').eventName()).toBe('PaymentCaptured');
+    });
+
+    it('is copied into every event as plain text, so the event carries it as data', () => {
+      expect(new PaymentCaptured(orderId, 10, 'EUR').eventName).toBe('PaymentCaptured');
     });
 
     it('is inherited by a subclass that does not declare its own', () => {
       class CardPaymentCaptured extends PaymentCaptured {}
-      expect(new CardPaymentCaptured(orderId, 10, 'EUR').eventName()).toBe('PaymentCaptured');
+      expect(new CardPaymentCaptured(orderId, 10, 'EUR').eventName).toBe('PaymentCaptured');
     });
 
     it.each([
@@ -55,8 +45,8 @@ describe('EventBase: a fact the domain publishes', () => {
         },
       ],
     ])('refuses to create an event %s, a mistake in the code', (_, OrderArchived) => {
-      const create = () => new OrderArchived(orderId);
-      expect(create).toThrow(InternalErrorException);
+      const create = () => new OrderArchived();
+      expect(create).toThrow(InvalidEventDefinitionException);
       expect(create).toThrow('OrderArchived must declare a static eventName');
     });
   });
@@ -72,7 +62,7 @@ describe('EventBase: a fact the domain publishes', () => {
     it('takes the moment from the clock the use case injects, so tests know the exact time', () => {
       const clock = { now: () => new Date('2026-03-01T09:30:00Z') };
       const event = new PaymentCaptured(orderId, 10, 'EUR', { clock });
-      expect(event.occurredOn.toISOString()).toBe('2026-03-01T09:30:00.000Z');
+      expect(event.occurredOn).toBe('2026-03-01T09:30:00.000Z');
     });
 
     it('asks the clock once per event, so two events of a moving clock keep their own moment', () => {
@@ -80,16 +70,15 @@ describe('EventBase: a fact the domain publishes', () => {
       const clock = { now: () => new Date((tick += 1000)) };
       const first = new PaymentCaptured(orderId, 10, 'EUR', { clock });
       const second = new PaymentCaptured(orderId, 10, 'EUR', { clock });
-      expect(first.occurredOn.toISOString()).toBe('2026-03-01T09:30:01.000Z');
-      expect(second.occurredOn.toISOString()).toBe('2026-03-01T09:30:02.000Z');
+      expect(first.occurredOn).toBe('2026-03-01T09:30:01.000Z');
+      expect(second.occurredOn).toBe('2026-03-01T09:30:02.000Z');
     });
 
-    it('does not keep the clock: it is not part of the event nor of its JSON', () => {
+    it('does not keep the clock: it is not part of the event', () => {
       const event = new PaymentCaptured(orderId, 10, 'EUR', {
         clock: { now: () => new Date('2026-03-01T09:30:00Z') },
       });
       expect(Object.keys(event)).not.toContain('clock');
-      expect(event.toJSON()).not.toHaveProperty('clock');
     });
 
     it('refuses a broken clock that returns an invalid date', () => {
@@ -102,35 +91,18 @@ describe('EventBase: a fact the domain publishes', () => {
     it('uses the system time when no clock is given', () => {
       vi.useFakeTimers({ now: new Date('2026-03-01T09:30:00Z') });
       try {
-        expect(new PaymentCaptured(orderId, 10, 'EUR').occurredOn.toISOString()).toBe(
-          '2026-03-01T09:30:00.000Z',
-        );
+        expect(new PaymentCaptured(orderId, 10, 'EUR').occurredOn).toBe('2026-03-01T09:30:00.000Z');
       } finally {
         vi.useRealTimers();
       }
     });
 
-    it('keeps the id of the aggregate it belongs to and its own payload', () => {
+    it('keeps only its own payload, where the id of the aggregate is one more field', () => {
       expect(new PaymentCaptured(orderId, 49.9, 'EUR')).toMatchObject({
-        aggregateId: orderId,
+        orderId,
         amount: 49.9,
         currency: 'EUR',
       });
-    });
-
-    it('its moment cannot be changed by a handler', () => {
-      const event = new PaymentCaptured(orderId, 10, 'EUR');
-      expect(() => event.occurredOn.setFullYear(2000)).toThrow(TypeError);
-    });
-
-    it.each([
-      ['an empty', ''],
-      ['a blank', '   '],
-    ])('refuses %s aggregate id', (_, aggregateId) => {
-      expect(() => new PaymentCaptured(aggregateId, 10, 'EUR')).toThrow(RequiredValueException);
-      expect(() => new PaymentCaptured(aggregateId, 10, 'EUR')).toThrow(
-        `Validation Error: PaymentCaptured.aggregateId is required, but received "${aggregateId}".`,
-      );
     });
   });
 
@@ -141,7 +113,7 @@ describe('EventBase: a fact the domain publishes', () => {
         occurredOn: '2026-03-01T09:30:00.000Z',
       });
       expect(event.eventId).toBe(eventId);
-      expect(event.occurredOn.toISOString()).toBe('2026-03-01T09:30:00.000Z');
+      expect(event.occurredOn).toBe('2026-03-01T09:30:00.000Z');
     });
 
     it('keeps the stored moment even when a clock is also given', () => {
@@ -150,14 +122,21 @@ describe('EventBase: a fact the domain publishes', () => {
         occurredOn: '2026-03-01T09:30:00.000Z',
         clock,
       });
-      expect(event.occurredOn.toISOString()).toBe('2026-03-01T09:30:00.000Z');
+      expect(event.occurredOn).toBe('2026-03-01T09:30:00.000Z');
     });
 
-    it('accepts the moment as a Date', () => {
-      const occurredOn = new Date('2026-03-01T09:30:00Z');
-      const event = new PaymentCaptured(orderId, 1, 'EUR', { occurredOn });
-      expect(event.occurredOn.getTime()).toBe(occurredOn.getTime());
-      expect(event.occurredOn).not.toBe(occurredOn);
+    it('accepts the moment as a Date and keeps it as ISO text', () => {
+      const event = new PaymentCaptured(orderId, 1, 'EUR', {
+        occurredOn: new Date('2026-03-01T09:30:00Z'),
+      });
+      expect(event.occurredOn).toBe('2026-03-01T09:30:00.000Z');
+    });
+
+    it('normalizes a moment written with another zone to UTC', () => {
+      const event = new PaymentCaptured(orderId, 1, 'EUR', {
+        occurredOn: '2026-03-01T10:30:00+01:00',
+      });
+      expect(event.occurredOn).toBe('2026-03-01T09:30:00.000Z');
     });
 
     it('stores the event id in lowercase', () => {
@@ -177,71 +156,44 @@ describe('EventBase: a fact the domain publishes', () => {
     });
   });
 
-  describe('eventVersion: the version of the shape of its data', () => {
-    it('is 1 unless the event class declares another one', () => {
-      expect(new PaymentCaptured(orderId, 10, 'EUR').eventVersion()).toBe(1);
-      expect('eventVersion' in PaymentCaptured).toBe(false);
-    });
-
-    it('a class that changed the shape of its data declares the new version', () => {
-      class PaymentCapturedV2 extends PaymentCaptured {
-        static readonly eventVersion = 2;
-      }
-      const event = new PaymentCapturedV2(orderId, 10, 'EUR');
-      expect(event.eventVersion()).toBe(2);
-      expect(event.eventName()).toBe('PaymentCaptured');
-      expect(event.toJSON().eventVersion).toBe(2);
-    });
-
-    it.each([0, -1, 1.5, Number.NaN])('refuses the version %s', (version) => {
-      class BrokenVersion extends EventBase {
-        static readonly eventName = 'OrderArchived';
-        static readonly eventVersion = version;
-      }
-      expect(() => new BrokenVersion(orderId)).toThrow(
-        'Failed, internal error: BrokenVersion.eventVersion must be a whole number from 1',
-      );
-    });
-  });
-
-  describe('toJSON: what goes to the outbox or the broker', () => {
-    it('serializes name, schema version, id, aggregate id, ISO moment and payload', () => {
+  describe('a plain object of primitive data: what goes to the outbox or the broker', () => {
+    it('is its own JSON: name, id, ISO moment and the data it declares', () => {
       const event = new PaymentCaptured(orderId, 49.9, 'EUR', {
         eventId,
         occurredOn: '2026-03-01T09:30:00Z',
       });
-      expect(JSON.parse(JSON.stringify(event))).toEqual({
+      const serialized: SerializedEvent = { ...event };
+      expect(serialized).toStrictEqual({
         eventName: 'PaymentCaptured',
-        eventVersion: 1,
         eventId,
-        aggregateId: orderId,
         occurredOn: '2026-03-01T09:30:00.000Z',
+        orderId,
         amount: 49.9,
         currency: 'EUR',
       });
-      expectTypeOf(event.toJSON()).toEqualTypeOf<SerializedEvent>();
+      expect(JSON.parse(JSON.stringify(event))).toStrictEqual(serialized);
     });
 
-    it('writes the envelope first and the payload after, so outbox rows read the same', () => {
+    it('lists the envelope first and its data after, so outbox rows read the same', () => {
       const event = new PaymentCaptured(orderId, 49.9, 'EUR', { eventId });
-      expect(Object.keys(event.toJSON())).toEqual([
+      expect(Object.keys(event)).toEqual([
         'eventName',
-        'eventVersion',
         'eventId',
-        'aggregateId',
         'occurredOn',
+        'orderId',
         'amount',
         'currency',
       ]);
     });
 
-    it('serializes value objects in the payload as their plain value', () => {
-      const event = new StockReserved('PRODUCT-7', new NumberType(3));
-      expect(JSON.parse(JSON.stringify(event))).toMatchObject({
-        eventName: 'StockReserved',
-        aggregateId: 'PRODUCT-7',
-        units: 3,
-      });
+    it('has no conversion of its own: nothing to call before sending it', () => {
+      expect(Object.getOwnPropertyNames(EventBase.prototype)).toEqual(['constructor']);
+    });
+
+    it('types its envelope as primitives', () => {
+      expectTypeOf<EventBase['eventName']>().toEqualTypeOf<string>();
+      expectTypeOf<EventBase['eventId']>().toEqualTypeOf<string>();
+      expectTypeOf<EventBase['occurredOn']>().toEqualTypeOf<string>();
     });
   });
 });

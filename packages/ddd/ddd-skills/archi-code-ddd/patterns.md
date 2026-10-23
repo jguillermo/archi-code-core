@@ -29,7 +29,7 @@ new Email('x');
 new PackSize(-3);
 // ValidationException: Validation failed, PackSize: Value does not satisfy isInt, PackSize: Must be even
 
-const command = ValueObjects.build({
+const command = ValueObjectBuilder.build({
   email: () => new Email(input.email),
   packSize: () => new PackSize(input.packSize),
 });
@@ -55,11 +55,11 @@ class OrderPlaced extends EventBase {
   static readonly eventName = 'OrderPlaced';
 
   constructor(
-    orderId: string,
+    readonly orderId: string,
     readonly customer: string,
     metadata?: EventMetadata,
   ) {
-    super(orderId, metadata);
+    super(metadata);
   }
 }
 
@@ -67,12 +67,12 @@ class OrderLineAdded extends EventBase {
   static readonly eventName = 'OrderLineAdded';
 
   constructor(
-    orderId: string,
+    readonly orderId: string,
     readonly sku: string,
     readonly quantity: number,
     metadata?: EventMetadata,
   ) {
-    super(orderId, metadata);
+    super(metadata);
   }
 }
 
@@ -180,7 +180,7 @@ class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand, void>
   }
 
   protected toCommand(input: AddOrderLineInput): AddOrderLineCommand {
-    return ValueObjects.build({
+    return ValueObjectBuilder.build({
       orderId: () => new OrderId(input.orderId),
       sku: () => new Sku(input.sku),
       quantity: () => new Quantity(input.quantity),
@@ -216,7 +216,7 @@ class PrepareShipment extends UseCase<
   }
 
   protected toCommand(input: { orderId: string; sku: string }): { orderId: OrderId; sku: Sku } {
-    return ValueObjects.build({
+    return ValueObjectBuilder.build({
       orderId: () => new OrderId(input.orderId),
       sku: () => new Sku(input.sku),
     });
@@ -234,7 +234,7 @@ class PrepareShipmentOnOrderLineAdded extends EventListener<OrderLineAdded> {
   }
 
   async handle(event: OrderLineAdded): Promise<void> {
-    await this.prepareShipment.execute({ orderId: event.aggregateId, sku: event.sku });
+    await this.prepareShipment.execute({ orderId: event.orderId, sku: event.sku });
   }
 }
 ```
@@ -246,6 +246,8 @@ which receives the loaded aggregate) and wraps driver errors with their cause:
 class MongoOrderRepository
   implements AggregateFinder<Order>, AggregateSaver<Order>, AggregateRemover<Order>
 {
+  private readonly versions = new WeakMap<Order, number>();
+
   constructor(private readonly collection: Collection<OrderDocument>) {}
 
   async findById(id: OrderId): Promise<Order | null> {
@@ -254,34 +256,34 @@ class MongoOrderRepository
       return null;
     }
     const { _id, version, ...primitives } = document;
-    return Order.fromPrimitives(primitives).restoreVersion(version);
+    const order = Order.fromPrimitives(primitives);
+    this.versions.set(order, version);
+    return order;
   }
 
   async save(order: Order): Promise<void> {
-    const data = { ...order.toPrimitives(), version: order.version + 1 };
+    const version = this.versions.get(order) ?? 0;
+    const data = { ...order.toPrimitives(), version: version + 1 };
     let written: boolean;
     try {
       written =
-        order.version === 0
+        version === 0
           ? await this.insertUnlessTaken(data)
-          : (await this.collection.replaceOne({ _id: data.id, version: order.version }, data))
-              .matchedCount === 1;
+          : (await this.collection.replaceOne({ _id: data.id, version }, data)).matchedCount === 1;
     } catch (error) {
       throw new InternalErrorException('saving order', { cause: error });
     }
     if (!written) {
-      throw new ConcurrencyException('Order', order.id.value, order.version);
+      throw new ConcurrencyException('Order', order.id.value, version);
     }
-    order.markPersisted();
+    this.versions.set(order, version + 1);
   }
 
   async remove(order: Order): Promise<void> {
-    const { deletedCount } = await this.collection.deleteOne({
-      _id: order.id.value,
-      version: order.version,
-    });
-    if (deletedCount === 0 && order.version > 0) {
-      throw new ConcurrencyException('Order', order.id.value, order.version);
+    const version = this.versions.get(order) ?? 0;
+    const { deletedCount } = await this.collection.deleteOne({ _id: order.id.value, version });
+    if (deletedCount === 0 && version > 0) {
+      throw new ConcurrencyException('Order', order.id.value, version);
     }
   }
 }
@@ -298,48 +300,54 @@ import type {
   AggregateSaver,
   PrimitiveTypes,
 } from '@archi-code/ddd/domain';
-import { ConcurrencyException } from '@archi-code/ddd/exceptions';
+import { ConcurrencyException } from '@archi-code/ddd/application';
 
 export class InMemoryOrderRepository
   implements AggregateFinder<Order>, AggregateSaver<Order>, AggregateRemover<Order>
 {
   private readonly rows = new Map<string, { version: number; primitives: PrimitiveTypes<Order> }>();
+  private readonly versions = new WeakMap<Order, number>();
 
   async findById(id: OrderId): Promise<Order | null> {
     const row = this.rows.get(id.value);
-    return row === undefined
-      ? null
-      : Order.fromPrimitives(structuredClone(row.primitives)).restoreVersion(row.version);
+    if (row === undefined) {
+      return null;
+    }
+    const order = Order.fromPrimitives(structuredClone(row.primitives));
+    this.versions.set(order, row.version);
+    return order;
   }
 
   async save(order: Order): Promise<void> {
-    const key = this.currentKey(order);
+    const version = this.checkedVersion(order);
     const primitives = structuredClone(order.toPrimitives());
-    this.rows.set(key, { version: order.version + 1, primitives });
-    order.markPersisted();
+    this.rows.set(order.id.value, { version: version + 1, primitives });
+    this.versions.set(order, version + 1);
   }
 
   async remove(order: Order): Promise<void> {
-    this.rows.delete(this.currentKey(order));
+    this.checkedVersion(order);
+    this.rows.delete(order.id.value);
   }
 
-  private currentKey(order: Order): string {
+  private checkedVersion(order: Order): number {
     const key = order.id.value;
-    if ((this.rows.get(key)?.version ?? 0) !== order.version) {
-      throw new ConcurrencyException('Order', key, order.version);
+    const version = this.versions.get(order) ?? 0;
+    if ((this.rows.get(key)?.version ?? 0) !== version) {
+      throw new ConcurrencyException('Order', key, version);
     }
-    return key;
+    return version;
   }
 }
 ```
 
-Wiring and tests with the in-memory adapters (repository, event channel) and the HTTP mapper:
+Wiring and tests with the in-memory adapters (repository, event channel), and the kind of an error:
 
 ```ts
 const orders = new InMemoryOrderRepository();
 const registry = new EventRegistry<OrderEvent>().register(
   OrderLineAdded,
-  (json) => new OrderLineAdded(json.aggregateId, json.sku as string, json.quantity as number, json),
+  (json) => new OrderLineAdded(json.orderId as string, json.sku as string, json.quantity as number, json),
 );
 const channel = new InMemoryEventChannel(); // swap for your RabbitMQ or database channel
 const bus = new DomainEventBus<OrderEvent>(channel, registry);
@@ -354,8 +362,7 @@ await new AddOrderLine(orders, bus, clock).execute({
 });
 channel.sent.map((event) => event.eventName); // ['OrderLineAdded']: PrepareShipment already ran
 
-const errors = new HttpErrorMapper({ statusByCode: { ORD001: 409 } }); // a domain rule defaults to 422
-const { status, body } = errors.map(caughtError);
+ExceptionClassifier.classify(new OrderShippedException(orderId)); // ExceptionKind.Invalid ('invalid')
 ```
 
 A test of the event flow asserts on what the listener caused and on what the channel carried,
@@ -385,7 +392,7 @@ describe('Adding a line to an order', () => {
 
     expect(prepared).toEqual([`${orderId}:TORCH-01`]);
     expect(channel.sent).toMatchObject([
-      { eventName: 'OrderLineAdded', aggregateId: orderId, sku: 'TORCH-01', quantity: 2 },
+      { eventName: 'OrderLineAdded', orderId, sku: 'TORCH-01', quantity: 2 },
     ]);
   });
 });
@@ -478,9 +485,9 @@ integration test waits for the effect (polling until `prepared` has the line) in
 right after `execute`.
 
 Tests with Vitest: describe real situations, use a plain fixture factory in the project's
-`test/support/` and the native matchers (there is no archi-code test package). Dates held by VOs and
-events are immutable `Date` subclasses: compare them with `toEqual` or `.toISOString()`, not
-`toStrictEqual` against a plain `Date`.
+`test/support/` and the native matchers (there is no archi-code test package). Dates held by VOs are
+immutable `Date` subclasses: compare them with `toEqual` or `.toISOString()`, not
+`toStrictEqual` against a plain `Date`; an event's `occurredOn` is already ISO text.
 
 ```ts
 import { describe, expect, it } from 'vitest';
@@ -496,8 +503,8 @@ describe('Order', () => {
       id: orderId,
       lines: [{ sku: 'TORCH-01', quantity: 2 }],
     });
-    expect(order.pullDomainEvents().map((event) => event.toJSON())).toMatchObject([
-      { eventName: 'OrderPlaced', aggregateId: orderId, customer: 'Ana' },
+    expect(order.pullDomainEvents().map((event) => ({ ...event }))).toMatchObject([
+      { eventName: 'OrderPlaced', orderId, customer: 'Ana' },
       { eventName: 'OrderLineAdded', sku: 'TORCH-01', quantity: 2 },
     ]);
   });

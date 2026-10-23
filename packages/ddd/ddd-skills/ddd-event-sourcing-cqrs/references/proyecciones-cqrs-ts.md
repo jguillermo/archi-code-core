@@ -64,7 +64,7 @@ La implementación registra el `eventId` en `projection_inbox` y aplica el cambi
 
 ```ts
 import type { EventBase } from '@archi-code/ddd/domain';
-import { InfrastructureException } from '@archi-code/ddd/exceptions';
+import { InfrastructureException } from '@archi-code/ddd/infrastructure';
 
 interface Sql {
   query<Row>(text: string, values: readonly unknown[]): Promise<{ rows: Row[]; rowCount: number }>;
@@ -87,7 +87,7 @@ export class PgOrderSummaryProjection implements OrderSummaryProjection {
            (order_id, customer, line_count, units, total_cents, currency, updated_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (order_id) DO NOTHING`,
         [
-          event.aggregateId,
+          event.orderId,
           event.customerId,
           event.lines.length,
           event.lines.reduce((units, line) => units + line.quantity, 0),
@@ -107,7 +107,7 @@ export class PgOrderSummaryProjection implements OrderSummaryProjection {
              updated_at = GREATEST(updated_at, $4)
          WHERE order_id = $1`,
         [
-          event.aggregateId,
+          event.orderId,
           event.quantity,
           event.quantity * event.unitPrice.amount,
           event.occurredOn,
@@ -115,7 +115,7 @@ export class PgOrderSummaryProjection implements OrderSummaryProjection {
       );
       if (rowCount === 0) {
         throw new InfrastructureException(
-          `${this.table}: order ${event.aggregateId} is not projected yet`,
+          `${this.table}: order ${event.orderId} is not projected yet`,
         );
       }
     });
@@ -149,7 +149,7 @@ export const orderEvents = new EventRegistry<OrderEvent>()
     OrderPlaced,
     (json) =>
       new OrderPlaced(
-        json.aggregateId,
+        json.orderId as string,
         json.customerId as string,
         json.lines as OrderLineData[],
         json.total as MoneyData,
@@ -160,7 +160,7 @@ export const orderEvents = new EventRegistry<OrderEvent>()
     OrderLineAdded,
     (json) =>
       new OrderLineAdded(
-        json.aggregateId,
+        json.orderId as string,
         json.sku as string,
         json.quantity as number,
         json.unitPrice as MoneyData,
@@ -220,7 +220,7 @@ export async function rebuild(
 Una consulta de lectura es una interfaz de la aplicación que devuelve DTOs, implementada en infraestructura directamente sobre la base de datos:
 
 ```ts
-import { InternalErrorException } from '@archi-code/ddd/exceptions';
+import { InternalErrorException } from '@archi-code/ddd/infrastructure';
 
 export interface OrderSummary {
   readonly id: string;

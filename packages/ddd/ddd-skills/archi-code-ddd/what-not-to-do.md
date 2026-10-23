@@ -17,7 +17,9 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   broker), so it must be a stable literal, unique per listener.
 - Subscribing listeners by a text name or calling them from a use case: the composition root
   subscribes them with `bus.subscribe(listener)`, which reads their `@ListensTo`.
-- Declaring `eventName()` as a method in an event: declare `static readonly eventName`.
+- Declaring `eventName` as a method or an instance field in an event, or adding methods to it:
+  declare `static readonly eventName`; the base copies it into the event's `eventName` field, and
+  an event is plain data.
 - Importing the repository contracts from `@archi-code/ddd/application`: they live in `/domain`.
 - Do not invent API: there is no root `@archi-code/ddd` import, no `toPrimitives()` in the base
   classes, no generic `ValueObject` (a value object of several fields is `Composite({...})`), no
@@ -38,7 +40,7 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   (`new OrderPlaced(id.value, customer.value)`): `occurredOn` becomes the system time and tests stop
   being deterministic.
 - A registry factory that does not pass the JSON as metadata
-  (`(json) => new OrderShipped(json.aggregateId)`): the event gets a new `eventId`, a listener
+  (`(json) => new OrderShipped(json.orderId as string)`): the event gets a new `eventId`, a listener
   cannot skip a redelivery, and `fromJSON` throws.
 - Subscribing a listener of an event the `EventRegistry` does not know: `bus.subscribe` refuses it
   with `UnknownEventException`; register every event a listener receives.
@@ -54,8 +56,10 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
 - A read query that loads aggregates through `AggregateFinder`, or a repository method that
   returns DTOs: reads go straight to the database through an application interface.
 - Importing `@archi-code/ddd/infrastructure` from domain code, or `application` from the domain.
-- Importing an exception from `@archi-code/ddd/domain`: exceptions live in
-  `@archi-code/ddd/exceptions`.
+- Importing an exception from another layer's subpath: each layer exports its own
+  (`ValidationException` from `/domain`, `AggregateNotFoundException` from `/application`,
+  `InternalErrorException` from `/infrastructure`); there is no `/exceptions` subpath and the
+  common base class is not exported (check the three layer bases, or use `ExceptionClassifier`).
 - Catching errors inside `handle` just to rethrow them as `ApplicationException`: let them
   propagate; `execute` keeps package exceptions and wraps the rest.
 - Calling `bus.publish` before `repository.save`, or publishing without `pullDomainEvents()`.
@@ -68,10 +72,10 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   them with the aggregate in the same atomic write (an outbox) and a relay delivers them.
 - A listener that breaks when a channel delivers the same event twice: delivery is at least once;
   skip an `eventId` already processed.
-- Sending `event.toJSON()` of a domain event to another context: translate it to a published,
+- Sending a domain event as it is (`{ ...event }`) to another context: translate it to a published,
   versioned contract.
-- Changing the data of a stored or published event without raising `eventVersion` (or the
-  contract version).
+- Changing the data of a stored or published event incompatibly under the same `eventName` (or
+  the same contract version) when no factory can read both shapes: publish a new event instead.
 - Repository methods with business names or rules (`pendingOlderThan`, `findOverdueInvoices`),
   `nextId()` in a repository, or a use case returning the aggregate to the controller.
 - Throwing `AggregateNotFoundException` from the domain or a repository: the use case throws it when
@@ -102,7 +106,7 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
 - Comparing VOs or entities with `===`: use `equals()`.
 - Calling `assertValid()`: it does not exist; the constructor already throws `ValidationException`.
 - Building the value objects of an input one after another with `new` in `toCommand`: the first
-  invalid field hides the rest. Use `ValueObjects.build` so every field is reported.
+  invalid field hides the rest. Use `ValueObjectBuilder.build` so every field is reported.
 - Moving a value object's rule to the request schema or the controller (`isEmail` in a DTO
   validator instead of the `Email` value object): the adapter may check format for the user
   (empty, length) [IDDD ch. 4], but the value object owns the rule and always checks it.
@@ -156,17 +160,20 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
 - Converting an aggregate to or from primitives outside the aggregate (a domain service, a
   hand-written mapper reading its fields): the aggregate owns `toPrimitives()` and
   `static fromPrimitives()`.
-- Declaring a `version` field in an aggregate, or putting it in `toPrimitives()`: the base already
-  has it, and the repository stores it next to the primitives.
+- Declaring a `version` field in an aggregate, or putting it in `toPrimitives()`: the version is
+  the repository's, which keeps it in its own `WeakMap` and stores it next to the primitives.
 - A repository (also the in-memory one of the tests) that saves with `upsert` and no version
   condition, or "last save wins": a stale save must throw `ConcurrencyException`.
-- Forgetting `markPersisted()` after a successful write (the next save of the same object becomes a
-  false conflict), or `Order.fromPrimitives(row)` without `.restoreVersion(storedVersion)` (every load looks
-  new, and the first save conflicts).
-- Calling `restoreVersion()` or `markPersisted()` from domain or application code: they are for
-  repositories.
-- Creating events without the aggregate id (`super()`), or generating `eventId`/`occurredOn`
-  yourself for a new event: the base does it.
+- A repository that forgets to remember `version + 1` after a successful write (the next save of
+  the same object becomes a false conflict), or the stored version on load (every load looks new,
+  and the first save conflicts).
+- Exposing the version to domain or application code: use cases load, change and save; only the
+  repository knows it.
+- Creating events without the id of their aggregate as a payload field (`readonly orderId: string`),
+  or generating `eventId`/`occurredOn` yourself for a new event: the base does it.
+- Putting value objects, `Date`s, `undefined` or class instances in an event's fields (nothing
+  checks it at run time): each event declares only the primitive data it needs (`id.value`,
+  money as `{ amount, currency }`, `date.toISOString()`).
 - Wrapping or translating an error (`InternalErrorException`, `ConcurrencyException`,
   `NotAllowedException`, `AggregateNotFoundException`) without `{ cause: error }`.
 - `JsonType` with `{}` or with an array: throws `TypePrimitiveException` (it must be a non-empty
@@ -183,7 +190,7 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
 - Logging from the domain, or importing a logging library (pino, winston, `console`) in a use case:
   inject the `Logger` port and choose the provider in the composition root.
 - Logging an error and rethrowing it in every layer: the edge that handles it logs it once
-  (`HttpErrorMapper` and `DomainEventBus` with a logger already do).
+  (`DomainEventBus` with a logger already does; an entry point logs an `Internal` failure).
 - Interpolating data into the message (`` `order ${id} failed` ``) or logging passwords, tokens or
   personal data that the entry does not need: keep a stable message and put only what is needed in
   the context.

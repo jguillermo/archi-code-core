@@ -1,12 +1,12 @@
 import { anyToString, runValidations } from '@archi-code/validation';
 import type { Validatable, ValidatedClass, ValidationResult } from '@archi-code/validation';
-import { ValueEquality } from './equality/value-equality';
 import { RequiredMark } from './required/required-mark';
-import type { ValueOf } from './required/required-mark';
-import { RequiredValueException, ValidationException } from '../../exceptions/index';
-import type { ValidationIssue } from '../../exceptions/index';
+import type { RequiredMarked } from './required/required-mark';
+import { RequiredValueException } from '../exceptions/required-value.exception';
+import { ValidationException } from '../exceptions/validation.exception';
+import type { ValidationIssue } from '../exceptions/validation.exception';
 
-type JsonValue<T> = T extends Date ? string : T;
+export type ValueOf<T, I> = I extends RequiredMarked ? T : T | null;
 
 const VALUE_OBJECT: unique symbol = Symbol.for('@archi-code/ddd/value-object.v1');
 
@@ -28,7 +28,10 @@ export abstract class AbstractType<T, Input = T> implements Validatable<T | null
   }
 
   constructor(value: Input | null = null) {
-    this._value = this.acceptInput(value);
+    this._value = value === null || value === undefined ? null : this.filter(value);
+    if (this._value === null && RequiredMark.isMarked(this)) {
+      throw new RequiredValueException(this.constructor.name, value);
+    }
     const brokenRules = this.brokenRules(this._value);
     if (brokenRules.length > 0) {
       throw new ValidationException(brokenRules);
@@ -47,28 +50,20 @@ export abstract class AbstractType<T, Input = T> implements Validatable<T | null
     return this.isNull ? '' : anyToString(this._value);
   }
 
-  toJSON(): ValueOf<JsonValue<T>, this> {
-    const value = this._value;
-    return (value instanceof Date ? value.toISOString() : value) as ValueOf<JsonValue<T>, this>;
+  equals<E extends AbstractType<any>>(other: E): boolean {
+    return other?.constructor === this.constructor && this.hasSameValue(other as unknown as this);
   }
 
-  equals(other: unknown): boolean {
-    return (
-      typeof other === 'object' &&
-      other !== null &&
-      other.constructor === this.constructor &&
-      ValueEquality.equals(this._value, (other as AbstractType<unknown>)._value)
-    );
+  protected hasSameValue(other: this): boolean {
+    return this._value === other._value;
   }
 
   validate(): ValidationResult<ValueOf<T, this>> {
-    return runValidations(this.constructor as ValidatedClass, this._value) as ValidationResult<
-      ValueOf<T, this>
-    >;
+    return this.runRules(this._value as ValueOf<T, this>);
   }
 
   protected brokenRules(value: unknown): ValidationIssue[] {
-    return runValidations(this.constructor as ValidatedClass, value).errors.map((error) => ({
+    return this.runRules(value).errors.map((error) => ({
       field: null,
       code: 'validator' in error ? error.validator : error.custom,
       message: `${this.constructor.name}: ${error.message}`,
@@ -77,17 +72,7 @@ export abstract class AbstractType<T, Input = T> implements Validatable<T | null
 
   protected abstract filter(value: unknown): T | null;
 
-  private acceptInput(value: unknown): T | null {
-    const accepted = AbstractType.isMissingInput(value) ? null : this.filter(value);
-    if (accepted === null && RequiredMark.isMarked(this)) {
-      throw new RequiredValueException(this.constructor.name, value);
-    }
-    return accepted;
-  }
-
-  private static isMissingInput(value: unknown): boolean {
-    return (
-      value === null || value === undefined || (typeof value === 'string' && value.trim() === '')
-    );
+  private runRules<V>(value: V): ValidationResult<V> {
+    return runValidations(this.constructor as ValidatedClass, value);
   }
 }

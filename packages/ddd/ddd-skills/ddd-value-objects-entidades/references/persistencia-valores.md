@@ -27,7 +27,7 @@ Antes de convertir un valor en entidad "porque tiene tabla", responde [IDDD cap.
 ## En TypeScript
 
 `[Fuera de los libros: convención de @archi-code/ddd]`
-* Nada de mappers escritos a mano ni decoradores de ORM en las clases de dominio. El agregado da sus datos planos con `toPrimitives()` y se rehace con `static fromPrimitives()`; el repositorio solo llama a `order.toPrimitives()` y `Order.fromPrimitives(row).restoreVersion(version)`. Nada comprueba en ejecución que no se pierda ningún campo privado: lo prueba el spec del agregado con el viaje de ida y vuelta (`Order.fromPrimitives(order.toPrimitives()).toPrimitives()` igual a `order.toPrimitives()`).
+* Nada de mappers escritos a mano ni decoradores de ORM en las clases de dominio. El agregado da sus datos planos con `toPrimitives()` y se rehace con `static fromPrimitives()`; el repositorio solo llama a `order.toPrimitives()` y `Order.fromPrimitives(...)`, y la versión de concurrencia la recuerda él mismo en un `WeakMap<Order, number>`, nunca el agregado. Nada comprueba en ejecución que no se pierda ningún campo privado: lo prueba el spec del agregado con el viaje de ida y vuelta (`Order.fromPrimitives(order.toPrimitives()).toPrimitives()` igual a `order.toPrimitives()`).
 * Los primitivos ya dan la forma de cada opción de la tabla: un value object simple es su valor, un `Composite` es un objeto (`shippingAddress: { street, city, country }`), una lista de composites es una lista de objetos (`lines: { items: [...] }`) y un `EnumType` es la opción del enum (`status: 'pending'`).
 * Con un almacén de documentos (MongoDB), los primitivos se guardan tal cual. Con tablas, el repositorio decide cómo se reparten en columnas: el formato de la fila sigue en infraestructura y no deforma el modelo.
 
@@ -49,7 +49,7 @@ interface OrderRow {
   version: number;
 }
 
-function rowOf(order: Order): OrderRow {
+function rowOf(order: Order, version: number): OrderRow {
   const primitives = order.toPrimitives();
   return {
     id: primitives.id,
@@ -61,7 +61,7 @@ function rowOf(order: Order): OrderRow {
     status: primitives.status,
     stock_reservation: primitives.stockReservation,
     payment_authorization: primitives.paymentAuthorization,
-    version: order.version + 1,
+    version: version + 1,
   };
 }
 
@@ -78,11 +78,11 @@ function orderOf(row: OrderRow): Order {
     status: row.status as Status,
     stockReservation: row.stock_reservation,
     paymentAuthorization: row.payment_authorization,
-  }).restoreVersion(row.version);
+  });
 }
 ```
 
-`Order`, `ShippingAddress` y `Status` son los de `ddd-skills/ddd-agregados/references/implementacion-ts.md`. La dirección va en columnas de la fila del padre, las líneas y la autorización de pago en columnas JSON (`jsonb` en PostgreSQL) y el estado como su código. Con el driver `pg`, una columna `jsonb` se lee ya como objeto (la fecha de caducidad de la autorización llega como texto ISO, que `ExpiresAt` convierte), y al escribir el parámetro se pasa como `JSON.stringify(row.lines)` (un array sin convertir lo enviaría como array de PostgreSQL). La `version` se guarda junto a los primitivos, nunca dentro; la consulta con la condición de versión y `markPersisted()` están en `ddd-skills/ddd-repositorios-persistencia/GUIA.md`.
+`Order`, `ShippingAddress` y `Status` son los de `ddd-skills/ddd-agregados/references/implementacion-ts.md`. La dirección va en columnas de la fila del padre, las líneas y la autorización de pago en columnas JSON (`jsonb` en PostgreSQL) y el estado como su código. Con el driver `pg`, una columna `jsonb` se lee ya como objeto (la fecha de caducidad de la autorización llega como texto ISO, que `ExpiresAt` convierte), y al escribir el parámetro se pasa como `JSON.stringify(row.lines)` (un array sin convertir lo enviaría como array de PostgreSQL). La `version` se guarda junto a los primitivos, nunca dentro: `rowOf` recibe la que el repositorio recuerda para ese agregado en su `WeakMap` (`0` si es nuevo) y, tras cargar con `orderOf`, el repositorio anota `row.version` en ese `WeakMap`; la consulta con la condición de versión y cuándo se actualiza el `WeakMap` están en `ddd-skills/ddd-repositorios-persistencia/GUIA.md`.
 
 * Al cargar, `fromPrimitives` rehace cada value object con su constructor, que valida: un dato corrupto falla al cargar (`ValidationException`) en vez de propagarse. No se repiten reglas de creación ni se registran eventos.
 * Con Prisma o Drizzle, el esquema es de infraestructura y el repositorio sigue pasando por `order.toPrimitives()` y `Order.fromPrimitives()`.

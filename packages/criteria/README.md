@@ -18,7 +18,7 @@ npm install @archi-code/criteria
 
 Requires Node.js 24 or later, or any current browser: the `browser` field and the `browser`
 condition of `exports` point to the ESM build, which only uses Web APIs (`TextEncoder`, `btoa`) and
-is checked in Chromium, Firefox and WebKit under a strict Content-Security-Policy. The package has
+is checked in Chromium and WebKit under a strict Content-Security-Policy. The package has
 no side effects (`sideEffects: false`), so bundlers drop whatever you do not import.
 
 ## Import

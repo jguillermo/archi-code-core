@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import type { ChannelSubscription, EventChannel } from '../../../../src/infrastructure/index';
 import type { SerializedEvent } from '../../../../src/domain/index';
-import { EventDeliveryException } from '../../../../src/exceptions/index';
+import { EventDeliveryException } from '../../../../src/infrastructure/exceptions/event-delivery.exception';
 import { InMemoryEventChannel } from '../../../../src/infrastructure/event/in-memory/in-memory-event-channel';
 import { describeEventChannelContract, orderEvent } from '../../../contract/event-channel-contract';
 
@@ -48,19 +48,23 @@ describe('InMemoryEventChannel: events delivered inside the process', () => {
     expect(steps).toStrictEqual(['after send', 'consumer']);
   });
 
-  it('gives consumers a frozen copy, so one consumer cannot change what the next one reads', async () => {
+  it('gives each consumer its own copy, so one consumer cannot change what the next one reads', async () => {
     const channel = new InMemoryEventChannel();
     const received: SerializedEvent[] = [];
     await channel.receive('OrderPlaced', 'ReserveStockOnOrderPlaced', async (event) => {
+      (event.lines as { units: number }[])[0].units = 0;
+      received.push(event);
+    });
+    await channel.receive('OrderPlaced', 'NotifyCustomerOnOrderPlaced', async (event) => {
       received.push(event);
     });
 
     await channel.send([placed]);
 
     expect(received[0]).not.toBe(placed);
-    expect(Object.isFrozen(received[0])).toBe(true);
-    expect(Object.isFrozen(received[0].lines)).toBe(true);
-    expect(Object.isFrozen(placed)).toBe(false);
+    expect(received[1]).not.toBe(received[0]);
+    expect(received[1]).toStrictEqual(channel.sent[0]);
+    expect(placed).toStrictEqual(channel.sent[0]);
   });
 
   it('records what was sent, in order, as a copy', async () => {

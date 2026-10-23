@@ -15,9 +15,8 @@ No contradice la regla de una transacción por agregado: el creador no se modifi
 `Order`, `OrderId`, `OrderLines` y `ShippingAddress` son los de `references/implementacion-ts.md`:
 
 ```ts
-import { AggregateRoot, BooleanType, Required, StringType } from '@archi-code/ddd/domain';
+import { AggregateRoot, BooleanType, DomainException, Required, StringType } from '@archi-code/ddd/domain';
 import type { PrimitiveTypes } from '@archi-code/ddd/domain';
-import { DomainException } from '@archi-code/ddd/exceptions';
 import { Validations } from '@archi-code/validation';
 
 export class CustomerName extends Required(StringType) {}
@@ -86,11 +85,9 @@ export class Customer extends AggregateRoot<CustomerId> {
 La regla de creación ("un cliente bloqueado no puede realizar pedidos") vive en `Customer`. El caso de uso lee el cliente con `AggregateFinder<Customer>`, genera la identidad nueva con `OrderId.generate()` y guarda solo el pedido con `AggregateSaver<Order>`; `Customer` no se guarda porque no ha cambiado:
 
 ```ts
-import { ValueObjects } from '@archi-code/ddd/domain';
 import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
-import { UseCase } from '@archi-code/ddd/application';
+import { AggregateNotFoundException, UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
-import { AggregateNotFoundException } from '@archi-code/ddd/exceptions';
 
 interface PlaceOrderInput {
   customerId: string;
@@ -115,7 +112,7 @@ export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, stri
   }
 
   protected toCommand(input: PlaceOrderInput): PlaceOrderCommand {
-    return ValueObjects.build({
+    return ValueObjectBuilder.build({
       customerId: () => new CustomerId(input.customerId),
       lines: () => OrderLines.fromPrimitives({ items: input.lines }),
       shippingAddress: () => ShippingAddress.fromPrimitives(input.shippingAddress),
@@ -173,7 +170,7 @@ describe('Customer.placeOrder', () => {
     );
     const order = customer.placeOrder(OrderId.generate(), lines, address, clock);
     expect(order.customerId.equals(customer.id)).toBe(true);
-    expect(order.pullDomainEvents().map((event) => event.eventName())).toEqual(['OrderPlaced']);
+    expect(order.pullDomainEvents().map((event) => event.eventName)).toEqual(['OrderPlaced']);
   });
 
   it('refuses an order from a blocked customer', () => {
@@ -192,5 +189,5 @@ describe('Customer.placeOrder', () => {
 
 ## Cuándo no
 
-* Para reconstituir desde base de datos: eso es `static fromPrimitives(primitives)`, que el repositorio llama directamente (`Order.fromPrimitives(row).restoreVersion(row.version)`), sin reglas de creación ni eventos.
+* Para reconstituir desde base de datos: eso es `static fromPrimitives(primitives)`, que el repositorio llama directamente (`Order.fromPrimitives(row.primitives)`; la versión de la fila la recuerda el repositorio en su `WeakMap`, no el agregado), sin reglas de creación ni eventos.
 * "Fábricas" genéricas que reciben un DTO y rellenan campos: un constructor con setters disfrazado.

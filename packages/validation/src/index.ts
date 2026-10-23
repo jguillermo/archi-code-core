@@ -1,4 +1,4 @@
-export { validator } from './validators';
+export { validator } from './validators/index';
 
 // Exported one by one so bundlers can tree-shake; `validator` pulls in every validator and table.
 export { equals } from './validators/equals';
@@ -92,9 +92,9 @@ export { isTime } from './validators/isTime';
 export { isLicensePlate } from './validators/isLicensePlate';
 export { isVAT } from './validators/isVAT';
 
-export * from './canBe';
-export * from './convert';
-export * as sanitizer from './sanitizer';
+export * from './canBe/index';
+export * from './convert/index';
+export * as sanitizer from './sanitizer/index';
 export { Validations } from './decorator/validations';
 export { runValidations } from './decorator/validate';
 export type {
@@ -115,5 +115,5 @@ export type {
 export { scorePassword } from './helpers/scorePassword';
 export type { ScorePasswordOptions } from './helpers/scorePassword';
 export { ValidationConfigError } from './helpers/errors';
-export type * from './validators';
+export type * from './validators/index';
 export type { NormalizeEmailOptions } from './sanitizer/normalizeEmail';

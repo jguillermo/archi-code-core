@@ -6,10 +6,10 @@ import { DateType } from '../../../src/domain/type/date-type';
 import { NumberType } from '../../../src/domain/type/number-type';
 import { StringType } from '../../../src/domain/type/string-type';
 import { AbstractType } from '../../../src/domain/type/abstract-type';
-import { Required } from '../../../src/domain/type/required/required';
-import { TypePrimitiveException } from '../../../src/exceptions/domain/type-primitive.exception';
-import { RequiredValueException } from '../../../src/exceptions/domain/required-value.exception';
-import { ValidationException } from '../../../src/exceptions/domain/validation.exception';
+import { Required } from '../../../src/domain/type/required/required-type';
+import { TypePrimitiveException } from '../../../src/domain/exceptions/type-primitive.exception';
+import { RequiredValueException } from '../../../src/domain/exceptions/required-value.exception';
+import { ValidationException } from '../../../src/domain/exceptions/validation.exception';
 
 @Validations([
   { validator: 'isLength', properties: { min: 2, max: 12 }, message: 'A tag has 2 to 12 letters' },
@@ -117,7 +117,11 @@ describe('ArrayType', () => {
     });
 
     it('keeps a missing optional score as null', () => {
-      expect(new Scores([9, null, '  '] as unknown as number[]).value).toEqual([9, null, null]);
+      expect(new Scores([9, null, undefined] as unknown as number[]).value).toEqual([
+        9,
+        null,
+        null,
+      ]);
     });
 
     it('converts every holiday into an immutable UTC date', () => {
@@ -132,6 +136,8 @@ describe('ArrayType', () => {
       ['a number', 18, '18'],
       ['a boolean', true, 'true'],
       ['an object', { tag: 'ddd' }, '{"tag":"ddd"}'],
+      ['an empty field', '', '""'],
+      ['a field with only spaces', '   ', '"   "'],
     ])('rejects %s', (_, input, received) => {
       const create = () => new Tags(input as unknown as string[]);
       expect(create).toThrow(TypePrimitiveException);
@@ -153,8 +159,6 @@ describe('ArrayType', () => {
     it.each([
       ['null', null],
       ['undefined', undefined],
-      ['an empty field', ''],
-      ['a field with only spaces', '   '],
     ])('a product without tags (%s) holds null', (_, input) => {
       expect(new Tags(input as unknown as string[]).value).toBeNull();
     });
@@ -242,14 +246,10 @@ describe('ArrayType', () => {
 
     it('throws for a tag that cannot be converted and leaves the original list untouched', () => {
       const tags = new Tags(['ddd']);
-      expect(() => tags.withItem({} as unknown as string)).toThrow(ValidationException);
-      expect(issuesOf(() => tags.withItem({} as unknown as string))).toEqual([
-        {
-          field: '1',
-          code: 'DOM003',
-          message: 'Validation Error: Expected a valid String, but received {}.',
-        },
-      ]);
+      expect(() => tags.withItem({} as unknown as string)).toThrow(TypePrimitiveException);
+      expect(() => tags.withItem({} as unknown as string)).toThrow(
+        'Validation Error: Expected a valid String, but received {}.',
+      );
       expect(tags.value).toEqual(['ddd']);
     });
 
@@ -293,8 +293,8 @@ describe('ArrayType', () => {
       expect(tags.value).toBeNull();
     });
 
-    it('throws for a tag that cannot be converted', () => {
-      expect(() => new Tags(['ddd']).withoutItem('')).toThrow(RequiredValueException);
+    it('throws for a tag that breaks its rules', () => {
+      expect(() => new Tags(['ddd']).withoutItem('')).toThrow(ValidationException);
     });
   });
 
@@ -344,6 +344,16 @@ describe('ArrayType', () => {
     it('tags and limited tags are different types', () => {
       expect(new Tags(['ddd']).equals(new LimitedTags(['ddd']))).toBe(false);
     });
+
+    it('a product with one more tag has different tags', () => {
+      expect(new Tags(['ddd']).equals(new Tags(['ddd', 'node']))).toBe(false);
+    });
+
+    it('two products without tags are equal, and different from one with an empty list', () => {
+      expect(new Tags(null).equals(new Tags())).toBe(true);
+      expect(new Tags(null).equals(new Tags([]))).toBe(false);
+      expect(new Tags([]).equals(new Tags(null))).toBe(false);
+    });
   });
 
   describe('text and JSON', () => {
@@ -360,19 +370,9 @@ describe('ArrayType', () => {
       const holidays = new HolidayDates([new Date(CHRISTMAS), new Date(NEW_YEAR)]);
       expect(`Closed on ${holidays}`).toBe(`Closed on ${CHRISTMAS}, ${NEW_YEAR}`);
     });
-
-    it('serializes as a plain JSON array', () => {
-      expect(
-        JSON.stringify({
-          tags: new Tags(['ddd']),
-          holidays: new HolidayDates([new Date(CHRISTMAS)]),
-          scores: new Scores(null),
-        }),
-      ).toBe(`{"tags":["ddd"],"holidays":["${CHRISTMAS}"],"scores":null}`);
-    });
   });
 
-  describe('always valid: every tag and every rule of the list, all at once', () => {
+  describe('always valid: the rules of every tag and of the list', () => {
     it('a list of valid tags is built and validate() confirms it', () => {
       expect(new Tags(['ddd', 'node']).validate()).toEqual({
         ok: true,
@@ -381,40 +381,17 @@ describe('ArrayType', () => {
       });
     });
 
-    it('reports every invalid tag with its position, not only the first one', () => {
+    it('throws the error of the first invalid tag as the tag reports it', () => {
       const build = () => new Tags(['ddd', 'x', 'node', 'averyverylongtag']);
       expect(build).toThrow(ValidationException);
-      expect(build).toThrow(
-        'Validation failed, 1: Tag: A tag has 2 to 12 letters, 3: Tag: A tag has 2 to 12 letters',
-      );
       expect(issuesOf(build)).toEqual([
-        { field: '1', code: 'isLength', message: 'Tag: A tag has 2 to 12 letters' },
-        { field: '3', code: 'isLength', message: 'Tag: A tag has 2 to 12 letters' },
+        { field: null, code: 'isLength', message: 'Tag: A tag has 2 to 12 letters' },
       ]);
     });
 
-    it('reports tags that cannot be converted or are missing together with the broken rules', () => {
-      expect(
-        issuesOf(() => new Tags(['x', {} as unknown as string, null as unknown as string])),
-      ).toEqual([
-        { field: '0', code: 'isLength', message: 'Tag: A tag has 2 to 12 letters' },
-        {
-          field: '1',
-          code: 'DOM003',
-          message: 'Validation Error: Expected a valid String, but received {}.',
-        },
-        {
-          field: '2',
-          code: 'DOM004',
-          message: 'Validation Error: Tag is required, but received null.',
-        },
-      ]);
-    });
-
-    it('reports the rules of the list before the errors of its tags', () => {
+    it('builds the tags before running the rules of the list', () => {
       expect(issuesOf(() => new LimitedTags(['a1', 'x', 'c3', 'd4']))).toEqual([
-        { field: null, code: 'atMostThree', message: 'LimitedTags: A product has at most 3 tags' },
-        { field: '1', code: 'isLength', message: 'Tag: A tag has 2 to 12 letters' },
+        { field: null, code: 'isLength', message: 'Tag: A tag has 2 to 12 letters' },
       ]);
     });
 
@@ -439,12 +416,12 @@ describe('ArrayType', () => {
 
     it('a required list reports its invalid tags the same way', () => {
       expect(() => new ProductTags(['ddd', 'x'])).toThrow(
-        'Validation failed, 1: Tag: A tag has 2 to 12 letters',
+        'Validation failed, Tag: A tag has 2 to 12 letters',
       );
       expect(new ProductTags(['ddd']).value).toEqual(['ddd']);
     });
 
-    it('lets an error that is not a domain error through untouched', () => {
+    it('lets the error of a tag through untouched', () => {
       const outage = new Error('tag dictionary unavailable');
       class CheckedTags extends ArrayType<Tag> {
         protected createItem(): Tag {

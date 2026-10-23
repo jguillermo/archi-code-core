@@ -3,8 +3,10 @@
  * Uso: npx depcruise src --config .dependency-cruiser.cjs
  * Funciona con src/contexts/<contexto>/ y con src/app/contexts/<contexto>/ (proyectos con la lógica en src/app/).
  * Probado con dependency-cruiser 16.10.0 y TypeScript 5.6, con un paquete simulado que expone
- * @archi-code/ddd/{domain,application,infrastructure,exceptions}. Si la estructura publicada del
+ * @archi-code/ddd/{domain,application,infrastructure}. Si la estructura publicada del
  * paquete difiere, ajusta ARCHI_LAYER.
+ * Cada subpath exporta las excepciones de su capa: cada capa importa solo el subpath de su capa y
+ * los interiores (domain → /domain; application → /domain y /application; infraestructura → todos).
  */
 // Grupo no capturante para app/: así $1 en las reglas es siempre el nombre del contexto.
 const CTX = '^src/(?:app/)?contexts/([^/]+)/';
@@ -16,7 +18,7 @@ module.exports = {
     {
       name: 'domain-solo-paquetes-permitidos',
       comment:
-        'El dominio solo usa @archi-code/ddd (domain y exceptions) y @archi-code/validation; nada más de npm.',
+        'El dominio solo usa @archi-code/ddd/domain (también sus excepciones) y @archi-code/validation; nada más de npm.',
       severity: 'error',
       from: { path: CTX + 'domain/' },
       to: {
@@ -26,7 +28,9 @@ module.exports = {
     },
     {
       name: 'domain-sin-capas-exteriores-del-paquete',
-      comment: 'El dominio nunca importa @archi-code/ddd/application ni @archi-code/ddd/infrastructure.',
+      comment:
+        'El dominio nunca importa @archi-code/ddd/application ni @archi-code/ddd/infrastructure ' +
+        '(tampoco sus excepciones).',
       severity: 'error',
       from: { path: CTX + 'domain/' },
       to: { path: ARCHI_LAYER('application|infrastructure') },
@@ -39,7 +43,9 @@ module.exports = {
     },
     {
       name: 'application-sin-infraestructura',
-      comment: 'La aplicación no conoce adaptadores propios ni @archi-code/ddd/infrastructure.',
+      comment:
+        'La aplicación no conoce adaptadores propios ni @archi-code/ddd/infrastructure ' +
+        '(tampoco InternalErrorException; un error ajeno lo envuelve UseCase en UnexpectedErrorException).',
       severity: 'error',
       from: { path: CTX + 'application/' },
       to: { path: [CTX + '(?:infrastructure|interfaces)/', ARCHI_LAYER('infrastructure')] },
@@ -47,8 +53,9 @@ module.exports = {
     {
       name: 'interfaces-no-saltan-a-infraestructura',
       comment:
-        'Los puntos de entrada llaman a casos de uso; no importan repositorios ni adaptadores. ' +
-        'Pueden importar HttpErrorMapper de @archi-code/ddd/infrastructure.',
+        'Los puntos de entrada llaman a casos de uso; no importan repositorios ni adaptadores propios. ' +
+        'De @archi-code/ddd/infrastructure solo usan ExceptionClassifier y ExceptionKind para traducir ' +
+        'los errores (dependency-cruiser no distingue nombres importados: revísalo en la revisión de código).',
       severity: 'error',
       from: { path: CTX + 'interfaces/' },
       to: { path: CTX + 'infrastructure/' },

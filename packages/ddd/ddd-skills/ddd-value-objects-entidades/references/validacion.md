@@ -24,15 +24,15 @@ Criterio práctico `[Fuera de los libros]`:
 
 Para devolver todos los errores en vez de parar en el primero, IDDD y *DDD in PHP* usan un manejador de notificación que recibe los fallos [IDDD cap. 5; PHP: Entities]. Con el paquete no se escribe ese manejador `[Fuera de los libros: convención de @archi-code/ddd]`:
 
-* **Entrada de un caso de uso:** `ValueObjects.build({...})` ejecuta todas las factorías y lanza una sola `ValidationException` cuyos `errors` (`ValidationIssue`: `{ field, code, message }`) llevan el campo y el código de cada problema; `ValueObjects.buildList` nombra los elementos de una lista por su posición (`lines.1.quantity`).
+* **Entrada de un caso de uso:** `ValueObjectBuilder.build({...})` ejecuta todas las factorías y lanza una sola `ValidationException` cuyos `errors` (`ValidationIssue`: `{ field, code, message }`) llevan el campo y el código de cada problema; `ValueObjectBuilder.buildList` nombra los elementos de una lista por su posición (`lines.1.quantity`).
 
 ```ts
-import { ValueObjects } from '@archi-code/ddd/domain';
+import { ValueObjectBuilder } from '@archi-code/ddd/application';
 
-const command = ValueObjects.build({
+const command = ValueObjectBuilder.build({
   customerId: () => new CustomerId(input.customerId),
   email: () => new Email(input.email),
-  lines: () => ValueObjects.buildList(input.lines, (line) => OrderLine.fromPrimitives(line)),
+  lines: () => ValueObjectBuilder.buildList(input.lines, (line) => OrderLine.fromPrimitives(line)),
 });
 // input { customerId: 'x', email: 'ana', lines: [...] } → una ValidationException:
 // errors: [
@@ -44,8 +44,8 @@ const command = ValueObjects.build({
 * **Un objeto ya construido** (la ficha de un producto que se quiere publicar, en el contexto de Catálogo): un servicio de dominio recoge los `ValidationIssue` y lanza una sola `new ValidationException(issues)`.
 
 ```ts
-import { ValidationException } from '@archi-code/ddd/exceptions';
-import type { ValidationIssue } from '@archi-code/ddd/exceptions';
+import { ValidationException } from '@archi-code/ddd/domain';
+import type { ValidationIssue } from '@archi-code/ddd/domain';
 
 export class ListingReadyToPublish {
   check(listing: ProductListing): void {
@@ -80,11 +80,11 @@ Un agregado puede estar en un estado intermedio legítimo en el que no procede v
 ## Errores con nombre
 
 `[Fuera de los libros]`
-* Una clase de error por regla de negocio (`OrderMustHaveLines`, `CurrencyMismatch`), con un código estable para traducir a mensajes de usuario y a códigos HTTP en el adaptador. Con el paquete, una subclase de `DomainException` (de `@archi-code/ddd/exceptions`) con su código en el segundo argumento.
+* Una clase de error por regla de negocio (`OrderMustHaveLines`, `CurrencyMismatch`), con un código estable para traducir a mensajes de usuario y a códigos HTTP en el adaptador. Con el paquete, una subclase de `DomainException` (de `@archi-code/ddd/domain`) con su código en el segundo argumento.
 * No uses `Error('invalid')` en el dominio.
 
 ```ts
-import { DomainException } from '@archi-code/ddd/exceptions';
+import { DomainException } from '@archi-code/ddd/domain';
 
 export class OrderMustHaveLines extends DomainException {
   constructor() {
@@ -93,4 +93,4 @@ export class OrderMustHaveLines extends DomainException {
 }
 ```
 
-`error.code` es `'ORD002'`. En la entrada, `HttpErrorMapper` (de `@archi-code/ddd/infrastructure`) traduce sin tablas escritas a mano: 422 para una `ValidationException` o cualquier `DomainException`, 400 para un error de conversión u obligatoriedad lanzado solo, y cambios por código cuando el negocio lo pide (`new HttpErrorMapper({ statusByCode: { ORD001: 409 } })`).
+`error.code` es `'ORD002'`. En la entrada, `ExceptionClassifier.classify(error)` (de `@archi-code/ddd/infrastructure`) da el tipo de fallo sin tablas por excepción: `ExceptionKind.Invalid` para una `ValidationException` o cualquier `DomainException` (422 en HTTP) y `ExceptionKind.Malformed` para un error de conversión u obligatoriedad lanzado solo (400); el punto de entrada cambia el estado de un código cuando el negocio lo pide (`ORD001` → 409).

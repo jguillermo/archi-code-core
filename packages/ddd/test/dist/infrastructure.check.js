@@ -4,8 +4,6 @@ const path = require('path');
 
 const application = require(path.resolve(__dirname, '../../dist/cjs/application/index.js'));
 const domain = require(path.resolve(__dirname, '../../dist/cjs/domain/index.js'));
-const exceptions = require(path.resolve(__dirname, '../../dist/cjs/exceptions/index.js'));
-const esmExceptionsUrl = path.resolve(__dirname, '../../dist/esm/exceptions/index.js');
 
 const ORDER_ID = '9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c';
 const OTHER_ORDER_ID = '3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f';
@@ -14,8 +12,9 @@ function orderModel() {
   class OrderPlaced extends domain.EventBase {
     static eventName = 'OrderPlaced';
 
-    constructor(id, customer, metadata) {
-      super(id, metadata);
+    constructor(orderId, customer, metadata) {
+      super(metadata);
+      this.orderId = orderId;
       this.customer = customer;
     }
   }
@@ -52,32 +51,38 @@ function smoke(m) {
         class InMemoryOrderRepository {
           constructor() {
             this.rows = new Map();
+            this.versions = new WeakMap();
           }
 
           async findById(id) {
             const row = this.rows.get(id.value);
-            return row === undefined
-              ? null
-              : Order.fromPrimitives(structuredClone(row.primitives)).restoreVersion(row.version);
+            if (row === undefined) {
+              return null;
+            }
+            const order = Order.fromPrimitives(structuredClone(row.primitives));
+            this.versions.set(order, row.version);
+            return order;
           }
 
           async save(order) {
-            const key = this.currentKey(order);
+            const version = this.checkedVersion(order);
             const primitives = structuredClone(order.toPrimitives());
-            this.rows.set(key, { version: order.version + 1, primitives });
-            order.markPersisted();
+            this.rows.set(order.id.value, { version: version + 1, primitives });
+            this.versions.set(order, version + 1);
           }
 
           async remove(order) {
-            this.rows.delete(this.currentKey(order));
+            this.checkedVersion(order);
+            this.rows.delete(order.id.value);
           }
 
-          currentKey(order) {
+          checkedVersion(order) {
             const key = order.id.value;
-            if ((this.rows.get(key)?.version ?? 0) !== order.version) {
-              throw new exceptions.ConcurrencyException('Order', key, order.version);
+            const version = this.versions.get(order) ?? 0;
+            if ((this.rows.get(key)?.version ?? 0) !== version) {
+              throw new application.ConcurrencyException('Order', key, version);
             }
-            return key;
+            return version;
           }
         }
         const repository = new InMemoryOrderRepository();
@@ -98,9 +103,9 @@ function smoke(m) {
         return (
           (first.customer.value === 'Ana' &&
             first !== second &&
-            first.version === 2 &&
-            stored.version === 2 &&
-            conflict instanceof exceptions.ConcurrencyException &&
+            repository.versions.get(first) === 2 &&
+            repository.versions.get(stored) === 2 &&
+            conflict instanceof application.ConcurrencyException &&
             removed === null) ||
           'unexpected in-memory repository behavior'
         );
@@ -122,7 +127,7 @@ function smoke(m) {
         const channel = new m.InMemoryEventChannel();
         const registry = new m.EventRegistry().register(
           OrderPlaced,
-          (json) => new OrderPlaced(json.aggregateId, json.customer, json),
+          (json) => new OrderPlaced(json.orderId, json.customer, json),
         );
         const bus = new m.DomainEventBus(channel, registry);
         const subscription = await bus.subscribe(new ConfirmOrderOnOrderPlaced());
@@ -136,7 +141,6 @@ function smoke(m) {
             received[0] !== events[0] &&
             received[0].customer === 'Ana' &&
             received[0].eventId === events[0].eventId &&
-            Object.isFrozen(received[0]) &&
             channel.sent.length === 2) ||
           'unexpected bus or channel result'
         );
@@ -171,7 +175,7 @@ function smoke(m) {
         );
         const registry = new m.EventRegistry().register(
           OrderPlaced,
-          (json) => new OrderPlaced(json.aggregateId, json.customer, json),
+          (json) => new OrderPlaced(json.orderId, json.customer, json),
         );
         const bus = new m.DomainEventBus(channel, registry);
         const subscription = await bus.subscribe(new ConfirmOrderOnOrderPlaced());
@@ -202,12 +206,12 @@ function smoke(m) {
         const { OrderPlaced } = orderModel();
         let failure = null;
         try {
-          await channel.send([new OrderPlaced(ORDER_ID, 'Ana').toJSON()]);
+          await channel.send([{ ...new OrderPlaced(ORDER_ID, 'Ana') }]);
         } catch (error) {
           failure = error;
         }
         return (
-          (failure instanceof exceptions.EventDeliveryException &&
+          (failure instanceof m.EventDeliveryException &&
             failure.errors.length === 1 &&
             ran.join() === 'mail') ||
           `unexpected parallel delivery: ${failure}`
@@ -242,14 +246,12 @@ function smoke(m) {
           new m.InMemoryEventChannel(),
           new m.EventRegistry().register(
             OrderPlaced,
-            (json) => new OrderPlaced(json.aggregateId, json.customer, json),
+            (json) => new OrderPlaced(json.orderId, json.customer, json),
           ),
           memory,
         );
         await bus.subscribe(new ReserveStockOnOrderPlaced());
         await bus.publish([new OrderPlaced(ORDER_ID, 'Ana')]).catch(() => undefined);
-        const mapper = new m.HttpErrorMapper({ logger: memory });
-        mapper.map(new Error('disk full'));
         new m.SilentLogger().error('ignored');
         const levels = memory.entries.map((entry) => `${entry.level}:${entry.message}`);
         return (
@@ -257,54 +259,198 @@ function smoke(m) {
             written[0].level === 'warn' &&
             written[0].time === '2026-10-19T09:30:00.000Z' &&
             written[0].context.at === '2026-10-19T09:30:00.000Z' &&
-            levels.join() ===
-              'info:event_listener_subscribed,error:event_listener_failed,error:http_request_failed') ||
+            levels.join() === 'info:event_listener_subscribed,error:event_listener_failed') ||
           `unexpected logging: ${JSON.stringify(written)} ${levels.join()}`
         );
       },
     ],
     [
-      'errors map to HTTP without leaking internals, and clocks are injectable',
+      'clocks are injectable',
       () => {
-        const mapper = new m.HttpErrorMapper();
-        const notFound = mapper.map(new exceptions.AggregateNotFoundException('Order', ORDER_ID));
-        const internal = mapper.map(new exceptions.InternalErrorException('password=secret'));
-        const forbidden = mapper.map(new exceptions.NotAllowedException('cus-luis cannot cancel'));
-        const rule = mapper.map(
-          new exceptions.DomainException('Order already shipped', ['ORD001']),
-        );
         const clock = new m.FixedClock('2026-01-01T00:00:00Z');
         clock.advance(1000);
         return (
-          (notFound.status === 404 &&
-            forbidden.status === 403 &&
-            rule.status === 422 &&
-            internal.status === 500 &&
-            internal.body.message === 'Internal server error' &&
-            clock.now().toISOString() === '2026-01-01T00:00:01.000Z' &&
+          (clock.now().toISOString() === '2026-01-01T00:00:01.000Z' &&
             new m.SystemClock().now() instanceof Date) ||
-          'unexpected mapping or clock'
+          'unexpected clock'
+        );
+      },
+    ],
+    [
+      'infrastructure exceptions carry their codes and cause',
+      () => {
+        const cause = new Error('ECONNRESET');
+        const internal = new m.InternalErrorException('saving order', { cause });
+        return (
+          (internal.cause === cause &&
+            internal.code === m.InfrastructureExceptionCode.InternalError &&
+            internal.description === 'Infrastructure Exception (INF000), Internal Error (INF001)' &&
+            internal instanceof m.InfrastructureException &&
+            new m.UnknownEventException('OrderCancelled').code === 'INF002') ||
+          'unexpected infrastructure exception shape'
+        );
+      },
+    ],
+    [
+      'the classifier tells entry points the kind of every failure of every layer',
+      () => {
+        const kinds = [
+          new application.AggregateNotFoundException('Order', ORDER_ID),
+          new application.NotAllowedException('cus-luis cannot cancel'),
+          new application.ConcurrencyException('Order', ORDER_ID, 3),
+          new domain.RequiredValueException('Email', ''),
+          new domain.DomainException('Order already shipped', ['ORD001']),
+          new application.ApplicationException('Email already used', ['USR001']),
+          new application.UnexpectedErrorException('PlaceOrder: boom'),
+          new domain.InvalidEventDefinitionException('OrderArchived'),
+          new m.InternalErrorException('password=secret'),
+          new Error('disk full'),
+        ].map((error) => m.ExceptionClassifier.classify(error));
+        return (
+          kinds.join() ===
+            [
+              m.ExceptionKind.NotFound,
+              m.ExceptionKind.NotAllowed,
+              m.ExceptionKind.Conflict,
+              m.ExceptionKind.Malformed,
+              m.ExceptionKind.Invalid,
+              m.ExceptionKind.Rejected,
+              m.ExceptionKind.Internal,
+              m.ExceptionKind.Internal,
+              m.ExceptionKind.Internal,
+              m.ExceptionKind.Internal,
+            ].join() || `unexpected kinds ${kinds.join()}`
         );
       },
     ],
   ];
 }
 
-function crossBuild(cjs) {
+function crossBuild(cjs, esm) {
   return [
     [
-      'the CJS mapper maps exceptions thrown by the ESM exceptions',
-      async () => {
-        const esmExceptions = await import(esmExceptionsUrl);
-        const mapped = new cjs.HttpErrorMapper().map(
-          new esmExceptions.ValidationException([
-            { field: 'email', message: 'Email: Value does not satisfy isEmail' },
-          ]),
+      'recognize infrastructure exceptions thrown by the other build',
+      () => {
+        const delivery = new esm.EventDeliveryException('OrderPlaced', [], 0);
+        return (
+          (delivery instanceof cjs.EventDeliveryException &&
+            delivery instanceof cjs.InfrastructureException &&
+            !(delivery instanceof cjs.InternalErrorException)) ||
+          'an infrastructure exception of one build is not recognized by the other'
         );
-        return mapped.status === 422 || `unexpected status ${mapped.status}`;
+      },
+    ],
+    [
+      'the classifier of one build classifies exceptions thrown by the other',
+      async () => {
+        const esmDomain = await import('../../dist/esm/domain/index.js');
+        const esmApplication = await import('../../dist/esm/application/index.js');
+        const invalid = new esmDomain.ValidationException([
+          { field: 'email', message: 'Email: Value does not satisfy isEmail' },
+        ]);
+        const notFound = new application.AggregateNotFoundException('Order', ORDER_ID);
+        const unexpected = new esmApplication.UnexpectedErrorException('PlaceOrder: boom');
+        return (
+          (cjs.ExceptionClassifier.classify(invalid) === 'invalid' &&
+            esm.ExceptionClassifier.classify(notFound) === 'not_found' &&
+            cjs.ExceptionClassifier.classify(unexpected) === 'internal') ||
+          'a classifier does not recognize the exceptions of the other build'
+        );
       },
     ],
   ];
 }
 
-module.exports = { smoke, crossBuild };
+async function infrastructureInThePage(entry) {
+  const m = await import(entry);
+  const pageApplication = await import(new URL('../application/index.js', entry).href);
+  const pageDomain = await import(new URL('../domain/index.js', entry).href);
+  const failures = [];
+  const expect = (name, passed) => {
+    if (!passed) failures.push(name);
+  };
+
+  class OrderPlaced extends pageDomain.EventBase {
+    static eventName = 'OrderPlaced';
+
+    constructor(orderId, metadata) {
+      super(metadata);
+      this.orderId = orderId;
+    }
+  }
+  const received = [];
+  class ConfirmOrderOnOrderPlaced extends pageApplication.EventListener {
+    handle(event) {
+      received.push(event);
+    }
+  }
+  pageApplication.ListensTo(OrderPlaced, { consumer: 'confirm-order' })(ConfirmOrderOnOrderPlaced);
+  class ReserveStockOnOrderPlaced extends pageApplication.EventListener {
+    handle() {
+      throw new Error('warehouse offline');
+    }
+  }
+  pageApplication.ListensTo(OrderPlaced, { consumer: 'reserve-stock' })(ReserveStockOnOrderPlaced);
+
+  const logger = new m.InMemoryLogger();
+  const channel = new m.InMemoryEventChannel({ delivery: 'parallel' });
+  const registry = new m.EventRegistry().register(
+    OrderPlaced,
+    (json) => new OrderPlaced(json.orderId, json),
+  );
+  const bus = new m.DomainEventBus(channel, registry, logger);
+  await bus.subscribe(new ConfirmOrderOnOrderPlaced());
+  await bus.subscribe(new ReserveStockOnOrderPlaced());
+  const event = new OrderPlaced(pageDomain.UuidType.random());
+  const failure = await bus.publish([event]).catch((error) => error);
+  expect(
+    'the bus delivers the rebuilt event and reports the failing consumer',
+    received.length === 1 &&
+      received[0] instanceof OrderPlaced &&
+      received[0] !== event &&
+      received[0].eventId === event.eventId &&
+      failure instanceof m.EventDeliveryException &&
+      failure.errors.length === 1 &&
+      channel.sent.length === 1,
+  );
+  expect(
+    'the bus logs the failing listener',
+    logger.entries.some(
+      (logEntry) => logEntry.level === 'error' && logEntry.message === 'event_listener_failed',
+    ),
+  );
+
+  const lines = [];
+  const original = console.info;
+  console.info = (line) => lines.push(JSON.parse(line));
+  try {
+    new m.ConsoleLogger({ clock: new m.FixedClock('2026-10-19T09:30:00Z') }).info('order_placed', {
+      cause: new Error('ignored'),
+    });
+  } finally {
+    console.info = original;
+  }
+  expect(
+    'ConsoleLogger writes one JSON line',
+    lines.length === 1 &&
+      lines[0].time === '2026-10-19T09:30:00.000Z' &&
+      lines[0].context.cause.message === 'ignored',
+  );
+
+  expect(
+    'the classifier reads every layer',
+    m.ExceptionClassifier.classify(new pageApplication.AggregateNotFoundException('Order', 'x')) ===
+      m.ExceptionKind.NotFound &&
+      m.ExceptionClassifier.classify(new pageDomain.RequiredValueException('Email', '')) ===
+        m.ExceptionKind.Malformed &&
+      m.ExceptionClassifier.classify(new Error('disk full')) === m.ExceptionKind.Internal,
+  );
+
+  return failures.length === 0 || failures.join('; ');
+}
+
+function browser() {
+  return [['runs the event bus, the in-memory channel and the loggers', infrastructureInThePage]];
+}
+
+module.exports = { smoke, crossBuild, browser };

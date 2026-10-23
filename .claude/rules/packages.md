@@ -123,11 +123,12 @@ people (and the AI assistants) that consume the package:
 ## Imports
 
 - Inside `src/`, import each symbol from the file that declares it
-  (`'../exceptions/domain/type-primitive.exception'`), never through an `index.ts` that only
-  re-exports it (`'../exceptions'`). Barrels inside a package hide dependencies and create import
+  (`'../exceptions/type-primitive.exception'`), never through an `index.ts` that only
+  re-exports it (`'../type'`). Barrels inside a package hide dependencies and create import
   cycles; `index.ts` files exist to expose the public API. The one exception is a package with
   subpath modules: across modules, import only through the other module's `index.ts` (its public
-  API). Specs in `test/` may import from the `src` barrels.
+  API). Specs in `test/` may import from the `src` barrels. ESLint enforces it in every
+  `packages/*/src` with `archi-code/no-barrel-import` (see `.claude/rules/tooling.md`).
 - WebStorm's "Import can be shortened" inspection suggests the opposite: disable it, and the
   directory (`index`) import option in Code Style › TypeScript › Imports (`.idea/` is not shared).
 
@@ -219,6 +220,9 @@ Only when the package needs them, and documented in its README:
   imports out of `src/`, deep imports into another module and imports of the package itself. Test
   harnesses shared by the modules (such as a contract) live in `test/<name>/` and are never
   published. One README (a section per module) and one `SKILL.md` cover every module.
+  A module may be internal (only `ddd/src/shared` today): code several modules share, with its own
+  `index.ts` and specs but no `exports`, `typesVersions` nor build hook; `module-boundaries.spec.ts`
+  lists it in `INTERNAL_MODULES` and checks that no public `index.ts` re-exports it.
 - Extra keys in `vitest.config.mts` (e.g. `coverage.exclude` for generated files).
 
 ## When adding a package

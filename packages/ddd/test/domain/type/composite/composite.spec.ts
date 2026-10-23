@@ -6,15 +6,15 @@ import type {
   CompositePrimitives,
   CompositeProps,
 } from '../../../../src/domain/type/composite/composite';
-import { ValueObjects } from '../../../../src/domain/type/value-objects/value-objects';
+import { ValueObjectBuilder } from '../../../../src/application/value-object-builder/value-object-builder';
 import { DateType } from '../../../../src/domain/type/date-type';
 import { NumberType } from '../../../../src/domain/type/number-type';
 import { StringType } from '../../../../src/domain/type/string-type';
-import { Required } from '../../../../src/domain/type/required/required';
+import { Required } from '../../../../src/domain/type/required/required-type';
 import type { PrimitiveTypes } from '../../../../src/domain/primitive/primitive-types';
-import { RequiredValueException } from '../../../../src/exceptions/domain/required-value.exception';
-import { TypePrimitiveException } from '../../../../src/exceptions/domain/type-primitive.exception';
-import { ValidationException } from '../../../../src/exceptions/domain/validation.exception';
+import { RequiredValueException } from '../../../../src/domain/exceptions/required-value.exception';
+import { TypePrimitiveException } from '../../../../src/domain/exceptions/type-primitive.exception';
+import { ValidationException } from '../../../../src/domain/exceptions/validation.exception';
 
 @Validations([{ validator: 'isInt', message: 'An amount is a whole number of cents' }])
 class Cents extends Required(NumberType) {}
@@ -188,13 +188,9 @@ describe('Composite: a value object made of several value objects', () => {
       expect(Object.isFrozen(price)).toBe(true);
     });
 
-    it('holds only its fields: they are what JSON, spreads and mappers see', () => {
-      const price = Money.of(1250, 'EUR');
-      expect(Object.keys(price)).toEqual(['amount', 'currency']);
-      expect(JSON.stringify(price)).toBe('{"amount":1250,"currency":"EUR"}');
-      expect(JSON.stringify(DateRange.fromPrimitives(spring()))).toBe(
-        '{"start":"2026-03-20T00:00:00.000Z","end":"2026-06-20T00:00:00.000Z"}',
-      );
+    it('holds only its fields: they are what spreads and mappers see', () => {
+      expect(Object.keys(Money.of(1250, 'EUR'))).toEqual(['amount', 'currency']);
+      expect(Object.keys(DateRange.fromPrimitives(spring()))).toEqual(['start', 'end']);
     });
 
     it('freezes the lists it holds', () => {
@@ -221,7 +217,7 @@ describe('Composite: a value object made of several value objects', () => {
     it('refuses a list field that is not a list, and an item of another class', () => {
       expect(
         () => new Cart({ lines: 'TORCH-01' as unknown as OrderLine[], note: new StringType() }),
-      ).toThrow('Expected a valid list for Cart.lines');
+      ).toThrow('Expected a valid list of OrderLine for Cart.lines');
       expect(
         () =>
           new Cart({
@@ -306,7 +302,14 @@ describe('Composite: a value object made of several value objects', () => {
 
     it('reports every invalid field at once, with the path of nested fields', () => {
       const broken = {
-        lines: [torch, { sku: '', units: 30, unitPrice: { amount: 10.5, currency: 'GBP' } }],
+        lines: [
+          torch,
+          {
+            sku: null as unknown as string,
+            units: 30,
+            unitPrice: { amount: 10.5, currency: 'GBP' },
+          },
+        ],
         note: null,
       };
       const rebuild = () => Cart.fromPrimitives(broken);
@@ -315,7 +318,7 @@ describe('Composite: a value object made of several value objects', () => {
         {
           field: 'lines.1.sku',
           code: 'DOM004',
-          message: 'Validation Error: Sku is required, but received "".',
+          message: 'Validation Error: Sku is required, but received null.',
         },
         { field: 'lines.1.units', code: 'isInt', message: 'Units: From 1 to 20' },
         {
@@ -347,10 +350,21 @@ describe('Composite: a value object made of several value objects', () => {
           {
             field: 'tags',
             code: 'DOM003',
-            message: 'Validation Error: Expected a valid Array, but received "ddd".',
+            message: 'Validation Error: Expected a valid list of Tag, but received "ddd".',
           },
         ],
       );
+    });
+
+    it('lets an error that is not a domain error through untouched, it is a bug', () => {
+      const outage = new Error('currency table unavailable');
+      class CheckedCurrency extends Required(StringType) {
+        protected filter(): string {
+          throw outage;
+        }
+      }
+      class Charge extends Composite({ amount: Cents, currency: CheckedCurrency }) {}
+      expect(() => Charge.fromPrimitives({ amount: 1.5, currency: 'EUR' })).toThrow(outage);
     });
 
     it.each([
@@ -363,10 +377,10 @@ describe('Composite: a value object made of several value objects', () => {
       expect(rebuild).toThrow('Expected a valid Money');
     });
 
-    it('nests in ValueObjects.build, so a command reports the path of every field', () => {
+    it('nests in ValueObjectBuilder.build, so a command reports the path of every field', () => {
       expect(
         issuesOf(() =>
-          ValueObjects.build({
+          ValueObjectBuilder.build({
             price: () => Money.fromPrimitives({ amount: 1.5, currency: 'EUR' }),
             promotion: () => DateRange.fromPrimitives(spring()),
           }),

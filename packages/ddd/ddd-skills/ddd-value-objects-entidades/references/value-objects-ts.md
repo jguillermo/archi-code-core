@@ -39,8 +39,7 @@ El ejemplo canónico de *DDD in PHP* (moneda e importe juntos) [PHP: Value Objec
 
 ```ts
 import { Validations } from '@archi-code/validation';
-import { Composite, NumberType, Required, StringType } from '@archi-code/ddd/domain';
-import { DomainException } from '@archi-code/ddd/exceptions';
+import { Composite, DomainException, NumberType, Required, StringType } from '@archi-code/ddd/domain';
 
 export class CurrencyMismatch extends DomainException {
   constructor(expected: string, received: string) {
@@ -374,4 +373,4 @@ describe('Money', () => {
 });
 ```
 
-`ValidationException` se importa de `@archi-code/ddd/exceptions`.
+`ValidationException` se importa de `@archi-code/ddd/domain`.

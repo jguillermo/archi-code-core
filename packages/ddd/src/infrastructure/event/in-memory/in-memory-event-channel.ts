@@ -1,7 +1,6 @@
 import type { ChannelHandler, ChannelSubscription, EventChannel } from '../event-channel';
-import { Immutable } from '../../../domain/index';
 import type { SerializedEvent } from '../../../domain/index';
-import { InfrastructureException } from '../../../exceptions/index';
+import { InfrastructureException } from '../../exceptions/infrastructure.exception';
 import { Emitter } from './emitter';
 
 export interface InMemoryEventChannelOptions {
@@ -24,7 +23,7 @@ export class InMemoryEventChannel implements EventChannel {
 
   async send(events: readonly SerializedEvent[]): Promise<void> {
     for (const event of events) {
-      const copy = InMemoryEventChannel.frozenCopy(event);
+      const copy = InMemoryEventChannel.copy(event);
       this.sentEvents.push(copy);
       if (this.delivery === 'parallel') {
         await this.emitter.emit(copy.eventName, copy);
@@ -46,7 +45,7 @@ export class InMemoryEventChannel implements EventChannel {
       );
     }
     this.receivers.add(receiver);
-    const off = this.emitter.on(eventName, (event) => handler(event));
+    const off = this.emitter.on(eventName, (event) => handler(InMemoryEventChannel.copy(event)));
     let open = true;
     return {
       close: async () => {
@@ -59,7 +58,7 @@ export class InMemoryEventChannel implements EventChannel {
     };
   }
 
-  private static frozenCopy(event: SerializedEvent): SerializedEvent {
-    return Immutable.freeze(JSON.parse(JSON.stringify(event)));
+  private static copy(event: SerializedEvent): SerializedEvent {
+    return JSON.parse(JSON.stringify(event));
   }
 }

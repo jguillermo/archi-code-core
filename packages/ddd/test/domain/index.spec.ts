@@ -13,9 +13,11 @@ import type {
   PrimitiveTypes,
   RequiredType,
   SerializedEvent,
+  ValidationIssue,
+  ValidationIssueInput,
 } from '../../src/domain/index';
 import { AbstractType } from '../../src/domain/type/abstract-type';
-import { Required } from '../../src/domain/type/required/required';
+import { Required } from '../../src/domain/type/required/required-type';
 import { StringType } from '../../src/domain/type/string-type';
 
 const PUBLIC_API = [
@@ -26,19 +28,23 @@ const PUBLIC_API = [
   'Composite',
   'CreatedAt',
   'DateType',
+  'DomainException',
+  'DomainExceptionCode',
   'Entity',
   'EnumType',
   'EventBase',
   'IdType',
-  'Immutable',
+  'InvalidEventDefinitionException',
   'JsonType',
   'NumberType',
   'Required',
+  'RequiredValueException',
   'Specification',
   'StringType',
+  'TypePrimitiveException',
   'UpdatedAt',
   'UuidType',
-  'ValueObjects',
+  'ValidationException',
 ];
 
 describe('@archi-code/ddd/domain', () => {
@@ -58,14 +64,34 @@ describe('@archi-code/ddd/domain', () => {
     );
   });
 
-  it('exports every value as a class or function', () => {
-    for (const name of PUBLIC_API) {
+  it('exports every value as a class or function, and the codes as an enum', () => {
+    expect(domain.DomainExceptionCode.ValidationFailed).toBe('DOM001');
+    for (const name of PUBLIC_API.filter((name) => name !== 'DomainExceptionCode')) {
       expect(typeof domain[name as keyof typeof domain]).toBe('function');
     }
   });
 
-  it('exports no exception: they live in @archi-code/ddd/exceptions', () => {
-    expect(Object.keys(domain).filter((name) => name.endsWith('Exception'))).toEqual([]);
+  it('exports only the exceptions of the domain, never the internal base every layer extends', () => {
+    expect(Object.keys(domain).filter((name) => name.endsWith('Exception'))).toEqual([
+      'DomainException',
+      'ValidationException',
+      'TypePrimitiveException',
+      'RequiredValueException',
+      'InvalidEventDefinitionException',
+    ]);
+    expect(Object.keys(domain)).not.toContain('AbstractException');
+  });
+
+  it('exports the field error of a ValidationException as a type', () => {
+    expectTypeOf<ValidationIssue>().toEqualTypeOf<{
+      readonly field: string | null;
+      readonly code: string;
+      readonly message: string;
+    }>();
+    expectTypeOf<ValidationIssueInput>().toMatchTypeOf<{
+      readonly field: string | null;
+      readonly message: string;
+    }>();
   });
 
   it('exports the repository contracts as types, one per role', () => {
@@ -102,7 +128,6 @@ describe('@archi-code/ddd/domain', () => {
     expectTypeOf<SerializedEvent>().toMatchTypeOf<{
       eventName: string;
       eventId: string;
-      aggregateId: string;
       occurredOn: string;
     }>();
   });

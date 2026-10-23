@@ -3,10 +3,10 @@ import { Validations } from '@archi-code/validation';
 import type { ValidationResult } from '@archi-code/validation';
 import { BooleanType } from '../../../src/domain/type/boolean-type';
 import { AbstractType } from '../../../src/domain/type/abstract-type';
-import { Required } from '../../../src/domain/type/required/required';
-import { TypePrimitiveException } from '../../../src/exceptions/domain/type-primitive.exception';
-import { RequiredValueException } from '../../../src/exceptions/domain/required-value.exception';
-import { ValidationException } from '../../../src/exceptions/domain/validation.exception';
+import { Required } from '../../../src/domain/type/required/required-type';
+import { TypePrimitiveException } from '../../../src/domain/exceptions/type-primitive.exception';
+import { RequiredValueException } from '../../../src/domain/exceptions/required-value.exception';
+import { ValidationException } from '../../../src/domain/exceptions/validation.exception';
 
 class AcceptsMarketing extends BooleanType {}
 class IsGift extends BooleanType {}
@@ -31,11 +31,11 @@ const formInputs: [string, unknown, boolean][] = [
 const blankFormFields: [string, unknown][] = [
   ['a field sent as null', null],
   ['a field left out of the request', undefined],
-  ['an empty form value', ''],
-  ['a form value with only spaces', '   '],
 ];
 
 const brokenClientInputs: [string, unknown, string][] = [
+  ['an empty form value', '', '""'],
+  ['a form value with only spaces', '   ', '"   "'],
   ['"yes"', 'yes', '"yes"'],
   ['"no"', 'no', '"no"'],
   ['a word', 'abc', '"abc"'],
@@ -164,10 +164,9 @@ describe('BooleanType', () => {
     it.each(blankFormFields)(
       'rejects %s with a RequiredValueException naming the type',
       (_, input) => {
-        const received = typeof input === 'string' ? `"${input}"` : 'null';
         const create = () => new EmailVerified(input as boolean);
         expect(create).toThrow(RequiredValueException);
-        expect(create).toThrow(requiredError('EmailVerified', received));
+        expect(create).toThrow(requiredError('EmailVerified', 'null'));
       },
     );
 
@@ -257,12 +256,6 @@ describe('BooleanType', () => {
 
     it('can be used in a template literal for an audit log line', () => {
       expect(`marketing=${new AcceptsMarketing(false)}`).toBe('marketing=false');
-    });
-
-    it('serializes to its plain value inside an API response', () => {
-      expect(JSON.stringify({ verified: new EmailVerified(false), gift: new IsGift() })).toBe(
-        '{"verified":false,"gift":null}',
-      );
     });
   });
 });

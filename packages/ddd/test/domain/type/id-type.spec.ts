@@ -1,8 +1,8 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import { IdType } from '../../../src/domain/type/id-type';
 import { UuidType } from '../../../src/domain/type/uuid-type';
-import { TypePrimitiveException } from '../../../src/exceptions/domain/type-primitive.exception';
-import { RequiredValueException } from '../../../src/exceptions/domain/required-value.exception';
+import { TypePrimitiveException } from '../../../src/domain/exceptions/type-primitive.exception';
+import { RequiredValueException } from '../../../src/domain/exceptions/required-value.exception';
 
 class OrderId extends IdType<'OrderId'> {}
 
@@ -28,8 +28,8 @@ describe('IdType', () => {
 
   it('refuses a missing order id', () => {
     expect(() => new OrderId(null as unknown as string)).toThrow(RequiredValueException);
-    expect(() => new OrderId('  ')).toThrow(
-      'Validation Error: OrderId is required, but received "  ".',
+    expect(() => new OrderId(undefined as unknown as string)).toThrow(
+      'Validation Error: OrderId is required, but received null.',
     );
   });
 
@@ -79,9 +79,8 @@ describe('IdType', () => {
     expect(new OrderId(STORED).equals(new CustomerId(STORED))).toBe(false);
   });
 
-  it('prints and serializes as the plain lowercase id', () => {
+  it('prints as the plain lowercase id', () => {
     const orderId = new OrderId('DF9EF000-21FC-4E06-B8F7-103C3A133D10');
     expect(`Order ${orderId} not paid`).toBe(`Order ${STORED} not paid`);
-    expect(JSON.stringify({ orderId })).toBe(`{"orderId":"${STORED}"}`);
   });
 });

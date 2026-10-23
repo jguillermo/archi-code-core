@@ -1,4 +1,3 @@
-import type { AggregateRoot } from '../aggregate/aggregate-root';
 import type { AbstractType } from '../type/abstract-type';
 
 export type Methods<T> = {
@@ -17,12 +16,9 @@ type RemoveUnderscore<S extends string> = S extends `_${infer R}` ? R : S;
 type Mutable<T> = {
   -readonly [P in keyof T]: T[P];
 };
-type AggregateBookkeeping<T> = T extends AggregateRoot<any, any> ? 'version' : never;
 
 export type PrimitiveTypes<T> = {
-  [key in keyof Mutable<Properties<T>> as key extends AggregateBookkeeping<T>
-    ? never
-    : RemoveUnderscore<string & key>]: PrimitiveType<T[key]>;
+  [key in keyof Mutable<Properties<T>> as RemoveUnderscore<string & key>]: PrimitiveType<T[key]>;
 };
 
 export type DataTypes<T> = Partial<PrimitiveTypes<T>>;

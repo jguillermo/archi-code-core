@@ -1,5 +1,5 @@
 import { AbstractType } from './abstract-type';
-import { TypePrimitiveException } from '../../exceptions/index';
+import { TypePrimitiveException } from '../exceptions/type-primitive.exception';
 
 const NUMERIC_TEXT = /^-?\d+(?:\.\d+)?$/;
 

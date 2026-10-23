@@ -1,7 +1,7 @@
 import type { AbstractType } from '../type/abstract-type';
 import type { IdType } from '../type/id-type';
 import type { RequiredMarked } from '../type/required/required-mark';
-import { RequiredValueException } from '../../exceptions/index';
+import { RequiredValueException } from '../exceptions/required-value.exception';
 
 export type EntityId = AbstractType<any> & RequiredMarked;
 

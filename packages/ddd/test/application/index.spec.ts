@@ -14,7 +14,18 @@ import { ListensTo } from '../../src/application/event/listens-to';
 import { UseCase } from '../../src/application/use-case/use-case';
 import type { EventBase } from '../../src/domain/index';
 
-const PUBLIC_API = ['EventListener', 'ListensTo', 'UseCase'];
+const PUBLIC_API = [
+  'AggregateNotFoundException',
+  'ApplicationException',
+  'ApplicationExceptionCode',
+  'ConcurrencyException',
+  'EventListener',
+  'ListensTo',
+  'NotAllowedException',
+  'UnexpectedErrorException',
+  'UseCase',
+  'ValueObjectBuilder',
+];
 
 describe('@archi-code/ddd/application', () => {
   it('exports exactly the public API', () => {
@@ -28,7 +39,23 @@ describe('@archi-code/ddd/application', () => {
   });
 
   it('exports no repository contract: they belong to the domain', () => {
-    expect(Object.keys(application).filter((name) => name.startsWith('Aggregate'))).toEqual([]);
+    expect(
+      Object.keys(application).filter(
+        (name) => name.startsWith('Aggregate') && !name.endsWith('Exception'),
+      ),
+    ).toEqual([]);
+  });
+
+  it('exports only the exceptions of the application and their codes', () => {
+    expect(Object.keys(application).filter((name) => name.endsWith('Exception'))).toEqual([
+      'ApplicationException',
+      'ConcurrencyException',
+      'AggregateNotFoundException',
+      'NotAllowedException',
+      'UnexpectedErrorException',
+    ]);
+    expect(application.ApplicationExceptionCode.UnexpectedError).toBe('APP004');
+    expect(Object.keys(application)).not.toContain('AbstractException');
   });
 
   it('exports no event transport: buses, registries and channels belong to infrastructure', () => {

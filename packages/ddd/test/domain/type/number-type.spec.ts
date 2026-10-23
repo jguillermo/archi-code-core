@@ -3,10 +3,10 @@ import { Validations } from '@archi-code/validation';
 import type { ValidationResult } from '@archi-code/validation';
 import { NumberType } from '../../../src/domain/type/number-type';
 import { AbstractType } from '../../../src/domain/type/abstract-type';
-import { Required } from '../../../src/domain/type/required/required';
-import { TypePrimitiveException } from '../../../src/exceptions/domain/type-primitive.exception';
-import { RequiredValueException } from '../../../src/exceptions/domain/required-value.exception';
-import { ValidationException } from '../../../src/exceptions/domain/validation.exception';
+import { Required } from '../../../src/domain/type/required/required-type';
+import { TypePrimitiveException } from '../../../src/domain/exceptions/type-primitive.exception';
+import { RequiredValueException } from '../../../src/domain/exceptions/required-value.exception';
+import { ValidationException } from '../../../src/domain/exceptions/validation.exception';
 
 class ProductPrice extends Required(NumberType) {}
 class DiscountPercent extends NumberType {}
@@ -32,11 +32,11 @@ const requestInputs: [string, unknown, number][] = [
 const blankFormFields: [string, unknown][] = [
   ['a field sent as null', null],
   ['a field left out of the request', undefined],
-  ['an empty number box', ''],
-  ['a number box with only spaces', '   '],
 ];
 
 const brokenClientInputs: [string, unknown, string][] = [
+  ['an empty number box', '', '""'],
+  ['a number box with only spaces', '   ', '"   "'],
   ['a word', 'abc', '"abc"'],
   ['a decimal comma', '1,5', '"1,5"'],
   ['a hexadecimal text', '0x10', '"0x10"'],
@@ -169,10 +169,9 @@ describe('NumberType', () => {
     it.each(blankFormFields)(
       'rejects %s with a RequiredValueException naming the type',
       (_, input) => {
-        const received = typeof input === 'string' ? `"${input}"` : 'null';
         const create = () => new ProductPrice(input as number);
         expect(create).toThrow(RequiredValueException);
-        expect(create).toThrow(requiredError('ProductPrice', received));
+        expect(create).toThrow(requiredError('ProductPrice', 'null'));
       },
     );
 
@@ -256,12 +255,6 @@ describe('NumberType', () => {
 
     it('can be used in a template literal for a receipt line', () => {
       expect(`Total: ${new ProductPrice(12.5)} EUR`).toBe('Total: 12.5 EUR');
-    });
-
-    it('serializes to its plain value inside an API response', () => {
-      expect(
-        JSON.stringify({ price: new ProductPrice(12.5), discount: new DiscountPercent() }),
-      ).toBe('{"price":12.5,"discount":null}');
     });
   });
 });

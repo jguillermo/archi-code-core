@@ -1,10 +1,17 @@
 export * from './event/event-base';
 export * from './entity/entity';
 export * from './aggregate/aggregate-root';
-export * from './type';
+export * from './type/index';
 export * from './primitive/primitive-types';
 export type { AggregateFinder } from './repository/aggregate-finder';
 export type { AggregateSaver } from './repository/aggregate-saver';
 export type { AggregateRemover } from './repository/aggregate-remover';
 export { Specification } from './specification/specification';
 export type { SatisfiedBy } from './specification/specification';
+export { DomainException } from './exceptions/domain.exception';
+export { ValidationException } from './exceptions/validation.exception';
+export type { ValidationIssue, ValidationIssueInput } from './exceptions/validation.exception';
+export { TypePrimitiveException } from './exceptions/type-primitive.exception';
+export { RequiredValueException } from './exceptions/required-value.exception';
+export { InvalidEventDefinitionException } from './exceptions/invalid-event-definition.exception';
+export { DomainExceptionCode } from './exceptions/domain-exception-code';

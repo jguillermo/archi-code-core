@@ -32,12 +32,12 @@ export class StockReserved extends EventBase {
   static readonly eventName = 'warehouse.stock.StockReserved';
 
   constructor(
-    stockItemId: string,
+    readonly stockItemId: string,
     readonly orderId: string,
     readonly reservationId: string,
     metadata?: EventMetadata,
   ) {
-    super(stockItemId, metadata);
+    super(metadata);
   }
 }
 ```
@@ -45,9 +45,8 @@ export class StockReserved extends EventBase {
 El caso de uso registra el hecho: un agregado, un `save` atómico, y si el pedido no existe (es de otro canal) vuelve sin error:
 
 ```ts
-import { ValueObjects } from '@archi-code/ddd/domain';
 import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
-import { UseCase } from '@archi-code/ddd/application';
+import { UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
 
 interface StockReservationInput {
@@ -74,7 +73,7 @@ export class RegisterStockReservation extends UseCase<
   }
 
   protected toCommand(input: StockReservationInput): StockReservationCommand {
-    return ValueObjects.build({
+    return ValueObjectBuilder.build({
       orderId: () => new OrderId(input.orderId),
       reservationId: () => new ReservationId(input.reservationId),
     });
@@ -127,7 +126,7 @@ const orders = new InMemoryOrderRepository();
 const registry = new EventRegistry<OrderEvent | StockReserved>().register(
   StockReserved,
   (json) =>
-    new StockReserved(json.aggregateId, json.orderId as string, json.reservationId as string, json),
+    new StockReserved(json.stockItemId as string, json.orderId as string, json.reservationId as string, json),
 );
 const channel = new InMemoryEventChannel();
 const bus = new DomainEventBus<OrderEvent | StockReserved>(channel, registry);

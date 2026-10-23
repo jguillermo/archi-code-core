@@ -9,7 +9,8 @@ import {
   StringType,
 } from '../../src/domain/index';
 import { FixedClock } from '../../src/infrastructure/index';
-import { ConcurrencyException, DomainException } from '../../src/exceptions/index';
+import { ConcurrencyException } from '../../src/application/exceptions/concurrency.exception';
+import { DomainException } from '../../src/domain/exceptions/domain.exception';
 import type { PrimitiveTypes } from '../../src/domain/index';
 
 class OrderId extends IdType<'OrderId'> {}
@@ -105,6 +106,7 @@ class InMemoryOrderRepository
   implements AggregateFinder<Order>, AggregateSaver<Order>, AggregateRemover<Order>
 {
   private readonly rows = new Map<string, StoredOrder>();
+  private readonly versions = new WeakMap<Order, number>();
 
   async findById(id: OrderId): Promise<Order | null> {
     const row = this.rows.get(id.value);
@@ -116,26 +118,31 @@ class InMemoryOrderRepository
   }
 
   async save(order: Order): Promise<void> {
-    const key = this.currentKey(order);
+    const key = order.id.value;
+    const version = this.checkedVersion(order);
     const primitives = structuredClone(order.toPrimitives());
-    this.rows.set(key, { version: order.version + 1, primitives });
-    order.markPersisted();
+    this.rows.set(key, { version: version + 1, primitives });
+    this.versions.set(order, version + 1);
   }
 
   async remove(order: Order): Promise<void> {
-    this.rows.delete(this.currentKey(order));
+    this.checkedVersion(order);
+    this.rows.delete(order.id.value);
   }
 
-  private currentKey(order: Order): string {
+  private checkedVersion(order: Order): number {
     const key = order.id.value;
-    if ((this.rows.get(key)?.version ?? 0) !== order.version) {
-      throw new ConcurrencyException('Order', key, order.version);
+    const version = this.versions.get(order) ?? 0;
+    if ((this.rows.get(key)?.version ?? 0) !== version) {
+      throw new ConcurrencyException('Order', key, version);
     }
-    return key;
+    return version;
   }
 
   private load(row: StoredOrder): Order {
-    return Order.fromPrimitives(structuredClone(row.primitives)).restoreVersion(row.version);
+    const order = Order.fromPrimitives(structuredClone(row.primitives));
+    this.versions.set(order, row.version);
+    return order;
   }
 }
 
@@ -170,7 +177,6 @@ describe('InMemoryOrderRepository: a repository a project writes in its tests, o
       const repository = await storedOrder();
       const loaded = await repository.findById(new OrderId(orderId));
       expect(loaded).toBeInstanceOf(Order);
-      expect(loaded?.version).toBe(1);
       expect(loaded?.toPrimitives()).toEqual({
         id: orderId,
         customer: 'Ana',
@@ -208,7 +214,6 @@ describe('InMemoryOrderRepository: a repository a project writes in its tests, o
       const stored = (await repository.findById(new OrderId(orderId))) as Order;
       expect(stored.status.value).toBe('shipped');
       expect(stored.lines.map((line) => line.value)).toEqual(['TORCH-01']);
-      expect(byLuis.version).toBe(1);
     });
 
     it('after a conflict, reloading the order and repeating the change succeeds', async () => {
@@ -221,18 +226,20 @@ describe('InMemoryOrderRepository: a repository a project writes in its tests, o
       await expect(repository.save(byLuis)).rejects.toThrow(ConcurrencyException);
 
       const reloaded = (await repository.findById(new OrderId(orderId))) as Order;
-      expect(reloaded.version).toBe(2);
       expect(() => reloaded.addLine('HELMET-02')).toThrow(OrderShippedException);
+      reloaded.ship();
+      await expect(repository.save(reloaded)).resolves.toBeUndefined();
     });
 
-    it('the same order can be saved twice in a row: the version follows each save', async () => {
+    it('the same order can be saved twice in a row: the repository follows its version', async () => {
       const repository = orders();
       const order = Order.place(orderId, 'Ana', clock);
       await repository.save(order);
       order.addLine('TORCH-01');
       await repository.save(order);
-      expect(order.version).toBe(2);
-      expect((await repository.findById(new OrderId(orderId)))?.version).toBe(2);
+      const loaded = (await repository.findById(new OrderId(orderId))) as Order;
+      expect(loaded.lines.map((line) => line.value)).toEqual(['TORCH-01']);
+      await expect(repository.save(loaded)).resolves.toBeUndefined();
     });
 
     it('a new order with an id already stored is rejected, it does not replace the stored one', async () => {
@@ -245,18 +252,11 @@ describe('InMemoryOrderRepository: a repository a project writes in its tests, o
       expect(await repository.findAll()).toHaveLength(1);
     });
 
-    it('an order loaded with a version that was never stored is rejected', async () => {
-      const repository = orders();
-      const forged = Order.place(orderId, 'Ana', clock).restoreVersion(4);
-      await expect(repository.save(forged)).rejects.toThrow(ConcurrencyException);
-      expect(await repository.findAll()).toEqual([]);
-    });
-
-    it('a rejected save does not move the version of the aggregate', async () => {
+    it('a rejected save leaves the aggregate as new, so it is rejected again', async () => {
       const repository = await storedOrder();
       const duplicate = Order.place(orderId, 'Luis', clock);
       await expect(repository.save(duplicate)).rejects.toThrow(ConcurrencyException);
-      expect(duplicate.version).toBe(0);
+      await expect(repository.save(duplicate)).rejects.toThrow('expected version 0.');
     });
   });
 
@@ -318,12 +318,14 @@ describe('InMemoryOrderRepository: a repository a project writes in its tests, o
       expect(all.every((order) => order instanceof Order)).toBe(true);
     });
 
-    it('lists every order with the version it was stored with', async () => {
+    it('lists every order with the version it was stored with, so each one can be saved', async () => {
       const repository = await storedOrder();
       const second = Order.place(otherOrderId, 'Luis', clock);
       await repository.save(second);
       await repository.save(second);
-      expect((await repository.findAll()).map((order) => order.version)).toEqual([1, 2]);
+      for (const order of await repository.findAll()) {
+        await expect(repository.save(order)).resolves.toBeUndefined();
+      }
     });
 
     it('lists nothing in an empty store', async () => {

@@ -1,8 +1,43 @@
 import { toDate } from '@archi-code/validation';
 import { AbstractType } from './abstract-type';
-import { Immutable } from './immutable/immutable';
-import { Required } from './required/required';
-import { TypePrimitiveException } from '../../exceptions/index';
+import { Required } from './required/required-type';
+import { TypePrimitiveException } from '../exceptions/type-primitive.exception';
+
+class ImmutableDate extends Date {
+  private static readonly setters = [
+    'setDate',
+    'setFullYear',
+    'setHours',
+    'setMilliseconds',
+    'setMinutes',
+    'setMonth',
+    'setSeconds',
+    'setTime',
+    'setUTCDate',
+    'setUTCFullYear',
+    'setUTCHours',
+    'setUTCMilliseconds',
+    'setUTCMinutes',
+    'setUTCMonth',
+    'setUTCSeconds',
+    'setYear',
+  ];
+
+  static {
+    for (const setter of ImmutableDate.setters) {
+      Object.defineProperty(ImmutableDate.prototype, setter, {
+        value(): never {
+          throw new TypeError(`Cannot call ${setter}: the date is immutable`);
+        },
+      });
+    }
+  }
+
+  constructor(date: Date) {
+    super(date.getTime());
+    Object.freeze(this);
+  }
+}
 
 const TIME_WITHOUT_ZONE = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?$/;
 
@@ -12,11 +47,15 @@ export class DateType extends AbstractType<Date, Date | string> {
     if (!converted.ok || (typeof value === 'string' && TIME_WITHOUT_ZONE.test(value))) {
       throw new TypePrimitiveException('Date', value);
     }
-    return Immutable.date(converted.value);
+    return new ImmutableDate(converted.value);
   }
 
   toString(): string {
     return this._value === null ? '' : this._value.toISOString();
+  }
+
+  protected hasSameValue(other: this): boolean {
+    return this._value?.getTime() === other._value?.getTime();
   }
 }
 

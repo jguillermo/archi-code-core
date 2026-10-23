@@ -3,11 +3,11 @@ import { Entity } from '../../../src/domain/entity/entity';
 import { AggregateRoot } from '../../../src/domain/aggregate/aggregate-root';
 import { IdType } from '../../../src/domain/type/id-type';
 import { NumberType } from '../../../src/domain/type/number-type';
-import { Required } from '../../../src/domain/type/required/required';
+import { Required } from '../../../src/domain/type/required/required-type';
 import { StringType } from '../../../src/domain/type/string-type';
 import type { PrimitiveTypes } from '../../../src/domain/primitive/primitive-types';
 import type { RequiredMarked } from '../../../src/domain/type/required/required-mark';
-import { RequiredValueException } from '../../../src/exceptions/index';
+import { RequiredValueException } from '../../../src/domain/exceptions/required-value.exception';
 
 class SeatId extends IdType<'SeatId'> {}
 class SeatLabel extends Required(StringType) {}

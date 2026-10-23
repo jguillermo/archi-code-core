@@ -48,6 +48,7 @@ src/
       interfaces/
         http/
           ordersRouter.ts
+          httpError.ts             (traduce ExceptionKind a estado HTTP)
         messaging/
           StockReservedConsumer.ts (traduce el contrato publicado por Almacén al input de un caso de uso)
       composition.ts               ← composition root del contexto
@@ -64,7 +65,7 @@ test/
     infrastructure/                (integración con BD real o contenedor)
 ```
 
-Lo que no aparece porque lo da `@archi-code/ddd`: clases base (`AggregateRoot`, `Entity`, `EventBase`, los tipos de value object, `Composite`), una interfaz `OrderRepository` (los roles `AggregateFinder`, `AggregateSaver` y `AggregateRemover` vienen de `@archi-code/ddd/domain`), un `OrderMapper` (la conversión es del agregado, `toPrimitives()` y `static fromPrimitives()`, y cada repositorio los llama directamente: guarda `order.toPrimitives()` con `order.version + 1` y carga con `Order.fromPrimitives(row).restoreVersion(row.version)`), un publicador de eventos (`DomainEventBus` implementa `EventBus`) y el puerto `Clock`. Tampoco hay un runner de transacciones ni una unidad de trabajo: la transacción es del repositorio `[Fuera de los libros: convención de @archi-code/ddd]`.
+Lo que no aparece porque lo da `@archi-code/ddd`: clases base (`AggregateRoot`, `Entity`, `EventBase`, los tipos de value object, `Composite`), una interfaz `OrderRepository` (los roles `AggregateFinder`, `AggregateSaver` y `AggregateRemover` vienen de `@archi-code/ddd/domain`), un `OrderMapper` (la conversión es del agregado, `toPrimitives()` y `static fromPrimitives()`, y cada repositorio los llama directamente: guarda `order.toPrimitives()` con la versión siguiente al lado y carga con `Order.fromPrimitives(row.primitives)`; la versión la recuerda el propio repositorio en un `WeakMap<Order, number>`, nunca el agregado), un publicador de eventos (`DomainEventBus` implementa `EventBus`) y el puerto `Clock`. Tampoco hay un runner de transacciones ni una unidad de trabajo: la transacción es del repositorio `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 Lo que el paquete no da y escribe el proyecto: cada repositorio, uno por agregado. Su constructor recibe solo las dependencias de su tecnología (la `collection` de Mongo, el `pool` de Postgres), nunca la clase del agregado ni un mapper; el agregado solo entra y sale por sus métodos. Nada comprueba en ejecución la forma del agregado: que su estado sean value objects expuestos por getters y que `toPrimitives()`/`fromPrimitives()` no pierdan campos lo garantizan el agregado y su test de ida y vuelta. El repositorio en memoria también es del proyecto y es un doble de test: vive en `test/support/`, nunca en `src/` (ver `InMemoryOrderRepository` en `ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`) `[Fuera de los libros: convención de @archi-code/ddd]`.
 
@@ -116,7 +117,6 @@ import { MongoClient } from 'mongodb';
 import {
   DomainEventBus,
   EventRegistry,
-  HttpErrorMapper,
   SystemClock,
 } from '@archi-code/ddd/infrastructure';
 import { OrderLineAdded, OrderPlaced } from './domain/order/events';
@@ -152,7 +152,7 @@ export async function composeSales(
       OrderPlaced,
       (json) =>
         new OrderPlaced(
-          json.aggregateId,
+          json.orderId as string,
           json.customerId as string,
           json.lines as OrderLineData[],
           json.total as MoneyData,
@@ -163,7 +163,7 @@ export async function composeSales(
       OrderLineAdded,
       (json) =>
         new OrderLineAdded(
-          json.aggregateId,
+          json.orderId as string,
           json.sku as string,
           json.quantity as number,
           json.unitPrice as MoneyData,
@@ -188,10 +188,7 @@ export async function composeSales(
   ];
 
   return {
-    httpRouter: ordersRouter(
-      { placeOrder, addOrderLine },
-      new HttpErrorMapper({ statusByCode: { ORD001: 409 }, logger: deps.logger }),
-    ),
+    httpRouter: ordersRouter({ placeOrder, addOrderLine }, deps.logger),
     close: async () => {
       await Promise.all(subscriptions.map((subscription) => subscription.unsubscribe()));
       await mongo.close();
@@ -201,8 +198,8 @@ export async function composeSales(
 ```
 
 Qué hace cada pieza:
-* Del paquete, en `@archi-code/ddd/infrastructure`: `EventRegistry` (reconstruye cada evento desde su JSON; la factoría pasa el JSON como metadata para conservar `eventId` y `occurredOn`), `DomainEventBus` (implementa `EventBus`, lo único que reciben los casos de uso; su `subscribe(listener)` solo lo llama el composition root), `SystemClock` (implementa `Clock`) y `HttpErrorMapper` (códigos propios como `ORD001` se sobrescriben por código).
-* Código del proyecto sobre los puertos del paquete `[Fuera de los libros: convención de @archi-code/ddd]`: `MongoOrderRepository` (roles de repositorio de `Order`; su constructor recibe solo la `collection`; llama a `order.toPrimitives()` y a `Order.fromPrimitives(row).restoreVersion(row.version)` y controla la `version`; responsable de toda la persistencia: cada `save`/`remove` es una escritura atómica de un documento, y si un agregado ocupara varias tablas SQL abriría y cerraría la transacción de la base de datos dentro de `save`/`remove`; ver `ddd-skills/ddd-repositorios-persistencia/GUIA.md`), `RabbitMqEventChannel` (implementa `EventChannel`, ver `ddd-skills/ddd-eventos-dominio/GUIA.md`) y `HttpWarehouse` (implementa el puerto `Warehouse`).
+* Del paquete, en `@archi-code/ddd/infrastructure`: `EventRegistry` (reconstruye cada evento desde su JSON; la factoría pasa el JSON como metadata para conservar `eventId` y `occurredOn`), `DomainEventBus` (implementa `EventBus`, lo único que reciben los casos de uso; su `subscribe(listener)` solo lo llama el composition root), y `SystemClock` (implementa `Clock`).
+* Código del proyecto sobre los puertos del paquete `[Fuera de los libros: convención de @archi-code/ddd]`: `MongoOrderRepository` (roles de repositorio de `Order`; su constructor recibe solo la `collection`; llama a `order.toPrimitives()` y a `Order.fromPrimitives(row.primitives)` y controla la versión, que recuerda por agregado en un `WeakMap` y guarda junto a los primitivos; responsable de toda la persistencia: cada `save`/`remove` es una escritura atómica de un documento, y si un agregado ocupara varias tablas SQL abriría y cerraría la transacción de la base de datos dentro de `save`/`remove`; ver `ddd-skills/ddd-repositorios-persistencia/GUIA.md`), `RabbitMqEventChannel` (implementa `EventChannel`, ver `ddd-skills/ddd-eventos-dominio/GUIA.md`) y `HttpWarehouse` (implementa el puerto `Warehouse`).
 * Cada listener se suscribe con `bus.subscribe(listener)`, que lee su `@ListensTo(OrderLineAdded, { consumer: 'prepare-shipment-on-order-line-added' })` y rechaza un evento que el registro no sabe reconstruir.
 * Cambiar RabbitMQ por un outbox o por memoria cambia solo la línea del canal.
 * Ni los casos de uso ni los repositorios reciben un runner de transacciones: el composition root no construye ninguno.
@@ -236,7 +233,7 @@ export async function salesForTests(warehouse: Warehouse) {
     OrderLineAdded,
     (json) =>
       new OrderLineAdded(
-        json.aggregateId,
+        json.orderId as string,
         json.sku as string,
         json.quantity as number,
         json.unitPrice as MoneyData,
@@ -264,18 +261,19 @@ El test comprueba lo que causó el listener (el `Warehouse` de prueba) y lo que 
 // src/contexts/sales/interfaces/http/ordersRouter.ts
 import { Router } from 'express';
 import type { Response } from 'express';
-import type { HttpErrorMapper } from '@archi-code/ddd/infrastructure';
+import type { Logger } from '@archi-code/ddd/application';
 import type { AddOrderLine } from '../../application/add-order-line/AddOrderLine';
 import type { PlaceOrder } from '../../application/place-order/PlaceOrder';
+import { toHttpError } from './httpError';
 
 export function ordersRouter(
   useCases: { placeOrder: PlaceOrder; addOrderLine: AddOrderLine },
-  errors: HttpErrorMapper,
+  logger: Logger,
 ): Router {
   const router = Router();
 
   const fail = (res: Response, error: unknown) => {
-    const { status, body } = errors.map(error);
+    const { status, body } = toHttpError(error, logger);
     return res.status(status).json(body);
   };
 
@@ -340,13 +338,69 @@ export function ordersRouter(
 }
 ```
 
-El controlador no sabe qué es un `Order`. Comprueba solo la forma de la petición (un campo es texto o número) [IDDD cap. 4]; las reglas de cada valor son de los value objects que `toCommand` construye con `ValueObjects.build`, y llegan como una `ValidationException` con todos los campos (422). La identidad del cliente sale del token, no del body. `HttpErrorMapper` traduce los errores: 404 `AggregateNotFoundException`, 403 `NotAllowedException`, 409 `ConcurrencyException`, 422 `ValidationException` y cualquier otra `DomainException`, 500 con un mensaje genérico para lo demás. Con `logger`, el mapper registra cada 5xx una vez como `error` (con su causa) y los 4xx solo en `debug`; el controlador no vuelve a registrarlos.
+El controlador no sabe qué es un `Order`. Comprueba solo la forma de la petición (un campo es texto o número) [IDDD cap. 4]; las reglas de cada valor son de los value objects que `toCommand` construye con `ValueObjectBuilder.build`, y llegan como una `ValidationException` con todos los campos (422). La identidad del cliente sale del token, no del body. `toHttpError` traduce los errores. El paquete no trae nada de HTTP: `ExceptionClassifier.classify(error)` de `@archi-code/ddd/infrastructure` devuelve el `ExceptionKind` del fallo y cada protocolo (HTTP, un consumidor de mensajes, una CLI) lo traduce a sus códigos `[Fuera de los libros: convención de @archi-code/ddd]`:
+
+```ts
+// src/contexts/sales/interfaces/http/httpError.ts
+import { DomainException, ValidationException } from '@archi-code/ddd/domain';
+import type { ValidationIssue } from '@archi-code/ddd/domain';
+import { ApplicationException, ApplicationExceptionCode } from '@archi-code/ddd/application';
+import type { Logger } from '@archi-code/ddd/application';
+import {
+  ExceptionClassifier,
+  ExceptionKind,
+  InfrastructureException,
+} from '@archi-code/ddd/infrastructure';
+
+export interface HttpError {
+  status: number;
+  body: { code: string; message: string; errors?: readonly ValidationIssue[] };
+}
+
+const STATUS_BY_KIND: Readonly<Record<ExceptionKind, number>> = {
+  [ExceptionKind.NotFound]: 404,
+  [ExceptionKind.NotAllowed]: 403,
+  [ExceptionKind.Conflict]: 409,
+  [ExceptionKind.Malformed]: 400,
+  [ExceptionKind.Invalid]: 422,
+  [ExceptionKind.Rejected]: 400,
+  [ExceptionKind.Internal]: 500,
+};
+
+const STATUS_BY_CODE = new Map<string, number>([['ORD001', 409]]);
+
+type PackageException = DomainException | ApplicationException | InfrastructureException;
+
+function isPackageException(error: unknown): error is PackageException {
+  return (
+    error instanceof DomainException ||
+    error instanceof ApplicationException ||
+    error instanceof InfrastructureException
+  );
+}
+
+export function toHttpError(error: unknown, logger: Logger): HttpError {
+  const code = isPackageException(error) ? error.code : ApplicationExceptionCode.UnexpectedError;
+  const status = STATUS_BY_CODE.get(code) ?? STATUS_BY_KIND[ExceptionClassifier.classify(error)];
+  if (status >= 500 || !isPackageException(error)) {
+    logger.error('http_request_failed', { status, code, error });
+    return { status, body: { code, message: 'Internal server error' } };
+  }
+  logger.debug('http_request_rejected', { status, code });
+  if (error instanceof ValidationException) {
+    return { status, body: { code, message: error.message, errors: error.errors } };
+  }
+  return { status, body: { code, message: error.message } };
+}
+```
+
+En HTTP: 404 `AggregateNotFoundException`, 403 `NotAllowedException`, 409 `ConcurrencyException`, 400 un error de conversión u obligatoriedad, 422 `ValidationException` y cualquier otra `DomainException`, 400 otros errores de aplicación y 500 con un mensaje genérico para lo demás (también `UnexpectedErrorException`, el error ajeno que `UseCase.execute` envuelve); los códigos propios (`ORD001`) se resuelven antes que el tipo. Cada 5xx se registra una vez como `error` (con su causa) y los 4xx solo en `debug`; el controlador no vuelve a registrarlos. Un consumidor de mensajes traduce el mismo `ExceptionKind` a confirmar, descartar o reintentar.
 
 ## Configuración de TypeScript
 
 `[Fuera de los libros]`
 * `strict: true`. El dominio se apoya en el tipado para expresar invariantes.
 * `experimentalDecorators: true`: `@Validations` (value objects) y `@ListensTo` (listeners) son decoradores de clase.
-* `moduleResolution` `node16`, `nodenext` o `bundler` para resolver los subpaths `@archi-code/ddd/domain`, `/application`, `/infrastructure` y `/exceptions`; con `node` los resuelve el `typesVersions` del paquete.
+* `moduleResolution` `node16`, `nodenext` o `bundler` para resolver los subpaths `@archi-code/ddd/domain`, `/application` y `/infrastructure` (cada uno exporta las excepciones de su capa); con `node` los resuelve el `typesVersions` del paquete.
 * Alias por contexto (`"@sales/*": ["src/contexts/sales/*"]`, usado como `@sales/domain/order/Order`) para que los imports revelen la zona.
 * `exactOptionalPropertyTypes` y `noUncheckedIndexedAccess` ayudan a que los value objects no acepten estados a medias.

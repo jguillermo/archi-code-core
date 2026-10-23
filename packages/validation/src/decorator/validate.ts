@@ -1,4 +1,4 @@
-import { validator } from '../validators';
+import { validator } from '../validators/index';
 import { isRequired as hasValue } from '../validators/isRequired';
 import { ValidationConfigError } from '../helpers/errors';
 import { isCustom, isValidatorName, keyOf, ownValidations } from './validations';

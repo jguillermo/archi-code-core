@@ -1,6 +1,6 @@
 export { AbstractType } from './abstract-type';
-export { Required } from './required/required';
-export type { RequiredType } from './required/required';
+export { Required } from './required/required-type';
+export type { RequiredType } from './required/required-type';
 export { ArrayType } from './array-type';
 export { BooleanType } from './boolean-type';
 export { CreatedAt, DateType, UpdatedAt } from './date-type';
@@ -11,8 +11,6 @@ export { NumberType } from './number-type';
 export { StringType } from './string-type';
 export { IdType } from './id-type';
 export { UuidType } from './uuid-type';
-export { Immutable } from './immutable/immutable';
-export { ValueObjects } from './value-objects/value-objects';
 export { Composite } from './composite/composite';
 export type {
   CompositeInput,

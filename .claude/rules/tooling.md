@@ -33,6 +33,14 @@ asked to audit the tooling.
   globals of the `globals` package; `scripts/__tests__` are ES modules, and
   `packages/*/test/dist/*.check.js` also get the browser globals (their `browser()` page functions
   run in real pages).
+- `packages/*/src` also gets the local rule `archi-code/no-barrel-import` (declared inline in
+  `eslint.config.js`, no plugin to install), which enforces the "Imports" rule of
+  `.claude/rules/packages.md`: a relative import never names a folder (`'../type'`), and only a
+  public entry point (`src/index.ts`, or `src/<module>/index.ts` of an exported subpath) may
+  import an `index.ts` that only re-exports, except the `index.ts` of another module
+  (`'../../domain/index'`, internal modules such as `ddd/src/shared` included). An `index.ts` that
+  declares symbols of its own (`validation/src/validators/index.ts`) is imported as
+  `'<folder>/index'`. Specs are not checked: they may import the `src` barrels.
 - The three ignore the same generated output: `packages/*/dist`, `packages/*/coverage`,
   `**/target`, `node_modules`, `.idea`, `packages/crypto-tools/wasm` and `*.generated.ts`, plus
   `packages/ddd/ddd-skills` (a DDD skill suite kept as it is written). Build
@@ -60,6 +68,10 @@ Run from the repo root. Every step lists the expected result; any other result i
 3. **Each tool detects violations** (probe through stdin or the scratchpad, never in the repo):
    - `printf 'var x = 1 == 2;\n' | npx eslint --stdin --stdin-filename packages/ddd/src/domain/probe.ts`
      reports `no-var`, `eqeqeq` and `prettier/prettier`.
+   - `printf "export { StringType } from '../type';\n" | npx eslint --stdin --stdin-filename packages/ddd/src/domain/event/probe.ts`
+     reports `archi-code/no-barrel-import` (a folder), and so does `'../type/index'` (an index that
+     only re-exports); `'../type/string-type'` from there and `'../../application/index'` from
+     `packages/ddd/src/infrastructure/event/probe.ts` report nothing.
    - `printf 'var x = 1 == 2;\n' | npx eslint --stdin --stdin-filename scripts/probe.js` reports
      `no-var`, `eqeqeq` and `no-unused-vars`; `document` is undefined there (`no-undef`) but allowed
      in `packages/<pkg>/test/dist/probe.check.js`.

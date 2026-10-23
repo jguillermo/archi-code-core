@@ -11,28 +11,33 @@ import { EventListener, ListensTo } from '../../../src/application/index';
 import type { EventBus } from '../../../src/application/index';
 import { EventBase } from '../../../src/domain/index';
 import type { EventMetadata, SerializedEvent } from '../../../src/domain/index';
-import {
-  ApplicationException,
-  ConcurrencyException,
-  DomainException,
-  UnknownEventException,
-} from '../../../src/exceptions/index';
+import { ApplicationException } from '../../../src/application/exceptions/application.exception';
+import { ConcurrencyException } from '../../../src/application/exceptions/concurrency.exception';
+import { DomainException } from '../../../src/domain/exceptions/domain.exception';
+import { UnknownEventException } from '../../../src/infrastructure/exceptions/unknown-event.exception';
 import { InMemoryLogger } from '../../../src/infrastructure/logging/in-memory-logger';
 
 class OrderPlaced extends EventBase {
   static readonly eventName = 'OrderPlaced';
 
   constructor(
-    orderId: string,
+    readonly orderId: string,
     readonly lines: { sku: string; units: number }[],
     metadata?: EventMetadata,
   ) {
-    super(orderId, metadata);
+    super(metadata);
   }
 }
 
 class OrderShipped extends EventBase {
   static readonly eventName = 'OrderShipped';
+
+  constructor(
+    readonly orderId: string,
+    metadata?: EventMetadata,
+  ) {
+    super(metadata);
+  }
 }
 
 type OrderEvent = OrderPlaced | OrderShipped;
@@ -83,9 +88,9 @@ function orderEvents() {
   return new EventRegistry<OrderEvent>()
     .register(
       OrderPlaced,
-      (json) => new OrderPlaced(json.aggregateId, json.lines as OrderPlaced['lines'], json),
+      (json) => new OrderPlaced(json.orderId as string, json.lines as OrderPlaced['lines'], json),
     )
-    .register(OrderShipped, (json) => new OrderShipped(json.aggregateId, json));
+    .register(OrderShipped, (json) => new OrderShipped(json.orderId as string, json));
 }
 
 describe('DomainEventBus: the bus every channel shares', () => {
@@ -104,7 +109,7 @@ describe('DomainEventBus: the bus every channel shares', () => {
 
     await bus.publish([placed, shipped]);
 
-    expect(channel.sends).toStrictEqual([[placed.toJSON(), shipped.toJSON()]]);
+    expect(channel.sends).toStrictEqual([[{ ...placed }, { ...shipped }]]);
   });
 
   it('subscribes a listener under its event name, with the consumer name it declares', async () => {
@@ -122,7 +127,7 @@ describe('DomainEventBus: the bus every channel shares', () => {
     );
   });
 
-  it('hands the listener the event rebuilt from its JSON, frozen, as any channel would', async () => {
+  it('hands the listener the event rebuilt from its JSON, as any channel would', async () => {
     const bus = new DomainEventBus(new RecordingChannel(), orderEvents());
     const listener = new ReserveStockOnOrderPlaced();
     await bus.subscribe(listener);
@@ -133,8 +138,7 @@ describe('DomainEventBus: the bus every channel shares', () => {
     const [received] = listener.reserved;
     expect(received).toBeInstanceOf(OrderPlaced);
     expect(received).not.toBe(placed);
-    expect(received.toJSON()).toStrictEqual(placed.toJSON());
-    expect(Object.isFrozen(received)).toBe(true);
+    expect({ ...received }).toStrictEqual({ ...placed });
   });
 
   it('closes the channel subscription on unsubscribe', async () => {
@@ -163,7 +167,7 @@ describe('DomainEventBus: the bus every channel shares', () => {
       channel,
       new EventRegistry<OrderEvent>().register(
         OrderShipped,
-        (json) => new OrderShipped(json.aggregateId, json),
+        (json) => new OrderShipped(json.orderId as string, json),
       ),
     );
     await expect(bus.subscribe(new ReserveStockOnOrderPlaced())).rejects.toThrow(
@@ -198,7 +202,7 @@ describe('DomainEventBus: the bus every channel shares', () => {
           level: 'debug',
           message: 'domain_events_published',
           context: {
-            events: [{ eventName: 'OrderPlaced', eventId: placed.eventId, aggregateId: orderId }],
+            events: [{ eventName: 'OrderPlaced', eventId: placed.eventId }],
           },
         },
       ]);
@@ -236,7 +240,7 @@ describe('DomainEventBus: the bus every channel shares', () => {
         new RecordingChannel(),
         new EventRegistry<OrderEvent>().register(
           OrderShipped,
-          (json) => new OrderShipped(json.aggregateId, json),
+          (json) => new OrderShipped(json.orderId as string, json),
         ),
         logger,
       );
@@ -270,7 +274,6 @@ describe('DomainEventBus: the bus every channel shares', () => {
             eventName: 'OrderShipped',
             consumer: 'print-label-on-order-shipped',
             eventId: shipped.eventId,
-            aggregateId: orderId,
             error: outage,
           },
         },
@@ -308,7 +311,7 @@ describe('DomainEventBus: the bus every channel shares', () => {
       const [receiver] = channel.receivers;
 
       await expect(
-        receiver.handler({ ...new OrderShipped(orderId).toJSON(), eventName: 'OrderReturned' }),
+        receiver.handler({ ...new OrderShipped(orderId), eventName: 'OrderReturned' }),
       ).rejects.toThrow(UnknownEventException);
 
       expect(logger.entries[logger.entries.length - 1]).toMatchObject({

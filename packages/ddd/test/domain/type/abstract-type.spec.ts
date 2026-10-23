@@ -2,10 +2,12 @@ import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { Validations } from '@archi-code/validation';
 import type { Validatable, ValidationResult } from '@archi-code/validation';
 import { AbstractType } from '../../../src/domain/type/abstract-type';
-import { Required } from '../../../src/domain/type/required/required';
-import { RequiredValueException } from '../../../src/exceptions/domain/required-value.exception';
-import { TypePrimitiveException } from '../../../src/exceptions/domain/type-primitive.exception';
-import { ValidationException } from '../../../src/exceptions/domain/validation.exception';
+import type { ValueOf } from '../../../src/domain/type/abstract-type';
+import { Required } from '../../../src/domain/type/required/required-type';
+import type { RequiredMarked } from '../../../src/domain/type/required/required-mark';
+import { RequiredValueException } from '../../../src/domain/exceptions/required-value.exception';
+import { TypePrimitiveException } from '../../../src/domain/exceptions/type-primitive.exception';
+import { ValidationException } from '../../../src/domain/exceptions/validation.exception';
 
 class CountryCode extends AbstractType<string> {
   static spain(): CountryCode {
@@ -36,6 +38,16 @@ class GeoPoint extends AbstractType<{ lat: number; lng: number }> {
   protected filter(value: unknown): { lat: number; lng: number } {
     return Object.freeze({ ...(value as { lat: number; lng: number }) });
   }
+
+  protected hasSameValue(other: this): boolean {
+    return this._value?.lat === other._value?.lat && this._value?.lng === other._value?.lng;
+  }
+}
+
+class Coordinates extends AbstractType<{ lat: number; lng: number }> {
+  protected filter(value: unknown): { lat: number; lng: number } {
+    return Object.freeze({ ...(value as { lat: number; lng: number }) });
+  }
 }
 
 @Validations([{ validator: 'isEmail' }])
@@ -46,12 +58,6 @@ class Email extends AbstractType<string> {
 }
 
 class CustomerEmail extends Required(Email) {}
-
-class Deadline extends AbstractType<Date> {
-  protected filter(value: unknown): Date {
-    return new Date(value as string);
-  }
-}
 
 function spiedCountryCode() {
   const filterSpy = vi.fn((value: unknown) => String(value));
@@ -81,7 +87,6 @@ describe('AbstractType: writing a custom value object', () => {
         [value?: string | null]
       >();
       expectTypeOf<CountryCode['value']>().toEqualTypeOf<string | null>();
-      expectTypeOf<CountryCode['toJSON']>().toEqualTypeOf<() => string | null>();
       expectTypeOf<CountryCode['validate']>().toEqualTypeOf<
         () => ValidationResult<string | null>
       >();
@@ -91,7 +96,6 @@ describe('AbstractType: writing a custom value object', () => {
     it('a required value object takes only T and exposes T', () => {
       expectTypeOf<ConstructorParameters<typeof BillingCountry>>().toEqualTypeOf<[value: string]>();
       expectTypeOf<BillingCountry['value']>().toEqualTypeOf<string>();
-      expectTypeOf<BillingCountry['toJSON']>().toEqualTypeOf<() => string>();
       expectTypeOf<BillingCountry>().toMatchTypeOf<Validatable<string>>();
     });
 
@@ -104,7 +108,9 @@ describe('AbstractType: writing a custom value object', () => {
     it('exposes isNull, toString() and equals(), and no assertValid()', () => {
       expectTypeOf<CountryCode['isNull']>().toEqualTypeOf<boolean>();
       expectTypeOf<CountryCode['toString']>().toEqualTypeOf<() => string>();
-      expectTypeOf<CountryCode['equals']>().toEqualTypeOf<(other: unknown) => boolean>();
+      expectTypeOf<CountryCode['equals']>().toEqualTypeOf<
+        <E extends AbstractType<any>>(other: E) => boolean
+      >();
       expectTypeOf<CountryCode>().not.toHaveProperty('assertValid');
     });
 
@@ -135,13 +141,20 @@ describe('AbstractType: writing a custom value object', () => {
       ['a field that was not sent', []],
       ['a JSON null', [null]],
       ['an undefined property', [undefined]],
-      ['an empty text box', ['']],
-      ['a text box with only spaces and line breaks', [' \t\n ']],
     ])('%s is stored as null without calling filter', (_, args) => {
       const { SpiedCountry, filterSpy } = spiedCountryCode();
       const country = new SpiedCountry(...(args as [string | null]));
       expect(country.value).toBeNull();
       expect(filterSpy).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['an empty text box', ''],
+      ['a text box with only spaces and line breaks', ' \t\n '],
+    ])('%s is a value: filter receives it and decides', (_, input) => {
+      const { SpiedCountry, filterSpy } = spiedCountryCode();
+      expect(new SpiedCountry(input).value).toBe(input);
+      expect(filterSpy).toHaveBeenCalledWith(input);
     });
 
     it.each([
@@ -208,22 +221,6 @@ describe('AbstractType: writing a custom value object', () => {
       expect(`Shipping to ${country}`).toBe('Shipping to IT');
       expect(String(new CountryCode())).toBe('');
     });
-
-    it('is serialized as its plain value in an API response', () => {
-      const body = {
-        billing: new BillingCountry('es'),
-        shipping: new ShippingCountry(),
-        location: new GeoPoint({ lat: 37.26, lng: -6.95 }),
-        deadline: new Deadline(new Date('2026-05-01T12:00:00Z')),
-      };
-      expect(JSON.parse(JSON.stringify(body))).toEqual({
-        billing: 'ES',
-        shipping: null,
-        location: { lat: 37.26, lng: -6.95 },
-        deadline: '2026-05-01T12:00:00.000Z',
-      });
-      expectTypeOf<Deadline['toJSON']>().toEqualTypeOf<() => string | null>();
-    });
   });
 
   describe('recognizing value objects built by another copy of the package (CJS and ESM side by side)', () => {
@@ -272,19 +269,32 @@ describe('AbstractType: writing a custom value object', () => {
       expect(new ShippingCountry('es').equals(new CountryCode('es'))).toBe(false);
     });
 
-    it('compares structured values by content, not by reference', () => {
+    it('compares a structured value by content when the subclass says how (hasSameValue)', () => {
       const office = new GeoPoint({ lat: 37.26, lng: -6.95 });
       expect(office.equals(new GeoPoint({ lng: -6.95, lat: 37.26 }))).toBe(true);
       expect(office.equals(new GeoPoint({ lat: 37.26, lng: -6.9 }))).toBe(false);
+    });
+
+    it('compares a structured value by reference when the subclass does not say how', () => {
+      const office = { lat: 37.26, lng: -6.95 };
+      expect(new Coordinates(office).equals(new Coordinates(office))).toBe(false);
+      expect(new Coordinates().equals(new Coordinates(null))).toBe(true);
+    });
+
+    it('only accepts another value object at compile time', () => {
+      // @ts-expect-error a raw code is not a value object
+      expect(new CountryCode('es').equals('ES')).toBe(false);
+      // @ts-expect-error a missing country is not a value object
+      expect(new CountryCode('es').equals(null)).toBe(false);
     });
 
     it.each([
       ['null', null],
       ['undefined', undefined],
       ['the raw code', 'ES'],
-      ['a plain object with the same value', { _value: 'ES' }],
+      ['a plain object with the same value', { value: 'ES' }],
     ])('a country is never equal to %s', (_, other) => {
-      expect(new CountryCode('es').equals(other)).toBe(false);
+      expect(new CountryCode('es').equals(other as unknown as CountryCode)).toBe(false);
     });
   });
 
@@ -328,7 +338,7 @@ describe('AbstractType: writing a custom value object', () => {
       @Validations([{ custom: 'isCorporate', fn: isCorporate }])
       class WorkEmail extends Email {}
 
-      expect(new WorkEmail('').value).toBeNull();
+      expect(new WorkEmail().value).toBeNull();
       expect(isCorporate).not.toHaveBeenCalled();
     });
 
@@ -398,8 +408,8 @@ describe('AbstractType: writing a custom value object', () => {
     it('a missing billing country throws RequiredValueException with the class name', () => {
       // @ts-expect-error a required value object needs a value
       expect(() => new BillingCountry()).toThrow(RequiredValueException);
-      expect(() => new BillingCountry('  ')).toThrow(
-        'Validation Error: BillingCountry is required, but received "  ".',
+      expect(() => new BillingCountry(null as unknown as string)).toThrow(
+        'Validation Error: BillingCountry is required, but received null.',
       );
     });
 
@@ -441,5 +451,17 @@ describe('AbstractType: writing a custom value object', () => {
     it('does not make the wrapped type required', () => {
       expect(new CountryCode(null).validate()).toEqual(valid(null));
     });
+  });
+});
+
+describe('ValueOf', () => {
+  it('a required value object holds T', () => {
+    expectTypeOf<ValueOf<string, RequiredMarked>>().toEqualTypeOf<string>();
+    expectTypeOf<ValueOf<number, { id: string } & RequiredMarked>>().toEqualTypeOf<number>();
+  });
+
+  it('an optional value object holds T | null', () => {
+    expectTypeOf<ValueOf<string, object>>().toEqualTypeOf<string | null>();
+    expectTypeOf<ValueOf<string, Partial<RequiredMarked>>>().toEqualTypeOf<string | null>();
   });
 });

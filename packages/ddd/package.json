@@ -11,7 +11,8 @@
     "domain events",
     "use case",
     "repository",
-    "node"
+    "node",
+    "browser"
   ],
   "author": "Jose Guillermo",
   "license": "MIT",
@@ -26,16 +27,6 @@
     "access": "public"
   },
   "exports": {
-    "./exceptions": {
-      "import": {
-        "types": "./dist/esm/exceptions/index.d.ts",
-        "default": "./dist/esm/exceptions/index.js"
-      },
-      "require": {
-        "types": "./dist/cjs/exceptions/index.d.ts",
-        "default": "./dist/cjs/exceptions/index.js"
-      }
-    },
     "./domain": {
       "import": {
         "types": "./dist/esm/domain/index.d.ts",
@@ -70,9 +61,6 @@
   },
   "typesVersions": {
     "*": {
-      "exceptions": [
-        "./dist/cjs/exceptions/index.d.ts"
-      ],
       "domain": [
         "./dist/cjs/domain/index.d.ts"
       ],
@@ -89,6 +77,7 @@
     "SKILL.md",
     "ddd-skills/"
   ],
+  "sideEffects": false,
   "scripts": {
     "prebuild": "rm -rf dist || true",
     "build:cjs": "tsc -p tsconfig.cjs.json",
@@ -97,7 +86,7 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "check:types": "tsc -p tsconfig.json --noEmit --incremental false",
-    "check:dist": "node ../../scripts/check-dist.js && attw --pack .",
+    "check:dist": "node ../../scripts/check-dist.js && attw --pack . && node ../../scripts/check-browser.js",
     "check:all": "npm run check:types && npm run test:coverage && npm run build && npm run check:dist"
   },
   "dependencies": {

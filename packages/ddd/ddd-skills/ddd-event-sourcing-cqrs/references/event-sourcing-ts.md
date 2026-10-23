@@ -4,7 +4,7 @@
 
 ## Eventos del stream
 
-Cada evento es una subclase de `EventBase` con `static readonly eventName`, el id del agregado en `super(...)` y una carga de primitivos tomados de los value objects (el dinero como `{ amount, currency }`), nunca value objects: el evento se serializa tal cual con `toJSON()` [IDDD cap. 8].
+Cada evento es una subclase de `EventBase` con `static readonly eventName` y, como campos `readonly` del constructor, el id del agregado y los datos primitivos que necesita, tomados de los value objects (el dinero como `{ amount, currency }`), nunca value objects: el evento no tiene métodos y se serializa tal cual (`{ ...event }`) [IDDD cap. 8].
 
 ```ts
 import { EventBase } from '@archi-code/ddd/domain';
@@ -14,12 +14,12 @@ export class PaymentRequested extends EventBase {
   static readonly eventName = 'PaymentRequested';
 
   constructor(
-    paymentId: string,
+    readonly paymentId: string,
     readonly orderId: string,
     readonly amount: { amount: number; currency: string },
     metadata?: EventMetadata,
   ) {
-    super(paymentId, metadata);
+    super(metadata);
   }
 }
 
@@ -27,12 +27,12 @@ export class PaymentAuthorized extends EventBase {
   static readonly eventName = 'PaymentAuthorized';
 
   constructor(
-    paymentId: string,
+    readonly paymentId: string,
     readonly authorizationCode: string,
     readonly expiresAt: string,
     metadata?: EventMetadata,
   ) {
-    super(paymentId, metadata);
+    super(metadata);
   }
 }
 
@@ -40,22 +40,29 @@ export class PaymentRejected extends EventBase {
   static readonly eventName = 'PaymentRejected';
 
   constructor(
-    paymentId: string,
+    readonly paymentId: string,
     readonly reason: string,
     metadata?: EventMetadata,
   ) {
-    super(paymentId, metadata);
+    super(metadata);
   }
 }
 
 export class PaymentCaptured extends EventBase {
   static readonly eventName = 'PaymentCaptured';
+
+  constructor(
+    readonly paymentId: string,
+    metadata?: EventMetadata,
+  ) {
+    super(metadata);
+  }
 }
 
 export type PaymentEvent = PaymentRequested | PaymentAuthorized | PaymentRejected | PaymentCaptured;
 ```
 
-`EventBase` pone `eventId`, `aggregateId` y un `occurredOn` inmutable (del `clock` que recibe el método del agregado), y `toJSON()` escribe `eventName`, `eventVersion`, `eventId`, `aggregateId`, `occurredOn` en ISO y la carga: esa es la fila del stream.
+`EventBase` pone `eventName`, `eventId` y `occurredOn` (texto ISO en UTC, del `clock` que recibe el método del agregado); la identidad del pago es un campo más del evento (`paymentId`), declarado por cada clase. `{ ...event }` da `eventName`, `eventId`, `occurredOn` y los campos, todos datos primitivos (regla del paquete, no comprobada en ejecución): esa es la fila del stream.
 
 ## Agregado con decidir y aplicar
 
@@ -72,7 +79,7 @@ import {
   Required,
   StringType,
 } from '@archi-code/ddd/domain';
-import { DomainException } from '@archi-code/ddd/exceptions';
+import { DomainException } from '@archi-code/ddd/domain';
 import { Validations } from '@archi-code/validation';
 
 export class PaymentId extends IdType<'PaymentId'> {}
@@ -211,7 +218,7 @@ Reglas:
 * `fromHistory` aplica sin `record`: reconstituir no genera eventos nuevos.
 * El reloj se recibe como `{ now(): Date }` y se pasa a cada evento (`{ clock }`), para que reconstruir no dependa de la hora actual; en pruebas, `FixedClock`.
 * IDDD propone separar estado y comportamiento en dos clases que solo colaboran a través de `apply` [IDDD apéndice A]; aquí el estado son campos privados de value objects que solo `apply` escribe. Si el agregado crece, extrae ese estado a una clase propia con su `apply`.
-* `[Fuera de los libros: convención de @archi-code/ddd]` La `version` de `AggregateRoot` cuenta guardados, no eventos (crece 1 por `save`), así que este agregado lleva su propia versión de stream (`streamVersion()`, los eventos que se aplicaron al cargar) y no se guarda como instantánea: no necesita `toPrimitives()`/`fromPrimitives()` ni getters para sus campos, porque lo que se persiste son los eventos.
+* `[Fuera de los libros: convención de @archi-code/ddd]` `AggregateRoot` no tiene versión, y la que recuerda un repositorio de instantáneas en su `WeakMap` cuenta guardados, no eventos (crece 1 por `save`), así que este agregado lleva su propia versión de stream (`streamVersion()`, los eventos que se aplicaron al cargar) y no se guarda como instantánea: no necesita `toPrimitives()`/`fromPrimitives()` ni getters para sus campos, porque lo que se persiste son los eventos.
 
 ## Event store
 
@@ -227,7 +234,7 @@ CREATE TABLE event_streams (
 );
 ```
 
-La clave primaria `(stream_id, version)` impide dos escrituras con la misma versión; `global_seq` da el orden global que necesitan la publicación y la reconstrucción de proyecciones. `body` es el `toJSON()` del evento.
+La clave primaria `(stream_id, version)` impide dos escrituras con la misma versión; `global_seq` da el orden global que necesitan la publicación y la reconstrucción de proyecciones. `body` es la copia plana del evento (`{ ...event }`).
 
 El dominio declara el contrato del stream (solo tipos, como los contratos de repositorio del paquete) `[Fuera de los libros: convención de @archi-code/ddd]`: no es `AggregateFinder`/`AggregateSaver`, porque guardar necesita los cambios que el caso de uso ya sacó con `pullDomainEvents()` para publicarlos.
 
@@ -242,15 +249,15 @@ La infraestructura lo implementa: reconstruye cada fila con `EventRegistry.fromJ
 
 ```ts
 import type { SerializedEvent } from '@archi-code/ddd/domain';
-import { EventRegistry } from '@archi-code/ddd/infrastructure';
-import { ConcurrencyException, InternalErrorException } from '@archi-code/ddd/exceptions';
+import { EventRegistry, InternalErrorException } from '@archi-code/ddd/infrastructure';
+import { ConcurrencyException } from '@archi-code/ddd/application';
 
 export const paymentEvents = new EventRegistry<PaymentEvent>()
   .register(
     PaymentRequested,
     (json) =>
       new PaymentRequested(
-        json.aggregateId,
+        json.paymentId as string,
         json.orderId as string,
         json.amount as { amount: number; currency: string },
         json,
@@ -260,7 +267,7 @@ export const paymentEvents = new EventRegistry<PaymentEvent>()
     PaymentAuthorized,
     (json) =>
       new PaymentAuthorized(
-        json.aggregateId,
+        json.paymentId as string,
         json.authorizationCode as string,
         json.expiresAt as string,
         json,
@@ -268,9 +275,9 @@ export const paymentEvents = new EventRegistry<PaymentEvent>()
   )
   .register(
     PaymentRejected,
-    (json) => new PaymentRejected(json.aggregateId, json.reason as string, json),
+    (json) => new PaymentRejected(json.paymentId as string, json.reason as string, json),
   )
-  .register(PaymentCaptured, (json) => new PaymentCaptured(json.aggregateId, json));
+  .register(PaymentCaptured, (json) => new PaymentCaptured(json.paymentId as string, json));
 
 interface SqlClient {
   query<Row>(text: string, values: readonly unknown[]): Promise<{ rows: Row[] }>;
@@ -312,7 +319,7 @@ export class PgPaymentStream implements PaymentStream {
       for (const [index, event] of changes.entries()) {
         await client.query(
           'INSERT INTO event_streams (stream_id, version, body) VALUES ($1, $2, $3)',
-          [payment.id.value, expected + index + 1, JSON.stringify(event.toJSON())],
+          [payment.id.value, expected + index + 1, JSON.stringify(event)],
         );
       }
       await client.query('COMMIT', []);
@@ -333,12 +340,11 @@ export class PgPaymentStream implements PaymentStream {
 
 ## Caso de uso y reintento
 
-El caso de uso carga, decide, anexa y publica; no abre transacciones ni recibe un puerto para ello. Ante un conflicto puede reintentar recargando y reejecutando el comando contra el estado nuevo, como propone IDDD [IDDD apéndice A]; si el comando ya no es válido, el error de negocio sale normalmente. `[Fuera de los libros: convención de @archi-code/ddd]` El stream solo carga y anexa; el bucle de reintento va en el `handle` del caso de uso, cada intento vuelve a cargar y vuelve a anexar, unos pocos intentos y después relanza la `ConcurrencyException` (HTTP 409 con `HttpErrorMapper`). Reintenta solo comandos seguros de repetir; un caso de uso que lanza un listener no lleva este bucle: el reintento lo hace la reentrega del canal.
+El caso de uso carga, decide, anexa y publica; no abre transacciones ni recibe un puerto para ello. Ante un conflicto puede reintentar recargando y reejecutando el comando contra el estado nuevo, como propone IDDD [IDDD apéndice A]; si el comando ya no es válido, el error de negocio sale normalmente. `[Fuera de los libros: convención de @archi-code/ddd]` El stream solo carga y anexa; el bucle de reintento va en el `handle` del caso de uso, cada intento vuelve a cargar y vuelve a anexar, unos pocos intentos y después relanza la `ConcurrencyException` (`ExceptionKind.Conflict`, 409 en HTTP). Reintenta solo comandos seguros de repetir; un caso de uso que lanza un listener no lleva este bucle: el reintento lo hace la reentrega del canal.
 
 ```ts
-import { UseCase } from '@archi-code/ddd/application';
+import { AggregateNotFoundException, ConcurrencyException, UseCase } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
-import { AggregateNotFoundException, ConcurrencyException } from '@archi-code/ddd/exceptions';
 
 export class CapturePayment extends UseCase<{ paymentId: string }, PaymentId, void> {
   constructor(
@@ -405,7 +411,7 @@ export class InMemoryPaymentStream implements PaymentStream {
     if (stream.length !== payment.streamVersion()) {
       throw new ConcurrencyException('Payment', payment.id.value, payment.streamVersion());
     }
-    this.streams.set(payment.id.value, [...stream, ...changes.map((event) => event.toJSON())]);
+    this.streams.set(payment.id.value, [...stream, ...changes.map((event) => ({ ...event }))]);
   }
 }
 
@@ -445,12 +451,11 @@ Para streams largos, guarda periódicamente el estado serializado con su versió
 
 `[Fuera de los libros]` Los eventos del stream no se reescriben. Para cambiar su forma, convierte las versiones antiguas al leer ("upcasting") en el deserializador, o añade un tipo de evento nuevo. El apéndice de IDDD trata los serializadores (por ejemplo Protocol Buffers) como apoyo para esta evolución [IDDD apéndice A].
 
-Con el paquete, el evento declara `static readonly eventVersion` (1 si no se declara; `toJSON()` lo escribe) y la fábrica del `EventRegistry` recibe el `eventVersion` con el que se guardó cada fila, así que el upcasting va ahí. Por ejemplo, si una primera versión de `PaymentRequested` guardaba `amountCents` en euros:
+Con el paquete, los eventos no llevan número de versión: la fábrica del `EventRegistry` recibe cada fila tal como se guardó, así que el upcasting va ahí y reconoce la forma antigua por sus campos; un cambio que no se pueda leer así se publica como un evento nuevo con otro `eventName` (`PaymentRequestedV2`). Por ejemplo, si una primera forma de `PaymentRequested` guardaba `amountCents` en euros:
 
 ```ts
 export class PaymentRequested extends EventBase {
   static readonly eventName = 'PaymentRequested';
-  static readonly eventVersion = 2;
   // constructor as above
 }
 
@@ -458,10 +463,10 @@ new EventRegistry<PaymentEvent>().register(
   PaymentRequested,
   (json) =>
     new PaymentRequested(
-      json.aggregateId,
+      json.paymentId as string,
       json.orderId as string,
-      json.eventVersion === 1
-        ? { amount: json.amountCents as number, currency: 'EUR' }
+      typeof json.amountCents === 'number'
+        ? { amount: json.amountCents, currency: 'EUR' }
         : (json.amount as { amount: number; currency: string }),
       json,
     ),

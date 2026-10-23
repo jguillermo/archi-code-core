@@ -3,10 +3,10 @@ import { Validations } from '@archi-code/validation';
 import type { ValidationResult } from '@archi-code/validation';
 import { EnumType } from '../../../src/domain/type/enum-type';
 import { AbstractType } from '../../../src/domain/type/abstract-type';
-import { Required } from '../../../src/domain/type/required/required';
-import { TypePrimitiveException } from '../../../src/exceptions/domain/type-primitive.exception';
-import { RequiredValueException } from '../../../src/exceptions/domain/required-value.exception';
-import { ValidationException } from '../../../src/exceptions/domain/validation.exception';
+import { Required } from '../../../src/domain/type/required/required-type';
+import { TypePrimitiveException } from '../../../src/domain/exceptions/type-primitive.exception';
+import { RequiredValueException } from '../../../src/domain/exceptions/required-value.exception';
+import { ValidationException } from '../../../src/domain/exceptions/validation.exception';
 
 enum OrderStatusOption {
   PENDING = 'pending',
@@ -52,11 +52,11 @@ class TicketPriority extends EnumType<PriorityOption> {
 const blankFormFields: [string, unknown][] = [
   ['a field sent as null', null],
   ['a field left out of the request', undefined],
-  ['an empty select', ''],
-  ['a select with only spaces', '   '],
 ];
 
 const unknownStatuses: [string, unknown, string][] = [
+  ['an empty select', '', '""'],
+  ['a select with only spaces', '   ', '"   "'],
   ['the key in capitals', 'PENDING', '"PENDING"'],
   ['a capitalized option', 'Pending', '"Pending"'],
   ['an option with spaces', ' pending ', '" pending "'],
@@ -212,12 +212,9 @@ describe('EnumType', () => {
     it.each(blankFormFields)(
       'rejects %s with a RequiredValueException naming the type',
       (_, input) => {
-        const received = typeof input === 'string' ? `"${input}"` : 'null';
         const create = () => new OrderStatus(input as OrderStatusOption);
         expect(create).toThrow(RequiredValueException);
-        expect(create).toThrow(
-          `Validation Error: OrderStatus is required, but received ${received}.`,
-        );
+        expect(create).toThrow(`Validation Error: OrderStatus is required, but received null.`);
       },
     );
 
@@ -320,16 +317,6 @@ describe('EnumType', () => {
       expect(`Your order is ${new OrderStatus(OrderStatusOption.SHIPPED)}`).toBe(
         'Your order is shipped',
       );
-    });
-
-    it('serializes to its plain value inside an API response', () => {
-      expect(
-        JSON.stringify({
-          status: new OrderStatus(OrderStatusOption.PENDING),
-          priority: new TicketPriority(PriorityOption.LOW),
-          returnStatus: new ReturnStatus(),
-        }),
-      ).toBe('{"status":"pending","priority":1,"returnStatus":null}');
     });
   });
 });

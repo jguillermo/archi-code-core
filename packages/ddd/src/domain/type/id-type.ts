@@ -1,6 +1,6 @@
-import { Required } from './required/required';
+import { Required } from './required/required-type';
 import { UuidType } from './uuid-type';
-import { TypePrimitiveException } from '../../exceptions/index';
+import { TypePrimitiveException } from '../exceptions/type-primitive.exception';
 
 const NIL_OR_MAX_UUID = /^(?:0{8}-0{4}-0{4}-0{4}-0{12}|f{8}-f{4}-f{4}-f{4}-f{12})$/i;
 

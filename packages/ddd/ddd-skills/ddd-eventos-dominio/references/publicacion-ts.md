@@ -32,11 +32,9 @@ Qué pone `@archi-code/ddd` y qué escribe el proyecto:
 El caso de uso guarda y después publica lo que devuelve `pullDomainEvents()`: si `save` falla no se publica nada, y los eventos nunca salen dos veces. No hay puerto de transacciones: el caso de uso recibe solo los roles de repositorio que usa, el `EventBus` y el `Clock`, y el repositorio garantiza que `save` es una escritura atómica `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ```ts
-import { ValueObjects } from '@archi-code/ddd/domain';
 import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
-import { UseCase } from '@archi-code/ddd/application';
+import { AggregateNotFoundException, UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
-import { AggregateNotFoundException } from '@archi-code/ddd/exceptions';
 
 interface AddOrderLineInput {
   orderId: string;
@@ -60,7 +58,7 @@ export class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand
   }
 
   protected toCommand(input: AddOrderLineInput): AddOrderLineCommand {
-    return ValueObjects.build({
+    return ValueObjectBuilder.build({
       orderId: () => new OrderId(input.orderId),
       line: () =>
         OrderLine.fromPrimitives({
@@ -128,7 +126,7 @@ describe('Adding a line to an order', () => {
     expect(channel.sent).toMatchObject([
       {
         eventName: 'OrderLineAdded',
-        aggregateId: orderId,
+        orderId,
         sku: 'GLOVES-02',
         quantity: 2,
         unitPrice: { amount: 1250, currency: 'EUR' },
@@ -156,7 +154,6 @@ CREATE TABLE stored_events (
   event_id      UUID        NOT NULL UNIQUE,
   aggregate_id  TEXT        NOT NULL,
   event_name    TEXT        NOT NULL,
-  event_version INT         NOT NULL,
   occurred_on   TIMESTAMPTZ NOT NULL,
   body          JSONB       NOT NULL,
   published_at  TIMESTAMPTZ NULL
@@ -164,13 +161,14 @@ CREATE TABLE stored_events (
 CREATE INDEX stored_events_unpublished ON stored_events (sequence) WHERE published_at IS NULL;
 ```
 
-`sequence` conserva el orden causal dentro del contexto; `body` es el `SerializedEvent` que produjo `toJSON()`.
+`sequence` conserva el orden causal dentro del contexto; `body` es el `SerializedEvent`, la copia plana del evento (`{ ...event }`).
 
 ### El repositorio
 
 ```ts
 import type { AggregateFinder, AggregateSaver, PrimitiveTypes } from '@archi-code/ddd/domain';
-import { ConcurrencyException, InternalErrorException } from '@archi-code/ddd/exceptions';
+import { ConcurrencyException } from '@archi-code/ddd/application';
+import { InternalErrorException } from '@archi-code/ddd/infrastructure';
 
 interface QueryResult<Row> {
   rows: Row[];
@@ -195,6 +193,8 @@ interface OrderRow {
 }
 
 export class PostgresOrderRepository implements AggregateFinder<Order>, AggregateSaver<Order> {
+  private readonly versions = new WeakMap<Order, number>();
+
   constructor(private readonly pool: Pool) {}
 
   async findById(id: OrderId): Promise<Order | null> {
@@ -203,41 +203,46 @@ export class PostgresOrderRepository implements AggregateFinder<Order>, Aggregat
         'SELECT version, data FROM orders WHERE id = $1',
         [id.value],
       );
-      return rows[0] ? Order.fromPrimitives(rows[0].data).restoreVersion(rows[0].version) : null;
+      if (rows[0] === undefined) {
+        return null;
+      }
+      const order = Order.fromPrimitives(rows[0].data);
+      this.versions.set(order, rows[0].version);
+      return order;
     } catch (error) {
       throw new InternalErrorException('loading order', { cause: error });
     }
   }
 
   async save(order: Order): Promise<void> {
+    const version = this.versions.get(order) ?? 0;
     const primitives = order.toPrimitives();
-    const events = order.pullDomainEvents().map((event) => event.toJSON());
+    const events = order.pullDomainEvents().map((event) => ({ ...event }));
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
       const { rowCount } =
-        order.version === 0
+        version === 0
           ? await client.query(
               'INSERT INTO orders (id, version, customer_id, status, data) VALUES ($1, 1, $2, $3, $4) ON CONFLICT (id) DO NOTHING',
               [primitives.id, primitives.customerId, primitives.status, primitives],
             )
           : await client.query(
               'UPDATE orders SET version = version + 1, status = $3, data = $4 WHERE id = $1 AND version = $2',
-              [primitives.id, order.version, primitives.status, primitives],
+              [primitives.id, version, primitives.status, primitives],
             );
       if (rowCount === 0) {
-        throw new ConcurrencyException('Order', order.id.value, order.version);
+        throw new ConcurrencyException('Order', order.id.value, version);
       }
       for (const event of events) {
         await client.query(
           `INSERT INTO stored_events
-             (event_id, aggregate_id, event_name, event_version, occurred_on, body)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
+             (event_id, aggregate_id, event_name, occurred_on, body)
+           VALUES ($1, $2, $3, $4, $5)`,
           [
             event.eventId,
-            event.aggregateId,
+            primitives.id,
             event.eventName,
-            event.eventVersion,
             event.occurredOn,
             JSON.stringify(event),
           ],
@@ -253,19 +258,19 @@ export class PostgresOrderRepository implements AggregateFinder<Order>, Aggregat
     } finally {
       client.release();
     }
-    order.markPersisted();
+    this.versions.set(order, version + 1);
   }
 }
 ```
 
-La transacción empieza y termina dentro de `save`: el pedido y sus eventos se confirman o se deshacen juntos, que es lo que pide "un agregado por transacción" [IDDD cap. 10]. `markPersisted()` se llama solo tras el `COMMIT`. Si la escritura falla, el caso de uso termina con el error y el agregado se descarta con sus eventos. El caso de uso no cambia: su `publish` recibe una lista vacía, porque los eventos de este pedido ya están en el outbox. El esquema de `orders` y el repositorio sin outbox están en `ddd-skills/ddd-repositorios-persistencia/references/implementacion-ts.md`.
+La transacción empieza y termina dentro de `save`: el pedido y sus eventos se confirman o se deshacen juntos, que es lo que pide "un agregado por transacción" [IDDD cap. 10]. El repositorio actualiza la versión que recuerda para el pedido (`this.versions.set(order, version + 1)`) solo tras el `COMMIT`. Si la escritura falla, el caso de uso termina con el error y el agregado se descarta con sus eventos. El caso de uso no cambia: su `publish` recibe una lista vacía, porque los eventos de este pedido ya están en el outbox. El esquema de `orders` y el repositorio sin outbox están en `ddd-skills/ddd-repositorios-persistencia/references/implementacion-ts.md`.
 
 ## Reenviador
 
 ```ts
 import type { EventChannel } from '@archi-code/ddd/infrastructure';
 import type { SerializedEvent } from '@archi-code/ddd/domain';
-import { InternalErrorException } from '@archi-code/ddd/exceptions';
+import { InternalErrorException } from '@archi-code/ddd/infrastructure';
 
 export class OutboxForwarder {
   private static readonly lockKey = 8_201_001;
@@ -338,7 +343,7 @@ Un lote que falla se queda en el outbox y lo reintenta la pasada siguiente; el `
 
 ## Lenguaje publicado en el adaptador del broker
 
-Los otros contextos no reciben las clases ni el `toJSON()` del dominio: reciben un contrato versionado [IDDD cap. 13]. El paquete no trae esa traducción; se hace en el adaptador que habla con el broker, a partir del `SerializedEvent`, con `messageId` = `eventId`. Un evento interno no produce ningún mensaje, y durante una transición un evento puede producir un mensaje por versión del contrato:
+Los otros contextos no reciben los eventos del dominio tal cual: reciben un contrato versionado [IDDD cap. 13]. El paquete no trae esa traducción; se hace en el adaptador que habla con el broker, a partir del `SerializedEvent`, con `messageId` = `eventId`. Un evento interno no produce ningún mensaje, y durante una transición un evento puede producir un mensaje por versión del contrato. El `SerializedEvent` no lleva campo de versión: cada versión incompatible del contrato se publica con su propio `eventName` (`sales.order.OrderPlacedV2`) `[Fuera de los libros: convención de @archi-code/ddd]`:
 
 ```ts
 import type {
@@ -355,9 +360,7 @@ interface Broker {
 export class SalesContracts {
   static toPublished(event: SerializedEvent): SerializedEvent[] {
     const envelope = {
-      eventVersion: 1,
       eventId: event.eventId,
-      aggregateId: event.aggregateId,
       occurredOn: event.occurredOn,
     };
     switch (event.eventName) {
@@ -366,7 +369,7 @@ export class SalesContracts {
           {
             ...envelope,
             eventName: 'sales.order.OrderPlaced',
-            orderId: event.aggregateId,
+            orderId: event.orderId,
             customerId: event.customerId,
             lines: (event.lines as OrderLineData[]).map((line) => ({
               sku: line.sku,
@@ -381,7 +384,7 @@ export class SalesContracts {
           {
             ...envelope,
             eventName: 'sales.order.OrderConfirmed',
-            orderId: event.aggregateId,
+            orderId: event.orderId,
             total: SalesContracts.money(event.total as MoneyData),
           },
         ];
@@ -418,15 +421,15 @@ export class ContractPublishingChannel implements EventChannel {
 }
 ```
 
-`SalesContracts` decide qué eventos salen del contexto y con qué forma, campo a campo (`MoneyData` y `OrderLineData` son los de `ddd-skills/ddd-eventos-dominio/references/ejemplo-ecommerce.md`), para que un campo nuevo del evento interno no se filtre al contrato (ver "Eventos internos y eventos publicados" en `ddd-skills/ddd-eventos-dominio/GUIA.md`); el contrato no cambia cuando cambia el evento interno, solo cuando se publica una versión nueva. El mensaje es un `SerializedEvent` plano con el nombre y la versión del contrato (`sales.order.OrderPlaced`, v1), que el consumidor lee con su propia clase `EventBase` (`ddd-skills/ddd-context-mapping/references/anticorrupcion-ts.md`). `Broker` es la parte del driver que el adaptador usa, declarada de forma estructural.
+`SalesContracts` decide qué eventos salen del contexto y con qué forma, campo a campo (`MoneyData` y `OrderLineData` son los de `ddd-skills/ddd-eventos-dominio/references/ejemplo-ecommerce.md`), para que un campo nuevo del evento interno no se filtre al contrato (ver "Eventos internos y eventos publicados" en `ddd-skills/ddd-eventos-dominio/GUIA.md`); el contrato no cambia cuando cambia el evento interno, solo cuando se publica una versión nueva. El mensaje es un `SerializedEvent` plano con el nombre del contrato (`sales.order.OrderPlaced`, la v1; una v2 incompatible llevaría otro nombre), que el consumidor lee con su propia clase `EventBase` (`ddd-skills/ddd-context-mapping/references/anticorrupcion-ts.md`). `Broker` es la parte del driver que el adaptador usa, declarada de forma estructural.
 
 ## Consumidor idempotente
 
 La entrega es al menos una vez, así que el consumidor se salta un `eventId` que ya procesó, y lo anota **en la misma transacción** que su cambio [IDDD cap. 8]. El paquete no trae inbox. `[Fuera de los libros: convención de @archi-code/ddd]` Anotar el `eventId` y escribir el efecto es persistencia, así que lo hace el adaptador del puerto que escribe, en una sola escritura atómica; el listener solo pasa el `eventId` al caso de uso (como en `ddd-skills/ddd-eventos-dominio/GUIA.md`, paso 3), y el caso de uso se lo pasa al puerto:
 
 ```ts
-import { IdType, ValueObjects } from '@archi-code/ddd/domain';
-import { UseCase } from '@archi-code/ddd/application';
+import { IdType } from '@archi-code/ddd/domain';
+import { UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
 
 export class EventId extends IdType<'EventId'> {}
 
@@ -454,7 +457,7 @@ export class PrepareShipment extends UseCase<PrepareShipmentInput, PrepareShipme
   }
 
   protected toCommand(input: PrepareShipmentInput): PrepareShipmentCommand {
-    return ValueObjects.build({
+    return ValueObjectBuilder.build({
       eventId: () => new EventId(input.eventId),
       orderId: () => new OrderId(input.orderId),
       sku: () => new Sku(input.sku),
@@ -469,7 +472,7 @@ export class PrepareShipment extends UseCase<PrepareShipmentInput, PrepareShipme
 ```
 
 ```ts
-import { InternalErrorException } from '@archi-code/ddd/exceptions';
+import { InternalErrorException } from '@archi-code/ddd/infrastructure';
 
 export class PostgresWarehouse implements Warehouse {
   private static readonly consumer = 'prepare-shipment';
@@ -514,7 +517,7 @@ La anotación y el efecto van en la misma transacción, abierta y cerrada dentro
 ## Orden y causalidad
 
 * El `sequence` de la tabla conserva el orden causal dentro del contexto [Destilado cap. 6], y el reenviador entrega en ese orden. Un mismo consumidor recibe los eventos de un `send` en su orden.
-* El bus puede desordenar. Opciones `[Fuera de los libros]`: particionar por `aggregateId` (Kafka, sesiones de Service Bus, un consumidor activo por cola en RabbitMQ) para mantener el orden por agregado; o que el consumidor compare `occurredOn` o una versión y aparque los eventos que llegan antes que su causa [Destilado cap. 6 describe la responsabilidad del consumidor].
+* El bus puede desordenar. Opciones `[Fuera de los libros]`: particionar por la identidad del agregado (`orderId`; Kafka, sesiones de Service Bus, un consumidor activo por cola en RabbitMQ) para mantener el orden por agregado; o que el consumidor compare `occurredOn` o una versión y aparque los eventos que llegan antes que su causa [Destilado cap. 6 describe la responsabilidad del consumidor].
 * Si un evento posterior hace irrelevante uno anterior, el consumidor puede ignorar el anterior [Destilado cap. 6].
 
 ## Despacho interno

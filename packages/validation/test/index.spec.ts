@@ -365,8 +365,8 @@ describe('tree-shakable named exports', () => {
 
   it('named validator exports come straight from their own file (never through the registry barrel)', () => {
     const index = fs.readFileSync(path.join(__dirname, '../src/index.ts'), 'utf8');
-    const fromBarrel = [...index.matchAll(/export \{([^}]*)\} from '\.\/validators';/g)].map((m) =>
-      m[1].trim(),
+    const fromBarrel = [...index.matchAll(/export \{([^}]*)\} from '\.\/validators\/index';/g)].map(
+      (m) => m[1].trim(),
     );
     expect(fromBarrel).toEqual(['validator']);
   });

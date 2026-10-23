@@ -3,10 +3,10 @@ import { Validations, isUUID } from '@archi-code/validation';
 import type { ValidationResult } from '@archi-code/validation';
 import { UuidType } from '../../../src/domain/type/uuid-type';
 import { AbstractType } from '../../../src/domain/type/abstract-type';
-import { Required } from '../../../src/domain/type/required/required';
-import { TypePrimitiveException } from '../../../src/exceptions/domain/type-primitive.exception';
-import { RequiredValueException } from '../../../src/exceptions/domain/required-value.exception';
-import { ValidationException } from '../../../src/exceptions/domain/validation.exception';
+import { Required } from '../../../src/domain/type/required/required-type';
+import { TypePrimitiveException } from '../../../src/domain/exceptions/type-primitive.exception';
+import { RequiredValueException } from '../../../src/domain/exceptions/required-value.exception';
+import { ValidationException } from '../../../src/domain/exceptions/validation.exception';
 
 class CorrelationId extends UuidType {}
 
@@ -39,11 +39,11 @@ const acceptedInputs: [string, string, string][] = [
 const emptyInputs: [string, unknown][] = [
   ['null', null],
   ['undefined', undefined],
-  ['an empty header', ''],
-  ['a header with only spaces', '   '],
 ];
 
 const invalidInputs: [string, unknown, string][] = [
+  ['an empty header', '', '""'],
+  ['a header with only spaces', '   ', '"   "'],
   ['a free text header', 'abc', '"abc"'],
   [
     'an id missing one digit',
@@ -119,10 +119,9 @@ describe('UuidType', () => {
     });
 
     it.each(emptyInputs)('a missing request id (%s) is refused', (_, input) => {
-      const received = typeof input === 'string' ? `"${input}"` : 'null';
       const create = () => new RequestId(input as string);
       expect(create).toThrow(RequiredValueException);
-      expect(create).toThrow(`Validation Error: RequestId is required, but received ${received}.`);
+      expect(create).toThrow(`Validation Error: RequestId is required, but received null.`);
     });
   });
 
@@ -149,16 +148,8 @@ describe('UuidType', () => {
       expect(`x-request-id: ${requestId}`).toBe(`x-request-id: ${STORED}`);
     });
 
-    it('a missing correlation id prints an empty text and serializes as null', () => {
-      const correlationId = new CorrelationId(null);
-      expect(correlationId.toString()).toBe('');
-      expect(JSON.stringify({ correlationId })).toBe('{"correlationId":null}');
-    });
-
-    it('serializes as the plain id in an API response', () => {
-      expect(JSON.stringify({ requestId: new RequestId(STORED) })).toBe(
-        `{"requestId":"${STORED}"}`,
-      );
+    it('a missing correlation id prints an empty text', () => {
+      expect(new CorrelationId(null).toString()).toBe('');
     });
   });
 
