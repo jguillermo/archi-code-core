@@ -1,220 +1,221 @@
-# Online shop: an end-to-end example of @archi-code/ddd
+# SPEC: implementation rules for `packages/ddd/example/src/contexts`
 
-An academic example of `@archi-code/ddd` in a small online shop with three
-bounded contexts (Sales, Payments and Shipping) that only talk through domain events. Everything runs
-in memory: repositories, the event channel, the read model and the HTTP entry points (simulated
-controllers that return `{ status, body }`).
+<!-- Audience: LLM agents that generate, change or review code in src/contexts. Not written for human reading. -->
 
-It lives in the package's `example/` folder, which is not published to npm. It is only code: it
-has no specs and no command line, and the package's `check:types` type-checks it
-(`tsc -p example/tsconfig.json`).
+## 0. Contract of this document
 
-## Context map
+- Scope: every file under `src/contexts/` plus `src/shop.ts`, `src/platform/http/http.ts`, `src/ddd/*.ts`.
+- Keywords: **MUST** / **MUST NOT** = hard rule; **SHOULD** = default unless a rule below says otherwise; **MAY** = allowed.
+- Rule ids (`G1`, `D-AGG3`, `A-RUC2`…) are stable; cite them in reviews.
+- Source of truth order: (1) this spec, (2) the code it cites, (3) the `@archi-code/ddd` README. If spec and code disagree, report the mismatch; do not silently follow either.
+- Placeholders in templates: `<Context>` (`Sales`), `<context>` (`sales`), `<Aggregate>` (`Order`), `<aggregate>` (`order`), `<Aggregates>` (`Orders`), `<Action>` (`MarkOrderPaid`), `<action>` (`mark-order-paid`), `<Event>` (`OrderPaid`), `<event>` (`order-paid`), `<PastAction>` (`Paid`), `<past_action>` (`paid`), `<CODE>` (`SAL`).
+- Templates compile when placeholders are replaced and the file is placed at the path its rule gives.
+- Verification after any change: `npm run check:types` in `packages/ddd` (runs `tsc -p example/tsconfig.json`) and `npm run check:format` at the repo root. The example has no specs and no runner.
+
+## 1. Global rules (G)
+
+| Id  | Rule                                                                                                                                                                                                                                                                                                                                                                                         |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| G1  | All code, identifiers, messages and docs are English.                                                                                                                                                                                                                                                                                                                                        |
+| G2  | No comments, no docblocks, no section banners. Names carry meaning.                                                                                                                                                                                                                                                                                                                          |
+| G3  | Named exports only. No `export default`.                                                                                                                                                                                                                                                                                                                                                     |
+| G4  | One exported class per file. A file MAY also export the interfaces/enums listed for its kind (enum file, use case `Input`/`Command`, adapter raw shapes, controller `UseCases`).                                                                                                                                                                                                             |
+| G5  | Type-only imports use `import type`. Values and types from the same module go in two statements: `import { EventBase } from '…';` + `import type { EventMetadata } from '…';`.                                                                                                                                                                                                               |
+| G6  | Package code is imported only through `src/ddd/<layer>.ts` (`ddd/domain`, `ddd/application`, `ddd/infrastructure`), which stand for `@archi-code/ddd/<layer>`. Validation rules import `Validations` from `@archi-code/validation`. No other npm package.                                                                                                                                    |
+| G7  | Imports are relative and point to the declaring file, never to a folder or an `index.ts`.                                                                                                                                                                                                                                                                                                    |
+| G8  | A context MUST NOT import another context. Only `shared-kernel/money` is shared. Cross-context data travels only as events (A-EVC).                                                                                                                                                                                                                                                          |
+| G9  | Layer import matrix (allowed targets): `domain` → `ddd/domain`, own `domain`, `shared-kernel`. `application` → `ddd/domain`, `ddd/application`, own `domain`, own `application`, `shared-kernel`. `infrastructure` → `ddd/*`, own `domain`, own `application`. `interfaces` → `ddd/application`, own `application`, `platform/http`. `composition.ts` → anything of its context and `ddd/*`. |
+| G10 | Prettier: single quotes, trailing commas, width 100, 2 spaces, semicolons. Run `npm run fix:format` (root) instead of formatting by hand.                                                                                                                                                                                                                                                    |
+| G11 | Everything is in memory. Business time comes only from `Clock` (`clock.now()`, `CreatedAt.now(clock)`); never `Date.now()` or `new Date()` without a clock value.                                                                                                                                                                                                                            |
+
+### 1.1 Tree
 
 ```
-                 order.created ─────────────────► Payments
-   Sales  ◄───── payment.captured / payment.rejected
-          ───── order.line_quantity_changed ──► Payments (adjusts a waiting transfer)
-          ───── order.cancelled ──────────────► Payments (refund or void)
-          ───── order.paid ───────────────────► Shipping
-          ───── order.cancelled ──────────────► Shipping (cancel while preparing)
-          ◄───── shipment.dispatched / shipment.delivered
+src/
+  ddd/{domain,application,infrastructure}.ts   export * from '../../../src/<layer>/index'
+  platform/http/http.ts                        HttpRequest, HttpResponse, Http (error → status)
+  shop.ts                                      Shop.open / close: one channel, three contexts
+  contexts/
+    shared-kernel/money/                       Money, Cents, CentsAmount, MoneyCurrency (+ Currency enum), CurrencyMismatch
+    <context>/                                 sales | payments | shipping
+      domain/
+        aggregate/       <Aggregate>.ts, New<Child>.ts
+        entity/          <Entity>.ts
+        value-object/    <ValueObject>.ts
+        event/           <Aggregate><PastAction>DomainEvent.ts, <Aggregate>Event.ts
+        exception/       <WhatWentWrong>.ts
+        service/         <Service>.ts, <Port>.ts
+        specification/   <Rule>.ts
+      application/
+        <action>/        user use case:     <action>.ts [+ data types]
+        <action>/        reaction use case: <action>-on-<event>.ts [+ <event>-domain-event.ts] [+ data types]
+        <read-model>/    <row>.ts, <row>-store.ts, <rows>.ts, <row>-projection.ts, <action>/<action>-on-<event>.ts
+      infrastructure/
+        persistence/in-memory-<aggregate>-repository.ts
+        <area>/in-memory-<port>.ts
+      interfaces/http/<aggregates>-controller.ts
+      composition.ts
 ```
 
-- One `InMemoryEventChannel({ delivery: 'serial' })` is shared by the three contexts (`src/shop.ts`);
-  each context has its own `DomainEventBus` and `EventRegistry` (`src/contexts/<context>/composition.ts`).
-- Published events are named `'<aggregate>.<past_action>'` (`'order.created'`). A context never
-  imports another one: the consumer declares its own class for each event it reads, with the same
-  class name, the same `eventName` and only the fields it needs (published language, tolerant
-  reader). For example `payments/application/request-payment/order-created-domain-event.ts` reads
-  only `orderId`, `total` and `paymentMethod` of `order.created`.
-- `contexts/shared-kernel/money` (`Money`, `Cents`, `CentsAmount`, `MoneyCurrency`,
-  `CurrencyMismatch`) is the only code two contexts share.
-- `platform/http/http.ts` is the technical helper every controller uses to translate errors with
-  `ExceptionClassifier`; it holds no business rule.
+### 1.2 File naming
 
-## How the domain is written
+| Location                        | Style                         | Example                                                               |
+| ------------------------------- | ----------------------------- | --------------------------------------------------------------------- |
+| `domain/**`, `shared-kernel/**` | PascalCase = class name       | `OrderNotModifiable.ts`                                               |
+| everything else                 | kebab-case of the main export | `confirm-transfer-received.ts`, `request-payment-on-order-created.ts` |
 
-These rules apply to every `src/contexts/<context>/domain/` folder. They describe what each kind of
-class is, where its file goes, what it extends, what it may and may not contain and how it is
-created. Every example is copied from a file of this example.
+### 1.3 Relative import prefixes
 
-### Folders and files
+| From a file in                                          | to `ddd/<layer>`             | to own `domain/<kind>/X`   | to `shared-kernel/money/X`           |
+| ------------------------------------------------------- | ---------------------------- | -------------------------- | ------------------------------------ |
+| `contexts/<context>/domain/<kind>/`                     | `../../../../ddd/<layer>`    | `../<kind>/X`              | `../../../shared-kernel/money/X`     |
+| `contexts/<context>/application/<folder>/`              | `../../../../ddd/<layer>`    | `../../domain/<kind>/X`    | `../../../shared-kernel/money/X`     |
+| `contexts/<context>/application/<read-model>/<action>/` | `../../../../../ddd/<layer>` | `../../../domain/<kind>/X` | `../../../../shared-kernel/money/X`  |
+| `contexts/<context>/infrastructure/<area>/`             | `../../../../ddd/<layer>`    | `../../domain/<kind>/X`    | —                                    |
+| `contexts/<context>/interfaces/http/`                   | `../../../../ddd/<layer>`    | —                          | — (`../../../../platform/http/http`) |
+| `contexts/<context>/composition.ts`                     | `../../ddd/<layer>`          | `./domain/<kind>/X`        | —                                    |
+| `contexts/shared-kernel/money/`                         | `../../../ddd/<layer>`       | —                          | `./X`                                |
 
-Each `domain/` is split by kind of class, with no folder per module (each context has one
-aggregate):
+## 2. Domain layer (D)
 
-| Folder           | What goes in it                                                                   | In the example                                                                            |
-| ---------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `aggregate/`     | the aggregate root and the shape its `create` receives                            | `Order`, `NewOrderLine`, `Payment`, `Shipment`                                            |
-| `entity/`        | child entities of an aggregate                                                    | `OrderLine`                                                                               |
-| `value-object/`  | ids, simple value objects, enums, lists, composites and the shape of a `JsonType` | `OrderId`, `Sku`, `OrderStatusType`, `CouponCodes`, `ShippingAddress`, `CarrierLabelData` |
-| `event/`         | the domain events and the union of the events of the aggregate                    | `OrderCreatedDomainEvent`, `OrderEvent`                                                   |
-| `service/`       | domain services and the ports (interfaces) they use                               | `OrderPricing`, `CouponCatalog`                                                           |
-| `exception/`     | business errors                                                                   | `OrderNotModifiable`, `UnknownCoupon`                                                     |
-| `specification/` | specifications                                                                    | `FreeShippingEligible`, `SubtotalAtLeast`, `ContainsSku`                                  |
+### 2.1 Kind → location → base class
 
-- One class per file. The file has the name of the class in PascalCase (`Order.ts`,
-  `OrderNotModifiable.ts`, `OrderCreatedDomainEvent.ts`).
-- The one exception is an enum, which lives in one file with its two classes (see
-  [Enums](#enums)).
-- `shared-kernel/money` (`Money`, `Cents`, `CentsAmount`, `MoneyCurrency`, `CurrencyMismatch`) is the
-  only code two contexts share and keeps no subfolders.
-- Code outside `domain/` (`application/`, `infrastructure/`, `interfaces/`) keeps kebab-case file
-  names (`confirm-transfer-received.ts`).
+| Kind                                     | Folder           | File / class name                                  | Extends / is                                                                                          |
+| ---------------------------------------- | ---------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| aggregate root                           | `aggregate/`     | `<Aggregate>`                                      | `AggregateRoot<<Aggregate>Id, <Aggregate>Event>`                                                      |
+| shape received by `create`               | `aggregate/`     | `New<Child>`                                       | `interface` of value objects                                                                          |
+| child entity                             | `entity/`        | `<Entity>`                                         | `Entity<<IdVO>>`                                                                                      |
+| id of an aggregate                       | `value-object/`  | `<Aggregate>Id`                                    | `IdType<'<Aggregate>Id'>`                                                                             |
+| reference to another context's aggregate | `value-object/`  | `<Other>Reference`                                 | `Required(UuidType)`                                                                                  |
+| optional uuid                            | `value-object/`  | `<Name>`                                           | `UuidType`                                                                                            |
+| mandatory text / number / boolean / date | `value-object/`  | `<Name>`                                           | `Required(StringType \| NumberType \| BooleanType \| DateType)`                                       |
+| optional text                            | `value-object/`  | `<Name>`                                           | `StringType` (built with `null` for no value)                                                         |
+| enum, mandatory                          | `value-object/`  | file `<Enum>Type.ts`                               | `enum <Enum>` + `<Enum>Option extends EnumType<<Enum>>` + `<Enum>Type extends Required(<Enum>Option)` |
+| enum, optional                           | `value-object/`  | file `<Enum>Type.ts`                               | `enum <Enum>` + `<Enum>Type extends EnumType<<Enum>>`                                                 |
+| list                                     | `value-object/`  | `<Item>List` + `<Item>s` (two files)               | `ArrayType<<Item>>` + `Required(<Item>List)`                                                          |
+| custom conversion                        | `value-object/`  | e.g. `CentsAmount` + `Cents` (two files)           | `AbstractType<T>` + `Required(...)`                                                                   |
+| several fields                           | `value-object/`  | `<Name>`                                           | `Composite({ field: VOClass \| CompositeClass \| [ItemClass] })`                                      |
+| free-form JSON                           | `value-object/`  | `<Name>Data`, `<Name>Json`, `<Name>` (three files) | `interface … extends JsonTypeValue`, `JsonType<<Name>Data>`, `Required(<Name>Json)`                   |
+| domain event                             | `event/`         | `<Aggregate><PastAction>DomainEvent`               | `EventBase`                                                                                           |
+| event union                              | `event/`         | `<Aggregate>Event`                                 | `type` union of every event of the aggregate                                                          |
+| business error                           | `exception/`     | `<WhatWentWrong>` (no `Exception` suffix)          | `DomainException`                                                                                     |
+| specification                            | `specification/` | `<Rule>`                                           | `Specification<<Aggregate>>`                                                                          |
+| domain service                           | `service/`       | `<Service>`                                        | plain class                                                                                           |
+| domain port                              | `service/`       | `<Port>`                                           | `interface`                                                                                           |
 
-### Aggregates
+### 2.2 Aggregates (D-AGG)
 
-- **Folder and name**: `aggregate/<Aggregate>.ts` (`aggregate/Payment.ts`).
-- **Extends**: `AggregateRoot<Id, Event>`, where `Id` is the id value object and `Event` the union
-  of its events (`AggregateRoot<PaymentId, PaymentEvent>`).
-- **Contains** only business logic, in this order:
-  1. A local `interface Clock { now(): Date }`; the aggregate never imports the application port.
-  2. Its business constants as `private static readonly` (`LIMIT_CENTS`, `MAX_LINES`).
-  3. Its fields, declared at the top: `readonly` for what never changes, `private _field` for what
-     changes (with a getter of the same name without `_`). Every field is a value object, a list
-     of them, a child entity or a composite. `createdAt` (`readonly`) and `_updatedAt` go last.
-  4. A **public constructor** that receives every value object already built (the id first) and
-     only assigns them. It checks nothing and records nothing. `fromPrimitives` uses it too.
-  5. `static create(...)`, see below.
-  6. `static fromPrimitives(primitives: PrimitiveTypes<X>)` and `toPrimitives()`, written by hand:
-     the aggregate is the only owner of its conversion.
-  7. Getters of the mutable fields.
-  8. Business methods (each change of state), then private helpers (`moveTo`, `touch`, `assert…`).
-- **Does not contain**: ids computed from other data (the use case computes them, see
-  [Use cases](#use-cases)), repositories,
-  the event bus, loggers, HTTP or any other technical concern.
+| Id      | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D-AGG1  | Member order: local `interface Clock { now(): Date }` (above the class) → `private static readonly` business constants → fields → public constructor → `static create` → `static fromPrimitives` → getters → public queries → business methods → `toPrimitives` → private helpers.                                                                                                                                                                                                                                                                                               |
+| D-AGG2  | MUST NOT import `Clock` from `ddd/application`; declare the local `Clock` interface.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| D-AGG3  | Fields: never-changing → `readonly <name>`; changing → `private _<name>` + `get <name>()`. `readonly createdAt: CreatedAt` and `private _updatedAt: UpdatedAt` (+ getter) are the last two fields.                                                                                                                                                                                                                                                                                                                                                                               |
+| D-AGG4  | Field types: value objects, composites, arrays of child entities. Never primitives, `Date`, plain objects.                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| D-AGG5  | Constructor: `public`; receives every field already built (id first, `createdAt`, `updatedAt` last); `super(id)`; assigns. No checks, no events, no defaults. `fromPrimitives` and `create` both use it.                                                                                                                                                                                                                                                                                                                                                                         |
+| D-AGG6  | `static create(id, ...valueObjects, clock: Clock): <Aggregate>`: receives the id and value objects already built, clock last; builds child entities from `New<Child>` shapes (assigns their ids); sets initial state (`new <Status>Type(<Status>.<INITIAL>)`, `new <OptionalVO>(null)`, `CreatedAt.now(clock)`, `UpdatedAt.now(clock)`) and calls the constructor; checks creation invariants (on the input before building, or with private `assert…()` after) throwing business errors; records `<Aggregate>CreatedDomainEvent`; returns. MUST NOT compute or generate the id. |
+| D-AGG7  | `static fromPrimitives(primitives: PrimitiveTypes<<Aggregate>>)`: rebuilds every field with its constructor (`new X(primitives.x)`) or `X.fromPrimitives(primitives.x)` for composites, rebuilds child entities with their constructor, calls the aggregate constructor. No events, no invariant checks.                                                                                                                                                                                                                                                                         |
+| D-AGG8  | `toPrimitives(): PrimitiveTypes<<Aggregate>>`: every field; VO → `.value`; composite → `.toPrimitives()`; child entity → object literal `{ id: child.id.value, …fields }` written by the aggregate. `fromPrimitives(toPrimitives())` MUST give an equal aggregate.                                                                                                                                                                                                                                                                                                               |
+| D-AGG9  | Each state change is a business method named after the business action (`process`, `cancel`, `markShipped`): params = value objects, `clock: Clock` last; returns `void`; changes fields; updates `_updatedAt` (through `moveTo`/`touch`); records zero or more events.                                                                                                                                                                                                                                                                                                          |
+| D-AGG10 | User-requested method (called by a user use case): if it does not apply in the current state, MUST throw a business error (`OrderNotCancellable`).                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| D-AGG11 | Reaction method (called by a reaction use case: `process`, `markPaid`, `cancelForRejectedPayment`, `markShipped`, `markDelivered`, `adjustAmount`, `settleForCancelledOrder`, `cancelForCancelledOrder`): if it does not apply, MUST `return` without changes. MUST NOT throw business errors (events may arrive twice).                                                                                                                                                                                                                                                         |
+| D-AGG12 | A method that mutates and then finds a broken invariant MUST restore the previous state before rethrowing (`Order.changeLineQuantity` restores the quantity when `assertTotal` throws).                                                                                                                                                                                                                                                                                                                                                                                          |
+| D-AGG13 | Public queries MAY exist (`subtotal()`, `total()`, `isIn(status)`). A public `assert…()` MAY exist for a precondition a use case checks before a non-mutating operation (`assertDiscardable()` before `remove`).                                                                                                                                                                                                                                                                                                                                                                 |
+| D-AGG14 | Private helpers: `moveTo(status, clock)` (status + touch), `touch(clock)`, `assert…()` (throw business error), event-recording steps (`capture`, `reject`, `awaitTransfer`).                                                                                                                                                                                                                                                                                                                                                                                                     |
+| D-AGG15 | MUST NOT contain: repositories, event bus, logger, HTTP, ids derived from other data, version fields, setters.                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+
+Template (`domain/aggregate/<Aggregate>.ts`):
 
 ```ts
-export class Payment extends AggregateRoot<PaymentId, PaymentEvent> {
-  private static readonly LIMIT_CENTS: Record<PaymentMethod, number> = {
-    [PaymentMethod.CARD]: 50_000,
-    [PaymentMethod.TRANSFER]: 500_000,
-  };
+import { AggregateRoot, CreatedAt, UpdatedAt } from '../../../../ddd/domain';
+import type { PrimitiveTypes } from '../../../../ddd/domain';
+import { <Aggregate>CreatedDomainEvent } from '../event/<Aggregate>CreatedDomainEvent';
+import type { <Aggregate>Event } from '../event/<Aggregate>Event';
+import { <Aggregate>Id } from '../value-object/<Aggregate>Id';
+import { <Status> } from '../value-object/<Status>Type';
+import { <Status>Type } from '../value-object/<Status>Type';
 
-  readonly orderReference: OrderReference;
-  private _amount: Money;
-  readonly method: PaymentMethodType;
-  private _status: PaymentStatusType;
-  private _rejection: RejectionCodeType;
+interface Clock {
+  now(): Date;
+}
+
+export class <Aggregate> extends AggregateRoot<<Aggregate>Id, <Aggregate>Event> {
+  private static readonly <CONSTANT> = <value>;
+
+  readonly <field>: <VO>;
+  private _status: <Status>Type;
   readonly createdAt: CreatedAt;
   private _updatedAt: UpdatedAt;
 
   constructor(
-    id: PaymentId,
-    orderReference: OrderReference,
-    amount: Money,
-    method: PaymentMethodType,
-    status: PaymentStatusType,
-    rejection: RejectionCodeType,
+    id: <Aggregate>Id,
+    <field>: <VO>,
+    status: <Status>Type,
     createdAt: CreatedAt,
     updatedAt: UpdatedAt,
   ) {
     super(id);
-    this.orderReference = orderReference;
-    this._amount = amount;
-    this.method = method;
+    this.<field> = <field>;
     this._status = status;
-    this._rejection = rejection;
     this.createdAt = createdAt;
     this._updatedAt = updatedAt;
   }
-```
 
-#### `create`
-
-`static create(id, ...valueObjects, clock)` builds a new aggregate and does only this:
-
-1. Receives the id and the value objects of the new aggregate already built, and the clock last.
-2. Sets the initial state (status, empty optional values, `CreatedAt.now(clock)`,
-   `UpdatedAt.now(clock)`) and calls the constructor.
-3. Checks the invariants of a new aggregate and throws its business error when one fails
-   (`Order.create` checks 1 to 20 lines, no repeated SKU and the total).
-4. Records `<Aggregate>CreatedDomainEvent` and returns the aggregate.
-
-It does not take business decisions after the creation: those are business methods. When
-`create` receives the parts of child entities, it builds them itself (`Order.create` numbers the
-lines with `LineNumber`):
-
-```ts
-const order = new Order(
-  id,
-  customerId,
-  lines.map(
-    (line, index) =>
-      new OrderLine(new LineNumber(index + 1), line.sku, line.quantity, line.unitPrice),
-  ),
-  new OrderStatusType(OrderStatus.PENDING_PAYMENT),
-  // ...
-  CreatedAt.now(clock),
-  UpdatedAt.now(clock),
-);
-order.assertDistinctSkus();
-order.assertTotal();
-```
-
-```ts
-  static create(
-    id: PaymentId,
-    orderReference: OrderReference,
-    amount: Money,
-    method: PaymentMethodType,
-    clock: Clock,
-  ): Payment {
-    const payment = new Payment(
+  static create(id: <Aggregate>Id, <field>: <VO>, clock: Clock): <Aggregate> {
+    const <aggregate> = new <Aggregate>(
       id,
-      orderReference,
-      amount,
-      method,
-      new PaymentStatusType(PaymentStatus.PENDING),
-      new RejectionCodeType(null),
+      <field>,
+      new <Status>Type(<Status>.<INITIAL>),
       CreatedAt.now(clock),
       UpdatedAt.now(clock),
     );
-
-    payment.record(
-      new PaymentCreatedDomainEvent({
-        paymentId: payment.id.value,
-        orderId: payment.orderReference.value,
-        amount: payment._amount.toPrimitives(),
-        method: payment.method.value,
+    <aggregate>.record(
+      new <Aggregate>CreatedDomainEvent({
+        <aggregate>Id: <aggregate>.id.value,
+        <field>: <aggregate>.<field>.value,
         clock,
       }),
     );
-
-    return payment;
+    return <aggregate>;
   }
+
+  static fromPrimitives(primitives: PrimitiveTypes<<Aggregate>>): <Aggregate> {
+    return new <Aggregate>(
+      new <Aggregate>Id(primitives.id),
+      new <VO>(primitives.<field>),
+      new <Status>Type(primitives.status),
+      new CreatedAt(primitives.createdAt),
+      new UpdatedAt(primitives.updatedAt),
+    );
+  }
+
+  get status(): <Status>Type {
+    return this._status;
+  }
+
+  get updatedAt(): UpdatedAt {
+    return this._updatedAt;
+  }
+
+  toPrimitives(): PrimitiveTypes<<Aggregate>> {
+    return {
+      id: this.id.value,
+      <field>: this.<field>.value,
+      status: this._status.value,
+      createdAt: this.createdAt.value,
+      updatedAt: this._updatedAt.value,
+    };
+  }
+
+  private moveTo(status: <Status>, clock: Clock): void {
+    this._status = new <Status>Type(status);
+    this._updatedAt = UpdatedAt.now(clock);
+  }
+}
 ```
 
-#### Business methods
+References: `payments/domain/aggregate/Payment.ts` (status machine, limits by method, reaction methods), `sales/domain/aggregate/Order.ts` (child entities, invariants, specification, rollback), `shipping/domain/aggregate/Shipment.ts` (JSON value, date from clock).
 
-- Every change of the aggregate is a method named after the business action (`process`,
-  `confirmTransfer`, `cancel`, `markShipped`). It receives value objects and the clock, changes the
-  fields, updates `_updatedAt` and may record one or more events.
-- A method that a **user asks for** (`cancel`, `confirmTransfer`, `dispatch`, `deliver`,
-  `changeLineQuantity`, `changeShippingAddress`) throws its business error when it does not apply
-  in the current state.
-- A method that **reacts to an event** of another context (`markPaid`, `cancelForRejectedPayment`,
-  `markShipped`, `markDelivered`, `adjustAmount`, `settleForCancelledOrder`,
-  `cancelForCancelledOrder`) returns without doing anything when it does not apply: the event is a
-  fact and may arrive twice.
-- `Payment` starts as `pending`; `process(clock)` decides: over the limit of its method it is
-  rejected, a card is captured, a transfer waits for the money.
-
-```ts
-  process(clock: Clock): void {
-    if (this._status.value !== PaymentStatus.PENDING) {
-      return;
-    }
-    if (this.exceedsLimit()) {
-      this.reject(RejectionCode.LIMIT_EXCEEDED, clock);
-    } else if (this.method.value === PaymentMethod.CARD) {
-      this.capture(clock);
-    } else {
-      this.awaitTransfer(clock);
-    }
-  }
-```
+User-requested vs reaction method (`Order`):
 
 ```ts
   cancel(requester: CustomerId, clock: Clock): void {
@@ -251,167 +252,37 @@ order.assertTotal();
   }
 ```
 
-#### `fromPrimitives` and `toPrimitives`
+### 2.3 Shape received by `create` (D-NEW)
 
-The aggregate converts itself and its children; repositories only call these two methods.
+- D-NEW1: When `create` receives data that becomes child entities, declare `export interface New<Child> { <field>: <VO>; … }` in `aggregate/New<Child>.ts` (value objects only, no id). The application builds it in `toCommand`; the aggregate assigns the ids (`new LineNumber(index + 1)`). Reference: `sales/domain/aggregate/NewOrderLine.ts`.
 
-- `PrimitiveTypes<X>` gives the shape: each value object becomes its value (an enum its option), a
-  composite its primitives, a child entity an object with its `id` and fields.
-- `toPrimitives()` reads every field: `.value` of each value object, `.toPrimitives()` of each
-  composite, and maps each child entity by hand (the entity has no conversion of its own).
-- `static fromPrimitives(primitives)` rebuilds every value object with its constructor (or the
-  composite's `fromPrimitives`), rebuilds each child entity with its constructor and calls the
-  aggregate constructor. It records no event and checks no invariant: the data was valid when saved.
-- Every field goes both ways, `createdAt` and `updatedAt` included, so a round trip gives an equal
-  aggregate.
+### 2.4 Child entities (D-ENT)
 
-```ts
-  static fromPrimitives(primitives: PrimitiveTypes<Order>): Order {
-    return new Order(
-      new OrderId(primitives.id),
-      new CustomerId(primitives.customerId),
-      primitives.lines.map(
-        (line) =>
-          new OrderLine(
-            new LineNumber(line.id),
-            new Sku(line.sku),
-            new Quantity(line.quantity),
-            Money.fromPrimitives(line.unitPrice),
-          ),
-      ),
-      new OrderStatusType(primitives.status),
-      ShippingAddress.fromPrimitives(primitives.shippingAddress),
-      new CouponCodes(primitives.couponCodes),
-      new GiftWrap(primitives.giftWrap),
-      new PaymentMethodType(primitives.paymentMethod),
-      new DiscountPercent(primitives.discount),
-      new PaymentReference(primitives.paymentReference),
-      new CreatedAt(primitives.createdAt),
-      new UpdatedAt(primitives.updatedAt),
-    );
-  }
-```
+| Id     | Rule                                                                                                                           |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| D-ENT1 | `entity/<Entity>.ts`, `extends Entity<<IdVO>>`; the id is a value object (`LineNumber extends Required(NumberType)`).          |
+| D-ENT2 | Fields as D-AGG3 without `createdAt`/`updatedAt`; constructor receives value objects, `super(id)`, assigns.                    |
+| D-ENT3 | MAY have queries (`subtotal()`) and mutators that only its aggregate calls (`changeQuantity(quantity)`). No setters, no clock. |
+| D-ENT4 | MUST NOT record events, have `create`, or have `toPrimitives`/`fromPrimitives` (the aggregate converts it).                    |
 
-```ts
-  toPrimitives(): PrimitiveTypes<Order> {
-    return {
-      id: this.id.value,
-      customerId: this.customerId.value,
-      lines: this._lines.map((line) => ({
-        id: line.id.value,
-        sku: line.sku.value,
-        quantity: line.quantity.value,
-        unitPrice: line.unitPrice.toPrimitives(),
-      })),
-      status: this._status.value,
-      shippingAddress: this._shippingAddress.toPrimitives(),
-      couponCodes: this.couponCodes.value,
-      giftWrap: this.giftWrap.value,
-      paymentMethod: this.paymentMethod.value,
-      discount: this.discount.value,
-      paymentReference: this._paymentReference.value,
-      createdAt: this.createdAt.value,
-      updatedAt: this._updatedAt.value,
-    };
-  }
-```
+Reference: `sales/domain/entity/OrderLine.ts`.
 
-#### Private helpers
+### 2.5 Value objects (D-VO)
 
-State changes go through `moveTo` and `touch`, and invariants through `assert…` methods that throw
-the business error:
+| Id     | Rule                                                                                                                                                                                                                                                                                                                                                                    |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D-VO1  | Always valid: the constructor converts, applies `Required`, runs every `@Validations` rule and throws `ValidationException`. No `ensure…`/`validate…` methods of your own.                                                                                                                                                                                              |
+| D-VO2  | Rules: `@Validations([...])` from `@archi-code/validation` above the class: `{ validator: 'matches' \| 'isLength' \| 'isInt' \| …, properties, message? }` or `{ custom: '<camelCaseName>', fn, message }` for list/composite rules. English `message` when the validator's own is not clear.                                                                           |
+| D-VO3  | Mandatory value → `Required(<Base>)`; optional → bare base, constructed with `null` for no value.                                                                                                                                                                                                                                                                       |
+| D-VO4  | Immutable; behavior returns new instances (`Money.add`, `Money.lessPercent`).                                                                                                                                                                                                                                                                                           |
+| D-VO5  | Id derived from other data → `static` method on the id class using `UuidType.fromValue('<purpose>:<source>')` (UUID v5): `PaymentId.forOrder`, `ShipmentId.forOrder`. New random id → `<Aggregate>Id.generate()`, called by the use case.                                                                                                                               |
+| D-VO6  | Composite: `extends Composite({ … })`; built with `new X({ field: vo })` from value objects or `X.fromPrimitives(data)` from plain data (reports every field path). Cross-field rules are `custom` validations that receive the composite.                                                                                                                              |
+| D-VO7  | A JSON value (`JsonType`) is NEVER a composite and a composite is never a JSON value. `JsonType` = free-form object stored as is.                                                                                                                                                                                                                                       |
+| D-VO8  | Custom type: `extends AbstractType<T>`, implements `protected filter(value: unknown): T`, throws `TypePrimitiveException('<what>', value)` when it cannot convert. Empty input (`null`/`undefined`) never reaches `filter`. Paired with `Required(...)` in a second file.                                                                                               |
+| D-VO9  | Enum file holds exactly: `export enum <Enum>` (snake_case string values), `<Enum>Option extends EnumType<<Enum>>` with `protected getEnum(): typeof <Enum>`, `<Enum>Type extends Required(<Enum>Option)`. Optional enum: only `<Enum>Type extends EnumType<<Enum>>`. Exception: `shared-kernel/money/MoneyCurrency.ts` (`Currency`, `CurrencyOption`, `MoneyCurrency`). |
+| D-VO10 | Each context declares its own value objects even when another context has a similar one (`sales/Phone` and `shipping/Phone`; `StaffRoleType` in payments, sales and shipping with different roles).                                                                                                                                                                     |
 
-```ts
-  private assertPendingPayment(): void {
-    if (!this.isIn(OrderStatus.PENDING_PAYMENT)) {
-      throw new OrderNotModifiable(this.id.value, this._status.value);
-    }
-  }
-
-  private moveTo(status: OrderStatus, clock: Clock): void {
-    this._status = new OrderStatusType(status);
-    this.touch(clock);
-  }
-
-  private touch(clock: Clock): void {
-    this._updatedAt = UpdatedAt.now(clock);
-  }
-```
-
-#### The shape `create` receives
-
-When `create` receives parts that the aggregate turns into child entities, their shape is an
-interface of value objects in `aggregate/` (`Order.create` numbers the lines itself):
-
-```ts
-import type { Money } from '../../../shared-kernel/money/Money';
-import type { Quantity } from '../value-object/Quantity';
-import type { Sku } from '../value-object/Sku';
-
-export interface NewOrderLine {
-  sku: Sku;
-  quantity: Quantity;
-  unitPrice: Money;
-}
-```
-
-### Child entities
-
-- **Folder and name**: `entity/<Entity>.ts` (`entity/OrderLine.ts`).
-- **Extends**: `Entity<Id>`; its id is a value object (`LineNumber`).
-- **Contains**: its fields declared at the top (`readonly` or `private _field` with a getter), a
-  constructor that receives value objects already built and assigns them, and business methods
-  that only its aggregate calls. No setters.
-- **Does not contain**: events (only the aggregate records events), `create`, conversion to
-  primitives (the aggregate converts its children).
-- **Created by**: its aggregate (`Order.create` and `Order.fromPrimitives`).
-
-```ts
-import { Entity } from '../../../../ddd/domain';
-import type { Money } from '../../../shared-kernel/money/Money';
-import type { LineNumber } from '../value-object/LineNumber';
-import type { Quantity } from '../value-object/Quantity';
-import type { Sku } from '../value-object/Sku';
-
-export class OrderLine extends Entity<LineNumber> {
-  readonly sku: Sku;
-  private _quantity: Quantity;
-  readonly unitPrice: Money;
-
-  constructor(id: LineNumber, sku: Sku, quantity: Quantity, unitPrice: Money) {
-    super(id);
-    this.sku = sku;
-    this._quantity = quantity;
-    this.unitPrice = unitPrice;
-  }
-
-  get quantity(): Quantity {
-    return this._quantity;
-  }
-
-  subtotal(): Money {
-    return this.unitPrice.times(this._quantity.value);
-  }
-
-  changeQuantity(quantity: Quantity): void {
-    this._quantity = quantity;
-  }
-}
-```
-
-### Value objects
-
-All live in `value-object/`, one class per file, and are always valid: the constructor converts
-the input, applies `Required` and runs every `@Validations` rule, and throws `ValidationException`
-otherwise. Rules are declared with `@Validations` from `@archi-code/validation`, each with an
-English `message` when the validator's own is not clear enough.
-
-#### Simple value objects
-
-- **Extends**: `Required(<Type>)` when the value is mandatory (`Sku`, `Quantity`, `GiftWrap`,
-  `ExpectedDelivery`), or the bare type when it may be empty (`TrackingNumber`,
-  `PaymentReference`), built with `null` for "no value".
-- Types: `StringType`, `NumberType`, `BooleanType`, `DateType`, `UuidType`, `JsonType`.
+Templates:
 
 ```ts
 import { Validations } from '@archi-code/validation';
@@ -428,62 +299,6 @@ export class Sku extends Required(StringType) {}
 ```
 
 ```ts
-import { Validations } from '@archi-code/validation';
-import { StringType } from '../../../../ddd/domain';
-
-@Validations([
-  {
-    validator: 'matches',
-    properties: { pattern: /^[A-Z]{2}\d{9}[A-Z]{2}$/ },
-    message: 'A tracking number looks like AB123456789ES',
-  },
-])
-export class TrackingNumber extends StringType {}
-```
-
-#### Custom types
-
-When no type of the package converts the value as needed, a value object extends
-`AbstractType<T>` and implements `protected filter(value: unknown): T`. `filter` converts the input
-and throws `TypePrimitiveException` when it cannot; empty input never reaches it. Its `Required`
-class goes in another file, like a list (`CentsAmount` → `Cents`):
-
-```ts
-import { AbstractType, TypePrimitiveException } from '../../../ddd/domain';
-
-export class CentsAmount extends AbstractType<number> {
-  protected filter(value: unknown): number {
-    const cents = typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value;
-    if (typeof cents !== 'number' || !Number.isSafeInteger(cents) || cents < 0) {
-      throw new TypePrimitiveException('amount in cents', value);
-    }
-    return cents;
-  }
-}
-```
-
-```ts
-import { Required } from '../../../ddd/domain';
-import { CentsAmount } from './CentsAmount';
-
-export class Cents extends Required(CentsAmount) {}
-```
-
-#### Ids
-
-- **Extends**: `IdType<'<ClassName>'>`; the brand makes ids of different aggregates not
-  interchangeable at compile time.
-- An id computed from other data is a `static` method of the id (`PaymentId.forOrder`,
-  `ShipmentId.forOrder`): one payment and one shipment per order. A reference to an aggregate of
-  another context is a `Required(UuidType)` (`OrderReference`).
-
-```ts
-import { IdType } from '../../../../ddd/domain';
-
-export class OrderId extends IdType<'OrderId'> {}
-```
-
-```ts
 import { IdType, UuidType } from '../../../../ddd/domain';
 import type { OrderReference } from './OrderReference';
 
@@ -493,13 +308,6 @@ export class PaymentId extends IdType<'PaymentId'> {
   }
 }
 ```
-
-#### Enums
-
-One file named after the `Required` class (`OrderStatusType.ts`, `PaymentMethodType.ts`,
-`MoneyCurrency.ts`) holds the TypeScript `enum`, its `<Enum>Option extends EnumType<Enum>` (with
-`getEnum()`) and `<Enum>Type extends Required(<Enum>Option)`. An optional enum has no `Required`
-class and its file is named after the `EnumType` (`RejectionCodeType.ts`).
 
 ```ts
 import { EnumType, Required } from '../../../../ddd/domain';
@@ -521,11 +329,6 @@ export class OrderStatusOption extends EnumType<OrderStatus> {
 export class OrderStatusType extends Required(OrderStatusOption) {}
 ```
 
-#### Lists
-
-A list is an `ArrayType<Item>` with `createItem` and its list rules (`custom` validations over the
-whole list), plus its `Required` class in another file:
-
 ```ts
 import { Validations } from '@archi-code/validation';
 import { ArrayType } from '../../../../ddd/domain';
@@ -537,11 +340,6 @@ import { CouponCode } from './CouponCode';
     fn: (codes) => (codes as string[]).length <= 3,
     message: 'An order takes at most 3 coupons',
   },
-  {
-    custom: 'noRepeatedCoupons',
-    fn: (codes) => new Set(codes as string[]).size === (codes as string[]).length,
-    message: 'A coupon is applied only once',
-  },
 ])
 export class CouponCodeList extends ArrayType<CouponCode> {
   protected createItem(value: unknown): CouponCode {
@@ -551,72 +349,37 @@ export class CouponCodeList extends ArrayType<CouponCode> {
 ```
 
 ```ts
-import { Required } from '../../../../ddd/domain';
-import { CouponCodeList } from './CouponCodeList';
-
-export class CouponCodes extends Required(CouponCodeList) {}
-```
-
-#### Composites
-
-A value object of several fields is a composite, and it is a value object: it lives in
-`value-object/`. It extends `Composite({ field: ValueObjectClass })`; a field may be another
-composite (`recipient: Recipient`) or a list (`items: [ShipmentItem]`). Rules over several fields
-are `custom` validations that receive the built composite (`ShipmentContents` needs one item at
-least). It may have behavior that returns new instances (`Money.add`, `Money.lessPercent`).
-
-```ts
+import { Validations } from '@archi-code/validation';
 import { Composite } from '../../../../ddd/domain';
-import { City } from './City';
-import { CountryCode } from './CountryCode';
-import { PostalCode } from './PostalCode';
-import { Recipient } from './Recipient';
-import { Street } from './Street';
+import { ShipmentItem } from './ShipmentItem';
 
-export class ShippingAddress extends Composite({
-  recipient: Recipient,
-  street: Street,
-  city: City,
-  postalCode: PostalCode,
-  country: CountryCode,
-}) {}
-```
-
-A composite with behavior adds methods that return a new instance and never change its fields.
-Its business errors live with it (`CurrencyMismatch`):
-
-```ts
-export class Money extends Composite({ amount: Cents, currency: MoneyCurrency }) {
-  static zero(currency: Currency): Money {
-    return new Money({ amount: new Cents(0), currency: new MoneyCurrency(currency) });
-  }
-
-  add(other: Money): Money {
-    this.assertSameCurrency(other);
-    return this.withAmount(this.amount.value + other.amount.value);
-  }
-
-  private assertSameCurrency(other: Money): void {
-    if (!this.currency.equals(other.currency)) {
-      throw new CurrencyMismatch(this.currency.value, other.currency.value);
-    }
-  }
-
-  private withAmount(cents: number): Money {
-    return new Money({ amount: new Cents(cents), currency: this.currency });
+@Validations([
+  {
+    custom: 'atLeastOneItem',
+    fn: (contents) => (contents as ShipmentContents).items.length > 0,
+    message: 'A shipment carries at least one item',
+  },
+])
+export class ShipmentContents extends Composite({ items: [ShipmentItem] }) {
+  units(): number {
+    return this.items.reduce((units, item) => units + item.quantity.value, 0);
   }
 }
 ```
 
-A composite is built with `new X({ field: valueObject })` when the value objects are already
-built, and with `X.fromPrimitives(data)` from plain data (it reports every field with its path).
+```ts
+import { AbstractType, TypePrimitiveException } from '../../../ddd/domain';
 
-#### JSON values
-
-A free-form object that the domain stores as it is is a `JsonType`. A JSON value is never a
-composite: a composite is a value object made of value objects, a JSON value a plain object. Three
-files in `value-object/`: the shape (an interface that extends `JsonTypeValue`), the `JsonType` and
-its `Required` class:
+export class CentsAmount extends AbstractType<number> {
+  protected filter(value: unknown): number {
+    const cents = typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value;
+    if (typeof cents !== 'number' || !Number.isSafeInteger(cents) || cents < 0) {
+      throw new TypePrimitiveException('amount in cents', value);
+    }
+    return cents;
+  }
+}
+```
 
 ```ts
 import type { JsonTypeValue } from '../../../../ddd/domain';
@@ -629,49 +392,20 @@ export interface CarrierLabelData extends JsonTypeValue {
 }
 ```
 
-```ts
-import { JsonType } from '../../../../ddd/domain';
-import type { CarrierLabelData } from './CarrierLabelData';
+Composite with behavior: `shared-kernel/money/Money.ts` (`static zero`, `add`, `times`, `lessPercent`, `isAtLeast`, `isZero`, private `assertSameCurrency` → `CurrencyMismatch`, private `withAmount`).
 
-export class CarrierLabelJson extends JsonType<CarrierLabelData> {}
-```
+### 2.6 Domain events (D-EVT)
 
-```ts
-import { Required } from '../../../../ddd/domain';
-import { CarrierLabelJson } from './CarrierLabelJson';
-
-export class CarrierLabel extends Required(CarrierLabelJson) {}
-```
-
-The aggregate builds it from its own value objects (`Shipment.create`):
-
-```ts
-      new CarrierLabel({
-        carrier: carrier.value,
-        service: giftWrap.value ? 'gift' : 'standard',
-        country: address.country.value,
-        units: contents.units(),
-      }),
-```
-
-### Domain events
-
-- **Folder and name**: `event/<Aggregate><PastAction>DomainEvent.ts`
-  (`event/ShipmentDeliveredDomainEvent.ts`). The creation event is
-  `<Aggregate>CreatedDomainEvent`.
-- **Extends**: `EventBase`.
-- **`eventName`**: `static readonly eventName = '<aggregate>.<past_action>'`, in snake_case
-  (`'order.created'`, `'order.line_quantity_changed'`, `'payment.awaiting_transfer'`).
-- **Contains only primitive data**: `string`, `number`, `boolean`, and objects or lists of them.
-  The id of the aggregate is a field of its own (`orderId`, `paymentId`, `shipmentId`).
-- **No types**: the event declares no interface or type of its own and imports none. Its fields are
-  declared on the class, and the constructor receives one object typed inline (the field types
-  written in place) joined with `EventMetadata`. It passes `eventId`, `occurredOn` and `clock` to
-  `super` and assigns the rest one by one.
-- **Created by**: its aggregate, with `this.record(new …DomainEvent({ ..., clock }))`, taking the
-  primitives from the value objects (`.value`, `.toPrimitives()`).
-- `event/<Aggregate>Event.ts` holds the union of every event of the aggregate, which types
-  `AggregateRoot<Id, Event>` and the `EventBus` of its use cases.
+| Id     | Rule                                                                                                                                                                                                                        |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D-EVT1 | `event/<Aggregate><PastAction>DomainEvent.ts`, `extends EventBase`. Creation event: `<Aggregate>CreatedDomainEvent`.                                                                                                        |
+| D-EVT2 | `static readonly eventName = '<aggregate>.<past_action>'`, snake_case (`'order.line_quantity_changed'`), unique in the shop.                                                                                                |
+| D-EVT3 | Fields `readonly`, primitive data only: `string`, `number`, `boolean`, plain objects/arrays of them. Money → `{ amount: number; currency: string }`; dates → ISO `string`. Never value objects, `Date` or class instances.  |
+| D-EVT4 | The aggregate id is a named field (`orderId`, `paymentId`, `shipmentId`); references to other aggregates too (`orderId` in payment events). No `aggregateId`, no version.                                                   |
+| D-EVT5 | No interfaces or type aliases: field types inline; constructor param typed inline as `{ …fields } & EventMetadata`, destructuring `eventId, occurredOn, clock`; `super({ eventId, occurredOn, clock })`; assign each field. |
+| D-EVT6 | Created only by its aggregate: `this.record(new …DomainEvent({ …primitives, clock }))`, values from `.value` / `.toPrimitives()`.                                                                                           |
+| D-EVT7 | `event/<Aggregate>Event.ts`: `export type <Aggregate>Event = \| …` with an `import type` of every event of the aggregate. Every new event MUST be added.                                                                    |
+| D-EVT8 | No methods, no `toPrimitives`/`fromPrimitives`: the event is its own JSON; consumers rebuild it in `composition.ts` (C-REG).                                                                                                |
 
 ```ts
 import { EventBase } from '../../../../ddd/domain';
@@ -697,34 +431,16 @@ export class ShipmentDeliveredDomainEvent extends EventBase {
 }
 ```
 
-```ts
-import type { PaymentAmountAdjustedDomainEvent } from './PaymentAmountAdjustedDomainEvent';
-import type { PaymentAwaitingTransferDomainEvent } from './PaymentAwaitingTransferDomainEvent';
-import type { PaymentCapturedDomainEvent } from './PaymentCapturedDomainEvent';
-import type { PaymentCreatedDomainEvent } from './PaymentCreatedDomainEvent';
-import type { PaymentRefundedDomainEvent } from './PaymentRefundedDomainEvent';
-import type { PaymentRejectedDomainEvent } from './PaymentRejectedDomainEvent';
-import type { PaymentVoidedDomainEvent } from './PaymentVoidedDomainEvent';
+Nested data: `sales/domain/event/OrderCreatedDomainEvent.ts` (`lines: { sku: string; quantity: number; unitPrice: { amount: number; currency: string } }[]`).
 
-export type PaymentEvent =
-  | PaymentCreatedDomainEvent
-  | PaymentCapturedDomainEvent
-  | PaymentRejectedDomainEvent
-  | PaymentAwaitingTransferDomainEvent
-  | PaymentAmountAdjustedDomainEvent
-  | PaymentRefundedDomainEvent
-  | PaymentVoidedDomainEvent;
-```
+### 2.7 Business errors (D-ERR)
 
-### Business errors
-
-- **Folder and name**: `exception/<WhatWentWrong>.ts`, without an `Exception` suffix
-  (`OrderNotModifiable`, `DuplicateSku`, `TrackingNumberMissing`, `CurrencyMismatch`).
-- **Extends**: `DomainException`.
-- **Contains**: only a constructor that receives the data of the message and passes an English
-  message and its code: `SAL###` (Sales), `PAY###` (Payments), `SHP###` (Shipping), `MNY###`
-  (money).
-- **Thrown by**: the aggregate, a domain service or a value object of the same context.
+| Id     | Rule                                                                                                                           |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| D-ERR1 | `exception/<WhatWentWrong>.ts`, no `Exception` suffix, `extends DomainException`. Money errors live in `shared-kernel/money/`. |
+| D-ERR2 | Only a constructor: receives primitives for the message, calls `super('<English message>', ['<CODE><NNN>'])`.                  |
+| D-ERR3 | Prefixes: `SAL` Sales, `PAY` Payments, `SHP` Shipping, `MNY` money. Use the next free number (8.4).                            |
+| D-ERR4 | Thrown only by an aggregate, entity, value object or domain service of the same context; never by a reaction method (D-AGG11). |
 
 ```ts
 import { DomainException } from '../../../../ddd/domain';
@@ -736,173 +452,60 @@ export class OrderNotModifiable extends DomainException {
 }
 ```
 
-### Specifications
+### 2.8 Specifications (D-SPEC)
 
-- **Folder and name**: `specification/<Rule>.ts` (`SubtotalAtLeast`, `ContainsSku`,
-  `FreeShippingEligible`).
-- **Extends**: `Specification<Aggregate>` and implements `isSatisfiedBy`. Specifications combine
-  with `and`, `or` and `not`.
-- **Receives** data that is already loaded (the aggregate), never a repository. It answers a
-  question; it never guards an invariant of the aggregate.
+| Id      | Rule                                                                                                                                                                                            |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D-SPEC1 | `specification/<Rule>.ts`, `extends Specification<<Aggregate>>`, implements `isSatisfiedBy(x): boolean`; parameters through the constructor (`private readonly cents: number`, then `super()`). |
+| D-SPEC2 | Composed rule: `private readonly rule = new A(…).or(new B(…)).and(new C(…).not());` and `isSatisfiedBy` returns `this.rule.isSatisfiedBy(x)`.                                                   |
+| D-SPEC3 | Receives loaded data only, never a repository. Answers a question; never guards an invariant (the answer is data, e.g. `freeShipping` in `OrderCreatedDomainEvent`).                            |
 
-```ts
-import { Specification } from '../../../../ddd/domain';
-import type { Order } from '../aggregate/Order';
+References: `sales/domain/specification/{SubtotalAtLeast,ContainsSku,FreeShippingEligible}.ts`.
 
-export class SubtotalAtLeast extends Specification<Order> {
-  constructor(private readonly cents: number) {
-    super();
-  }
+### 2.9 Domain services and ports (D-SVC)
 
-  isSatisfiedBy(order: Order): boolean {
-    return order.subtotal().isAtLeast(this.cents);
-  }
-}
-```
+| Id     | Rule                                                                                                                                                                                                                                   |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D-SVC1 | `service/<Service>.ts`: plain class holding a business rule that does not belong to one aggregate; ports by constructor (`constructor(private readonly catalog: CouponCatalog) {}`); works with value objects; throws business errors. |
+| D-SVC2 | `service/<Port>.ts`: `export interface` whose methods speak value objects (`discountOf(code: CouponCode): Promise<DiscountPercent \| null>`); implemented in `infrastructure/`.                                                        |
+| D-SVC3 | Instantiated only in `composition.ts`; injected into user use cases (`PlaceOrder` calls `OrderPricing.discountFor`).                                                                                                                   |
 
-A rule made of other specifications keeps the combination in a private field and delegates to it:
+References: `sales/domain/service/{OrderPricing,CouponCatalog}.ts`.
 
-```ts
-export class FreeShippingEligible extends Specification<Order> {
-  private readonly rule = new SubtotalAtLeast(5000)
-    .or(new ContainsSku(new Sku('PREMIUM-PASS')))
-    .and(new ContainsSku(new Sku('GIFT-CARD')).not());
+### 2.10 Domain MUST NOT
 
-  isSatisfiedBy(order: Order): boolean {
-    return this.rule.isSatisfiedBy(order);
-  }
-}
-```
+`aggregateId` in events; types/interfaces in event files; event data types in `domain/`; `toPrimitives`/`fromPrimitives` on events; per-aggregate repository interfaces (`OrderRepository`); commands; `ensureX` methods; ids computed inside `create`; repositories, event bus, loggers, HTTP, `Date.now()`.
 
-The aggregate uses it to answer a question, never to refuse a change (`Order.create` stores the
-answer in its event: `freeShipping: new FreeShippingEligible().isSatisfiedBy(order)`).
+## 3. Application layer (A)
 
-### Domain services and ports
+### 3.1 Use case kinds (A-UC)
 
-- **Folder**: `service/`, for the service and for the port it uses.
-- **Service**: a class with a business rule that does not belong to one aggregate
-  (`OrderPricing` adds the discounts of the coupons and caps them at 50%). It receives its ports
-  by constructor, works with value objects and throws business errors (`UnknownCoupon`).
-- **Port**: an `interface` the domain declares and infrastructure implements
-  (`CouponCatalog` → `InMemoryCouponCatalog`). It speaks in value objects.
-- **Created by**: `composition.ts`, which gives the service the infrastructure that implements the
-  port.
+A use case = one business action. Two kinds; the only difference is where the input comes from.
 
-```ts
-import type { CouponCode } from '../value-object/CouponCode';
-import type { DiscountPercent } from '../value-object/DiscountPercent';
+| Kind              | Input        | Class                                                                        | File                                          | Run by        |
+| ----------------- | ------------ | ---------------------------------------------------------------------------- | --------------------------------------------- | ------------- |
+| user use case     | request data | `<Action> extends UseCase<<Action>Input, <Action>Command, Output>`           | `application/<action>/<action>.ts`            | a controller  |
+| reaction use case | an event     | `<Action>On<Event> extends EventListener<<Event>DomainEvent>` + `@ListensTo` | `application/<action>/<action>-on-<event>.ts` | the event bus |
 
-export interface CouponCatalog {
-  discountOf(code: CouponCode): Promise<DiscountPercent | null>;
-}
-```
+- A-UC1: Name = business action (`PlaceOrder`, `ConfirmTransferReceived`, `MarkOrderPaid`), never CRUD/technical (`UpdateOrder`, `OrderService`).
+- A-UC2: One use case does one thing and saves one aggregate once.
+- A-UC3: A use case MUST NOT import or call another use case or listener.
+- A-UC4: No transactions, no HTTP, no shape checks of raw input (controllers do it), no business rules (the domain does it).
 
-```ts
-import type { CouponCodes } from '../value-object/CouponCodes';
-import { DiscountPercent } from '../value-object/DiscountPercent';
-import type { CouponCatalog } from './CouponCatalog';
-import { UnknownCoupon } from '../exception/UnknownCoupon';
+### 3.2 User use cases (A-USR)
 
-export class OrderPricing {
-  private static readonly MAX_DISCOUNT = 50;
+| Id     | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A-USR1 | Same file exports `interface <Action>Input` (primitives and data types; `actorId` or `actorRole` when an actor matters) and `interface <Action>Command` (value objects, composites, `New<Child>[]`).                                                                                                                                                                                                                                                                                                                        |
+| A-USR2 | `Output` = `void`, or the new id as `string` (`PlaceOrder`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| A-USR3 | Constructor params, `private readonly`, only what `handle` uses, in this order: repository typed by roles (`AggregateFinder<X> & AggregateSaver<X>`; `AggregateSaver<X>` alone when only creating; `AggregateFinder<X> & AggregateRemover<X>` when removing), domain services, `EventBus<<Aggregate>Event>`, `Clock`, `Logger`. Body `super();`.                                                                                                                                                                            |
+| A-USR4 | `protected toCommand(input)`: exactly `return ValueObjectBuilder.build({ <field>: () => new <VO>(input.<x>), … })`. Enums: `new <Enum>Type(input.x as <Enum>)`. Composites: `X.fromPrimitives(input.x)`; money: `Money.fromPrimitives(input.x as { amount: number; currency: Currency })`. Lists of shapes: `ValueObjectBuilder.buildList(input.items, (item) => ValueObjectBuilder.build({ … }))` (errors reported as `lines.1.quantity`).                                                                                 |
+| A-USR5 | `protected async handle(command)` steps in order: (1) authorization → `throw new NotAllowedException('<English message>')`; (2) new id `<Aggregate>Id.generate()`; (3) `<Aggregate>.create(...)`, or `findById` and when `null` `throw new AggregateNotFoundException('<Aggregate>', id.value)`; (4) business method(s) with `this.clock`; (5) `await repo.save(x)` once (or `await repo.remove(x)`), then `await this.events.publish(x.pullDomainEvents())`; (6) log if the business wants a trace; (7) return the output. |
+| A-USR6 | A rule that depends only on the actor → `NotAllowedException` here. A rule that depends on aggregate state (only the buyer cancels) → business error in the aggregate (D-AGG10).                                                                                                                                                                                                                                                                                                                                            |
+| A-USR7 | Concurrency: by default let `ConcurrencyException` reach the controller (409). A use case whose change is safe to repeat MAY retry the whole load→change→save with `private static readonly ATTEMPTS = 3` (`ChangeShippingAddress`).                                                                                                                                                                                                                                                                                        |
+| A-USR8 | Logging: `this.logger.info('<snake_case_key>', { <primitives> })` after publish.                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
-  constructor(private readonly catalog: CouponCatalog) {}
-
-  async discountFor(codes: CouponCodes): Promise<DiscountPercent> {
-    let percent = 0;
-    for (const code of codes.items) {
-      const discount = await this.catalog.discountOf(code);
-      if (discount === null) {
-        throw new UnknownCoupon(code.value);
-      }
-      percent += discount.value;
-    }
-    return new DiscountPercent(Math.min(percent, OrderPricing.MAX_DISCOUNT));
-  }
-}
-```
-
-### What the domain never contains
-
-- No `aggregateId` in events: each event declares the id of its aggregate as a field of its own
-  (`orderId`).
-- No interfaces or types inside events, and no event data types in `domain/`.
-- No `toPrimitives` / `fromPrimitives` in events: an event is its own JSON and `composition.ts`
-  rebuilds it.
-- No repository interface per aggregate (`OrderRepository`): use cases ask for the roles they use
-  (`AggregateFinder<Order>`, `AggregateSaver<Order>`), declared by the package.
-- No commands: they belong to the use case (`toCommand`).
-- No `ensureX` methods in value objects: rules are `@Validations`.
-- No ids computed inside `create`, no repositories, event bus, loggers nor HTTP.
-
-## How the application, infrastructure and interfaces are written
-
-These rules apply to everything of a context outside `domain/`. Every example is copied from a file
-of this example.
-
-### Folders and files
-
-| Folder                        | What goes in it                                                                                          | In the example                                 |
-| ----------------------------- | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| `application/<use-case>/`     | one folder per use case a user calls: the use case and its data types                                    | `application/confirm-transfer-received/`       |
-| `application/<reaction>/`     | one folder per reaction use case: its one listener class, the copy of the event it hears, its data types | `application/request-payment/`                 |
-| `application/<read-model>/`   | a read model: its row type, its ports, its projection and one folder per reaction use case               | `application/order-summaries/`                 |
-| `infrastructure/persistence/` | the repository of the aggregate                                                                          | `InMemoryPaymentRepository`                    |
-| `infrastructure/<port>/`      | the adapter of a domain or application port                                                              | `coupon/InMemoryCouponCatalog`, `read-model/…` |
-| `interfaces/http/`            | the controller of the context                                                                            | `OrdersController`, `PaymentsController`       |
-| `composition.ts`              | the wiring of the context: `<Context>Context.start` / `stop`                                             | `SalesContext`, `PaymentsContext`              |
-
-- Files are kebab-case and named after their main export: `confirm-transfer-received.ts`
-  (`ConfirmTransferReceived`), `request-payment-on-order-created.ts` (`RequestPaymentOnOrderCreated`),
-  `order-created-domain-event.ts`, `money-data.ts`, `in-memory-payment-repository.ts`,
-  `payments-controller.ts`.
-- One class per file.
-- The folder of a use case is named after its business action: `application/confirm-transfer-received/`
-  holds `confirm-transfer-received.ts`; `application/request-payment/` holds
-  `request-payment-on-order-created.ts`, `order-created-domain-event.ts` and `money-data.ts`.
-- Imports follow the layers: `application/` imports `domain/` and `ddd/application`;
-  `infrastructure/` imports `domain/`, `application/` and `ddd/infrastructure`; `interfaces/`
-  imports `application/` and `platform/`; only `composition.ts` imports everything. Code of another
-  context is never imported.
-
-### Use cases
-
-A use case is one business action. Its input comes from one of two places, and that is the only
-difference between the two kinds:
-
-| Kind                                     | Input     | Written as                                              | In the example                                                   |
-| ---------------------------------------- | --------- | ------------------------------------------------------- | ---------------------------------------------------------------- |
-| use case a user calls                    | a request | a `UseCase` class, run by a controller                  | `PlaceOrder`, `ConfirmTransferReceived`, `DispatchShipment`      |
-| [reaction use case](#reaction-use-cases) | an event  | one `EventListener` class: the listener is the use case | `RequestPaymentOnOrderCreated`, `MarkOrderPaidOnPaymentCaptured` |
-
-This section describes the use cases a user calls; reaction use cases have their own section.
-
-- **File and name**: `application/<use-case>/<use-case>.ts`, named after the business action
-  (`PlaceOrder`, `ConfirmTransferReceived`, `DiscardCancelledOrder`), never CRUD names.
-- **Extends**: `UseCase<Input, Command, Output>`. `Output` is `void`, or the id it creates
-  (`PlaceOrder` returns the new order id).
-- **Declares in the same file**: `interface <UseCase>Input` (primitives: `string`, `number`,
-  `boolean`, data types) and `interface <UseCase>Command` (value objects, composites, lists of
-  `NewX` shapes).
-- **Constructor**: receives by constructor only what `handle` uses, in this order: the repository
-  typed with the roles it uses (`AggregateFinder<X> & AggregateSaver<X>`, or only
-  `AggregateSaver<X>` when it only creates, `AggregateRemover<X>` when it removes), domain services,
-  `EventBus<XEvent>`, `Clock`, `Logger`. Never a concrete repository nor another use case.
-- **`toCommand(input)`**: one `ValueObjectBuilder.build({ field: () => … })` with one factory per
-  field, so every invalid field is reported at once. Enums are cast to their enum type
-  (`input.method as PaymentMethod`); money and other composites use `X.fromPrimitives`; a list of
-  shapes uses `ValueObjectBuilder.buildList`, nested in the `build` (errors come as
-  `lines.1.quantity`).
-- **`handle(command)`**, in this order:
-  1. authorization (see below);
-  2. generates the id of a new aggregate (`OrderId.generate()`);
-  3. calls `<Aggregate>.create(...)`, or loads the aggregate with `findById` and throws
-     `AggregateNotFoundException('<Aggregate>', id)` when it is missing;
-  4. calls the business methods it needs, with `this.clock`;
-  5. saves the aggregate once and publishes `pullDomainEvents()` (or removes it);
-  6. returns the output.
-- **Does not contain**: business rules (they are in the aggregate or a domain service), checks of
-  the shape of the input (the controller does it), transactions, HTTP, another use case.
+Template, `payments/application/confirm-transfer-received/confirm-transfer-received.ts`:
 
 ```ts
 import type { AggregateFinder, AggregateSaver } from '../../../../ddd/domain';
@@ -973,122 +576,24 @@ export class ConfirmTransferReceived extends UseCase<
 }
 ```
 
-A list of shapes inside `toCommand` (`PlaceOrder`):
+Other references: `sales/application/place-order/place-order.ts` (create, `buildList`, domain service, returns id), `sales/application/change-shipping-address/change-shipping-address.ts` (retry), `sales/application/discard-cancelled-order/discard-cancelled-order.ts` (`AggregateRemover`, `assertDiscardable`).
 
-```ts
-      lines: () =>
-        ValueObjectBuilder.buildList(input.lines, (line) =>
-          ValueObjectBuilder.build({
-            sku: () => new Sku(line.sku),
-            quantity: () => new Quantity(line.quantity),
-            unitPrice: () =>
-              Money.fromPrimitives(line.unitPrice as { amount: number; currency: Currency }),
-          }),
-        ),
-```
+### 3.3 Reaction use cases (A-RUC)
 
-#### Authorization
+The listener IS the use case: one class, one file, no `UseCase` class behind it.
 
-Who may run a use case is decided in `handle`, before loading anything. The input carries the
-actor (`actorId` for a customer, `actorRole` for staff), `toCommand` turns it into a value object
-(`CustomerId`, `StaffRoleType`) and `handle` throws `NotAllowedException` (403) with an English
-message. A rule that depends on the state of the aggregate (only the buyer cancels their order) is
-a business error of the aggregate (`OrderOwnedByAnotherCustomer`, 422), not an authorization.
+| Id     | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A-RUC1 | File `application/<action>/<action>-on-<event>.ts` (read model: `application/<read-model>/<action>/<action>-on-<event>.ts`); class `<Action>On<Event>`, `<Event>` = event class name without `DomainEvent`.                                                                                                                                                                                                                                                                                                                                           |
+| A-RUC2 | `extends EventListener<<Event>DomainEvent>`, decorated `@ListensTo(<Event>DomainEvent, { consumer: '<context>.<action>-on-<event>' })`: context + `.` + file name without `.ts`; unique in the shop. One event per class.                                                                                                                                                                                                                                                                                                                             |
+| A-RUC3 | Event class: the local copy `./<event>-domain-event` (A-EVC) when the event comes from another context; the context's own `domain/event/<Event>DomainEvent` when it is its own event (read models).                                                                                                                                                                                                                                                                                                                                                   |
+| A-RUC4 | Constructor: same order as A-USR3 (repository roles, services, `EventBus`, `Clock`, `Logger`); a read-model reaction receives only its projection. Body `super();`.                                                                                                                                                                                                                                                                                                                                                                                   |
+| A-RUC5 | `async handle(event: <Event>DomainEvent): Promise<void>` steps: (1) `const { a, b } = ValueObjectBuilder.build({ a: () => new A(event.a), … })` (A-USR4 conversion rules, reading `event.*`); (2) derived id (`PaymentId.forOrder(orderReference)`); (3a) to create: `if ((await repo.findById(id)) !== null) { return; }` then `<Aggregate>.create(...)`; (3b) to change: `const x = await repo.findById(id); if (x === null) { return; }`; (4) the reaction method (D-AGG11); (5) `save` once + `publish(x.pullDomainEvents())`; (6) log if needed. |
+| A-RUC6 | MUST NOT: authorization, `AggregateNotFoundException`, throwing business errors, calling a use case or another listener, HTTP, try/catch.                                                                                                                                                                                                                                                                                                                                                                                                             |
+| A-RUC7 | No `UseCase` wrapper: unknown errors are not wrapped in `UnexpectedErrorException`; `DomainEventBus` logs them (`warn` for Domain/Application exceptions, `error` otherwise) and rethrows to the channel.                                                                                                                                                                                                                                                                                                                                             |
+| A-RUC8 | One class per reaction, also when several events feed one read model.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
-```ts
-  protected async handle(command: DiscardCancelledOrderCommand): Promise<void> {
-    if (command.actorRole.value !== StaffRole.ADMIN) {
-      throw new NotAllowedException(`The role ${command.actorRole.value} may not discard orders`);
-    }
-    const order = await this.orders.findById(command.orderId);
-    if (order === null) {
-      throw new AggregateNotFoundException('Order', command.orderId.value);
-    }
-    order.assertDiscardable();
-    await this.orders.remove(order);
-  }
-```
-
-#### Conflicts
-
-A save of a stale aggregate throws `ConcurrencyException`. By default it reaches the controller as
-a 409 (`ChangeOrderLineQuantity`). A use case whose change is safe to repeat retries the whole
-load–change–save a fixed number of times, declared as a `private static readonly` constant
-(`ChangeShippingAddress`):
-
-```ts
-  protected async handle(command: ChangeShippingAddressCommand): Promise<void> {
-    for (let attempt = 1; ; attempt += 1) {
-      try {
-        const order = await this.orders.findById(command.orderId);
-        if (order === null) {
-          throw new AggregateNotFoundException('Order', command.orderId.value);
-        }
-        order.changeShippingAddress(command.shippingAddress, this.clock);
-        await this.orders.save(order);
-        return await this.events.publish(order.pullDomainEvents());
-      } catch (error) {
-        if (
-          !(error instanceof ConcurrencyException) ||
-          attempt === ChangeShippingAddress.ATTEMPTS
-        ) {
-          throw error;
-        }
-      }
-    }
-  }
-```
-
-#### Logging
-
-A use case (of either kind) logs only when the business wants a trace of something, through the
-`Logger` port it receives last in its constructor, after saving and publishing. The message is a
-snake_case key and the context holds only primitives (`CancelUnpaidOrderOnPaymentRejected`):
-
-```ts
-this.logger.info('order_cancelled_for_rejected_payment', {
-  orderId: orderId.value,
-  reason: reason.value,
-});
-```
-
-### Reaction use cases
-
-A reaction use case is a use case whose input is an event instead of a request. It is **one
-class**: the listener is the use case. There is no separate `UseCase` class behind it and it never
-calls another use case; everything a use case does (build the value objects, load, call the
-domain, save, publish) is written in its `handle(event)`.
-
-- **File and name**: `application/<reaction>/<reaction>-on-<event>.ts`, class `<Action>On<Event>`.
-  `<Action>` is the business action, named like any use case (`RequestPayment`, `MarkOrderPaid`,
-  `PrepareShipment`), and `<Event>` the event without `DomainEvent` (`OrderCreated`). The folder
-  `application/<reaction>/` is named after the action (`request-payment/`) and holds the listener,
-  the copy of the event when it comes from another context (`order-created-domain-event.ts`) and
-  the data types it shares. A read model keeps its reactions in `application/<read-model>/<reaction>/`.
-- **Extends**: `EventListener<Event>`, decorated with
-  `@ListensTo(Event, { consumer: '<context>.<reaction>-on-<event>' })`: the file name with the
-  context in front, unique in the whole shop (it names the listener in the channel).
-- **Constructor**: like a use case, only what `handle` uses, in this order: the repository typed
-  with the roles it uses (`AggregateFinder<X> & AggregateSaver<X>`), domain services,
-  `EventBus<XEvent>`, `Clock`, `Logger` (a read model reaction receives its projection instead).
-- **`handle(event)`**, in this order:
-  1. builds the value objects from the fields of the event with one `ValueObjectBuilder.build`
-     and destructures them, with the same rules as `toCommand` (enum casts, `X.fromPrimitives`,
-     `buildList`);
-  2. computes the id when it depends on other data (`PaymentId.forOrder`, `ShipmentId.forOrder`);
-  3. to create: returns quietly when the aggregate already exists, then calls
-     `<Aggregate>.create(...)`. To change: loads it with `findById` and returns quietly when it is
-     missing. An event is a fact that may arrive twice or about something this context does not
-     have;
-  4. calls the business method that reacts (`markPaid`, `settleForCancelledOrder`), which itself
-     does nothing when it does not apply;
-  5. saves the aggregate once and publishes `pullDomainEvents()`, then logs if the business wants
-     a trace.
-- **Does not contain**: authorization (an event is not an actor), `AggregateNotFoundException`,
-  business errors of its own, HTTP, another use case or listener.
-- **Errors**: there is no `UseCase` around it, so nothing wraps unknown errors in
-  `UnexpectedErrorException`. Any error reaches `DomainEventBus`, which logs it (`warn` for a
-  `DomainException` or `ApplicationException`, `error` otherwise) and rethrows it to the channel.
+Template (create), `payments/application/request-payment/request-payment-on-order-created.ts`:
 
 ```ts
 import type { AggregateFinder, AggregateSaver } from '../../../../ddd/domain';
@@ -1132,7 +637,7 @@ export class RequestPaymentOnOrderCreated extends EventListener<OrderCreatedDoma
 }
 ```
 
-A reaction that changes an existing aggregate (`MarkOrderShippedOnShipmentDispatched`):
+Template (change), `handle` of `sales/application/mark-order-shipped/mark-order-shipped-on-shipment-dispatched.ts`:
 
 ```ts
   async handle(event: ShipmentDispatchedDomainEvent): Promise<void> {
@@ -1150,33 +655,23 @@ A reaction that changes an existing aggregate (`MarkOrderShippedOnShipmentDispat
   }
 ```
 
-Every reaction use case of the shop:
+With logging: `sales/application/cancel-unpaid-order/cancel-unpaid-order-on-payment-rejected.ts` (`Logger` last in the constructor; `this.logger.info('order_cancelled_for_rejected_payment', { orderId: orderId.value, reason: reason.value })` after publish).
 
-| Context  | Event heard                   | Reaction use case                               | What it does                                            |
-| -------- | ----------------------------- | ----------------------------------------------- | ------------------------------------------------------- |
-| Payments | `order.created`               | `RequestPaymentOnOrderCreated`                  | creates the payment and processes it                    |
-| Payments | `order.line_quantity_changed` | `AdjustPaymentAmountOnOrderLineQuantityChanged` | adjusts a waiting transfer                              |
-| Payments | `order.cancelled`             | `SettleCancelledOrderPaymentOnOrderCancelled`   | refunds a captured payment or voids a waiting one       |
-| Sales    | `payment.captured`            | `MarkOrderPaidOnPaymentCaptured`                | marks the order paid                                    |
-| Sales    | `payment.rejected`            | `CancelUnpaidOrderOnPaymentRejected`            | cancels the order and logs it                           |
-| Sales    | `shipment.dispatched`         | `MarkOrderShippedOnShipmentDispatched`          | marks the order shipped                                 |
-| Sales    | `shipment.delivered`          | `MarkOrderDeliveredOnShipmentDelivered`         | marks the order delivered                               |
-| Sales    | `order.*` (its own events)    | six reactions of `order-summaries/`             | update the read model (see [Read models](#read-models)) |
-| Shipping | `order.paid`                  | `PrepareShipmentOnOrderPaid`                    | creates the shipment                                    |
-| Shipping | `order.cancelled`             | `CancelShipmentOnOrderCancelled`                | cancels a shipment still being prepared                 |
+### 3.4 Consumed event copies (A-EVC)
 
-### Data types of the application
+| Id     | Rule                                                                                                                                                           |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A-EVC1 | For each event of another context it reacts to, the consumer declares a copy in the reaction folder: `application/<action>/<event>-domain-event.ts`.           |
+| A-EVC2 | Same class name (`<Event>DomainEvent`) and same `eventName` as the producer; fields = a subset of the producer's fields (SHOULD be only those `handle` reads). |
+| A-EVC3 | Written exactly like a domain event (D-EVT3, D-EVT5): inline types, no interfaces, `EventMetadata`.                                                            |
+| A-EVC4 | Two reactions of one context to the same foreign event each keep their own copy in their own folder.                                                           |
 
-The plain shapes the application receives (inputs of use cases, bodies of controllers) are
-interfaces in the folder of the use case that uses them, in kebab-case files, and the rest of the
-context imports them from there:
+### 3.5 Data types (A-DT)
 
-| Type                                | File                                                    |
-| ----------------------------------- | ------------------------------------------------------- |
-| `MoneyData` (Sales)                 | `sales/application/place-order/money-data.ts`           |
-| `AddressData`                       | `sales/application/place-order/address-data.ts`         |
-| `MoneyData` (Payments)              | `payments/application/request-payment/money-data.ts`    |
-| `PaidOrderAddress`, `PaidOrderItem` | `shipping/application/prepare-shipment/paid-order-*.ts` |
+| Id    | Rule                                                                                                                                                                                                                                                                                                                               |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A-DT1 | Plain shapes the application receives (`MoneyData`, `AddressData`, `PaidOrderAddress`, `PaidOrderItem`) are `export interface` in kebab-case files in the folder of the use case that first needs them; the rest of the context imports them from there (`../place-order/money-data`, `./application/request-payment/money-data`). |
+| A-DT2 | Not in `domain/`; never shared between contexts (each context has its own `MoneyData`).                                                                                                                                                                                                                                            |
 
 ```ts
 export interface MoneyData {
@@ -1185,338 +680,91 @@ export interface MoneyData {
 }
 ```
 
-### Events a context consumes
+### 3.6 Read models (A-RM)
 
-A context never imports another one. For each event it reads, the consumer declares its own copy
-in the folder of the use case that reacts (`<event>-domain-event.ts`, kebab-case) with the same
-class name, the same `eventName` and only the fields it reads, written like a domain event (no
-types, inline object in the constructor):
+| Id    | Rule                                                                                                                                                                                                                                                                                                                                                                                |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A-RM1 | Folder `application/<read-model>/` (`order-summaries/`) with: `<row>.ts` (row interface of primitives + `<Row>Changes = Partial<Pick<<Row>, …>>`), `<row>-store.ts` (write port: `find(id)`, `hasApplied(eventId)`, `save(row, eventId)`), `<rows>.ts` (query port: `byId`, `ofCustomer`), `<row>-projection.ts`, and one subfolder per reaction.                                   |
+| A-RM2 | `<Row>Projection` (`OrderSummaryProjection`) is not a use case and hears no event: constructor receives the store port; `apply({ eventId, orderId, occurredOn, changes })` returns when `eventId` was applied, merges `changes` into the stored row or a default row, sets `lastEventAt`, saves with the `eventId`. Its input interface (`OrderSummaryChange`) holds value objects. |
+| A-RM3 | Each event that changes the row has its own reaction use case (A-RUC) in `<read-model>/<action>/<action>-on-<event>.ts`: builds `eventId: new UuidType(event.eventId)`, `orderId: new OrderId(event.orderId)`, `occurredOn: new CreatedAt(event.occurredOn)` plus the fields it needs, decides the change (status constant, sums) and calls `await this.projection.apply(...)`.     |
+| A-RM4 | Queries have no use case: the controller receives the query port and calls it.                                                                                                                                                                                                                                                                                                      |
+| A-RM5 | One infrastructure class implements both ports and returns `structuredClone` copies (`InMemoryOrderSummaryStore`).                                                                                                                                                                                                                                                                  |
 
-```ts
-import { EventBase } from '../../../../ddd/domain';
-import type { EventMetadata } from '../../../../ddd/domain';
+Reference reaction: `sales/application/order-summaries/mark-order-summary-paid/mark-order-summary-paid-on-order-paid.ts`.
 
-export class OrderCreatedDomainEvent extends EventBase {
-  static readonly eventName = 'order.created';
+## 4. Infrastructure layer (I)
 
-  readonly orderId: string;
-  readonly total: { amount: number; currency: string };
-  readonly paymentMethod: string;
+### 4.1 Repositories (I-REPO)
 
-  constructor({
-    orderId,
-    total,
-    paymentMethod,
-    eventId,
-    occurredOn,
-    clock,
-  }: {
-    orderId: string;
-    total: { amount: number; currency: string };
-    paymentMethod: string;
-  } & EventMetadata) {
-    super({ eventId, occurredOn, clock });
-    this.orderId = orderId;
-    this.total = total;
-    this.paymentMethod = paymentMethod;
-  }
-}
-```
+| Id      | Rule                                                                                                                                                                                                                                                               |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| I-REPO1 | `infrastructure/persistence/in-memory-<aggregate>-repository.ts`, `InMemory<Aggregate>Repository implements` the roles the use cases need (`AggregateFinder<X>`, `AggregateSaver<X>`, `AggregateRemover<X>`). No repository interface of its own.                  |
+| I-REPO2 | Constructor: only its technology (none in memory); never an aggregate class or mapper.                                                                                                                                                                             |
+| I-REPO3 | Storage: `private readonly rows = new Map<string, <Aggregate>Row>()` keyed by `id.value`, with a file-local `interface <Aggregate>Row { version: number; primitives: PrimitiveTypes<X> }`; `private readonly versions = new WeakMap<X, number>()`.                 |
+| I-REPO4 | `findById`: missing → `null`; else `X.fromPrimitives(structuredClone(row.primitives))` and `versions.set(x, row.version)`.                                                                                                                                         |
+| I-REPO5 | `save`: `version = versions.get(x) ?? 0`; if stored version (`?? 0`) ≠ `version` → `throw new ConcurrencyException('<Aggregate>', key, version)`; store `{ version: version + 1, primitives: structuredClone(x.toPrimitives()) }`; `versions.set(x, version + 1)`. |
+| I-REPO6 | `remove`: same version check (MAY share a private `checkedVersion`), then `rows.delete(key)`.                                                                                                                                                                      |
+| I-REPO7 | MUST NOT contain business queries, `nextId()`, events or rules. MAY expose read helpers (`versionOf(id)`).                                                                                                                                                         |
 
-### Read models
+References: `payments/infrastructure/persistence/in-memory-payment-repository.ts`, `sales/infrastructure/persistence/in-memory-order-repository.ts`.
 
-A read model answers queries without loading aggregates. It lives in its own folder of
-`application/` (`order-summaries/`) and is fed only by events, each through its own
-[reaction use case](#reaction-use-cases):
+### 4.2 Port adapters (I-ADP)
 
-| File or folder                                   | What it is                                                                             |
-| ------------------------------------------------ | -------------------------------------------------------------------------------------- |
-| `order-summary.ts`                               | the row (`OrderSummary`, plain primitives) and the partial change it receives          |
-| `order-summary-store.ts`                         | the write port of the projection: `find`, `hasApplied(eventId)`, `save(row, eventId)`  |
-| `order-summaries.ts`                             | the query port the controller reads: `byId`, `ofCustomer`                              |
-| `order-summary-projection.ts`                    | `OrderSummaryProjection.apply(change)`: applies one change, skipping a known `eventId` |
-| `<reaction>/<reaction>-on-<event>.ts` (one file) | a reaction use case: one listener class                                                |
+| Id     | Rule                                                                                                                                           |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| I-ADP1 | `infrastructure/<area>/in-memory-<port>.ts`, `InMemory<Port> implements <Port>` (domain or application port).                                  |
+| I-ADP2 | Receives raw data or technology by constructor; raw shapes are interfaces in the same file (`MarketingCampaign`).                              |
+| I-ADP3 | Answers in value objects. Bad external data → `throw new InternalErrorException('<message>', { cause: error })` (500), never a business error. |
 
-The reactions of `order-summaries/`:
+References: `sales/infrastructure/coupon/in-memory-coupon-catalog.ts`, `sales/infrastructure/read-model/in-memory-order-summary-store.ts`.
 
-| Event                         | Reaction use case                                   | Change it decides                         |
-| ----------------------------- | --------------------------------------------------- | ----------------------------------------- |
-| `order.created`               | `OpenOrderSummaryOnOrderCreated`                    | customer, `pending_payment`, total, items |
-| `order.line_quantity_changed` | `UpdateOrderSummaryTotalOnOrderLineQuantityChanged` | total                                     |
-| `order.paid`                  | `MarkOrderSummaryPaidOnOrderPaid`                   | `paid`, items                             |
-| `order.cancelled`             | `MarkOrderSummaryCancelledOnOrderCancelled`         | `cancelled`                               |
-| `order.shipped`               | `MarkOrderSummaryShippedOnOrderShipped`             | `shipped`, tracking number                |
-| `order.delivered`             | `MarkOrderSummaryDeliveredOnOrderDelivered`         | `delivered`                               |
+## 5. Interfaces layer (H)
 
-- Each one is written like any reaction use case; its constructor receives only
-  `OrderSummaryProjection`.
-- **`handle(event)`**: builds the value objects from the event with one `ValueObjectBuilder.build`
-  (`UuidType`, `OrderId`, `CreatedAt`, `Quantity`…), decides the change (the status, the sum of the
-  quantities) and hands it to the projection.
-- `OrderSummaryProjection` is the shared, idempotent write of the read model over the store port
-  (not a reaction: it hears no event).
-- Queries do not go through a use case: the controller reads the query port directly.
-- One class implements both ports in infrastructure (`InMemoryOrderSummaryStore`) and returns
-  copies (`structuredClone`), never its own objects.
+### 5.1 Controllers (H-CTL)
 
-```ts
-import { CreatedAt, UuidType } from '../../../../../ddd/domain';
-import { EventListener, ListensTo, ValueObjectBuilder } from '../../../../../ddd/application';
-import { OrderPaidDomainEvent } from '../../../domain/event/OrderPaidDomainEvent';
-import { OrderId } from '../../../domain/value-object/OrderId';
-import { OrderStatus } from '../../../domain/value-object/OrderStatusType';
-import { Quantity } from '../../../domain/value-object/Quantity';
-import type { OrderSummaryProjection } from '../order-summary-projection';
+| Id     | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| H-CTL1 | `interfaces/http/<aggregates>-controller.ts`, class `<Aggregates>Controller`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| H-CTL2 | Constructor: user use cases (one param each, or one `<Aggregates>UseCases` interface declared in the same file when there are many: `OrdersUseCases`), query ports of read models, `logger: Logger` last; field `private readonly http: Http` set with `this.http = new Http(logger)`.                                                                                                                                                                                                                                                                               |
+| H-CTL3 | One method per endpoint: `<name>(request: HttpRequest): Promise<HttpResponse>` returning `this.http.respond(async () => { … })`.                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| H-CTL4 | Endpoint steps: (1) when the use case needs an actor: `request.auth?.userId` (customer) or `request.auth?.role` (staff) `=== undefined` → `return this.http.unauthenticated();`; (2) when there is a body: `this.http.jsonBody(request) === null`, or an expected list is not an array → `return this.http.badRequest('<English hint>');` (shape only, never values); (3) `await useCase.execute({ actorId \| actorRole, …request.params, …body })`; (4) response: create `{ status: 201, body: { id } }`, command `{ status: 204 }`, query `{ status: 200, body }`. |
+| H-CTL5 | MUST NOT catch errors, map statuses or contain rules: `Http.respond` translates every error.                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| H-CTL6 | Query endpoints read the query port directly; missing row → `{ status: 404, body: { code: 'NOT_FOUND', message: '<Aggregate> not found' } }`.                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
-@ListensTo(OrderPaidDomainEvent, { consumer: 'sales.mark-order-summary-paid-on-order-paid' })
-export class MarkOrderSummaryPaidOnOrderPaid extends EventListener<OrderPaidDomainEvent> {
-  constructor(private readonly projection: OrderSummaryProjection) {
-    super();
-  }
+References: `payments/interfaces/http/payments-controller.ts`, `sales/interfaces/http/orders-controller.ts`.
 
-  async handle(event: OrderPaidDomainEvent): Promise<void> {
-    const { eventId, orderId, occurredOn, quantities } = ValueObjectBuilder.build({
-      eventId: () => new UuidType(event.eventId),
-      orderId: () => new OrderId(event.orderId),
-      occurredOn: () => new CreatedAt(event.occurredOn),
-      quantities: () =>
-        ValueObjectBuilder.buildList(event.items, (item) => new Quantity(item.quantity)),
-    });
-    await this.projection.apply({
-      eventId,
-      orderId,
-      occurredOn,
-      changes: {
-        status: OrderStatus.PAID,
-        items: quantities.reduce((items, quantity) => items + quantity.value, 0),
-      },
-    });
-  }
-}
-```
+### 5.2 `platform/http/http.ts` (H-HTTP)
 
-```ts
-export class OrderSummaryProjection {
-  constructor(private readonly store: OrderSummaryStore) {}
+Technical helper shared by all contexts; holds no business rule. `HttpRequest { auth?: { userId?; role? }; params?; body? }`, `HttpResponse { status; body? }`, `Http.respond / jsonBody / badRequest / unauthenticated`. Errors are mapped with `ExceptionClassifier.classify(error)`:
 
-  async apply({ eventId, orderId, occurredOn, changes }: OrderSummaryChange): Promise<void> {
-    const appliedEventId = eventId.toString();
-    if (await this.store.hasApplied(appliedEventId)) {
-      return;
-    }
-    const lastEventAt = occurredOn.toString();
-    const current = (await this.store.find(orderId.value)) ?? {
-      orderId: orderId.value,
-      customerId: null,
-      status: 'unknown',
-      total: null,
-      items: 0,
-      trackingNumber: null,
-      lastEventAt,
-    };
-    await this.store.save({ ...current, ...changes, lastEventAt }, appliedEventId);
-  }
-}
-```
+| ExceptionKind | Status | Thrown as                                                                                                             |
+| ------------- | ------ | --------------------------------------------------------------------------------------------------------------------- |
+| `Malformed`   | 400    | `TypePrimitiveException`, `RequiredValueException`                                                                    |
+| `Rejected`    | 400    | any other `ApplicationException`                                                                                      |
+| `NotAllowed`  | 403    | `NotAllowedException`                                                                                                 |
+| `NotFound`    | 404    | `AggregateNotFoundException`                                                                                          |
+| `Conflict`    | 409    | `ConcurrencyException`                                                                                                |
+| `Invalid`     | 422    | `ValidationException` (from `ValueObjectBuilder`) and business errors (`DomainException`)                             |
+| `Internal`    | 500    | anything else (`InternalErrorException`, unknown); logged as `logger.error('http_request_failed', …)`, message hidden |
 
-### Repositories
+Error body: `{ code, message, errors }` (`errors` only for `ValidationException`). Missing auth → 401 `UNAUTHENTICATED`; bad shape → 400 `BAD_REQUEST`.
 
-- **File and name**: `infrastructure/persistence/<technology>-<aggregate>-repository.ts`, class
-  `<Technology><Aggregate>Repository` (`InMemoryPaymentRepository`).
-- **Implements** the roles the use cases of the context need (`AggregateFinder<X>`,
-  `AggregateSaver<X>`, `AggregateRemover<X>`); there is no `XRepository` interface.
-- **Constructor**: only its technology (here nothing; a collection or a pool in a real one), never
-  the aggregate class or a mapper.
-- **Stores** `{ version, primitives: PrimitiveTypes<X> }` per id, built with
-  `X.toPrimitives()` and read with `X.fromPrimitives()`, copied with `structuredClone` both ways.
-- **Optimistic concurrency**: a private `WeakMap<X, number>` remembers the version of each object
-  it loaded or saved (unknown object = new = 0). `save` and `remove` compare it with the stored
-  version and throw `ConcurrencyException('<Aggregate>', id, version)` when they differ, then store
-  `version + 1`.
-- **Does not contain**: business queries or rules, `nextId()`, events.
+## 6. Composition (C)
 
-```ts
-import type { AggregateFinder, AggregateSaver, PrimitiveTypes } from '../../../../ddd/domain';
-import { ConcurrencyException } from '../../../../ddd/application';
-import { Payment } from '../../domain/aggregate/Payment';
-import type { PaymentId } from '../../domain/value-object/PaymentId';
+### 6.1 `composition.ts` (C-CMP)
 
-interface PaymentRow {
-  version: number;
-  primitives: PrimitiveTypes<Payment>;
-}
+| Id     | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| C-CMP1 | One class `<Context>Context` plus `export interface <Context>Settings { channel: EventChannel; clock: Clock; logger: Logger; …own data }`. Only place that instantiates classes of the context.                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| C-CMP2 | `private constructor(readonly <repositories/stores>, readonly controller, private readonly subscriptions: Subscription[])`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| C-CMP3 | `static async start(settings)`: (1) `const bus = new DomainEventBus<EventBase>(channel, <Context>Context.registry(), logger);` (2) repositories, stores, adapters, domain services (`new OrderPricing(new InMemoryCouponCatalog(campaigns))`), projections; (3) every reaction use case with its dependencies (`new RequestPaymentOnOrderCreated(payments, bus, clock)`), each subscribed with `await bus.subscribe(listener)` and its `Subscription` kept; (4) the controller with the user use cases (`new ConfirmTransferReceived(payments, bus, clock)`), query ports and `logger`; (5) `return new <Context>Context(...)`. |
+| C-CMP4 | `async stop()`: `for (const subscription of this.subscriptions.splice(0)) { await subscription.unsubscribe(); }`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| C-CMP5 | `private static registry(): EventRegistry<EventBase>` (C-REG).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 
-export class InMemoryPaymentRepository
-  implements AggregateFinder<Payment>, AggregateSaver<Payment>
-{
-  private readonly rows = new Map<string, PaymentRow>();
-  private readonly versions = new WeakMap<Payment, number>();
+### 6.2 Event registry (C-REG)
 
-  async findById(id: PaymentId): Promise<Payment | null> {
-    const row = this.rows.get(id.value);
-    if (row === undefined) {
-      return null;
-    }
-    const payment = Payment.fromPrimitives(structuredClone(row.primitives));
-    this.versions.set(payment, row.version);
-    return payment;
-  }
-
-  async save(payment: Payment): Promise<void> {
-    const key = payment.id.value;
-    const version = this.versions.get(payment) ?? 0;
-    if ((this.rows.get(key)?.version ?? 0) !== version) {
-      throw new ConcurrencyException('Payment', key, version);
-    }
-    this.rows.set(key, {
-      version: version + 1,
-      primitives: structuredClone(payment.toPrimitives()),
-    });
-    this.versions.set(payment, version + 1);
-  }
-}
-```
-
-`remove` runs the same version check and deletes the row (`InMemoryOrderRepository`, which moves
-the check to a private `checkedVersion`).
-
-### Adapters of ports
-
-- **File and name**: `infrastructure/<port-area>/<technology>-<port>.ts`
-  (`coupon/in-memory-coupon-catalog.ts`, `InMemoryCouponCatalog implements CouponCatalog`).
-- Receives its technology or its raw data by constructor (`MarketingCampaign[]`, declared in the
-  same file) and answers in the value objects of the port.
-- Bad data from outside is not a business error: it is wrapped in `InternalErrorException` with
-  `{ cause }` (500).
-
-```ts
-  async discountOf(code: CouponCode): Promise<DiscountPercent | null> {
-    const campaign = this.campaigns.get(code.value);
-    if (campaign === undefined || !campaign.active) {
-      return null;
-    }
-    try {
-      return new DiscountPercent(campaign.percentOff);
-    } catch (error) {
-      throw new InternalErrorException(`the campaign ${campaign.code} has an invalid discount`, {
-        cause: error,
-      });
-    }
-  }
-```
-
-### Controllers
-
-- **File and name**: `interfaces/http/<context-plural>-controller.ts`, class
-  `<Plural>Controller` (`OrdersController`, `PaymentsController`).
-- **Constructor**: the use cases it calls (one argument, or an `<Plural>UseCases` interface in the
-  same file when there are several), the query ports of read models and the `Logger`, from which
-  it builds its `Http` helper.
-- **Each endpoint** is a method `(request: HttpRequest): Promise<HttpResponse>` wrapped in
-  `this.http.respond(async () => …)`, and in this order:
-  1. authentication: no `request.auth` → `this.http.unauthenticated()` (401);
-  2. shape of the body: `this.http.jsonBody(request)` is `null`, or a list is not a list →
-     `this.http.badRequest('<English hint>')` (400). Only the shape: values are checked by the
-     value objects;
-  3. `execute` of the use case with the actor (`actorId: auth.userId`, `actorRole: auth.role`), the
-     route params and the body;
-  4. the response: `201` with `{ id }` when it creates, `204` when it returns nothing, `200` with
-     the body of a query.
-- **Never** catches errors itself: `Http.respond` translates them.
-
-```ts
-  confirmTransfer(request: HttpRequest): Promise<HttpResponse> {
-    return this.http.respond(async () => {
-      const role = request.auth?.role;
-      if (role === undefined) {
-        return this.http.unauthenticated();
-      }
-      const body = this.http.jsonBody(request);
-      if (body === null) {
-        return this.http.badRequest('Send the received amount as a JSON object');
-      }
-      await this.confirmTransferReceived.execute({
-        actorRole: role,
-        paymentId: request.params?.paymentId as string,
-        received: body as unknown as MoneyData,
-      });
-      return { status: 204 };
-    });
-  }
-```
-
-### `platform/http/http.ts`
-
-The only technical helper shared by the contexts. It declares `HttpRequest`
-(`auth`, `params`, `body`), `HttpResponse` (`status`, `body`) and the class `Http`:
-
-- `respond(action)` runs the endpoint and turns any error into a response with
-  `ExceptionClassifier.classify(error)`:
-
-  | `ExceptionKind` | Status | Comes from                                                            |
-  | --------------- | ------ | --------------------------------------------------------------------- |
-  | `Malformed`     | 400    | a value that cannot be converted (`TypePrimitiveException`, required) |
-  | `Rejected`      | 400    | any other `ApplicationException`                                      |
-  | `NotAllowed`    | 403    | `NotAllowedException`                                                 |
-  | `NotFound`      | 404    | `AggregateNotFoundException`                                          |
-  | `Conflict`      | 409    | `ConcurrencyException`                                                |
-  | `Invalid`       | 422    | any other `DomainException` (`ValidationException`, business errors)  |
-  | `Internal`      | 500    | anything else; logged as `error`, the message is hidden               |
-
-  The body is `{ code, message, errors }` (`errors` only for a `ValidationException`).
-
-- `jsonBody`, `badRequest(message)` and `unauthenticated()` for the checks of the controllers.
-
-### `composition.ts`
-
-Each context exposes one class, `<Context>Context`, the only place that creates objects:
-
-- `interface <Context>Settings` with what it receives from outside: `channel`, `clock`, `logger`
-  and its own data (`campaigns`).
-- A private constructor with what tests and `shop.ts` need (repositories, read models, the
-  controller) and the subscriptions.
-- `static async start(settings)`:
-  1. creates the `DomainEventBus<EventBase>(channel, <Context>Context.registry(), logger)`;
-  2. creates the repositories, read model stores and adapters, and the domain services with them;
-  3. creates each reaction use case with what it uses (`new RequestPaymentOnOrderCreated(payments, bus, clock)`)
-     and subscribes them all with `await bus.subscribe(listener)`;
-  4. creates the controller with the use cases users call;
-  5. returns the context.
-- `async stop()` unsubscribes every subscription.
-- `private static registry()` registers every event the context receives (see below).
-
-```ts
-  static async start({ channel, clock, logger }: PaymentsSettings): Promise<PaymentsContext> {
-    const bus = new DomainEventBus<EventBase>(channel, PaymentsContext.registry(), logger);
-    const payments = new InMemoryPaymentRepository();
-    const listeners = [
-      new RequestPaymentOnOrderCreated(payments, bus, clock),
-      new AdjustPaymentAmountOnOrderLineQuantityChanged(payments, bus, clock),
-      new SettleCancelledOrderPaymentOnOrderCancelled(payments, bus, clock),
-    ];
-    const subscriptions: Subscription[] = [];
-    for (const listener of listeners) {
-      subscriptions.push(await bus.subscribe(listener));
-    }
-    const controller = new PaymentsController(
-      new ConfirmTransferReceived(payments, bus, clock),
-      logger,
-    );
-    return new PaymentsContext(payments, controller, subscriptions);
-  }
-
-  async stop(): Promise<void> {
-    for (const subscription of this.subscriptions.splice(0)) {
-      await subscription.unsubscribe();
-    }
-  }
-```
-
-#### Registering events
-
-`registry()` registers every event the context receives in its `EventRegistry` (the copies of
-other contexts and, for a read model, its own domain events), with a factory that maps each field
-of the JSON and passes `eventId` and `occurredOn`:
+- C-REG1: Register every event the context hears (copies of foreign events and own events heard by read models), each exactly once.
+- C-REG2: The factory maps every field of the event class from the JSON with a cast and passes `eventId` and `occurredOn`:
 
 ```ts
       .register(
@@ -1532,110 +780,139 @@ of the JSON and passes `eventId` and `occurredOn`:
       )
 ```
 
-### `shop.ts`
+### 6.3 `shop.ts` (C-SHOP)
 
-Opens the whole shop: one `InMemoryEventChannel({ delivery: 'serial' })`, then `start` of each
-context with the same channel, clock and logger, and `close()` stops them in reverse order.
+`Shop.open({ clock, logger, campaigns = [] })`: one `new InMemoryEventChannel({ delivery: 'serial' })`, then `SalesContext.start`, `PaymentsContext.start`, `ShippingContext.start` with the same channel, clock and logger. `close()` stops them in reverse order. A new context is added here.
 
-```ts
-  static async open({ clock, logger, campaigns = [] }: ShopSettings): Promise<Shop> {
-    const channel = new InMemoryEventChannel({ delivery: 'serial' });
-    const sales = await SalesContext.start({ channel, clock, logger, campaigns });
-    const payments = await PaymentsContext.start({ channel, clock, logger });
-    const shipping = await ShippingContext.start({ channel, clock, logger });
-    return new Shop(channel, sales, payments, shipping);
-  }
+## 7. Recipes (R)
 
-  async close(): Promise<void> {
-    await this.shipping.stop();
-    await this.payments.stop();
-    await this.sales.stop();
-  }
-```
+### R1 New user action on an existing aggregate
 
-### Adding a feature, step by step
+1. Domain: business error(s) in `exception/` (next code, 8.4); `<Aggregate><PastAction>DomainEvent` in `event/` and added to `<Aggregate>Event`; business method on the aggregate (D-AGG9, D-AGG10).
+2. Application: `application/<action>/<action>.ts` (A-USR template).
+3. Interfaces: endpoint method in the controller (H-CTL4).
+4. Composition: pass `new <Action>(repo, …, bus, clock)` to the controller.
+5. If another context or a read model reacts: R2 in that context.
 
-1. Domain: value objects, the event (`<Aggregate><PastAction>DomainEvent`, added to the union
-   `<Aggregate>Event`), the business error and the business method of the aggregate.
-2. Application: when a user calls it, `application/<use-case>/` with the `UseCase` class and its
-   input data types; when it reacts to an event, `application/<reaction>/` with the
-   `<Action>On<Event>` reaction use case and, if the event comes from another context, its copy.
-3. Infrastructure: a new role in the repository, or a new adapter, only when the use case needs it.
-4. Interfaces: the endpoint in the controller, for a use case a user calls.
-5. `composition.ts`: pass a use case a user calls to the controller; create a reaction use case,
-   subscribe it and register the event it hears.
+### R2 New reaction to an event
 
-## The flows
+1. Domain: reaction method on the aggregate (D-AGG11) and the event it records, if it changes state.
+2. Application: folder `application/<action>/` with `<event>-domain-event.ts` (foreign event only, A-EVC) and `<action>-on-<event>.ts` (A-RUC template).
+3. Composition: register the event in `registry()` if not registered yet; create the reaction with its dependencies; subscribe it.
 
-| Story                           | What happens                                                                                                                                                                              |
-| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Card order                      | `order.created` → `payment.created` → `payment.captured` → `order.paid` → `shipment.created`, all before `placeOrder` answers 201                                                         |
-| Shipment                        | warehouse dispatches (`shipment.dispatched` → `order.shipped`) and delivers (`shipment.delivered` → `order.delivered`)                                                                    |
-| Card over 500.00 (compensation) | `payment.rejected` (`limit_exceeded`) → `order.cancelled`; no shipment is prepared                                                                                                        |
-| Bank transfer                   | `payment.awaiting_transfer`; quantity changes adjust the payment; treasury confirms the exact amount → paid, or a wrong amount → cancelled                                                |
-| Cancellation                    | a paid order is refunded and its shipment cancelled; a waiting transfer is voided                                                                                                         |
-| Read model                      | one reaction listener per event (`OpenOrderSummaryOnOrderCreated`, `MarkOrderSummaryPaidOnOrderPaid`…) decides the change; `OrderSummaryProjection` skips an `eventId` it already applied |
+### R3 New aggregate
 
-## Business rules
+1. `value-object/<Aggregate>Id.ts`, status enum, value objects of its fields.
+2. `aggregate/<Aggregate>.ts` (D-AGG template), events + union, errors.
+3. `infrastructure/persistence/in-memory-<aggregate>-repository.ts` (I-REPO).
+4. Use cases (R1/R2), controller, composition.
 
-| Context  | Rule                                                                                                                                    | Where                                    |
-| -------- | --------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
-| Money    | whole cents ≥ 0; never mixes currencies (`MNY001`); discounts round down                                                                | `Money`, `Cents` (custom `AbstractType`) |
-| Sales    | 1 to 20 lines (`SAL001`), no repeated SKU (`SAL002`), one currency, total from 0.01 to 10000.00 (`SAL003`)                              | `Order.create`                           |
-| Sales    | quantities and address change only while `pending_payment` (`SAL004`); a quantity that breaks the total is undone                       | `Order`, `OrderLine` (child entity)      |
-| Sales    | only the buyer cancels (`SAL006`, business rule → 422), only before shipping (`SAL005`); only an admin discards a cancelled order (403) | `Order.cancel`, `DiscardCancelledOrder`  |
-| Sales    | coupons: up to 3, no repeats (list rules), known active campaigns (`SAL009`), discount capped at 50%                                    | `CouponCodes`, `OrderPricing`            |
-| Sales    | free shipping: subtotal ≥ 50.00 or a premium pass, and no gift card                                                                     | `FreeShippingEligible` (specification)   |
-| Sales    | only the signed-in customer places their own orders (`NotAllowedException`, 403)                                                        | `PlaceOrder`                             |
-| Payments | card up to 500.00, transfer up to 5000.00, else rejected; a transfer must arrive with the exact amount                                  | `Payment.process`, `confirmTransfer`     |
-| Payments | only treasury confirms transfers (403); one payment per order (id derived from the order)                                               | `ConfirmTransferReceived`, `PaymentId`   |
-| Shipping | carrier and delivery date by country; dispatch needs a tracking number (`SHP002`) and a preparing shipment (`SHP001`)                   | `Shipment`                               |
-| Shipping | only the warehouse dispatches and delivers (403)                                                                                        | `DispatchShipment`, `DeliverShipment`    |
+### R4 New read model field
 
-Reactions to events (`markPaid`, `cancelForRejectedPayment`, `settleForCancelledOrder`,
-`cancelForCancelledOrder`…) are facts: they are idempotent and never throw a business error. Reaction
-use cases return quietly when their aggregate does not exist.
+Extend `<row>.ts` and `<Row>Changes`, the default row in the projection, the reactions that set it; add a reaction (A-RM3) and register the event if a new event feeds it.
 
-## Where each piece of the package is used
+### R5 New context
 
-| Piece                                                     | In the example                                                                             |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `StringType`, `NumberType`, `BooleanType`, `Required`     | `Sku`, `Quantity`, `GiftWrap`, address fields                                              |
-| `DateType`, `CreatedAt`, `UpdatedAt`                      | `ExpectedDelivery`, every aggregate                                                        |
-| `UuidType`, `IdType` (with brand)                         | `PaymentReference` (optional), `OrderReference`, `OrderId`, `PaymentId.forOrder` (v5)      |
-| `EnumType`                                                | statuses, `Currency`, `PaymentMethod`, `Carrier`, `RejectionCodeType` (optional)           |
-| `JsonType`, `ArrayType`, custom `AbstractType`            | `CarrierLabel`, `CouponCodes` (with list rules), `CentsAmount`                             |
-| `Composite` (nested and with a list)                      | `Money`, `ShippingAddress` → `Recipient`, `ShipmentContents` → `[ShipmentItem]`            |
-| `Entity`, `AggregateRoot`, `PrimitiveTypes`               | `OrderLine`; `Order`, `Payment`, `Shipment` with `toPrimitives` / `fromPrimitives`         |
-| `Specification` (`and`, `or`, `not`)                      | `FreeShippingEligible`, `SubtotalAtLeast`, `ContainsSku`                                   |
-| Domain service and domain port                            | `OrderPricing` over `CouponCatalog`                                                        |
-| `AggregateFinder` / `Saver` / `Remover`                   | use cases ask only for the roles they use; in-memory repositories with optimistic versions |
-| `UseCase`, `ValueObjectBuilder.build` / `buildList`       | every use case; `PlaceOrder` reports `lines.1.quantity`                                    |
-| `EventBase`, `EventListener`, `@ListensTo`, `EventBus`    | `OrderCreatedDomainEvent`…, `<Action>On<Event>` reaction use cases                         |
-| `DomainEventBus`, `EventRegistry`, `InMemoryEventChannel` | each `composition.ts` and `shop.ts`                                                        |
-| `Clock`, `Logger`, loggers and clocks                     | `CancelUnpaidOrderOnPaymentRejected` logs; controllers log internal failures               |
-| `ConcurrencyException` (retry and 409)                    | `ChangeShippingAddress` retries; `ChangeOrderLineQuantity` answers 409                     |
-| `AggregateNotFoundException`, `NotAllowedException`       | 404 and 403 of the controllers                                                             |
-| `InternalErrorException`                                  | the coupon catalog wraps bad campaign data (500)                                           |
-| `ExceptionClassifier`, `ExceptionKind`                    | `platform/http/http.ts`                                                                    |
+`contexts/<context>/` with `domain/`, `application/`, `infrastructure/`, `interfaces/`, `composition.ts`; new error prefix; `<Context>Context.start` in `shop.ts`. Never import another context.
 
-Not shown, because they only matter in tests, in production wiring or for mistakes in the wiring:
-`ConsoleLogger`, `SystemClock`, `FixedClock`,
-`InMemoryLogger`, `SilentLogger`, `UnexpectedErrorException`, `RequiredValueException`,
-`InvalidEventDefinitionException`, `UnknownEventException`, `EventDeliveryException` and the
-exception code enums.
+## 8. Current inventory
 
-## Layout
+### 8.1 Contexts and aggregates
 
-```
-src/
-  ddd/                       re-exports src/<layer>/index of the package, as @archi-code/ddd/<layer>
-  platform/http/             error translation shared by the controllers
-  contexts/
-    shared-kernel/money/
-    sales/      domain/ application/ infrastructure/ interfaces/ composition.ts
-                domain/ → aggregate/ entity/ value-object/ event/ service/ exception/ specification/
-    payments/   domain/ application/ infrastructure/ interfaces/ composition.ts
-    shipping/   domain/ application/ infrastructure/ interfaces/ composition.ts
-  shop.ts                    opens the three contexts on one channel
-```
+| Context             | Aggregate (id)                               | Child entities             | Repository roles       | Error prefix |
+| ------------------- | -------------------------------------------- | -------------------------- | ---------------------- | ------------ |
+| sales               | `Order` (`OrderId`, random)                  | `OrderLine` (`LineNumber`) | Finder, Saver, Remover | `SAL`        |
+| payments            | `Payment` (`PaymentId.forOrder`)             | —                          | Finder, Saver          | `PAY`        |
+| shipping            | `Shipment` (`ShipmentId.forOrder`)           | —                          | Finder, Saver          | `SHP`        |
+| shared-kernel/money | `Money` composite (`Cents`, `MoneyCurrency`) | —                          | —                      | `MNY`        |
+
+### 8.2 Events (producer → consumers)
+
+| eventName                        | Producer class                           | Consumers (reaction use case)                                                                                                                        |
+| -------------------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `order.created`                  | `OrderCreatedDomainEvent`                | payments `RequestPaymentOnOrderCreated`; sales `OpenOrderSummaryOnOrderCreated`                                                                      |
+| `order.line_quantity_changed`    | `OrderLineQuantityChangedDomainEvent`    | payments `AdjustPaymentAmountOnOrderLineQuantityChanged`; sales `UpdateOrderSummaryTotalOnOrderLineQuantityChanged`                                  |
+| `order.shipping_address_changed` | `OrderShippingAddressChangedDomainEvent` | —                                                                                                                                                    |
+| `order.paid`                     | `OrderPaidDomainEvent`                   | shipping `PrepareShipmentOnOrderPaid`; sales `MarkOrderSummaryPaidOnOrderPaid`                                                                       |
+| `order.cancelled`                | `OrderCancelledDomainEvent`              | payments `SettleCancelledOrderPaymentOnOrderCancelled`; shipping `CancelShipmentOnOrderCancelled`; sales `MarkOrderSummaryCancelledOnOrderCancelled` |
+| `order.shipped`                  | `OrderShippedDomainEvent`                | sales `MarkOrderSummaryShippedOnOrderShipped`                                                                                                        |
+| `order.delivered`                | `OrderDeliveredDomainEvent`              | sales `MarkOrderSummaryDeliveredOnOrderDelivered`                                                                                                    |
+| `payment.created`                | `PaymentCreatedDomainEvent`              | —                                                                                                                                                    |
+| `payment.captured`               | `PaymentCapturedDomainEvent`             | sales `MarkOrderPaidOnPaymentCaptured`                                                                                                               |
+| `payment.rejected`               | `PaymentRejectedDomainEvent`             | sales `CancelUnpaidOrderOnPaymentRejected`                                                                                                           |
+| `payment.awaiting_transfer`      | `PaymentAwaitingTransferDomainEvent`     | —                                                                                                                                                    |
+| `payment.amount_adjusted`        | `PaymentAmountAdjustedDomainEvent`       | —                                                                                                                                                    |
+| `payment.refunded`               | `PaymentRefundedDomainEvent`             | —                                                                                                                                                    |
+| `payment.voided`                 | `PaymentVoidedDomainEvent`               | —                                                                                                                                                    |
+| `shipment.created`               | `ShipmentCreatedDomainEvent`             | —                                                                                                                                                    |
+| `shipment.dispatched`            | `ShipmentDispatchedDomainEvent`          | sales `MarkOrderShippedOnShipmentDispatched`                                                                                                         |
+| `shipment.delivered`             | `ShipmentDeliveredDomainEvent`           | sales `MarkOrderDeliveredOnShipmentDelivered`                                                                                                        |
+| `shipment.cancelled`             | `ShipmentCancelledDomainEvent`           | —                                                                                                                                                    |
+
+### 8.3 User use cases and endpoints
+
+| Context  | Controller method          | Use case                            | Actor check                                      | Repo roles      | Success               |
+| -------- | -------------------------- | ----------------------------------- | ------------------------------------------------ | --------------- | --------------------- |
+| sales    | `placeOrder`               | `PlaceOrder` (+ `OrderPricing`)     | `auth.userId` must equal `customerId` (use case) | Saver           | 201 `{ id }`          |
+| sales    | `changeLineQuantity`       | `ChangeOrderLineQuantity`           | —                                                | Finder, Saver   | 204 (409 on conflict) |
+| sales    | `changeShippingAddress`    | `ChangeShippingAddress` (retries 3) | —                                                | Finder, Saver   | 204                   |
+| sales    | `cancelOrder`              | `CancelOrder`                       | `auth.userId` is the buyer (aggregate)           | Finder, Saver   | 204                   |
+| sales    | `discardOrder`             | `DiscardCancelledOrder`             | `auth.role` = `admin` (use case)                 | Finder, Remover | 204                   |
+| sales    | `getOrder`, `listMyOrders` | query port `OrderSummaries`         | — / `auth.userId`                                | —               | 200                   |
+| payments | `confirmTransfer`          | `ConfirmTransferReceived`           | `auth.role` = `treasury` (use case)              | Finder, Saver   | 204                   |
+| shipping | `dispatch`                 | `DispatchShipment`                  | `auth.role` = `warehouse` (use case)             | Finder, Saver   | 204                   |
+| shipping | `deliver`                  | `DeliverShipment`                   | `auth.role` = `warehouse` (use case)             | Finder, Saver   | 204                   |
+
+### 8.4 Business errors
+
+| Code   | Class                         | Thrown by                                                              |
+| ------ | ----------------------------- | ---------------------------------------------------------------------- |
+| SAL001 | `OrderLineCountOutOfRange`    | `Order.create` (1–20 lines)                                            |
+| SAL002 | `DuplicateSku`                | `Order.create`                                                         |
+| SAL003 | `OrderTotalOutOfRange`        | `Order.create`, `changeLineQuantity` (0.01–10000.00)                   |
+| SAL004 | `OrderNotModifiable`          | `changeLineQuantity`, `changeShippingAddress` (only `pending_payment`) |
+| SAL005 | `OrderNotCancellable`         | `Order.cancel` (only `pending_payment` or `paid`)                      |
+| SAL006 | `OrderOwnedByAnotherCustomer` | `Order.cancel`                                                         |
+| SAL007 | `OrderLineNotFound`           | `changeLineQuantity`                                                   |
+| SAL008 | `OrderNotDiscardable`         | `Order.assertDiscardable`                                              |
+| SAL009 | `UnknownCoupon`               | `OrderPricing.discountFor`                                             |
+| PAY001 | `PaymentNotAwaitingTransfer`  | `Payment.confirmTransfer`                                              |
+| SHP001 | `ShipmentNotDispatchable`     | `Shipment.dispatch`                                                    |
+| SHP002 | `TrackingNumberMissing`       | `Shipment.dispatch`                                                    |
+| SHP003 | `ShipmentNotDeliverable`      | `Shipment.deliver`                                                     |
+| MNY001 | `CurrencyMismatch`            | `Money.add`                                                            |
+
+Next free codes: `SAL010`, `PAY002`, `SHP004`, `MNY002`.
+
+### 8.5 Business rules and where they live
+
+| Rule                                                                                           | Location                                                                 |
+| ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| money: whole cents ≥ 0, one currency per operation, discounts round down                       | `CentsAmount`, `Money`                                                   |
+| order: 1–20 lines, no repeated SKU, total 0.01–10000.00                                        | `Order.create`                                                           |
+| order changes only in `pending_payment`; a quantity that breaks the total is undone            | `Order.changeLineQuantity`, `changeShippingAddress`                      |
+| coupons: at most 3, no repeats (list rules), known active campaign, total discount ≤ 50%       | `CouponCodeList`, `OrderPricing`                                         |
+| free shipping: subtotal ≥ 50.00 or `PREMIUM-PASS` line, and no `GIFT-CARD` line                | `FreeShippingEligible`                                                   |
+| card ≤ 500.00, transfer ≤ 5000.00, else rejected; a transfer must arrive with the exact amount | `Payment.process`, `Payment.confirmTransfer`                             |
+| one payment and one shipment per order                                                         | `PaymentId.forOrder`, `ShipmentId.forOrder` + create-if-absent reactions |
+| carrier and expected delivery by country; dispatch needs `preparing` and a tracking number     | `Shipment.create`, `Shipment.dispatch`                                   |
+
+### 8.6 Flows (expected event sequences)
+
+| Story               | Sequence                                                                                                                           |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| card order          | `order.created` → `payment.created` → `payment.captured` → `order.paid` → `shipment.created` (all before `placeOrder` returns 201) |
+| shipment            | `shipment.dispatched` → `order.shipped`; `shipment.delivered` → `order.delivered`                                                  |
+| card over limit     | `order.created` → `payment.created` → `payment.rejected` → `order.cancelled` (logged)                                              |
+| bank transfer       | `payment.awaiting_transfer`; `order.line_quantity_changed` → `payment.amount_adjusted`; `order.cancelled` → `payment.voided`       |
+| cancel a paid order | `order.cancelled` → `payment.refunded` + `shipment.cancelled`                                                                      |
+
+## 9. Review checklist
+
+- [ ] G: English, no comments, named exports, `import type` split, no cross-context import, layer matrix (G9).
+- [ ] D: value objects always valid through `@Validations`; aggregate member order and fields (D-AGG1, D-AGG3); `create` never computes ids; reaction methods return silently, user methods throw; `toPrimitives`/`fromPrimitives` cover every field; events primitive-only, inline types, added to the union; errors with the next code.
+- [ ] A: user use case = `UseCase` with one `ValueObjectBuilder.build` in `toCommand` and the A-USR5 steps; reaction use case = one `EventListener` class with consumer `<context>.<file-name>` and the A-RUC5 steps; no use case calls another; one event copy per reaction folder.
+- [ ] I: repositories implement roles only, version check with `WeakMap`, `structuredClone` both ways; adapters wrap bad data in `InternalErrorException`.
+- [ ] H: controllers check only auth and shape, never catch.
+- [ ] C: every reaction subscribed, every heard event registered once, controllers receive the user use cases.
+- [ ] `npm run check:types` (packages/ddd) and `npm run check:format` (root) pass.
