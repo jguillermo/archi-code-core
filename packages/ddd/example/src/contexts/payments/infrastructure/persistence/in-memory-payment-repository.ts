@@ -1,7 +1,7 @@
 import type { AggregateFinder, AggregateSaver, PrimitiveTypes } from '../../../../ddd/domain';
 import { ConcurrencyException } from '../../../../ddd/application';
-import { Payment } from '../../domain/payment/payment';
-import type { PaymentId } from '../../domain/payment/payment-id';
+import { Payment } from '../../domain/aggregate/Payment';
+import type { PaymentId } from '../../domain/value-object/PaymentId';
 
 interface PaymentRow {
   version: number;

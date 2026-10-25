@@ -1,12 +1,8 @@
-import { Composite, DomainException } from '../../../ddd/domain';
-import { Cents } from './cents';
-import { Currency, MoneyCurrency } from './currency';
-
-export class CurrencyMismatchException extends DomainException {
-  constructor(expected: string, received: string) {
-    super(`Cannot combine ${received} with ${expected}`, ['MNY001']);
-  }
-}
+import { Composite } from '../../../ddd/domain';
+import { Cents } from './Cents';
+import type { Currency } from './MoneyCurrency';
+import { CurrencyMismatch } from './CurrencyMismatch';
+import { MoneyCurrency } from './MoneyCurrency';
 
 export class Money extends Composite({ amount: Cents, currency: MoneyCurrency }) {
   static zero(currency: Currency): Money {
@@ -36,7 +32,7 @@ export class Money extends Composite({ amount: Cents, currency: MoneyCurrency })
 
   private assertSameCurrency(other: Money): void {
     if (!this.currency.equals(other.currency)) {
-      throw new CurrencyMismatchException(this.currency.value, other.currency.value);
+      throw new CurrencyMismatch(this.currency.value, other.currency.value);
     }
   }
 

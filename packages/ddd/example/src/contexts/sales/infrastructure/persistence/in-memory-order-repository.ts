@@ -5,8 +5,8 @@ import type {
   PrimitiveTypes,
 } from '../../../../ddd/domain';
 import { ConcurrencyException } from '../../../../ddd/application';
-import { Order } from '../../domain/order/order';
-import type { OrderId } from '../../domain/order/order-id';
+import { Order } from '../../domain/aggregate/Order';
+import type { OrderId } from '../../domain/value-object/OrderId';
 
 interface OrderRow {
   version: number;

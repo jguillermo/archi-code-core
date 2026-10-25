@@ -3,42 +3,35 @@ import type { Clock, Logger } from '../../ddd/application';
 import { DomainEventBus, EventRegistry } from '../../ddd/infrastructure';
 import type { EventChannel, Subscription } from '../../ddd/infrastructure';
 import { CancelOrder } from './application/cancel-order/cancel-order';
-import { CancelUnpaidOrder } from './application/cancel-unpaid-order/cancel-unpaid-order';
 import { CancelUnpaidOrderOnPaymentRejected } from './application/cancel-unpaid-order/cancel-unpaid-order-on-payment-rejected';
-import { PaymentRejected } from './application/cancel-unpaid-order/payment-rejected';
+import { PaymentRejectedDomainEvent } from './application/cancel-unpaid-order/payment-rejected-domain-event';
 import { ChangeOrderLineQuantity } from './application/change-order-line-quantity/change-order-line-quantity';
 import { ChangeShippingAddress } from './application/change-shipping-address/change-shipping-address';
 import { DiscardCancelledOrder } from './application/discard-cancelled-order/discard-cancelled-order';
-import { MarkOrderDelivered } from './application/mark-order-delivered/mark-order-delivered';
 import { MarkOrderDeliveredOnShipmentDelivered } from './application/mark-order-delivered/mark-order-delivered-on-shipment-delivered';
-import { ShipmentDelivered } from './application/mark-order-delivered/shipment-delivered';
-import { MarkOrderPaid } from './application/mark-order-paid/mark-order-paid';
+import { ShipmentDeliveredDomainEvent } from './application/mark-order-delivered/shipment-delivered-domain-event';
 import { MarkOrderPaidOnPaymentCaptured } from './application/mark-order-paid/mark-order-paid-on-payment-captured';
-import { PaymentCaptured } from './application/mark-order-paid/payment-captured';
-import { MarkOrderShipped } from './application/mark-order-shipped/mark-order-shipped';
+import { PaymentCapturedDomainEvent } from './application/mark-order-paid/payment-captured-domain-event';
 import { MarkOrderShippedOnShipmentDispatched } from './application/mark-order-shipped/mark-order-shipped-on-shipment-dispatched';
-import { ShipmentDispatched } from './application/mark-order-shipped/shipment-dispatched';
-import { ProjectOrderSummary } from './application/order-summaries/project-order-summary';
-import {
-  UpdateOrderSummaryOnOrderCancelled,
-  UpdateOrderSummaryOnOrderDelivered,
-  UpdateOrderSummaryOnOrderLineQuantityChanged,
-  UpdateOrderSummaryOnOrderPaid,
-  UpdateOrderSummaryOnOrderPlaced,
-  UpdateOrderSummaryOnOrderShipped,
-} from './application/order-summaries/update-order-summary-listeners';
+import { ShipmentDispatchedDomainEvent } from './application/mark-order-shipped/shipment-dispatched-domain-event';
+import { MarkOrderSummaryCancelledOnOrderCancelled } from './application/order-summaries/mark-order-summary-cancelled/mark-order-summary-cancelled-on-order-cancelled';
+import { MarkOrderSummaryDeliveredOnOrderDelivered } from './application/order-summaries/mark-order-summary-delivered/mark-order-summary-delivered-on-order-delivered';
+import { MarkOrderSummaryPaidOnOrderPaid } from './application/order-summaries/mark-order-summary-paid/mark-order-summary-paid-on-order-paid';
+import { MarkOrderSummaryShippedOnOrderShipped } from './application/order-summaries/mark-order-summary-shipped/mark-order-summary-shipped-on-order-shipped';
+import { OpenOrderSummaryOnOrderCreated } from './application/order-summaries/open-order-summary/open-order-summary-on-order-created';
+import { OrderSummaryProjection } from './application/order-summaries/order-summary-projection';
+import { UpdateOrderSummaryTotalOnOrderLineQuantityChanged } from './application/order-summaries/update-order-summary-total/update-order-summary-total-on-order-line-quantity-changed';
 import { PlaceOrder } from './application/place-order/place-order';
-import { OrderPricing } from './domain/coupon/order-pricing';
-import {
-  OrderCancelled,
-  OrderDelivered,
-  OrderLineQuantityChanged,
-  OrderPaid,
-  OrderPlaced,
-  OrderShipped,
-  ShippingAddressChanged,
-} from './domain/order/order-events';
-import type { AddressData, ItemData, MoneyData, PlacedLineData } from './domain/order/order-events';
+import { OrderPricing } from './domain/service/OrderPricing';
+import { OrderCancelledDomainEvent } from './domain/event/OrderCancelledDomainEvent';
+import { OrderDeliveredDomainEvent } from './domain/event/OrderDeliveredDomainEvent';
+import { OrderLineQuantityChangedDomainEvent } from './domain/event/OrderLineQuantityChangedDomainEvent';
+import { OrderPaidDomainEvent } from './domain/event/OrderPaidDomainEvent';
+import { OrderCreatedDomainEvent } from './domain/event/OrderCreatedDomainEvent';
+import { OrderShippedDomainEvent } from './domain/event/OrderShippedDomainEvent';
+import { OrderShippingAddressChangedDomainEvent } from './domain/event/OrderShippingAddressChangedDomainEvent';
+import type { AddressData } from './application/place-order/address-data';
+import type { MoneyData } from './application/place-order/money-data';
 import { InMemoryCouponCatalog } from './infrastructure/coupon/in-memory-coupon-catalog';
 import type { MarketingCampaign } from './infrastructure/coupon/in-memory-coupon-catalog';
 import { InMemoryOrderRepository } from './infrastructure/persistence/in-memory-order-repository';
@@ -65,19 +58,19 @@ export class SalesContext {
     const orders = new InMemoryOrderRepository();
     const summaries = new InMemoryOrderSummaryStore();
     const pricing = new OrderPricing(new InMemoryCouponCatalog(campaigns));
-    const projectOrderSummary = new ProjectOrderSummary(summaries);
+    const projection = new OrderSummaryProjection(summaries);
 
     const listeners = [
-      new UpdateOrderSummaryOnOrderPlaced(projectOrderSummary),
-      new UpdateOrderSummaryOnOrderLineQuantityChanged(projectOrderSummary),
-      new UpdateOrderSummaryOnOrderPaid(projectOrderSummary),
-      new UpdateOrderSummaryOnOrderCancelled(projectOrderSummary),
-      new UpdateOrderSummaryOnOrderShipped(projectOrderSummary),
-      new UpdateOrderSummaryOnOrderDelivered(projectOrderSummary),
-      new MarkOrderPaidOnPaymentCaptured(new MarkOrderPaid(orders, bus, clock)),
-      new CancelUnpaidOrderOnPaymentRejected(new CancelUnpaidOrder(orders, bus, clock, logger)),
-      new MarkOrderShippedOnShipmentDispatched(new MarkOrderShipped(orders, bus, clock)),
-      new MarkOrderDeliveredOnShipmentDelivered(new MarkOrderDelivered(orders, bus, clock)),
+      new OpenOrderSummaryOnOrderCreated(projection),
+      new UpdateOrderSummaryTotalOnOrderLineQuantityChanged(projection),
+      new MarkOrderSummaryPaidOnOrderPaid(projection),
+      new MarkOrderSummaryCancelledOnOrderCancelled(projection),
+      new MarkOrderSummaryShippedOnOrderShipped(projection),
+      new MarkOrderSummaryDeliveredOnOrderDelivered(projection),
+      new MarkOrderPaidOnPaymentCaptured(orders, bus, clock),
+      new CancelUnpaidOrderOnPaymentRejected(orders, bus, clock, logger),
+      new MarkOrderShippedOnShipmentDispatched(orders, bus, clock),
+      new MarkOrderDeliveredOnShipmentDelivered(orders, bus, clock),
     ];
     const subscriptions: Subscription[] = [];
     for (const listener of listeners) {
@@ -107,96 +100,132 @@ export class SalesContext {
   private static registry(): EventRegistry<EventBase> {
     return new EventRegistry<EventBase>()
       .register(
-        OrderPlaced,
+        OrderCreatedDomainEvent,
         (json) =>
-          new OrderPlaced(
-            json.orderId as string,
-            json.customerId as string,
-            json.lines as PlacedLineData[],
-            json.total as MoneyData,
-            json.paymentMethod as string,
-            json.freeShipping as boolean,
-            json,
-          ),
+          new OrderCreatedDomainEvent({
+            orderId: json.orderId as string,
+            customerId: json.customerId as string,
+            lines: json.lines as {
+              sku: string;
+              quantity: number;
+              unitPrice: { amount: number; currency: string };
+            }[],
+            total: json.total as MoneyData,
+            paymentMethod: json.paymentMethod as string,
+            freeShipping: json.freeShipping as boolean,
+            eventId: json.eventId,
+            occurredOn: json.occurredOn,
+          }),
       )
       .register(
-        OrderLineQuantityChanged,
+        OrderLineQuantityChangedDomainEvent,
         (json) =>
-          new OrderLineQuantityChanged(
-            json.orderId as string,
-            json.lineNumber as number,
-            json.quantity as number,
-            json.total as MoneyData,
-            json,
-          ),
+          new OrderLineQuantityChangedDomainEvent({
+            orderId: json.orderId as string,
+            lineNumber: json.lineNumber as number,
+            quantity: json.quantity as number,
+            total: json.total as MoneyData,
+            eventId: json.eventId,
+            occurredOn: json.occurredOn,
+          }),
       )
       .register(
-        ShippingAddressChanged,
+        OrderShippingAddressChangedDomainEvent,
         (json) =>
-          new ShippingAddressChanged(json.orderId as string, json.address as AddressData, json),
+          new OrderShippingAddressChangedDomainEvent({
+            orderId: json.orderId as string,
+            address: json.address as AddressData,
+            eventId: json.eventId,
+            occurredOn: json.occurredOn,
+          }),
       )
       .register(
-        OrderPaid,
+        OrderPaidDomainEvent,
         (json) =>
-          new OrderPaid(
-            json.orderId as string,
-            json.paymentId as string,
-            json.address as AddressData,
-            json.items as ItemData[],
-            json.giftWrap as boolean,
-            json,
-          ),
+          new OrderPaidDomainEvent({
+            orderId: json.orderId as string,
+            paymentId: json.paymentId as string,
+            address: json.address as AddressData,
+            items: json.items as { sku: string; quantity: number }[],
+            giftWrap: json.giftWrap as boolean,
+            eventId: json.eventId,
+            occurredOn: json.occurredOn,
+          }),
       )
       .register(
-        OrderCancelled,
+        OrderCancelledDomainEvent,
         (json) =>
-          new OrderCancelled(
-            json.orderId as string,
-            json.reason as string,
-            json.wasPaid as boolean,
-            json,
-          ),
+          new OrderCancelledDomainEvent({
+            orderId: json.orderId as string,
+            reason: json.reason as string,
+            wasPaid: json.wasPaid as boolean,
+            eventId: json.eventId,
+            occurredOn: json.occurredOn,
+          }),
       )
       .register(
-        OrderShipped,
-        (json) => new OrderShipped(json.orderId as string, json.trackingNumber as string, json),
-      )
-      .register(OrderDelivered, (json) => new OrderDelivered(json.orderId as string, json))
-      .register(
-        PaymentCaptured,
+        OrderShippedDomainEvent,
         (json) =>
-          new PaymentCaptured(
-            json.paymentId as string,
-            json.orderId as string,
-            json.amount as MoneyData,
-            json,
-          ),
+          new OrderShippedDomainEvent({
+            orderId: json.orderId as string,
+            trackingNumber: json.trackingNumber as string,
+            eventId: json.eventId,
+            occurredOn: json.occurredOn,
+          }),
       )
       .register(
-        PaymentRejected,
+        OrderDeliveredDomainEvent,
         (json) =>
-          new PaymentRejected(
-            json.paymentId as string,
-            json.orderId as string,
-            json.amount as MoneyData,
-            json.reason as string,
-            json,
-          ),
+          new OrderDeliveredDomainEvent({
+            orderId: json.orderId as string,
+            eventId: json.eventId,
+            occurredOn: json.occurredOn,
+          }),
       )
       .register(
-        ShipmentDispatched,
+        PaymentCapturedDomainEvent,
         (json) =>
-          new ShipmentDispatched(
-            json.shipmentId as string,
-            json.orderId as string,
-            json.trackingNumber as string,
-            json.carrier as string,
-            json,
-          ),
+          new PaymentCapturedDomainEvent({
+            paymentId: json.paymentId as string,
+            orderId: json.orderId as string,
+            amount: json.amount as MoneyData,
+            eventId: json.eventId,
+            occurredOn: json.occurredOn,
+          }),
       )
       .register(
-        ShipmentDelivered,
-        (json) => new ShipmentDelivered(json.shipmentId as string, json.orderId as string, json),
+        PaymentRejectedDomainEvent,
+        (json) =>
+          new PaymentRejectedDomainEvent({
+            paymentId: json.paymentId as string,
+            orderId: json.orderId as string,
+            amount: json.amount as MoneyData,
+            reason: json.reason as string,
+            eventId: json.eventId,
+            occurredOn: json.occurredOn,
+          }),
+      )
+      .register(
+        ShipmentDispatchedDomainEvent,
+        (json) =>
+          new ShipmentDispatchedDomainEvent({
+            shipmentId: json.shipmentId as string,
+            orderId: json.orderId as string,
+            trackingNumber: json.trackingNumber as string,
+            carrier: json.carrier as string,
+            eventId: json.eventId,
+            occurredOn: json.occurredOn,
+          }),
+      )
+      .register(
+        ShipmentDeliveredDomainEvent,
+        (json) =>
+          new ShipmentDeliveredDomainEvent({
+            shipmentId: json.shipmentId as string,
+            orderId: json.orderId as string,
+            eventId: json.eventId,
+            occurredOn: json.occurredOn,
+          }),
       );
   }
 }

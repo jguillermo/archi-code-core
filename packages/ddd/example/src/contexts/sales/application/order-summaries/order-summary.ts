@@ -1,4 +1,4 @@
-import type { MoneyData } from '../../domain/order/order-events';
+import type { MoneyData } from '../place-order/money-data';
 
 export interface OrderSummary {
   orderId: string;

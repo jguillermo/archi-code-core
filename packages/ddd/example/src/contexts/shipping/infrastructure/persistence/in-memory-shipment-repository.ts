@@ -1,7 +1,7 @@
 import type { AggregateFinder, AggregateSaver, PrimitiveTypes } from '../../../../ddd/domain';
 import { ConcurrencyException } from '../../../../ddd/application';
-import { Shipment } from '../../domain/shipment/shipment';
-import type { ShipmentId } from '../../domain/shipment/shipment-id';
+import { Shipment } from '../../domain/aggregate/Shipment';
+import type { ShipmentId } from '../../domain/value-object/ShipmentId';
 
 interface ShipmentRow {
   version: number;

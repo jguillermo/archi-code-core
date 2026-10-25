@@ -1,7 +1,7 @@
 import { InternalErrorException } from '../../../../ddd/infrastructure';
-import type { CouponCatalog } from '../../domain/coupon/coupon-catalog';
-import type { CouponCode } from '../../domain/order/coupon-codes';
-import { DiscountPercent } from '../../domain/order/discount-percent';
+import type { CouponCatalog } from '../../domain/service/CouponCatalog';
+import type { CouponCode } from '../../domain/value-object/CouponCode';
+import { DiscountPercent } from '../../domain/value-object/DiscountPercent';
 
 export interface MarketingCampaign {
   code: string;

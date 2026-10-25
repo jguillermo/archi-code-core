@@ -2,7 +2,7 @@ import type { Logger } from '../../../../ddd/application';
 import { Http } from '../../../../platform/http/http';
 import type { HttpRequest, HttpResponse } from '../../../../platform/http/http';
 import type { ConfirmTransferReceived } from '../../application/confirm-transfer-received/confirm-transfer-received';
-import type { MoneyData } from '../../domain/payment/payment-events';
+import type { MoneyData } from '../../application/request-payment/money-data';
 
 export class PaymentsController {
   private readonly http: Http;

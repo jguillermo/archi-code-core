@@ -1,20 +1,23 @@
 import type { AggregateSaver } from '../../../../ddd/domain';
 import { NotAllowedException, UseCase, ValueObjectBuilder } from '../../../../ddd/application';
 import type { Clock, EventBus } from '../../../../ddd/application';
-import { Money } from '../../../shared-kernel/money/money';
-import type { Currency } from '../../../shared-kernel/money/currency';
-import { CustomerId } from '../../domain/customer/customer-id';
-import type { OrderPricing } from '../../domain/coupon/order-pricing';
-import { CouponCodes } from '../../domain/order/coupon-codes';
-import { GiftWrap } from '../../domain/order/gift-wrap';
-import { Order } from '../../domain/order/order';
-import type { NewOrderLine } from '../../domain/order/order';
-import type { AddressData, MoneyData, OrderEvent } from '../../domain/order/order-events';
-import { OrderId } from '../../domain/order/order-id';
-import { Quantity, Sku } from '../../domain/order/order-line';
-import { PaymentMethodType } from '../../domain/order/payment-method';
-import type { PaymentMethod } from '../../domain/order/payment-method';
-import { ShippingAddress } from '../../domain/order/shipping-address';
+import { Money } from '../../../shared-kernel/money/Money';
+import type { Currency } from '../../../shared-kernel/money/MoneyCurrency';
+import { CustomerId } from '../../domain/value-object/CustomerId';
+import type { OrderPricing } from '../../domain/service/OrderPricing';
+import { CouponCodes } from '../../domain/value-object/CouponCodes';
+import { GiftWrap } from '../../domain/value-object/GiftWrap';
+import { Order } from '../../domain/aggregate/Order';
+import type { NewOrderLine } from '../../domain/aggregate/NewOrderLine';
+import type { AddressData } from './address-data';
+import type { MoneyData } from './money-data';
+import type { OrderEvent } from '../../domain/event/OrderEvent';
+import { OrderId } from '../../domain/value-object/OrderId';
+import { Quantity } from '../../domain/value-object/Quantity';
+import { Sku } from '../../domain/value-object/Sku';
+import { PaymentMethodType } from '../../domain/value-object/PaymentMethodType';
+import type { PaymentMethod } from '../../domain/value-object/PaymentMethodType';
+import { ShippingAddress } from '../../domain/value-object/ShippingAddress';
 
 export interface PlaceOrderInput {
   actorId: string;
@@ -73,17 +76,15 @@ export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, stri
       );
     }
     const discount = await this.pricing.discountFor(command.couponCodes);
-    const order = Order.place(
-      {
-        id: OrderId.generate(),
-        customerId: command.customerId,
-        lines: command.lines,
-        shippingAddress: command.shippingAddress,
-        couponCodes: command.couponCodes,
-        giftWrap: command.giftWrap,
-        paymentMethod: command.paymentMethod,
-        discount,
-      },
+    const order = Order.create(
+      OrderId.generate(),
+      command.customerId,
+      command.lines,
+      command.shippingAddress,
+      command.couponCodes,
+      command.giftWrap,
+      command.paymentMethod,
+      discount,
       this.clock,
     );
     await this.orders.save(order);

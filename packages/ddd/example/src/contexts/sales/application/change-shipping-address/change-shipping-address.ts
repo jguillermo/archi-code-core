@@ -6,10 +6,11 @@ import {
   ValueObjectBuilder,
 } from '../../../../ddd/application';
 import type { Clock, EventBus } from '../../../../ddd/application';
-import type { Order } from '../../domain/order/order';
-import type { AddressData, OrderEvent } from '../../domain/order/order-events';
-import { OrderId } from '../../domain/order/order-id';
-import { ShippingAddress } from '../../domain/order/shipping-address';
+import type { Order } from '../../domain/aggregate/Order';
+import type { AddressData } from '../place-order/address-data';
+import type { OrderEvent } from '../../domain/event/OrderEvent';
+import { OrderId } from '../../domain/value-object/OrderId';
+import { ShippingAddress } from '../../domain/value-object/ShippingAddress';
 
 export interface ChangeShippingAddressInput {
   orderId: string;

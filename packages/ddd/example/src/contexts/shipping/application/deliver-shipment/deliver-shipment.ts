@@ -6,10 +6,11 @@ import {
   ValueObjectBuilder,
 } from '../../../../ddd/application';
 import type { Clock, EventBus } from '../../../../ddd/application';
-import type { Shipment } from '../../domain/shipment/shipment';
-import type { ShipmentEvent } from '../../domain/shipment/shipment-events';
-import { ShipmentId } from '../../domain/shipment/shipment-id';
-import { StaffRole, StaffRoleType } from '../../domain/staff/staff-role';
+import type { Shipment } from '../../domain/aggregate/Shipment';
+import type { ShipmentEvent } from '../../domain/event/ShipmentEvent';
+import { ShipmentId } from '../../domain/value-object/ShipmentId';
+import { StaffRole } from '../../domain/value-object/StaffRoleType';
+import { StaffRoleType } from '../../domain/value-object/StaffRoleType';
 
 export interface DeliverShipmentInput {
   actorRole: string;

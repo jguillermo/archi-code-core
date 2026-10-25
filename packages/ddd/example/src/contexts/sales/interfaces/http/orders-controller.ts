@@ -7,7 +7,7 @@ import type { ChangeShippingAddress } from '../../application/change-shipping-ad
 import type { DiscardCancelledOrder } from '../../application/discard-cancelled-order/discard-cancelled-order';
 import type { OrderSummaries } from '../../application/order-summaries/order-summaries';
 import type { PlaceOrder, PlaceOrderInput } from '../../application/place-order/place-order';
-import type { AddressData } from '../../domain/order/order-events';
+import type { AddressData } from '../../application/place-order/address-data';
 
 export interface OrdersUseCases {
   placeOrder: PlaceOrder;

@@ -5,10 +5,10 @@ import {
   ValueObjectBuilder,
 } from '../../../../ddd/application';
 import type { Clock, EventBus } from '../../../../ddd/application';
-import { CustomerId } from '../../domain/customer/customer-id';
-import type { Order } from '../../domain/order/order';
-import type { OrderEvent } from '../../domain/order/order-events';
-import { OrderId } from '../../domain/order/order-id';
+import { CustomerId } from '../../domain/value-object/CustomerId';
+import type { Order } from '../../domain/aggregate/Order';
+import type { OrderEvent } from '../../domain/event/OrderEvent';
+import { OrderId } from '../../domain/value-object/OrderId';
 
 export interface CancelOrderInput {
   actorId: string;

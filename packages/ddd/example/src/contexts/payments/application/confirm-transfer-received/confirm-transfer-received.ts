@@ -6,12 +6,14 @@ import {
   ValueObjectBuilder,
 } from '../../../../ddd/application';
 import type { Clock, EventBus } from '../../../../ddd/application';
-import { Money } from '../../../shared-kernel/money/money';
-import type { Currency } from '../../../shared-kernel/money/currency';
-import type { Payment } from '../../domain/payment/payment';
-import type { MoneyData, PaymentEvent } from '../../domain/payment/payment-events';
-import { PaymentId } from '../../domain/payment/payment-id';
-import { StaffRole, StaffRoleType } from '../../domain/staff/staff-role';
+import { Money } from '../../../shared-kernel/money/Money';
+import type { Currency } from '../../../shared-kernel/money/MoneyCurrency';
+import type { Payment } from '../../domain/aggregate/Payment';
+import type { MoneyData } from '../request-payment/money-data';
+import type { PaymentEvent } from '../../domain/event/PaymentEvent';
+import { PaymentId } from '../../domain/value-object/PaymentId';
+import { StaffRole } from '../../domain/value-object/StaffRoleType';
+import { StaffRoleType } from '../../domain/value-object/StaffRoleType';
 
 export interface ConfirmTransferReceivedInput {
   actorRole: string;

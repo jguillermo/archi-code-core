@@ -2,14 +2,13 @@ import type { EventBase } from '../../ddd/domain';
 import type { Clock, Logger } from '../../ddd/application';
 import { DomainEventBus, EventRegistry } from '../../ddd/infrastructure';
 import type { EventChannel, Subscription } from '../../ddd/infrastructure';
-import { CancelShipment } from './application/cancel-shipment/cancel-shipment';
 import { CancelShipmentOnOrderCancelled } from './application/cancel-shipment/cancel-shipment-on-order-cancelled';
-import { OrderCancelled } from './application/cancel-shipment/order-cancelled';
+import { OrderCancelledDomainEvent } from './application/cancel-shipment/order-cancelled-domain-event';
 import { DeliverShipment } from './application/deliver-shipment/deliver-shipment';
 import { DispatchShipment } from './application/dispatch-shipment/dispatch-shipment';
-import { OrderPaid } from './application/prepare-shipment/order-paid';
-import type { PaidOrderAddress, PaidOrderItem } from './application/prepare-shipment/order-paid';
-import { PrepareShipment } from './application/prepare-shipment/prepare-shipment';
+import { OrderPaidDomainEvent } from './application/prepare-shipment/order-paid-domain-event';
+import type { PaidOrderAddress } from './application/prepare-shipment/paid-order-address';
+import type { PaidOrderItem } from './application/prepare-shipment/paid-order-item';
 import { PrepareShipmentOnOrderPaid } from './application/prepare-shipment/prepare-shipment-on-order-paid';
 import { InMemoryShipmentRepository } from './infrastructure/persistence/in-memory-shipment-repository';
 import { ShipmentsController } from './interfaces/http/shipments-controller';
@@ -31,12 +30,8 @@ export class ShippingContext {
     const bus = new DomainEventBus<EventBase>(channel, ShippingContext.registry(), logger);
     const shipments = new InMemoryShipmentRepository();
     const subscriptions = [
-      await bus.subscribe(
-        new PrepareShipmentOnOrderPaid(new PrepareShipment(shipments, bus, clock)),
-      ),
-      await bus.subscribe(
-        new CancelShipmentOnOrderCancelled(new CancelShipment(shipments, bus, clock)),
-      ),
+      await bus.subscribe(new PrepareShipmentOnOrderPaid(shipments, bus, clock)),
+      await bus.subscribe(new CancelShipmentOnOrderCancelled(shipments, bus, clock)),
     ];
     const controller = new ShipmentsController(
       new DispatchShipment(shipments, bus, clock),
@@ -55,16 +50,25 @@ export class ShippingContext {
   private static registry(): EventRegistry<EventBase> {
     return new EventRegistry<EventBase>()
       .register(
-        OrderPaid,
+        OrderPaidDomainEvent,
         (json) =>
-          new OrderPaid(
-            json.orderId as string,
-            json.address as PaidOrderAddress,
-            json.items as PaidOrderItem[],
-            json.giftWrap as boolean,
-            json,
-          ),
+          new OrderPaidDomainEvent({
+            orderId: json.orderId as string,
+            address: json.address as PaidOrderAddress,
+            items: json.items as PaidOrderItem[],
+            giftWrap: json.giftWrap as boolean,
+            eventId: json.eventId,
+            occurredOn: json.occurredOn,
+          }),
       )
-      .register(OrderCancelled, (json) => new OrderCancelled(json.orderId as string, json));
+      .register(
+        OrderCancelledDomainEvent,
+        (json) =>
+          new OrderCancelledDomainEvent({
+            orderId: json.orderId as string,
+            eventId: json.eventId,
+            occurredOn: json.occurredOn,
+          }),
+      );
   }
 }
