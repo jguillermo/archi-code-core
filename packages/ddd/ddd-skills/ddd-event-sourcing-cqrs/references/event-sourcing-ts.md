@@ -4,62 +4,95 @@
 
 ## Eventos del stream
 
-Cada evento es una subclase de `EventBase` con `static readonly eventName` y, como campos `readonly` del constructor, el id del agregado y los datos primitivos que necesita, tomados de los value objects (el dinero como `{ amount, currency }`), nunca value objects: el evento no tiene métodos y se serializa tal cual (`{ ...event }`) [IDDD cap. 8].
+Cada evento es una subclase de `EventBase` con `static readonly eventName` y, como campos `readonly`, el id del agregado y los datos primitivos que necesita, tomados de los value objects (el dinero como `{ amount, currency }`), nunca value objects: el evento no tiene métodos y se serializa tal cual (`{ ...event }`) [IDDD cap. 8]. Con el paquete se nombra `<Agregado><AcciónEnPasado>DomainEvent`, su `eventName` es `'<agregado>.<acción_en_pasado>'` y su constructor recibe un objeto tipado en línea `{ …campos } & EventMetadata`, sin interfaces ni tipos propios; cada uno en su fichero de `domain/event/` `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ```ts
 import { EventBase } from '@archi-code/ddd/domain';
 import type { EventMetadata } from '@archi-code/ddd/domain';
 
-export class PaymentRequested extends EventBase {
-  static readonly eventName = 'PaymentRequested';
+export class PaymentCreatedDomainEvent extends EventBase {
+  static readonly eventName = 'payment.created';
 
-  constructor(
-    readonly paymentId: string,
-    readonly orderId: string,
-    readonly amount: { amount: number; currency: string },
-    metadata?: EventMetadata,
-  ) {
-    super(metadata);
+  readonly paymentId: string;
+  readonly orderId: string;
+  readonly amount: { amount: number; currency: string };
+
+  constructor({
+    paymentId,
+    orderId,
+    amount,
+    eventId,
+    occurredOn,
+    clock,
+  }: {
+    paymentId: string;
+    orderId: string;
+    amount: { amount: number; currency: string };
+  } & EventMetadata) {
+    super({ eventId, occurredOn, clock });
+    this.paymentId = paymentId;
+    this.orderId = orderId;
+    this.amount = amount;
   }
 }
 
-export class PaymentAuthorized extends EventBase {
-  static readonly eventName = 'PaymentAuthorized';
+export class PaymentAuthorizedDomainEvent extends EventBase {
+  static readonly eventName = 'payment.authorized';
 
-  constructor(
-    readonly paymentId: string,
-    readonly authorizationCode: string,
-    readonly expiresAt: string,
-    metadata?: EventMetadata,
-  ) {
-    super(metadata);
+  readonly paymentId: string;
+  readonly authorizationCode: string;
+  readonly expiresAt: string;
+
+  constructor({
+    paymentId,
+    authorizationCode,
+    expiresAt,
+    eventId,
+    occurredOn,
+    clock,
+  }: { paymentId: string; authorizationCode: string; expiresAt: string } & EventMetadata) {
+    super({ eventId, occurredOn, clock });
+    this.paymentId = paymentId;
+    this.authorizationCode = authorizationCode;
+    this.expiresAt = expiresAt;
   }
 }
 
-export class PaymentRejected extends EventBase {
-  static readonly eventName = 'PaymentRejected';
+export class PaymentRejectedDomainEvent extends EventBase {
+  static readonly eventName = 'payment.rejected';
 
-  constructor(
-    readonly paymentId: string,
-    readonly reason: string,
-    metadata?: EventMetadata,
-  ) {
-    super(metadata);
+  readonly paymentId: string;
+  readonly reason: string;
+
+  constructor({
+    paymentId,
+    reason,
+    eventId,
+    occurredOn,
+    clock,
+  }: { paymentId: string; reason: string } & EventMetadata) {
+    super({ eventId, occurredOn, clock });
+    this.paymentId = paymentId;
+    this.reason = reason;
   }
 }
 
-export class PaymentCaptured extends EventBase {
-  static readonly eventName = 'PaymentCaptured';
+export class PaymentCapturedDomainEvent extends EventBase {
+  static readonly eventName = 'payment.captured';
 
-  constructor(
-    readonly paymentId: string,
-    metadata?: EventMetadata,
-  ) {
-    super(metadata);
+  readonly paymentId: string;
+
+  constructor({ paymentId, eventId, occurredOn, clock }: { paymentId: string } & EventMetadata) {
+    super({ eventId, occurredOn, clock });
+    this.paymentId = paymentId;
   }
 }
 
-export type PaymentEvent = PaymentRequested | PaymentAuthorized | PaymentRejected | PaymentCaptured;
+export type PaymentEvent =
+  | PaymentCreatedDomainEvent
+  | PaymentAuthorizedDomainEvent
+  | PaymentRejectedDomainEvent
+  | PaymentCapturedDomainEvent;
 ```
 
 `EventBase` pone `eventName`, `eventId` y `occurredOn` (texto ISO en UTC, del `clock` que recibe el método del agregado); la identidad del pago es un campo más del evento (`paymentId`), declarado por cada clase. `{ ...event }` da `eventName`, `eventId`, `occurredOn` y los campos, todos datos primitivos (regla del paquete, no comprobada en ejecución): esa es la fila del stream.
@@ -69,50 +102,31 @@ export type PaymentEvent = PaymentRequested | PaymentAuthorized | PaymentRejecte
 `[Fuera de los libros como código; estructura basada en IDDD apéndice A]`
 
 ```ts
-import {
-  AggregateRoot,
-  Composite,
-  DateType,
-  EnumType,
-  IdType,
-  NumberType,
-  Required,
-  StringType,
-} from '@archi-code/ddd/domain';
-import { DomainException } from '@archi-code/ddd/domain';
-import { Validations } from '@archi-code/validation';
+import { AggregateRoot, DateType, DomainException, EnumType, IdType, Required, StringType, UuidType } from '@archi-code/ddd/domain';
 
 export class PaymentId extends IdType<'PaymentId'> {}
-export class OrderId extends IdType<'OrderId'> {}
+export class OrderReference extends Required(UuidType) {}
 export class AuthorizationCode extends Required(StringType) {}
 export class RejectionReason extends Required(StringType) {}
 export class ExpiresAt extends Required(DateType) {}
 
-@Validations([{ validator: 'isInt' }])
-export class Cents extends Required(NumberType) {}
-@Validations([{ validator: 'isISO4217' }])
-export class Currency extends Required(StringType) {}
-export class Money extends Composite({ amount: Cents, currency: Currency }) {}
-
-export enum Status {
-  Requested = 'requested',
-  Authorized = 'authorized',
-  Rejected = 'rejected',
-  Captured = 'captured',
+// value-object/PaymentStatusType.ts
+export enum PaymentStatus {
+  REQUESTED = 'requested',
+  AUTHORIZED = 'authorized',
+  REJECTED = 'rejected',
+  CAPTURED = 'captured',
 }
 
-class StatusType extends EnumType<Status> {
-  protected getEnum(): typeof Status {
-    return Status;
+export class PaymentStatusOption extends EnumType<PaymentStatus> {
+  protected getEnum(): typeof PaymentStatus {
+    return PaymentStatus;
   }
 }
 
-export class PaymentStatus extends Required(StatusType) {
-  is(status: Status): boolean {
-    return this.value === status;
-  }
-}
+export class PaymentStatusType extends Required(PaymentStatusOption) {}
 
+// exception/*.ts
 export class PaymentNotAuthorized extends DomainException {
   constructor(paymentId: string) {
     super(`Payment ${paymentId} is not authorized`, ['PAY002']);
@@ -131,25 +145,30 @@ export class PaymentAlreadyDecided extends DomainException {
   }
 }
 
+// aggregate/Payment.ts
+interface Clock {
+  now(): Date;
+}
+
 export class Payment extends AggregateRoot<PaymentId, PaymentEvent> {
-  private status = new PaymentStatus(Status.Requested);
+  private status = new PaymentStatusType(PaymentStatus.REQUESTED);
   private amount: Money | null = null;
   private expiresAt: ExpiresAt | null = null;
   private replayed = 0;
 
-  private constructor(id: PaymentId) {
+  constructor(id: PaymentId) {
     super(id);
   }
 
-  static request(id: PaymentId, orderId: OrderId, amount: Money, clock: { now(): Date }): Payment {
+  static create(id: PaymentId, order: OrderReference, amount: Money, clock: Clock): Payment {
     const payment = new Payment(id);
     payment.emit(
-      new PaymentRequested(
-        id.value,
-        orderId.value,
-        { amount: amount.amount.value, currency: amount.currency.value },
-        { clock },
-      ),
+      new PaymentCreatedDomainEvent({
+        paymentId: id.value,
+        orderId: order.value,
+        amount: amount.toPrimitives(),
+        clock,
+      }),
     );
     return payment;
   }
@@ -165,30 +184,39 @@ export class Payment extends AggregateRoot<PaymentId, PaymentEvent> {
     return this.replayed;
   }
 
-  authorize(code: AuthorizationCode, expiresAt: ExpiresAt, clock: { now(): Date }): void {
-    if (!this.status.is(Status.Requested)) {
+  authorize(code: AuthorizationCode, expiresAt: ExpiresAt, clock: Clock): void {
+    if (!this.isIn(PaymentStatus.REQUESTED)) {
       throw new PaymentAlreadyDecided(this.id.value);
     }
     this.emit(
-      new PaymentAuthorized(this.id.value, code.value, expiresAt.value.toISOString(), { clock }),
+      new PaymentAuthorizedDomainEvent({
+        paymentId: this.id.value,
+        authorizationCode: code.value,
+        expiresAt: expiresAt.value.toISOString(),
+        clock,
+      }),
     );
   }
 
-  reject(reason: RejectionReason, clock: { now(): Date }): void {
-    if (!this.status.is(Status.Requested)) {
+  reject(reason: RejectionReason, clock: Clock): void {
+    if (!this.isIn(PaymentStatus.REQUESTED)) {
       throw new PaymentAlreadyDecided(this.id.value);
     }
-    this.emit(new PaymentRejected(this.id.value, reason.value, { clock }));
+    this.emit(new PaymentRejectedDomainEvent({ paymentId: this.id.value, reason: reason.value, clock }));
   }
 
-  capture(clock: { now(): Date }): void {
-    if (!this.status.is(Status.Authorized) || this.expiresAt === null) {
+  capture(clock: Clock): void {
+    if (!this.isIn(PaymentStatus.AUTHORIZED) || this.expiresAt === null) {
       throw new PaymentNotAuthorized(this.id.value);
     }
     if (this.expiresAt.value < clock.now()) {
       throw new AuthorizationExpired(this.id.value);
     }
-    this.emit(new PaymentCaptured(this.id.value, { clock }));
+    this.emit(new PaymentCapturedDomainEvent({ paymentId: this.id.value, clock }));
+  }
+
+  private isIn(status: PaymentStatus): boolean {
+    return this.status.value === status;
   }
 
   private emit(event: PaymentEvent): void {
@@ -197,28 +225,30 @@ export class Payment extends AggregateRoot<PaymentId, PaymentEvent> {
   }
 
   private apply(event: PaymentEvent): void {
-    if (event instanceof PaymentRequested) {
+    if (event instanceof PaymentCreatedDomainEvent) {
       this.amount = Money.fromPrimitives(event.amount);
-    } else if (event instanceof PaymentAuthorized) {
-      this.status = new PaymentStatus(Status.Authorized);
-      this.expiresAt = new ExpiresAt(new Date(event.expiresAt));
-    } else if (event instanceof PaymentRejected) {
-      this.status = new PaymentStatus(Status.Rejected);
+    } else if (event instanceof PaymentAuthorizedDomainEvent) {
+      this.status = new PaymentStatusType(PaymentStatus.AUTHORIZED);
+      this.expiresAt = new ExpiresAt(event.expiresAt);
+    } else if (event instanceof PaymentRejectedDomainEvent) {
+      this.status = new PaymentStatusType(PaymentStatus.REJECTED);
     } else {
-      this.status = new PaymentStatus(Status.Captured);
+      this.status = new PaymentStatusType(PaymentStatus.CAPTURED);
     }
   }
 }
 ```
 
+`Money` es el composite de `shared-kernel/money/` (`Cents` y `MoneyCurrency`, ver `ddd-skills/ddd-agregados/references/implementacion-ts.md`).
+
 Reglas:
 * `apply` no valida ni lanza: los eventos son hechos ya ocurridos [Destilado cap. 6].
-* Las reglas viven en los métodos de comando (`authorize`, `capture`), antes de emitir, y lanzan subclases de `DomainException` con su código.
-* El estado solo cambia vía eventos: `emit` aplica y después llama a `record` (protegido en `AggregateRoot`, congela el evento), así que `pullDomainEvents()` devuelve exactamente los cambios pendientes, en orden.
+* Las reglas viven en los métodos de comando (`authorize`, `capture`), antes de emitir, y lanzan errores de negocio (subclases de `DomainException` sin sufijo `Exception`, con su código).
+* El estado solo cambia vía eventos: `emit` aplica y después llama a `record` (protegido en `AggregateRoot`), así que `pullDomainEvents()` devuelve exactamente los cambios pendientes, en orden.
 * `fromHistory` aplica sin `record`: reconstituir no genera eventos nuevos.
-* El reloj se recibe como `{ now(): Date }` y se pasa a cada evento (`{ clock }`), para que reconstruir no dependa de la hora actual; en pruebas, `FixedClock`.
+* El reloj se recibe con la interfaz local `Clock` (`{ now(): Date }`, sin importar el puerto de `/application`) y se pasa a cada evento (`clock`), para que reconstruir no dependa de la hora actual; en pruebas, `FixedClock`.
 * IDDD propone separar estado y comportamiento en dos clases que solo colaboran a través de `apply` [IDDD apéndice A]; aquí el estado son campos privados de value objects que solo `apply` escribe. Si el agregado crece, extrae ese estado a una clase propia con su `apply`.
-* `[Fuera de los libros: convención de @archi-code/ddd]` `AggregateRoot` no tiene versión, y la que recuerda un repositorio de instantáneas en su `WeakMap` cuenta guardados, no eventos (crece 1 por `save`), así que este agregado lleva su propia versión de stream (`streamVersion()`, los eventos que se aplicaron al cargar) y no se guarda como instantánea: no necesita `toPrimitives()`/`fromPrimitives()` ni getters para sus campos, porque lo que se persiste son los eventos.
+* `[Fuera de los libros: convención de @archi-code/ddd]` `AggregateRoot` no tiene versión, y la que recuerda un repositorio de instantáneas en su `WeakMap` cuenta guardados, no eventos (crece 1 por `save`), así que este agregado lleva su propia versión de stream (`streamVersion()`, los eventos que se aplicaron al cargar) y no se guarda como instantánea: no necesita `toPrimitives()`/`fromPrimitives()` ni getters para sus campos, porque lo que se persiste son los eventos. Por eso su constructor público recibe solo el id: el resto del estado lo ponen los eventos, a través de `create` (que emite `PaymentCreatedDomainEvent`) o de `fromHistory`.
 
 ## Event store
 
@@ -245,7 +275,7 @@ export interface PaymentStream {
 }
 ```
 
-La infraestructura lo implementa: reconstruye cada fila con `EventRegistry.fromJSON` (que conserva `eventId` y `occurredOn` y congela el evento), anexa todos los eventos de un `append` en una sola transacción que abre y cierra con su propia conexión, y traduce la violación de la clave primaria a `ConcurrencyException`. Como cualquier repositorio del paquete, el stream es responsable de todo lo de persistencia: la escritura atómica del stream con su versión esperada, la conexión y los errores del driver `[Fuera de los libros: convención de @archi-code/ddd]`.
+La infraestructura lo implementa: reconstruye cada fila con `EventRegistry.fromJSON` (que conserva `eventId` y `occurredOn`), anexa todos los eventos de un `append` en una sola transacción que abre y cierra con su propia conexión, y traduce la violación de la clave primaria a `ConcurrencyException`. Como cualquier repositorio del paquete, el stream es responsable de todo lo de persistencia: la escritura atómica del stream con su versión esperada, la conexión y los errores del driver `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ```ts
 import type { SerializedEvent } from '@archi-code/ddd/domain';
@@ -254,30 +284,46 @@ import { ConcurrencyException } from '@archi-code/ddd/application';
 
 export const paymentEvents = new EventRegistry<PaymentEvent>()
   .register(
-    PaymentRequested,
+    PaymentCreatedDomainEvent,
     (json) =>
-      new PaymentRequested(
-        json.paymentId as string,
-        json.orderId as string,
-        json.amount as { amount: number; currency: string },
-        json,
-      ),
+      new PaymentCreatedDomainEvent({
+        paymentId: json.paymentId as string,
+        orderId: json.orderId as string,
+        amount: json.amount as { amount: number; currency: string },
+        eventId: json.eventId,
+        occurredOn: json.occurredOn,
+      }),
   )
   .register(
-    PaymentAuthorized,
+    PaymentAuthorizedDomainEvent,
     (json) =>
-      new PaymentAuthorized(
-        json.paymentId as string,
-        json.authorizationCode as string,
-        json.expiresAt as string,
-        json,
-      ),
+      new PaymentAuthorizedDomainEvent({
+        paymentId: json.paymentId as string,
+        authorizationCode: json.authorizationCode as string,
+        expiresAt: json.expiresAt as string,
+        eventId: json.eventId,
+        occurredOn: json.occurredOn,
+      }),
   )
   .register(
-    PaymentRejected,
-    (json) => new PaymentRejected(json.paymentId as string, json.reason as string, json),
+    PaymentRejectedDomainEvent,
+    (json) =>
+      new PaymentRejectedDomainEvent({
+        paymentId: json.paymentId as string,
+        reason: json.reason as string,
+        eventId: json.eventId,
+        occurredOn: json.occurredOn,
+      }),
   )
-  .register(PaymentCaptured, (json) => new PaymentCaptured(json.paymentId as string, json));
+  .register(
+    PaymentCapturedDomainEvent,
+    (json) =>
+      new PaymentCapturedDomainEvent({
+        paymentId: json.paymentId as string,
+        eventId: json.eventId,
+        occurredOn: json.occurredOn,
+      }),
+  );
 
 interface SqlClient {
   query<Row>(text: string, values: readonly unknown[]): Promise<{ rows: Row[] }>;
@@ -340,13 +386,23 @@ export class PgPaymentStream implements PaymentStream {
 
 ## Caso de uso y reintento
 
-El caso de uso carga, decide, anexa y publica; no abre transacciones ni recibe un puerto para ello. Ante un conflicto puede reintentar recargando y reejecutando el comando contra el estado nuevo, como propone IDDD [IDDD apéndice A]; si el comando ya no es válido, el error de negocio sale normalmente. `[Fuera de los libros: convención de @archi-code/ddd]` El stream solo carga y anexa; el bucle de reintento va en el `handle` del caso de uso, cada intento vuelve a cargar y vuelve a anexar, unos pocos intentos y después relanza la `ConcurrencyException` (`ExceptionKind.Conflict`, 409 en HTTP). Reintenta solo comandos seguros de repetir; un caso de uso que lanza un listener no lleva este bucle: el reintento lo hace la reentrega del canal.
+El caso de uso carga, decide, anexa y publica; no abre transacciones ni recibe un puerto para ello. Ante un conflicto puede reintentar recargando y reejecutando el comando contra el estado nuevo, como propone IDDD [IDDD apéndice A]; si el comando ya no es válido, el error de negocio sale normalmente. `[Fuera de los libros: convención de @archi-code/ddd]` El stream solo carga y anexa; el bucle de reintento va en el `handle` del caso de uso, cada intento vuelve a cargar y vuelve a anexar, unos pocos intentos y después relanza la `ConcurrencyException` (`ExceptionKind.Conflict`, 409 en HTTP). Reintenta solo comandos seguros de repetir; un caso de uso por reacción no lleva este bucle: el reintento lo hace la reentrega del canal.
 
 ```ts
-import { AggregateNotFoundException, ConcurrencyException, UseCase } from '@archi-code/ddd/application';
+import { AggregateNotFoundException, ConcurrencyException, UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
 
-export class CapturePayment extends UseCase<{ paymentId: string }, PaymentId, void> {
+export interface CapturePaymentInput {
+  paymentId: string;
+}
+
+export interface CapturePaymentCommand {
+  paymentId: PaymentId;
+}
+
+export class CapturePayment extends UseCase<CapturePaymentInput, CapturePaymentCommand, void> {
+  private static readonly ATTEMPTS = 3;
+
   constructor(
     private readonly payments: PaymentStream,
     private readonly events: EventBus<PaymentEvent>,
@@ -355,11 +411,11 @@ export class CapturePayment extends UseCase<{ paymentId: string }, PaymentId, vo
     super();
   }
 
-  protected toCommand(input: { paymentId: string }): PaymentId {
-    return new PaymentId(input.paymentId);
+  protected toCommand(input: CapturePaymentInput): CapturePaymentCommand {
+    return ValueObjectBuilder.build({ paymentId: () => new PaymentId(input.paymentId) });
   }
 
-  protected async handle(paymentId: PaymentId): Promise<void> {
+  protected async handle({ paymentId }: CapturePaymentCommand): Promise<void> {
     for (let attempt = 1; ; attempt += 1) {
       try {
         const payment = await this.payments.load(paymentId);
@@ -372,7 +428,7 @@ export class CapturePayment extends UseCase<{ paymentId: string }, PaymentId, vo
         await this.events.publish(changes);
         return;
       } catch (error) {
-        if (!(error instanceof ConcurrencyException) || attempt === 3) {
+        if (!(error instanceof ConcurrencyException) || attempt === CapturePayment.ATTEMPTS) {
           throw error;
         }
       }
@@ -421,9 +477,9 @@ const channel = new InMemoryEventChannel();
 const bus = new DomainEventBus<PaymentEvent>(channel, paymentEvents);
 
 const paymentId = PaymentId.generate();
-const payment = Payment.request(
+const payment = Payment.create(
   paymentId,
-  OrderId.generate(),
+  new OrderReference('9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c'),
   Money.fromPrimitives({ amount: 4990, currency: 'EUR' }),
   clock,
 );
@@ -437,7 +493,7 @@ await payments.append(payment, payment.pullDomainEvents());
 await new CapturePayment(payments, bus, clock).execute({
   paymentId: paymentId.value,
 });
-channel.sent.map((event) => event.eventName); // ['PaymentCaptured']
+channel.sent.map((event) => event.eventName); // ['payment.captured']
 (await payments.load(paymentId))?.streamVersion(); // 3
 ```
 
@@ -451,26 +507,23 @@ Para streams largos, guarda periódicamente el estado serializado con su versió
 
 `[Fuera de los libros]` Los eventos del stream no se reescriben. Para cambiar su forma, convierte las versiones antiguas al leer ("upcasting") en el deserializador, o añade un tipo de evento nuevo. El apéndice de IDDD trata los serializadores (por ejemplo Protocol Buffers) como apoyo para esta evolución [IDDD apéndice A].
 
-Con el paquete, los eventos no llevan número de versión: la fábrica del `EventRegistry` recibe cada fila tal como se guardó, así que el upcasting va ahí y reconoce la forma antigua por sus campos; un cambio que no se pueda leer así se publica como un evento nuevo con otro `eventName` (`PaymentRequestedV2`). Por ejemplo, si una primera forma de `PaymentRequested` guardaba `amountCents` en euros:
+Con el paquete, los eventos no llevan número de versión: la fábrica del `EventRegistry` recibe cada fila tal como se guardó, así que el upcasting va ahí y reconoce la forma antigua por sus campos; un cambio que no se pueda leer así se publica como un evento nuevo con otro `eventName` (`'payment.created_v2'`). Por ejemplo, si una primera forma de `PaymentCreatedDomainEvent` guardaba `amountCents` en euros:
 
 ```ts
-export class PaymentRequested extends EventBase {
-  static readonly eventName = 'PaymentRequested';
-  // constructor as above
-}
-
 new EventRegistry<PaymentEvent>().register(
-  PaymentRequested,
+  PaymentCreatedDomainEvent,
   (json) =>
-    new PaymentRequested(
-      json.paymentId as string,
-      json.orderId as string,
-      typeof json.amountCents === 'number'
-        ? { amount: json.amountCents, currency: 'EUR' }
-        : (json.amount as { amount: number; currency: string }),
-      json,
-    ),
+    new PaymentCreatedDomainEvent({
+      paymentId: json.paymentId as string,
+      orderId: json.orderId as string,
+      amount:
+        typeof json.amountCents === 'number'
+          ? { amount: json.amountCents, currency: 'EUR' }
+          : (json.amount as { amount: number; currency: string }),
+      eventId: json.eventId,
+      occurredOn: json.occurredOn,
+    }),
 );
 ```
 
-Pasa siempre `json` como último argumento: el evento reconstruido conserva su `eventId` y su `occurredOn`, y `fromJSON` lanza `InternalErrorException` si la fábrica los pierde.
+Pasa siempre `eventId: json.eventId` y `occurredOn: json.occurredOn`: el evento reconstruido conserva su `eventId` y su `occurredOn`, y `fromJSON` lanza `InternalErrorException` si la fábrica los pierde.

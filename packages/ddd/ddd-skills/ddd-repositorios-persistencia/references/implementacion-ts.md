@@ -1,6 +1,6 @@
 # Implementar repositorios en TypeScript
 
-Todos los ejemplos usan el agregado `Order` de `ddd-skills/ddd-agregados/references/implementacion-ts.md`, con sus value objects (`OrderId`, `CustomerId`, `OrderLines`, `OrderLine`, `Sku`, `Quantity`, `Money`, `ShippingAddress`, `OrderStatus`, `PaymentAuthorization`) y sus eventos: `Order.place(id, customerId, lines, address, clock)` lo crea pendiente con sus líneas, `addLine(line, clock)` añade una, y `toPrimitives()` y `static fromPrimitives()` son su conversión, la que llama el repositorio (ver `ddd-skills/ddd-agregados/GUIA.md`). El repositorio es código del proyecto en `infrastructure/persistence/` que implementa los roles del paquete.
+Todos los ejemplos usan el agregado `Order` de `ddd-skills/ddd-agregados/references/implementacion-ts.md`, con sus value objects (`OrderId`, `CustomerId`, `OrderLines`, `OrderLine`, `Sku`, `Quantity`, `Money`, `ShippingAddress`, `OrderStatusType`, `PaymentAuthorization`) y sus eventos: `Order.create(id, customerId, lines, shippingAddress, clock)` lo crea pendiente con sus líneas, `addLine(line, clock)` añade una, y `toPrimitives()` y `static fromPrimitives()` son su conversión, la que llama el repositorio (ver `ddd-skills/ddd-agregados/GUIA.md`). El repositorio es código del proyecto en `infrastructure/persistence/<tecnología>-order-repository.ts` que implementa los roles del paquete.
 
 ## Qué se guarda
 
@@ -10,20 +10,23 @@ Todos los ejemplos usan el agregado `Order` de `ddd-skills/ddd-agregados/referen
 
 ```ts
 import type { PrimitiveTypes } from '@archi-code/ddd/domain';
-import { Order, Status } from '../../domain/order/order';
+import type { Order } from '../../domain/aggregate/Order';
+import { OrderStatus } from '../../domain/value-object/OrderStatusType';
 
 const primitives: PrimitiveTypes<Order> = {
   id: '9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c',
   customerId: '3f1d2c4b-5a6e-4f70-8b9c-0d1e2f3a4b5c',
   lines: { items: [{ sku: 'TORCH-01', quantity: 2, unitPrice: { amount: 4990, currency: 'EUR' } }] },
   shippingAddress: { street: 'Calle Mayor 1', city: 'Huelva', country: 'ES' },
-  status: Status.Pending,
+  status: OrderStatus.PENDING,
   stockReservation: null,
   paymentAuthorization: {
     paymentId: '0b8e4f2a-6c1d-4e7f-9a3b-5d2c8e1f4a6b',
     amount: { amount: 9980, currency: 'EUR' },
     expiresAt: new Date('2026-03-08T09:30:00Z'),
   },
+  createdAt: new Date('2026-03-01T09:30:00Z'),
+  updatedAt: new Date('2026-03-01T09:45:00Z'),
 };
 ```
 
@@ -58,7 +61,8 @@ import type {
 } from '@archi-code/ddd/domain';
 import { ConcurrencyException } from '@archi-code/ddd/application';
 import { InternalErrorException } from '@archi-code/ddd/infrastructure';
-import { Order, OrderId } from '../../domain/order/order';
+import { Order } from '../../domain/aggregate/Order';
+import type { OrderId } from '../../domain/value-object/OrderId';
 
 export type OrderDocument = PrimitiveTypes<Order> & { _id: string; version: number };
 
@@ -141,7 +145,7 @@ export class MongoOrderRepository
 * Alta (el `WeakMap` no conoce el agregado, `version === 0`): `insertOne`; un `_id` ya ocupado (error 11000) es `ConcurrencyException` con el error del driver como `cause`.
 * Cambio: `replaceOne` con la condición `{ _id, version }`, la versión que el repositorio recordaba; si no casa ningún documento, otro guardó antes.
 * Un conflicto es `ConcurrencyException`: el caso de uso puede reintentar volviendo a cargar y a guardar, y `ExceptionClassifier` lo clasifica como `ExceptionKind.Conflict` (409 en HTTP), no como error interno.
-* Borrado: `deleteOne` con la misma condición. Un agregado que nunca se guardó (versión 0) no tiene nada que borrar, salvo que su id ya esté ocupado: entonces es un conflicto, igual que en el `InMemoryOrderRepository` de los tests (`ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`).
+* Borrado: `deleteOne` con la misma condición. Un agregado que nunca se guardó (versión 0) no tiene nada que borrar, salvo que su id ya esté ocupado: entonces es un conflicto, igual que en el `InMemoryOrderRepository` (`ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`).
 * Cualquier otro error del driver al escribir es `InternalErrorException` con el error como `cause`.
 * Cuidado con la serialización: IDDD advierte de que en estos almacenes hay que cuidar el formato serializado, que no es gratis [IDDD cap. 12]. Los primitivos son datos planos y `Date`, que el driver guarda tal cual.
 
@@ -165,7 +169,8 @@ CREATE TABLE orders (
 import type { AggregateFinder, AggregateSaver, PrimitiveTypes } from '@archi-code/ddd/domain';
 import { ConcurrencyException } from '@archi-code/ddd/application';
 import { InternalErrorException } from '@archi-code/ddd/infrastructure';
-import { Order, OrderId } from '../../domain/order/order';
+import { Order } from '../../domain/aggregate/Order';
+import type { OrderId } from '../../domain/value-object/OrderId';
 import type { PgPool } from './pg-pool';
 
 interface OrderRow {
@@ -226,12 +231,12 @@ Al leer `data` de `jsonb`, `paymentAuthorization.expiresAt` llega como texto ISO
 
 ## Consultas de lectura
 
-Las selecciones no pasan por el repositorio: son interfaces de la capa de aplicación que devuelven DTOs o ids, implementadas en infraestructura directamente sobre la base de datos [IDDD cap. 12, "use case optimal query"] `[Fuera de los libros: convención de @archi-code/ddd]`. Los filtros se escriben con `@archi-code/criteria` sobre la forma persistida (`PrimitiveTypes<Order>`) y `@archi-code/criteria-adapters/mongodb` los ejecuta:
+Las selecciones no pasan por el repositorio: son puertos de consulta de la capa de aplicación que devuelven filas de primitivos o ids, implementados en infraestructura directamente sobre la base de datos [IDDD cap. 12, "use case optimal query"] `[Fuera de los libros: convención de @archi-code/ddd]`. Las lee el controlador sin caso de uso. Cuando la vista necesita una tabla propia, es un read model con proyección y casos de uso por reacción (`ddd-skills/ddd-event-sourcing-cqrs/references/proyecciones-cqrs-ts.md`); aquí, en cambio, la consulta lee la colección de los agregados. Los filtros se escriben con `@archi-code/criteria` sobre la forma persistida (`PrimitiveTypes<Order>`) y `@archi-code/criteria-adapters/mongodb` los ejecuta:
 
-En `application/order-summaries/`:
+En `application/order-summaries/order-summaries.ts` (puertos de consulta) y `application/order-summaries/order-summary.ts` (la fila):
 
 ```ts
-import type { CustomerId } from '../../domain/order/order';
+import type { CustomerId } from '../../domain/value-object/CustomerId';
 
 export interface OrderSummary {
   readonly id: string;
@@ -251,17 +256,19 @@ export interface StaleOrders {
 }
 ```
 
-En `infrastructure/persistence/`:
+En `infrastructure/read-model/mongo-order-summaries.ts`:
 
 ```ts
 import { Criteria } from '@archi-code/criteria';
 import { searchMongo } from '@archi-code/criteria-adapters/mongodb';
 import type { Collection } from 'mongodb';
 import type { PrimitiveTypes } from '@archi-code/ddd/domain';
-import { Status } from '../../domain/order/order';
-import type { CustomerId, Order } from '../../domain/order/order';
-import type { OrderSummaries, OrderSummary, StaleOrders } from '../../application/order-summaries/order-summaries';
-import type { OrderDocument } from './mongo-order-repository';
+import type { Order } from '../../domain/aggregate/Order';
+import type { CustomerId } from '../../domain/value-object/CustomerId';
+import { OrderStatus } from '../../domain/value-object/OrderStatusType';
+import type { OrderSummary } from '../../application/order-summaries/order-summary';
+import type { OrderSummaries, StaleOrders } from '../../application/order-summaries/order-summaries';
+import type { OrderDocument } from '../persistence/mongo-order-repository';
 
 export class MongoOrderSummaries implements OrderSummaries {
   constructor(private readonly collection: Collection<OrderDocument>) {}
@@ -295,7 +302,7 @@ export class MongoStaleOrders implements StaleOrders {
       this.collection,
       Criteria.create<PrimitiveTypes<Order>>({
         where: {
-          status: Status.Pending,
+          status: OrderStatus.PENDING,
           'paymentAuthorization.expiresAt': { lt: expiredBefore },
         },
         orderBy: { 'paymentAuthorization.expiresAt': 'asc' },
@@ -307,8 +314,8 @@ export class MongoStaleOrders implements StaleOrders {
 }
 ```
 
-`T` es la forma persistida, no el agregado: la consulta nunca construye un `Order`. Un proceso por tiempo (pedidos pendientes cuya autorización de pago ha caducado) pide los ids a `StaleOrders` y ejecuta un caso de uso por agregado.
+`T` es la forma persistida, no el agregado: la consulta nunca construye un `Order`. Un proceso por tiempo (pedidos pendientes cuya autorización de pago ha caducado) es un punto de entrada más: pide los ids a `StaleOrders` y ejecuta un caso de uso de usuario por agregado.
 
 ## Jerarquías de tipos
 
-IDDD trata repositorios compartidos por subtipos y sus complicaciones [IDDD cap. 12]. Antes de diseñar una jerarquía de agregados, revisa si un tipo estándar (value object de estado o tipo, como `OrderStatus`) basta. Cada repositorio reconstruye una clase concreta con su `fromPrimitives`.
+IDDD trata repositorios compartidos por subtipos y sus complicaciones [IDDD cap. 12]. Antes de diseñar una jerarquía de agregados, revisa si un tipo estándar (value object de estado o tipo, como `OrderStatusType`) basta. Cada repositorio reconstruye una clase concreta con su `fromPrimitives`.

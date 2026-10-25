@@ -20,29 +20,34 @@ Si la terminología es difusa y no está claro que haga falta una frontera de co
 
 Y en sentido contrario: un módulo no arregla un lenguaje mezclado. Si un término significa dos cosas, hace falta otro contexto [IDDD cap. 2].
 
-## En TypeScript
+## En TypeScript con @archi-code/ddd
 
-`[Fuera de los libros]`
-* Un módulo es una carpeta con un `index.ts` que exporta solo su API pública. Lo demás no se importa desde fuera del módulo.
-* Un agregado y todo lo que solo él usa viven en el mismo módulo: `Order`, `OrderId`, `OrderLine` (un `Composite`), `OrderStatus`, sus eventos (`OrderPlaced`, `OrderLineAdded`) y sus excepciones de negocio (`OrderNoLongerEditable extends DomainException`).
-* Las clases base (`AggregateRoot`, `EventBase`, `Composite`, los tipos de value object) y los roles de repositorio (`AggregateFinder`, `AggregateSaver`, `AggregateRemover`) no forman un módulo del proyecto: se importan de `@archi-code/ddd/domain` donde se usan. `[Fuera de los libros: convención de @archi-code/ddd]`
-* En `application/`, un módulo por acción de negocio (`place-order/`, `add-order-line/`); el listener vive en el módulo del caso de uso que ejecuta (`prepare-shipment/PrepareShipmentOnOrderLineAdded.ts`), nunca en una carpeta `listeners/`.
-* Si dos módulos se importan mutuamente, el modelo está enredado: revisa los conceptos antes de mover ficheros.
+`[Fuera de los libros: convención de @archi-code/ddd]` Los libros piden módulos con nombres del lenguaje ubicuo y desaconsejan agruparlos por tipo de patrón [IDDD cap. 9; PHP: Modules]. El paquete se aparta en `domain/`: cada contexto agrupa sus clases por tipo, y el lenguaje ubicuo vive en el nombre del contexto, en el de cada clase y en las carpetas de `application/`, una por acción de negocio.
+
+* `domain/` de cada contexto: `aggregate/` (raíces y las formas `New<Child>` que recibe `create`), `entity/` (entidades hijas), `value-object/`, `event/` (eventos y la unión `<Aggregate>Event`), `exception/` (errores de negocio), `service/` (servicios y puertos de dominio) y `specification/`. Una clase por fichero, con el nombre de la clase en PascalCase (`OrderNotModifiable.ts`).
+* `application/`: un módulo por acción de negocio en kebab-case (`place-order/`, `mark-order-paid/`), con su caso de uso, sus tipos de datos y, en un caso de uso por reacción, la copia del evento ajeno que escucha (`mark-order-paid/mark-order-paid-on-payment-captured.ts` + `payment-captured-domain-event.ts`); nunca carpetas `listeners/`, `use-cases/`, `commands/` ni `dtos/`. Un read model es un módulo con su fila, sus puertos, su proyección y una subcarpeta por reacción (`order-summaries/`).
+* `infrastructure/` por área técnica (`persistence/`, `messaging/`, `read-model/`, el nombre del puerto que implementa: `coupon/`) e `interfaces/` por protocolo (`http/`).
+* Las clases base (`AggregateRoot`, `EventBase`, `Composite`, los tipos de value object) y los roles de repositorio (`AggregateFinder`, `AggregateSaver`, `AggregateRemover`) no forman un módulo del proyecto: se importan de `@archi-code/ddd/domain` donde se usan.
+* Los imports apuntan al fichero que declara cada símbolo, nunca a una carpeta ni a un `index.ts`. Un contexto nunca importa otro; solo `shared-kernel/` se comparte.
+* Si dos agregados de un contexto se importan mutuamente, el modelo está enredado: revisa los conceptos antes de mover ficheros.
 
 Ejemplo bueno y malo:
 
 ```
-domain/                      domain/
-  order/                       entities/
-    Order.ts                     Order.ts
-    OrderLine.ts                 Invoice.ts
-    events.ts                  valueobjects/
-  invoicing/                     Money.ts
-    Invoice.ts                   OrderLine.ts
-  shared/                      events/
-    Money.ts                     OrderPlaced.ts
-                               shared/
-                                 AggregateRoot.ts
-(cuenta la historia)         (cuenta los patrones usados y
-                              reescribe lo que da el paquete)
+contexts/sales/domain/           domain/
+  aggregate/                       shared/
+    Order.ts                         AggregateRoot.ts
+    NewOrderLine.ts                  ValueObject.ts
+  entity/                          models/
+    OrderLine.ts                     Order.ts        (con OrderId, OrderLine
+  value-object/                                       y los eventos dentro)
+    OrderId.ts                     utils/
+    Sku.ts                           money.ts        (compartido con otros contextos)
+  event/
+    OrderPaidDomainEvent.ts
+    OrderEvent.ts
+  exception/
+    OrderNotCancellable.ts
+(una clase por fichero, del         (reescribe lo que da el paquete y
+ paquete, en su contexto)            mezcla contextos)
 ```

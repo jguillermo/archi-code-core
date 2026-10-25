@@ -80,7 +80,7 @@ Un agregado puede estar en un estado intermedio legítimo en el que no procede v
 ## Errores con nombre
 
 `[Fuera de los libros]`
-* Una clase de error por regla de negocio (`OrderMustHaveLines`, `CurrencyMismatch`), con un código estable para traducir a mensajes de usuario y a códigos HTTP en el adaptador. Con el paquete, una subclase de `DomainException` (de `@archi-code/ddd/domain`) con su código en el segundo argumento.
+* Una clase de error por regla de negocio (`OrderMustHaveLines`, `CurrencyMismatch`), con un código estable para traducir a mensajes de usuario y a códigos HTTP en el adaptador. Con el paquete, una subclase de `DomainException` (de `@archi-code/ddd/domain`) en `domain/exception/`, con el nombre de lo que salió mal y sin sufijo `Exception`, y su código en el segundo argumento: un prefijo por contexto (`SAL` Ventas, `PAY` Pagos, `MNY` dinero) y el siguiente número libre `[Fuera de los libros: convención de @archi-code/ddd]`.
 * No uses `Error('invalid')` en el dominio.
 
 ```ts
@@ -88,9 +88,9 @@ import { DomainException } from '@archi-code/ddd/domain';
 
 export class OrderMustHaveLines extends DomainException {
   constructor() {
-    super('An order needs at least one line', ['ORD002']);
+    super('An order needs at least one line', ['SAL005']);
   }
 }
 ```
 
-`error.code` es `'ORD002'`. En la entrada, `ExceptionClassifier.classify(error)` (de `@archi-code/ddd/infrastructure`) da el tipo de fallo sin tablas por excepción: `ExceptionKind.Invalid` para una `ValidationException` o cualquier `DomainException` (422 en HTTP) y `ExceptionKind.Malformed` para un error de conversión u obligatoriedad lanzado solo (400); el punto de entrada cambia el estado de un código cuando el negocio lo pide (`ORD001` → 409).
+`error.code` es `'SAL005'`. En la entrada, `ExceptionClassifier.classify(error)` (de `@archi-code/ddd/infrastructure`) da el tipo de fallo sin tablas por excepción: `ExceptionKind.Invalid` para una `ValidationException` o cualquier `DomainException` (422 en HTTP) y `ExceptionKind.Malformed` para un error de conversión u obligatoriedad lanzado solo (400); el punto de entrada cambia el estado de un código cuando el negocio lo pide (`SAL001` → 409).

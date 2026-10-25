@@ -36,70 +36,24 @@ Publicar los eventos de dominio como un feed de recursos (al estilo Atom) que lo
 
 ### Receptor idempotente en TypeScript
 
-El evento de Almacén llega por un `EventChannel` a un listener (`RegisterStockReservationOnStockReserved`, en `ddd-skills/ddd-context-mapping/references/anticorrupcion-ts.md`), que ejecuta un solo caso de uso. Ese caso de uso registra un hecho: no lo rechaza, vuelve sin error si el pedido no existe (un error haría que el canal lo reentregara sin fin) y el método del agregado es idempotente:
+El evento de Almacén llega por un `EventChannel` a un caso de uso por reacción (`RegisterStockReservationOnStockReserved`, en `ddd-skills/ddd-context-mapping/references/anticorrupcion-ts.md`): una sola clase con `@ListensTo`, sin un `UseCase` detrás, que construye los value objects, carga el pedido, llama al agregado, guarda y publica `[Fuera de los libros: convención de @archi-code/ddd]`. Registra un hecho: no lo rechaza, vuelve sin error si el pedido no existe (un error haría que el canal lo reentregara sin fin) y el método del agregado es idempotente.
+
+El método de `Order` (el de `ddd-skills/ddd-agregados/references/implementacion-ts.md`), que guarda la reserva en `private _stockReservation: ReservationReference` (un `UuidType` opcional, construido con `null` mientras no hay reserva) y confirma el pedido cuando también tiene la autorización de pago:
 
 ```ts
-// src/contexts/sales/application/register-stock-reservation/RegisterStockReservation.ts
-import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
-import { UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
-import type { Clock, EventBus } from '@archi-code/ddd/application';
-import { Order, OrderEvent, OrderId, ReservationId } from '../../domain/order/Order';
-
-interface RegisterStockReservationInput {
-  orderId: string;
-  reservationId: string;
-}
-
-interface RegisterStockReservationCommand {
-  orderId: OrderId;
-  reservationId: ReservationId;
-}
-
-export class RegisterStockReservation extends UseCase<
-  RegisterStockReservationInput,
-  RegisterStockReservationCommand,
-  void
-> {
-  constructor(
-    private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
-    private readonly events: EventBus<OrderEvent>,
-    private readonly clock: Clock,
-  ) {
-    super();
-  }
-
-  protected toCommand(input: RegisterStockReservationInput): RegisterStockReservationCommand {
-    return ValueObjectBuilder.build({
-      orderId: () => new OrderId(input.orderId),
-      reservationId: () => new ReservationId(input.reservationId),
-    });
-  }
-
-  protected async handle(command: RegisterStockReservationCommand): Promise<void> {
-    const order = await this.orders.findById(command.orderId);
-    if (order === null) {
-      return;
-    }
-    order.registerStockReservation(command.reservationId, this.clock);
-    await this.orders.save(order);
-    await this.events.publish(order.pullDomainEvents());
-  }
-}
-```
-
-El método de `Order` (el de `ddd-skills/ddd-agregados/references/implementacion-ts.md`), que guarda la reserva en `private _stockReservation: ReservationId | null` (`null` porque al principio no hay reserva) y confirma el pedido cuando también tiene la autorización de pago:
-
-```ts
-registerStockReservation(reservation: ReservationId, clock: { now(): Date }): void {
-  if (!this._status.isPending()) {
+registerStockReservation(reservation: ReservationReference, clock: Clock): void {
+  if (!this.isIn(OrderStatus.PENDING)) {
     return;
   }
   this._stockReservation = reservation;
+  this.touch(clock);
   this.tryToConfirm(clock);
 }
 ```
 
-Aplicar dos veces "reserva registrada" no cambia nada la segunda vez ni graba un segundo evento. Cuando la operación no es idempotente por naturaleza, el `eventId` del mensaje se guarda como procesado en la misma escritura atómica que el cambio, y si ya estaba no se hace nada `[Fuera de los libros]`; con el paquete esa escritura la hace el adaptador que persiste el cambio, no el caso de uso, que solo le pasa el `eventId` (ver "Consumidor idempotente" en `ddd-skills/ddd-eventos-dominio/references/publicacion-ts.md`) `[Fuera de los libros: convención de @archi-code/ddd]`. Si dos mensajes del mismo pedido llegan a la vez, `save` lanza `ConcurrencyException` en uno de ellos y el listener falla; lo que pase después lo decide el canal (reintento o cola de mensajes muertos), y en el reintento el caso de uso vuelve a cargar el pedido y la operación idempotente no cambia nada.
+Es un método de reacción: si el hecho no aplica en el estado actual, vuelve sin cambios y nunca lanza un error de negocio.
+
+Aplicar dos veces "reserva registrada" no cambia nada la segunda vez ni graba un segundo evento. Cuando la operación no es idempotente por naturaleza, el `eventId` del mensaje se guarda como procesado en la misma escritura atómica que el cambio, y si ya estaba no se hace nada `[Fuera de los libros]`; con el paquete esa escritura la hace el adaptador que persiste el cambio, no el caso de uso por reacción, que solo le pasa el `eventId` (ver "Consumidor idempotente" en `ddd-skills/ddd-eventos-dominio/references/publicacion-ts.md`) `[Fuera de los libros: convención de @archi-code/ddd]`. Si dos mensajes del mismo pedido llegan a la vez, `save` lanza `ConcurrencyException` en uno de ellos y la reacción falla; lo que pase después lo decide el canal (reintento o cola de mensajes muertos), y en el reintento el caso de uso por reacción vuelve a cargar el pedido y la operación idempotente no cambia nada.
 
 ## Contratos y versionado
 
@@ -128,7 +82,7 @@ La notificación de IDDD envuelve el evento en `{ notificationId, typeName, vers
 
 El evento interno no sale tal cual. La traducción al Published Language vive en infraestructura, en el adaptador que habla con el broker: un `EventChannel` del proyecto (`ContractPublishingChannel`) que pasa cada `SerializedEvent` por `SalesContracts` (qué eventos salen y con qué contrato, uno por versión publicada, con `messageId` = `eventId`) y entrega todos al canal interno. El código está en `ddd-skills/ddd-eventos-dominio/references/publicacion-ts.md` ("Lenguaje publicado en el adaptador del broker"); los casos de uso siguen viendo solo `EventBus`, y un evento sin contrato es interno y no sale del contexto. Para no perder mensajes, la publicación al broker la hace el reenviador del outbox después del commit (ver "Publicar de forma fiable").
 
-El consumidor no valida el mensaje con un esquema aparte: lo lee con su propia clase `extends EventBase` (solo los campos que usa) y el caso de uso que ejecuta su listener construye cada valor como value object en `toCommand`, que lanza una `ValidationException` con todos los campos que no cumplen el contrato. El ejemplo completo está en `ddd-skills/ddd-context-mapping/references/anticorrupcion-ts.md`.
+El consumidor no valida el mensaje con un esquema aparte: lo lee con su propia clase `extends EventBase` (solo los campos que usa) y su caso de uso por reacción construye cada valor como value object con `ValueObjectBuilder.build`, que lanza una `ValidationException` con todos los campos que no cumplen el contrato. El ejemplo completo está en `ddd-skills/ddd-context-mapping/references/anticorrupcion-ts.md`.
 
 ## Evento enriquecido o consulta al origen
 

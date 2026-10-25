@@ -8,8 +8,8 @@ El suscriptor puede estar en el mismo contexto (en el ejemplo del libro, `Sprint
 
 ## Fallos y reintentos
 
-* Si el suscriptor falla por concurrencia, no confirma el mensaje; el mecanismo lo reenvía y se reintenta en una nueva transacción (con el paquete, el caso de uso vuelve a cargar y a guardar en la nueva entrega; no reintenta por su cuenta), hasta lograrlo o hasta un límite de reintentos [IDDD cap. 10].
-* Si falla del todo: compensar o, como mínimo, informar del fallo para intervención [IDDD cap. 10]. Con el paquete, los reintentos y el límite son del `EventChannel` que implementes (por ejemplo, una cola con reintentos y una dead-letter donde quedan los mensajes que agotan el límite); `InMemoryEventChannel` no reintenta: el error del listener llega a quien llamó a `publish` `[Fuera de los libros: convención de @archi-code/ddd]`.
+* Si el suscriptor falla por concurrencia, no confirma el mensaje; el mecanismo lo reenvía y se reintenta en una nueva transacción (con el paquete, el caso de uso por reacción vuelve a cargar y a guardar en la nueva entrega; no reintenta por su cuenta), hasta lograrlo o hasta un límite de reintentos [IDDD cap. 10].
+* Si falla del todo: compensar o, como mínimo, informar del fallo para intervención [IDDD cap. 10]. Con el paquete, los reintentos y el límite son del `EventChannel` que implementes (por ejemplo, una cola con reintentos y una dead-letter donde quedan los mensajes que agotan el límite); `InMemoryEventChannel` no reintenta: el error del caso de uso por reacción llega a quien llamó a `publish` `[Fuera de los libros: convención de @archi-code/ddd]`.
 * El suscriptor debe ser idempotente: la mensajería entrega al menos una vez [Destilado cap. 4].
 
 ## No crear asociaciones bidireccionales
@@ -20,50 +20,46 @@ El evento no está para mantener un puntero inverso sin sentido. En IDDD, `Backl
 
 `[Fuera de los libros como término]`
 
-Con el paquete, la política se parte en un listener `<Acción>On<Evento>` (con `@ListensTo`) que solo traduce el evento a la entrada de un caso de uso, y ese caso de uso carga, invoca y guarda `[Fuera de los libros: convención de @archi-code/ddd]`. Política de Ventas: cuando Almacén reserva stock, se registra en el pedido (`Order`, `OrderId`, `ReservationId` y `OrderEvent` son los de `references/implementacion-ts.md`).
+Con el paquete, la política es un **caso de uso por reacción**: una sola clase `<Acción>On<Evento>` que extiende `EventListener`, se marca con `@ListensTo` y en su `handle` construye los value objects, carga el agregado, llama a su método de reacción, guarda y publica; no hay un `UseCase` detrás `[Fuera de los libros: convención de @archi-code/ddd]` (IDDD pone en la capa de aplicación un suscriptor que delega en un servicio de aplicación [IDDD cap. 8]). Política de Ventas: cuando Almacén reserva stock, se registra en el pedido (`Order`, `OrderId`, `ReservationReference` y `OrderEvent` son los de `references/implementacion-ts.md`).
 
-El hecho de Almacén llega por el canal con su contrato publicado; Ventas declara una clase `EventBase` con ese contrato para que `DomainEventBus` lo reconstruya y se lo entregue al listener `[Fuera de los libros: convención de @archi-code/ddd]`:
+El hecho de Almacén llega por el canal como JSON. Ventas no importa la clase de Almacén: declara su propia copia del evento junto al caso de uso que lo escucha, con el mismo nombre de clase y `eventName` que el productor y solo los campos que lee, para que `DomainEventBus` lo reconstruya y se lo entregue `[Fuera de los libros: convención de @archi-code/ddd]`. En `application/register-stock-reservation/stock-item-reserved-domain-event.ts`:
 
 ```ts
 import { EventBase } from '@archi-code/ddd/domain';
 import type { EventMetadata } from '@archi-code/ddd/domain';
 
-export class StockReserved extends EventBase {
-  static readonly eventName = 'warehouse.stock.StockReserved';
+export class StockItemReservedDomainEvent extends EventBase {
+  static readonly eventName = 'stock_item.reserved';
 
-  constructor(
-    readonly stockItemId: string,
-    readonly orderId: string,
-    readonly reservationId: string,
-    metadata?: EventMetadata,
-  ) {
-    super(metadata);
+  readonly orderId: string;
+  readonly reservationId: string;
+
+  constructor({
+    orderId,
+    reservationId,
+    eventId,
+    occurredOn,
+    clock,
+  }: { orderId: string; reservationId: string } & EventMetadata) {
+    super({ eventId, occurredOn, clock });
+    this.orderId = orderId;
+    this.reservationId = reservationId;
   }
 }
 ```
 
-El caso de uso registra el hecho: un agregado, un `save` atómico, y si el pedido no existe (es de otro canal) vuelve sin error:
+El caso de uso por reacción registra el hecho: un agregado, un `save` atómico, y si el pedido no existe (es de otro canal) vuelve sin error. En `application/register-stock-reservation/register-stock-reservation-on-stock-item-reserved.ts`:
 
 ```ts
 import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
-import { UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
+import { EventListener, ListensTo, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
+import { StockItemReservedDomainEvent } from './stock-item-reserved-domain-event';
 
-interface StockReservationInput {
-  orderId: string;
-  reservationId: string;
-}
-
-interface StockReservationCommand {
-  orderId: OrderId;
-  reservationId: ReservationId;
-}
-
-export class RegisterStockReservation extends UseCase<
-  StockReservationInput,
-  StockReservationCommand,
-  void
-> {
+@ListensTo(StockItemReservedDomainEvent, {
+  consumer: 'sales.register-stock-reservation-on-stock-item-reserved',
+})
+export class RegisterStockReservationOnStockItemReserved extends EventListener<StockItemReservedDomainEvent> {
   constructor(
     private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
     private readonly events: EventBus<OrderEvent>,
@@ -72,79 +68,64 @@ export class RegisterStockReservation extends UseCase<
     super();
   }
 
-  protected toCommand(input: StockReservationInput): StockReservationCommand {
-    return ValueObjectBuilder.build({
-      orderId: () => new OrderId(input.orderId),
-      reservationId: () => new ReservationId(input.reservationId),
+  async handle(event: StockItemReservedDomainEvent): Promise<void> {
+    const { orderId, reservation } = ValueObjectBuilder.build({
+      orderId: () => new OrderId(event.orderId),
+      reservation: () => new ReservationReference(event.reservationId),
     });
-  }
-
-  protected async handle(command: StockReservationCommand): Promise<void> {
-    const order = await this.orders.findById(command.orderId);
+    const order = await this.orders.findById(orderId);
     if (order === null) {
       return;
     }
-    order.registerStockReservation(command.reservationId, this.clock);
+    order.registerStockReservation(reservation, this.clock);
     await this.orders.save(order);
     await this.events.publish(order.pullDomainEvents());
   }
 }
 ```
 
-El listener solo traduce el evento a la entrada del caso de uso:
+La raíz de composición del contexto (`composition.ts`) registra el evento con una fábrica que conserva `eventId` y `occurredOn` y suscribe el caso de uso por reacción; en los tests, con los adaptadores en memoria del paquete y el `InMemoryOrderRepository` en memoria del proyecto (`ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`). En `test/contexts/sales/application/register-stock-reservation-on-stock-item-reserved.spec.ts`:
 
 ```ts
-import { EventListener, ListensTo } from '@archi-code/ddd/application';
-
-@ListensTo(StockReserved, { consumer: 'register-stock-reservation-on-stock-reserved' })
-export class RegisterStockReservationOnStockReserved extends EventListener<StockReserved> {
-  constructor(private readonly registerStockReservation: RegisterStockReservation) {
-    super();
-  }
-
-  async handle(event: StockReserved): Promise<void> {
-    await this.registerStockReservation.execute({
-      orderId: event.orderId,
-      reservationId: event.reservationId,
-    });
-  }
-}
-```
-
-La raíz de composición registra el evento y suscribe el listener; en los tests, con los adaptadores en memoria del paquete y el `InMemoryOrderRepository` que el proyecto escribe en `test/support/` (`ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`). En `test/contexts/sales/application/register-stock-reservation.spec.ts`:
-
-```ts
+import type { EventBase } from '@archi-code/ddd/domain';
 import {
   DomainEventBus,
   EventRegistry,
   FixedClock,
   InMemoryEventChannel,
 } from '@archi-code/ddd/infrastructure';
-import { InMemoryOrderRepository } from '../../../support/in-memory-order-repository';
+import { InMemoryOrderRepository } from '../../../../src/contexts/sales/infrastructure/persistence/in-memory-order-repository';
 
 const orders = new InMemoryOrderRepository();
-const registry = new EventRegistry<OrderEvent | StockReserved>().register(
-  StockReserved,
+const registry = new EventRegistry<EventBase>().register(
+  StockItemReservedDomainEvent,
   (json) =>
-    new StockReserved(json.stockItemId as string, json.orderId as string, json.reservationId as string, json),
+    new StockItemReservedDomainEvent({
+      orderId: json.orderId as string,
+      reservationId: json.reservationId as string,
+      eventId: json.eventId,
+      occurredOn: json.occurredOn,
+    }),
 );
 const channel = new InMemoryEventChannel();
-const bus = new DomainEventBus<OrderEvent | StockReserved>(channel, registry);
+const bus = new DomainEventBus<EventBase>(channel, registry);
 await bus.subscribe(
-  new RegisterStockReservationOnStockReserved(
-    new RegisterStockReservation(orders, bus, new FixedClock('2026-03-01T09:30:00Z')),
+  new RegisterStockReservationOnStockItemReserved(
+    orders,
+    bus,
+    new FixedClock('2026-03-01T09:30:00Z'),
   ),
 );
 ```
 
-En producción se cambia solo el canal (`InMemoryEventChannel` por el de tu broker o tu outbox); los casos de uso y los listeners no cambian.
+En producción se cambia solo el canal (`InMemoryEventChannel` por el de tu broker o tu outbox); los casos de uso no cambian.
 
 Reglas para políticas:
 * Una política, un agregado modificado.
-* Nombre con el lenguaje del negocio, no `StockReservedHandler`. Con el paquete, el listener se llama `<Acción>On<Evento>`, donde `<Acción>` es el caso de uso que ejecuta (`RegisterStockReservationOnStockReserved`), y su `consumer` es un nombre estable y único, nunca el de la clase.
-* La regla de negocio está en el agregado; la política solo lo invoca.
+* Nombre con el lenguaje del negocio, no `StockReservedHandler`. Con el paquete, el caso de uso por reacción se llama `<Acción>On<Evento>` (`RegisterStockReservationOnStockItemReserved`, con `<Evento>` el nombre de la clase del evento sin `DomainEvent`) y su `consumer` es `'<contexto>.<fichero sin .ts>'`, estable y único, nunca el nombre de la clase `[Fuera de los libros: convención de @archi-code/ddd]`.
+* La regla de negocio está en el agregado; la política solo lo invoca. Nunca comprueba autorización, ni lanza `AggregateNotFoundException` o errores de negocio, ni llama a otro caso de uso.
 * El método invocado no lanza errores de negocio (ver "Comandos frente a hechos" en `references/implementacion-ts.md`). Los errores técnicos (base de datos caída, `ConcurrencyException`) sí se propagan para que la mensajería reintente.
-* El listener es idempotente: si el canal entrega dos veces el mismo `eventId`, el segundo no cambia nada (aquí lo garantiza el agregado, que ignora una reserva cuando ya no está pendiente).
+* El caso de uso por reacción es idempotente: si el canal entrega dos veces el mismo `eventId`, el segundo no cambia nada (aquí lo garantiza el agregado, que ignora una reserva cuando ya no está pendiente).
 
 ## Plazos y lo que ve el usuario
 

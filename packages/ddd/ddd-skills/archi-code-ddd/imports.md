@@ -36,6 +36,7 @@ import type {
   EntityId,
   EventClass,
   EventMetadata,
+  JsonTypeValue,
   PrimitiveTypes,
   SatisfiedBy,
   SerializedEvent,

@@ -11,7 +11,7 @@ Caso de uso ─┬─ orders.findById
              └─ events.publish(order.pullDomainEvents())   (ya vacío: el repositorio los guardó)
 OutboxForwarder (aparte) ── lee lo no publicado en orden → delivery.send(json) → marca publicado
 delivery (EventChannel) ── traduce al lenguaje publicado y lo manda al broker
-                        └─ entrega a los listeners del propio contexto (receive)
+                        └─ entrega a los casos de uso por reacción del sistema (receive)
 ```
 
 Base en los libros: guardar agregado y evento en la misma transacción y publicar después [Destilado cap. 6]; event store propio en la base del modelo con un componente fuera de banda que reenvía lo no publicado [IDDD cap. 8]. `[Fuera de los libros: convención de @archi-code/ddd]` Con el paquete la aplicación no abre transacciones: "la misma transacción" es la escritura atómica que el adaptador del repositorio hace dentro de `save`.
@@ -21,10 +21,10 @@ Qué pone `@archi-code/ddd` y qué escribe el proyecto:
 | Pieza | Dónde |
 |---|---|
 | `EventBase`, `AggregateRoot.record()`/`pullDomainEvents()` | `@archi-code/ddd/domain` |
-| `EventBus` (lo único que ve el caso de uso), `EventListener`, `@ListensTo` | `@archi-code/ddd/application` |
+| `EventBus` (lo único que ve el caso de uso), `EventListener` y `@ListensTo` (la base de cada caso de uso por reacción) | `@archi-code/ddd/application` |
 | `DomainEventBus`, `EventRegistry`, `EventChannel`, `ChannelHandler`, `ChannelSubscription` (cableado del composition root y puerto del canal) | `@archi-code/ddd/infrastructure` |
-| `InMemoryEventChannel` (tests) | `@archi-code/ddd/infrastructure` |
-| Repositorio en memoria (tests), uno por agregado (`InMemoryOrderRepository`) | `test/support/` del proyecto (`ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`) |
+| `InMemoryEventChannel` (tests y aplicaciones en memoria) | `@archi-code/ddd/infrastructure` |
+| Repositorio en memoria, uno por agregado (`InMemoryOrderRepository`) | `infrastructure/persistence/` del contexto si la aplicación corre en memoria, o `test/support/` como doble de test (`ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`) |
 | Repositorio con outbox, reenviador, deduplicación, traducción al lenguaje publicado, canal del broker | tu infraestructura, sobre esos puertos |
 
 ## Publicar desde el caso de uso
@@ -36,14 +36,14 @@ import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
 import { AggregateNotFoundException, UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
 
-interface AddOrderLineInput {
+export interface AddOrderLineInput {
   orderId: string;
   sku: string;
   quantity: number;
   unitPrice: { amount: number; currency: string };
 }
 
-interface AddOrderLineCommand {
+export interface AddOrderLineCommand {
   orderId: OrderId;
   line: OrderLine;
 }
@@ -85,10 +85,11 @@ Si `publish` falla después de `save`, el agregado ya está guardado y el evento
 
 ## Probarlo en memoria
 
-En los tests, `InMemoryEventChannel` guarda lo publicado en `channel.sent` (JSON congelado) y entrega a los listeners en cuanto se llama a `publish`:
+En los tests, `InMemoryEventChannel` guarda lo publicado en `channel.sent` (JSON congelado) y entrega a los casos de uso por reacción en cuanto se llama a `publish`:
 
 ```ts
 import { describe, expect, it } from 'vitest';
+import type { EventBase } from '@archi-code/ddd/domain';
 import {
   DomainEventBus,
   FixedClock,
@@ -100,12 +101,12 @@ const orderId = '9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c';
 const customerId = '5c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f';
 
 describe('Adding a line to an order', () => {
-  it('publishes OrderLineAdded with the new total', async () => {
+  it('publishes the added line with the new total', async () => {
     const clock = new FixedClock('2026-03-01T09:30:00Z');
     const orders = new InMemoryOrderRepository();
     const channel = new InMemoryEventChannel();
-    const bus = new DomainEventBus<OrderEvent>(channel, orderEvents);
-    const order = Order.place(
+    const bus = new DomainEventBus<EventBase>(channel, salesEvents);
+    const order = Order.create(
       new OrderId(orderId),
       new CustomerId(customerId),
       OrderLines.fromPrimitives({
@@ -125,11 +126,10 @@ describe('Adding a line to an order', () => {
 
     expect(channel.sent).toMatchObject([
       {
-        eventName: 'OrderLineAdded',
+        eventName: 'order.line_added',
         orderId,
         sku: 'GLOVES-02',
         quantity: 2,
-        unitPrice: { amount: 1250, currency: 'EUR' },
         total: { amount: 7000, currency: 'EUR' },
         occurredOn: '2026-03-01T09:30:00.000Z',
       },
@@ -138,7 +138,7 @@ describe('Adding a line to an order', () => {
 });
 ```
 
-`Order`, sus value objects (`OrderId`, `CustomerId`, `OrderLine`, `OrderLines`, `Sku`, `Quantity`, `Money`, `ShippingAddress`) y `OrderEvent` son los de `ddd-skills/ddd-agregados/references/implementacion-ts.md`. `orderEvents` es el `EventRegistry` del contexto, con una fábrica por evento que pasa el JSON como metadatos (está en `ddd-skills/ddd-eventos-dominio/references/ejemplo-ecommerce.md`).
+`Order`, sus value objects (`OrderId`, `CustomerId`, `OrderLine`, `OrderLines`, `Sku`, `Quantity`, `Money`, `ShippingAddress`) y `OrderEvent` son los de `ddd-skills/ddd-agregados/references/implementacion-ts.md`. `salesEvents` es el `EventRegistry` del contexto, con una fábrica por evento que copia los campos y pasa `eventId` y `occurredOn` (está en `ddd-skills/ddd-eventos-dominio/references/ejemplo-ecommerce.md`). `channel.sent` lista solo `order.line_added` porque el pedido se guardó con `orders.save` sin publicar su `order.created`.
 
 ## Outbox: el repositorio guarda los eventos
 
@@ -315,23 +315,22 @@ export class OutboxForwarder {
 
 `body` es `JSONB` y el driver de Postgres lo devuelve ya como objeto: no se pasa por `JSON.parse`. El cierre consultivo de la transacción (`pg_try_advisory_xact_lock`) deja un solo reenviador entregando a la vez: si otra instancia, o una pasada del temporizador que se solapa con la anterior, leyera las filas siguientes mientras la primera aún entrega su lote, los eventos saldrían desordenados; la que no obtiene el cierre sale sin hacer nada `[Fuera de los libros: el cierre consultivo]`.
 
-Si el proceso cae tras entregar y antes de marcar, o si un listener falla y el lote se deshace, los eventos se vuelven a enviar, también a los consumidores que ya los procesaron. Es la razón por la que los consumidores deben deduplicar [IDDD cap. 8]. Un evento que falla siempre bloquearía el lote: añade un contador de intentos y, pasado un límite, apártalo y avisa, para compensar o informar [IDDD cap. 10] `[Fuera de los libros: el contador y el límite]`.
+Si el proceso cae tras entregar y antes de marcar, o si un caso de uso por reacción falla y el lote se deshace, los eventos se vuelven a enviar, también a los consumidores que ya los procesaron. Es la razón por la que los consumidores deben deduplicar [IDDD cap. 8]. Un evento que falla siempre bloquearía el lote: añade un contador de intentos y, pasado un límite, apártalo y avisa, para compensar o informar [IDDD cap. 10] `[Fuera de los libros: el contador y el límite]`.
 
-Cada reacción hace su propia escritura: el reenviador entrega después del commit y el caso de uso que lanza el listener carga y guarda su agregado con su propio repositorio, cuya escritura atómica no tiene nada que ver con la del pedido [IDDD cap. 8].
+Cada reacción hace su propia escritura: el reenviador entrega después del commit y el caso de uso por reacción carga y guarda su agregado con su propio repositorio, cuya escritura atómica no tiene nada que ver con la del pedido [IDDD cap. 8].
 
 ## Cableado
 
-El composition root elige los canales; los casos de uso y los listeners no cambian:
+El composition root (`composition.ts`) elige los canales; los casos de uso no cambian:
 
 ```ts
+import type { EventBase } from '@archi-code/ddd/domain';
 import { DomainEventBus, InMemoryEventChannel, SystemClock } from '@archi-code/ddd/infrastructure';
 
 const orders = new PostgresOrderRepository(pool);
 const delivery = new ContractPublishingChannel(broker, new InMemoryEventChannel());
-const bus = new DomainEventBus<OrderEvent>(delivery, orderEvents);
-await bus.subscribe(
-  new PrepareShipmentOnOrderLineAdded(new PrepareShipment(new PostgresWarehouse(pool))),
-);
+const bus = new DomainEventBus<EventBase>(delivery, salesEvents);
+await bus.subscribe(new PrepareShipmentOnOrderLineAdded(new PostgresShipmentPreparations(pool)));
 const forwarder = new OutboxForwarder(pool, delivery);
 setInterval(() => {
   forwarder.forwardBatch().catch((error) => console.error('forwarding stored events failed', error));
@@ -339,11 +338,11 @@ setInterval(() => {
 const addOrderLine = new AddOrderLine(orders, bus, new SystemClock());
 ```
 
-Un lote que falla se queda en el outbox y lo reintenta la pasada siguiente; el `catch` evita que el rechazo quede sin atender y tumbe el proceso de Node. Aquí `InMemoryEventChannel` solo entrega en proceso lo que el reenviador ya sacó del outbox, después del commit; el `publish` del caso de uso llega vacío desde `PostgresOrderRepository`, y los eventos de un agregado cuyo repositorio no tenga outbox saldrían directamente por `delivery`, sin esa garantía. Si los listeners viven en otro proceso, `delivery` es un canal de broker (el `RabbitMqEventChannel` de `ddd-skills/archi-code-ddd/patterns.md`).
+Un lote que falla se queda en el outbox y lo reintenta la pasada siguiente; el `catch` evita que el rechazo quede sin atender y tumbe el proceso de Node. Aquí `InMemoryEventChannel` solo entrega en proceso lo que el reenviador ya sacó del outbox, después del commit; el `publish` del caso de uso llega vacío desde `PostgresOrderRepository`, y los eventos de un agregado cuyo repositorio no tenga outbox saldrían directamente por `delivery`, sin esa garantía. Si los casos de uso por reacción viven en otro proceso, `delivery` es un canal de broker (el `RabbitMqEventChannel` de `ddd-skills/archi-code-ddd/patterns.md`).
 
 ## Lenguaje publicado en el adaptador del broker
 
-Los otros contextos no reciben los eventos del dominio tal cual: reciben un contrato versionado [IDDD cap. 13]. El paquete no trae esa traducción; se hace en el adaptador que habla con el broker, a partir del `SerializedEvent`, con `messageId` = `eventId`. Un evento interno no produce ningún mensaje, y durante una transición un evento puede producir un mensaje por versión del contrato. El `SerializedEvent` no lleva campo de versión: cada versión incompatible del contrato se publica con su propio `eventName` (`sales.order.OrderPlacedV2`) `[Fuera de los libros: convención de @archi-code/ddd]`:
+Los sistemas de fuera no reciben los eventos del dominio tal cual: reciben un contrato versionado [IDDD cap. 13]; los contextos del propio sistema escuchan el evento por el canal compartido con su propia copia (ver "Eventos internos y eventos publicados" en `ddd-skills/ddd-eventos-dominio/GUIA.md`). El paquete no trae esa traducción; se hace en el adaptador que habla con el broker, a partir del `SerializedEvent`, con `messageId` = `eventId`. Un evento interno no produce ningún mensaje, y durante una transición un evento puede producir un mensaje por versión del contrato. El `SerializedEvent` no lleva campo de versión: cada versión incompatible del contrato se publica con su propio `eventName` (`sales.order.OrderPlacedV2`) `[Fuera de los libros: convención de @archi-code/ddd]`:
 
 ```ts
 import type {
@@ -364,28 +363,30 @@ export class SalesContracts {
       occurredOn: event.occurredOn,
     };
     switch (event.eventName) {
-      case 'OrderPlaced':
+      case 'order.created':
         return [
           {
             ...envelope,
             eventName: 'sales.order.OrderPlaced',
             orderId: event.orderId,
             customerId: event.customerId,
-            lines: (event.lines as OrderLineData[]).map((line) => ({
+            lines: (
+              event.lines as { sku: string; quantity: number; unitPrice: { amount: number; currency: string } }[]
+            ).map((line) => ({
               sku: line.sku,
               quantity: line.quantity,
               unitPrice: SalesContracts.money(line.unitPrice),
             })),
-            total: SalesContracts.money(event.total as MoneyData),
+            total: SalesContracts.money(event.total as { amount: number; currency: string }),
           },
         ];
-      case 'OrderConfirmed':
+      case 'order.confirmed':
         return [
           {
             ...envelope,
             eventName: 'sales.order.OrderConfirmed',
             orderId: event.orderId,
-            total: SalesContracts.money(event.total as MoneyData),
+            total: SalesContracts.money(event.total as { amount: number; currency: string }),
           },
         ];
       default:
@@ -393,7 +394,10 @@ export class SalesContracts {
     }
   }
 
-  private static money(money: MoneyData): MoneyData {
+  private static money(money: { amount: number; currency: string }): {
+    amount: number;
+    currency: string;
+  } {
     return { amount: money.amount, currency: money.currency };
   }
 }
@@ -421,52 +425,42 @@ export class ContractPublishingChannel implements EventChannel {
 }
 ```
 
-`SalesContracts` decide qué eventos salen del contexto y con qué forma, campo a campo (`MoneyData` y `OrderLineData` son los de `ddd-skills/ddd-eventos-dominio/references/ejemplo-ecommerce.md`), para que un campo nuevo del evento interno no se filtre al contrato (ver "Eventos internos y eventos publicados" en `ddd-skills/ddd-eventos-dominio/GUIA.md`); el contrato no cambia cuando cambia el evento interno, solo cuando se publica una versión nueva. El mensaje es un `SerializedEvent` plano con el nombre del contrato (`sales.order.OrderPlaced`, la v1; una v2 incompatible llevaría otro nombre), que el consumidor lee con su propia clase `EventBase` (`ddd-skills/ddd-context-mapping/references/anticorrupcion-ts.md`). `Broker` es la parte del driver que el adaptador usa, declarada de forma estructural.
+`SalesContracts` decide qué eventos salen del contexto y con qué forma, campo a campo (`'order.created'` sale como `sales.order.OrderPlaced`: el contrato publicado conserva su nombre aunque cambie el interno), para que un campo nuevo del evento interno no se filtre al contrato (ver "Eventos internos y eventos publicados" en `ddd-skills/ddd-eventos-dominio/GUIA.md`); el contrato no cambia cuando cambia el evento interno, solo cuando se publica una versión nueva. El mensaje es un `SerializedEvent` plano con el nombre del contrato (`sales.order.OrderPlaced`, la v1; una v2 incompatible llevaría otro nombre), que el consumidor lee con su propia clase `EventBase` (`ddd-skills/ddd-context-mapping/references/anticorrupcion-ts.md`). `Broker` es la parte del driver que el adaptador usa, declarada de forma estructural.
 
 ## Consumidor idempotente
 
-La entrega es al menos una vez, así que el consumidor se salta un `eventId` que ya procesó, y lo anota **en la misma transacción** que su cambio [IDDD cap. 8]. El paquete no trae inbox. `[Fuera de los libros: convención de @archi-code/ddd]` Anotar el `eventId` y escribir el efecto es persistencia, así que lo hace el adaptador del puerto que escribe, en una sola escritura atómica; el listener solo pasa el `eventId` al caso de uso (como en `ddd-skills/ddd-eventos-dominio/GUIA.md`, paso 3), y el caso de uso se lo pasa al puerto:
+La entrega es al menos una vez, así que el consumidor se salta un `eventId` que ya procesó, y lo anota **en la misma transacción** que su cambio [IDDD cap. 8]. El paquete no trae inbox. `[Fuera de los libros: convención de @archi-code/ddd]` Anotar el `eventId` y escribir el efecto es persistencia, así que lo hace el adaptador del puerto que escribe, en una sola escritura atómica; el caso de uso por reacción construye el `eventId` como value object y se lo pasa al puerto. En Almacén, la copia de `OrderLineAddedDomainEvent` (`application/prepare-shipment/order-line-added-domain-event.ts`, con `orderId`, `sku` y `quantity`), el puerto y el caso de uso por reacción:
 
 ```ts
-import { IdType } from '@archi-code/ddd/domain';
-import { UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
+import type { UuidType } from '@archi-code/ddd/domain';
 
-export class EventId extends IdType<'EventId'> {}
-
-export interface Warehouse {
-  prepare(eventId: EventId, orderId: OrderId, sku: Sku, quantity: Quantity): Promise<void>;
+export interface ShipmentPreparations {
+  prepare(eventId: UuidType, order: OrderReference, sku: Sku, quantity: Quantity): Promise<void>;
 }
+```
 
-interface PrepareShipmentInput {
-  eventId: string;
-  orderId: string;
-  sku: string;
-  quantity: number;
-}
+```ts
+import { UuidType } from '@archi-code/ddd/domain';
+import { EventListener, ListensTo, ValueObjectBuilder } from '@archi-code/ddd/application';
+import { OrderLineAddedDomainEvent } from './order-line-added-domain-event';
+import type { ShipmentPreparations } from './shipment-preparations';
 
-interface PrepareShipmentCommand {
-  eventId: EventId;
-  orderId: OrderId;
-  sku: Sku;
-  quantity: Quantity;
-}
-
-export class PrepareShipment extends UseCase<PrepareShipmentInput, PrepareShipmentCommand, void> {
-  constructor(private readonly warehouse: Warehouse) {
+@ListensTo(OrderLineAddedDomainEvent, {
+  consumer: 'warehouse.prepare-shipment-on-order-line-added',
+})
+export class PrepareShipmentOnOrderLineAdded extends EventListener<OrderLineAddedDomainEvent> {
+  constructor(private readonly preparations: ShipmentPreparations) {
     super();
   }
 
-  protected toCommand(input: PrepareShipmentInput): PrepareShipmentCommand {
-    return ValueObjectBuilder.build({
-      eventId: () => new EventId(input.eventId),
-      orderId: () => new OrderId(input.orderId),
-      sku: () => new Sku(input.sku),
-      quantity: () => new Quantity(input.quantity),
+  async handle(event: OrderLineAddedDomainEvent): Promise<void> {
+    const { eventId, order, sku, quantity } = ValueObjectBuilder.build({
+      eventId: () => new UuidType(event.eventId),
+      order: () => new OrderReference(event.orderId),
+      sku: () => new Sku(event.sku),
+      quantity: () => new Quantity(event.quantity),
     });
-  }
-
-  protected async handle(command: PrepareShipmentCommand): Promise<void> {
-    await this.warehouse.prepare(command.eventId, command.orderId, command.sku, command.quantity);
+    await this.preparations.prepare(eventId, order, sku, quantity);
   }
 }
 ```
@@ -474,23 +468,23 @@ export class PrepareShipment extends UseCase<PrepareShipmentInput, PrepareShipme
 ```ts
 import { InternalErrorException } from '@archi-code/ddd/infrastructure';
 
-export class PostgresWarehouse implements Warehouse {
-  private static readonly consumer = 'prepare-shipment';
+export class PostgresShipmentPreparations implements ShipmentPreparations {
+  private static readonly consumer = 'warehouse.prepare-shipment-on-order-line-added';
 
   constructor(private readonly pool: Pool) {}
 
-  async prepare(eventId: EventId, orderId: OrderId, sku: Sku, quantity: Quantity): Promise<void> {
+  async prepare(eventId: UuidType, order: OrderReference, sku: Sku, quantity: Quantity): Promise<void> {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
       const { rowCount } = await client.query(
         `INSERT INTO processed_events (consumer, event_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-        [PostgresWarehouse.consumer, eventId.value],
+        [PostgresShipmentPreparations.consumer, eventId.value],
       );
       if (rowCount === 1) {
         await client.query(
           `INSERT INTO shipment_preparations (order_id, sku, quantity) VALUES ($1, $2, $3)`,
-          [orderId.value, sku.value, quantity.value],
+          [order.value, sku.value, quantity.value],
         );
       }
       await client.query('COMMIT');
@@ -512,7 +506,7 @@ CREATE TABLE processed_events (
 );
 ```
 
-La anotación y el efecto van en la misma transacción, abierta y cerrada dentro del adaptador, así que se confirman o se deshacen juntos; si el `eventId` ya estaba, el adaptador no hace nada. `shipment_preparations` es la tabla donde el almacén guarda lo que tiene que preparar. Cuando el efecto ya es idempotente por sí mismo (un método del agregado que registra un hecho, como `registerStockReservation` en `RegisterReservation`, que no hace nada si la reserva ya está registrada), basta con eso; un caso de uso que lanza un listener tampoco rechaza el hecho: si el agregado no existe, retorna en vez de lanzar `AggregateNotFoundException`, para que el canal no lo reentregue sin fin.
+La anotación y el efecto van en la misma transacción, abierta y cerrada dentro del adaptador, así que se confirman o se deshacen juntos; si el `eventId` ya estaba, el adaptador no hace nada. `shipment_preparations` es la tabla donde el almacén guarda lo que tiene que preparar. Cuando el efecto ya es idempotente por sí mismo (un método del agregado que registra un hecho, como `registerStockReservation` en `RegisterStockReservationOnStockItemReserved`, que vuelve sin cambios si el pedido ya no está pendiente, o un agregado creado con un id derivado del evento que se comprueba antes de crear), basta con eso; un caso de uso por reacción tampoco rechaza el hecho: si el agregado no existe, retorna en vez de lanzar `AggregateNotFoundException`, para que el canal no lo reentregue sin fin.
 
 ## Orden y causalidad
 

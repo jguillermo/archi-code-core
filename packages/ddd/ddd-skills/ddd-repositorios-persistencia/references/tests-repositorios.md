@@ -4,9 +4,9 @@
 
 Un mapa con la identidad como clave y el agregado como valor [IDDD cap. 12]. Dos detalles para que no mienta `[Fuera de los libros]`: guardar copias (para que modificar un objeto sin `save` no "persista") y comprobar versiones.
 
-El paquete no lo da: cada proyecto escribe el suyo en `test/support/`, uno por agregado, como cualquier otra implementación de una tecnología `[Fuera de los libros: convención de @archi-code/ddd]`. Implementa los roles de `@archi-code/ddd/domain` para su agregado (`AggregateFinder<Order>`, `AggregateSaver<Order>`, `AggregateRemover<Order>`), su constructor no recibe nada (no hay tecnología de la que depender) llama a `order.toPrimitives()` y `Order.fromPrimitives(row.primitives)` y recuerda la versión de cada agregado en un `WeakMap`, igual que un adaptador real.
+El paquete no lo da: cada proyecto escribe el suyo, uno por agregado, como cualquier otra implementación de una tecnología, en `infrastructure/persistence/in-memory-order-repository.ts` si la aplicación corre en memoria o en `test/support/` si solo es un doble de test `[Fuera de los libros: convención de @archi-code/ddd]`. Implementa los roles de `@archi-code/ddd/domain` para su agregado (`AggregateFinder<Order>`, `AggregateSaver<Order>`, `AggregateRemover<Order>`), su constructor no recibe nada (no hay tecnología de la que depender) llama a `order.toPrimitives()` y `Order.fromPrimitives(row.primitives)` y recuerda la versión de cada agregado en un `WeakMap`, igual que un adaptador real.
 
-En `test/support/in-memory-order-repository.ts`:
+En `src/contexts/sales/infrastructure/persistence/in-memory-order-repository.ts`:
 
 ```ts
 import type {
@@ -16,10 +16,10 @@ import type {
   PrimitiveTypes,
 } from '@archi-code/ddd/domain';
 import { ConcurrencyException } from '@archi-code/ddd/application';
-import { Order } from '../../src/contexts/sales/domain/order/order';
-import type { OrderId } from '../../src/contexts/sales/domain/order/order';
+import { Order } from '../../domain/aggregate/Order';
+import type { OrderId } from '../../domain/value-object/OrderId';
 
-interface StoredOrder {
+interface OrderRow {
   version: number;
   primitives: PrimitiveTypes<Order>;
 }
@@ -27,7 +27,7 @@ interface StoredOrder {
 export class InMemoryOrderRepository
   implements AggregateFinder<Order>, AggregateSaver<Order>, AggregateRemover<Order>
 {
-  private readonly rows = new Map<string, StoredOrder>();
+  private readonly rows = new Map<string, OrderRow>();
   private readonly versions = new WeakMap<Order, number>();
 
   async findById(id: OrderId): Promise<Order | null> {
@@ -57,7 +57,7 @@ export class InMemoryOrderRepository
     return version;
   }
 
-  private load(row: StoredOrder): Order {
+  private load(row: OrderRow): Order {
     const order = Order.fromPrimitives(structuredClone(row.primitives));
     this.versions.set(order, row.version);
     return order;
@@ -69,7 +69,7 @@ export class InMemoryOrderRepository
 * Sigue el mismo contrato de concurrencia que un repositorio real: la versión es solo del repositorio, que recuerda la de cada agregado que cargó o guardó en un `WeakMap<Order, number>` (`0` si no lo conoce: es nuevo). `save` y `remove` lanzan `ConcurrencyException` si la versión almacenada no coincide con la recordada (también al dar de alta un id ocupado), y `save` actualiza el `WeakMap` solo después de escribir. El agregado no declara ni mapea ninguna versión `[Fuera de los libros: convención de @archi-code/ddd]`.
 * Las claves son `id.value`; `IdType` y `UuidType` guardan el valor en minúsculas, así que la búsqueda no distingue mayúsculas.
 * Cada `save` y cada `remove` es atómico, como el de un repositorio real: no hay transacción que abrir ni estado que restaurar en los tests (la transacción es del repositorio, `ddd-skills/ddd-repositorios-persistencia/references/transacciones-ts.md`).
-* No tiene `findAll()` salvo que los tests del proyecto lo necesiten; si se añade, es solo comodidad de los tests y un repositorio real no lo tiene `[Fuera de los libros: convención de @archi-code/ddd]`. Nunca se usa en producción.
+* No tiene `findAll()` salvo que los tests del proyecto lo necesiten; si se añade, es solo comodidad de los tests y un repositorio real no lo tiene `[Fuera de los libros: convención de @archi-code/ddd]`. Puede exponer ayudas de lectura técnicas (`versionOf(id)`), nunca consultas de negocio.
 * Otro agregado tiene el suyo, escrito igual (`InMemoryProductRepository` con `Product.fromPrimitives` y `product.toPrimitives()`).
 
 El repositorio en memoria no comprueba que la conversión esté completa: que `fromPrimitives` deshaga `toPrimitives` sin perder ningún campo lo prueba el spec del agregado (`Order.fromPrimitives(order.toPrimitives()).toPrimitives()` igual a `order.toPrimitives()`) `[Fuera de los libros: convención de @archi-code/ddd]`. La suite de contrato de abajo se ejecuta contra este repositorio y contra el adaptador real, así que el doble no puede apartarse del contrato. El repositorio no guarda los eventos publicados: los publica el caso de uso, y los tests los leen de `channel.sent` del `InMemoryEventChannel` `[Fuera de los libros: convención de @archi-code/ddd]`.
@@ -83,14 +83,12 @@ import { expect, it } from 'vitest';
 import type { AggregateFinder, AggregateRemover, AggregateSaver } from '@archi-code/ddd/domain';
 import { ConcurrencyException } from '@archi-code/ddd/application';
 import { FixedClock } from '@archi-code/ddd/infrastructure';
-import {
-  CustomerId,
-  Order,
-  OrderId,
-  OrderLine,
-  OrderLines,
-  ShippingAddress,
-} from '../../src/contexts/sales/domain/order/order';
+import { Order } from '../../src/contexts/sales/domain/aggregate/Order';
+import { CustomerId } from '../../src/contexts/sales/domain/value-object/CustomerId';
+import { OrderId } from '../../src/contexts/sales/domain/value-object/OrderId';
+import { OrderLine } from '../../src/contexts/sales/domain/value-object/OrderLine';
+import { OrderLines } from '../../src/contexts/sales/domain/value-object/OrderLines';
+import { ShippingAddress } from '../../src/contexts/sales/domain/value-object/ShippingAddress';
 
 const orderId = '9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c';
 const customerId = '3f1d2c4b-5a6e-4f70-8b9c-0d1e2f3a4b5c';
@@ -102,7 +100,7 @@ export function orderRepositoryContract(
   const line = (sku: string) =>
     OrderLine.fromPrimitives({ sku, quantity: 1, unitPrice: { amount: 4990, currency: 'EUR' } });
   const placeOrder = () =>
-    Order.place(
+    Order.create(
       new OrderId(orderId),
       new CustomerId(customerId),
       new OrderLines({ items: [line('TORCH-01')] }),
@@ -165,7 +163,7 @@ import { MongoClient } from 'mongodb';
 import { afterAll, beforeAll, describe } from 'vitest';
 import { MongoOrderRepository } from '../../../../../src/contexts/sales/infrastructure/persistence/mongo-order-repository';
 import type { OrderDocument } from '../../../../../src/contexts/sales/infrastructure/persistence/mongo-order-repository';
-import { InMemoryOrderRepository } from '../../../../support/in-memory-order-repository';
+import { InMemoryOrderRepository } from '../../../../../src/contexts/sales/infrastructure/persistence/in-memory-order-repository';
 import { orderRepositoryContract } from '../../../../support/order-repository-contract';
 
 let client: MongoClient;

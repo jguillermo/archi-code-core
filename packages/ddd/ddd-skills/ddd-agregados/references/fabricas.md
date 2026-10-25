@@ -2,7 +2,7 @@
 
 ## Para qué
 
-Encapsular la creación de agregados complejos y expresarla con el lenguaje ubicuo. Si crear es sencillo, un método estático con nombre en la propia clase basta (`Order.place(...)`) [IDDD cap. 11; PHP: Factories].
+Encapsular la creación de agregados complejos y expresarla con el lenguaje ubicuo. Si crear es sencillo, un método estático en la propia clase basta [IDDD cap. 11; PHP: Factories]; con el paquete se llama siempre `static create(id, …valueObjects, clock)` y el constructor es público y solo asigna `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ## Método fábrica en la raíz de otro agregado
 
@@ -15,7 +15,15 @@ No contradice la regla de una transacción por agregado: el creador no se modifi
 `Order`, `OrderId`, `OrderLines` y `ShippingAddress` son los de `references/implementacion-ts.md`:
 
 ```ts
-import { AggregateRoot, BooleanType, DomainException, Required, StringType } from '@archi-code/ddd/domain';
+import {
+  AggregateRoot,
+  BooleanType,
+  CreatedAt,
+  DomainException,
+  Required,
+  StringType,
+  UpdatedAt,
+} from '@archi-code/ddd/domain';
 import type { PrimitiveTypes } from '@archi-code/ddd/domain';
 import { Validations } from '@archi-code/validation';
 
@@ -28,22 +36,50 @@ export class Blocked extends Required(BooleanType) {}
 
 export class BlockedCustomerCannotOrder extends DomainException {
   constructor(customerId: string) {
-    super(`Customer ${customerId} is blocked and cannot place orders`, ['CUS001']);
+    super(`Customer ${customerId} is blocked and cannot place orders`, ['SAL003']);
   }
 }
 
-export class Customer extends AggregateRoot<CustomerId> {
-  private constructor(
+interface Clock {
+  now(): Date;
+}
+
+export class Customer extends AggregateRoot<CustomerId, CustomerEvent> {
+  readonly name: CustomerName;
+  readonly email: Email;
+  private _blocked: Blocked;
+  readonly createdAt: CreatedAt;
+  private _updatedAt: UpdatedAt;
+
+  constructor(
     id: CustomerId,
-    readonly name: CustomerName,
-    readonly email: Email,
-    private _blocked: Blocked,
+    name: CustomerName,
+    email: Email,
+    blocked: Blocked,
+    createdAt: CreatedAt,
+    updatedAt: UpdatedAt,
   ) {
     super(id);
+    this.name = name;
+    this.email = email;
+    this._blocked = blocked;
+    this.createdAt = createdAt;
+    this._updatedAt = updatedAt;
   }
 
-  static register(id: CustomerId, name: CustomerName, email: Email): Customer {
-    return new Customer(id, name, email, new Blocked(false));
+  static create(id: CustomerId, name: CustomerName, email: Email, clock: Clock): Customer {
+    const customer = new Customer(
+      id,
+      name,
+      email,
+      new Blocked(false),
+      CreatedAt.now(clock),
+      UpdatedAt.now(clock),
+    );
+    customer.record(
+      new CustomerCreatedDomainEvent({ customerId: customer.id.value, clock }),
+    );
+    return customer;
   }
 
   static fromPrimitives(primitives: PrimitiveTypes<Customer>): Customer {
@@ -52,6 +88,8 @@ export class Customer extends AggregateRoot<CustomerId> {
       new CustomerName(primitives.name),
       new Email(primitives.email),
       new Blocked(primitives.blocked),
+      new CreatedAt(primitives.createdAt),
+      new UpdatedAt(primitives.updatedAt),
     );
   }
 
@@ -59,16 +97,15 @@ export class Customer extends AggregateRoot<CustomerId> {
     return this._blocked;
   }
 
-  placeOrder(
-    id: OrderId,
-    lines: OrderLines,
-    address: ShippingAddress,
-    clock: { now(): Date },
-  ): Order {
+  get updatedAt(): UpdatedAt {
+    return this._updatedAt;
+  }
+
+  placeOrder(id: OrderId, lines: OrderLines, address: ShippingAddress, clock: Clock): Order {
     if (this._blocked.value) {
       throw new BlockedCustomerCannotOrder(this.id.value);
     }
-    return Order.place(id, this.id, lines, address, clock);
+    return Order.create(id, this.id, lines, address, clock);
   }
 
   toPrimitives(): PrimitiveTypes<Customer> {
@@ -77,10 +114,14 @@ export class Customer extends AggregateRoot<CustomerId> {
       name: this.name.value,
       email: this.email.value,
       blocked: this._blocked.value,
+      createdAt: this.createdAt.value,
+      updatedAt: this._updatedAt.value,
     };
   }
 }
 ```
+
+`CustomerCreatedDomainEvent` (`'customer.created'`) y la unión `CustomerEvent` se escriben como los eventos de `Order`. `placeOrder` no cambia al cliente: solo aplica su regla y llama a `Order.create`, que sigue siendo la única forma de iniciar un pedido.
 
 La regla de creación ("un cliente bloqueado no puede realizar pedidos") vive en `Customer`. El caso de uso lee el cliente con `AggregateFinder<Customer>`, genera la identidad nueva con `OrderId.generate()` y guarda solo el pedido con `AggregateSaver<Order>`; `Customer` no se guarda porque no ha cambiado:
 
@@ -89,13 +130,13 @@ import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
 import { AggregateNotFoundException, UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
 
-interface PlaceOrderInput {
+export interface PlaceOrderInput {
   customerId: string;
   lines: { sku: string; quantity: number; unitPrice: { amount: number; currency: string } }[];
   shippingAddress: { street: string; city: string; country: string };
 }
 
-interface PlaceOrderCommand {
+export interface PlaceOrderCommand {
   customerId: CustomerId;
   lines: OrderLines;
   shippingAddress: ShippingAddress;
@@ -163,14 +204,15 @@ const address = ShippingAddress.fromPrimitives({
 
 describe('Customer.placeOrder', () => {
   it('places a pending order for the customer', () => {
-    const customer = Customer.register(
+    const customer = Customer.create(
       CustomerId.generate(),
       new CustomerName('Ana'),
       new Email('ana@example.com'),
+      clock,
     );
     const order = customer.placeOrder(OrderId.generate(), lines, address, clock);
     expect(order.customerId.equals(customer.id)).toBe(true);
-    expect(order.pullDomainEvents().map((event) => event.eventName)).toEqual(['OrderPlaced']);
+    expect(order.pullDomainEvents().map((event) => event.eventName)).toEqual(['order.created']);
   });
 
   it('refuses an order from a blocked customer', () => {
@@ -179,6 +221,8 @@ describe('Customer.placeOrder', () => {
       name: 'Ana',
       email: 'ana@example.com',
       blocked: true,
+      createdAt: new Date('2026-01-10T08:00:00Z'),
+      updatedAt: new Date('2026-02-01T08:00:00Z'),
     });
     expect(() => blocked.placeOrder(OrderId.generate(), lines, address, clock)).toThrow(
       BlockedCustomerCannotOrder,

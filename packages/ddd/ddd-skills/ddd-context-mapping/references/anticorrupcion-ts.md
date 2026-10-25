@@ -15,14 +15,18 @@ El dominio solo ve la interfaz. Adaptador y traductor viven en infraestructura. 
 ```
 src/contexts/sales/
   domain/
-    catalog/ProductPricing.ts          ← puerto con lenguaje de Ventas (SellableProduct, ProductPricing)
-    order/...
+    service/ProductPricing.ts             ← puerto con lenguaje de Ventas
+    value-object/SellableProduct.ts       ← lo que el puerto devuelve (y ProductName.ts, Sku.ts…)
+    exception/ProductNotSellable.ts
   infrastructure/
     catalog/
-      CatalogHttpProductPricing.ts     ← adaptador: habla HTTP con Catálogo
-      CatalogTranslator.ts             ← traductor: JSON de Catálogo → value objects de Ventas
-      CatalogProductV2.ts              ← forma del Published Language de Catálogo que Ventas lee
+      catalog-http-product-pricing.ts     ← adaptador: habla HTTP con Catálogo
+      catalog-translator.ts               ← traductor: JSON de Catálogo → value objects de Ventas
+      catalog-product-v2.ts               ← forma del Published Language de Catálogo que Ventas lee
+      catalog-unavailable.ts, catalog-contract-violation.ts
 ```
+
+Las carpetas siguen la convención del paquete: el dominio se reparte por tipo de clase (ficheros en PascalCase) y el resto en kebab-case, un fichero por clase (ver `ddd-skills/archi-code-ddd/where-each-class-goes.md`) `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ## Ejemplo: Ventas consulta precios a Catálogo
 
@@ -31,26 +35,33 @@ Catálogo expone un OHS con fichas completas (fotos, descripciones, variantes, t
 ### 1. Puerto en el dominio de Ventas
 
 ```ts
-// src/contexts/sales/domain/catalog/ProductPricing.ts
-import { Composite, Required, StringType } from '@archi-code/ddd/domain';
-import { Money } from '../shared/Money';
-import { Sku } from '../order/OrderLine';
-
-export class ProductName extends Required(StringType) {}
+// src/contexts/sales/domain/value-object/SellableProduct.ts
+import { Composite } from '@archi-code/ddd/domain';
+import { Money } from '../../../shared-kernel/money/Money';
+import { ProductName } from './ProductName';
+import { Sku } from './Sku';
 
 export class SellableProduct extends Composite({ sku: Sku, name: ProductName, unitPrice: Money }) {}
+```
+
+```ts
+// src/contexts/sales/domain/service/ProductPricing.ts
+import type { SellableProduct } from '../value-object/SellableProduct';
+import type { Sku } from '../value-object/Sku';
 
 export interface ProductPricing {
   priceForSale(sku: Sku): Promise<SellableProduct | null>;
 }
 ```
 
+`ProductName` es un `Required(StringType)` en su propio fichero.
+
 Fíjate en el nombre: `ProductPricing` y `SellableProduct`, no `CatalogClient` ni `CatalogProductDto`. El dominio pregunta con su lenguaje y recibe value objects ya válidos (`SellableProduct` es un `Composite` de `Sku`, `ProductName` y `Money`); `null` significa que la referencia no se puede vender ahora en el canal web.
 
 ### 2. Forma del Published Language
 
 ```ts
-// src/contexts/sales/infrastructure/catalog/CatalogProductV2.ts
+// src/contexts/sales/infrastructure/catalog/catalog-product-v2.ts
 export interface CatalogProductV2 {
   sku: string;
   displayName: string;
@@ -64,9 +75,9 @@ Solo lo que Ventas lee; el resto de campos de Catálogo se ignora. El adaptador 
 ### 3. Traductor
 
 ```ts
-// src/contexts/sales/infrastructure/catalog/CatalogTranslator.ts
-import { SellableProduct } from '../../domain/catalog/ProductPricing';
-import type { CatalogProductV2 } from './CatalogProductV2';
+// src/contexts/sales/infrastructure/catalog/catalog-translator.ts
+import { SellableProduct } from '../../domain/value-object/SellableProduct';
+import type { CatalogProductV2 } from './catalog-product-v2';
 
 export class CatalogTranslator {
   static isProductV2(body: unknown): body is CatalogProductV2 {
@@ -103,23 +114,35 @@ La regla "solo se vende lo activo con precio web" es una decisión de traducció
 ### 4. Adaptador
 
 ```ts
-// src/contexts/sales/infrastructure/catalog/CatalogHttpProductPricing.ts
+// src/contexts/sales/infrastructure/catalog/catalog-unavailable.ts
 import { InfrastructureException } from '@archi-code/ddd/infrastructure';
-import type { ProductPricing, SellableProduct } from '../../domain/catalog/ProductPricing';
-import type { Sku } from '../../domain/order/OrderLine';
-import { CatalogTranslator } from './CatalogTranslator';
 
 export class CatalogUnavailable extends InfrastructureException {
   constructor(sku: string, options: { cause?: unknown } = {}) {
     super(`Catalog did not answer for ${sku}`, ['CAT001'], options);
   }
 }
+```
+
+```ts
+// src/contexts/sales/infrastructure/catalog/catalog-contract-violation.ts
+import { InfrastructureException } from '@archi-code/ddd/infrastructure';
 
 export class CatalogContractViolation extends InfrastructureException {
   constructor(sku: string, options: { cause?: unknown } = {}) {
     super(`Catalog answered ${sku} outside its published contract`, ['CAT002'], options);
   }
 }
+```
+
+```ts
+// src/contexts/sales/infrastructure/catalog/catalog-http-product-pricing.ts
+import type { ProductPricing } from '../../domain/service/ProductPricing';
+import type { SellableProduct } from '../../domain/value-object/SellableProduct';
+import type { Sku } from '../../domain/value-object/Sku';
+import { CatalogContractViolation } from './catalog-contract-violation';
+import { CatalogTranslator } from './catalog-translator';
+import { CatalogUnavailable } from './catalog-unavailable';
 
 export interface CatalogHttp {
   get(
@@ -171,25 +194,30 @@ Decisiones visibles:
 ### 5. Uso desde la capa de aplicación
 
 ```ts
-// src/contexts/sales/application/place-order/PlaceOrder.ts
+// src/contexts/sales/application/place-order/place-order.ts
 import type { AggregateSaver } from '@archi-code/ddd/domain';
 import { UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
-import type { ProductPricing } from '../../domain/catalog/ProductPricing';
-import { CustomerId } from '../../domain/customer/CustomerId';
-import { Order, OrderEvent, OrderId } from '../../domain/order/Order';
-import { OrderLine, OrderLines, Quantity, Sku } from '../../domain/order/OrderLine';
-import { ShippingAddress } from '../../domain/order/ShippingAddress';
-import { ProductNotSellable } from '../../domain/order/ProductNotSellable';
+import { Order } from '../../domain/aggregate/Order';
+import type { OrderEvent } from '../../domain/event/OrderEvent';
+import { ProductNotSellable } from '../../domain/exception/ProductNotSellable';
+import type { ProductPricing } from '../../domain/service/ProductPricing';
+import { CustomerId } from '../../domain/value-object/CustomerId';
+import { OrderId } from '../../domain/value-object/OrderId';
+import { OrderLine } from '../../domain/value-object/OrderLine';
+import { OrderLines } from '../../domain/value-object/OrderLines';
+import { Quantity } from '../../domain/value-object/Quantity';
+import { ShippingAddress } from '../../domain/value-object/ShippingAddress';
+import { Sku } from '../../domain/value-object/Sku';
+import type { AddressData } from './address-data';
 
-interface PlaceOrderInput {
+export interface PlaceOrderInput {
   customerId: string;
   items: { sku: string; quantity: number }[];
-  shippingAddress: { street: string; city: string; country: string };
+  shippingAddress: AddressData;
 }
 
-interface PlaceOrderCommand {
-  orderId: OrderId;
+export interface PlaceOrderCommand {
   customerId: CustomerId;
   items: { sku: Sku; quantity: Quantity }[];
   shippingAddress: ShippingAddress;
@@ -207,7 +235,6 @@ export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, stri
 
   protected toCommand(input: PlaceOrderInput): PlaceOrderCommand {
     return ValueObjectBuilder.build({
-      orderId: () => OrderId.generate(),
       customerId: () => new CustomerId(input.customerId),
       items: () =>
         ValueObjectBuilder.buildList(input.items, (item) =>
@@ -231,8 +258,8 @@ export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, stri
         new OrderLine({ sku: product.sku, quantity: item.quantity, unitPrice: product.unitPrice }),
       );
     }
-    const order = Order.place(
-      command.orderId,
+    const order = Order.create(
+      OrderId.generate(),
       command.customerId,
       new OrderLines({ items: lines }),
       command.shippingAddress,
@@ -245,18 +272,20 @@ export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, stri
 }
 ```
 
-El precio se copia en la línea del pedido: Ventas guarda el estado remoto **mínimo** que necesita y deja de depender de Catálogo para ese pedido [IDDD cap. 3]. La consulta a Catálogo va antes de crear y guardar el pedido; como la transacción solo existe dentro del `save` del repositorio, nunca queda una abierta mientras se espera a la red `[Fuera de los libros: convención de @archi-code/ddd]`. `ProductNotSellable` es una `DomainException` de Ventas con código propio (`ORD003`), que `ExceptionClassifier` clasifica como `ExceptionKind.Invalid` (422 en HTTP).
+`AddressData` (`{ street: string; city: string; country: string }`) es un tipo de datos de la aplicación, en `application/place-order/address-data.ts`, junto al caso de uso que lo necesita primero.
+
+El precio se copia en la línea del pedido: Ventas guarda el estado remoto **mínimo** que necesita y deja de depender de Catálogo para ese pedido [IDDD cap. 3]. La consulta a Catálogo va antes de crear y guardar el pedido; como la transacción solo existe dentro del `save` del repositorio, nunca queda una abierta mientras se espera a la red `[Fuera de los libros: convención de @archi-code/ddd]`. `ProductNotSellable` es un error de negocio de Ventas (`domain/exception/ProductNotSellable.ts`, sin sufijo `Exception`) con código propio (`SAL006`), que `ExceptionClassifier` clasifica como `ExceptionKind.Invalid` (422 en HTTP).
 
 ## ACL con un webhook entrante
 
 Mismo patrón con un producto externo que llama a este contexto: el punto de entrada es el adaptador, la forma del mensaje es el contrato y la traducción produce la entrada de un caso de uso en el lenguaje local. Vive en `interfaces/` (como cualquier controlador) y solo conoce casos de uso y `ExceptionClassifier` de `@archi-code/ddd/infrastructure` [IDDD cap. 4]. Traduce cada `ExceptionKind` a lo que entiende el emisor: lo que merece reintento (un conflicto, un error interno) responde 5xx para que la pasarela vuelva a enviarlo, y lo que no cambiaría al reintentar responde 4xx `[Fuera de los libros]`. El router ya ha comprobado la firma del emisor y la forma del cuerpo antes de llamarlo `[Fuera de los libros]`.
 
 ```ts
-// src/contexts/payments/interfaces/http/PaymentGatewayWebhook.ts
+// src/contexts/payments/interfaces/http/payment-gateway-webhook.ts
 import { ExceptionClassifier, ExceptionKind } from '@archi-code/ddd/infrastructure';
 import type { Logger } from '@archi-code/ddd/application';
-import type { RecordPaymentAuthorization } from '../../application/record-payment-authorization/RecordPaymentAuthorization';
-import type { RecordPaymentRejection } from '../../application/record-payment-rejection/RecordPaymentRejection';
+import type { RecordPaymentAuthorization } from '../../application/record-payment-authorization/record-payment-authorization';
+import type { RecordPaymentRejection } from '../../application/record-payment-rejection/record-payment-rejection';
 
 export interface GatewayEvent {
   type: string;
@@ -315,71 +344,102 @@ export class PaymentGatewayWebhook {
 }
 ```
 
-`charge.authorized` es lenguaje de la pasarela; `RecordPaymentAuthorization` es lenguaje de Pagos. Cada tipo de evento que interesa va a un caso de uso distinto, que construye sus value objects en `toCommand` (`PaymentId`, `Money`) y registra un hecho: no lo rechaza y es idempotente, porque la pasarela reintenta. Los tipos que este contexto no necesita se ignoran con 204.
+`charge.authorized` es lenguaje de la pasarela; `RecordPaymentAuthorization` es lenguaje de Pagos. Cada tipo de evento que interesa va a un caso de uso distinto, que construye sus value objects en `toCommand` (`PaymentId`, `Money`) y registra un hecho: no lo rechaza y es idempotente, porque la pasarela reintenta. Los tipos que este contexto no necesita se ignoran con 204. Este punto de entrada traduce los errores él mismo porque la pasarela entiende los estados de otra forma (reintenta con 5xx): hace de ayudante de protocolo para ese emisor, como `Http` lo hace para los controladores, que nunca capturan errores `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ## ACL con eventos de otro contexto
 
-Si el upstream publica eventos (con el mismo paquete o no), el downstream los lee con su propia clase: un `EventBase` con el nombre publicado y solo los campos que usa, nunca la clase del otro contexto importada de su código `[Fuera de los libros: convención de @archi-code/ddd]`. La factoría de `EventRegistry` es el traductor del mensaje, y el listener convierte el evento en la entrada de un caso de uso:
+Si el upstream publica eventos (con el mismo paquete o no), el downstream los lee con su propia clase: un `EventBase` con el nombre publicado y solo los campos que usa, nunca la clase del otro contexto importada de su código, junto al caso de uso por reacción que lo escucha `[Fuera de los libros: convención de @archi-code/ddd]`. Aquí Almacén es un sistema aparte que publica su Published Language en su propio exchange, así que el `eventName` es el del contrato (`'warehouse.stock.StockReserved'`); si Almacén compartiera el canal del sistema, el evento sería su evento interno (`'stock_item.reserved'`, como en `ddd-skills/ddd-agregados/references/consistencia-eventual.md`). La factoría de `EventRegistry` es el traductor del mensaje y el caso de uso por reacción, una sola clase sin `UseCase` detrás, construye los value objects y llama al agregado:
 
 ```ts
-// src/contexts/sales/application/register-stock-reservation/StockReserved.ts
+// src/contexts/sales/application/register-stock-reservation/stock-reserved-domain-event.ts
 import { EventBase } from '@archi-code/ddd/domain';
 import type { EventMetadata } from '@archi-code/ddd/domain';
 
-export class StockReserved extends EventBase {
+export class StockReservedDomainEvent extends EventBase {
   static readonly eventName = 'warehouse.stock.StockReserved';
 
-  constructor(
-    readonly reservationId: string,
-    readonly orderId: string,
-    metadata?: EventMetadata,
-  ) {
-    super(metadata);
+  readonly reservationId: string;
+  readonly orderId: string;
+
+  constructor({
+    reservationId,
+    orderId,
+    eventId,
+    occurredOn,
+    clock,
+  }: { reservationId: string; orderId: string } & EventMetadata) {
+    super({ eventId, occurredOn, clock });
+    this.reservationId = reservationId;
+    this.orderId = orderId;
   }
 }
 ```
 
 ```ts
-// src/contexts/sales/application/register-stock-reservation/RegisterStockReservationOnStockReserved.ts
-import { EventListener, ListensTo } from '@archi-code/ddd/application';
-import { RegisterStockReservation } from './RegisterStockReservation';
-import { StockReserved } from './StockReserved';
+// src/contexts/sales/application/register-stock-reservation/register-stock-reservation-on-stock-reserved.ts
+import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
+import { EventListener, ListensTo, ValueObjectBuilder } from '@archi-code/ddd/application';
+import type { Clock, EventBus } from '@archi-code/ddd/application';
+import type { Order } from '../../domain/aggregate/Order';
+import type { OrderEvent } from '../../domain/event/OrderEvent';
+import { OrderId } from '../../domain/value-object/OrderId';
+import { ReservationReference } from '../../domain/value-object/ReservationReference';
+import { StockReservedDomainEvent } from './stock-reserved-domain-event';
 
-@ListensTo(StockReserved, { consumer: 'sales.register-stock-reservation-on-stock-reserved' })
-export class RegisterStockReservationOnStockReserved extends EventListener<StockReserved> {
-  constructor(private readonly registerStockReservation: RegisterStockReservation) {
+@ListensTo(StockReservedDomainEvent, {
+  consumer: 'sales.register-stock-reservation-on-stock-reserved',
+})
+export class RegisterStockReservationOnStockReserved extends EventListener<StockReservedDomainEvent> {
+  constructor(
+    private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
+    private readonly events: EventBus<OrderEvent>,
+    private readonly clock: Clock,
+  ) {
     super();
   }
 
-  async handle(event: StockReserved): Promise<void> {
-    await this.registerStockReservation.execute({
-      orderId: event.orderId,
-      reservationId: event.reservationId,
+  async handle(event: StockReservedDomainEvent): Promise<void> {
+    const { orderId, reservation } = ValueObjectBuilder.build({
+      orderId: () => new OrderId(event.orderId),
+      reservation: () => new ReservationReference(event.reservationId),
     });
+    const order = await this.orders.findById(orderId);
+    if (order === null) {
+      return;
+    }
+    order.registerStockReservation(reservation, this.clock);
+    await this.orders.save(order);
+    await this.events.publish(order.pullDomainEvents());
   }
 }
 ```
 
 ```ts
-// src/contexts/sales/composition.ts (extracto)
+// src/contexts/sales/composition.ts (extracto de SalesContext.start)
+import type { EventBase } from '@archi-code/ddd/domain';
 import { DomainEventBus, EventRegistry } from '@archi-code/ddd/infrastructure';
 
-const warehouseEvents = new EventRegistry<StockReserved>().register(
-  StockReserved,
-  (json) => new StockReserved(json.reservationId as string, json.orderId as string, json),
+const warehouseEvents = new EventRegistry<EventBase>().register(
+  StockReservedDomainEvent,
+  (json) =>
+    new StockReservedDomainEvent({
+      reservationId: json.reservationId as string,
+      orderId: json.orderId as string,
+      eventId: json.eventId,
+      occurredOn: json.occurredOn,
+    }),
 );
-const warehouseBus = new DomainEventBus<StockReserved>(
+const warehouseBus = new DomainEventBus<EventBase>(
   new RabbitMqEventChannel(amqpChannel, 'warehouse.published'),
   warehouseEvents,
+  logger,
 );
-await warehouseBus.subscribe(
-  new RegisterStockReservationOnStockReserved(
-    new RegisterStockReservation(orders, salesBus, clock),
-  ),
+subscriptions.push(
+  await warehouseBus.subscribe(new RegisterStockReservationOnStockReserved(orders, salesBus, clock)),
 );
 ```
 
-`RabbitMqEventChannel` es el canal de broker del proyecto (el de `ddd-skills/archi-code-ddd/patterns.md`), aquí suscrito al exchange donde Almacén publica su Published Language. La factoría pasa `json` como metadatos para conservar el `eventId` con el que se deduplica. Leer `json.orderId as string` no valida nada: el caso de uso construye `OrderId` y `ReservationId` en `toCommand`, y si el mensaje no cumple el contrato lanza una `ValidationException` con cada campo, el listener falla y el canal lo aparta (en RabbitMQ, `nack` a la cola de mensajes muertos). El caso de uso `RegisterStockReservation` y su idempotencia están en `ddd-skills/ddd-context-mapping/references/estilos-integracion.md`.
+`RabbitMqEventChannel` es el canal de broker del proyecto (el de `ddd-skills/archi-code-ddd/patterns.md`), aquí suscrito al exchange donde Almacén publica su Published Language. La factoría pasa `eventId` y `occurredOn` para conservar el identificador con el que se deduplica. Leer `json.orderId as string` no valida nada: el caso de uso por reacción construye `OrderId` y `ReservationReference` con `ValueObjectBuilder.build`, y si el mensaje no cumple el contrato lanza una `ValidationException` con cada campo, la reacción falla y el canal lo aparta (en RabbitMQ, `nack` a la cola de mensajes muertos). Su idempotencia se explica en `ddd-skills/ddd-context-mapping/references/estilos-integracion.md`.
 
 ## Tests de la capa
 
@@ -389,9 +449,9 @@ await warehouseBus.subscribe(
 * **Dominio y casos de uso:** usan una implementación en memoria del puerto; nunca se prueban contra el sistema remoto:
 
 ```ts
-import type { ProductPricing } from '../../src/contexts/sales/domain/catalog/ProductPricing';
-import { SellableProduct } from '../../src/contexts/sales/domain/catalog/ProductPricing';
-import type { Sku } from '../../src/contexts/sales/domain/order/OrderLine';
+import type { ProductPricing } from '../../src/contexts/sales/domain/service/ProductPricing';
+import type { SellableProduct } from '../../src/contexts/sales/domain/value-object/SellableProduct';
+import type { Sku } from '../../src/contexts/sales/domain/value-object/Sku';
 
 export class InMemoryProductPricing implements ProductPricing {
   private readonly products = new Map<string, SellableProduct>();
@@ -407,7 +467,7 @@ export class InMemoryProductPricing implements ProductPricing {
 }
 ```
 
-Con ella, `PlaceOrder` se prueba con `new InMemoryOrderRepository()` (el repositorio en memoria que el proyecto escribe en `test/support/`, como en `ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`), un `DomainEventBus` sobre `InMemoryEventChannel` y `new FixedClock('2026-03-01T09:30:00Z')`, comprobando `channel.sent` y lo guardado.
+El adaptador en memoria vive en `test/support/in-memory-product-pricing.ts` como doble de test, o en `infrastructure/catalog/in-memory-product-pricing.ts` si la aplicación corre en memoria. Con él, `PlaceOrder` se prueba con `new InMemoryOrderRepository()` (el repositorio en memoria del proyecto, en `infrastructure/persistence/` o en `test/support/`, como en `ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`), un `DomainEventBus` sobre `InMemoryEventChannel` y `new FixedClock('2026-03-01T09:30:00Z')`, comprobando `channel.sent` y lo guardado.
 
 ## Errores frecuentes
 
@@ -416,4 +476,5 @@ Con ella, `PlaceOrder` se prueba con `new InMemoryOrderRepository()` (el reposit
 * Una única ACL genérica para todos los sistemas externos. Cada relación tiene su traducción.
 * Copiar todos los campos remotos "por si acaso" en vez del estado mínimo.
 * Dejar que una `ValidationException` provocada por datos del sistema remoto salga como si fuera un error del usuario (422): el adaptador la envuelve en su propia `InfrastructureException`.
-* Importar la clase de evento del otro contexto para el `@ListensTo`: el downstream declara la suya, con el nombre publicado.
+* Importar la clase de evento del otro contexto para el `@ListensTo`: el downstream declara la suya, con el nombre publicado, junto al caso de uso por reacción que la escucha.
+* Un listener que llama a un `UseCase` para cada evento externo: el caso de uso por reacción es la propia clase con `@ListensTo`.

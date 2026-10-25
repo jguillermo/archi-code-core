@@ -24,6 +24,12 @@ IGNORED_DIRS = {"node_modules", "dist", "build", ".git", "coverage", ".next", ".
 IMPORT_RE = re.compile(r"""^\s*import\s+(?:[^'"]+\s+from\s+)?['"]([^'"]+)['"]""", re.M)
 REQUIRE_RE = re.compile(r"""require\(\s*['"]([^'"]+)['"]\s*\)""")
 SETTER_RE = re.compile(r"^\s*(?:public\s+)?set\s*([A-Z]\w*)\s*\(|^\s*(?:public\s+)?set\s+\w+\s*\(", re.M)
+SHARED_KERNEL = "shared-kernel"
+# Con el paquete, la reacción a un evento es el propio caso de uso: un EventListener no llama a execute()
+LISTENER_CLASS_RE = re.compile(r"class\s+(\w+)[^{]*\bextends\s+EventListener\b")
+EXECUTE_CALL_RE = re.compile(r"\.execute\s*\(")
+# eventName '<agregado>.<acción_en_pasado>' en snake_case; un nombre de clase como 'OrderPlaced' no sigue la convención
+CLASS_EVENT_NAME_RE = re.compile(r"static\s+readonly\s+eventName\s*=\s*['\"]([A-Z]\w*)['\"]")
 PUBLIC_MUTABLE_FIELD_RE = re.compile(r"^\s*public\s+(?!readonly)(?!static)\w+\??\s*:", re.M)
 CLASS_RE = re.compile(r"\bclass\s+(\w+)")
 ORM_DECORATOR_RE = re.compile(r"@(Entity|Column|PrimaryGeneratedColumn|OneToMany|ManyToOne|Table|Prop|Schema)\b")
@@ -140,10 +146,13 @@ def scan(root: Path, domain_dir: str):
                 add("setter-en-dominio", "media", path, line_of(text, m.start()), m.group(0).strip()[:60])
             for m in PUBLIC_MUTABLE_FIELD_RE.finditer(text):
                 add("campo-publico-mutable", "media", path, line_of(text, m.start()), m.group(0).strip()[:60])
-            for m in PRIMITIVE_MONEY_RE.finditer(text):
-                add("dinero-como-number", "media", path, line_of(text, m.start()), m.group(0))
-            for m in PRIMITIVE_STATUS_RE.finditer(text):
-                add("estado-como-string", "baja", path, line_of(text, m.start()), m.group(0))
+            folders = {part.lower() for part in path.parts}
+            carries_primitives = bool(folders & {"event", "exception"}) or path.stem.endswith("DomainEvent")
+            if not carries_primitives:
+                for m in PRIMITIVE_MONEY_RE.finditer(text):
+                    add("dinero-como-number", "media", path, line_of(text, m.start()), m.group(0))
+                for m in PRIMITIVE_STATUS_RE.finditer(text):
+                    add("estado-como-string", "baja", path, line_of(text, m.start()), m.group(0))
 
         if zone in (domain_dir, "application") and not is_test:
             for m in NEW_DATE_RE.finditer(text):
@@ -166,8 +175,20 @@ def scan(root: Path, domain_dir: str):
                 else:
                     m = re.search(r"contexts/([\w-]+)/", mod)
                     target_ctx = m.group(1) if m else None
-                if target_ctx and target_ctx != ctx:
+                if target_ctx and target_ctx != ctx and target_ctx != SHARED_KERNEL:
                     add("importacion-entre-contextos", "alta", path, line_of(text, idx), f"{ctx} importa de {target_ctx}")
+
+        if zone == "application" and not is_test:
+            for start, end, name in class_spans(text):
+                header = LISTENER_CLASS_RE.match(text, start)
+                if header and EXECUTE_CALL_RE.search(text, start, end):
+                    add("reaccion-llama-a-caso-de-uso", "media", path, line_of(text, start),
+                        f"{name} llama a execute(); la reacción es el caso de uso")
+
+        if not is_test:
+            for m in CLASS_EVENT_NAME_RE.finditer(text):
+                add("event-name-fuera-de-convencion", "baja", path, line_of(text, m.start()),
+                    f"eventName '{m.group(1)}'; usa '<agregado>.<acción_en_pasado>'")
 
         for m in SMELLY_NAME_RE.finditer(text):
             add("clase-con-nombre-generico", "baja", path, line_of(text, m.start()), m.group(0))

@@ -11,9 +11,11 @@ Ejemplo de IDDD: autenticar a un usuario solo si su tenant está activo. Ponerlo
 
 ## Forma
 
-El paquete no trae una clase base para servicios de dominio: son clases normales en `domain/`, con el nombre de la operación de negocio. Reciben agregados ya cargados y value objects, y devuelven un value object.
+El paquete no trae una clase base para servicios de dominio: son clases normales en `domain/service/` (un fichero PascalCase por clase), con el nombre de la operación de negocio. Reciben agregados ya cargados y value objects, devuelven un value object y lanzan errores de negocio; los puertos de dominio que necesiten llegan por constructor. Solo el composition root los construye, y los recibe un caso de uso de usuario.
 
 ```ts
+// domain/value-object/ShippingZone.ts, ShippingRate.ts, ShippingRates.ts;
+// domain/exception/NoShippingToZone.ts; domain/service/ShippingCostCalculator.ts
 import { Composite, DomainException, Required, StringType } from '@archi-code/ddd/domain';
 import type { SatisfiedBy } from '@archi-code/ddd/domain';
 import { Validations } from '@archi-code/validation';
@@ -25,7 +27,7 @@ export class ShippingRate extends Composite({ zone: ShippingZone, price: Money }
 
 export class NoShippingToZone extends DomainException {
   constructor(zone: string) {
-    super(`There is no shipping rate for ${zone}`, ['SHP001']);
+    super(`There is no shipping rate for ${zone}`, ['SAL022']);
   }
 }
 
@@ -55,8 +57,8 @@ export class ShippingCostCalculator {
 }
 ```
 
-* Sin estado; recibe objetos de dominio (`Order`, la tabla de tarifas como composite, la zona) y devuelve un value object (`Money`, el composite de `Cents` y `Currency`).
-* La condición de envío gratis es una `Specification<Order>` que recibe ya construida (`new OrderAbove(euros(5000))`); `SatisfiedBy<Order>` acepta también cualquier objeto con `isSatisfiedBy`, y se combina con `and`, `or` y `not`.
+* Sin estado; recibe objetos de dominio (`Order`, la tabla de tarifas como composite, la zona) y devuelve un value object (`Money`, el composite de `Cents` y `MoneyCurrency`).
+* La condición de envío gratis es una `Specification<Order>` que recibe ya construida (`new TotalAtLeast(euros(5000))`); `SatisfiedBy<Order>` acepta también cualquier objeto con `isSatisfiedBy`, y se combina con `and`, `or` y `not`.
 * El nombre de la clase y del método salen del lenguaje ubicuo.
 * No guarda nada ni publica nada; eso lo hace el caso de uso que lo invoca.
 * El servicio puede leer por repositorio [IDDD cap. 7]: con el paquete recibe un `AggregateFinder` (solo lectura) o los agregados ya cargados por el caso de uso, como aquí; nunca guarda ni elimina.
@@ -65,7 +67,7 @@ export class ShippingCostCalculator {
 
 Si solo habrá una implementación y no depende de infraestructura, una clase concreta basta. IDDD discute la interfaz separada y advierte contra nombres de implementación sin significado como `Impl`: si hay interfaz, la implementación se nombra por lo que la distingue [IDDD cap. 7].
 
-Cuando la implementación necesita tecnología (consultar otro contexto, un servicio de tipos de cambio), la interfaz va en el dominio, con value objects, y la implementación en infraestructura [IDDD cap. 7]. El adaptador envuelve los errores del cliente en `InternalErrorException` con `cause` y redondea de forma explícita (el dinero va en céntimos enteros):
+Cuando la implementación necesita tecnología (consultar otro contexto, un servicio de tipos de cambio), la interfaz es un puerto de dominio en `domain/service/`, con value objects, y la implementación un adaptador en `infrastructure/<área>/` [IDDD cap. 7]. El adaptador envuelve los errores del cliente en `InternalErrorException` con `cause` y redondea de forma explícita (el dinero va en céntimos enteros):
 
 ```ts
 import { DateType, Required } from '@archi-code/ddd/domain';
@@ -73,7 +75,7 @@ import { DateType, Required } from '@archi-code/ddd/domain';
 export class RateDay extends Required(DateType) {}
 
 export interface ExchangeRates {
-  convert(amount: Money, to: Currency, on: RateDay): Promise<Money>;
+  convert(amount: Money, to: MoneyCurrency, on: RateDay): Promise<Money>;
 }
 ```
 
@@ -87,7 +89,7 @@ interface EcbClient {
 export class EcbExchangeRates implements ExchangeRates {
   constructor(private readonly ecb: EcbClient) {}
 
-  async convert(amount: Money, to: Currency, on: RateDay): Promise<Money> {
+  async convert(amount: Money, to: MoneyCurrency, on: RateDay): Promise<Money> {
     let rate: number;
     try {
       rate = await this.ecb.rate(amount.currency.value, to.value, on.value.toISOString().slice(0, 10));
@@ -113,13 +115,13 @@ export class ShipmentCheck {
   assertCanShip(order: Order, customer: Customer): void {
     const issues: ValidationIssue[] = [];
     if (!order.customerId.equals(customer.id)) {
-      issues.push({ field: 'customer', code: 'SHP002', message: `Order ${order.id.value} belongs to another customer` });
+      issues.push({ field: 'customer', code: 'SAL021', message: `Order ${order.id.value} belongs to another customer` });
     }
     if (customer.blocked.value) {
-      issues.push({ field: 'customer', code: 'CUS001', message: `Customer ${customer.id.value} is blocked` });
+      issues.push({ field: 'customer', code: 'SAL020', message: `Customer ${customer.id.value} is blocked` });
     }
-    if (!order.status.isPending()) {
-      issues.push({ field: 'order', code: 'ORD001', message: `Order ${order.id.value} is no longer pending` });
+    if (!order.isIn(OrderStatus.PENDING)) {
+      issues.push({ field: 'order', code: 'SAL001', message: `Order ${order.id.value} is no longer pending` });
     }
     if (issues.length > 0) {
       throw new ValidationException(issues);
@@ -141,7 +143,7 @@ describe('ShippingCostCalculator', () => {
       anOrderWorth(5200),
       new ShippingZone('PENINSULA'),
       standardRates(),
-      new OrderAbove(euros(5000)),
+      new TotalAtLeast(euros(5000)),
     );
 
     expect(cost.toPrimitives()).toEqual({ amount: 0, currency: 'EUR' });
@@ -152,7 +154,7 @@ describe('ShippingCostCalculator', () => {
       anOrderWorth(3000),
       new ShippingZone('CANARIAS'),
       standardRates(),
-      new OrderAbove(euros(5000)),
+      new TotalAtLeast(euros(5000)),
     );
 
     expect(cost.equals(euros(1295))).toBe(true);
@@ -168,7 +170,7 @@ const clock = new FixedClock('2026-03-01T09:30:00Z');
 export const euros = (cents: number): Money => Money.fromPrimitives({ amount: cents, currency: 'EUR' });
 
 export const anOrderWorth = (cents: number): Order =>
-  Order.place(
+  Order.create(
     OrderId.generate(),
     new CustomerId('3c1d2e4f-5a6b-4c7d-8e9f-0a1b2c3d4e5f'),
     OrderLines.fromPrimitives({
@@ -187,4 +189,4 @@ export const standardRates = (): ShippingRates =>
   });
 ```
 
-`Order`, `OrderLines`, `ShippingAddress`, `Money` y `Cents` son los de `ddd-skills/ddd-agregados/references/implementacion-ts.md`, y `OrderAbove` y `Customer`, los de `ddd-skills/ddd-servicios-capa-aplicacion/references/ejemplo-ecommerce.md`.
+`Order`, `OrderStatus`, `OrderLines`, `ShippingAddress`, `Money` y `Cents` son los de `ddd-skills/ddd-agregados/references/implementacion-ts.md`, y `TotalAtLeast` y `Customer`, los de `ddd-skills/ddd-servicios-capa-aplicacion/references/ejemplo-ecommerce.md`.

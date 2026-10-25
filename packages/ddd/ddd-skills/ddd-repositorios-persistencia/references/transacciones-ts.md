@@ -57,7 +57,8 @@ En `infrastructure/persistence/postgres-order-repository.ts`:
 import type { AggregateFinder, AggregateSaver, PrimitiveTypes } from '@archi-code/ddd/domain';
 import { ConcurrencyException } from '@archi-code/ddd/application';
 import { InternalErrorException } from '@archi-code/ddd/infrastructure';
-import { Order, OrderId } from '../../domain/order/order';
+import { Order } from '../../domain/aggregate/Order';
+import type { OrderId } from '../../domain/value-object/OrderId';
 import type { PgPool } from './pg-pool';
 
 type OrderPrimitives = PrimitiveTypes<Order>;
@@ -170,14 +171,16 @@ El repositorio toma los eventos con `pullDomainEvents()`, así que el `publish` 
 
 ## Uso en un caso de uso
 
-El caso de uso carga, cambia, guarda y publica, sin abrir nada. Si el comando es seguro de repetir contra el estado recargado, la aplicación puede reintentar una o dos veces ante `ConcurrencyException`; si no, el conflicto llega al usuario como 409 [IDDD cap. 10; IDDD apéndice A]. Cada intento vuelve a cargar y vuelve a guardar dentro de `handle`, en un bucle con límite `[Fuera de los libros: convención de @archi-code/ddd]`. Un caso de uso que ejecuta un listener no reintenta por su cuenta: reintenta la reentrega del canal.
+El caso de uso carga, cambia, guarda y publica, sin abrir nada. Si el comando es seguro de repetir contra el estado recargado, la aplicación puede reintentar una o dos veces ante `ConcurrencyException`; si no, el conflicto llega al usuario como 409 [IDDD cap. 10; IDDD apéndice A]. Cada intento vuelve a cargar y vuelve a guardar dentro de `handle`, en un bucle con límite `[Fuera de los libros: convención de @archi-code/ddd]`. Un caso de uso por reacción no reintenta por su cuenta: reintenta la reentrega del canal.
 
 ```ts
 import { AggregateNotFoundException, ConcurrencyException, UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
 import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
-import { Order, OrderId, OrderLine } from '../../domain/order/order';
-import type { OrderEvent } from '../../domain/order/order';
+import type { Order } from '../../domain/aggregate/Order';
+import type { OrderEvent } from '../../domain/event/OrderEvent';
+import { OrderId } from '../../domain/value-object/OrderId';
+import { OrderLine } from '../../domain/value-object/OrderLine';
 
 export interface AddOrderLineInput {
   orderId: string;
@@ -186,14 +189,14 @@ export interface AddOrderLineInput {
   unitPrice: { amount: number; currency: string };
 }
 
-interface AddOrderLineCommand {
+export interface AddOrderLineCommand {
   orderId: OrderId;
   line: OrderLine;
 }
 
-const ATTEMPTS = 3;
-
 export class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand, void> {
+  private static readonly ATTEMPTS = 3;
+
   constructor(
     private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
     private readonly events: EventBus<OrderEvent>,
@@ -224,7 +227,7 @@ export class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand
       try {
         await this.orders.save(order);
       } catch (error) {
-        if (error instanceof ConcurrencyException && attempt < ATTEMPTS) {
+        if (error instanceof ConcurrencyException && attempt < AddOrderLine.ATTEMPTS) {
           continue;
         }
         throw error;
@@ -240,7 +243,7 @@ export class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand
 
 ## En tests
 
-Los tests de la aplicación usan el `InMemoryOrderRepository` que el proyecto escribe en `test/support/` (`ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`) y un `DomainEventBus` sobre `InMemoryEventChannel`; no hay nada que revertir ni que contar, porque cada `save` del repositorio en memoria es atómico y comprueba la versión igual que uno real. En `test/contexts/sales/application/add-order-line.spec.ts`:
+Los tests de la aplicación usan el `InMemoryOrderRepository` del proyecto (`ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`) y un `DomainEventBus` sobre `InMemoryEventChannel`; no hay nada que revertir ni que contar, porque cada `save` del repositorio en memoria es atómico y comprueba la versión igual que uno real. En `test/contexts/sales/application/add-order-line.spec.ts`:
 
 ```ts
 import { describe, expect, it } from 'vitest';
@@ -251,15 +254,13 @@ import {
   InMemoryEventChannel,
 } from '@archi-code/ddd/infrastructure';
 import { AddOrderLine } from '../../../../src/contexts/sales/application/add-order-line/add-order-line';
-import {
-  CustomerId,
-  Order,
-  OrderId,
-  OrderLines,
-  ShippingAddress,
-} from '../../../../src/contexts/sales/domain/order/order';
-import type { OrderEvent } from '../../../../src/contexts/sales/domain/order/order';
-import { InMemoryOrderRepository } from '../../../support/in-memory-order-repository';
+import { Order } from '../../../../src/contexts/sales/domain/aggregate/Order';
+import type { OrderEvent } from '../../../../src/contexts/sales/domain/event/OrderEvent';
+import { CustomerId } from '../../../../src/contexts/sales/domain/value-object/CustomerId';
+import { OrderId } from '../../../../src/contexts/sales/domain/value-object/OrderId';
+import { OrderLines } from '../../../../src/contexts/sales/domain/value-object/OrderLines';
+import { ShippingAddress } from '../../../../src/contexts/sales/domain/value-object/ShippingAddress';
+import { InMemoryOrderRepository } from '../../../../src/contexts/sales/infrastructure/persistence/in-memory-order-repository';
 
 describe('Two customers add a line to the same order at once', () => {
   it('the second one retries with the reloaded order and both lines are kept', async () => {
@@ -271,7 +272,7 @@ describe('Two customers add a line to the same order at once', () => {
       new DomainEventBus<OrderEvent>(channel, new EventRegistry<OrderEvent>()),
       clock,
     );
-    const order = Order.place(
+    const order = Order.create(
       OrderId.generate(),
       CustomerId.generate(),
       OrderLines.fromPrimitives({
@@ -291,8 +292,8 @@ describe('Two customers add a line to the same order at once', () => {
     const stored = await orders.findById(order.id);
     expect(stored?.toPrimitives().lines.items).toHaveLength(3);
     expect(channel.sent).toMatchObject([
-      { eventName: 'OrderLineAdded', sku: 'HELMET-02' },
-      { eventName: 'OrderLineAdded', sku: 'GLOVES-03' },
+      { eventName: 'order.line_added', sku: 'HELMET-02' },
+      { eventName: 'order.line_added', sku: 'GLOVES-03' },
     ]);
   });
 });
