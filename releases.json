@@ -4,7 +4,7 @@
       "main": "4.0.0-alpha.1"
     },
     "@archi-code/crypto-tools": {
-      "main": "3.0.0-alpha.4"
+      "main": "4.0.0-alpha.1"
     },
     "@archi-code/domain": {
       "main": "3.0.0-alpha.4"
@@ -53,6 +53,16 @@
           "dependencies": {
             "@archi-code/criteria": "4.0.0-alpha.1"
           }
+        },
+        {
+          "name": "@archi-code/crypto-tools",
+          "previous": "3.0.0-alpha.4",
+          "version": "4.0.0-alpha.1",
+          "bump": "major",
+          "reasons": [
+            "breaking: releases.json without deploys, new major for the whole set (4.0.0-alpha.1)"
+          ],
+          "dependencies": {}
         }
       ]
     }
