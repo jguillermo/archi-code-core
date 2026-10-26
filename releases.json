@@ -16,7 +16,7 @@
       "main": "3.0.0-alpha.4"
     },
     "@archi-code/validation": {
-      "main": "3.0.0-alpha.6"
+      "main": "4.0.0-alpha.1"
     },
     "@archi-code/criteria-adapters": {
       "main": "4.0.0-alpha.1"
@@ -57,6 +57,16 @@
         {
           "name": "@archi-code/crypto-tools",
           "previous": "3.0.0-alpha.4",
+          "version": "4.0.0-alpha.1",
+          "bump": "major",
+          "reasons": [
+            "breaking: releases.json without deploys, new major for the whole set (4.0.0-alpha.1)"
+          ],
+          "dependencies": {}
+        },
+        {
+          "name": "@archi-code/validation",
+          "previous": "3.0.0-alpha.6",
           "version": "4.0.0-alpha.1",
           "bump": "major",
           "reasons": [
