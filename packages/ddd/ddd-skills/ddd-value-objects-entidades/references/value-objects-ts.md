@@ -35,11 +35,18 @@ Lo que no es opcional, con o sin paquete, es la inmutabilidad y la igualdad por 
 
 ## 2. Money
 
-El ejemplo canónico de *DDD in PHP* (moneda e importe juntos) [PHP: Value Objects]. Nunca `number` en coma flotante para dinero `[Fuera de los libros]`: aquí, céntimos enteros en un `Composite`. Los libros usarían `bigint`; el paquete no tiene tipo `bigint`, así que `Cents` es `Required(NumberType)` con `isInt`, exacto hasta `Number.MAX_SAFE_INTEGER` céntimos `[Fuera de los libros: convención de @archi-code/ddd]`.
+El ejemplo canónico de *DDD in PHP* (moneda e importe juntos) [PHP: Value Objects]. Nunca `number` en coma flotante para dinero `[Fuera de los libros]`: aquí, céntimos enteros en un `Composite`. Los libros usarían `bigint`; el paquete no tiene tipo `bigint`, así que los céntimos son un tipo propio, `CentsAmount extends AbstractType<number>` (entero seguro ≥ 0; acepta también texto solo de dígitos), con `Cents extends Required(CentsAmount)` en otro fichero, exacto hasta `Number.MAX_SAFE_INTEGER` céntimos `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ```ts
 import { Validations } from '@archi-code/validation';
-import { Composite, DomainException, NumberType, Required, StringType } from '@archi-code/ddd/domain';
+import {
+  AbstractType,
+  Composite,
+  DomainException,
+  Required,
+  StringType,
+  TypePrimitiveException,
+} from '@archi-code/ddd/domain';
 
 export class CurrencyMismatch extends DomainException {
   constructor(expected: string, received: string) {
@@ -53,8 +60,17 @@ export class InvalidMultiplier extends DomainException {
   }
 }
 
-@Validations([{ validator: 'isInt' }])
-export class Cents extends Required(NumberType) {}
+export class CentsAmount extends AbstractType<number> {
+  protected filter(value: unknown): number {
+    const cents = typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value;
+    if (typeof cents !== 'number' || !Number.isSafeInteger(cents) || cents < 0) {
+      throw new TypePrimitiveException('amount in cents', value);
+    }
+    return cents;
+  }
+}
+
+export class Cents extends Required(CentsAmount) {}
 
 @Validations([{ validator: 'isISO4217' }])
 export class MoneyCurrency extends Required(StringType) {

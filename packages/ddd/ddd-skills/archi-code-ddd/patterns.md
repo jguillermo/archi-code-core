@@ -792,7 +792,7 @@ export class RequestPaymentOnOrderCreated extends EventListener<OrderCreatedDoma
 
 Changing, `application/cancel-unpaid-order/cancel-unpaid-order-on-payment-rejected.ts`: a
 missing aggregate returns, the reaction method returns when the fact does not apply, and the
-business trace is logged after publishing:
+business trace is logged after publishing, only when the method recorded events:
 
 ```ts
 @ListensTo(PaymentRejectedDomainEvent, {
@@ -819,11 +819,14 @@ export class CancelUnpaidOrderOnPaymentRejected extends EventListener<PaymentRej
     }
     order.cancelForRejectedPayment(reason, this.clock);
     await this.orders.save(order);
-    await this.events.publish(order.pullDomainEvents());
-    this.logger.info('order_cancelled_for_rejected_payment', {
-      orderId: orderId.value,
-      reason: reason.value,
-    });
+    const events = order.pullDomainEvents();
+    await this.events.publish(events);
+    if (events.length > 0) {
+      this.logger.info('order_cancelled_for_rejected_payment', {
+        orderId: orderId.value,
+        reason: reason.value,
+      });
+    }
   }
 }
 ```

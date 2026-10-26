@@ -31,10 +31,13 @@ export class CancelUnpaidOrderOnPaymentRejected extends EventListener<PaymentRej
     }
     order.cancelForRejectedPayment(reason, this.clock);
     await this.orders.save(order);
-    await this.events.publish(order.pullDomainEvents());
-    this.logger.info('order_cancelled_for_rejected_payment', {
-      orderId: orderId.value,
-      reason: reason.value,
-    });
+    const events = order.pullDomainEvents();
+    await this.events.publish(events);
+    if (events.length > 0) {
+      this.logger.info('order_cancelled_for_rejected_payment', {
+        orderId: orderId.value,
+        reason: reason.value,
+      });
+    }
   }
 }

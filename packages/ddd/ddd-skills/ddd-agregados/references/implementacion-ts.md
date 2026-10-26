@@ -54,12 +54,14 @@ Value objects del pedido, cada uno en su fichero de `domain/value-object/` (su d
 
 ```ts
 import {
+  AbstractType,
   Composite,
   DateType,
   IdType,
   NumberType,
   Required,
   StringType,
+  TypePrimitiveException,
   UuidType,
 } from '@archi-code/ddd/domain';
 import { DomainException } from '@archi-code/ddd/domain';
@@ -78,8 +80,17 @@ export class ExpiresAt extends Required(DateType) {}
 @Validations([{ validator: 'isInt', properties: { min: 1 } }])
 export class Quantity extends Required(NumberType) {}
 
-@Validations([{ validator: 'isInt', properties: { min: 0 } }])
-export class Cents extends Required(NumberType) {}
+export class CentsAmount extends AbstractType<number> {
+  protected filter(value: unknown): number {
+    const cents = typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value;
+    if (typeof cents !== 'number' || !Number.isSafeInteger(cents) || cents < 0) {
+      throw new TypePrimitiveException('amount in cents', value);
+    }
+    return cents;
+  }
+}
+
+export class Cents extends Required(CentsAmount) {}
 
 @Validations([{ validator: 'isISO4217' }])
 export class MoneyCurrency extends Required(StringType) {

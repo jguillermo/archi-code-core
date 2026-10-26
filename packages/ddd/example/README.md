@@ -655,7 +655,7 @@ Template (change), `handle` of `sales/application/mark-order-shipped/mark-order-
   }
 ```
 
-With logging: `sales/application/cancel-unpaid-order/cancel-unpaid-order-on-payment-rejected.ts` (`Logger` last in the constructor; `this.logger.info('order_cancelled_for_rejected_payment', { orderId: orderId.value, reason: reason.value })` after publish).
+With logging: `sales/application/cancel-unpaid-order/cancel-unpaid-order-on-payment-rejected.ts` (`Logger` last in the constructor; `const events = order.pullDomainEvents()`, publish them, and only when `events.length > 0` `this.logger.info('order_cancelled_for_rejected_payment', { orderId: orderId.value, reason: reason.value })`: a reaction that did not apply logs nothing).
 
 ### 3.4 Consumed event copies (A-EVC)
 

@@ -74,7 +74,10 @@ from is in `patterns.md`; the folders and names are in `where-each-class-goes.md
   (`money.add(other)`, `money.lessPercent(10)`); `ArrayType.withItem/withoutItem` return a new
   instance; `UpdatedAt` is replaced with `UpdatedAt.now(clock)`.
 - `toString()` is a method, `equals(other)` compares class and value (dates by instant, arrays
-  and objects by content). Template literals work on VOs; `JSON.stringify` does not unwrap them:
+  and objects by content). An optional value object with no value answers `isNull`
+  (`if (trackingNumber.isNull)`), and a `DateType` gives its ISO text with `toString()`
+  (`expectedDeliveryOn: shipment.expectedDelivery.toString()` in an event, a date field named
+  `…On` like `occurredOn`). Template literals work on VOs; `JSON.stringify` does not unwrap them:
   serialize `value` or the aggregate's `toPrimitives()`.
 - Dates: `DateType` accepts `Date`, ISO dates (`'2024-01-31'`, UTC midnight) and ISO date-times
   **with** a zone (`Z` or offset); a date-time without a zone throws `TypePrimitiveException`.
@@ -166,7 +169,10 @@ where needed [Destilado ch. 5] and a mapper in infrastructure [IDDD ch. 6].
   root calls (`changeQuantity(quantity)`; Tell, Don't Ask [IDDD ch. 5 and 10]), never setters, a
   clock, events, `create` nor `toPrimitives`/`fromPrimitives` (the aggregate converts them). Their
   identity is local to the aggregate [IDDD ch. 10]. Prefer a composite over a child entity when
-  nobody looks the part up by id [IDDD ch. 6].
+  nobody looks the part up by id [IDDD ch. 6]; as soon as a use case changes one part by its
+  number (`changeLineQuantity(lineNumber, quantity)`), the part is a child entity: `create`
+  receives `New<Child>` shapes and numbers them, and a rule over all of them (no repeated SKU) is
+  a business error of the aggregate (`DuplicateSku`), checked by a private `assert…()`.
 - The aggregate carries **no version**: optimistic concurrency is the repository's.
 
 ## Domain events
@@ -323,6 +329,18 @@ use case, one class, with no `UseCase` behind it.
 - Plain shapes the application receives (`MoneyData`, `AddressData`) are `export interface` in
   kebab-case files in the folder of the use case that first needs them; the rest of the context
   imports them from there. They never live in `domain/` and are never shared between contexts.
+  The nested objects of a foreign event are data types too, named after the event
+  (`PaidOrderAddress`, `PaidOrderItem` in `prepare-shipment/paid-order-address.ts` and
+  `paid-order-item.ts`): the event copy still writes its field types inline, and the registry
+  factory casts with them (`address: json.address as PaidOrderAddress`,
+  `items: json.items as PaidOrderItem[]`), never with `Event['field']`. The context's own events
+  (registered for its read model) are cast with the data types the context already has
+  (`total: json.total as MoneyData`, `address: json.address as AddressData`) and with an inline
+  shape for the rest (`items: json.items as { sku: string; quantity: number }[]`): no new data
+  type is created only for the registry.
+- An event whose data no value object accepts makes `ValueObjectBuilder.build` throw a
+  `ValidationException` in the reaction: it is not caught; `DomainEventBus` logs it and the
+  channel keeps it as an undeliverable message (a dead-letter queue in a broker).
 - The event's JSON is the contract between contexts: never change its data incompatibly under
   the same `eventName`. When the events leave the system (a broker shared with other teams), the
   adapter that talks to the broker translates them to a published, versioned contract
@@ -427,7 +445,8 @@ use case, one class, with no `UseCase` behind it.
 - Logging goes through the `Logger` port of `/application` (`debug`, `info`, `warn`, `error`,
   each `(message, context?)`): the message is a stable snake_case name and the data goes in the
   context (`this.logger.info('order_cancelled_for_rejected_payment', { orderId: orderId.value })`,
-  after publishing). The domain never logs (it records events or throws). The composition root
+  after publishing; a reaction logs only when its method recorded events, since one that did not
+  apply changed nothing). The domain never logs (it records events or throws). The composition root
   picks the provider: `ConsoleLogger({ level })`, an adapter over pino or winston,
   `InMemoryLogger` in tests (`entries`), `SilentLogger` by default. Each error is logged once,
   where it is handled.

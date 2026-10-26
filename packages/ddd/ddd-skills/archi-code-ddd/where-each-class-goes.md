@@ -33,7 +33,14 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   every other datum crosses contexts only as an event, and each context declares its own value
   objects even when another has a similar one (`Phone` in sales and in shipping).
 - Imports are relative, point to the declaring file (never a folder nor an `index.ts`), use
-  `import type` for types only, and split values and types of one module in two statements.
+  `import type` for types only, and split values and types of one module in two statements. A
+  value from a file of the project goes in its own statement, also when the file declares several
+  (`import { ShipmentStatus } from '../value-object/ShipmentStatusType';` and
+  `import { ShipmentStatusType } from '../value-object/ShipmentStatusType';`); several names in
+  one statement only for the package layers (`import { AggregateRoot, CreatedAt } from …`) and for
+  types.
+- Every file is formatted with the project's Prettier (`npm run fix:format`), never by hand: long
+  generic parameters, decorator options and inline object types wrap as Prettier decides.
 - Import from the layer, never from the package root (there is none): each exception comes from
   the subpath of its layer (`DomainException` from `/domain`, `AggregateNotFoundException` from
   `/application`, `InternalErrorException` from `/infrastructure`); there is no `/exceptions`.
@@ -83,7 +90,7 @@ src/
 | Every other file             | kebab-case of the main export (`confirm-transfer-received.ts`)                             |
 | Aggregate id                 | `<Aggregate>Id extends IdType<'<Aggregate>Id'>`                                            |
 | Reference to another context's aggregate | `<Other>Reference extends Required(UuidType)` (`OrderReference` in payments)   |
-| Enum value object            | file `<Enum>Type.ts` with `enum <Enum>`, `<Enum>Option`, `<Enum>Type`                      |
+| Enum value object            | file `<Enum>Type.ts` with `enum <Enum>`, `<Enum>Option`, `<Enum>Type`; the one exception is money: `MoneyCurrency.ts` with `Currency`, `CurrencyOption`, `MoneyCurrency` |
 | Shape `create` receives      | `New<Child>` (`NewOrderLine`), an interface of value objects                               |
 | Domain event                 | `<Aggregate><PastAction>DomainEvent`, `eventName` `'<aggregate>.<past_action>'`           |
 | Event union                  | `<Aggregate>Event` (`OrderEvent`)                                                          |
