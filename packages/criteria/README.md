@@ -409,10 +409,13 @@ joins that package and passes the same contract.
 
 The package ships `SKILL.md`, a Claude Code skill with the rules, the recommended patterns and the
 common mistakes. For the full API it points to this README inside `node_modules`, so it stays valid
-when you update the package. To install it in your project:
+when you update the package.
+
+To install it in your project, run this from the project root; it links the skill into the Claude
+Code skills folder:
 
 ```bash
-mkdir -p .claude/skills/archi-code-criteria && cp node_modules/@archi-code/criteria/SKILL.md .claude/skills/archi-code-criteria/SKILL.md
+mkdir -p .claude/skills/archi-code-criteria && ln -sf "./node_modules/@archi-code/criteria/SKILL.md" .claude/skills/archi-code-criteria/SKILL.md
 ```
 
 ### How to use
@@ -441,9 +444,9 @@ and, before using anything the skill does not show, reads this README in `node_m
 
 ### Keeping it up to date
 
-- The copy does not update itself: after updating `@archi-code/criteria`, run the command above
-  again.
-- Commit `.claude/skills/archi-code-criteria/` to the repository so the whole team uses it.
+- The link points to the `SKILL.md` installed in `node_modules`, so it follows the version of
+  `@archi-code/criteria` you have installed.
+- Each person runs the command in their own copy of the project. Do not commit it; add `.claude/skills/archi-code-criteria/` to `.gitignore`.
 
 ## License
 

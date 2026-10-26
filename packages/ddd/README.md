@@ -3198,10 +3198,13 @@ suite's examples into code that uses this package. For the full API it points to
 inside `node_modules/@archi-code/ddd`, so both stay valid when you update the package. Its rules,
 patterns and common mistakes are split into `ddd-skills/archi-code-ddd/` (where each class goes,
 the folders and names, the rules per layer, patterns, what not to do), which `SKILL.md`
-reads from the package too. Do not copy `ddd-skills/` into `.claude/skills/`. To install it in your project:
+reads from the package too. Do not copy `ddd-skills/` into `.claude/skills/`.
+
+To install it in your project, run this from the project root; it links the skill into the Claude
+Code skills folder:
 
 ```bash
-mkdir -p .claude/skills/archi-code-ddd && cp node_modules/@archi-code/ddd/SKILL.md .claude/skills/archi-code-ddd/SKILL.md
+mkdir -p .claude/skills/archi-code-ddd && ln -sf "./node_modules/@archi-code/ddd/SKILL.md" .claude/skills/archi-code-ddd/SKILL.md
 ```
 
 ### How to use
@@ -3236,8 +3239,9 @@ and, before using anything the skill does not show, reads this README in `node_m
 
 ### Keeping it up to date
 
-- The copy does not update itself: after updating `@archi-code/ddd`, run the command above again.
-- Commit `.claude/skills/archi-code-ddd/` to the repository so the whole team uses it.
+- The link points to the `SKILL.md` installed in `node_modules`, so it follows the version of
+  `@archi-code/ddd` you have installed.
+- Each person runs the command in their own copy of the project. Do not commit it; add `.claude/skills/archi-code-ddd/` to `.gitignore`.
 
 ## License
 

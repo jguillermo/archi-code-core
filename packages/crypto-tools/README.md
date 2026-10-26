@@ -560,11 +560,13 @@ Exported types: `SecurityLevel`, `LevelOptions`, `PasswordParams`, `SecurityLeve
 
 The package includes `SKILL.md`, a Claude Code skill with the rules, patterns and common mistakes for
 writing correct and secure code with this library. For the full API it points to this README inside
-`node_modules/@archi-code/crypto-tools`, so it stays valid when you update the package. To install it
-in your project:
+`node_modules/@archi-code/crypto-tools`, so it stays valid when you update the package.
+
+To install it in your project, run this from the project root; it links the skill into the Claude
+Code skills folder:
 
 ```bash
-mkdir -p .claude/skills/archi-code-crypto-tools && cp node_modules/@archi-code/crypto-tools/SKILL.md .claude/skills/archi-code-crypto-tools/SKILL.md
+mkdir -p .claude/skills/archi-code-crypto-tools && ln -sf "./node_modules/@archi-code/crypto-tools/SKILL.md" .claude/skills/archi-code-crypto-tools/SKILL.md
 ```
 
 ### How to use
@@ -593,9 +595,9 @@ and, before using anything the skill does not show, reads this README in `node_m
 
 ### Keeping it up to date
 
-- The copy does not update itself: after updating `@archi-code/crypto-tools`, run the command above
-  again.
-- Commit `.claude/skills/archi-code-crypto-tools/` to the repository so the whole team uses it.
+- The link points to the `SKILL.md` installed in `node_modules`, so it follows the version of
+  `@archi-code/crypto-tools` you have installed.
+- Each person runs the command in their own copy of the project. Do not commit it; add `.claude/skills/archi-code-crypto-tools/` to `.gitignore`.
 
 ## License
 

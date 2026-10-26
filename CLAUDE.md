@@ -102,7 +102,7 @@ Each package's `package.json` entry points:
 
 ## Package standard
 
-Every package follows `.claude/rules/packages.md` (layout, `package.json`, tsconfig, Vitest, tests, build checks, documentation, allowed extensions and a checklist). Each package ships an English `README.md` with its whole API and a light `SKILL.md` (Claude Code skill `archi-code-<name>`: rules, patterns and common mistakes; for the API it sends the assistant to the installed README) that consumers copy into `.claude/skills/`. Create new packages with `node scripts/new-package.js <folder> "<description>"` or the `/new-package` skill; the result passes `check:all` from the start.
+Every package follows `.claude/rules/packages.md` (layout, `package.json`, tsconfig, Vitest, tests, build checks, documentation, allowed extensions and a checklist). Each package ships an English `README.md` with its whole API and a light `SKILL.md` (Claude Code skill `archi-code-<name>`: rules, patterns and common mistakes; for the API it sends the assistant to the installed README) that consumers link into `.claude/skills/` with the README command (a symbolic link to `./node_modules/@archi-code/<name>/SKILL.md`, run from the project root on each user's machine, never a copy nor committed). Create new packages with `node scripts/new-package.js <folder> "<description>"` or the `/new-package` skill; the result passes `check:all` from the start.
 
 ## Architecture
 

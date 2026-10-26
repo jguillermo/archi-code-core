@@ -22,10 +22,11 @@ npm install @archi-code/ddd
 Every package ships a `SKILL.md`: a light Claude Code skill with the package rules, patterns and
 common mistakes, so the assistant writes correct code with it. For the full API it points to the
 README installed in `node_modules`, so it stays valid when the package is updated. To install the
-skill of a package in your project:
+skill of a package in your project, run this from the project root on your machine; it links the
+skill into the Claude Code skills folder:
 
 ```bash
-mkdir -p .claude/skills/archi-code-ddd && cp node_modules/@archi-code/ddd/SKILL.md .claude/skills/archi-code-ddd/SKILL.md
+mkdir -p .claude/skills/archi-code-ddd && ln -sf "./node_modules/@archi-code/ddd/SKILL.md" .claude/skills/archi-code-ddd/SKILL.md
 ```
 
 Replace `ddd` with the package you use. The skill is invoked with `/archi-code-<package>` or
