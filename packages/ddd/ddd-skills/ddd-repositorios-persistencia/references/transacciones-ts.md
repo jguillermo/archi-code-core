@@ -2,7 +2,7 @@
 
 El dominio nunca es el lugar para gestionar transacciones; sus operaciones son demasiado finas y no deben saber que existen. Los libros las sitúan en la capa de aplicación, a menudo con una fachada transaccional o de forma declarativa [IDDD cap. 12; PHP: Repositories, "Managing Transactions"].
 
-Con el paquete la transacción baja un nivel más: es del repositorio, igual que todo lo demás de la persistencia `[Fuera de los libros: convención de @archi-code/ddd]`. La aplicación nunca abre, une ni cierra transacciones y no hay ningún puerto para hacerlo. Un caso de uso recibe solo los roles del repositorio que usa (`AggregateFinder`, `AggregateSaver`, `AggregateRemover`), el `EventBus`, el `Clock` y sus puertos propios; nunca una dependencia `transactions`, `unitOfWork` o parecida.
+Con el paquete la transacción baja un nivel más: es del repositorio, igual que todo lo demás de la persistencia `[Fuera de los libros: convención de @archi-code/ddd]`. La aplicación nunca abre, une ni cierra transacciones y no hay ningún puerto para hacerlo. Un caso de uso recibe el repositorio abstracto de su agregado (`OrderRepository`, declarado en `domain/repository/`), el `EventBus`, el `Clock` y sus puertos propios; nunca una dependencia `transactions`, `unitOfWork` o parecida.
 
 ## Por qué basta con el repositorio
 
@@ -54,10 +54,12 @@ CREATE TABLE order_lines (
 En `infrastructure/persistence/postgres-order-repository.ts`:
 
 ```ts
-import type { AggregateFinder, AggregateSaver, PrimitiveTypes } from '@archi-code/ddd/domain';
+import type { PrimitiveTypes } from '@archi-code/ddd/domain';
 import { ConcurrencyException } from '@archi-code/ddd/application';
 import { InternalErrorException } from '@archi-code/ddd/infrastructure';
-import { Order, OrderId } from '../../domain/order/order';
+import { Order } from '../../domain/aggregate/Order';
+import { OrderRepository } from '../../domain/repository/OrderRepository';
+import type { OrderId } from '../../domain/value-object/OrderId';
 import type { PgPool } from './pg-pool';
 
 type OrderPrimitives = PrimitiveTypes<Order>;
@@ -68,10 +70,12 @@ interface OrderRow {
   items: OrderPrimitives['lines']['items'];
 }
 
-export class PostgresOrderRepository implements AggregateFinder<Order>, AggregateSaver<Order> {
+export class PostgresOrderRepository extends OrderRepository {
   private readonly versions = new WeakMap<Order, number>();
 
-  constructor(private readonly pool: PgPool) {}
+  constructor(private readonly pool: PgPool) {
+    super();
+  }
 
   async findById(id: OrderId): Promise<Order | null> {
     const { rows } = await this.pool.query<OrderRow>(
@@ -147,7 +151,7 @@ export class PostgresOrderRepository implements AggregateFinder<Order>, Aggregat
 * `this.versions.set(order, version + 1)` se hace solo después del `COMMIT`: si la transacción se revierte, el repositorio sigue recordando la versión anterior y el caso de uso puede descartar el objeto y volver a cargarlo.
 * Si el `ROLLBACK` falla (la conexión se cayó), se relanza el error del trabajo, no el del `ROLLBACK`, y `release(true)` destruye la conexión en vez de devolver al pool una con la transacción a medias.
 * La lectura es una sola sentencia, así que ve el pedido y sus líneas en el mismo instante.
-* Un `remove` sigue el mismo patrón: `DELETE FROM orders WHERE id = $1 AND version = $2` dentro de su propia transacción (las líneas caen con `ON DELETE CASCADE`).
+* El `remove` que declara `OrderRepository` (no se muestra) sigue el mismo patrón: `DELETE FROM orders WHERE id = $1 AND version = $2` dentro de su propia transacción (las líneas caen con `ON DELETE CASCADE`).
 
 Con MongoDB no hace falta nada de esto: el pedido es un documento y `replaceOne` lo escribe de forma atómica (`MongoOrderRepository` en `ddd-skills/ddd-repositorios-persistencia/references/implementacion-ts.md`).
 
@@ -170,14 +174,14 @@ El repositorio toma los eventos con `pullDomainEvents()`, así que el `publish` 
 
 ## Uso en un caso de uso
 
-El caso de uso carga, cambia, guarda y publica, sin abrir nada. Si el comando es seguro de repetir contra el estado recargado, la aplicación puede reintentar una o dos veces ante `ConcurrencyException`; si no, el conflicto llega al usuario como 409 [IDDD cap. 10; IDDD apéndice A]. Cada intento vuelve a cargar y vuelve a guardar dentro de `handle`, en un bucle con límite `[Fuera de los libros: convención de @archi-code/ddd]`. Un caso de uso que ejecuta un listener no reintenta por su cuenta: reintenta la reentrega del canal.
+El caso de uso carga, cambia, guarda y publica, sin abrir nada. Si el comando es seguro de repetir contra el estado recargado, la aplicación puede reintentar una o dos veces ante `ConcurrencyException`; si no, el conflicto llega al usuario como 409 [IDDD cap. 10; IDDD apéndice A]. Cada intento vuelve a cargar y vuelve a guardar dentro de `handle`, en un bucle con límite `[Fuera de los libros: convención de @archi-code/ddd]`. Un caso de uso por reacción no reintenta por su cuenta: reintenta la reentrega del canal.
 
 ```ts
 import { AggregateNotFoundException, ConcurrencyException, UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
-import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
-import { Order, OrderId, OrderLine } from '../../domain/order/order';
-import type { OrderEvent } from '../../domain/order/order';
+import type { OrderRepository } from '../../domain/repository/OrderRepository';
+import { OrderId } from '../../domain/value-object/OrderId';
+import { OrderLine } from '../../domain/value-object/OrderLine';
 
 export interface AddOrderLineInput {
   orderId: string;
@@ -186,17 +190,17 @@ export interface AddOrderLineInput {
   unitPrice: { amount: number; currency: string };
 }
 
-interface AddOrderLineCommand {
+export interface AddOrderLineCommand {
   orderId: OrderId;
   line: OrderLine;
 }
 
-const ATTEMPTS = 3;
-
 export class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand, void> {
+  private static readonly ATTEMPTS = 3;
+
   constructor(
-    private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
-    private readonly events: EventBus<OrderEvent>,
+    private readonly orders: OrderRepository,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();
@@ -224,7 +228,7 @@ export class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand
       try {
         await this.orders.save(order);
       } catch (error) {
-        if (error instanceof ConcurrencyException && attempt < ATTEMPTS) {
+        if (error instanceof ConcurrencyException && attempt < AddOrderLine.ATTEMPTS) {
           continue;
         }
         throw error;
@@ -240,7 +244,7 @@ export class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand
 
 ## En tests
 
-Los tests de la aplicación usan el `InMemoryOrderRepository` que el proyecto escribe en `test/support/` (`ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`) y un `DomainEventBus` sobre `InMemoryEventChannel`; no hay nada que revertir ni que contar, porque cada `save` del repositorio en memoria es atómico y comprueba la versión igual que uno real. En `test/contexts/sales/application/add-order-line.spec.ts`:
+Los tests de la aplicación usan el `InMemoryOrderRepository` del proyecto (`ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`) y un `DomainEventBus` sobre `InMemoryEventChannel`; no hay nada que revertir ni que contar, porque cada `save` del repositorio en memoria es atómico y comprueba la versión igual que uno real. En `test/contexts/sales/application/add-order-line.spec.ts`:
 
 ```ts
 import { describe, expect, it } from 'vitest';
@@ -251,15 +255,12 @@ import {
   InMemoryEventChannel,
 } from '@archi-code/ddd/infrastructure';
 import { AddOrderLine } from '../../../../src/contexts/sales/application/add-order-line/add-order-line';
-import {
-  CustomerId,
-  Order,
-  OrderId,
-  OrderLines,
-  ShippingAddress,
-} from '../../../../src/contexts/sales/domain/order/order';
-import type { OrderEvent } from '../../../../src/contexts/sales/domain/order/order';
-import { InMemoryOrderRepository } from '../../../support/in-memory-order-repository';
+import { Order } from '../../../../src/contexts/sales/domain/aggregate/Order';
+import { CustomerId } from '../../../../src/contexts/sales/domain/value-object/CustomerId';
+import { OrderId } from '../../../../src/contexts/sales/domain/value-object/OrderId';
+import { OrderLines } from '../../../../src/contexts/sales/domain/value-object/OrderLines';
+import { ShippingAddress } from '../../../../src/contexts/sales/domain/value-object/ShippingAddress';
+import { InMemoryOrderRepository } from '../../../../src/contexts/sales/infrastructure/persistence/in-memory-order-repository';
 
 describe('Two customers add a line to the same order at once', () => {
   it('the second one retries with the reloaded order and both lines are kept', async () => {
@@ -268,10 +269,10 @@ describe('Two customers add a line to the same order at once', () => {
     const channel = new InMemoryEventChannel();
     const addOrderLine = new AddOrderLine(
       orders,
-      new DomainEventBus<OrderEvent>(channel, new EventRegistry<OrderEvent>()),
+      new DomainEventBus(channel, new EventRegistry()),
       clock,
     );
-    const order = Order.place(
+    const order = Order.create(
       OrderId.generate(),
       CustomerId.generate(),
       OrderLines.fromPrimitives({
@@ -291,8 +292,8 @@ describe('Two customers add a line to the same order at once', () => {
     const stored = await orders.findById(order.id);
     expect(stored?.toPrimitives().lines.items).toHaveLength(3);
     expect(channel.sent).toMatchObject([
-      { eventName: 'OrderLineAdded', sku: 'HELMET-02' },
-      { eventName: 'OrderLineAdded', sku: 'GLOVES-03' },
+      { eventName: 'order.line_added', sku: 'HELMET-02' },
+      { eventName: 'order.line_added', sku: 'GLOVES-03' },
     ]);
   });
 });

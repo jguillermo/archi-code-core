@@ -6,7 +6,7 @@
 * Normalmente derivado del comando que lo causa: `PlaceOrder` → `OrderPlaced`, `AddOrderLine` → `OrderLineAdded` [Destilado cap. 6].
 * Tan compacto como permita el lenguaje. IDDD prefiere `BacklogItemCommitted` a `BacklogItemCommittedToSprint` porque en Scrum un elemento solo se compromete en un sprint; si el equipo prefiere el nombre largo en algún caso, vale [IDDD cap. 8].
 * La combinación del nombre y sus propiedades cuenta por completo lo que pasó en el modelo [Destilado cap. 6].
-* Con el paquete, el nombre es la clase y su `static readonly eventName` (`'OrderPlaced'`); el nombre `sales.order.OrderPlaced` queda para el contrato publicado a otros contextos [IDDD cap. 13] `[Fuera de los libros: convención de @archi-code/ddd]`.
+* Con el paquete, la clase se llama `<Agregado><AcciónEnPasado>DomainEvent` (`OrderLineAddedDomainEvent`, la de creación `<Agregado>CreatedDomainEvent`) y su `static readonly eventName` es `'<agregado>.<acción_en_pasado>'` en snake_case (`'order.line_added'`), único en el sistema; el nombre `sales.order.OrderPlaced` queda para el contrato publicado fuera del sistema [IDDD cap. 13] `[Fuera de los libros: convención de @archi-code/ddd]`. Las tablas de abajo usan el nombre corto del hecho, que es lo que decide el diseño.
 
 | Mal | Bien | Por qué |
 |---|---|---|
@@ -36,94 +36,117 @@ Lista de comprobación `[Fuera de los libros]`:
 
 ## Forma en TypeScript
 
-Un evento extiende `EventBase` de `@archi-code/ddd/domain`, declara `static readonly eventName` y recibe sus datos como primitivos sacados de los value objects (el dinero como `{ amount, currency }` en céntimos), nunca value objects ni el `toPrimitives()` del agregado `[Fuera de los libros: convención de @archi-code/ddd]`:
+Un evento extiende `EventBase` de `@archi-code/ddd/domain`, declara `static readonly eventName` y recibe sus datos en un único objeto, como primitivos sacados de los value objects (el dinero como `{ amount, currency }` en céntimos, las fechas como texto ISO), nunca value objects ni el `toPrimitives()` del agregado. Los tipos van en línea: el fichero del evento no declara interfaces ni importa tipos de datos `[Fuera de los libros: convención de @archi-code/ddd]`. En `domain/event/OrderConfirmedDomainEvent.ts`:
 
 ```ts
 import { EventBase } from '@archi-code/ddd/domain';
 import type { EventMetadata } from '@archi-code/ddd/domain';
 
-export interface MoneyData {
-  readonly amount: number;
-  readonly currency: string;
-}
+export class OrderConfirmedDomainEvent extends EventBase {
+  static readonly eventName = 'order.confirmed';
 
-export class OrderConfirmed extends EventBase {
-  static readonly eventName = 'OrderConfirmed';
+  readonly orderId: string;
+  readonly total: { amount: number; currency: string };
 
-  constructor(
-    readonly orderId: string,
-    readonly total: MoneyData,
-    metadata?: EventMetadata,
-  ) {
-    super(metadata);
+  constructor({
+    orderId,
+    total,
+    eventId,
+    occurredOn,
+    clock,
+  }: { orderId: string; total: { amount: number; currency: string } } & EventMetadata) {
+    super({ eventId, occurredOn, clock });
+    this.orderId = orderId;
+    this.total = total;
   }
 }
 ```
 
-El agregado lo registra en el método que causa el hecho, pasando el reloj que recibió para que `occurredOn` sea determinista en los tests. En el `Order` de `ddd-skills/ddd-agregados/references/implementacion-ts.md` el pedido se confirma solo cuando ya tiene reserva y autorización, desde `registerStockReservation` o `registerPaymentAuthorization`:
+Va en su propio fichero de `domain/event/`, sin unión de eventos que actualizar. El agregado lo registra en el método que causa el hecho, pasando el reloj que recibió para que `occurredOn` sea determinista en los tests. En el `Order` de `ddd-skills/ddd-agregados/references/implementacion-ts.md` el pedido se confirma solo cuando ya tiene reserva y autorización, desde `registerStockReservation` o `registerPaymentAuthorization`:
 
 ```ts
-private tryToConfirm(clock: { now(): Date }): void {
-  if (this._stockReservation !== null && this._paymentAuthorization !== null) {
-    this._status = new OrderStatus(Status.Confirmed);
-    this.record(new OrderConfirmed(this.id.value, Order.moneyData(this.total()), { clock }));
+private tryToConfirm(clock: Clock): void {
+  if (this._stockReservation.value !== null && this._paymentAuthorization !== null) {
+    this.moveTo(OrderStatus.CONFIRMED, clock);
+    this.record(
+      new OrderConfirmedDomainEvent({
+        orderId: this.id.value,
+        total: this.total().toPrimitives(),
+        clock,
+      }),
+    );
   }
 }
 ```
 
-`EventBase` pone `eventName`, `eventId` (UUID v4) y `occurredOn` (texto ISO en UTC, del `clock` o de la hora del sistema), y `record()` congela el evento: inmutable y con constructor completo [IDDD cap. 8]. No generes tú el id ni la fecha de un evento nuevo; pasa `{ eventId, occurredOn }` (o el JSON entero) solo al reconstruir uno que entregó un canal. El evento ya es la forma que viaja:
+`EventBase` pone `eventName`, `eventId` (UUID v4) y `occurredOn` (texto ISO en UTC, del `clock` o de la hora del sistema), y `record()` guarda el evento tal cual: sus campos son `readonly` y el constructor está completo [IDDD cap. 8]. No generes tú el id ni la fecha de un evento nuevo; pasa `eventId` y `occurredOn` solo al reconstruir uno que entregó un canal. El evento ya es la forma que viaja:
 
 ```ts
 const [confirmed] = order.pullDomainEvents();
 ({ ...confirmed });
-// { eventName: 'OrderConfirmed', eventId: '…', occurredOn: '2026-03-01T09:30:00.000Z',
+// { eventName: 'order.confirmed', eventId: '…', occurredOn: '2026-03-01T09:30:00.000Z',
 //   orderId: '9b2f6c1e-…', total: { amount: 7000, currency: 'EUR' } }
 ```
 
 ## Identidad del evento
 
 * Dentro del contexto rara vez hace falta comparar eventos; el tipo, las identidades implicadas y la fecha suelen bastar, como en un value object [IDDD cap. 8].
-* Fuera, con mensajería que puede reenviar, una identidad única permite deduplicar. Algunos buses la ponen en la cabecera; si no, la asigna el publicador [IDDD cap. 8]. Con el paquete es el `eventId` que pone `EventBase`: viaja en el JSON, `EventRegistry` lo conserva al reconstruir el evento (la fábrica pasa el JSON como metadatos) y el adaptador del broker lo usa como `messageId`.
+* Fuera, con mensajería que puede reenviar, una identidad única permite deduplicar. Algunos buses la ponen en la cabecera; si no, la asigna el publicador [IDDD cap. 8]. Con el paquete es el `eventId` que pone `EventBase`: viaja en el JSON, `EventRegistry` lo conserva al reconstruir el evento (la fábrica pasa `eventId: json.eventId` y `occurredOn: json.occurredOn`) y el adaptador del broker lo usa como `messageId`.
 
 ## Eventos con características de agregado
 
-A veces un evento no resulta de un comando sobre un agregado sino que un usuario lo origina directamente. Entonces puede modelarse como agregado inmutable en su propio repositorio, que no permite borrarlo, con identidad generada [IDDD cap. 8]. Ejemplo: una `IncidenciaDeEntregaReportada` por el transportista que se archiva y se consulta. Con el paquete sería un `AggregateRoot` cuyo repositorio implementa solo `AggregateFinder` y `AggregateSaver` (nunca `AggregateRemover`), con id `XId.generate()`.
+A veces un evento no resulta de un comando sobre un agregado sino que un usuario lo origina directamente. Entonces puede modelarse como agregado inmutable en su propio repositorio, que no permite borrarlo, con identidad generada [IDDD cap. 8]. Ejemplo: una `IncidenciaDeEntregaReportada` por el transportista que se archiva y se consulta. Con el paquete sería un `AggregateRoot` cuyo repositorio abstracto declara solo `findById` y `save` (nunca `remove`, ni implementa `AggregateRemover`), con id `XId.generate()`.
 
 ## Versionado
 
 * Los eventos publicados llevan versión. Diseñados con cuidado, muchos consumidores pueden leer cualquier versión como si fuera la 1 [IDDD cap. 13].
 * Cambios compatibles `[Fuera de los libros]`: añadir campos opcionales. Incompatibles: renombrar, quitar o cambiar el significado → nueva versión o nuevo evento, publicando ambas durante la transición.
-* Con el paquete, los eventos no llevan número de versión `[Fuera de los libros: convención de @archi-code/ddd]`. Un cambio incompatible de la forma interna se publica como un evento nuevo con otro `eventName` (`OrderCancelledV2`), o la fábrica del `EventRegistry`, que recibe cada evento guardado tal como se escribió, reconoce la forma antigua por sus campos:
+* Con el paquete, los eventos no llevan número de versión `[Fuera de los libros: convención de @archi-code/ddd]`. Un cambio incompatible de la forma interna se publica como un evento nuevo con otro `eventName` (`'order.cancelled_with_refund'`), o la fábrica del `EventRegistry`, que recibe cada evento guardado tal como se escribió, reconoce la forma antigua por sus campos:
 
 ```ts
 import { EventBase } from '@archi-code/ddd/domain';
 import type { EventMetadata } from '@archi-code/ddd/domain';
 import { EventRegistry } from '@archi-code/ddd/infrastructure';
 
-export class OrderCancelled extends EventBase {
-  static readonly eventName = 'OrderCancelled';
+export class OrderCancelledDomainEvent extends EventBase {
+  static readonly eventName = 'order.cancelled';
 
-  constructor(
-    readonly orderId: string,
-    readonly reason: string,
-    readonly refund: MoneyData,
-    metadata?: EventMetadata,
-  ) {
-    super(metadata);
+  readonly orderId: string;
+  readonly reason: string;
+  readonly refund: { amount: number; currency: string };
+
+  constructor({
+    orderId,
+    reason,
+    refund,
+    eventId,
+    occurredOn,
+    clock,
+  }: {
+    orderId: string;
+    reason: string;
+    refund: { amount: number; currency: string };
+  } & EventMetadata) {
+    super({ eventId, occurredOn, clock });
+    this.orderId = orderId;
+    this.reason = reason;
+    this.refund = refund;
   }
 }
 
-export const cancellations = new EventRegistry<OrderCancelled>().register(
-  OrderCancelled,
+export const cancellations = new EventRegistry().register(
+  OrderCancelledDomainEvent,
   (json) =>
-    typeof json.refundCents === 'number'
-      ? new OrderCancelled(
-          json.orderId as string,
-          json.reason as string,
-          { amount: json.refundCents, currency: 'EUR' },
-          json,
-        )
-      : new OrderCancelled(json.orderId as string, json.reason as string, json.refund as MoneyData, json),
+    new OrderCancelledDomainEvent({
+      orderId: json.orderId as string,
+      reason: json.reason as string,
+      refund:
+        typeof json.refundCents === 'number'
+          ? { amount: json.refundCents, currency: 'EUR' }
+          : (json.refund as { amount: number; currency: string }),
+      eventId: json.eventId,
+      occurredOn: json.occurredOn,
+    }),
 );
 ```
 

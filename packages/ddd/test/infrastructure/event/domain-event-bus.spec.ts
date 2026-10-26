@@ -40,8 +40,6 @@ class OrderShipped extends EventBase {
   }
 }
 
-type OrderEvent = OrderPlaced | OrderShipped;
-
 @ListensTo(OrderPlaced, { consumer: 'reserve-stock-on-order-placed' })
 class ReserveStockOnOrderPlaced extends EventListener<OrderPlaced> {
   readonly reserved: OrderPlaced[] = [];
@@ -85,7 +83,7 @@ class RecordingChannel implements EventChannel {
 const orderId = '9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c';
 
 function orderEvents() {
-  return new EventRegistry<OrderEvent>()
+  return new EventRegistry()
     .register(
       OrderPlaced,
       (json) => new OrderPlaced(json.orderId as string, json.lines as OrderPlaced['lines'], json),
@@ -95,9 +93,9 @@ function orderEvents() {
 
 describe('DomainEventBus: the bus every channel shares', () => {
   it('is the EventBus of use cases and subscribes the listeners of the wiring', () => {
-    expectTypeOf<DomainEventBus<OrderEvent>>().toMatchTypeOf<EventBus<OrderEvent>>();
-    expectTypeOf<DomainEventBus<OrderEvent>['subscribe']>().toEqualTypeOf<
-      (listener: EventListener<OrderEvent>) => Promise<Subscription>
+    expectTypeOf<DomainEventBus>().toMatchTypeOf<EventBus>();
+    expectTypeOf<DomainEventBus['subscribe']>().toEqualTypeOf<
+      (listener: EventListener) => Promise<Subscription>
     >();
   });
 
@@ -165,7 +163,7 @@ describe('DomainEventBus: the bus every channel shares', () => {
     const channel = new RecordingChannel();
     const bus = new DomainEventBus(
       channel,
-      new EventRegistry<OrderEvent>().register(
+      new EventRegistry().register(
         OrderShipped,
         (json) => new OrderShipped(json.orderId as string, json),
       ),
@@ -238,7 +236,7 @@ describe('DomainEventBus: the bus every channel shares', () => {
       const logger = new InMemoryLogger();
       const bus = new DomainEventBus(
         new RecordingChannel(),
-        new EventRegistry<OrderEvent>().register(
+        new EventRegistry().register(
           OrderShipped,
           (json) => new OrderShipped(json.orderId as string, json),
         ),

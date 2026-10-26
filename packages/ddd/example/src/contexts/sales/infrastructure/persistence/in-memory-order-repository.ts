@@ -1,21 +1,15 @@
-import type {
-  AggregateFinder,
-  AggregateRemover,
-  AggregateSaver,
-  PrimitiveTypes,
-} from '../../../../ddd/domain';
+import type { PrimitiveTypes } from '../../../../ddd/domain';
 import { ConcurrencyException } from '../../../../ddd/application';
-import { Order } from '../../domain/order/order';
-import type { OrderId } from '../../domain/order/order-id';
+import { Order } from '../../domain/aggregate/Order';
+import { OrderRepository } from '../../domain/repository/OrderRepository';
+import type { OrderId } from '../../domain/value-object/OrderId';
 
 interface OrderRow {
   version: number;
   primitives: PrimitiveTypes<Order>;
 }
 
-export class InMemoryOrderRepository
-  implements AggregateFinder<Order>, AggregateSaver<Order>, AggregateRemover<Order>
-{
+export class InMemoryOrderRepository extends OrderRepository {
   private readonly rows = new Map<string, OrderRow>();
   private readonly versions = new WeakMap<Order, number>();
 

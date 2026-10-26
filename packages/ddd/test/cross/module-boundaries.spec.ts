@@ -39,6 +39,7 @@ function resolveImport(from: string, specifier: string): string {
 }
 
 const EVENT_PORTS = ['application/event/event-bus.ts', 'infrastructure/event/event-channel.ts'];
+const REPOSITORY_BASE = 'domain/repository/aggregate-repository.ts';
 
 interface Imports {
   readonly relative: string[];
@@ -154,10 +155,10 @@ describe('layer boundaries: shared ← domain ← application ← infrastructure
     expect(packages).toEqual([]);
   });
 
-  it('declares the repository contracts in the domain, the ports in the application and the event channel in infrastructure, as types only', () => {
+  it('declares the repository roles in the domain, the ports in the application and the event channel in infrastructure, as types only', () => {
     const contracts = Array.from(imports.keys()).filter(
       (file) =>
-        file.startsWith('domain/repository/') ||
+        (file.startsWith('domain/repository/') && file !== REPOSITORY_BASE) ||
         file.startsWith('application/ports/') ||
         EVENT_PORTS.includes(file),
     );
@@ -167,6 +168,13 @@ describe('layer boundaries: shared ← domain ← application ← infrastructure
       /^export\s+(?!interface\b|type\b)/m.test(fs.readFileSync(path.join(SRC, file), 'utf8')),
     );
     expect(withRuntimeCode).toEqual([]);
+  });
+
+  it('declares in the domain one abstract class every repository of an aggregate extends, with no verb nor code of its own', () => {
+    const source = fs.readFileSync(path.join(SRC, REPOSITORY_BASE), 'utf8');
+    expect(source).toMatch(/^export abstract class AggregateRepository</m);
+    expect(source.match(/^export\s/gm)).toHaveLength(1);
+    expect(source).not.toMatch(/\babstract\s+\w+\(/);
   });
 
   it('a use case never imports another use case, and from the event contract only the EventBus port', () => {

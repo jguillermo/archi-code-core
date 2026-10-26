@@ -3,6 +3,7 @@ import { Validations } from '@archi-code/validation';
 import { UseCase } from '../../../src/application/use-case/use-case';
 import type { EventBus } from '../../../src/application/event/event-bus';
 import {
+  AggregateRepository,
   AggregateRoot,
   BooleanType,
   EventBase,
@@ -50,15 +51,13 @@ class OrderShipped extends EventBase {
   }
 }
 
-type OrderEvent = OrderPlaced | OrderShipped;
-
 class OrderAlreadyShippedException extends DomainException {
   constructor(orderId: string) {
     super(`Order ${orderId} is already shipped`, ['ORD001']);
   }
 }
 
-class Order extends AggregateRoot<OrderId, OrderEvent> {
+class Order extends AggregateRoot<OrderId> {
   private constructor(
     id: OrderId,
     readonly customer: CustomerName,
@@ -98,14 +97,22 @@ class Order extends AggregateRoot<OrderId, OrderEvent> {
   }
 }
 
-class FakeOrderRepository
+abstract class OrderRepository
+  extends AggregateRepository<Order>
   implements AggregateFinder<Order>, AggregateSaver<Order>, AggregateRemover<Order>
 {
+  abstract findById(id: OrderId): Promise<Order | null>;
+  abstract save(order: Order): Promise<void>;
+  abstract remove(order: Order): Promise<void>;
+}
+
+class FakeOrderRepository extends OrderRepository {
   readonly rows = new Map<string, PrimitiveTypes<Order>>();
   readonly log: string[];
   failWith: unknown = undefined;
 
   constructor(log: string[] = []) {
+    super();
     this.log = log;
   }
 
@@ -130,12 +137,12 @@ class FakeOrderRepository
   }
 }
 
-class FakeEventBus implements EventBus<OrderEvent> {
-  readonly published: OrderEvent[] = [];
+class FakeEventBus implements EventBus {
+  readonly published: EventBase[] = [];
 
   constructor(private readonly log: string[] = []) {}
 
-  async publish(events: readonly OrderEvent[]): Promise<void> {
+  async publish(events: readonly EventBase[]): Promise<void> {
     this.log.push(`publish ${events.map((event) => event.eventName).join(',')}`);
     this.published.push(...events);
   }
@@ -155,8 +162,8 @@ class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, { orderId: 
   readonly handled: PlaceOrderCommand[] = [];
 
   constructor(
-    private readonly orders: AggregateSaver<Order>,
-    private readonly bus: EventBus<OrderEvent>,
+    private readonly orders: OrderRepository,
+    private readonly bus: EventBus,
   ) {
     super();
   }
@@ -179,8 +186,8 @@ class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, { orderId: 
 
 class ShipOrder extends UseCase<{ orderId: string }, OrderId, void> {
   constructor(
-    private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
-    private readonly bus: EventBus<OrderEvent>,
+    private readonly orders: OrderRepository,
+    private readonly bus: EventBus,
   ) {
     super();
   }

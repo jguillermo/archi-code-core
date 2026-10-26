@@ -5,6 +5,7 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
 ```ts
 import {
   AbstractType,
+  AggregateRepository,
   AggregateRoot,
   ArrayType,
   BooleanType,
@@ -36,6 +37,7 @@ import type {
   EntityId,
   EventClass,
   EventMetadata,
+  JsonTypeValue,
   PrimitiveTypes,
   SatisfiedBy,
   SerializedEvent,

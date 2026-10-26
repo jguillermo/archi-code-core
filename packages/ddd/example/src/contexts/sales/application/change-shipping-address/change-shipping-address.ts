@@ -1,4 +1,3 @@
-import type { AggregateFinder, AggregateSaver } from '../../../../ddd/domain';
 import {
   AggregateNotFoundException,
   ConcurrencyException,
@@ -6,10 +5,10 @@ import {
   ValueObjectBuilder,
 } from '../../../../ddd/application';
 import type { Clock, EventBus } from '../../../../ddd/application';
-import type { Order } from '../../domain/order/order';
-import type { AddressData, OrderEvent } from '../../domain/order/order-events';
-import { OrderId } from '../../domain/order/order-id';
-import { ShippingAddress } from '../../domain/order/shipping-address';
+import type { OrderRepository } from '../../domain/repository/OrderRepository';
+import type { AddressData } from '../place-order/address-data';
+import { OrderId } from '../../domain/value-object/OrderId';
+import { ShippingAddress } from '../../domain/value-object/ShippingAddress';
 
 export interface ChangeShippingAddressInput {
   orderId: string;
@@ -29,8 +28,8 @@ export class ChangeShippingAddress extends UseCase<
   private static readonly ATTEMPTS = 3;
 
   constructor(
-    private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
-    private readonly events: EventBus<OrderEvent>,
+    private readonly orders: OrderRepository,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();

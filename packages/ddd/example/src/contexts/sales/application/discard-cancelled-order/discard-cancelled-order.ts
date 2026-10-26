@@ -1,13 +1,13 @@
-import type { AggregateFinder, AggregateRemover } from '../../../../ddd/domain';
 import {
   AggregateNotFoundException,
   NotAllowedException,
   UseCase,
   ValueObjectBuilder,
 } from '../../../../ddd/application';
-import type { Order } from '../../domain/order/order';
-import { OrderId } from '../../domain/order/order-id';
-import { StaffRole, StaffRoleType } from '../../domain/staff/staff-role';
+import type { OrderRepository } from '../../domain/repository/OrderRepository';
+import { OrderId } from '../../domain/value-object/OrderId';
+import { StaffRole } from '../../domain/value-object/StaffRoleType';
+import { StaffRoleType } from '../../domain/value-object/StaffRoleType';
 
 export interface DiscardCancelledOrderInput {
   actorRole: string;
@@ -24,7 +24,7 @@ export class DiscardCancelledOrder extends UseCase<
   DiscardCancelledOrderCommand,
   void
 > {
-  constructor(private readonly orders: AggregateFinder<Order> & AggregateRemover<Order>) {
+  constructor(private readonly orders: OrderRepository) {
     super();
   }
 

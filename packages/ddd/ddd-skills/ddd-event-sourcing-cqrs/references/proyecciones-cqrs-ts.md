@@ -1,20 +1,63 @@
 # Proyecciones y CQRS en TypeScript
 
-El paquete da las piezas de la entrega (`EventListener`, `@ListensTo`, `DomainEventBus`, `EventRegistry`, `EventChannel`); el modelo de lectura, su escritura idempotente, la reconstrucción y las consultas son código del proyecto. Los ejemplos usan los eventos `OrderPlaced` (`customerId`, `lines`, `total`) y `OrderLineAdded` (`sku`, `quantity`, `unitPrice`, `total`) del pedido de `ddd-skills/ddd-agregados/references/implementacion-ts.md`, subclases de `EventBase` como en `ddd-skills/ddd-eventos-dominio/GUIA.md`.
+El paquete da las piezas de la entrega (`EventListener`, `@ListensTo`, `DomainEventBus`, `EventRegistry`, `EventChannel`); el modelo de lectura, su escritura idempotente, la reconstrucción y las consultas son código del proyecto. Los ejemplos usan los eventos `OrderCreatedDomainEvent` (`'order.created'`: `orderId`, `customerId`, `lines`, `total`) y `OrderLineAddedDomainEvent` (`'order.line_added'`: `orderId`, `sku`, `quantity`, `total`) del pedido de `ddd-skills/ddd-agregados/references/implementacion-ts.md`, subclases de `EventBase` como en `ddd-skills/ddd-eventos-dominio/GUIA.md`.
+
+## Piezas de un read model
+
+`[Fuera de los libros: convención de @archi-code/ddd]` Un read model es un módulo de `application/` (`application/order-summaries/`) con:
+
+| Fichero | Contiene |
+|---|---|
+| `order-summary.ts` | La fila (`OrderSummary`, solo primitivos) y `OrderSummaryChanges = Partial<Pick<OrderSummary, …>>` |
+| `order-summary-store.ts` | Puerto de escritura: `find(orderId)`, `hasApplied(eventId)`, `save(row, eventId)` |
+| `order-summaries.ts` | Puerto de consulta: `byId`, `ofCustomer` |
+| `order-summary-projection.ts` | `OrderSummaryProjection`: no es un caso de uso ni escucha eventos; aplica un cambio una sola vez |
+| `<acción>/<acción>-on-<evento>.ts` | Un caso de uso por reacción por cada evento que cambia la fila |
+
+Una clase de infraestructura implementa los dos puertos (`infrastructure/read-model/`). Las consultas no tienen caso de uso: el controlador recibe el puerto de consulta y lo llama.
 
 ## Modelo de lectura
 
 Pensado para la pantalla: desnormalizado, una tabla o documento por vista, tantas vistas como hagan falta (sin caer en una por usuario: IDDD recomienda filtros cuando el número de vistas sería impracticable) [IDDD cap. 4].
 
+```ts
+// application/order-summaries/order-summary.ts
+import type { MoneyData } from '../place-order/money-data';
+
+export interface OrderSummary {
+  orderId: string;
+  customerId: string | null;
+  status: string;
+  total: MoneyData | null;
+  lastEventAt: string;
+}
+
+export type OrderSummaryChanges = Partial<Pick<OrderSummary, 'customerId' | 'status' | 'total'>>;
+```
+
+```ts
+// application/order-summaries/order-summary-store.ts
+export interface OrderSummaryStore {
+  find(orderId: string): Promise<OrderSummary | null>;
+  hasApplied(eventId: string): Promise<boolean>;
+  save(summary: OrderSummary, eventId: string): Promise<void>;
+}
+
+// application/order-summaries/order-summaries.ts
+export interface OrderSummaries {
+  byId(orderId: string): Promise<OrderSummary | null>;
+  ofCustomer(customerId: string): Promise<OrderSummary[]>;
+}
+```
+
 ```sql
 CREATE TABLE order_summaries (
-  order_id    TEXT PRIMARY KEY,
-  customer    TEXT        NOT NULL,
-  line_count  INT         NOT NULL,
-  units       INT         NOT NULL,
-  total_cents BIGINT      NOT NULL,
-  currency    TEXT        NOT NULL,
-  updated_at  TIMESTAMPTZ NOT NULL
+  order_id     TEXT PRIMARY KEY,
+  customer_id  TEXT,
+  status       TEXT        NOT NULL,
+  total_cents  BIGINT,
+  currency     TEXT,
+  last_event_at TIMESTAMPTZ NOT NULL
 );
 CREATE TABLE projection_inbox (
   projection  TEXT NOT NULL,
@@ -23,163 +66,251 @@ CREATE TABLE projection_inbox (
 );
 ```
 
-`updated_at` (el `occurredOn` del último evento aplicado) permite mostrar la antigüedad del dato [IDDD cap. 4]. `projection_inbox` guarda el `eventId` de cada evento ya aplicado: la entrega es al menos una vez, así que la proyección es idempotente por `eventId`.
+`lastEventAt` (el `occurredOn` del último evento aplicado) permite mostrar la antigüedad del dato [IDDD cap. 4]. `projection_inbox` guarda el `eventId` de cada evento ya aplicado: la entrega es al menos una vez, así que la proyección es idempotente por `eventId`.
 
 ## Proyección idempotente
 
-`[Fuera de los libros: convención de @archi-code/ddd]` Una proyección se suscribe al bus como cualquier listener: un `EventListener` por evento, marcado con `@ListensTo(Event, { consumer })`, con nombre `<Action>On<Event>`. Como no cambia ningún agregado, no ejecuta un caso de uso: llama a un puerto de la aplicación (`OrderSummaryProjection`) que la infraestructura implementa sobre la tabla de lectura.
+La proyección recibe el puerto de store; `apply` no hace nada si el `eventId` ya se aplicó, mezcla los cambios en la fila guardada (o en una fila por defecto, si el evento llega antes que el que la crea), fija `lastEventAt` y guarda con el `eventId`:
 
 ```ts
-import { EventListener, ListensTo } from '@archi-code/ddd/application';
+// application/order-summaries/order-summary-projection.ts
+import type { CreatedAt, UuidType } from '@archi-code/ddd/domain';
 
-export interface OrderSummaryProjection {
-  orderPlaced(event: OrderPlaced): Promise<void>;
-  orderLineAdded(event: OrderLineAdded): Promise<void>;
+export interface OrderSummaryChange {
+  eventId: UuidType;
+  orderId: OrderId;
+  occurredOn: CreatedAt;
+  changes: OrderSummaryChanges;
 }
 
-@ListensTo(OrderPlaced, { consumer: 'order-summaries.v1.order-placed' })
-export class ProjectOrderSummaryOnOrderPlaced extends EventListener<OrderPlaced> {
-  constructor(private readonly summaries: OrderSummaryProjection) {
-    super();
-  }
+export class OrderSummaryProjection {
+  constructor(private readonly store: OrderSummaryStore) {}
 
-  handle(event: OrderPlaced): Promise<void> {
-    return this.summaries.orderPlaced(event);
-  }
-}
-
-@ListensTo(OrderLineAdded, { consumer: 'order-summaries.v1.order-line-added' })
-export class ProjectOrderSummaryOnOrderLineAdded extends EventListener<OrderLineAdded> {
-  constructor(private readonly summaries: OrderSummaryProjection) {
-    super();
-  }
-
-  handle(event: OrderLineAdded): Promise<void> {
-    return this.summaries.orderLineAdded(event);
+  async apply({ eventId, orderId, occurredOn, changes }: OrderSummaryChange): Promise<void> {
+    const appliedEventId = eventId.toString();
+    if (await this.store.hasApplied(appliedEventId)) {
+      return;
+    }
+    const lastEventAt = occurredOn.toString();
+    const current = (await this.store.find(orderId.value)) ?? {
+      orderId: orderId.value,
+      customerId: null,
+      status: 'unknown',
+      total: null,
+      lastEventAt,
+    };
+    await this.store.save({ ...current, ...changes, lastEventAt }, appliedEventId);
   }
 }
 ```
 
-La implementación registra el `eventId` en `projection_inbox` y aplica el cambio en la misma transacción; si el `eventId` ya estaba, no hace nada `[Fuera de los libros]`:
+Cada evento que cambia la fila tiene su caso de uso por reacción, que construye `eventId`, el id y `occurredOn` como value objects, decide el cambio y llama a la proyección:
 
 ```ts
-import type { EventBase } from '@archi-code/ddd/domain';
-import { InfrastructureException } from '@archi-code/ddd/infrastructure';
+// application/order-summaries/open-order-summary/open-order-summary-on-order-created.ts
+import { CreatedAt, UuidType } from '@archi-code/ddd/domain';
+import { EventListener, ListensTo, ValueObjectBuilder } from '@archi-code/ddd/application';
+
+@ListensTo(OrderCreatedDomainEvent, { consumer: 'sales.open-order-summary-on-order-created' })
+export class OpenOrderSummaryOnOrderCreated extends EventListener<OrderCreatedDomainEvent> {
+  constructor(private readonly projection: OrderSummaryProjection) {
+    super();
+  }
+
+  async handle(event: OrderCreatedDomainEvent): Promise<void> {
+    const { eventId, orderId, occurredOn, customerId, total } = ValueObjectBuilder.build({
+      eventId: () => new UuidType(event.eventId),
+      orderId: () => new OrderId(event.orderId),
+      occurredOn: () => new CreatedAt(event.occurredOn),
+      customerId: () => new CustomerId(event.customerId),
+      total: () => Money.fromPrimitives(event.total),
+    });
+    await this.projection.apply({
+      eventId,
+      orderId,
+      occurredOn,
+      changes: {
+        customerId: customerId.value,
+        status: OrderStatus.PENDING,
+        total: total.toPrimitives(),
+      },
+    });
+  }
+}
+```
+
+```ts
+// application/order-summaries/update-order-summary-total/update-order-summary-total-on-order-line-added.ts
+@ListensTo(OrderLineAddedDomainEvent, {
+  consumer: 'sales.update-order-summary-total-on-order-line-added',
+})
+export class UpdateOrderSummaryTotalOnOrderLineAdded extends EventListener<OrderLineAddedDomainEvent> {
+  constructor(private readonly projection: OrderSummaryProjection) {
+    super();
+  }
+
+  async handle(event: OrderLineAddedDomainEvent): Promise<void> {
+    const { eventId, orderId, occurredOn, total } = ValueObjectBuilder.build({
+      eventId: () => new UuidType(event.eventId),
+      orderId: () => new OrderId(event.orderId),
+      occurredOn: () => new CreatedAt(event.occurredOn),
+      total: () => Money.fromPrimitives(event.total),
+    });
+    await this.projection.apply({ eventId, orderId, occurredOn, changes: { total: total.toPrimitives() } });
+  }
+}
+```
+
+* Una clase por reacción, aunque varios eventos alimenten la misma fila. El evento es el propio del contexto (`domain/event/`) cuando la vista es del mismo contexto; si viene de otro, la copia local junto a la reacción.
+* El cambio es un valor absoluto que el evento ya lleva (`total`), no una suma: aplicarlo dos veces deja el mismo resultado, y la comprobación por `eventId` evita además aplicar dos veces un evento reentregado.
+* Un canal solo garantiza el orden de los eventos de un mismo `send` para un consumidor. Si un evento llega antes que el que crea la fila, la proyección parte de la fila por defecto, y el evento de creación completa los campos que falten. Si una vista no admite ese desorden, compara `occurredOn` con `lastEventAt` antes de aplicar `[Fuera de los libros]`.
+* La reacción recibe siempre el evento reconstruido por el `EventRegistry` desde su JSON, también en memoria: lo que funciona con `InMemoryEventChannel` funciona igual con un broker.
+
+La implementación del store registra el `eventId` en `projection_inbox` y guarda la fila en la misma transacción; también implementa el puerto de consulta `[Fuera de los libros]`:
+
+```ts
+// infrastructure/read-model/pg-order-summary-store.ts
+import { InternalErrorException } from '@archi-code/ddd/infrastructure';
 
 interface Sql {
   query<Row>(text: string, values: readonly unknown[]): Promise<{ rows: Row[]; rowCount: number }>;
 }
 
-interface SqlDatabase {
+interface SqlDatabase extends Sql {
   transaction<Result>(work: (sql: Sql) => Promise<Result>): Promise<Result>;
 }
 
-export class PgOrderSummaryProjection implements OrderSummaryProjection {
+interface SummaryRow {
+  order_id: string;
+  customer_id: string | null;
+  status: string;
+  total_cents: string | null;
+  currency: string | null;
+  last_event_at: Date;
+}
+
+export class PgOrderSummaryStore implements OrderSummaryStore, OrderSummaries {
   constructor(
     private readonly database: SqlDatabase,
     private readonly table = 'order_summaries',
   ) {}
 
-  orderPlaced(event: OrderPlaced): Promise<void> {
-    return this.once(event, async (sql) => {
-      await sql.query(
-        `INSERT INTO ${this.table}
-           (order_id, customer, line_count, units, total_cents, currency, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (order_id) DO NOTHING`,
-        [
-          event.orderId,
-          event.customerId,
-          event.lines.length,
-          event.lines.reduce((units, line) => units + line.quantity, 0),
-          event.total.amount,
-          event.total.currency,
-          event.occurredOn,
-        ],
-      );
-    });
+  async find(orderId: string): Promise<OrderSummary | null> {
+    return this.byId(orderId);
   }
 
-  orderLineAdded(event: OrderLineAdded): Promise<void> {
-    return this.once(event, async (sql) => {
-      const { rowCount } = await sql.query(
-        `UPDATE ${this.table}
-         SET line_count = line_count + 1, units = units + $2, total_cents = total_cents + $3,
-             updated_at = GREATEST(updated_at, $4)
-         WHERE order_id = $1`,
-        [
-          event.orderId,
-          event.quantity,
-          event.quantity * event.unitPrice.amount,
-          event.occurredOn,
-        ],
-      );
-      if (rowCount === 0) {
-        throw new InfrastructureException(
-          `${this.table}: order ${event.orderId} is not projected yet`,
-        );
-      }
-    });
+  async hasApplied(eventId: string): Promise<boolean> {
+    const { rowCount } = await this.read(
+      'SELECT 1 FROM projection_inbox WHERE projection = $1 AND event_id = $2',
+      [this.table, eventId],
+    );
+    return rowCount > 0;
   }
 
-  private once(event: EventBase, work: (sql: Sql) => Promise<void>): Promise<void> {
-    return this.database.transaction(async (sql) => {
+  async save(summary: OrderSummary, eventId: string): Promise<void> {
+    await this.database.transaction(async (sql) => {
       const { rowCount } = await sql.query(
         'INSERT INTO projection_inbox (projection, event_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-        [this.table, event.eventId],
+        [this.table, eventId],
       );
-      if (rowCount === 1) {
-        await work(sql);
+      if (rowCount === 0) {
+        return;
       }
+      await sql.query(
+        `INSERT INTO ${this.table} (order_id, customer_id, status, total_cents, currency, last_event_at)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (order_id) DO UPDATE SET customer_id = $2, status = $3, total_cents = $4,
+           currency = $5, last_event_at = $6`,
+        [
+          summary.orderId,
+          summary.customerId,
+          summary.status,
+          summary.total?.amount ?? null,
+          summary.total?.currency ?? null,
+          summary.lastEventAt,
+        ],
+      );
     });
+  }
+
+  async byId(orderId: string): Promise<OrderSummary | null> {
+    const { rows } = await this.read(`SELECT * FROM ${this.table} WHERE order_id = $1`, [orderId]);
+    return rows[0] === undefined ? null : this.toSummary(rows[0]);
+  }
+
+  async ofCustomer(customerId: string): Promise<OrderSummary[]> {
+    const { rows } = await this.read(
+      `SELECT * FROM ${this.table} WHERE customer_id = $1 ORDER BY last_event_at DESC, order_id`,
+      [customerId],
+    );
+    return rows.map((row) => this.toSummary(row));
+  }
+
+  private async read(text: string, values: readonly unknown[]) {
+    try {
+      return await this.database.query<SummaryRow>(text, values);
+    } catch (error) {
+      throw new InternalErrorException(`reading ${this.table}`, { cause: error });
+    }
+  }
+
+  private toSummary(row: SummaryRow): OrderSummary {
+    return {
+      orderId: row.order_id,
+      customerId: row.customer_id,
+      status: row.status,
+      total:
+        row.total_cents === null || row.currency === null
+          ? null
+          : { amount: Number(row.total_cents), currency: row.currency },
+      lastEventAt: row.last_event_at.toISOString(),
+    };
   }
 }
 ```
 
-* Sumar unidades e importes no es idempotente por sí mismo; la bandeja por `eventId` lo hace idempotente. Se suma el subtotal de la línea (`quantity` × `unitPrice`) en vez de copiar el `total` del evento, para que dos `OrderLineAdded` del mismo pedido entregados en otro orden dejen el mismo resultado.
-* Un canal solo garantiza el orden de los eventos de un mismo `send` para un consumidor. Si `OrderLineAdded` llega antes que `OrderPlaced`, la actualización no encuentra fila: lanzar deshace la transacción (también la marca en la bandeja) y el canal lo entrega de nuevo más tarde.
-* El listener recibe siempre el evento reconstruido por el `EventRegistry` desde su JSON, también en memoria: lo que funciona con `InMemoryEventChannel` funciona igual con un broker.
-
-En la composición se suscriben como cualquier listener (`channel` es el `EventChannel` del proyecto: `InMemoryEventChannel` en pruebas, tu canal duradero o de broker en producción):
+En el composition root del contexto, el store, la proyección y cada reacción se construyen y se suscriben como cualquier caso de uso por reacción, y cada evento que escuchan se registra una vez con una factoría que conserva `eventId` y `occurredOn` (`channel` es el `EventChannel` compartido: `InMemoryEventChannel` en pruebas, tu canal duradero o de broker en producción):
 
 ```ts
-import { DomainEventBus, EventRegistry } from '@archi-code/ddd/infrastructure';
-
-export const orderEvents = new EventRegistry<OrderEvent>()
+const registry = new EventRegistry()
   .register(
-    OrderPlaced,
+    OrderCreatedDomainEvent,
     (json) =>
-      new OrderPlaced(
-        json.orderId as string,
-        json.customerId as string,
-        json.lines as OrderLineData[],
-        json.total as MoneyData,
-        json,
-      ),
+      new OrderCreatedDomainEvent({
+        orderId: json.orderId as string,
+        customerId: json.customerId as string,
+        lines: json.lines as { sku: string; quantity: number; unitPrice: MoneyData }[],
+        total: json.total as MoneyData,
+        eventId: json.eventId,
+        occurredOn: json.occurredOn,
+      }),
   )
   .register(
-    OrderLineAdded,
+    OrderLineAddedDomainEvent,
     (json) =>
-      new OrderLineAdded(
-        json.orderId as string,
-        json.sku as string,
-        json.quantity as number,
-        json.unitPrice as MoneyData,
-        json.total as MoneyData,
-        json,
-      ),
+      new OrderLineAddedDomainEvent({
+        orderId: json.orderId as string,
+        sku: json.sku as string,
+        quantity: json.quantity as number,
+        total: json.total as MoneyData,
+        eventId: json.eventId,
+        occurredOn: json.occurredOn,
+      }),
   );
 
-const bus = new DomainEventBus<OrderEvent>(channel, orderEvents);
-const projection = new PgOrderSummaryProjection(database);
-await bus.subscribe(new ProjectOrderSummaryOnOrderPlaced(projection));
-await bus.subscribe(new ProjectOrderSummaryOnOrderLineAdded(projection));
+const bus = new DomainEventBus(channel, registry, logger);
+const summaries = new PgOrderSummaryStore(database);
+const projection = new OrderSummaryProjection(summaries);
+await bus.subscribe(new OpenOrderSummaryOnOrderCreated(projection));
+await bus.subscribe(new UpdateOrderSummaryTotalOnOrderLineAdded(projection));
+// el controlador recibe `summaries` como puerto de consulta OrderSummaries
 ```
 
 ## Reconstruir
 
 Para cambiar una vista: crear `order_summaries_v2`, proyectar desde la posición 0 en segundo plano, cambiar la consulta cuando alcance el presente y borrar la antigua. Es la ventaja que destaca IDDD: cambiar lo que se ofrece sin modificar el agregado [IDDD apéndice A].
 
-`[Fuera de los libros: convención de @archi-code/ddd]` Un `EventChannel` es un camino de entrega, no un historial: reconstruir exige un log de eventos propio, ordenado. Con Event Sourcing es el propio event store (por `global_seq`, ver `ddd-skills/ddd-event-sourcing-cqrs/references/event-sourcing-ts.md`); sin él, una tabla donde tu canal duradero o un listener anexa cada `SerializedEvent` y que nunca se borra. Para reproducirlo con los mismos listeners, súbelos a un `DomainEventBus` sobre un `InMemoryEventChannel` aparte y envía el log por páginas:
+`[Fuera de los libros: convención de @archi-code/ddd]` Un `EventChannel` es un camino de entrega, no un historial: reconstruir exige un log de eventos propio, ordenado. Con Event Sourcing es el propio event store (por `global_seq`, ver `ddd-skills/ddd-event-sourcing-cqrs/references/event-sourcing-ts.md`); sin él, una tabla donde tu canal duradero anexa cada `SerializedEvent` y que nunca se borra. Para reproducirlo con las mismas reacciones, súbelas a un `DomainEventBus` sobre un `InMemoryEventChannel` aparte y envía el log por páginas:
 
 ```ts
 import type { SerializedEvent } from '@archi-code/ddd/domain';
@@ -193,13 +324,13 @@ export interface EventLog {
 export async function rebuild(
   log: EventLog,
   projection: OrderSummaryProjection,
-  registry: EventRegistry<OrderEvent>,
+  registry: EventRegistry,
 ): Promise<void> {
   const replay = new InMemoryEventChannel();
-  const bus = new DomainEventBus<OrderEvent>(replay, registry);
+  const bus = new DomainEventBus(replay, registry);
   const subscriptions = [
-    await bus.subscribe(new ProjectOrderSummaryOnOrderPlaced(projection)),
-    await bus.subscribe(new ProjectOrderSummaryOnOrderLineAdded(projection)),
+    await bus.subscribe(new OpenOrderSummaryOnOrderCreated(projection)),
+    await bus.subscribe(new UpdateOrderSummaryTotalOnOrderLineAdded(projection)),
   ];
   for (let after = 0; ; ) {
     const page = await log.read(after, 500);
@@ -209,72 +340,17 @@ export async function rebuild(
     await replay.send(page.map((entry) => entry.event));
     after = page[page.length - 1].position;
   }
-  await Promise.all(subscriptions.map((subscription) => subscription.unsubscribe()));
-}
-```
-
-`rebuild(log, new PgOrderSummaryProjection(database, 'order_summaries_v2'), orderEvents)` llena la tabla nueva; el canal en memoria entrega en serie y en orden, y si un evento falla, `send` rechaza y la reconstrucción se detiene. Al desplegar la versión 2, cambia también el `consumer` de sus listeners (`order-summaries.v2.order-placed`): es su identidad en el canal (su cola en un broker), y la bandeja por `eventId` absorbe los eventos que lleguen por las dos vías mientras la reconstrucción alcanza el presente.
-
-## Lado de consulta
-
-Una consulta de lectura es una interfaz de la aplicación que devuelve DTOs, implementada en infraestructura directamente sobre la base de datos:
-
-```ts
-import { InternalErrorException } from '@archi-code/ddd/infrastructure';
-
-export interface OrderSummary {
-  readonly id: string;
-  readonly customer: string;
-  readonly lines: number;
-  readonly units: number;
-  readonly total: { readonly amount: number; readonly currency: string };
-  readonly updatedAt: string;
-}
-
-export interface OrderSummaries {
-  ofCustomer(customer: string, page: { limit: number; offset: number }): Promise<OrderSummary[]>;
-}
-
-interface SummaryRow {
-  order_id: string;
-  customer: string;
-  line_count: number;
-  units: number;
-  total_cents: string;
-  currency: string;
-  updated_at: Date;
-}
-
-export class PgOrderSummaries implements OrderSummaries {
-  constructor(private readonly sql: Sql) {}
-
-  async ofCustomer(
-    customer: string,
-    page: { limit: number; offset: number },
-  ): Promise<OrderSummary[]> {
-    try {
-      const { rows } = await this.sql.query<SummaryRow>(
-        `SELECT order_id, customer, line_count, units, total_cents, currency, updated_at
-         FROM order_summaries
-         WHERE customer = $1 ORDER BY updated_at DESC, order_id LIMIT $2 OFFSET $3`,
-        [customer, page.limit, page.offset],
-      );
-      return rows.map((row) => ({
-        id: row.order_id,
-        customer: row.customer,
-        lines: row.line_count,
-        units: row.units,
-        total: { amount: Number(row.total_cents), currency: row.currency },
-        updatedAt: row.updated_at.toISOString(),
-      }));
-    } catch (error) {
-      throw new InternalErrorException('reading order summaries', { cause: error });
-    }
+  for (const subscription of subscriptions) {
+    await subscription.unsubscribe();
   }
 }
 ```
 
-Las consultas no pasan por agregados ni repositorios (`AggregateFinder`). Los comandos sí. Si la pantalla filtra y ordena por campos que elige el usuario, describe la búsqueda con `@archi-code/criteria` (`Criteria<OrderSummary>`, con `defineCriteriaSchema` para la entrada de fuera) en vez de añadir un método por combinación.
+`rebuild(log, new OrderSummaryProjection(new PgOrderSummaryStore(database, 'order_summaries_v2')), registry)` llena la tabla nueva; el canal en memoria entrega en serie y en orden, y si un evento falla, `send` rechaza y la reconstrucción se detiene. Al desplegar la versión 2, las reacciones que la alimentan son clases nuevas con su propio `consumer` (`'sales.open-order-summary-v2-on-order-created'`): es su identidad en el canal (su cola en un broker), y la bandeja por `eventId` absorbe los eventos que lleguen por las dos vías mientras la reconstrucción alcanza el presente.
+
+## Lado de consulta
+
+Las consultas no pasan por agregados ni repositorios (`OrderRepository`), ni por un caso de uso: el controlador recibe el puerto de consulta (`OrderSummaries`) y lo llama; una fila que falta es un 404 que decide el propio controlador (`{ status: 404, body: { code: 'NOT_FOUND', message: 'Order not found' } }`). Los comandos sí pasan por casos de uso y agregados. Si la pantalla filtra y ordena por campos que elige el usuario, describe la búsqueda con `@archi-code/criteria` (`Criteria<OrderSummary>`, con `defineCriteriaSchema` para la entrada de fuera) en vez de añadir un método por combinación.
 
 ## CQRS sin Event Sourcing
 
@@ -282,4 +358,4 @@ Con persistencia de estado normal (repositorios que guardan `toPrimitives()` de 
 
 ## Proyecciones para otros agregados
 
-IDDD muestra una proyección (`CustomerBillingView`) que un agregado `Invoice` consulta a través de un servicio de dominio para obtener datos de cliente sin acoplarse al agregado `Customer` [IDDD apéndice A]. Con el paquete, el servicio de dominio declara un puerto en `domain/` con value objects, la infraestructura lo implementa sobre la tabla de la proyección y el caso de uso pasa los datos ya cargados al método del agregado. Úsalo para datos de referencia, nunca para proteger invariantes que exijan consistencia inmediata.
+IDDD muestra una proyección (`CustomerBillingView`) que un agregado `Invoice` consulta a través de un servicio de dominio para obtener datos de cliente sin acoplarse al agregado `Customer` [IDDD apéndice A]. Con el paquete, el servicio de dominio declara un puerto en `domain/service/` con value objects, la infraestructura lo implementa sobre la tabla de la proyección y el caso de uso pasa los datos ya cargados al método del agregado. Úsalo para datos de referencia, nunca para proteger invariantes que exijan consistencia inmediata.

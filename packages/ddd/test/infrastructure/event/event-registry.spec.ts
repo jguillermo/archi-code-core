@@ -42,13 +42,11 @@ class OrderLinesChanged extends EventBase {
   }
 }
 
-type OrderEvent = OrderPlaced | OrderShipped;
-
 const orderId = '9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c';
 const eventId = '1d2e3f4a-5b6c-4d7e-8f9a-0b1c2d3e4f5a';
 
 function orderEvents() {
-  return new EventRegistry<OrderEvent>()
+  return new EventRegistry()
     .register(OrderPlaced, (e) => new OrderPlaced(e.orderId as string, e.customer as string, e))
     .register(OrderShipped, (e) => new OrderShipped(e.orderId as string, e.carrier as string, e));
 }
@@ -82,7 +80,7 @@ describe('EventRegistry: rebuilding the events a channel delivers', () => {
 
   it('returns the event its factory built, with the lines it carries', () => {
     let built: OrderLinesChanged | undefined;
-    const changed = new EventRegistry<OrderLinesChanged>()
+    const changed = new EventRegistry()
       .register(OrderLinesChanged, (e) => {
         built = new OrderLinesChanged(
           e.orderId as string,
@@ -99,11 +97,11 @@ describe('EventRegistry: rebuilding the events a channel delivers', () => {
         ),
       );
     expect(changed).toBe(built);
-    expect(changed.lines).toEqual([{ sku: 'TORCH-01', units: 2 }]);
+    expect(changed).toMatchObject({ lines: [{ sku: 'TORCH-01', units: 2 }] });
   });
 
   it('registers each event by its class, under its static eventName', () => {
-    const registry = new EventRegistry<OrderEvent>().register(
+    const registry = new EventRegistry().register(
       OrderShipped,
       (e) => new OrderShipped(e.orderId as string, e.carrier as string, e),
     );
@@ -179,7 +177,7 @@ describe('EventRegistry: rebuilding the events a channel delivers', () => {
   });
 
   it('refuses a factory that drops the eventId, because a listener could not skip a redelivery', () => {
-    const forgetful = new EventRegistry<OrderEvent>().register(
+    const forgetful = new EventRegistry().register(
       OrderShipped,
       (e) => new OrderShipped(e.orderId as string, e.carrier as string),
     );
@@ -196,7 +194,7 @@ describe('EventRegistry: rebuilding the events a channel delivers', () => {
   });
 
   it('refuses a factory that keeps the eventId but stamps a new occurredOn', () => {
-    const restamping = new EventRegistry<OrderEvent>().register(
+    const restamping = new EventRegistry().register(
       OrderShipped,
       (e) => new OrderShipped(e.orderId as string, e.carrier as string, { eventId: e.eventId }),
     );
@@ -245,7 +243,7 @@ describe('EventRegistry: rebuilding the events a channel delivers', () => {
         super(metadata);
       }
     }
-    const registry = new EventRegistry<CustomerRenamed>().register(CustomerRenamed, (json) => {
+    const registry = new EventRegistry().register(CustomerRenamed, (json) => {
       if (typeof json.name === 'string') {
         const [givenName, ...rest] = json.name.split(' ');
         return new CustomerRenamed(json.customerId as string, givenName, rest.join(' '), json);

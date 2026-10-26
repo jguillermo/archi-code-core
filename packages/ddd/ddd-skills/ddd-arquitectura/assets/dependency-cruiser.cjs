@@ -2,6 +2,7 @@
  * Reglas de dependencia DDD para dependency-cruiser, adaptadas a @archi-code/ddd.
  * Uso: npx depcruise src --config .dependency-cruiser.cjs
  * Funciona con src/contexts/<contexto>/ y con src/app/contexts/<contexto>/ (proyectos con la lógica en src/app/).
+ * src/contexts/shared-kernel/ es lo único que comparten los contextos; él no importa ningún contexto.
  * Probado con dependency-cruiser 16.10.0 y TypeScript 5.6, con un paquete simulado que expone
  * @archi-code/ddd/{domain,application,infrastructure}. Si la estructura publicada del
  * paquete difiere, ajusta ARCHI_LAYER.
@@ -69,12 +70,17 @@ module.exports = {
     },
     {
       name: 'contextos-aislados',
-      comment: 'Un contexto no importa código de otro. Se integra por API, mensajes o shared-kernel acordado.',
+      comment:
+        'Un contexto no importa código de otro: los datos viajan como eventos y cada contexto ' +
+        'declara su copia de cada evento ajeno. Solo se comparte shared-kernel/.',
       severity: 'error',
       from: { path: '^src/(?:app/)?contexts/([^/]+)/' },
       to: {
         path: '^src/(?:app/)?contexts/',
-        pathNot: '^src/(?:app/)?contexts/$1/', // $1 = contexto del fichero de origen
+        pathNot: [
+          '^src/(?:app/)?contexts/$1/', // $1 = contexto del fichero de origen
+          '^src/(?:app/)?contexts/shared-kernel/',
+        ],
       },
     },
     {
@@ -87,7 +93,7 @@ module.exports = {
   options: {
     tsConfig: { fileName: 'tsconfig.json' },
     // Imprescindible en TypeScript: sin esto se ignoran los imports usados solo como tipos
-    // (import type { AggregateSaver } ...), y un dominio que importa un tipo prohibido pasaría.
+    // (import type { Collection } from 'mongodb'), y un dominio que importa un tipo prohibido pasaría.
     tsPreCompilationDeps: true,
     doNotFollow: { path: 'node_modules' },
     // Resolver los subpaths del campo "exports" del paquete (@archi-code/ddd/domain, etc.).

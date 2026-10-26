@@ -35,29 +35,45 @@ Lo que no es opcional, con o sin paquete, es la inmutabilidad y la igualdad por 
 
 ## 2. Money
 
-El ejemplo canónico de *DDD in PHP* (moneda e importe juntos) [PHP: Value Objects]. Nunca `number` en coma flotante para dinero `[Fuera de los libros]`: aquí, céntimos enteros en un `Composite`. Los libros usarían `bigint`; el paquete no tiene tipo `bigint`, así que `Cents` es `Required(NumberType)` con `isInt`, exacto hasta `Number.MAX_SAFE_INTEGER` céntimos `[Fuera de los libros: convención de @archi-code/ddd]`.
+El ejemplo canónico de *DDD in PHP* (moneda e importe juntos) [PHP: Value Objects]. Nunca `number` en coma flotante para dinero `[Fuera de los libros]`: aquí, céntimos enteros en un `Composite`. Los libros usarían `bigint`; el paquete no tiene tipo `bigint`, así que los céntimos son un tipo propio, `CentsAmount extends AbstractType<number>` (entero seguro ≥ 0; acepta también texto solo de dígitos), con `Cents extends Required(CentsAmount)` en otro fichero, exacto hasta `Number.MAX_SAFE_INTEGER` céntimos `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ```ts
 import { Validations } from '@archi-code/validation';
-import { Composite, DomainException, NumberType, Required, StringType } from '@archi-code/ddd/domain';
+import {
+  AbstractType,
+  Composite,
+  DomainException,
+  Required,
+  StringType,
+  TypePrimitiveException,
+} from '@archi-code/ddd/domain';
 
 export class CurrencyMismatch extends DomainException {
   constructor(expected: string, received: string) {
-    super(`Cannot add ${received} to ${expected}`, ['PAY001']);
+    super(`Cannot combine ${received} with ${expected}`, ['MNY001']);
   }
 }
 
 export class InvalidMultiplier extends DomainException {
   constructor(factor: string) {
-    super(`${factor} is not a valid multiplier`, ['PAY002']);
+    super(`${factor} is not a valid multiplier`, ['MNY002']);
   }
 }
 
-@Validations([{ validator: 'isInt' }])
-export class Cents extends Required(NumberType) {}
+export class CentsAmount extends AbstractType<number> {
+  protected filter(value: unknown): number {
+    const cents = typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value;
+    if (typeof cents !== 'number' || !Number.isSafeInteger(cents) || cents < 0) {
+      throw new TypePrimitiveException('amount in cents', value);
+    }
+    return cents;
+  }
+}
+
+export class Cents extends Required(CentsAmount) {}
 
 @Validations([{ validator: 'isISO4217' }])
-export class Currency extends Required(StringType) {
+export class MoneyCurrency extends Required(StringType) {
   protected filter(value: unknown): string {
     return super.filter(value).trim().toUpperCase();
   }
@@ -65,8 +81,8 @@ export class Currency extends Required(StringType) {
 
 export type Rounding = 'HALF_EVEN' | 'HALF_UP';
 
-export class Money extends Composite({ amount: Cents, currency: Currency }) {
-  static zero(currency: Currency): Money {
+export class Money extends Composite({ amount: Cents, currency: MoneyCurrency }) {
+  static zero(currency: MoneyCurrency): Money {
     return new Money({ amount: new Cents(0), currency });
   }
 
@@ -145,7 +161,7 @@ const price = Money.fromPrimitives({ amount: 850, currency: ' eur ' });
 price.percentage('21').toPrimitives(); // { amount: 178, currency: 'EUR' }: 178,5 redondeado al par
 ```
 
-Es el `Money` del pedido de `ddd-skills/ddd-agregados/references/implementacion-ts.md` (`add`, `times`, `covers`, con `Cents`, `Currency` y `CurrencyMismatch`), más las operaciones que un proyecto añade cuando las necesita (`zero`, `multiplyBy`, `percentage`, `isZero`, `toString`); `Quantity` está en la sección 7.
+Es el `Money` del pedido de `ddd-skills/ddd-agregados/references/implementacion-ts.md` (`add`, `times`, `covers`, con `Cents`, `MoneyCurrency` y `CurrencyMismatch`; en un proyecto viven en `shared-kernel/money/`), más las operaciones que un proyecto añade cuando las necesita (`zero`, `multiplyBy`, `percentage`, `isZero`, `toString`); `Quantity` está en la sección 7.
 
 Por qué dos métodos: `times` es exacto (precio por cantidad) y `multiplyBy` obliga a decidir el redondeo, que en dinero nunca debe quedar implícito `[Fuera de los libros]`. El cálculo intermedio va en `bigint` para no perder exactitud; el resultado vuelve a `Cents`, que rechaza lo que no sea entero. Si el dominio reparte importes (pagos fraccionados), añade un `allocate` que reparta el resto de céntimos en lugar de redondear cada parte.
 
@@ -178,6 +194,22 @@ export class CampaignCode extends Required(StringType) {
   }
 }
 ```
+
+Un agregado de otro contexto se referencia con un `UuidType` propio del contexto que lo guarda (`OrderReference`, obligatorio, o un `UuidType` opcional), nunca con la clase de id del otro contexto. Cuando un agregado existe uno por cada agregado de otro contexto (un pago por pedido), su id se deriva de la referencia con un método estático sobre un UUID v5, y así una reacción repetida lo vuelve a encontrar `[Fuera de los libros: convención de @archi-code/ddd]`:
+
+```ts
+import { IdType, Required, UuidType } from '@archi-code/ddd/domain';
+
+export class OrderReference extends Required(UuidType) {}
+
+export class PaymentId extends IdType<'PaymentId'> {
+  static forOrder(order: OrderReference): PaymentId {
+    return new PaymentId(UuidType.fromValue(`payment-of-order:${order.value}`));
+  }
+}
+```
+
+El id lo calcula el caso de uso (`OrderId.generate()`, `PaymentId.forOrder(order)`) y se lo pasa a `create`; el agregado nunca lo genera.
 
 Un tipo por identificador (`OrderId`, `CustomerId`) hace que `equals` nunca confunda un id de cliente con uno de pedido, porque compara la clase. En compilación, TypeScript es estructural y dos clases con la misma forma se aceptarían una por otra; por eso `IdType` recibe una marca con el nombre de la clase, que solo existe en los tipos, y el compilador las distingue `[Fuera de los libros: convención de @archi-code/ddd]`:
 
@@ -255,39 +287,31 @@ export class DateRange extends Composite({ start: StartDate, end: EndDate }) {
 
 ## 6. Tipos estándar y estados
 
-Los tipos estándar describen el tipo de algo (moneda, tipo de cliente, estado) [IDDD cap. 6]. IDDD los implementa como enum con comportamiento (patrón State). Con el paquete, un `EnumType` y una subclase obligatoria con el comportamiento:
+Los tipos estándar describen el tipo de algo (moneda, tipo de cliente, estado) [IDDD cap. 6]. IDDD los implementa como enum con comportamiento (patrón State). Con el paquete, un único fichero `value-object/OrderStatusType.ts` con el enum (valores en snake_case), su opción (`EnumType`) y el tipo obligatorio, que es donde va el comportamiento `[Fuera de los libros: convención de @archi-code/ddd]`; un estado opcional sería solo `class RejectionCodeType extends EnumType<RejectionCode>`:
 
 ```ts
 import { EnumType, Required } from '@archi-code/ddd/domain';
 
-export enum Status {
-  Pending = 'pending',
-  Confirmed = 'confirmed',
-  Cancelled = 'cancelled',
+export enum OrderStatus {
+  PENDING = 'pending',
+  CONFIRMED = 'confirmed',
+  CANCELLED = 'cancelled',
 }
 
-export class StatusType extends EnumType<Status> {
-  protected getEnum(): typeof Status {
-    return Status;
+export class OrderStatusOption extends EnumType<OrderStatus> {
+  protected getEnum(): typeof OrderStatus {
+    return OrderStatus;
   }
 }
 
-export class OrderStatus extends Required(StatusType) {
-  isPending(): boolean {
-    return this.value === Status.Pending;
-  }
-
-  isConfirmed(): boolean {
-    return this.value === Status.Confirmed;
-  }
-
+export class OrderStatusType extends Required(OrderStatusOption) {
   canBeCancelled(): boolean {
-    return this.value !== Status.Cancelled;
+    return this.value !== OrderStatus.CANCELLED;
   }
 }
 ```
 
-Las reglas de transición viven en el tipo, no en `if` repartidos. Su primitivo es la opción del enum, así que `fromPrimitives` lo rehace sin conversión: `new OrderStatus(primitives.status)`. El estado de disponibilidad de IDDD (`ADD_ON_NOT_ENABLED`, `NOT_REQUESTED`, `REQUESTED`, `READY`) es un ejemplo de este patrón aplicado a integración [IDDD cap. 3].
+Las reglas de transición viven en el tipo (o en el agregado, que pregunta con `isIn(OrderStatus.PENDING)`), no en `if` repartidos. Su primitivo es la opción del enum, así que `fromPrimitives` lo rehace sin conversión: `new OrderStatusType(primitives.status)`; desde texto de entrada se convierte con un cast (`new OrderStatusType(input.status as OrderStatus)`). El estado de disponibilidad de IDDD (`ADD_ON_NOT_ENABLED`, `NOT_REQUESTED`, `REQUESTED`, `READY`) es un ejemplo de este patrón aplicado a integración [IDDD cap. 3].
 
 ## 7. Colecciones de valores
 

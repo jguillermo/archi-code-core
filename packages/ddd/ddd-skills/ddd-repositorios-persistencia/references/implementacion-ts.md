@@ -1,6 +1,24 @@
 # Implementar repositorios en TypeScript
 
-Todos los ejemplos usan el agregado `Order` de `ddd-skills/ddd-agregados/references/implementacion-ts.md`, con sus value objects (`OrderId`, `CustomerId`, `OrderLines`, `OrderLine`, `Sku`, `Quantity`, `Money`, `ShippingAddress`, `OrderStatus`, `PaymentAuthorization`) y sus eventos: `Order.place(id, customerId, lines, address, clock)` lo crea pendiente con sus líneas, `addLine(line, clock)` añade una, y `toPrimitives()` y `static fromPrimitives()` son su conversión, la que llama el repositorio (ver `ddd-skills/ddd-agregados/GUIA.md`). El repositorio es código del proyecto en `infrastructure/persistence/` que implementa los roles del paquete.
+Todos los ejemplos usan el agregado `Order` de `ddd-skills/ddd-agregados/references/implementacion-ts.md`, con sus value objects (`OrderId`, `CustomerId`, `OrderLines`, `OrderLine`, `Sku`, `Quantity`, `Money`, `ShippingAddress`, `OrderStatusType`, `PaymentAuthorization`) y sus eventos: `Order.create(id, customerId, lines, shippingAddress, clock)` lo crea pendiente con sus líneas, `addLine(line, clock)` añade una, y `toPrimitives()` y `static fromPrimitives()` son su conversión, la que llama el repositorio (ver `ddd-skills/ddd-agregados/GUIA.md`). El dominio declara su repositorio abstracto en `domain/repository/OrderRepository.ts`; como los pedidos se borran, declara los tres verbos, cada uno el método del rol del paquete que implementa `[Fuera de los libros: convención de @archi-code/ddd]`:
+
+```ts
+import { AggregateRepository } from '@archi-code/ddd/domain';
+import type { AggregateFinder, AggregateRemover, AggregateSaver } from '@archi-code/ddd/domain';
+import type { Order } from '../aggregate/Order';
+import type { OrderId } from '../value-object/OrderId';
+
+export abstract class OrderRepository
+  extends AggregateRepository<Order>
+  implements AggregateFinder<Order>, AggregateSaver<Order>, AggregateRemover<Order>
+{
+  abstract findById(id: OrderId): Promise<Order | null>;
+  abstract save(order: Order): Promise<void>;
+  abstract remove(order: Order): Promise<void>;
+}
+```
+
+Cada adaptador es código del proyecto en `infrastructure/persistence/<tecnología>-order-repository.ts` que extiende `OrderRepository` e implementa exactamente esos verbos, ni más ni menos.
 
 ## Qué se guarda
 
@@ -10,20 +28,23 @@ Todos los ejemplos usan el agregado `Order` de `ddd-skills/ddd-agregados/referen
 
 ```ts
 import type { PrimitiveTypes } from '@archi-code/ddd/domain';
-import { Order, Status } from '../../domain/order/order';
+import type { Order } from '../../domain/aggregate/Order';
+import { OrderStatus } from '../../domain/value-object/OrderStatusType';
 
 const primitives: PrimitiveTypes<Order> = {
   id: '9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c',
   customerId: '3f1d2c4b-5a6e-4f70-8b9c-0d1e2f3a4b5c',
   lines: { items: [{ sku: 'TORCH-01', quantity: 2, unitPrice: { amount: 4990, currency: 'EUR' } }] },
   shippingAddress: { street: 'Calle Mayor 1', city: 'Huelva', country: 'ES' },
-  status: Status.Pending,
+  status: OrderStatus.PENDING,
   stockReservation: null,
   paymentAuthorization: {
     paymentId: '0b8e4f2a-6c1d-4e7f-9a3b-5d2c8e1f4a6b',
     amount: { amount: 9980, currency: 'EUR' },
     expiresAt: new Date('2026-03-08T09:30:00Z'),
   },
+  createdAt: new Date('2026-03-01T09:30:00Z'),
+  updatedAt: new Date('2026-03-01T09:45:00Z'),
 };
 ```
 
@@ -45,31 +66,28 @@ Cada repositorio es único para su agregado y su constructor recibe solo las dep
 
 ## Repositorio con MongoDB
 
-Un documento por agregado es el encaje natural de un almacén orientado a agregados [IDDD cap. 12]. Cada `save` y cada `remove` es una sola operación sobre un documento, atómica por sí misma, así que no necesita sesión ni transacción: la transacción es del repositorio y aquí no hace falta abrir ninguna (`ddd-skills/ddd-repositorios-persistencia/references/transacciones-ts.md`) `[Fuera de los libros: convención de @archi-code/ddd]`. El repositorio implementa los tres roles y envuelve los errores de escritura del driver con su causa:
+Un documento por agregado es el encaje natural de un almacén orientado a agregados [IDDD cap. 12]. Cada `save` y cada `remove` es una sola operación sobre un documento, atómica por sí misma, así que no necesita sesión ni transacción: la transacción es del repositorio y aquí no hace falta abrir ninguna (`ddd-skills/ddd-repositorios-persistencia/references/transacciones-ts.md`) `[Fuera de los libros: convención de @archi-code/ddd]`. El repositorio extiende `OrderRepository`, implementa sus tres verbos y envuelve los errores de escritura del driver con su causa:
 
 ```ts
 import { MongoServerError } from 'mongodb';
 import type { Collection } from 'mongodb';
-import type {
-  AggregateFinder,
-  AggregateRemover,
-  AggregateSaver,
-  PrimitiveTypes,
-} from '@archi-code/ddd/domain';
+import type { PrimitiveTypes } from '@archi-code/ddd/domain';
 import { ConcurrencyException } from '@archi-code/ddd/application';
 import { InternalErrorException } from '@archi-code/ddd/infrastructure';
-import { Order, OrderId } from '../../domain/order/order';
+import { Order } from '../../domain/aggregate/Order';
+import { OrderRepository } from '../../domain/repository/OrderRepository';
+import type { OrderId } from '../../domain/value-object/OrderId';
 
 export type OrderDocument = PrimitiveTypes<Order> & { _id: string; version: number };
 
 const DUPLICATE_KEY = 11000;
 
-export class MongoOrderRepository
-  implements AggregateFinder<Order>, AggregateSaver<Order>, AggregateRemover<Order>
-{
+export class MongoOrderRepository extends OrderRepository {
   private readonly versions = new WeakMap<Order, number>();
 
-  constructor(private readonly collection: Collection<OrderDocument>) {}
+  constructor(private readonly collection: Collection<OrderDocument>) {
+    super();
+  }
 
   async findById(id: OrderId): Promise<Order | null> {
     const document = await this.collection.findOne({ _id: id.value });
@@ -141,7 +159,7 @@ export class MongoOrderRepository
 * Alta (el `WeakMap` no conoce el agregado, `version === 0`): `insertOne`; un `_id` ya ocupado (error 11000) es `ConcurrencyException` con el error del driver como `cause`.
 * Cambio: `replaceOne` con la condición `{ _id, version }`, la versión que el repositorio recordaba; si no casa ningún documento, otro guardó antes.
 * Un conflicto es `ConcurrencyException`: el caso de uso puede reintentar volviendo a cargar y a guardar, y `ExceptionClassifier` lo clasifica como `ExceptionKind.Conflict` (409 en HTTP), no como error interno.
-* Borrado: `deleteOne` con la misma condición. Un agregado que nunca se guardó (versión 0) no tiene nada que borrar, salvo que su id ya esté ocupado: entonces es un conflicto, igual que en el `InMemoryOrderRepository` de los tests (`ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`).
+* Borrado: `deleteOne` con la misma condición. Un agregado que nunca se guardó (versión 0) no tiene nada que borrar, salvo que su id ya esté ocupado: entonces es un conflicto, igual que en el `InMemoryOrderRepository` (`ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`).
 * Cualquier otro error del driver al escribir es `InternalErrorException` con el error como `cause`.
 * Cuidado con la serialización: IDDD advierte de que en estos almacenes hay que cuidar el formato serializado, que no es gratis [IDDD cap. 12]. Los primitivos son datos planos y `Date`, que el driver guarda tal cual.
 
@@ -159,13 +177,15 @@ CREATE TABLE orders (
 );
 ```
 
-`data` guarda `PrimitiveTypes<Order>` entero; las columnas sueltas (`customer_id`, `status`) se duplican solo para indexar las consultas de lectura. Todo el agregado cabe en una fila, así que cada `save` es una sola sentencia, atómica por sí misma, sobre el pool. `PgPool` (la interfaz estructural de los métodos de `pg` que usa) y la variante con las líneas en otra tabla, donde el repositorio abre y confirma una transacción dentro de `save`, están en `ddd-skills/ddd-repositorios-persistencia/references/transacciones-ts.md`. Este adaptador solo implementa los roles que soporta:
+`data` guarda `PrimitiveTypes<Order>` entero; las columnas sueltas (`customer_id`, `status`) se duplican solo para indexar las consultas de lectura. Todo el agregado cabe en una fila, así que cada `save` es una sola sentencia, atómica por sí misma, sobre el pool. `PgPool` (la interfaz estructural de los métodos de `pg` que usa) y la variante con las líneas en otra tabla, donde el repositorio abre y confirma una transacción dentro de `save`, están en `ddd-skills/ddd-repositorios-persistencia/references/transacciones-ts.md`. Este adaptador extiende el mismo `OrderRepository` e implementa sus tres verbos:
 
 ```ts
-import type { AggregateFinder, AggregateSaver, PrimitiveTypes } from '@archi-code/ddd/domain';
+import type { PrimitiveTypes } from '@archi-code/ddd/domain';
 import { ConcurrencyException } from '@archi-code/ddd/application';
 import { InternalErrorException } from '@archi-code/ddd/infrastructure';
-import { Order, OrderId } from '../../domain/order/order';
+import { Order } from '../../domain/aggregate/Order';
+import { OrderRepository } from '../../domain/repository/OrderRepository';
+import type { OrderId } from '../../domain/value-object/OrderId';
 import type { PgPool } from './pg-pool';
 
 interface OrderRow {
@@ -173,10 +193,12 @@ interface OrderRow {
   data: PrimitiveTypes<Order>;
 }
 
-export class PostgresOrderRepository implements AggregateFinder<Order>, AggregateSaver<Order> {
+export class PostgresOrderRepository extends OrderRepository {
   private readonly versions = new WeakMap<Order, number>();
 
-  constructor(private readonly pool: PgPool) {}
+  constructor(private readonly pool: PgPool) {
+    super();
+  }
 
   async findById(id: OrderId): Promise<Order | null> {
     const { rows } = await this.pool.query<OrderRow>(
@@ -212,6 +234,18 @@ export class PostgresOrderRepository implements AggregateFinder<Order>, Aggregat
     }
     this.versions.set(order, version + 1);
   }
+
+  async remove(order: Order): Promise<void> {
+    const version = this.versions.get(order) ?? 0;
+    const { rowCount } = await this.pool
+      .query('DELETE FROM orders WHERE id = $1 AND version = $2', [order.id.value, version])
+      .catch((error: unknown) => {
+        throw new InternalErrorException(`removing order ${order.id.value}`, { cause: error });
+      });
+    if (rowCount === 0) {
+      throw new ConcurrencyException('Order', order.id.value, version);
+    }
+  }
 }
 ```
 
@@ -220,18 +254,18 @@ Al leer `data` de `jsonb`, `paymentAuthorization.expiresAt` llega como texto ISO
 ## Con Prisma
 
 `[Fuera de los libros]`
-* El esquema de Prisma y su cliente viven en infraestructura. El repositorio implementa `AggregateFinder<Order>` y `AggregateSaver<Order>`, recibe el `PrismaClient` y devuelve agregados con `Order.fromPrimitives(row.data)` (y `this.versions.set(order, row.version)` en su `WeakMap`), nunca modelos de Prisma.
+* El esquema de Prisma y su cliente viven en infraestructura. El repositorio extiende `OrderRepository` (con `super()` primero en su constructor), implementa sus verbos, recibe el `PrismaClient` y devuelve agregados con `Order.fromPrimitives(row.data)` (y `this.versions.set(order, row.version)` en su `WeakMap`), nunca modelos de Prisma.
 * La concurrencia optimista con Prisma: con `const version = this.versions.get(order) ?? 0`, `updateMany({ where: { id, version }, data: { ..., version: { increment: 1 } } })`; si `count === 0`, `ConcurrencyException('Order', order.id.value, version)`; si no, `this.versions.set(order, version + 1)`.
 * Si el agregado ocupa varios modelos de Prisma, el repositorio agrupa sus escrituras con `prisma.$transaction(async (tx) => ...)` dentro de su propio `save`; la aplicación nunca la abre `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ## Consultas de lectura
 
-Las selecciones no pasan por el repositorio: son interfaces de la capa de aplicación que devuelven DTOs o ids, implementadas en infraestructura directamente sobre la base de datos [IDDD cap. 12, "use case optimal query"] `[Fuera de los libros: convención de @archi-code/ddd]`. Los filtros se escriben con `@archi-code/criteria` sobre la forma persistida (`PrimitiveTypes<Order>`) y `@archi-code/criteria-adapters/mongodb` los ejecuta:
+Las selecciones no pasan por el repositorio: son puertos de consulta de la capa de aplicación que devuelven filas de primitivos o ids, implementados en infraestructura directamente sobre la base de datos [IDDD cap. 12, "use case optimal query"] `[Fuera de los libros: convención de @archi-code/ddd]`. Las lee el controlador sin caso de uso. Cuando la vista necesita una tabla propia, es un read model con proyección y casos de uso por reacción (`ddd-skills/ddd-event-sourcing-cqrs/references/proyecciones-cqrs-ts.md`); aquí, en cambio, la consulta lee la colección de los agregados. Los filtros se escriben con `@archi-code/criteria` sobre la forma persistida (`PrimitiveTypes<Order>`) y `@archi-code/criteria-adapters/mongodb` los ejecuta:
 
-En `application/order-summaries/`:
+En `application/order-summaries/order-summaries.ts` (puertos de consulta) y `application/order-summaries/order-summary.ts` (la fila):
 
 ```ts
-import type { CustomerId } from '../../domain/order/order';
+import type { CustomerId } from '../../domain/value-object/CustomerId';
 
 export interface OrderSummary {
   readonly id: string;
@@ -251,17 +285,19 @@ export interface StaleOrders {
 }
 ```
 
-En `infrastructure/persistence/`:
+En `infrastructure/read-model/mongo-order-summaries.ts`:
 
 ```ts
 import { Criteria } from '@archi-code/criteria';
 import { searchMongo } from '@archi-code/criteria-adapters/mongodb';
 import type { Collection } from 'mongodb';
 import type { PrimitiveTypes } from '@archi-code/ddd/domain';
-import { Status } from '../../domain/order/order';
-import type { CustomerId, Order } from '../../domain/order/order';
-import type { OrderSummaries, OrderSummary, StaleOrders } from '../../application/order-summaries/order-summaries';
-import type { OrderDocument } from './mongo-order-repository';
+import type { Order } from '../../domain/aggregate/Order';
+import type { CustomerId } from '../../domain/value-object/CustomerId';
+import { OrderStatus } from '../../domain/value-object/OrderStatusType';
+import type { OrderSummary } from '../../application/order-summaries/order-summary';
+import type { OrderSummaries, StaleOrders } from '../../application/order-summaries/order-summaries';
+import type { OrderDocument } from '../persistence/mongo-order-repository';
 
 export class MongoOrderSummaries implements OrderSummaries {
   constructor(private readonly collection: Collection<OrderDocument>) {}
@@ -295,7 +331,7 @@ export class MongoStaleOrders implements StaleOrders {
       this.collection,
       Criteria.create<PrimitiveTypes<Order>>({
         where: {
-          status: Status.Pending,
+          status: OrderStatus.PENDING,
           'paymentAuthorization.expiresAt': { lt: expiredBefore },
         },
         orderBy: { 'paymentAuthorization.expiresAt': 'asc' },
@@ -307,8 +343,8 @@ export class MongoStaleOrders implements StaleOrders {
 }
 ```
 
-`T` es la forma persistida, no el agregado: la consulta nunca construye un `Order`. Un proceso por tiempo (pedidos pendientes cuya autorización de pago ha caducado) pide los ids a `StaleOrders` y ejecuta un caso de uso por agregado.
+`T` es la forma persistida, no el agregado: la consulta nunca construye un `Order`. Un proceso por tiempo (pedidos pendientes cuya autorización de pago ha caducado) es un punto de entrada más: pide los ids a `StaleOrders` y ejecuta un caso de uso de usuario por agregado.
 
 ## Jerarquías de tipos
 
-IDDD trata repositorios compartidos por subtipos y sus complicaciones [IDDD cap. 12]. Antes de diseñar una jerarquía de agregados, revisa si un tipo estándar (value object de estado o tipo, como `OrderStatus`) basta. Cada repositorio reconstruye una clase concreta con su `fromPrimitives`.
+IDDD trata repositorios compartidos por subtipos y sus complicaciones [IDDD cap. 12]. Antes de diseñar una jerarquía de agregados, revisa si un tipo estándar (value object de estado o tipo, como `OrderStatusType`) basta. Cada repositorio reconstruye una clase concreta con su `fromPrimitives`.

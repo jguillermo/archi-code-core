@@ -92,10 +92,13 @@ people (and the AI assistants) that consume the package:
 - `README.md` explains the whole public API with examples that run against the build (results shown
   in comments are the real ones): `## Installation`, `## Import`, one section per concept, errors, a
   table of every export, `## AI assistant skill` and `## License`. The skill section shows the
-  one-line install command (`mkdir -p … && cp …`), a `### How to use` subsection with three example
-  prompts for that package (explicit `/archi-code-<name> <task>`, a task that loads it on its own, a
-  review of existing code) and a `### Keeping it up to date` subsection (copy it again after updating
-  the package, commit `.claude/skills/`). Nothing about the internal gate or the release.
+  one-line command that links the skill (user rule 2026-10-25: a symbolic link, never a copy:
+  `mkdir -p .claude/skills/archi-code-<name> && ln -sf "./node_modules/@archi-code/<name>/SKILL.md" …`,
+  run from the project root on each user's machine),
+  a `### How to use` subsection with three example prompts for that package (explicit
+  `/archi-code-<name> <task>`, a task that loads it on its own, a review of existing code) and a
+  `### Keeping it up to date` subsection (the link follows the installed version; each person
+  runs it and it is not committed: `.claude/skills/archi-code-<name>/` goes in `.gitignore`). Nothing about the internal gate or the release.
 - `SKILL.md` is a light Claude Code skill: a YAML frontmatter with exactly `name`
   (`archi-code-<npm name without scope>`, e.g. `archi-code-ddd`) and `description` (what it does
   and when to use it), then the title `# archi-code-<name>` and only what rarely changes, in this
@@ -106,7 +109,7 @@ people (and the AI assistants) that consume the package:
   block names every symbol the patterns use so they compile as copied; `## Rules`;
   `## Recommended patterns` taken from the README; and `## What not to do`. No API tables nor export
   catalogs: the README is the only place that describes the API, so a copied skill stays valid when
-  the package is updated. Consumers copy it from `node_modules/@archi-code/<name>/SKILL.md` to
+  the package is updated. Consumers link it from `node_modules/@archi-code/<name>/SKILL.md` to
   `.claude/skills/archi-code-<name>/SKILL.md` with the README command.
 - `check-dist.js` fails when `files` lacks `SKILL.md`, the README does not mention it, the
   frontmatter is invalid or `npm pack` would leave `README.md`, `LICENSE` or `SKILL.md` out;

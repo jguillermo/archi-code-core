@@ -1,14 +1,12 @@
-import type { AggregateFinder, AggregateSaver } from '../../../../ddd/domain';
 import {
   AggregateNotFoundException,
   UseCase,
   ValueObjectBuilder,
 } from '../../../../ddd/application';
 import type { Clock, EventBus } from '../../../../ddd/application';
-import { CustomerId } from '../../domain/customer/customer-id';
-import type { Order } from '../../domain/order/order';
-import type { OrderEvent } from '../../domain/order/order-events';
-import { OrderId } from '../../domain/order/order-id';
+import { CustomerId } from '../../domain/value-object/CustomerId';
+import type { OrderRepository } from '../../domain/repository/OrderRepository';
+import { OrderId } from '../../domain/value-object/OrderId';
 
 export interface CancelOrderInput {
   actorId: string;
@@ -22,8 +20,8 @@ export interface CancelOrderCommand {
 
 export class CancelOrder extends UseCase<CancelOrderInput, CancelOrderCommand, void> {
   constructor(
-    private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
-    private readonly events: EventBus<OrderEvent>,
+    private readonly orders: OrderRepository,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();

@@ -22,10 +22,10 @@ class OrderCancelled extends EventBase {
   }
 }
 
-class OutboxEventBus implements EventBus<OrderPlaced | OrderCancelled> {
+class OutboxEventBus implements EventBus {
   readonly rows: SerializedEvent[] = [];
 
-  async publish(events: readonly (OrderPlaced | OrderCancelled)[]): Promise<void> {
+  async publish(events: readonly EventBase[]): Promise<void> {
     this.rows.push(...events.map((event) => ({ ...event })));
   }
 }
@@ -33,11 +33,10 @@ class OutboxEventBus implements EventBus<OrderPlaced | OrderCancelled> {
 const orderId = '9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c';
 
 describe('EventBus: the port that publishes what the domain recorded', () => {
-  it('takes a read-only list of the events it is typed with', () => {
-    expectTypeOf<EventBus<OrderPlaced>['publish']>().toEqualTypeOf<
-      (events: readonly OrderPlaced[]) => Promise<void>
+  it('takes a read-only list of events of any class that extends EventBase', () => {
+    expectTypeOf<EventBus['publish']>().toEqualTypeOf<
+      (events: readonly EventBase[]) => Promise<void>
     >();
-    expectTypeOf<EventBus['publish']>().parameter(0).toEqualTypeOf<readonly EventBase[]>();
   });
 
   it('an outbox adapter stores each event serialized, in order', async () => {
@@ -55,9 +54,9 @@ describe('EventBus: the port that publishes what the domain recorded', () => {
     expect(bus.rows).toEqual([]);
   });
 
-  it('refuses events the bus is not typed for', async () => {
-    const bus: EventBus<OrderPlaced> = { publish: async () => undefined };
-    // @ts-expect-error a bus of OrderPlaced does not accept a plain string
+  it('refuses anything that is not an event', async () => {
+    const bus: EventBus = { publish: async () => undefined };
+    // @ts-expect-error a bus does not accept a plain string
     await bus.publish(['OrderPlaced']);
     expect(true).toBe(true);
   });

@@ -1,14 +1,13 @@
-import type { AggregateFinder, AggregateSaver } from '../../../../ddd/domain';
 import {
   AggregateNotFoundException,
   UseCase,
   ValueObjectBuilder,
 } from '../../../../ddd/application';
 import type { Clock, EventBus } from '../../../../ddd/application';
-import type { Order } from '../../domain/order/order';
-import type { OrderEvent } from '../../domain/order/order-events';
-import { OrderId } from '../../domain/order/order-id';
-import { LineNumber, Quantity } from '../../domain/order/order-line';
+import type { OrderRepository } from '../../domain/repository/OrderRepository';
+import { OrderId } from '../../domain/value-object/OrderId';
+import { LineNumber } from '../../domain/value-object/LineNumber';
+import { Quantity } from '../../domain/value-object/Quantity';
 
 export interface ChangeOrderLineQuantityInput {
   orderId: string;
@@ -28,8 +27,8 @@ export class ChangeOrderLineQuantity extends UseCase<
   void
 > {
   constructor(
-    private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
-    private readonly events: EventBus<OrderEvent>,
+    private readonly orders: OrderRepository,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();

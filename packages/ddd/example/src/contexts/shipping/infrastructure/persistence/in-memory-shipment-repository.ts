@@ -1,16 +1,15 @@
-import type { AggregateFinder, AggregateSaver, PrimitiveTypes } from '../../../../ddd/domain';
+import type { PrimitiveTypes } from '../../../../ddd/domain';
 import { ConcurrencyException } from '../../../../ddd/application';
-import { Shipment } from '../../domain/shipment/shipment';
-import type { ShipmentId } from '../../domain/shipment/shipment-id';
+import { Shipment } from '../../domain/aggregate/Shipment';
+import { ShipmentRepository } from '../../domain/repository/ShipmentRepository';
+import type { ShipmentId } from '../../domain/value-object/ShipmentId';
 
 interface ShipmentRow {
   version: number;
   primitives: PrimitiveTypes<Shipment>;
 }
 
-export class InMemoryShipmentRepository
-  implements AggregateFinder<Shipment>, AggregateSaver<Shipment>
-{
+export class InMemoryShipmentRepository extends ShipmentRepository {
   private readonly rows = new Map<string, ShipmentRow>();
   private readonly versions = new WeakMap<Shipment, number>();
 

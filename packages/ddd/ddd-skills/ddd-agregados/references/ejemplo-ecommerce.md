@@ -39,9 +39,9 @@ flowchart LR
   subgraph Pagos
     P["Payment"]
   end
-  O -- OrderPlaced --> S
-  O -- OrderPlaced --> P
-  S -- StockReserved --> O
+  O -- OrderCreated --> S
+  O -- OrderCreated --> P
+  S -- StockItemReserved --> O
   P -- PaymentAuthorized --> O
   O -- OrderCancelled --> S
   SH -- ShipmentDispatched --> P
@@ -49,4 +49,4 @@ flowchart LR
 
 `StockItem` sí agrupa sus reservas: la invariante "no reservar más unidades de las disponibles" es inmediata y la protege él. Si un mismo `StockItem` sufre muchos conflictos de concurrencia en campañas, la alternativa es partir el stock por almacén o por lote, no meter pedidos dentro.
 
-El código de `Order` (sobre `AggregateRoot<OrderId, OrderEvent>`, con `OrderLines`, `ShippingAddress` y `PaymentAuthorization` como `Composite`) está en `ddd-skills/ddd-agregados/references/implementacion-ts.md`. Cada flecha que llega a `Order` es un listener `<Acción>On<Evento>` que ejecuta un caso de uso (`RegisterStockReservationOnStockReserved` → `RegisterStockReservation`, y lo mismo para `PaymentAuthorized` → `RegisterPaymentAuthorization`); el primero está escrito en `ddd-skills/ddd-agregados/references/consistencia-eventual.md`.
+El código de `Order` (sobre `AggregateRoot<OrderId>`, con `OrderLines`, `ShippingAddress` y `PaymentAuthorization` como `Composite`) está en `ddd-skills/ddd-agregados/references/implementacion-ts.md`. Las flechas del diagrama usan el nombre corto del hecho; en el código cada evento es `<Agregado><AcciónEnPasado>DomainEvent` (`OrderCreatedDomainEvent`, `'order.created'`). Cada flecha que llega a `Order` es un caso de uso por reacción `<Acción>On<Evento>` de Ventas, una sola clase con `@ListensTo` y su propia copia del evento de Almacén o de Pagos (`RegisterStockReservationOnStockItemReserved`, `RegisterPaymentAuthorizationOnPaymentAuthorized`); el primero está escrito en `ddd-skills/ddd-agregados/references/consistencia-eventual.md` y el segundo en `ddd-skills/ddd-agregados/references/implementacion-ts.md`.

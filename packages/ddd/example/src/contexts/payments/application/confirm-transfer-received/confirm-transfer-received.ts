@@ -1,4 +1,3 @@
-import type { AggregateFinder, AggregateSaver } from '../../../../ddd/domain';
 import {
   AggregateNotFoundException,
   NotAllowedException,
@@ -6,12 +5,13 @@ import {
   ValueObjectBuilder,
 } from '../../../../ddd/application';
 import type { Clock, EventBus } from '../../../../ddd/application';
-import { Money } from '../../../shared-kernel/money/money';
-import type { Currency } from '../../../shared-kernel/money/currency';
-import type { Payment } from '../../domain/payment/payment';
-import type { MoneyData, PaymentEvent } from '../../domain/payment/payment-events';
-import { PaymentId } from '../../domain/payment/payment-id';
-import { StaffRole, StaffRoleType } from '../../domain/staff/staff-role';
+import { Money } from '../../../shared-kernel/money/Money';
+import type { Currency } from '../../../shared-kernel/money/MoneyCurrency';
+import type { PaymentRepository } from '../../domain/repository/PaymentRepository';
+import type { MoneyData } from '../request-payment/money-data';
+import { PaymentId } from '../../domain/value-object/PaymentId';
+import { StaffRole } from '../../domain/value-object/StaffRoleType';
+import { StaffRoleType } from '../../domain/value-object/StaffRoleType';
 
 export interface ConfirmTransferReceivedInput {
   actorRole: string;
@@ -31,8 +31,8 @@ export class ConfirmTransferReceived extends UseCase<
   void
 > {
   constructor(
-    private readonly payments: AggregateFinder<Payment> & AggregateSaver<Payment>,
-    private readonly events: EventBus<PaymentEvent>,
+    private readonly payments: PaymentRepository,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();

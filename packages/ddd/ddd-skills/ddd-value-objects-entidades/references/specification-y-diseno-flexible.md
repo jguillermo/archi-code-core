@@ -105,7 +105,7 @@ export interface StaleOrders {
 }
 ```
 
-La interfaz vive en `application/` y su implementación (`PgStaleOrders`, una consulta SQL; los filtros pueden escribirse con `@archi-code/criteria`) en infraestructura. Quien la usa (un programador de tareas, por ejemplo) ejecuta un caso de uso por cada id, y ese caso de uso carga el pedido con `AggregateFinder<Order>`.
+La interfaz vive en `application/` y su implementación (`PgStaleOrders`, una consulta SQL; los filtros pueden escribirse con `@archi-code/criteria`) en infraestructura. Quien la usa (un programador de tareas, por ejemplo) ejecuta un caso de uso por cada id, y ese caso de uso carga el pedido con `OrderRepository` (`findById`).
 
 La Specification se queda para validar, seleccionar sobre datos ya cargados o construir.
 

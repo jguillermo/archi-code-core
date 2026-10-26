@@ -1,4 +1,3 @@
-import type { AggregateFinder, AggregateSaver } from '../../../../ddd/domain';
 import {
   AggregateNotFoundException,
   NotAllowedException,
@@ -6,11 +5,11 @@ import {
   ValueObjectBuilder,
 } from '../../../../ddd/application';
 import type { Clock, EventBus } from '../../../../ddd/application';
-import type { Shipment } from '../../domain/shipment/shipment';
-import type { ShipmentEvent } from '../../domain/shipment/shipment-events';
-import { ShipmentId } from '../../domain/shipment/shipment-id';
-import { TrackingNumber } from '../../domain/shipment/tracking-number';
-import { StaffRole, StaffRoleType } from '../../domain/staff/staff-role';
+import type { ShipmentRepository } from '../../domain/repository/ShipmentRepository';
+import { ShipmentId } from '../../domain/value-object/ShipmentId';
+import { TrackingNumber } from '../../domain/value-object/TrackingNumber';
+import { StaffRole } from '../../domain/value-object/StaffRoleType';
+import { StaffRoleType } from '../../domain/value-object/StaffRoleType';
 
 export interface DispatchShipmentInput {
   actorRole: string;
@@ -30,8 +29,8 @@ export class DispatchShipment extends UseCase<
   void
 > {
   constructor(
-    private readonly shipments: AggregateFinder<Shipment> & AggregateSaver<Shipment>,
-    private readonly events: EventBus<ShipmentEvent>,
+    private readonly shipments: ShipmentRepository,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();
