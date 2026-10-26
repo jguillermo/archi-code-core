@@ -108,7 +108,6 @@ addLine(line: OrderLine, clock: Clock): void;
 Enviar no es trabajo del pedido de Ventas: lo hace `Shipment` en Almacén, que publica `ShipmentDispatchedDomainEvent` (`ddd-skills/ddd-agregados/references/ejemplo-ecommerce.md`), así que `status: 'shipped'` y su errata desaparecen de Ventas. `UpdateOrder` se parte en un caso de uso por acción de negocio (`AddOrderLine` aquí; el envío, en Almacén); cada uno construye sus value objects en `toCommand` y guarda un solo agregado:
 
 ```ts
-import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
 import { AggregateNotFoundException, UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
 
@@ -127,7 +126,7 @@ export interface AddOrderLineCommand {
 
 export class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand, void> {
   constructor(
-    private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
+    private readonly orders: OrderRepository,
     private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
@@ -176,7 +175,7 @@ export interface PlaceOrderCommand {
 
 export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, string> {
   constructor(
-    private readonly orders: AggregateSaver<Order>,
+    private readonly orders: OrderRepository,
     private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
@@ -213,7 +212,7 @@ import { EventListener, ListensTo, ValueObjectBuilder } from '@archi-code/ddd/ap
 @ListensTo(OrderCreatedDomainEvent, { consumer: 'sales.award-loyalty-points-on-order-created' })
 export class AwardLoyaltyPointsOnOrderCreated extends EventListener<OrderCreatedDomainEvent> {
   constructor(
-    private readonly customers: AggregateFinder<Customer> & AggregateSaver<Customer>,
+    private readonly customers: CustomerRepository,
     private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
@@ -236,7 +235,7 @@ export class AwardLoyaltyPointsOnOrderCreated extends EventListener<OrderCreated
 }
 ```
 
-Test de la corrección, con los repositorios en memoria del proyecto (`InMemoryOrderRepository` e `InMemoryCustomerRepository`, escritos como en `ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`) y los adaptadores en memoria del paquete; la factoría del registro copia cada campo del JSON y conserva `eventId` y `occurredOn`:
+Test de la corrección, con los repositorios en memoria del proyecto (`InMemoryOrderRepository extends OrderRepository` e `InMemoryCustomerRepository extends CustomerRepository`, escritos como en `ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`) y los adaptadores en memoria del paquete; la factoría del registro copia cada campo del JSON y conserva `eventId` y `occurredOn`:
 
 ```ts
 import { expect } from 'vitest';
@@ -291,6 +290,6 @@ await expect(
 ## Plan
 
 * **Fase 0:** tests de caracterización de alta, envío y puntos de fidelidad sobre `InMemoryOrderRepository` e `InMemoryCustomerRepository` (del proyecto), `InMemoryEventChannel` y `FixedClock`.
-* **Fase 1:** borrar `OrderMapper`: la conversión pasa al agregado (`toPrimitives()` y `static fromPrimitives()`, con un test de ida y vuelta) y `MongoOrderRepository` la llama directamente (su constructor recibe solo la `collection`), sustituir `new Date()` por el `Clock` inyectado y `Error` por errores de negocio con nombre y código (`OrderNotModifiable`, `SAL001`); `ExceptionClassifier` clasifica las reglas de negocio como `ExceptionKind.Invalid` (422 en HTTP). Quitar el `UnitOfWork` de los casos de uso: `MongoOrderRepository` hace atómico cada `save` (una escritura de un documento con condición de versión) y los casos de uso solo reciben roles de repositorio, `EventBus` y `Clock`.
+* **Fase 1:** borrar `OrderMapper`: la conversión pasa al agregado (`toPrimitives()` y `static fromPrimitives()`, con un test de ida y vuelta) y `MongoOrderRepository` la llama directamente (su constructor recibe solo la `collection`), sustituir `new Date()` por el `Clock` inyectado y `Error` por errores de negocio con nombre y código (`OrderNotModifiable`, `SAL001`); `ExceptionClassifier` clasifica las reglas de negocio como `ExceptionKind.Invalid` (422 en HTTP). Quitar el `UnitOfWork` de los casos de uso: `MongoOrderRepository` hace atómico cada `save` (una escritura de un documento con condición de versión) y los casos de uso solo reciben el repositorio abstracto de su agregado (`OrderRepository`, `CustomerRepository`, declarados en `domain/repository/` y extendidos por `MongoOrderRepository` y los repositorios en memoria), `EventBus` y `Clock`.
 * **Fase 2:** `OrderStatusType`, `OrderLines` (con `OrderLine` y `Money`) como value objects; constructor público y `Order.create`; `addLine` sustituye a los setters; `UpdateOrder` se parte en `AddOrderLine` y el envío pasa a `Shipment` en Almacén.
 * **Fase 3:** `PlaceOrder` guarda solo el pedido; el caso de uso por reacción `AwardLoyaltyPointsOnOrderCreated` concede los puntos por evento. Para que `OrderCreatedDomainEvent` no se pierda si el proceso cae entre `save` y `publish`, `MongoOrderRepository` escribe el pedido y sus eventos pendientes en el mismo documento (outbox) y un relay los entrega después por el `EventChannel`; los casos de uso no cambian.

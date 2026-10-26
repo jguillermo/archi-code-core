@@ -1,4 +1,3 @@
-import type { AggregateFinder, AggregateSaver } from '../../../../ddd/domain';
 import {
   AggregateNotFoundException,
   UseCase,
@@ -6,7 +5,7 @@ import {
 } from '../../../../ddd/application';
 import type { Clock, EventBus } from '../../../../ddd/application';
 import { CustomerId } from '../../domain/value-object/CustomerId';
-import type { Order } from '../../domain/aggregate/Order';
+import type { OrderRepository } from '../../domain/repository/OrderRepository';
 import { OrderId } from '../../domain/value-object/OrderId';
 
 export interface CancelOrderInput {
@@ -21,7 +20,7 @@ export interface CancelOrderCommand {
 
 export class CancelOrder extends UseCase<CancelOrderInput, CancelOrderCommand, void> {
   constructor(
-    private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
+    private readonly orders: OrderRepository,
     private readonly events: EventBus,
     private readonly clock: Clock,
   ) {

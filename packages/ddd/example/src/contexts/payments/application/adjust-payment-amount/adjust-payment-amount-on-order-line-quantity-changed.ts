@@ -1,9 +1,8 @@
-import type { AggregateFinder, AggregateSaver } from '../../../../ddd/domain';
 import { EventListener, ListensTo, ValueObjectBuilder } from '../../../../ddd/application';
 import type { Clock, EventBus } from '../../../../ddd/application';
 import { Money } from '../../../shared-kernel/money/Money';
 import type { Currency } from '../../../shared-kernel/money/MoneyCurrency';
-import type { Payment } from '../../domain/aggregate/Payment';
+import type { PaymentRepository } from '../../domain/repository/PaymentRepository';
 import { OrderReference } from '../../domain/value-object/OrderReference';
 import { PaymentId } from '../../domain/value-object/PaymentId';
 import { OrderLineQuantityChangedDomainEvent } from './order-line-quantity-changed-domain-event';
@@ -13,7 +12,7 @@ import { OrderLineQuantityChangedDomainEvent } from './order-line-quantity-chang
 })
 export class AdjustPaymentAmountOnOrderLineQuantityChanged extends EventListener<OrderLineQuantityChangedDomainEvent> {
   constructor(
-    private readonly payments: AggregateFinder<Payment> & AggregateSaver<Payment>,
+    private readonly payments: PaymentRepository,
     private readonly events: EventBus,
     private readonly clock: Clock,
   ) {

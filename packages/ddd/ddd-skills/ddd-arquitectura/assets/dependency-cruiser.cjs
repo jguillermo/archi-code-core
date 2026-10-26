@@ -93,7 +93,7 @@ module.exports = {
   options: {
     tsConfig: { fileName: 'tsconfig.json' },
     // Imprescindible en TypeScript: sin esto se ignoran los imports usados solo como tipos
-    // (import type { AggregateSaver } ...), y un dominio que importa un tipo prohibido pasaría.
+    // (import type { Collection } from 'mongodb'), y un dominio que importa un tipo prohibido pasaría.
     tsPreCompilationDeps: true,
     doNotFollow: { path: 'node_modules' },
     // Resolver los subpaths del campo "exports" del paquete (@archi-code/ddd/domain, etc.).

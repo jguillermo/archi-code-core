@@ -1,4 +1,3 @@
-import type { AggregateSaver } from '../../../../ddd/domain';
 import { NotAllowedException, UseCase, ValueObjectBuilder } from '../../../../ddd/application';
 import type { Clock, EventBus } from '../../../../ddd/application';
 import { Money } from '../../../shared-kernel/money/Money';
@@ -8,6 +7,7 @@ import type { OrderPricing } from '../../domain/service/OrderPricing';
 import { CouponCodes } from '../../domain/value-object/CouponCodes';
 import { GiftWrap } from '../../domain/value-object/GiftWrap';
 import { Order } from '../../domain/aggregate/Order';
+import type { OrderRepository } from '../../domain/repository/OrderRepository';
 import type { NewOrderLine } from '../../domain/aggregate/NewOrderLine';
 import type { AddressData } from './address-data';
 import type { MoneyData } from './money-data';
@@ -40,7 +40,7 @@ export interface PlaceOrderCommand {
 
 export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, string> {
   constructor(
-    private readonly orders: AggregateSaver<Order>,
+    private readonly orders: OrderRepository,
     private readonly pricing: OrderPricing,
     private readonly events: EventBus,
     private readonly clock: Clock,

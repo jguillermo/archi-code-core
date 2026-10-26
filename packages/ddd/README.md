@@ -2,11 +2,11 @@
 
 Domain-Driven Design building blocks for TypeScript, one entry point per layer:
 
-| Entry point                      | Layer          | What it gives you                                                                                                                                                                                                                                                   |
-| -------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@archi-code/ddd/domain`         | Domain         | Value objects, `Required(...)`, `Composite(...)`, `Entity`, `AggregateRoot`, `EventBase`, `Specification`, the repository contracts (`AggregateFinder`, `AggregateSaver`, `AggregateRemover`) and the domain exceptions (`DomainException`, `ValidationException`…) |
-| `@archi-code/ddd/application`    | Application    | `UseCase`, `ValueObjectBuilder`, the event contract (`EventListener`, `@ListensTo` to listen, `EventBus` to publish), the ports `Clock` and `Logger` and the application exceptions (`AggregateNotFoundException`, `NotAllowedException`…)                          |
-| `@archi-code/ddd/infrastructure` | Infrastructure | The event wiring (`DomainEventBus`, `EventRegistry`, the `EventChannel` port, `InMemoryEventChannel`), clocks, loggers, the infrastructure exceptions and `ExceptionClassifier`, which tells any entry point the `ExceptionKind` of an error                        |
+| Entry point                      | Layer          | What it gives you                                                                                                                                                                                                                                                                                       |
+| -------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@archi-code/ddd/domain`         | Domain         | Value objects, `Required(...)`, `Composite(...)`, `Entity`, `AggregateRoot`, `EventBase`, `Specification`, the repository contracts (`AggregateRepository` and the roles `AggregateFinder`, `AggregateSaver`, `AggregateRemover`) and the domain exceptions (`DomainException`, `ValidationException`…) |
+| `@archi-code/ddd/application`    | Application    | `UseCase`, `ValueObjectBuilder`, the event contract (`EventListener`, `@ListensTo` to listen, `EventBus` to publish), the ports `Clock` and `Logger` and the application exceptions (`AggregateNotFoundException`, `NotAllowedException`…)                                                              |
+| `@archi-code/ddd/infrastructure` | Infrastructure | The event wiring (`DomainEventBus`, `EventRegistry`, the `EventChannel` port, `InMemoryEventChannel`), clocks, loggers, the infrastructure exceptions and `ExceptionClassifier`, which tells any entry point the `ExceptionKind` of an error                                                            |
 
 The layers only depend inwards: `domain` imports nothing of the package, `application` imports
 `domain`, and `infrastructure` imports both. Each layer declares and exports its own exceptions,
@@ -52,8 +52,8 @@ There is no root entry point: import from the layer.
 ```ts
 // ESM
 import { AggregateRoot, EventBase, IdType, Required, StringType } from '@archi-code/ddd/domain';
-import { DomainException, DomainExceptionCode } from '@archi-code/ddd/domain';
-import type { AggregateSaver } from '@archi-code/ddd/domain';
+import { AggregateRepository, DomainException, DomainExceptionCode } from '@archi-code/ddd/domain';
+import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
 import { EventListener, ListensTo, UseCase } from '@archi-code/ddd/application';
 import type { EventBus } from '@archi-code/ddd/application';
 import { ExceptionClassifier } from '@archi-code/ddd/infrastructure';
@@ -86,10 +86,10 @@ what it may import and what it must never do; the package itself is organized th
 | Specification (`extends Specification`)                                        | domain         | A named business rule that validates, selects or builds; combinable                                | value objects, aggregates, data already loaded                                            | read a repository, protect an aggregate invariant                            |
 | Domain event (`extends EventBase`)                                             | domain         | A fact that happened (`OrderPaidDomainEvent`, `'order.paid'`), with primitive data                 | nothing: primitive fields typed inline                                                    | carry behavior or value objects, reference infrastructure                    |
 | Business error (`extends DomainException`)                                     | domain         | A broken business rule, named after what went wrong (`OrderNotCancellable`), with its own code     | `DomainException`                                                                         | hold anything but a constructor                                              |
-| Repository contract (`AggregateFinder`…)                                       | domain         | Only gets and persists aggregates, one role per interface; no business logic                       | the aggregate                                                                             | be implemented in the domain, hold rules, answer business queries            |
-| Domain service                                                                 | domain         | A business rule that spans several aggregates or fits none                                         | aggregates, value objects, `AggregateFinder` (to read), domain ports                      | I/O, saving, transactions, publishing                                        |
+| Repository (`OrderRepository extends AggregateRepository`)                     | domain         | Abstract class per aggregate: only the verbs it needs to get and persist it, each from its role    | the aggregate, `AggregateFinder`/`AggregateSaver`/`AggregateRemover`                      | hold code, rules, business queries, `nextId()` or events                     |
+| Domain service                                                                 | domain         | A business rule that spans several aggregates or fits none                                         | aggregates, value objects, the aggregate's repository (only `findById`), domain ports     | I/O, saving, transactions, publishing                                        |
 | Domain port (`ProductPricing`)                                                 | domain         | What the model needs from another context or an external service, in its own words                 | value objects of this context                                                             | contain code, expose the other system's model                                |
-| User use case (`extends UseCase`)                                              | application    | One business action a user asks for: input → command of value objects → change one aggregate       | domain, repository roles, domain services, application ports and exceptions               | import another use case or a reaction, persist or call the network by itself |
+| User use case (`extends UseCase`)                                              | application    | One business action a user asks for: input → command of value objects → change one aggregate       | domain, the aggregate's repository, domain services, application ports and exceptions     | import another use case or a reaction, persist or call the network by itself |
 | Reaction use case (`extends EventListener`)                                    | application    | One business action run by an event: builds its value objects, finds or creates, changes, saves    | the same as a user use case, and the event it listens to                                  | authorization, `AggregateNotFoundException`, business errors, call use cases |
 | Copy of another context's event                                                | application    | The consumer's own class for a foreign event, next to the reaction that hears it                   | nothing                                                                                   | import the producer's class                                                  |
 | Application port (`EventBus`, `Clock`, `Logger`, your own such as `Warehouse`) | application    | A technical capability the application needs, as a type                                            | domain types                                                                              | contain code                                                                 |
@@ -116,7 +116,7 @@ it never returns an aggregate.
 
 One folder per bounded context, with the four zones and one composition root. Inside the domain,
 **one folder per kind of class** (`aggregate/`, `entity/`, `value-object/`, `event/`,
-`exception/`, `service/`, `specification/`); inside the application, **one folder per business
+`exception/`, `repository/`, `service/`, `specification/`); inside the application, **one folder per business
 action**, holding its use case, its data types and its copies of foreign events. This is a
 convention of the package: the books name every module after the ubiquitous language [IDDD ch. 9];
 here the application folders are the language and the domain folders are by kind. Files in
@@ -134,6 +134,7 @@ src/
         value-object/         OrderId.ts, Sku.ts, OrderStatusType.ts, ShippingAddress.ts
         event/                OrderCreatedDomainEvent.ts, OrderPaidDomainEvent.ts
         exception/            OrderNotCancellable.ts
+        repository/           OrderRepository.ts
         service/              OrderPricing.ts, CouponCatalog.ts (domain port)
         specification/        FreeShippingEligible.ts
       application/
@@ -989,7 +990,7 @@ const order = Order.create(
   new CustomerName('Ana'),
   new FixedClock('2026-10-17T10:00:00Z'),
 );
-const [created] = order.pullDomainEvents(); // OrderEvent[]
+const [created] = order.pullDomainEvents(); // EventBase[]
 order.pullDomainEvents(); // []
 JSON.stringify(created);
 // {"eventName":"order.created","eventId":"…","occurredOn":"2026-10-17T10:00:00.000Z","orderId":"9b2f6c1e-…","customer":"Ana"}
@@ -1035,11 +1036,15 @@ type PersonData = DataTypes<Person>; // { name?: string; nickname?: string | nul
 
 ## Repository contracts
 
-The domain declares what it needs to load, save and remove aggregates; infrastructure implements
-it (types only, nothing to instantiate). The repository is split by role, following the interface
-segregation principle:
+The domain declares what it needs to load, save and remove each aggregate; infrastructure
+implements it. The package gives two pieces: the abstract class `AggregateRepository`, the base of
+every repository, and three roles (types only) that fix the name and signature of each verb:
 
 ```ts
+abstract class AggregateRepository<Aggregate extends AggregateRoot<any>> {
+  declare protected readonly aggregateBrand: Aggregate;
+}
+
 interface AggregateFinder<Aggregate extends AggregateRoot<any>> {
   findById(id: Aggregate['id']): Promise<Aggregate | null>;
 }
@@ -1053,18 +1058,42 @@ interface AggregateRemover<Aggregate extends AggregateRoot<any>> {
 }
 ```
 
+`AggregateRepository` declares no verb and has no code: a type-only brand binds it to its
+aggregate, so a repository of trucks is not accepted where `AggregateRepository<Warehouse>` is
+expected. Each context's domain declares **one abstract repository per aggregate**, in
+`domain/repository/<Aggregate>Repository.ts`, with only the verbs the business of that aggregate
+needs, each one implementing its role so every repository speaks the same verbs with the same
+signatures:
+
+```ts
+import { AggregateRepository } from '@archi-code/ddd/domain';
+import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
+
+export abstract class OrderRepository
+  extends AggregateRepository<Order>
+  implements AggregateFinder<Order>, AggregateSaver<Order>
+{
+  abstract findById(id: OrderId): Promise<Order | null>;
+  abstract save(order: Order): Promise<void>;
+}
+```
+
+No verb is mandatory: an aggregate that is never deleted declares no `remove`; one the business
+deletes adds `abstract remove(order: Order): Promise<void>` and implements `AggregateRemover<Order>`.
+The class holds nothing else: no business queries (`pendingOlderThan`), no `nextId()` (ids come
+from `OrderId.generate()`), no events and no code.
+
 `remove` receives the loaded aggregate, not its id: removing is a change like any other, so the
 repository removes it only where the stored version still equals the one it loaded, and throws
 `ConcurrencyException` when someone changed or removed it after it was loaded [IDDD ch. 10]. A
 use case loads it with `findById`, decides, and removes it.
 
-A use case asks only for the roles it uses: registering needs `AggregateSaver<User>`, renaming
-needs `AggregateFinder<User> & AggregateSaver<User>`, closing an account may need
-`AggregateFinder<User> & AggregateRemover<User>`. Its dependencies then say what it can do, and a
-test double implements one method. There is no all-in-one `Repository` contract: the adapter
-implements the roles it supports
-(`class MongoUserRepository implements AggregateFinder<User>, AggregateSaver<User>, AggregateRemover<User>`)
-and the same instance is passed to every use case.
+Every use case and reaction use case receives the abstract repository of its aggregate
+(`private readonly orders: OrderRepository`), never an intersection of roles nor a role alone. The
+adapters extend it, one per aggregate and technology
+(`class MongoOrderRepository extends OrderRepository`,
+`class InMemoryOrderRepository extends OrderRepository`), and the composition root passes the same
+instance to every use case of that aggregate.
 
 Reading for a screen or a list does not go through aggregates nor repositories. A read query is an
 interface of the application, implemented in infrastructure, that returns DTOs or ids straight
@@ -1158,14 +1187,15 @@ A command that is not safe to repeat (it would charge twice, or the user decided
 changed) does not retry: the `ConcurrencyException` reaches the entry point (HTTP 409).
 
 ```ts
-import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
 import { ConcurrencyException } from '@archi-code/ddd/application';
 import { InternalErrorException } from '@archi-code/ddd/infrastructure';
 
-class MongoOrderRepository implements AggregateFinder<Order>, AggregateSaver<Order> {
+class MongoOrderRepository extends OrderRepository {
   private readonly versions = new WeakMap<Order, number>();
 
-  constructor(private readonly collection: Collection<OrderDocument>) {}
+  constructor(private readonly collection: Collection<OrderDocument>) {
+    super();
+  }
 
   async findById(id: OrderId): Promise<Order | null> {
     const document = await this.collection.findOne({ _id: id.value });
@@ -1217,25 +1247,22 @@ the one of [Persisting aggregates](#persisting-aggregates)):
 
 ```ts
 import { describe, expect, it } from 'vitest';
-import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
 import { ConcurrencyException } from '@archi-code/ddd/application';
 import { FixedClock } from '@archi-code/ddd/infrastructure';
 
 const clock = new FixedClock('2026-10-17T10:00:00Z');
 const anOrder = () => Order.create(OrderId.generate(), new CustomerName('Ana'), clock);
 
-export function orderRepositoryContract(
-  make: () => AggregateFinder<Order> & AggregateSaver<Order>,
-): void {
+export function orderRepositoryContract(make: () => Promise<OrderRepository>): void {
   it('finds what it saved', async () => {
-    const orders = make();
+    const orders = await make();
     const order = anOrder();
     await orders.save(order);
     expect((await orders.findById(order.id))?.toPrimitives()).toStrictEqual(order.toPrimitives());
   });
 
   it('saves the same object twice', async () => {
-    const orders = make();
+    const orders = await make();
     const order = anOrder();
     await orders.save(order);
     order.ship(clock);
@@ -1244,7 +1271,7 @@ export function orderRepositoryContract(
   });
 
   it('refuses a stale save', async () => {
-    const orders = make();
+    const orders = await make();
     const order = anOrder();
     await orders.save(order);
     const first = (await orders.findById(order.id))!;
@@ -1256,7 +1283,7 @@ export function orderRepositoryContract(
   });
 
   it('refuses a new aggregate whose id is taken', async () => {
-    const orders = make();
+    const orders = await make();
     const order = anOrder();
     await orders.save(order);
     const copy = Order.create(order.id, new CustomerName('Luis'), clock);
@@ -1265,11 +1292,11 @@ export function orderRepositoryContract(
 }
 
 describe('InMemoryOrderRepository', () => {
-  orderRepositoryContract(() => new InMemoryOrderRepository());
+  orderRepositoryContract(async () => new InMemoryOrderRepository());
 });
 
 describe('MongoOrderRepository', () => {
-  orderRepositoryContract(() => new MongoOrderRepository(collection));
+  orderRepositoryContract(async () => new MongoOrderRepository(collection));
 });
 ```
 
@@ -1315,7 +1342,6 @@ Errors of both steps are treated the same way:
 so every step of the use case is visible in one place:
 
 ```ts
-import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
 import {
   AggregateNotFoundException,
   UseCase,
@@ -1333,7 +1359,7 @@ export interface ShipOrderCommand {
 
 export class ShipOrder extends UseCase<ShipOrderInput, ShipOrderCommand, void> {
   constructor(
-    private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
+    private readonly orders: OrderRepository,
     private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
@@ -1358,7 +1384,7 @@ export class ShipOrder extends UseCase<ShipOrderInput, ShipOrderCommand, void> {
 
 Save before publishing, and publish what `pullDomainEvents()` returns, so a failed save publishes
 nothing and events are never sent twice. The constructor receives, in this order and only what
-`handle` uses, the repository typed by the roles it needs, domain services, `EventBus`, `Clock`
+`handle` uses, the abstract repository of its aggregate (`OrderRepository`), domain services, `EventBus`, `Clock`
 and `Logger`. A use case never imports another use case.
 
 ### Building every value object of an input at once: `ValueObjectBuilder.build`
@@ -1451,7 +1477,7 @@ It registers a fact that already happened elsewhere, so it does not refuse it [D
 @ListensTo(OrderCreatedDomainEvent, { consumer: 'payments.request-payment-on-order-created' })
 export class RequestPaymentOnOrderCreated extends EventListener<OrderCreatedDomainEvent> {
   constructor(
-    private readonly payments: AggregateFinder<Payment> & AggregateSaver<Payment>,
+    private readonly payments: PaymentRepository,
     private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
@@ -1680,12 +1706,12 @@ stored, so it can also read an older shape of the same event.
 The sales context creates an order and publishes `OrderCreatedDomainEvent`; a notifications
 context keeps its own copy of that event and a reaction use case sends the confirmation through a
 `Mailer` port. The use cases only know the ports; the composition root chooses the channel.
-`Order`, `OrderId`, `CustomerName` and `InMemoryOrderRepository` are the ones of
+`Order`, `OrderId`, `CustomerName`, `OrderRepository` and `InMemoryOrderRepository` are the ones of
 [Persisting aggregates](#persisting-aggregates) and [Writing a repository](#writing-a-repository).
 
 ```ts
 import { EventBase } from '@archi-code/ddd/domain';
-import type { AggregateSaver, EventMetadata } from '@archi-code/ddd/domain';
+import type { EventMetadata } from '@archi-code/ddd/domain';
 import { EventListener, ListensTo, UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
 import {
@@ -1706,7 +1732,7 @@ export interface PlaceOrderCommand {
 
 export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, string> {
   constructor(
-    private readonly orders: AggregateSaver<Order>,
+    private readonly orders: OrderRepository,
     private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
@@ -2396,11 +2422,15 @@ Order.fromPrimitives(stored).toPrimitives(); // equal to stored: what the reposi
 
 ### Writing a repository
 
-A repository is written once per aggregate and per technology, and implements the roles of the
-domain it supports (`AggregateFinder`, `AggregateSaver`, `AggregateRemover`):
+A repository adapter is written once per aggregate and per technology, and extends the abstract
+repository the domain declares for that aggregate (see [Repository contracts](#repository-contracts)),
+implementing exactly the verbs it declares:
 
 - **One per aggregate**: it knows the aggregate it rebuilds, so nothing tells it which one. There
   is no generic repository shared by several aggregates.
+- **It extends the domain's class**: `class InMemoryOrderRepository extends OrderRepository`; a
+  constructor calls `super()` first. A test double may add technical helpers for its tests
+  (`versionOf(id)`), which no use case sees.
 - **The constructor receives only its technology** (a Mongo collection, a Postgres pool…), never
   an aggregate class nor a mapper. Aggregates only go in and out through its methods: `save(order)`,
   `remove(order)`, `findById(id)` → `Order | null`.
@@ -2413,15 +2443,12 @@ domain it supports (`AggregateFinder`, `AggregateSaver`, `AggregateRemover`):
 
 The in-memory repository is written the same way, in
 `infrastructure/persistence/in-memory-order-repository.ts` when the application runs in memory, or
-in `test/support/` when it is only a test double:
+in `test/support/` when it is only a test double. Orders are deleted, so here `OrderRepository`
+also declares `abstract remove(order: Order): Promise<void>` and implements
+`AggregateRemover<Order>`:
 
 ```ts
-import type {
-  AggregateFinder,
-  AggregateRemover,
-  AggregateSaver,
-  PrimitiveTypes,
-} from '@archi-code/ddd/domain';
+import type { PrimitiveTypes } from '@archi-code/ddd/domain';
 import { ConcurrencyException } from '@archi-code/ddd/application';
 import { FixedClock } from '@archi-code/ddd/infrastructure';
 
@@ -2430,9 +2457,7 @@ interface OrderRow {
   primitives: PrimitiveTypes<Order>;
 }
 
-export class InMemoryOrderRepository
-  implements AggregateFinder<Order>, AggregateSaver<Order>, AggregateRemover<Order>
-{
+export class InMemoryOrderRepository extends OrderRepository {
   private readonly rows = new Map<string, OrderRow>();
   private readonly versions = new WeakMap<Order, number>();
 
@@ -2483,12 +2508,12 @@ await orders.save(byLuis);
 A Mongo repository has the same shape; only the storage changes:
 
 ```ts
-class MongoOrderRepository
-  implements AggregateFinder<Order>, AggregateSaver<Order>, AggregateRemover<Order>
-{
+class MongoOrderRepository extends OrderRepository {
   private readonly versions = new WeakMap<Order, number>();
 
-  constructor(private readonly collection: Collection<OrderDocument>) {}
+  constructor(private readonly collection: Collection<OrderDocument>) {
+    super();
+  }
 
   async findById(id: OrderId): Promise<Order | null> {
     const document = await this.collection.findOne({ _id: id.value });
@@ -2787,6 +2812,7 @@ const payments = await PaymentsContext.start({ channel, clock, logger });
 ```ts
 import { Validations } from '@archi-code/validation';
 import {
+  AggregateRepository,
   AggregateRoot,
   BooleanType,
   CreatedAt,
@@ -2953,6 +2979,14 @@ class User extends AggregateRoot<UserId> {
   }
 }
 
+abstract class UserRepository
+  extends AggregateRepository<User>
+  implements AggregateFinder<User>, AggregateSaver<User>
+{
+  abstract findById(id: UserId): Promise<User | null>;
+  abstract save(user: User): Promise<void>;
+}
+
 interface RegisterUserInput {
   name: string;
   email: string;
@@ -2965,7 +2999,7 @@ interface RegisterUserCommand {
 
 class RegisterUser extends UseCase<RegisterUserInput, RegisterUserCommand, string> {
   constructor(
-    private readonly users: AggregateSaver<User>,
+    private readonly users: UserRepository,
     private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
@@ -2999,7 +3033,7 @@ interface RenameUserCommand {
 
 class RenameUser extends UseCase<RenameUserInput, RenameUserCommand, void> {
   constructor(
-    private readonly users: AggregateFinder<User> & AggregateSaver<User>,
+    private readonly users: UserRepository,
     private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
@@ -3039,7 +3073,7 @@ class SendWelcomeEmailOnUserRegistered extends EventListener<UserRegisteredDomai
 }
 
 const emails: string[] = [];
-const users = new InMemoryUserRepository(); // written like InMemoryOrderRepository
+const users = new InMemoryUserRepository(); // extends UserRepository, written like InMemoryOrderRepository
 const channel = new InMemoryEventChannel();
 const registry = new EventRegistry()
   .register(
@@ -3112,7 +3146,8 @@ in the repository, not in the npm package:
 | `Specification`                                                                                                                 | abstract class       |
 | `CompositeSchema`, `CompositeProps`, `CompositePrimitives`, `CompositeInput`, `CompositeType`, `CompositeValue`                 | types                |
 | `Entity`, `AggregateRoot`, `EventBase`                                                                                          | abstract classes     |
-| `AggregateFinder`, `AggregateSaver`, `AggregateRemover`                                                                         | types (contracts)    |
+| `AggregateRepository`                                                                                                           | abstract class       |
+| `AggregateFinder`, `AggregateSaver`, `AggregateRemover`                                                                         | types (roles)        |
 | `RequiredType`, `JsonTypeValue`, `PrimitiveType`, `PrimitiveTypes`, `DataTypes`                                                 | types                |
 | `EventMetadata`, `SerializedEvent`, `EventClass`                                                                                | types                |
 | `EntityId`, `SatisfiedBy`                                                                                                       | types                |

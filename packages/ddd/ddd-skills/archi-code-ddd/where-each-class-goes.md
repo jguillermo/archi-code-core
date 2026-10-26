@@ -12,13 +12,13 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
 | Domain event (`OrderPaidDomainEvent`)                                 | domain                            | nothing: primitive fields typed inline                                                          | behavior, value objects, interfaces or data types of its own                   |
 | Business error (`OrderNotCancellable`)                                | domain                            | `DomainException`                                                                               | anything but a constructor                                                     |
 | Specification, domain service, domain port                            | domain                            | aggregates, value objects, domain ports                                                         | I/O code, transactions, publishing                                             |
-| Repository contract (`AggregateFinder`…)                              | domain (from the package)         | the aggregate                                                                                   | a repository interface per aggregate, an all-in-one `Repository`               |
-| User use case (`PlaceOrder`)                                          | application                       | domain, repository roles, domain services, `EventBus`, `Clock`, `Logger`                        | importing another use case or a listener, returning an aggregate               |
+| Repository (`OrderRepository`, abstract)                              | domain                            | `AggregateRepository`, the roles of its verbs, the aggregate and its id                         | an interface, code, verbs the business does not need, business queries         |
+| User use case (`PlaceOrder`)                                          | application                       | domain, the aggregate's repository, domain services, `EventBus`, `Clock`, `Logger`              | importing another use case or a listener, returning an aggregate               |
 | Reaction use case (`MarkOrderPaidOnPaymentCaptured`)                  | application                       | the same as a user use case, and the event it listens to                                        | authorization, `AggregateNotFoundException`, business errors, calling use cases |
 | Copy of another context's event (`payment-captured-domain-event.ts`)  | application, next to its reaction | nothing                                                                                         | importing the producer's class                                                 |
 | Data type of the input (`MoneyData`, `AddressData`)                   | application, next to its use case | other data types                                                                                | living in `domain/`, being shared between contexts                             |
 | Read model (row, store and query ports, projection)                   | application (ports), infrastructure | data types, value objects                                                                     | loading aggregates, repositories, business rules                               |
-| Adapter (repository, store, port adapter, event channel)              | infrastructure                    | domain, application, `@archi-code/ddd/infrastructure`, drivers                                  | business rules                                                                 |
+| Adapter (repository, store, port adapter, event channel)              | infrastructure                    | domain, application, `@archi-code/ddd/infrastructure`, drivers; a repository extends the abstract one of its aggregate | business rules                                                                 |
 | Entry point (controller, consumer, scheduler, CLI)                    | interfaces                        | `/application`, its use cases and query ports, a protocol helper over `ExceptionClassifier`     | business rules, repositories, catching errors one by one                       |
 | Composition root (`composition.ts`, one per context)                  | context root                      | everything of its context and `@archi-code/ddd/*`                                               | being imported by any layer                                                    |
 
@@ -67,6 +67,7 @@ src/
         value-object/    OrderId.ts, Sku.ts, OrderStatusType.ts, ShippingAddress.ts
         event/           OrderCreatedDomainEvent.ts, OrderPaidDomainEvent.ts
         exception/       OrderNotCancellable.ts
+        repository/      OrderRepository.ts (abstract)
         service/         OrderPricing.ts, CouponCatalog.ts (port)
         specification/   FreeShippingEligible.ts
       application/
@@ -97,7 +98,8 @@ src/
 | User use case                | the business action (`PlaceOrder`, `ConfirmTransferReceived`), never CRUD nor technical    |
 | Reaction use case            | `<Action>On<Event>` (`MarkOrderPaidOnPaymentCaptured`), file `<action>-on-<event>.ts`      |
 | Consumer name                | `'<context>.<action>-on-<event>'`: the context and the file name without `.ts`             |
-| Repository                   | `<Technology><Aggregate>Repository` (`InMemoryOrderRepository`, `MongoOrderRepository`)    |
+| Repository (domain)          | `<Aggregate>Repository`, abstract, in `domain/repository/` (`OrderRepository`)             |
+| Repository adapter           | `<Technology><Aggregate>Repository extends <Aggregate>Repository` (`InMemoryOrderRepository`, `MongoOrderRepository`) |
 | Port adapter                 | `<Technology><Port>` (`InMemoryCouponCatalog`)                                             |
 | Controller                   | `<Aggregates>Controller` (`OrdersController`)                                              |
 | Composition root             | `<Context>Context` with `<Context>Settings`                                                |

@@ -14,7 +14,7 @@
 * Hexagonal con inversión de dependencias [IDDD cap. 4].
 * Servicios de aplicación finos [IDDD cap. 4 y cap. 14].
 * No exponer el modelo directamente por REST [IDDD cap. 4].
-* Módulos con nombres del lenguaje, no de patrones [IDDD cap. 9; PHP: Modules]. Con el paquete, el dominio de cada contexto se divide por tipo de clase (`aggregate/`, `entity/`, `value-object/`, `event/`, `exception/`, `service/`, `specification/`) y la aplicación por acción de negocio (`place-order/`) `[Fuera de los libros: convención de @archi-code/ddd]`.
+* Módulos con nombres del lenguaje, no de patrones [IDDD cap. 9; PHP: Modules]. Con el paquete, el dominio de cada contexto se divide por tipo de clase (`aggregate/`, `entity/`, `value-object/`, `event/`, `exception/`, `repository/`, `service/`, `specification/`) y la aplicación por acción de negocio (`place-order/`) `[Fuera de los libros: convención de @archi-code/ddd]`.
 * Un composition root por contexto (`<Context>Context.start/stop`), el único que construye y suscribe; los controladores solo comprueban actor y forma, llaman al caso de uso y dejan que un ayudante del protocolo traduzca los errores con `ExceptionClassifier` `[Fuera de los libros: convención de @archi-code/ddd]`.
 * CQRS y Event Sourcing solo para mitigar riesgos concretos [IDDD cap. 4].
 
@@ -29,7 +29,7 @@
 * No inyectar repositorios en agregados [IDDD cap. 10].
 * Eventos en pasado, con lo necesario, sin estado completo [Destilado cap. 6]. Con el paquete, `<Agregado><AcciónEnPasado>DomainEvent`, `eventName` `'<agregado>.<acción_en_pasado>'`, campos primitivos y un constructor `{ …campos } & EventMetadata` `[Fuera de los libros: convención de @archi-code/ddd]`.
 * Agregado y evento en la misma transacción; publicar después [Destilado cap. 6; IDDD cap. 8]. Con el paquete, si el evento no puede perderse, el repositorio escribe el agregado y sus eventos pendientes en la misma escritura atómica (outbox) y un relay los entrega por un `EventChannel` `[Fuera de los libros: convención de @archi-code/ddd]`.
-* Un repositorio por agregado; no es un DAO [IDDD cap. 12].
+* Un repositorio por agregado, declarado en el dominio; no es un DAO [IDDD cap. 12]. Con el paquete, una clase abstracta `domain/repository/OrderRepository.ts` que extiende `AggregateRepository<Order>` con solo los verbos que el negocio necesita (`findById`, `save`, `remove`), cada uno implementando su rol (`AggregateFinder`, `AggregateSaver`, `AggregateRemover`); todo caso de uso del agregado la recibe, nunca los roles `[Fuera de los libros: convención de @archi-code/ddd]`.
 * Servicio de dominio solo si la operación no encaja en una entidad o valor; sin estado [IDDD cap. 7].
 * Métodos que revelan intención; funciones sin efectos secundarios [IDDD cap. 5 y cap. 6].
 * Reglas con nombre del negocio que se combinan: Specification [IDDD cap. 5; PHP: Repositories].

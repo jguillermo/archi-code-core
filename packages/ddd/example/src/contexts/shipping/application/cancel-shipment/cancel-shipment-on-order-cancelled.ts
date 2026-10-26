@@ -1,7 +1,6 @@
-import type { AggregateFinder, AggregateSaver } from '../../../../ddd/domain';
 import { EventListener, ListensTo, ValueObjectBuilder } from '../../../../ddd/application';
 import type { Clock, EventBus } from '../../../../ddd/application';
-import type { Shipment } from '../../domain/aggregate/Shipment';
+import type { ShipmentRepository } from '../../domain/repository/ShipmentRepository';
 import { OrderReference } from '../../domain/value-object/OrderReference';
 import { ShipmentId } from '../../domain/value-object/ShipmentId';
 import { OrderCancelledDomainEvent } from './order-cancelled-domain-event';
@@ -9,7 +8,7 @@ import { OrderCancelledDomainEvent } from './order-cancelled-domain-event';
 @ListensTo(OrderCancelledDomainEvent, { consumer: 'shipping.cancel-shipment-on-order-cancelled' })
 export class CancelShipmentOnOrderCancelled extends EventListener<OrderCancelledDomainEvent> {
   constructor(
-    private readonly shipments: AggregateFinder<Shipment> & AggregateSaver<Shipment>,
+    private readonly shipments: ShipmentRepository,
     private readonly events: EventBus,
     private readonly clock: Clock,
   ) {

@@ -1,4 +1,3 @@
-import type { AggregateFinder, AggregateSaver } from '../../../../ddd/domain';
 import {
   AggregateNotFoundException,
   NotAllowedException,
@@ -8,7 +7,7 @@ import {
 import type { Clock, EventBus } from '../../../../ddd/application';
 import { Money } from '../../../shared-kernel/money/Money';
 import type { Currency } from '../../../shared-kernel/money/MoneyCurrency';
-import type { Payment } from '../../domain/aggregate/Payment';
+import type { PaymentRepository } from '../../domain/repository/PaymentRepository';
 import type { MoneyData } from '../request-payment/money-data';
 import { PaymentId } from '../../domain/value-object/PaymentId';
 import { StaffRole } from '../../domain/value-object/StaffRoleType';
@@ -32,7 +31,7 @@ export class ConfirmTransferReceived extends UseCase<
   void
 > {
   constructor(
-    private readonly payments: AggregateFinder<Payment> & AggregateSaver<Payment>,
+    private readonly payments: PaymentRepository,
     private readonly events: EventBus,
     private readonly clock: Clock,
   ) {

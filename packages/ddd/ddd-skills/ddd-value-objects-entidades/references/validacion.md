@@ -8,7 +8,7 @@ Que todos los atributos sean válidos no implica que el objeto lo sea, y que cad
 |---|---|---|
 | Atributo | Un valor aislado: formato, rango, obligatoriedad | Constructor del value object (`Required(...)` y `@Validations`); un `Composite` con reglas `custom` para lo que combina sus campos |
 | Objeto completo | Combinaciones de atributos de una entidad | La propia entidad en sus métodos, o un validador separado en el mismo módulo (un servicio de dominio o `Specification`s) |
-| Composición | Varios objetos o agregados juntos | Servicio de dominio que recibe lo cargado o lee por `AggregateFinder` |
+| Composición | Varios objetos o agregados juntos | Servicio de dominio que recibe lo cargado o lee con el repositorio del agregado (`findById`) |
 
 IDDD llama a lo del primer nivel más bien **aserciones** que protegen el estado, no "validación" en el sentido de un framework [IDDD cap. 5]. Con el paquete, un value object que existe es válido: su constructor convierte, comprueba `Required` y ejecuta todas sus reglas, y si falla alguna lanza una `ValidationException` con todas `[Fuera de los libros: convención de @archi-code/ddd]`. A eso se suma la autorización, que no es validación del modelo: la comprueba el caso de uso (`NotAllowedException`).
 

@@ -155,8 +155,9 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
 - Technical or CRUD names (`OrderService`, `UpdateUser`, `SaveOrder`, `ProcessPayment` when the
   business says `CapturePayment`).
 - `Input`/`Command` interfaces in another file than their use case, or a command class.
-- Constructor dependencies the use case does not use, or a repository typed with roles it does
-  not use: ask for exactly the roles it needs.
+- Constructor dependencies the use case does not use, or a repository typed with the package
+  roles (`AggregateFinder<Order> & AggregateSaver<Order>`): every use case and reaction of an
+  aggregate receives its abstract repository (`OrderRepository`).
 - A reaction without `@ListensTo`, decorated with two events, or with a consumer that is not
   `'<context>.<file name without .ts>'`: taken from the class (`this.name`), shared by two
   reactions or renamed casually (it is its queue in a broker).
@@ -179,12 +180,16 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
 - Returning an aggregate from a use case: return an id, a DTO or nothing.
 - A query use case: queries go from the entry point to the read model's query port.
 - A projection that does not skip an `eventId` it already applied, or a read model that loads
-  aggregates through `AggregateFinder`.
+  aggregates through a repository.
 
 ## Repositories and adapters
 
-- A repository interface of your own (`OrderRepository`) or an all-in-one `Repository`: the
-  domain contracts are the package roles.
+- A repository without its abstract class in the domain, an `interface OrderRepository`, or an
+  abstract repository that does not extend `AggregateRepository<Order>` and implement the role
+  of each verb it declares.
+- Verbs the business of the aggregate does not need (`remove` on invoices that are never
+  deleted), verbs other than `findById`, `save` and `remove`, or code in the abstract
+  repository: it only declares them.
 - Repository methods with business names or rules (`pendingOlderThan`), `nextId()`, events, or
   methods that return DTOs.
 - Throwing `AggregateNotFoundException` from the domain or a repository: the user use case throws

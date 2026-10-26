@@ -229,12 +229,24 @@ name the event class and its type after the fact alone (`OrderPlaced`) [IDDD ch.
 - **Domain services** (`service/<Service>.ts`) are plain classes holding a business rule that
   does not belong to one aggregate, named after the business operation (`OrderPricing`); they
   receive domain ports by constructor, work with value objects and throw business errors; they
-  never save, open transactions nor publish [IDDD ch. 7]. A **domain port**
+  never save, open transactions nor publish [IDDD ch. 7]. One that reads aggregates receives the
+  aggregate's repository and only calls `findById`. A **domain port**
   (`service/<Port>.ts`, `CouponCatalog`) is an interface whose methods speak value objects
   (`discountOf(code: CouponCode): Promise<DiscountPercent | null>`), implemented in
   infrastructure. Only the composition root builds them; they are injected into user use cases.
-- **The domain knows nothing about persistence nor transport**: no mapper, repository,
-  repository interface of its own (`OrderRepository`), command, logger nor `Date.now()`.
+- **The domain declares the repository of each aggregate and nothing else about persistence**:
+  `repository/<Aggregate>Repository.ts` (below); no mapper, repository adapter, command, logger
+  nor `Date.now()`.
+- **One abstract repository per aggregate** (`repository/OrderRepository.ts`, user rule):
+  `export abstract class OrderRepository extends AggregateRepository<Order> implements
+  AggregateFinder<Order>, AggregateSaver<Order> { … }`. `AggregateRepository` (from
+  `@archi-code/ddd/domain`) declares no verb: the class declares as `abstract` only the verbs the
+  business of that aggregate needs, each one the method of its role and implementing that role,
+  so every repository speaks the same verbs with the same signatures: `findById(id: OrderId):
+  Promise<Order | null>` (`AggregateFinder`), `save(order: Order): Promise<void>`
+  (`AggregateSaver`), `remove(order: Order): Promise<void>` (`AggregateRemover`, only when the
+  business deletes the aggregate). Nothing else: no business names, queries, `nextId()`, events
+  nor code; the roles never type a dependency on their own.
 
 ## Use cases
 
@@ -255,9 +267,9 @@ comes from.
   `ProcessOrder`). It never imports nor calls another use case or a reaction, opens no
   transaction, handles no HTTP, checks no raw input shape and holds no business rule.
 - Constructor parameters, `private readonly` and only what `handle` uses, in this order: the
-  repository typed by the roles it uses (`AggregateFinder<X> & AggregateSaver<X>`;
-  `AggregateSaver<X>` alone to create; `AggregateFinder<X> & AggregateRemover<X>` to remove),
-  domain services, `EventBus`, `Clock`, `Logger`; the body is `super();`.
+  repository of the aggregate (`private readonly orders: OrderRepository`, the abstract class of
+  the domain, never `AggregateFinder<X> & AggregateSaver<X>`), domain services, `EventBus`,
+  `Clock`, `Logger`; the body is `super();`.
 
 ### User use cases
 
@@ -303,7 +315,8 @@ use case, one class, with no `UseCase` behind it.
   is its identity in the channel (its queue in a broker), a stable literal unique in the system,
   never derived from the class name, which minifiers change. The event class is the local copy
   of another context's event, or the context's own event (read models).
-- Constructor as a user use case (repository roles, services, `EventBus`, `Clock`, `Logger`); a
+- Constructor as a user use case (the aggregate's repository, services, `EventBus`, `Clock`,
+  `Logger`); a
   read-model reaction receives only its projection.
 - `async handle(event)`, in this order: (1) `const { a, b } = ValueObjectBuilder.build({ a: () =>
   new A(event.a), … })`; (2) a derived id (`PaymentId.forOrder(orderReference)`); (3a) to create:
@@ -368,13 +381,13 @@ use case, one class, with no `UseCase` behind it.
 ## Infrastructure
 
 - **Repositories only get and persist** (`findById`, `save`, `remove`): no business logic, no
-  business queries (`pendingOlderThan`), no `nextId()`, no events; they may expose read helpers
-  (`versionOf(id)`). **One repository per aggregate and technology**
-  (`infrastructure/persistence/<technology>-<aggregate>-repository.ts`): it implements the roles
-  the use cases need (`AggregateFinder<X>`, `AggregateSaver<X>`, `AggregateRemover<X>`; there is
-  no all-in-one `Repository` and no repository interface of its own), and its constructor
-  receives only its technology (a collection, a pool; nothing in memory), never an aggregate
-  class nor a mapper. It calls `X.fromPrimitives(row)` on load and `x.toPrimitives()` on save.
+  business queries (`pendingOlderThan`), no `nextId()`, no events. **One adapter per aggregate
+  and technology** (`infrastructure/persistence/<technology>-<aggregate>-repository.ts`):
+  `InMemoryOrderRepository extends OrderRepository`, implementing exactly the verbs the abstract
+  repository of the domain declares; a test double may add technical read helpers for its tests
+  (`versionOf(id)`), which no use case sees. Its constructor (`super()` first) receives only its
+  technology (a collection, a pool; nothing in memory), never an aggregate class nor a mapper. It
+  calls `X.fromPrimitives(row)` on load and `x.toPrimitives()` on save.
 - The in-memory repository is an implementation like any other [IDDD ch. 12]. It lives in
   `infrastructure/persistence/in-memory-<aggregate>-repository.ts` when the application runs in
   memory, or in `test/support/` when it is only a test double; the package ships none.

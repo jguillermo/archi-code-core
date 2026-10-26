@@ -1,6 +1,7 @@
 import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import type { AggregateFinder, AggregateRemover, AggregateSaver } from '../../src/domain/index';
 import {
+  AggregateRepository,
   AggregateRoot,
   CreatedAt,
   EnumType,
@@ -102,9 +103,16 @@ interface StoredOrder {
   readonly primitives: PrimitiveTypes<Order>;
 }
 
-class InMemoryOrderRepository
+abstract class OrderRepository
+  extends AggregateRepository<Order>
   implements AggregateFinder<Order>, AggregateSaver<Order>, AggregateRemover<Order>
 {
+  abstract findById(id: OrderId): Promise<Order | null>;
+  abstract save(order: Order): Promise<void>;
+  abstract remove(order: Order): Promise<void>;
+}
+
+class InMemoryOrderRepository extends OrderRepository {
   private readonly rows = new Map<string, StoredOrder>();
   private readonly versions = new WeakMap<Order, number>();
 
@@ -166,10 +174,9 @@ describe('InMemoryOrderRepository: a repository a project writes in its tests, o
     expectTypeOf<ConstructorParameters<typeof InMemoryOrderRepository>>().toEqualTypeOf<[]>();
   });
 
-  it('can be injected wherever a use case asks for a finder, a saver or a remover of orders', () => {
-    expectTypeOf(orders()).toMatchTypeOf<AggregateFinder<Order>>();
-    expectTypeOf(orders()).toMatchTypeOf<AggregateSaver<Order>>();
-    expectTypeOf(orders()).toMatchTypeOf<AggregateRemover<Order>>();
+  it('extends the repository of orders the domain declares, so every use case of orders receives it', () => {
+    expectTypeOf(orders()).toMatchTypeOf<OrderRepository>();
+    expect(orders()).toBeInstanceOf(OrderRepository);
   });
 
   describe('saving a new order', () => {

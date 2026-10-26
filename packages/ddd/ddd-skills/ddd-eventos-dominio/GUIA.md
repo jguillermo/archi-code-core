@@ -53,7 +53,6 @@ Recomendación de estas fuentes: la tercera, conocida hoy como **outbox transacc
 Con el paquete, la reacción es un caso de uso por reacción que carga y guarda su propio agregado con su repositorio, en su propia escritura atómica. Con `InMemoryEventChannel` corre antes de que termine el `execute` del caso de uso que publicó, lo que solo vale en tests o en una aplicación en memoria; en producción un canal durable lo entrega después de que la escritura del primero se haya confirmado, y cada reacción hace su propia escritura [IDDD cap. 8] `[Fuera de los libros: convención de @archi-code/ddd]`. Es idempotente: si crea, el id derivado del evento (`ShipmentId.forOrder(order)`) le dice si ya lo hizo; si cambia, el método de reacción del agregado vuelve sin cambios cuando el hecho ya está aplicado (ver "Consumidor idempotente" en `ddd-skills/ddd-eventos-dominio/references/publicacion-ts.md`):
 
 ```ts
-import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
 import { EventListener, ListensTo, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
 import { OrderConfirmedDomainEvent } from './order-confirmed-domain-event';
@@ -61,7 +60,7 @@ import { OrderConfirmedDomainEvent } from './order-confirmed-domain-event';
 @ListensTo(OrderConfirmedDomainEvent, { consumer: 'shipping.prepare-shipment-on-order-confirmed' })
 export class PrepareShipmentOnOrderConfirmed extends EventListener<OrderConfirmedDomainEvent> {
   constructor(
-    private readonly shipments: AggregateFinder<Shipment> & AggregateSaver<Shipment>,
+    private readonly shipments: ShipmentRepository,
     private readonly events: EventBus,
     private readonly clock: Clock,
   ) {

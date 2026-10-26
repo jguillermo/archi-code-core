@@ -2,7 +2,7 @@
 
 El dominio nunca es el lugar para gestionar transacciones; sus operaciones son demasiado finas y no deben saber que existen. Los libros las sitúan en la capa de aplicación, a menudo con una fachada transaccional o de forma declarativa [IDDD cap. 12; PHP: Repositories, "Managing Transactions"].
 
-Con el paquete la transacción baja un nivel más: es del repositorio, igual que todo lo demás de la persistencia `[Fuera de los libros: convención de @archi-code/ddd]`. La aplicación nunca abre, une ni cierra transacciones y no hay ningún puerto para hacerlo. Un caso de uso recibe solo los roles del repositorio que usa (`AggregateFinder`, `AggregateSaver`, `AggregateRemover`), el `EventBus`, el `Clock` y sus puertos propios; nunca una dependencia `transactions`, `unitOfWork` o parecida.
+Con el paquete la transacción baja un nivel más: es del repositorio, igual que todo lo demás de la persistencia `[Fuera de los libros: convención de @archi-code/ddd]`. La aplicación nunca abre, une ni cierra transacciones y no hay ningún puerto para hacerlo. Un caso de uso recibe el repositorio abstracto de su agregado (`OrderRepository`, declarado en `domain/repository/`), el `EventBus`, el `Clock` y sus puertos propios; nunca una dependencia `transactions`, `unitOfWork` o parecida.
 
 ## Por qué basta con el repositorio
 
@@ -54,10 +54,11 @@ CREATE TABLE order_lines (
 En `infrastructure/persistence/postgres-order-repository.ts`:
 
 ```ts
-import type { AggregateFinder, AggregateSaver, PrimitiveTypes } from '@archi-code/ddd/domain';
+import type { PrimitiveTypes } from '@archi-code/ddd/domain';
 import { ConcurrencyException } from '@archi-code/ddd/application';
 import { InternalErrorException } from '@archi-code/ddd/infrastructure';
 import { Order } from '../../domain/aggregate/Order';
+import { OrderRepository } from '../../domain/repository/OrderRepository';
 import type { OrderId } from '../../domain/value-object/OrderId';
 import type { PgPool } from './pg-pool';
 
@@ -69,10 +70,12 @@ interface OrderRow {
   items: OrderPrimitives['lines']['items'];
 }
 
-export class PostgresOrderRepository implements AggregateFinder<Order>, AggregateSaver<Order> {
+export class PostgresOrderRepository extends OrderRepository {
   private readonly versions = new WeakMap<Order, number>();
 
-  constructor(private readonly pool: PgPool) {}
+  constructor(private readonly pool: PgPool) {
+    super();
+  }
 
   async findById(id: OrderId): Promise<Order | null> {
     const { rows } = await this.pool.query<OrderRow>(
@@ -148,7 +151,7 @@ export class PostgresOrderRepository implements AggregateFinder<Order>, Aggregat
 * `this.versions.set(order, version + 1)` se hace solo después del `COMMIT`: si la transacción se revierte, el repositorio sigue recordando la versión anterior y el caso de uso puede descartar el objeto y volver a cargarlo.
 * Si el `ROLLBACK` falla (la conexión se cayó), se relanza el error del trabajo, no el del `ROLLBACK`, y `release(true)` destruye la conexión en vez de devolver al pool una con la transacción a medias.
 * La lectura es una sola sentencia, así que ve el pedido y sus líneas en el mismo instante.
-* Un `remove` sigue el mismo patrón: `DELETE FROM orders WHERE id = $1 AND version = $2` dentro de su propia transacción (las líneas caen con `ON DELETE CASCADE`).
+* El `remove` que declara `OrderRepository` (no se muestra) sigue el mismo patrón: `DELETE FROM orders WHERE id = $1 AND version = $2` dentro de su propia transacción (las líneas caen con `ON DELETE CASCADE`).
 
 Con MongoDB no hace falta nada de esto: el pedido es un documento y `replaceOne` lo escribe de forma atómica (`MongoOrderRepository` en `ddd-skills/ddd-repositorios-persistencia/references/implementacion-ts.md`).
 
@@ -176,8 +179,7 @@ El caso de uso carga, cambia, guarda y publica, sin abrir nada. Si el comando es
 ```ts
 import { AggregateNotFoundException, ConcurrencyException, UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
-import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
-import type { Order } from '../../domain/aggregate/Order';
+import type { OrderRepository } from '../../domain/repository/OrderRepository';
 import { OrderId } from '../../domain/value-object/OrderId';
 import { OrderLine } from '../../domain/value-object/OrderLine';
 
@@ -197,7 +199,7 @@ export class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand
   private static readonly ATTEMPTS = 3;
 
   constructor(
-    private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
+    private readonly orders: OrderRepository,
     private readonly events: EventBus,
     private readonly clock: Clock,
   ) {

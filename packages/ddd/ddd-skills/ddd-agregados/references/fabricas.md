@@ -123,10 +123,9 @@ export class Customer extends AggregateRoot<CustomerId> {
 
 `CustomerCreatedDomainEvent` (`'customer.created'`) se escribe como los eventos de `Order`. `placeOrder` no cambia al cliente: solo aplica su regla y llama a `Order.create`, que sigue siendo la única forma de iniciar un pedido.
 
-La regla de creación ("un cliente bloqueado no puede realizar pedidos") vive en `Customer`. El caso de uso lee el cliente con `AggregateFinder<Customer>`, genera la identidad nueva con `OrderId.generate()` y guarda solo el pedido con `AggregateSaver<Order>`; `Customer` no se guarda porque no ha cambiado:
+La regla de creación ("un cliente bloqueado no puede realizar pedidos") vive en `Customer`. El caso de uso lee el cliente con `CustomerRepository` (solo `findById`), genera la identidad nueva con `OrderId.generate()` y guarda solo el pedido con `OrderRepository`, los repositorios abstractos que el dominio declara en `domain/repository/`; `Customer` no se guarda porque no ha cambiado:
 
 ```ts
-import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
 import { AggregateNotFoundException, UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
 
@@ -144,8 +143,8 @@ export interface PlaceOrderCommand {
 
 export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, string> {
   constructor(
-    private readonly customers: AggregateFinder<Customer>,
-    private readonly orders: AggregateSaver<Order>,
+    private readonly customers: CustomerRepository,
+    private readonly orders: OrderRepository,
     private readonly events: EventBus,
     private readonly clock: Clock,
   ) {

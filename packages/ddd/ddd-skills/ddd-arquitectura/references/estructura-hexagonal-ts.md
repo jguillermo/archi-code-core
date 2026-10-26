@@ -30,6 +30,8 @@ src/
           OrderCreatedDomainEvent.ts, OrderPaidDomainEvent.ts   (extends EventBase, eventName 'order.created'…)
         exception/
           OrderNotModifiable.ts    (extends DomainException, código SAL001)
+        repository/
+          OrderRepository.ts       (abstract, extends AggregateRepository<Order>; findById, save, remove)
         service/
           OrderPricing.ts          (servicio de dominio)
           CouponCatalog.ts         (puerto de dominio)
@@ -49,8 +51,8 @@ src/
           mark-order-summary-paid/mark-order-summary-paid-on-order-paid.ts
       infrastructure/
         persistence/
-          in-memory-order-repository.ts   (AggregateFinder/AggregateSaver/AggregateRemover<Order>)
-          mongo-order-repository.ts       (constructor solo con la collection; cada save/remove atómico)
+          in-memory-order-repository.ts   (extends OrderRepository)
+          mongo-order-repository.ts       (extends OrderRepository; constructor solo con la collection; cada save/remove atómico)
         coupon/
           in-memory-coupon-catalog.ts     (implements CouponCatalog)
         read-model/
@@ -73,9 +75,9 @@ test/
 
 Nombres de fichero: PascalCase igual al nombre de la clase en `domain/` y `shared-kernel/`; kebab-case del export principal en todo lo demás. Imports relativos al fichero que declara cada símbolo, nunca a una carpeta ni a un `index.ts`, con `import type` para los tipos.
 
-Lo que no aparece porque lo da `@archi-code/ddd`: clases base (`AggregateRoot`, `Entity`, `EventBase`, los tipos de value object, `Composite`), una interfaz `OrderRepository` (los roles `AggregateFinder`, `AggregateSaver` y `AggregateRemover` vienen de `@archi-code/ddd/domain`), un `OrderMapper` (la conversión es del agregado, `toPrimitives()` y `static fromPrimitives()`, y cada repositorio los llama directamente; la versión la recuerda el propio repositorio en un `WeakMap<Order, number>`, nunca el agregado), un publicador de eventos (`DomainEventBus` implementa `EventBus`) y el puerto `Clock`. Tampoco hay un runner de transacciones ni una unidad de trabajo: la transacción es del repositorio `[Fuera de los libros: convención de @archi-code/ddd]`.
+Lo que no aparece porque lo da `@archi-code/ddd`: clases base (`AggregateRoot`, `Entity`, `EventBase`, los tipos de value object, `Composite`), una interfaz de repositorio genérica (`AggregateRepository` y los roles `AggregateFinder`, `AggregateSaver` y `AggregateRemover` vienen de `@archi-code/ddd/domain`; el proyecto solo declara la clase abstracta `OrderRepository` que los usa), un `OrderMapper` (la conversión es del agregado, `toPrimitives()` y `static fromPrimitives()`, y cada repositorio los llama directamente; la versión la recuerda el propio repositorio en un `WeakMap<Order, number>`, nunca el agregado), un publicador de eventos (`DomainEventBus` implementa `EventBus`) y el puerto `Clock`. Tampoco hay un runner de transacciones ni una unidad de trabajo: la transacción es del repositorio `[Fuera de los libros: convención de @archi-code/ddd]`.
 
-Lo que el paquete no da y escribe el proyecto: cada repositorio, uno por agregado y tecnología. Su constructor recibe solo las dependencias de su tecnología (la `collection` de Mongo, el `pool` de Postgres; nada en memoria), nunca la clase del agregado ni un mapper. Nada comprueba en ejecución la forma del agregado: que su estado sean value objects expuestos por getters y que `toPrimitives()`/`fromPrimitives()` no pierdan campos lo garantizan el agregado y su test de ida y vuelta. El repositorio en memoria es una implementación más [IDDD cap. 12]: vive en `infrastructure/persistence/` cuando la aplicación corre en memoria, o en `test/support/` cuando solo es un doble de test (ver `InMemoryOrderRepository` en `ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`).
+Lo que el paquete no da y escribe el proyecto: el repositorio abstracto de cada agregado en `domain/repository/`, que reciben todos sus casos de uso, y cada adaptador que lo extiende, uno por agregado y tecnología. Su constructor recibe solo las dependencias de su tecnología (la `collection` de Mongo, el `pool` de Postgres; nada en memoria), nunca la clase del agregado ni un mapper. Nada comprueba en ejecución la forma del agregado: que su estado sean value objects expuestos por getters y que `toPrimitives()`/`fromPrimitives()` no pierdan campos lo garantizan el agregado y su test de ida y vuelta. El repositorio en memoria es una implementación más [IDDD cap. 12]: vive en `infrastructure/persistence/` cuando la aplicación corre en memoria, o en `test/support/` cuando solo es un doble de test (ver `InMemoryOrderRepository` en `ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`).
 
 Decisiones:
 * Los tests de aceptación del modelo están junto al contexto, aunque en carpeta `test/` espejo [Destilado cap. 2 pide tenerlos con el código del contexto; la carpeta espejo mantiene esa correspondencia].
@@ -113,7 +115,7 @@ Reglas de encaje:
 | Tipo | Ejemplo en el contexto de Ventas | Dónde se define la interfaz | Dónde se implementa |
 |---|---|---|---|
 | Entrada (driving) | HTTP `POST /orders`, un evento de Pagos | El caso de uso es la API de entrada (`execute(input)`, o `handle(event)` en un caso de uso por reacción) | `interfaces/` (controlador); el bus entrega el evento a la reacción |
-| Salida de dominio | `AggregateFinder<Order>`, `AggregateSaver<Order>` (del paquete); `CouponCatalog` (tuyo) | `@archi-code/ddd/domain`; `domain/service/` | `infrastructure/` (`InMemoryOrderRepository`, `MongoOrderRepository`, `InMemoryCouponCatalog`) |
+| Salida de dominio | `OrderRepository` (tuyo, abstracto, sobre `AggregateRepository` y los roles del paquete); `CouponCatalog` (tuyo) | `domain/repository/`; `domain/service/` | `infrastructure/` (`InMemoryOrderRepository`, `MongoOrderRepository`, `InMemoryCouponCatalog`) |
 | Salida de aplicación | `EventBus`, `Clock`, `Logger` (del paquete); el store y la consulta de un read model (tuyos) | `@archi-code/ddd/application`; `application/` | `DomainEventBus` sobre tu `EventChannel`, `SystemClock`, `ConsoleLogger` o tu adaptador; `InMemoryOrderSummaryStore` |
 
 En IDDD los puertos no se implementan "a mano": el puerto es HTTP o el bus de mensajes, y el adaptador es el controlador o el suscriptor que traduce a la API de aplicación [IDDD cap. 4]. El interior se diseña por casos de uso, no por número de clientes [IDDD cap. 4].
@@ -214,7 +216,7 @@ const shipping = await ShippingContext.start({ channel, clock, logger });
 
 Qué hace cada pieza:
 * Del paquete, en `@archi-code/ddd/infrastructure`: `EventRegistry` (reconstruye cada evento desde su JSON; la factoría copia cada campo con un cast y pasa `eventId: json.eventId` y `occurredOn: json.occurredOn`, que las reacciones necesitan para ignorar una reentrega), `DomainEventBus` (implementa `EventBus`, lo único que reciben los casos de uso; su `subscribe(listener)` solo lo llama el composition root) y `SystemClock` o `FixedClock` (implementan `Clock`).
-* Código del proyecto sobre los puertos del paquete `[Fuera de los libros: convención de @archi-code/ddd]`: el repositorio (roles de repositorio de `Payment`; llama a `payment.toPrimitives()` y a `Payment.fromPrimitives(...)` y controla la versión, que recuerda por agregado en un `WeakMap`; responsable de toda la persistencia, ver `ddd-skills/ddd-repositorios-persistencia/GUIA.md`), el canal (`InMemoryEventChannel` del paquete, o un `EventChannel` propio como RabbitMQ, ver `ddd-skills/ddd-eventos-dominio/GUIA.md`) y el controlador.
+* Código del proyecto sobre los puertos del paquete `[Fuera de los libros: convención de @archi-code/ddd]`: el repositorio (`InMemoryPaymentRepository extends PaymentRepository`, el repositorio abstracto que declara el dominio; llama a `payment.toPrimitives()` y a `Payment.fromPrimitives(...)` y controla la versión, que recuerda por agregado en un `WeakMap`; responsable de toda la persistencia, ver `ddd-skills/ddd-repositorios-persistencia/GUIA.md`), el canal (`InMemoryEventChannel` del paquete, o un `EventChannel` propio como RabbitMQ, ver `ddd-skills/ddd-eventos-dominio/GUIA.md`) y el controlador.
 * Cada caso de uso por reacción se construye con sus dependencias y se suscribe con `bus.subscribe(listener)`, que lee su `@ListensTo(OrderCreatedDomainEvent, { consumer: 'payments.request-payment-on-order-created' })` y rechaza un evento que el registro no sabe reconstruir (`UnknownEventException`). El composition root guarda cada `Subscription` para `stop()`.
 * Cambiar la memoria por RabbitMQ o por un outbox cambia solo la línea del canal; con una base de datos real, `start` recibe la conexión en sus `Settings` y construye el repositorio de esa tecnología.
 * Ni los casos de uso ni los repositorios reciben un runner de transacciones: el composition root no construye ninguno.

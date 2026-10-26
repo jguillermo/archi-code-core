@@ -1,4 +1,3 @@
-import type { AggregateFinder, AggregateSaver } from '../../../../ddd/domain';
 import {
   AggregateNotFoundException,
   NotAllowedException,
@@ -6,7 +5,7 @@ import {
   ValueObjectBuilder,
 } from '../../../../ddd/application';
 import type { Clock, EventBus } from '../../../../ddd/application';
-import type { Shipment } from '../../domain/aggregate/Shipment';
+import type { ShipmentRepository } from '../../domain/repository/ShipmentRepository';
 import { ShipmentId } from '../../domain/value-object/ShipmentId';
 import { StaffRole } from '../../domain/value-object/StaffRoleType';
 import { StaffRoleType } from '../../domain/value-object/StaffRoleType';
@@ -23,7 +22,7 @@ export interface DeliverShipmentCommand {
 
 export class DeliverShipment extends UseCase<DeliverShipmentInput, DeliverShipmentCommand, void> {
   constructor(
-    private readonly shipments: AggregateFinder<Shipment> & AggregateSaver<Shipment>,
+    private readonly shipments: ShipmentRepository,
     private readonly events: EventBus,
     private readonly clock: Clock,
   ) {

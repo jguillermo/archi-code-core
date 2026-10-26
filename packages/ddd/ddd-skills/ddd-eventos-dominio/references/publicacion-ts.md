@@ -29,10 +29,9 @@ Qué pone `@archi-code/ddd` y qué escribe el proyecto:
 
 ## Publicar desde el caso de uso
 
-El caso de uso guarda y después publica lo que devuelve `pullDomainEvents()`: si `save` falla no se publica nada, y los eventos nunca salen dos veces. No hay puerto de transacciones: el caso de uso recibe solo los roles de repositorio que usa, el `EventBus` y el `Clock`, y el repositorio garantiza que `save` es una escritura atómica `[Fuera de los libros: convención de @archi-code/ddd]`.
+El caso de uso guarda y después publica lo que devuelve `pullDomainEvents()`: si `save` falla no se publica nada, y los eventos nunca salen dos veces. No hay puerto de transacciones: el caso de uso recibe el repositorio abstracto de su agregado (`OrderRepository`), el `EventBus` y el `Clock`, y el repositorio garantiza que `save` es una escritura atómica `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ```ts
-import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
 import { AggregateNotFoundException, UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
 
@@ -50,7 +49,7 @@ export interface AddOrderLineCommand {
 
 export class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand, void> {
   constructor(
-    private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
+    private readonly orders: OrderRepository,
     private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
@@ -165,7 +164,7 @@ CREATE INDEX stored_events_unpublished ON stored_events (sequence) WHERE publish
 ### El repositorio
 
 ```ts
-import type { AggregateFinder, AggregateSaver, PrimitiveTypes } from '@archi-code/ddd/domain';
+import type { PrimitiveTypes } from '@archi-code/ddd/domain';
 import { ConcurrencyException } from '@archi-code/ddd/application';
 import { InternalErrorException } from '@archi-code/ddd/infrastructure';
 
@@ -191,10 +190,12 @@ interface OrderRow {
   data: PrimitiveTypes<Order>;
 }
 
-export class PostgresOrderRepository implements AggregateFinder<Order>, AggregateSaver<Order> {
+export class PostgresOrderRepository extends OrderRepository {
   private readonly versions = new WeakMap<Order, number>();
 
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly pool: Pool) {
+    super();
+  }
 
   async findById(id: OrderId): Promise<Order | null> {
     try {
@@ -262,7 +263,7 @@ export class PostgresOrderRepository implements AggregateFinder<Order>, Aggregat
 }
 ```
 
-La transacción empieza y termina dentro de `save`: el pedido y sus eventos se confirman o se deshacen juntos, que es lo que pide "un agregado por transacción" [IDDD cap. 10]. El repositorio actualiza la versión que recuerda para el pedido (`this.versions.set(order, version + 1)`) solo tras el `COMMIT`. Si la escritura falla, el caso de uso termina con el error y el agregado se descarta con sus eventos. El caso de uso no cambia: su `publish` recibe una lista vacía, porque los eventos de este pedido ya están en el outbox. El esquema de `orders` y el repositorio sin outbox están en `ddd-skills/ddd-repositorios-persistencia/references/implementacion-ts.md`.
+La transacción empieza y termina dentro de `save`: el pedido y sus eventos se confirman o se deshacen juntos, que es lo que pide "un agregado por transacción" [IDDD cap. 10]. El repositorio actualiza la versión que recuerda para el pedido (`this.versions.set(order, version + 1)`) solo tras el `COMMIT`. Si la escritura falla, el caso de uso termina con el error y el agregado se descarta con sus eventos. El caso de uso no cambia: su `publish` recibe una lista vacía, porque los eventos de este pedido ya están en el outbox. El `remove` que también declara `OrderRepository` no escribe eventos y es el del repositorio sin outbox; el esquema de `orders` y ese repositorio están en `ddd-skills/ddd-repositorios-persistencia/references/implementacion-ts.md`.
 
 ## Reenviador
 

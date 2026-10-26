@@ -10,7 +10,7 @@ Ninguno es obligatorio. Úsalos cuando mitiguen un riesgo con alta probabilidad 
 
 **Cuándo no:** si la interfaz no es compleja ni cruza a menudo varios agregados en una vista, CQRS añade complejidad accidental [IDDD cap. 4].
 
-**Paso intermedio** `[Fuera de los libros]`: consultas de lectura que van directas a la base de datos con SQL o vistas, sin pasar por repositorios ni agregados, en la misma base. Ya separa lectura y escritura sin eventos ni consistencia eventual. Suele bastar. La consulta es una interfaz de `application/` que devuelve DTOs, implementada en `infrastructure/` sobre la base (`MongoOrderSummaries`), nunca con `AggregateFinder`:
+**Paso intermedio** `[Fuera de los libros]`: consultas de lectura que van directas a la base de datos con SQL o vistas, sin pasar por repositorios ni agregados, en la misma base. Ya separa lectura y escritura sin eventos ni consistencia eventual. Suele bastar. La consulta es una interfaz de `application/` que devuelve DTOs, implementada en `infrastructure/` sobre la base (`MongoOrderSummaries`), nunca con el repositorio de un agregado:
 
 ```ts
 export interface OrderSummary {
@@ -38,7 +38,7 @@ Con el paquete, la tecnología es un `EventChannel` del proyecto (`RabbitMqEvent
 
 El estado de un agregado se guarda como la secuencia de sus eventos y se reconstruye aplicándolos [Destilado cap. 6; IDDD cap. 4]. Aporta historial completo y auditoría, pero cambia por completo la persistencia y las consultas. Ver `ddd-skills/ddd-event-sourcing-cqrs/GUIA.md` antes de decidir.
 
-El paquete no trae event store: cada repositorio guarda el `toPrimitives()` del agregado junto a la versión que él mismo lleva (en su `WeakMap`), que crece 1 por cada `save`, no por evento. Un agregado con Event Sourcing sigue extendiendo `AggregateRoot` y registrando con `record()`, pero su repositorio (en `infrastructure/`, implementando `AggregateFinder`/`AggregateSaver`) lleva la versión del flujo él mismo y reconstruye el agregado aplicando sus eventos, no con `toPrimitives()`/`fromPrimitives()`. `[Fuera de los libros: convención de @archi-code/ddd]`
+El paquete no trae event store: cada repositorio guarda el `toPrimitives()` del agregado junto a la versión que él mismo lleva (en su `WeakMap`), que crece 1 por cada `save`, no por evento. Un agregado con Event Sourcing sigue extendiendo `AggregateRoot` y registrando con `record()`, pero su adaptador de persistencia (en `infrastructure/`, sobre el contrato del stream de `ddd-skills/ddd-event-sourcing-cqrs/GUIA.md`) lleva la versión del flujo él mismo y reconstruye el agregado aplicando sus eventos, no con `toPrimitives()`/`fromPrimitives()`. `[Fuera de los libros: convención de @archi-code/ddd]`
 
 ## Tabla de decisión
 

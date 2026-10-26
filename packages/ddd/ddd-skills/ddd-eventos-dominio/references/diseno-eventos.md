@@ -95,7 +95,7 @@ const [confirmed] = order.pullDomainEvents();
 
 ## Eventos con características de agregado
 
-A veces un evento no resulta de un comando sobre un agregado sino que un usuario lo origina directamente. Entonces puede modelarse como agregado inmutable en su propio repositorio, que no permite borrarlo, con identidad generada [IDDD cap. 8]. Ejemplo: una `IncidenciaDeEntregaReportada` por el transportista que se archiva y se consulta. Con el paquete sería un `AggregateRoot` cuyo repositorio implementa solo `AggregateFinder` y `AggregateSaver` (nunca `AggregateRemover`), con id `XId.generate()`.
+A veces un evento no resulta de un comando sobre un agregado sino que un usuario lo origina directamente. Entonces puede modelarse como agregado inmutable en su propio repositorio, que no permite borrarlo, con identidad generada [IDDD cap. 8]. Ejemplo: una `IncidenciaDeEntregaReportada` por el transportista que se archiva y se consulta. Con el paquete sería un `AggregateRoot` cuyo repositorio abstracto declara solo `findById` y `save` (nunca `remove`, ni implementa `AggregateRemover`), con id `XId.generate()`.
 
 ## Versionado
 

@@ -1,6 +1,7 @@
-import type { AggregateFinder, AggregateSaver, PrimitiveTypes } from '../../../../ddd/domain';
+import type { PrimitiveTypes } from '../../../../ddd/domain';
 import { ConcurrencyException } from '../../../../ddd/application';
 import { Payment } from '../../domain/aggregate/Payment';
+import { PaymentRepository } from '../../domain/repository/PaymentRepository';
 import type { PaymentId } from '../../domain/value-object/PaymentId';
 
 interface PaymentRow {
@@ -8,9 +9,7 @@ interface PaymentRow {
   primitives: PrimitiveTypes<Payment>;
 }
 
-export class InMemoryPaymentRepository
-  implements AggregateFinder<Payment>, AggregateSaver<Payment>
-{
+export class InMemoryPaymentRepository extends PaymentRepository {
   private readonly rows = new Map<string, PaymentRow>();
   private readonly versions = new WeakMap<Payment, number>();
 

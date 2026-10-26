@@ -114,6 +114,34 @@ function smoke(m) {
       },
     ],
     [
+      'AggregateRepository is the base an abstract repository of orders extends',
+      async () => {
+        class Order extends m.AggregateRoot {}
+        class OrderRepository extends m.AggregateRepository {}
+        class InMemoryOrderRepository extends OrderRepository {
+          constructor() {
+            super();
+            this.orders = new Map();
+          }
+          async findById(id) {
+            return this.orders.get(id.value) ?? null;
+          }
+          async save(order) {
+            this.orders.set(order.id.value, order);
+          }
+        }
+        const repository = new InMemoryOrderRepository();
+        const order = new Order(new m.IdType(ORDER_ID));
+        await repository.save(order);
+        return (
+          ((await repository.findById(new m.IdType(ORDER_ID))) === order &&
+            repository instanceof m.AggregateRepository &&
+            Object.getOwnPropertyNames(m.AggregateRepository.prototype).length === 1) ||
+          'unexpected repository base'
+        );
+      },
+    ],
+    [
       'Specification combines named rules',
       () => {
         class Above extends m.Specification {

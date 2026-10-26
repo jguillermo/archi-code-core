@@ -1,14 +1,15 @@
 ---
 name: archi-code-ddd
-description: The single entry point for Domain-Driven Design with @archi-code/ddd. It routes every DDD question to the guide suite shipped in the package (contexts, architecture, value objects, aggregates, events, repositories, application services, CQRS, audits) and gives the conventions, patterns and common mistakes of code built on it - context folder layout and names, value objects and Composite, aggregates (public constructor, create, fromPrimitives/toPrimitives), events and business errors, repository roles, user use cases (UseCase) and reaction use cases (an EventListener with @ListensTo that is the use case), event copies between contexts, read models, the composition root, controllers and ExceptionClassifier. Use it whenever someone applies DDD, designs or reviews a domain model, writes or changes value objects, aggregates, events, use cases, reactions, read models, repositories, adapters, controllers or wiring, decides which layer a class belongs to, or the code imports @archi-code/ddd.
+description: The single entry point for Domain-Driven Design with @archi-code/ddd. It routes every DDD question to the guide suite shipped in the package (contexts, architecture, value objects, aggregates, events, repositories, application services, CQRS, audits) and gives the conventions, patterns and common mistakes of code built on it - context folder layout and names, value objects and Composite, aggregates (public constructor, create, fromPrimitives/toPrimitives), events and business errors, abstract repository per aggregate, user use cases (UseCase) and reaction use cases (an EventListener with @ListensTo that is the use case), event copies between contexts, read models, the composition root, controllers and ExceptionClassifier. Use it whenever someone applies DDD, designs or reviews a domain model, writes or changes value objects, aggregates, events, use cases, reactions, read models, repositories, adapters, controllers or wiring, decides which layer a class belongs to, or the code imports @archi-code/ddd.
 ---
 
 # archi-code-ddd
 
 `@archi-code/ddd` is archi-code's Domain-Driven Design package for TypeScript, one entry point per
 layer, each with the exceptions of its layer: `@archi-code/ddd/domain` (value objects, `Composite`,
-`Specification`, `Entity`, `AggregateRoot`, `EventBase`, the repository contracts
-`AggregateFinder`, `AggregateSaver`, `AggregateRemover`, and `DomainException`,
+`Specification`, `Entity`, `AggregateRoot`, `EventBase`, `AggregateRepository`, the base of
+the abstract repository of each aggregate, with the roles of its verbs `AggregateFinder`,
+`AggregateSaver`, `AggregateRemover`, and `DomainException`,
 `ValidationException`…), `@archi-code/ddd/application` (`UseCase`, the event contract to listen,
 `EventListener` and `@ListensTo`, and to publish, `EventBus`, the ports `Clock`, `Logger`, and
 `AggregateNotFoundException`, `NotAllowedException`…) and `@archi-code/ddd/infrastructure` (the
@@ -115,7 +116,7 @@ The rules every file of a project built on this package follows; the guides abov
 details and the code.
 
 - **One folder per bounded context** (`src/contexts/<context>/`) with `domain/` (split by kind:
-  `aggregate/`, `entity/`, `value-object/`, `event/`, `exception/`, `service/`,
+  `aggregate/`, `entity/`, `value-object/`, `event/`, `exception/`, `repository/`, `service/`,
   `specification/`), `application/` (one folder per business action), `infrastructure/`,
   `interfaces/` and one `composition.ts`. A context never imports another one; only
   `shared-kernel/` is shared. Domain files are PascalCase, every other file kebab-case.
@@ -143,8 +144,11 @@ details and the code.
   next to the reaction that hears it, with the producer's class name and `eventName`.
 - **Read models** are a row, a store port, a query port, a projection that skips applied
   `eventId`s and one reaction per event; queries need no use case.
-- **Repositories** implement the package roles, one per aggregate and technology, and check the
-  version in a `WeakMap`; the repository owns transactions and persistence.
+- **Repositories**: the domain declares one abstract `<Aggregate>Repository extends
+AggregateRepository<Aggregate>` per aggregate with only the verbs its business needs
+  (`findById`, `save`, `remove`), each implementing its package role; every use case of the
+  aggregate receives it, never `AggregateFinder<X> & AggregateSaver<X>`. Each adapter extends it,
+  one per technology, checks the version in a `WeakMap` and owns transactions and persistence.
 - **Entry points** check only the actor and the shape, call one use case and let one protocol
   helper translate every error with `ExceptionClassifier`; `composition.ts` builds and subscribes
   everything of its context.

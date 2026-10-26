@@ -85,7 +85,7 @@ Recomendación por defecto: identidad generada por la aplicación, **temprana** 
 
 1. **Atributo:** en el constructor del value object (`Required(...)` y `@Validations`).
 2. **Objeto completo:** reglas que combinan atributos (las de un valor de varios atributos, reglas `custom` de su `Composite`). IDDD sugiere un validador separado cuando esa validación cambia más que la entidad.
-3. **Composición:** reglas sobre varios objetos o agregados. Un servicio de dominio que recibe lo cargado o lee lo necesario con `AggregateFinder`.
+3. **Composición:** reglas sobre varios objetos o agregados. Un servicio de dominio que recibe lo cargado o lee lo necesario con el repositorio del agregado (`OrderRepository`, solo `findById`).
 
 Detalle, cómo acumular todos los errores (`ValueObjectBuilder.build` en lugar del patrón de notificación) y qué validar en la interfaz frente al dominio en `ddd-skills/ddd-value-objects-entidades/references/validacion.md`.
 

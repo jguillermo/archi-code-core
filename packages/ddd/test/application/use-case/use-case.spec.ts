@@ -3,6 +3,7 @@ import { Validations } from '@archi-code/validation';
 import { UseCase } from '../../../src/application/use-case/use-case';
 import type { EventBus } from '../../../src/application/event/event-bus';
 import {
+  AggregateRepository,
   AggregateRoot,
   BooleanType,
   EventBase,
@@ -96,14 +97,22 @@ class Order extends AggregateRoot<OrderId> {
   }
 }
 
-class FakeOrderRepository
+abstract class OrderRepository
+  extends AggregateRepository<Order>
   implements AggregateFinder<Order>, AggregateSaver<Order>, AggregateRemover<Order>
 {
+  abstract findById(id: OrderId): Promise<Order | null>;
+  abstract save(order: Order): Promise<void>;
+  abstract remove(order: Order): Promise<void>;
+}
+
+class FakeOrderRepository extends OrderRepository {
   readonly rows = new Map<string, PrimitiveTypes<Order>>();
   readonly log: string[];
   failWith: unknown = undefined;
 
   constructor(log: string[] = []) {
+    super();
     this.log = log;
   }
 
@@ -153,7 +162,7 @@ class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, { orderId: 
   readonly handled: PlaceOrderCommand[] = [];
 
   constructor(
-    private readonly orders: AggregateSaver<Order>,
+    private readonly orders: OrderRepository,
     private readonly bus: EventBus,
   ) {
     super();
@@ -177,7 +186,7 @@ class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, { orderId: 
 
 class ShipOrder extends UseCase<{ orderId: string }, OrderId, void> {
   constructor(
-    private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
+    private readonly orders: OrderRepository,
     private readonly bus: EventBus,
   ) {
     super();

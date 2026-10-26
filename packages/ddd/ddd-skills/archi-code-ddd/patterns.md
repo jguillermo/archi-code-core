@@ -562,7 +562,6 @@ same file, `toCommand` with one `ValueObjectBuilder.build`, `handle` with author
 business method → save → publish:
 
 ```ts
-import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
 import {
   AggregateNotFoundException,
   NotAllowedException,
@@ -589,7 +588,7 @@ export class ConfirmTransferReceived extends UseCase<
   void
 > {
   constructor(
-    private readonly payments: AggregateFinder<Payment> & AggregateSaver<Payment>,
+    private readonly payments: PaymentRepository,
     private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
@@ -745,7 +744,6 @@ Creating, `application/request-payment/request-payment-on-order-created.ts`: the
 a redelivery a no-op:
 
 ```ts
-import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
 import { EventListener, ListensTo, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
 import { OrderCreatedDomainEvent } from './order-created-domain-event';
@@ -753,7 +751,7 @@ import { OrderCreatedDomainEvent } from './order-created-domain-event';
 @ListensTo(OrderCreatedDomainEvent, { consumer: 'payments.request-payment-on-order-created' })
 export class RequestPaymentOnOrderCreated extends EventListener<OrderCreatedDomainEvent> {
   constructor(
-    private readonly payments: AggregateFinder<Payment> & AggregateSaver<Payment>,
+    private readonly payments: PaymentRepository,
     private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
@@ -788,7 +786,7 @@ business trace is logged after publishing, only when the method recorded events:
 })
 export class CancelUnpaidOrderOnPaymentRejected extends EventListener<PaymentRejectedDomainEvent> {
   constructor(
-    private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
+    private readonly orders: OrderRepository,
     private readonly events: EventBus,
     private readonly clock: Clock,
     private readonly logger: Logger,
@@ -908,11 +906,29 @@ export class MarkOrderSummaryPaidOnOrderPaid extends EventListener<OrderPaidDoma
 
 ## Repositories and adapters
 
-In memory, `infrastructure/persistence/in-memory-payment-repository.ts` (also the test double of
-`test/support/`): copies both ways and the version check:
+The domain declares one abstract repository per aggregate, `domain/repository/PaymentRepository.ts`:
+only the verbs the business of payments needs, each the method of the package role it implements
+(payments are never deleted, so there is no `remove`):
 
 ```ts
-import type { AggregateFinder, AggregateSaver, PrimitiveTypes } from '@archi-code/ddd/domain';
+import { AggregateRepository } from '@archi-code/ddd/domain';
+import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
+
+export abstract class PaymentRepository
+  extends AggregateRepository<Payment>
+  implements AggregateFinder<Payment>, AggregateSaver<Payment>
+{
+  abstract findById(id: PaymentId): Promise<Payment | null>;
+  abstract save(payment: Payment): Promise<void>;
+}
+```
+
+Every use case and reaction of payments receives `PaymentRepository`. The adapter in memory,
+`infrastructure/persistence/in-memory-payment-repository.ts` (also the test double of
+`test/support/`), extends it with copies both ways and the version check:
+
+```ts
+import type { PrimitiveTypes } from '@archi-code/ddd/domain';
 import { ConcurrencyException } from '@archi-code/ddd/application';
 
 interface PaymentRow {
@@ -920,9 +936,7 @@ interface PaymentRow {
   primitives: PrimitiveTypes<Payment>;
 }
 
-export class InMemoryPaymentRepository
-  implements AggregateFinder<Payment>, AggregateSaver<Payment>
-{
+export class InMemoryPaymentRepository extends PaymentRepository {
   private readonly rows = new Map<string, PaymentRow>();
   private readonly versions = new WeakMap<Payment, number>();
 
@@ -951,7 +965,9 @@ export class InMemoryPaymentRepository
 }
 ```
 
-A repository that also removes shares the check (`AggregateRemover<Order>`):
+Orders are deleted (`DiscardCancelledOrder`), so `OrderRepository` also declares
+`abstract remove(order: Order): Promise<void>` and implements `AggregateRemover<Order>`; the
+adapter's `remove` shares the check:
 
 ```ts
   async remove(order: Order): Promise<void> {
@@ -969,16 +985,16 @@ A repository that also removes shares the check (`AggregateRemover<Order>`):
   }
 ```
 
-A real repository implements only the roles it supports, checks the version (also on `remove`)
-and wraps driver errors with their cause:
+A real adapter extends the same abstract repository, checks the version (also on `remove`) and
+wraps driver errors with their cause:
 
 ```ts
-class MongoOrderRepository
-  implements AggregateFinder<Order>, AggregateSaver<Order>, AggregateRemover<Order>
-{
+class MongoOrderRepository extends OrderRepository {
   private readonly versions = new WeakMap<Order, number>();
 
-  constructor(private readonly collection: Collection<OrderDocument>) {}
+  constructor(private readonly collection: Collection<OrderDocument>) {
+    super();
+  }
 
   async findById(id: OrderId): Promise<Order | null> {
     const document = await this.collection.findOne({ _id: id.value });
@@ -1277,11 +1293,11 @@ describe('Requesting the payment of a new order', () => {
 });
 ```
 
-One repository contract, run against the in-memory reference and the real adapter:
+One contract for the repository of orders, run against every adapter that extends it:
 
 ```ts
 export function orderRepositoryContract(
-  make: () => Promise<AggregateFinder<Order> & AggregateSaver<Order> & AggregateRemover<Order>>,
+  make: () => Promise<OrderRepository>,
 ): void {
   it('loads what it saved', async () => {
     const orders = await make();

@@ -51,7 +51,6 @@ export class StockItemReservedDomainEvent extends EventBase {
 El caso de uso por reacción registra el hecho: un agregado, un `save` atómico, y si el pedido no existe (es de otro canal) vuelve sin error. En `application/register-stock-reservation/register-stock-reservation-on-stock-item-reserved.ts`:
 
 ```ts
-import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
 import { EventListener, ListensTo, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
 import { StockItemReservedDomainEvent } from './stock-item-reserved-domain-event';
@@ -61,7 +60,7 @@ import { StockItemReservedDomainEvent } from './stock-item-reserved-domain-event
 })
 export class RegisterStockReservationOnStockItemReserved extends EventListener<StockItemReservedDomainEvent> {
   constructor(
-    private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
+    private readonly orders: OrderRepository,
     private readonly events: EventBus,
     private readonly clock: Clock,
   ) {

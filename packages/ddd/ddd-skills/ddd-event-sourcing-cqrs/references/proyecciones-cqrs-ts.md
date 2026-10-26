@@ -350,7 +350,7 @@ export async function rebuild(
 
 ## Lado de consulta
 
-Las consultas no pasan por agregados ni repositorios (`AggregateFinder`), ni por un caso de uso: el controlador recibe el puerto de consulta (`OrderSummaries`) y lo llama; una fila que falta es un 404 que decide el propio controlador (`{ status: 404, body: { code: 'NOT_FOUND', message: 'Order not found' } }`). Los comandos sí pasan por casos de uso y agregados. Si la pantalla filtra y ordena por campos que elige el usuario, describe la búsqueda con `@archi-code/criteria` (`Criteria<OrderSummary>`, con `defineCriteriaSchema` para la entrada de fuera) en vez de añadir un método por combinación.
+Las consultas no pasan por agregados ni repositorios (`OrderRepository`), ni por un caso de uso: el controlador recibe el puerto de consulta (`OrderSummaries`) y lo llama; una fila que falta es un 404 que decide el propio controlador (`{ status: 404, body: { code: 'NOT_FOUND', message: 'Order not found' } }`). Los comandos sí pasan por casos de uso y agregados. Si la pantalla filtra y ordena por campos que elige el usuario, describe la búsqueda con `@archi-code/criteria` (`Criteria<OrderSummary>`, con `defineCriteriaSchema` para la entrada de fuera) en vez de añadir un método por combinación.
 
 ## CQRS sin Event Sourcing
 

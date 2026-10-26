@@ -647,7 +647,6 @@ export class PaymentAuthorizedDomainEvent extends EventBase {
 El caso de uso por reacción es el propio listener: una sola clase que construye los valores con `ValueObjectBuilder.build`, carga el pedido y se los pasa al agregado `[Fuera de los libros: convención de @archi-code/ddd]`. En `application/register-payment-authorization/register-payment-authorization-on-payment-authorized.ts`:
 
 ```ts
-import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
 import { EventListener, ListensTo, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
 import { PaymentAuthorizedDomainEvent } from './payment-authorized-domain-event';
@@ -657,7 +656,7 @@ import { PaymentAuthorizedDomainEvent } from './payment-authorized-domain-event'
 })
 export class RegisterPaymentAuthorizationOnPaymentAuthorized extends EventListener<PaymentAuthorizedDomainEvent> {
   constructor(
-    private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
+    private readonly orders: OrderRepository,
     private readonly events: EventBus,
     private readonly clock: Clock,
   ) {

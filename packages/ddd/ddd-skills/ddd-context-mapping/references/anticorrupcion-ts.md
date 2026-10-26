@@ -195,11 +195,11 @@ Decisiones visibles:
 
 ```ts
 // src/contexts/sales/application/place-order/place-order.ts
-import type { AggregateSaver } from '@archi-code/ddd/domain';
 import { UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
 import { Order } from '../../domain/aggregate/Order';
 import { ProductNotSellable } from '../../domain/exception/ProductNotSellable';
+import type { OrderRepository } from '../../domain/repository/OrderRepository';
 import type { ProductPricing } from '../../domain/service/ProductPricing';
 import { CustomerId } from '../../domain/value-object/CustomerId';
 import { OrderId } from '../../domain/value-object/OrderId';
@@ -224,7 +224,7 @@ export interface PlaceOrderCommand {
 
 export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, string> {
   constructor(
-    private readonly orders: AggregateSaver<Order>,
+    private readonly orders: OrderRepository,
     private readonly pricing: ProductPricing,
     private readonly events: EventBus,
     private readonly clock: Clock,
@@ -376,10 +376,9 @@ export class StockReservedDomainEvent extends EventBase {
 
 ```ts
 // src/contexts/sales/application/register-stock-reservation/register-stock-reservation-on-stock-reserved.ts
-import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
 import { EventListener, ListensTo, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
-import type { Order } from '../../domain/aggregate/Order';
+import type { OrderRepository } from '../../domain/repository/OrderRepository';
 import { OrderId } from '../../domain/value-object/OrderId';
 import { ReservationReference } from '../../domain/value-object/ReservationReference';
 import { StockReservedDomainEvent } from './stock-reserved-domain-event';
@@ -389,7 +388,7 @@ import { StockReservedDomainEvent } from './stock-reserved-domain-event';
 })
 export class RegisterStockReservationOnStockReserved extends EventListener<StockReservedDomainEvent> {
   constructor(
-    private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
+    private readonly orders: OrderRepository,
     private readonly events: EventBus,
     private readonly clock: Clock,
   ) {

@@ -61,7 +61,7 @@ export class ShippingCostCalculator {
 * La condición de envío gratis es una `Specification<Order>` que recibe ya construida (`new TotalAtLeast(euros(5000))`); `SatisfiedBy<Order>` acepta también cualquier objeto con `isSatisfiedBy`, y se combina con `and`, `or` y `not`.
 * El nombre de la clase y del método salen del lenguaje ubicuo.
 * No guarda nada ni publica nada; eso lo hace el caso de uso que lo invoca.
-* El servicio puede leer por repositorio [IDDD cap. 7]: con el paquete recibe un `AggregateFinder` (solo lectura) o los agregados ya cargados por el caso de uso, como aquí; nunca guarda ni elimina.
+* El servicio puede leer por repositorio [IDDD cap. 7]: con el paquete recibe el repositorio del agregado (`OrderRepository`) y solo llama a `findById`, o recibe los agregados ya cargados por el caso de uso, como aquí; nunca guarda ni elimina.
 
 ## Interfaz separada o no
 

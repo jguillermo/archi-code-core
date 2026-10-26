@@ -262,7 +262,7 @@ CREATE TABLE event_streams (
 
 La clave primaria `(stream_id, version)` impide dos escrituras con la misma versión; `global_seq` da el orden global que necesitan la publicación y la reconstrucción de proyecciones. `body` es la copia plana del evento (`{ ...event }`).
 
-El dominio declara el contrato del stream (solo tipos, como los contratos de repositorio del paquete) `[Fuera de los libros: convención de @archi-code/ddd]`: no es `AggregateFinder`/`AggregateSaver`, porque guardar necesita los cambios que el caso de uso ya sacó con `pullDomainEvents()` para publicarlos.
+El dominio declara el contrato del stream (una interfaz de solo tipos) `[Fuera de los libros: convención de @archi-code/ddd]`: no es el repositorio abstracto del agregado (`AggregateRepository` con `findById`/`save`), porque guardar necesita los cambios que el caso de uso ya sacó con `pullDomainEvents()` para publicarlos.
 
 ```ts
 export interface PaymentStream {

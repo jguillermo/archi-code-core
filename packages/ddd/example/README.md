@@ -44,6 +44,7 @@ src/
         value-object/    <ValueObject>.ts
         event/           <Aggregate><PastAction>DomainEvent.ts
         exception/       <WhatWentWrong>.ts
+        repository/      <Aggregate>Repository.ts
         service/         <Service>.ts, <Port>.ts
         specification/   <Rule>.ts
       application/
@@ -98,6 +99,7 @@ src/
 | free-form JSON                           | `value-object/`  | `<Name>Data`, `<Name>Json`, `<Name>` (three files) | `interface … extends JsonTypeValue`, `JsonType<<Name>Data>`, `Required(<Name>Json)`                   |
 | domain event                             | `event/`         | `<Aggregate><PastAction>DomainEvent`               | `EventBase`                                                                                           |
 | business error                           | `exception/`     | `<WhatWentWrong>` (no `Exception` suffix)          | `DomainException`                                                                                     |
+| repository of an aggregate               | `repository/`    | `<Aggregate>Repository`                            | `abstract class` extending `AggregateRepository<<Aggregate>>`, implementing its roles (D-REPO)        |
 | specification                            | `specification/` | `<Rule>`                                           | `Specification<<Aggregate>>`                                                                          |
 | domain service                           | `service/`       | `<Service>`                                        | plain class                                                                                           |
 | domain port                              | `service/`       | `<Port>`                                           | `interface`                                                                                           |
@@ -470,9 +472,36 @@ References: `sales/domain/specification/{SubtotalAtLeast,ContainsSku,FreeShippin
 
 References: `sales/domain/service/{OrderPricing,CouponCatalog}.ts`.
 
-### 2.10 Domain MUST NOT
+### 2.10 Repositories (D-REPO)
 
-`aggregateId` in events; types/interfaces in event files; event data types in `domain/`; `toPrimitives`/`fromPrimitives` on events; per-aggregate repository interfaces (`OrderRepository`); commands; `ensureX` methods; ids computed inside `create`; repositories, event bus, loggers, HTTP, `Date.now()`.
+| Id      | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D-REPO1 | One abstract repository per aggregate: `repository/<Aggregate>Repository.ts`, `export abstract class <Aggregate>Repository extends AggregateRepository<<Aggregate>> implements` the roles of the verbs it declares (`AggregateFinder<X>`, `AggregateSaver<X>`, `AggregateRemover<X>`). It is the only thing the domain declares about persistence.                                                                                                            |
+| D-REPO2 | Declares as `abstract` only the verbs the business of that aggregate uses, each one the method of its role with the role's signature: `findById(id: <Aggregate>Id): Promise<<Aggregate> \| null>` (`AggregateFinder`), `save(<aggregate>: <Aggregate>): Promise<void>` (`AggregateSaver`), `remove(<aggregate>: <Aggregate>): Promise<void>` (`AggregateRemover`, only when a use case deletes the aggregate: `OrderRepository` for `DiscardCancelledOrder`). |
+| D-REPO3 | Nothing else: no business names, queries, `nextId()`, events, constructor nor code. The roles never type a dependency on their own: use cases and reactions receive `<Aggregate>Repository` (A-USR3), adapters extend it (I-REPO1).                                                                                                                                                                                                                           |
+
+Template, `payments/domain/repository/PaymentRepository.ts` (payments are never deleted, so no `remove`):
+
+```ts
+import { AggregateRepository } from '../../../../ddd/domain';
+import type { AggregateFinder, AggregateSaver } from '../../../../ddd/domain';
+import type { Payment } from '../aggregate/Payment';
+import type { PaymentId } from '../value-object/PaymentId';
+
+export abstract class PaymentRepository
+  extends AggregateRepository<Payment>
+  implements AggregateFinder<Payment>, AggregateSaver<Payment>
+{
+  abstract findById(id: PaymentId): Promise<Payment | null>;
+  abstract save(payment: Payment): Promise<void>;
+}
+```
+
+References: `sales/domain/repository/OrderRepository.ts` (with `remove`), `shipping/domain/repository/ShipmentRepository.ts`.
+
+### 2.11 Domain MUST NOT
+
+`aggregateId` in events; types/interfaces in event files; event data types in `domain/`; `toPrimitives`/`fromPrimitives` on events; repository interfaces, mappers or repository code (only the abstract class of D-REPO); commands; `ensureX` methods; ids computed inside `create`; repositories inside aggregates, event bus, loggers, HTTP, `Date.now()`.
 
 ## 3. Application layer (A)
 
@@ -496,7 +525,7 @@ A use case = one business action. Two kinds; the only difference is where the in
 | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | A-USR1 | Same file exports `interface <Action>Input` (primitives and data types; `actorId` or `actorRole` when an actor matters) and `interface <Action>Command` (value objects, composites, `New<Child>[]`).                                                                                                                                                                                                                                                                                                                        |
 | A-USR2 | `Output` = `void`, or the new id as `string` (`PlaceOrder`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| A-USR3 | Constructor params, `private readonly`, only what `handle` uses, in this order: repository typed by roles (`AggregateFinder<X> & AggregateSaver<X>`; `AggregateSaver<X>` alone when only creating; `AggregateFinder<X> & AggregateRemover<X>` when removing), domain services, `EventBus`, `Clock`, `Logger`. Body `super();`.                                                                                                                                                                                              |
+| A-USR3 | Constructor params, `private readonly`, only what `handle` uses, in this order: the aggregate's repository (`private readonly orders: OrderRepository`, the abstract class of D-REPO, never `AggregateFinder<X> & AggregateSaver<X>`), domain services, `EventBus`, `Clock`, `Logger`. Body `super();`.                                                                                                                                                                                                                     |
 | A-USR4 | `protected toCommand(input)`: exactly `return ValueObjectBuilder.build({ <field>: () => new <VO>(input.<x>), … })`. Enums: `new <Enum>Type(input.x as <Enum>)`. Composites: `X.fromPrimitives(input.x)`; money: `Money.fromPrimitives(input.x as { amount: number; currency: Currency })`. Lists of shapes: `ValueObjectBuilder.buildList(input.items, (item) => ValueObjectBuilder.build({ … }))` (errors reported as `lines.1.quantity`).                                                                                 |
 | A-USR5 | `protected async handle(command)` steps in order: (1) authorization → `throw new NotAllowedException('<English message>')`; (2) new id `<Aggregate>Id.generate()`; (3) `<Aggregate>.create(...)`, or `findById` and when `null` `throw new AggregateNotFoundException('<Aggregate>', id.value)`; (4) business method(s) with `this.clock`; (5) `await repo.save(x)` once (or `await repo.remove(x)`), then `await this.events.publish(x.pullDomainEvents())`; (6) log if the business wants a trace; (7) return the output. |
 | A-USR6 | A rule that depends only on the actor → `NotAllowedException` here. A rule that depends on aggregate state (only the buyer cancels) → business error in the aggregate (D-AGG10).                                                                                                                                                                                                                                                                                                                                            |
@@ -506,7 +535,6 @@ A use case = one business action. Two kinds; the only difference is where the in
 Template, `payments/application/confirm-transfer-received/confirm-transfer-received.ts`:
 
 ```ts
-import type { AggregateFinder, AggregateSaver } from '../../../../ddd/domain';
 import {
   AggregateNotFoundException,
   NotAllowedException,
@@ -516,7 +544,7 @@ import {
 import type { Clock, EventBus } from '../../../../ddd/application';
 import { Money } from '../../../shared-kernel/money/Money';
 import type { Currency } from '../../../shared-kernel/money/MoneyCurrency';
-import type { Payment } from '../../domain/aggregate/Payment';
+import type { PaymentRepository } from '../../domain/repository/PaymentRepository';
 import type { MoneyData } from '../request-payment/money-data';
 import { PaymentId } from '../../domain/value-object/PaymentId';
 import { StaffRole } from '../../domain/value-object/StaffRoleType';
@@ -540,7 +568,7 @@ export class ConfirmTransferReceived extends UseCase<
   void
 > {
   constructor(
-    private readonly payments: AggregateFinder<Payment> & AggregateSaver<Payment>,
+    private readonly payments: PaymentRepository,
     private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
@@ -573,7 +601,7 @@ export class ConfirmTransferReceived extends UseCase<
 }
 ```
 
-Other references: `sales/application/place-order/place-order.ts` (create, `buildList`, domain service, returns id), `sales/application/change-shipping-address/change-shipping-address.ts` (retry), `sales/application/discard-cancelled-order/discard-cancelled-order.ts` (`AggregateRemover`, `assertDiscardable`).
+Other references: `sales/application/place-order/place-order.ts` (create, `buildList`, domain service, returns id), `sales/application/change-shipping-address/change-shipping-address.ts` (retry), `sales/application/discard-cancelled-order/discard-cancelled-order.ts` (`remove`, `assertDiscardable`).
 
 ### 3.3 Reaction use cases (A-RUC)
 
@@ -584,7 +612,7 @@ The listener IS the use case: one class, one file, no `UseCase` class behind it.
 | A-RUC1 | File `application/<action>/<action>-on-<event>.ts` (read model: `application/<read-model>/<action>/<action>-on-<event>.ts`); class `<Action>On<Event>`, `<Event>` = event class name without `DomainEvent`.                                                                                                                                                                                                                                                                                                                                           |
 | A-RUC2 | `extends EventListener<<Event>DomainEvent>`, decorated `@ListensTo(<Event>DomainEvent, { consumer: '<context>.<action>-on-<event>' })`: context + `.` + file name without `.ts`; unique in the shop. One event per class.                                                                                                                                                                                                                                                                                                                             |
 | A-RUC3 | Event class: the local copy `./<event>-domain-event` (A-EVC) when the event comes from another context; the context's own `domain/event/<Event>DomainEvent` when it is its own event (read models).                                                                                                                                                                                                                                                                                                                                                   |
-| A-RUC4 | Constructor: same order as A-USR3 (repository roles, services, `EventBus`, `Clock`, `Logger`); a read-model reaction receives only its projection. Body `super();`.                                                                                                                                                                                                                                                                                                                                                                                   |
+| A-RUC4 | Constructor: same order as A-USR3 (the aggregate's repository, services, `EventBus`, `Clock`, `Logger`); a read-model reaction receives only its projection. Body `super();`.                                                                                                                                                                                                                                                                                                                                                                         |
 | A-RUC5 | `async handle(event: <Event>DomainEvent): Promise<void>` steps: (1) `const { a, b } = ValueObjectBuilder.build({ a: () => new A(event.a), … })` (A-USR4 conversion rules, reading `event.*`); (2) derived id (`PaymentId.forOrder(orderReference)`); (3a) to create: `if ((await repo.findById(id)) !== null) { return; }` then `<Aggregate>.create(...)`; (3b) to change: `const x = await repo.findById(id); if (x === null) { return; }`; (4) the reaction method (D-AGG11); (5) `save` once + `publish(x.pullDomainEvents())`; (6) log if needed. |
 | A-RUC6 | MUST NOT: authorization, `AggregateNotFoundException`, throwing business errors, calling a use case or another listener, HTTP, try/catch.                                                                                                                                                                                                                                                                                                                                                                                                             |
 | A-RUC7 | No `UseCase` wrapper: unknown errors are not wrapped in `UnexpectedErrorException`; `DomainEventBus` logs them (`warn` for Domain/Application exceptions, `error` otherwise) and rethrows to the channel.                                                                                                                                                                                                                                                                                                                                             |
@@ -593,12 +621,12 @@ The listener IS the use case: one class, one file, no `UseCase` class behind it.
 Template (create), `payments/application/request-payment/request-payment-on-order-created.ts`:
 
 ```ts
-import type { AggregateFinder, AggregateSaver } from '../../../../ddd/domain';
 import { EventListener, ListensTo, ValueObjectBuilder } from '../../../../ddd/application';
 import type { Clock, EventBus } from '../../../../ddd/application';
 import { Money } from '../../../shared-kernel/money/Money';
 import type { Currency } from '../../../shared-kernel/money/MoneyCurrency';
 import { Payment } from '../../domain/aggregate/Payment';
+import type { PaymentRepository } from '../../domain/repository/PaymentRepository';
 import { OrderReference } from '../../domain/value-object/OrderReference';
 import { PaymentId } from '../../domain/value-object/PaymentId';
 import { PaymentMethodType } from '../../domain/value-object/PaymentMethodType';
@@ -608,7 +636,7 @@ import { OrderCreatedDomainEvent } from './order-created-domain-event';
 @ListensTo(OrderCreatedDomainEvent, { consumer: 'payments.request-payment-on-order-created' })
 export class RequestPaymentOnOrderCreated extends EventListener<OrderCreatedDomainEvent> {
   constructor(
-    private readonly payments: AggregateFinder<Payment> & AggregateSaver<Payment>,
+    private readonly payments: PaymentRepository,
     private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
@@ -692,15 +720,15 @@ Reference reaction: `sales/application/order-summaries/mark-order-summary-paid/m
 
 ### 4.1 Repositories (I-REPO)
 
-| Id      | Rule                                                                                                                                                                                                                                                               |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| I-REPO1 | `infrastructure/persistence/in-memory-<aggregate>-repository.ts`, `InMemory<Aggregate>Repository implements` the roles the use cases need (`AggregateFinder<X>`, `AggregateSaver<X>`, `AggregateRemover<X>`). No repository interface of its own.                  |
-| I-REPO2 | Constructor: only its technology (none in memory); never an aggregate class or mapper.                                                                                                                                                                             |
-| I-REPO3 | Storage: `private readonly rows = new Map<string, <Aggregate>Row>()` keyed by `id.value`, with a file-local `interface <Aggregate>Row { version: number; primitives: PrimitiveTypes<X> }`; `private readonly versions = new WeakMap<X, number>()`.                 |
-| I-REPO4 | `findById`: missing → `null`; else `X.fromPrimitives(structuredClone(row.primitives))` and `versions.set(x, row.version)`.                                                                                                                                         |
-| I-REPO5 | `save`: `version = versions.get(x) ?? 0`; if stored version (`?? 0`) ≠ `version` → `throw new ConcurrencyException('<Aggregate>', key, version)`; store `{ version: version + 1, primitives: structuredClone(x.toPrimitives()) }`; `versions.set(x, version + 1)`. |
-| I-REPO6 | `remove`: same version check (MAY share a private `checkedVersion`), then `rows.delete(key)`.                                                                                                                                                                      |
-| I-REPO7 | MUST NOT contain business queries, `nextId()`, events or rules. MAY expose read helpers (`versionOf(id)`).                                                                                                                                                         |
+| Id      | Rule                                                                                                                                                                                                                                                                                                   |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| I-REPO1 | One adapter per aggregate and technology: `infrastructure/persistence/in-memory-<aggregate>-repository.ts`, `export class InMemory<Aggregate>Repository extends <Aggregate>Repository` (D-REPO), implementing exactly the verbs the abstract repository declares; no `implements` of roles of its own. |
+| I-REPO2 | Constructor (`super()` first): only its technology (none in memory, so no constructor); never an aggregate class or mapper.                                                                                                                                                                            |
+| I-REPO3 | Storage: `private readonly rows = new Map<string, <Aggregate>Row>()` keyed by `id.value`, with a file-local `interface <Aggregate>Row { version: number; primitives: PrimitiveTypes<X> }`; `private readonly versions = new WeakMap<X, number>()`.                                                     |
+| I-REPO4 | `findById`: missing → `null`; else `X.fromPrimitives(structuredClone(row.primitives))` and `versions.set(x, row.version)`.                                                                                                                                                                             |
+| I-REPO5 | `save`: `version = versions.get(x) ?? 0`; if stored version (`?? 0`) ≠ `version` → `throw new ConcurrencyException('<Aggregate>', key, version)`; store `{ version: version + 1, primitives: structuredClone(x.toPrimitives()) }`; `versions.set(x, version + 1)`.                                     |
+| I-REPO6 | `remove`: same version check (MAY share a private `checkedVersion`), then `rows.delete(key)`.                                                                                                                                                                                                          |
+| I-REPO7 | MUST NOT contain business queries, `nextId()`, events or rules. MAY expose technical read helpers for tests (`versionOf(id)`), which no use case sees (they are not on the abstract repository).                                                                                                       |
 
 References: `payments/infrastructure/persistence/in-memory-payment-repository.ts`, `sales/infrastructure/persistence/in-memory-order-repository.ts`.
 
@@ -800,7 +828,7 @@ Error body: `{ code, message, errors }` (`errors` only for `ValidationException`
 
 1. `value-object/<Aggregate>Id.ts`, status enum, value objects of its fields.
 2. `aggregate/<Aggregate>.ts` (D-AGG template), events, errors.
-3. `infrastructure/persistence/in-memory-<aggregate>-repository.ts` (I-REPO).
+3. `repository/<Aggregate>Repository.ts` with the verbs its use cases use (D-REPO) and `infrastructure/persistence/in-memory-<aggregate>-repository.ts` extending it (I-REPO).
 4. Use cases (R1/R2), controller, composition.
 
 ### R4 New read model field
@@ -815,12 +843,12 @@ Extend `<row>.ts` and `<Row>Changes`, the default row in the projection, the rea
 
 ### 8.1 Contexts and aggregates
 
-| Context             | Aggregate (id)                               | Child entities             | Repository roles       | Error prefix |
-| ------------------- | -------------------------------------------- | -------------------------- | ---------------------- | ------------ |
-| sales               | `Order` (`OrderId`, random)                  | `OrderLine` (`LineNumber`) | Finder, Saver, Remover | `SAL`        |
-| payments            | `Payment` (`PaymentId.forOrder`)             | —                          | Finder, Saver          | `PAY`        |
-| shipping            | `Shipment` (`ShipmentId.forOrder`)           | —                          | Finder, Saver          | `SHP`        |
-| shared-kernel/money | `Money` composite (`Cents`, `MoneyCurrency`) | —                          | —                      | `MNY`        |
+| Context             | Aggregate (id)                               | Child entities             | Repository verbs             | Error prefix |
+| ------------------- | -------------------------------------------- | -------------------------- | ---------------------------- | ------------ |
+| sales               | `Order` (`OrderId`, random)                  | `OrderLine` (`LineNumber`) | `findById`, `save`, `remove` | `SAL`        |
+| payments            | `Payment` (`PaymentId.forOrder`)             | —                          | `findById`, `save`           | `PAY`        |
+| shipping            | `Shipment` (`ShipmentId.forOrder`)           | —                          | `findById`, `save`           | `SHP`        |
+| shared-kernel/money | `Money` composite (`Cents`, `MoneyCurrency`) | —                          | —                            | `MNY`        |
 
 ### 8.2 Events (producer → consumers)
 
@@ -847,17 +875,17 @@ Extend `<row>.ts` and `<Row>Changes`, the default row in the projection, the rea
 
 ### 8.3 User use cases and endpoints
 
-| Context  | Controller method          | Use case                            | Actor check                                      | Repo roles      | Success               |
-| -------- | -------------------------- | ----------------------------------- | ------------------------------------------------ | --------------- | --------------------- |
-| sales    | `placeOrder`               | `PlaceOrder` (+ `OrderPricing`)     | `auth.userId` must equal `customerId` (use case) | Saver           | 201 `{ id }`          |
-| sales    | `changeLineQuantity`       | `ChangeOrderLineQuantity`           | —                                                | Finder, Saver   | 204 (409 on conflict) |
-| sales    | `changeShippingAddress`    | `ChangeShippingAddress` (retries 3) | —                                                | Finder, Saver   | 204                   |
-| sales    | `cancelOrder`              | `CancelOrder`                       | `auth.userId` is the buyer (aggregate)           | Finder, Saver   | 204                   |
-| sales    | `discardOrder`             | `DiscardCancelledOrder`             | `auth.role` = `admin` (use case)                 | Finder, Remover | 204                   |
-| sales    | `getOrder`, `listMyOrders` | query port `OrderSummaries`         | — / `auth.userId`                                | —               | 200                   |
-| payments | `confirmTransfer`          | `ConfirmTransferReceived`           | `auth.role` = `treasury` (use case)              | Finder, Saver   | 204                   |
-| shipping | `dispatch`                 | `DispatchShipment`                  | `auth.role` = `warehouse` (use case)             | Finder, Saver   | 204                   |
-| shipping | `deliver`                  | `DeliverShipment`                   | `auth.role` = `warehouse` (use case)             | Finder, Saver   | 204                   |
+| Context  | Controller method          | Use case                            | Actor check                                      | Repo verbs           | Success               |
+| -------- | -------------------------- | ----------------------------------- | ------------------------------------------------ | -------------------- | --------------------- |
+| sales    | `placeOrder`               | `PlaceOrder` (+ `OrderPricing`)     | `auth.userId` must equal `customerId` (use case) | `save`               | 201 `{ id }`          |
+| sales    | `changeLineQuantity`       | `ChangeOrderLineQuantity`           | —                                                | `findById`, `save`   | 204 (409 on conflict) |
+| sales    | `changeShippingAddress`    | `ChangeShippingAddress` (retries 3) | —                                                | `findById`, `save`   | 204                   |
+| sales    | `cancelOrder`              | `CancelOrder`                       | `auth.userId` is the buyer (aggregate)           | `findById`, `save`   | 204                   |
+| sales    | `discardOrder`             | `DiscardCancelledOrder`             | `auth.role` = `admin` (use case)                 | `findById`, `remove` | 204                   |
+| sales    | `getOrder`, `listMyOrders` | query port `OrderSummaries`         | — / `auth.userId`                                | —                    | 200                   |
+| payments | `confirmTransfer`          | `ConfirmTransferReceived`           | `auth.role` = `treasury` (use case)              | `findById`, `save`   | 204                   |
+| shipping | `dispatch`                 | `DispatchShipment`                  | `auth.role` = `warehouse` (use case)             | `findById`, `save`   | 204                   |
+| shipping | `deliver`                  | `DeliverShipment`                   | `auth.role` = `warehouse` (use case)             | `findById`, `save`   | 204                   |
 
 ### 8.4 Business errors
 
@@ -906,9 +934,9 @@ Next free codes: `SAL010`, `PAY002`, `SHP004`, `MNY002`.
 ## 9. Review checklist
 
 - [ ] G: English, no comments, named exports, `import type` split, no cross-context import, layer matrix (G9).
-- [ ] D: value objects always valid through `@Validations`; aggregate member order and fields (D-AGG1, D-AGG3); `create` never computes ids; reaction methods return silently, user methods throw; `toPrimitives`/`fromPrimitives` cover every field; events primitive-only, inline types, no event union; errors with the next code.
+- [ ] D: value objects always valid through `@Validations`; aggregate member order and fields (D-AGG1, D-AGG3); `create` never computes ids; reaction methods return silently, user methods throw; `toPrimitives`/`fromPrimitives` cover every field; events primitive-only, inline types, no event union; errors with the next code; one abstract repository per aggregate with only the verbs its use cases use (D-REPO).
 - [ ] A: user use case = `UseCase` with one `ValueObjectBuilder.build` in `toCommand` and the A-USR5 steps; reaction use case = one `EventListener` class with consumer `<context>.<file-name>` and the A-RUC5 steps; no use case calls another; one event copy per reaction folder.
-- [ ] I: repositories implement roles only, version check with `WeakMap`, `structuredClone` both ways; adapters wrap bad data in `InternalErrorException`.
+- [ ] I: repositories extend the abstract repository of their aggregate, version check with `WeakMap`, `structuredClone` both ways; adapters wrap bad data in `InternalErrorException`.
 - [ ] H: controllers check only auth and shape, never catch.
 - [ ] C: every reaction subscribed, every heard event registered once, controllers receive the user use cases.
 - [ ] `npm run check:types` (packages/ddd) and `npm run check:format` (root) pass.

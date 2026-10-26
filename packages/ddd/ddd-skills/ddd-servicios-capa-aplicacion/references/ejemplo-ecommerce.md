@@ -14,7 +14,7 @@
 
 ## El modelo
 
-`Order` y sus value objects (`OrderId`, `CustomerId`, `Sku`, `Quantity`, `Money`, `OrderLine`, `OrderLines`, `ShippingAddress`, `OrderStatusType`, `ReservationReference`, `CancellationReason`), sus eventos (`OrderCreatedDomainEvent`, `OrderLineAddedDomainEvent`, `OrderCancelledDomainEvent`…, unidos en `OrderEvent`) y sus errores son los de `ddd-skills/ddd-agregados/references/implementacion-ts.md`; no se redefinen aquí. Lo que usan los ejemplos de esta guía (`ddd-skills/ddd-servicios-capa-aplicacion/references/servicios-dominio-ts.md` y `ddd-skills/ddd-servicios-capa-aplicacion/references/capa-aplicacion-ts.md`):
+`Order` y sus value objects (`OrderId`, `CustomerId`, `Sku`, `Quantity`, `Money`, `OrderLine`, `OrderLines`, `ShippingAddress`, `OrderStatusType`, `ReservationReference`, `CancellationReason`), sus eventos (`OrderCreatedDomainEvent`, `OrderLineAddedDomainEvent`, `OrderCancelledDomainEvent`…, sin un tipo unión) y sus errores son los de `ddd-skills/ddd-agregados/references/implementacion-ts.md`; no se redefinen aquí. Lo que usan los ejemplos de esta guía (`ddd-skills/ddd-servicios-capa-aplicacion/references/servicios-dominio-ts.md` y `ddd-skills/ddd-servicios-capa-aplicacion/references/capa-aplicacion-ts.md`):
 
 ```ts
 static create(
@@ -156,7 +156,6 @@ export class OrderCancellation {
 
 ```ts
 // src/contexts/sales/application/place-order/place-order.ts
-import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
 import {
   AggregateNotFoundException,
   NotAllowedException,
@@ -183,8 +182,8 @@ export interface PlaceOrderCommand {
 
 export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, string> {
   constructor(
-    private readonly customers: AggregateFinder<Customer>,
-    private readonly orders: AggregateSaver<Order>,
+    private readonly customers: CustomerRepository,
+    private readonly orders: OrderRepository,
     private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
@@ -224,7 +223,7 @@ export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, stri
 ```
 
 * La autorización va primero y depende solo del actor; las lecturas de otros agregados (`Customer`) van antes de invocar al dominio [IDDD cap. 10].
-* `Customer` actúa como fábrica pero no se modifica ni se guarda: el caso de uso pide `AggregateFinder<Customer>` y `AggregateSaver<Order>`, y solo se guarda `Order`: una escritura atómica, un agregado; que esa escritura sea atómica lo garantiza el repositorio, no el caso de uso `[Fuera de los libros: convención de @archi-code/ddd]`.
+* `Customer` actúa como fábrica pero no se modifica ni se guarda: el caso de uso recibe `CustomerRepository` y `OrderRepository` (los repositorios abstractos que el dominio declara en `domain/repository/`), de `customers` solo llama a `findById` y solo se guarda `Order`: una escritura atómica, un agregado; que esa escritura sea atómica lo garantiza el repositorio, no el caso de uso `[Fuera de los libros: convención de @archi-code/ddd]`.
 * El id nuevo lo genera el caso de uso con el value object (`OrderId.generate()`), no el repositorio ni `Order.create`.
 * `toCommand` informa de todos los campos a la vez, también los de cada línea (`OrderLines.fromPrimitives` los nombra por su ruta, `lines.items.0.quantity`).
 * `MoneyData` y `AddressData` son tipos de datos de la entrada, en la carpeta de este caso de uso.
@@ -264,7 +263,6 @@ export class StockItemReservedDomainEvent extends EventBase {
 
 ```ts
 // src/contexts/sales/application/register-stock-reservation/register-stock-reservation-on-stock-item-reserved.ts
-import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
 import { EventListener, ListensTo, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
 import { StockItemReservedDomainEvent } from './stock-item-reserved-domain-event';
@@ -274,7 +272,7 @@ import { StockItemReservedDomainEvent } from './stock-item-reserved-domain-event
 })
 export class RegisterStockReservationOnStockItemReserved extends EventListener<StockItemReservedDomainEvent> {
   constructor(
-    private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
+    private readonly orders: OrderRepository,
     private readonly events: EventBus,
     private readonly clock: Clock,
   ) {

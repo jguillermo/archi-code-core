@@ -22,6 +22,7 @@ import { StringType } from '../../src/domain/type/string-type';
 
 const PUBLIC_API = [
   'AbstractType',
+  'AggregateRepository',
   'AggregateRoot',
   'ArrayType',
   'BooleanType',
@@ -59,9 +60,12 @@ describe('@archi-code/ddd/domain', () => {
   });
 
   it('knows nothing about persistence: mappers and repository adapters live in infrastructure', () => {
-    expect(Object.keys(domain).filter((name) => /Mapper|Repository|Persist/.test(name))).toEqual(
-      [],
-    );
+    expect(Object.keys(domain).filter((name) => /Mapper|Repository|Persist/.test(name))).toEqual([
+      'AggregateRepository',
+    ]);
+    expect(Object.getOwnPropertyNames(domain.AggregateRepository.prototype)).toEqual([
+      'constructor',
+    ]);
   });
 
   it('exports every value as a class or function, and the codes as an enum', () => {
@@ -94,7 +98,8 @@ describe('@archi-code/ddd/domain', () => {
     }>();
   });
 
-  it('exports the repository contracts as types, one per role', () => {
+  it('exports the base of every repository and the role of each verb as a type', () => {
+    expectTypeOf<keyof domain.AggregateRepository<AggregateRoot>>().toEqualTypeOf<never>();
     expectTypeOf<keyof AggregateFinder<AggregateRoot>>().toEqualTypeOf<'findById'>();
     expectTypeOf<keyof AggregateSaver<AggregateRoot>>().toEqualTypeOf<'save'>();
     expectTypeOf<keyof AggregateRemover<AggregateRoot>>().toEqualTypeOf<'remove'>();

@@ -1,7 +1,7 @@
-import type { AggregateFinder, AggregateSaver } from '../../../../ddd/domain';
 import { EventListener, ListensTo, ValueObjectBuilder } from '../../../../ddd/application';
 import type { Clock, EventBus } from '../../../../ddd/application';
 import { Shipment } from '../../domain/aggregate/Shipment';
+import type { ShipmentRepository } from '../../domain/repository/ShipmentRepository';
 import { GiftWrapRequested } from '../../domain/value-object/GiftWrapRequested';
 import { OrderReference } from '../../domain/value-object/OrderReference';
 import { ShipmentAddress } from '../../domain/value-object/ShipmentAddress';
@@ -12,7 +12,7 @@ import { OrderPaidDomainEvent } from './order-paid-domain-event';
 @ListensTo(OrderPaidDomainEvent, { consumer: 'shipping.prepare-shipment-on-order-paid' })
 export class PrepareShipmentOnOrderPaid extends EventListener<OrderPaidDomainEvent> {
   constructor(
-    private readonly shipments: AggregateFinder<Shipment> & AggregateSaver<Shipment>,
+    private readonly shipments: ShipmentRepository,
     private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
