@@ -1,7 +1,7 @@
 {
   "packages": {
     "@archi-code/criteria": {
-      "main": "3.0.0-alpha.7"
+      "main": "4.0.0-alpha.1"
     },
     "@archi-code/crypto-tools": {
       "main": "3.0.0-alpha.4"
@@ -25,5 +25,24 @@
       "main": "3.0.0-alpha.4"
     }
   },
-  "deploys": []
+  "deploys": [
+    {
+      "date": "2026-10-26T03:30:52.858Z",
+      "commit": "2938a7614958a0bd3768348e96252b0d9d94cf40",
+      "channel": "main",
+      "reset": "4.0.0-alpha.1",
+      "packages": [
+        {
+          "name": "@archi-code/criteria",
+          "previous": "3.0.0-alpha.7",
+          "version": "4.0.0-alpha.1",
+          "bump": "major",
+          "reasons": [
+            "breaking: releases.json without deploys, new major for the whole set (4.0.0-alpha.1)"
+          ],
+          "dependencies": {}
+        }
+      ]
+    }
+  ]
 }
