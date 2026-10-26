@@ -19,7 +19,7 @@
       "main": "3.0.0-alpha.6"
     },
     "@archi-code/criteria-adapters": {
-      "main": "3.0.0-alpha.3"
+      "main": "4.0.0-alpha.1"
     },
     "@archi-code/ddd": {
       "main": "3.0.0-alpha.4"
@@ -41,6 +41,18 @@
             "breaking: releases.json without deploys, new major for the whole set (4.0.0-alpha.1)"
           ],
           "dependencies": {}
+        },
+        {
+          "name": "@archi-code/criteria-adapters",
+          "previous": "3.0.0-alpha.3",
+          "version": "4.0.0-alpha.1",
+          "bump": "major",
+          "reasons": [
+            "breaking: releases.json without deploys, new major for the whole set (4.0.0-alpha.1)"
+          ],
+          "dependencies": {
+            "@archi-code/criteria": "4.0.0-alpha.1"
+          }
         }
       ]
     }
