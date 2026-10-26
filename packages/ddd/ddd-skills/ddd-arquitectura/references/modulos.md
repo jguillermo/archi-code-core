@@ -24,7 +24,7 @@ Y en sentido contrario: un módulo no arregla un lenguaje mezclado. Si un térmi
 
 `[Fuera de los libros: convención de @archi-code/ddd]` Los libros piden módulos con nombres del lenguaje ubicuo y desaconsejan agruparlos por tipo de patrón [IDDD cap. 9; PHP: Modules]. El paquete se aparta en `domain/`: cada contexto agrupa sus clases por tipo, y el lenguaje ubicuo vive en el nombre del contexto, en el de cada clase y en las carpetas de `application/`, una por acción de negocio.
 
-* `domain/` de cada contexto: `aggregate/` (raíces y las formas `New<Child>` que recibe `create`), `entity/` (entidades hijas), `value-object/`, `event/` (eventos y la unión `<Aggregate>Event`), `exception/` (errores de negocio), `service/` (servicios y puertos de dominio) y `specification/`. Una clase por fichero, con el nombre de la clase en PascalCase (`OrderNotModifiable.ts`).
+* `domain/` de cada contexto: `aggregate/` (raíces y las formas `New<Child>` que recibe `create`), `entity/` (entidades hijas), `value-object/`, `event/` (un fichero por evento, sin unión de eventos), `exception/` (errores de negocio), `service/` (servicios y puertos de dominio) y `specification/`. Una clase por fichero, con el nombre de la clase en PascalCase (`OrderNotModifiable.ts`).
 * `application/`: un módulo por acción de negocio en kebab-case (`place-order/`, `mark-order-paid/`), con su caso de uso, sus tipos de datos y, en un caso de uso por reacción, la copia del evento ajeno que escucha (`mark-order-paid/mark-order-paid-on-payment-captured.ts` + `payment-captured-domain-event.ts`); nunca carpetas `listeners/`, `use-cases/`, `commands/` ni `dtos/`. Un read model es un módulo con su fila, sus puertos, su proyección y una subcarpeta por reacción (`order-summaries/`).
 * `infrastructure/` por área técnica (`persistence/`, `messaging/`, `read-model/`, el nombre del puerto que implementa: `coupon/`) e `interfaces/` por protocolo (`http/`).
 * Las clases base (`AggregateRoot`, `EventBase`, `Composite`, los tipos de value object) y los roles de repositorio (`AggregateFinder`, `AggregateSaver`, `AggregateRemover`) no forman un módulo del proyecto: se importan de `@archi-code/ddd/domain` donde se usan.
@@ -45,7 +45,6 @@ contexts/sales/domain/           domain/
     Sku.ts                           money.ts        (compartido con otros contextos)
   event/
     OrderPaidDomainEvent.ts
-    OrderEvent.ts
   exception/
     OrderNotCancellable.ts
 (una clase por fichero, del         (reescribe lo que da el paquete y

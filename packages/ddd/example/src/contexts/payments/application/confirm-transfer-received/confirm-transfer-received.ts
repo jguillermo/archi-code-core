@@ -10,7 +10,6 @@ import { Money } from '../../../shared-kernel/money/Money';
 import type { Currency } from '../../../shared-kernel/money/MoneyCurrency';
 import type { Payment } from '../../domain/aggregate/Payment';
 import type { MoneyData } from '../request-payment/money-data';
-import type { PaymentEvent } from '../../domain/event/PaymentEvent';
 import { PaymentId } from '../../domain/value-object/PaymentId';
 import { StaffRole } from '../../domain/value-object/StaffRoleType';
 import { StaffRoleType } from '../../domain/value-object/StaffRoleType';
@@ -34,7 +33,7 @@ export class ConfirmTransferReceived extends UseCase<
 > {
   constructor(
     private readonly payments: AggregateFinder<Payment> & AggregateSaver<Payment>,
-    private readonly events: EventBus<PaymentEvent>,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();

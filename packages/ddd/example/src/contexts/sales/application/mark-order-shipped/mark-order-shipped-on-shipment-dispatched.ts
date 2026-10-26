@@ -2,7 +2,6 @@ import type { AggregateFinder, AggregateSaver } from '../../../../ddd/domain';
 import { EventListener, ListensTo, ValueObjectBuilder } from '../../../../ddd/application';
 import type { Clock, EventBus } from '../../../../ddd/application';
 import type { Order } from '../../domain/aggregate/Order';
-import type { OrderEvent } from '../../domain/event/OrderEvent';
 import { CarrierTrackingNumber } from '../../domain/value-object/CarrierTrackingNumber';
 import { OrderId } from '../../domain/value-object/OrderId';
 import { ShipmentDispatchedDomainEvent } from './shipment-dispatched-domain-event';
@@ -13,7 +12,7 @@ import { ShipmentDispatchedDomainEvent } from './shipment-dispatched-domain-even
 export class MarkOrderShippedOnShipmentDispatched extends EventListener<ShipmentDispatchedDomainEvent> {
   constructor(
     private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
-    private readonly events: EventBus<OrderEvent>,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();

@@ -7,7 +7,6 @@ import {
 import type { Clock, EventBus } from '../../../../ddd/application';
 import { CustomerId } from '../../domain/value-object/CustomerId';
 import type { Order } from '../../domain/aggregate/Order';
-import type { OrderEvent } from '../../domain/event/OrderEvent';
 import { OrderId } from '../../domain/value-object/OrderId';
 
 export interface CancelOrderInput {
@@ -23,7 +22,7 @@ export interface CancelOrderCommand {
 export class CancelOrder extends UseCase<CancelOrderInput, CancelOrderCommand, void> {
   constructor(
     private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
-    private readonly events: EventBus<OrderEvent>,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();

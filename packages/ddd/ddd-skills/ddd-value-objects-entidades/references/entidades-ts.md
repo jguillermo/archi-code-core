@@ -51,7 +51,7 @@ La identidad no cambia durante la vida de la entidad. IDDD la protege con un set
 
 ## Patrón de implementación
 
-No se escribe una clase base `Entity`: viene de `@archi-code/ddd/domain`. `Entity<Id>` solo guarda `readonly id` y compara por clase e id; `AggregateRoot<Id, Event>` la extiende y añade solo los eventos (`record()`, `pullDomainEvents()`); la versión para concurrencia optimista no está en el agregado, la recuerda cada repositorio en un `WeakMap<Order, number>` `[Fuera de los libros: convención de @archi-code/ddd]`.
+No se escribe una clase base `Entity`: viene de `@archi-code/ddd/domain`. `Entity<Id>` solo guarda `readonly id` y compara por clase e id; `AggregateRoot<Id>` la extiende y añade solo los eventos (`EventBase`) (`record()`, `pullDomainEvents()`); la versión para concurrencia optimista no está en el agregado, la recuerda cada repositorio en un `WeakMap<Order, number>` `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 Una raíz de agregado extiende `AggregateRoot`. Una entidad hija (una parte con identidad propia dentro del agregado, que se busca por ese id) extiende `Entity`, guarda su id local y value objects, y sus métodos de negocio solo los llama su raíz [IDDD cap. 5 y cap. 10]:
 
@@ -149,8 +149,6 @@ export class CustomerBlockedDomainEvent extends EventBase {
   }
 }
 
-export type CustomerEvent = CustomerCreatedDomainEvent | CustomerBlockedDomainEvent;
-
 export class BlockedCustomerCannotChangeEmail extends DomainException {
   constructor(customerId: string) {
     super(`Customer ${customerId} is blocked and cannot change the email`, ['SAL004']);
@@ -168,7 +166,7 @@ interface Clock {
   now(): Date;
 }
 
-export class Customer extends AggregateRoot<CustomerId, CustomerEvent> {
+export class Customer extends AggregateRoot<CustomerId> {
   private _name: CustomerName;
   private _email: Email;
   private _status: CustomerStatusType;

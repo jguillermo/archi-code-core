@@ -17,7 +17,7 @@ src/
     sales/                         ← Bounded Context (nombre del modelo, no del producto comercial)
       domain/
         aggregate/
-          Order.ts                 (extends AggregateRoot<OrderId, OrderEvent>; constructor público + static create)
+          Order.ts                 (extends AggregateRoot<OrderId>; constructor público + static create)
           NewOrderLine.ts          (interfaz de value objects que recibe Order.create)
         entity/
           OrderLine.ts             (extends Entity<LineNumber>)
@@ -28,7 +28,6 @@ src/
           ShippingAddress.ts       (Composite({ street: Street, city: City, country: Country }))
         event/
           OrderCreatedDomainEvent.ts, OrderPaidDomainEvent.ts   (extends EventBase, eventName 'order.created'…)
-          OrderEvent.ts            (unión de los eventos de Order)
         exception/
           OrderNotModifiable.ts    (extends DomainException, código SAL001)
         service/
@@ -127,7 +126,6 @@ Un composition root por contexto: una clase `<Context>Context` con `static async
 
 ```ts
 // src/contexts/payments/composition.ts
-import type { EventBase } from '@archi-code/ddd/domain';
 import type { Clock, Logger } from '@archi-code/ddd/application';
 import { DomainEventBus, EventRegistry } from '@archi-code/ddd/infrastructure';
 import type { EventChannel, Subscription } from '@archi-code/ddd/infrastructure';
@@ -154,7 +152,7 @@ export class PaymentsContext {
   ) {}
 
   static async start({ channel, clock, logger }: PaymentsSettings): Promise<PaymentsContext> {
-    const bus = new DomainEventBus<EventBase>(channel, PaymentsContext.registry(), logger);
+    const bus = new DomainEventBus(channel, PaymentsContext.registry(), logger);
     const payments = new InMemoryPaymentRepository();
     const listeners = [
       new RequestPaymentOnOrderCreated(payments, bus, clock),
@@ -177,8 +175,8 @@ export class PaymentsContext {
     }
   }
 
-  private static registry(): EventRegistry<EventBase> {
-    return new EventRegistry<EventBase>()
+  private static registry(): EventRegistry {
+    return new EventRegistry()
       .register(
         OrderCreatedDomainEvent,
         (json) =>

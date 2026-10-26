@@ -62,7 +62,7 @@ export class OrderConfirmedDomainEvent extends EventBase {
 }
 ```
 
-Se añade a la unión `OrderEvent` del agregado (`domain/event/OrderEvent.ts`). El agregado lo registra en el método que causa el hecho, pasando el reloj que recibió para que `occurredOn` sea determinista en los tests. En el `Order` de `ddd-skills/ddd-agregados/references/implementacion-ts.md` el pedido se confirma solo cuando ya tiene reserva y autorización, desde `registerStockReservation` o `registerPaymentAuthorization`:
+Va en su propio fichero de `domain/event/`, sin unión de eventos que actualizar. El agregado lo registra en el método que causa el hecho, pasando el reloj que recibió para que `occurredOn` sea determinista en los tests. En el `Order` de `ddd-skills/ddd-agregados/references/implementacion-ts.md` el pedido se confirma solo cuando ya tiene reserva y autorización, desde `registerStockReservation` o `registerPaymentAuthorization`:
 
 ```ts
 private tryToConfirm(clock: Clock): void {
@@ -134,7 +134,7 @@ export class OrderCancelledDomainEvent extends EventBase {
   }
 }
 
-export const cancellations = new EventRegistry<OrderCancelledDomainEvent>().register(
+export const cancellations = new EventRegistry().register(
   OrderCancelledDomainEvent,
   (json) =>
     new OrderCancelledDomainEvent({

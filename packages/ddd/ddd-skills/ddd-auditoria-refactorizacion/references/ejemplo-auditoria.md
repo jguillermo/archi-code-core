@@ -26,7 +26,7 @@ La prueba de anemia da dos "sí" [IDDD cap. 1]: `Order` tiene `setStatus`, `setT
 import { AggregateRoot, CreatedAt, UpdatedAt } from '@archi-code/ddd/domain';
 import { OrderMapper } from '../../infrastructure/order-mapper';
 
-class Order extends AggregateRoot<OrderId, OrderEvent> {
+class Order extends AggregateRoot<OrderId> {
   private _status: string;
   private _total: number;
   // …
@@ -128,7 +128,7 @@ export interface AddOrderLineCommand {
 export class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand, void> {
   constructor(
     private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
-    private readonly events: EventBus<OrderEvent>,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();
@@ -177,7 +177,7 @@ export interface PlaceOrderCommand {
 export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, string> {
   constructor(
     private readonly orders: AggregateSaver<Order>,
-    private readonly events: EventBus<OrderEvent>,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();
@@ -214,7 +214,7 @@ import { EventListener, ListensTo, ValueObjectBuilder } from '@archi-code/ddd/ap
 export class AwardLoyaltyPointsOnOrderCreated extends EventListener<OrderCreatedDomainEvent> {
   constructor(
     private readonly customers: AggregateFinder<Customer> & AggregateSaver<Customer>,
-    private readonly events: EventBus<CustomerEvent>,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();
@@ -247,11 +247,10 @@ import {
   InMemoryEventChannel,
 } from '@archi-code/ddd/infrastructure';
 import { ValidationException } from '@archi-code/ddd/domain';
-import type { EventBase } from '@archi-code/ddd/domain';
 
 const orders = new InMemoryOrderRepository();
 const customers = new InMemoryCustomerRepository();
-const registry = new EventRegistry<EventBase>().register(
+const registry = new EventRegistry().register(
   OrderCreatedDomainEvent,
   (json) =>
     new OrderCreatedDomainEvent({
@@ -268,7 +267,7 @@ const registry = new EventRegistry<EventBase>().register(
     }),
 );
 const channel = new InMemoryEventChannel();
-const bus = new DomainEventBus<EventBase>(channel, registry);
+const bus = new DomainEventBus(channel, registry);
 const clock = new FixedClock('2026-03-01T09:30:00Z');
 await bus.subscribe(new AwardLoyaltyPointsOnOrderCreated(customers, bus, clock));
 const customerId = '3c1d2e4f-5a6b-4c7d-8e9f-0a1b2c3d4e5f';

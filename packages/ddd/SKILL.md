@@ -130,7 +130,8 @@ details and the code.
   silently when it does not apply.
 - **Events** are `<Aggregate><PastAction>DomainEvent` with `eventName` `'<aggregate>.<past_action>'`,
   primitive `readonly` fields, one constructor object `{ …fields } & EventMetadata`, no types of
-  their own, and every event of an aggregate in its `<Aggregate>Event` union.
+  their own, and no union type of an aggregate's events: `AggregateRoot<<Aggregate>Id>` and
+  `EventBus` work with `EventBase`.
 - **Business errors** are `<WhatWentWrong> extends DomainException` with a code per context
   (`SAL001`), no `Exception` suffix.
 - **Two kinds of use case**: a user use case extends `UseCase` (`Input` and `Command` in its file,

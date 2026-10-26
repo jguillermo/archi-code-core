@@ -272,7 +272,7 @@ export class PgOrderSummaryStore implements OrderSummaryStore, OrderSummaries {
 En el composition root del contexto, el store, la proyección y cada reacción se construyen y se suscriben como cualquier caso de uso por reacción, y cada evento que escuchan se registra una vez con una factoría que conserva `eventId` y `occurredOn` (`channel` es el `EventChannel` compartido: `InMemoryEventChannel` en pruebas, tu canal duradero o de broker en producción):
 
 ```ts
-const registry = new EventRegistry<EventBase>()
+const registry = new EventRegistry()
   .register(
     OrderCreatedDomainEvent,
     (json) =>
@@ -298,7 +298,7 @@ const registry = new EventRegistry<EventBase>()
       }),
   );
 
-const bus = new DomainEventBus<EventBase>(channel, registry, logger);
+const bus = new DomainEventBus(channel, registry, logger);
 const summaries = new PgOrderSummaryStore(database);
 const projection = new OrderSummaryProjection(summaries);
 await bus.subscribe(new OpenOrderSummaryOnOrderCreated(projection));
@@ -313,7 +313,7 @@ Para cambiar una vista: crear `order_summaries_v2`, proyectar desde la posición
 `[Fuera de los libros: convención de @archi-code/ddd]` Un `EventChannel` es un camino de entrega, no un historial: reconstruir exige un log de eventos propio, ordenado. Con Event Sourcing es el propio event store (por `global_seq`, ver `ddd-skills/ddd-event-sourcing-cqrs/references/event-sourcing-ts.md`); sin él, una tabla donde tu canal duradero anexa cada `SerializedEvent` y que nunca se borra. Para reproducirlo con las mismas reacciones, súbelas a un `DomainEventBus` sobre un `InMemoryEventChannel` aparte y envía el log por páginas:
 
 ```ts
-import type { EventBase, SerializedEvent } from '@archi-code/ddd/domain';
+import type { SerializedEvent } from '@archi-code/ddd/domain';
 import type { EventRegistry } from '@archi-code/ddd/infrastructure';
 import { DomainEventBus, InMemoryEventChannel } from '@archi-code/ddd/infrastructure';
 
@@ -324,10 +324,10 @@ export interface EventLog {
 export async function rebuild(
   log: EventLog,
   projection: OrderSummaryProjection,
-  registry: EventRegistry<EventBase>,
+  registry: EventRegistry,
 ): Promise<void> {
   const replay = new InMemoryEventChannel();
-  const bus = new DomainEventBus<EventBase>(replay, registry);
+  const bus = new DomainEventBus(replay, registry);
   const subscriptions = [
     await bus.subscribe(new OpenOrderSummaryOnOrderCreated(projection)),
     await bus.subscribe(new UpdateOrderSummaryTotalOnOrderLineAdded(projection)),

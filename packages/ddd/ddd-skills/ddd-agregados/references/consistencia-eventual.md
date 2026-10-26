@@ -20,7 +20,7 @@ El evento no está para mantener un puntero inverso sin sentido. En IDDD, `Backl
 
 `[Fuera de los libros como término]`
 
-Con el paquete, la política es un **caso de uso por reacción**: una sola clase `<Acción>On<Evento>` que extiende `EventListener`, se marca con `@ListensTo` y en su `handle` construye los value objects, carga el agregado, llama a su método de reacción, guarda y publica; no hay un `UseCase` detrás `[Fuera de los libros: convención de @archi-code/ddd]` (IDDD pone en la capa de aplicación un suscriptor que delega en un servicio de aplicación [IDDD cap. 8]). Política de Ventas: cuando Almacén reserva stock, se registra en el pedido (`Order`, `OrderId`, `ReservationReference` y `OrderEvent` son los de `references/implementacion-ts.md`).
+Con el paquete, la política es un **caso de uso por reacción**: una sola clase `<Acción>On<Evento>` que extiende `EventListener`, se marca con `@ListensTo` y en su `handle` construye los value objects, carga el agregado, llama a su método de reacción, guarda y publica; no hay un `UseCase` detrás `[Fuera de los libros: convención de @archi-code/ddd]` (IDDD pone en la capa de aplicación un suscriptor que delega en un servicio de aplicación [IDDD cap. 8]). Política de Ventas: cuando Almacén reserva stock, se registra en el pedido (`Order`, `OrderId` y `ReservationReference` son los de `references/implementacion-ts.md`).
 
 El hecho de Almacén llega por el canal como JSON. Ventas no importa la clase de Almacén: declara su propia copia del evento junto al caso de uso que lo escucha, con el mismo nombre de clase y `eventName` que el productor y solo los campos que lee, para que `DomainEventBus` lo reconstruya y se lo entregue `[Fuera de los libros: convención de @archi-code/ddd]`. En `application/register-stock-reservation/stock-item-reserved-domain-event.ts`:
 
@@ -62,7 +62,7 @@ import { StockItemReservedDomainEvent } from './stock-item-reserved-domain-event
 export class RegisterStockReservationOnStockItemReserved extends EventListener<StockItemReservedDomainEvent> {
   constructor(
     private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
-    private readonly events: EventBus<OrderEvent>,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();
@@ -87,7 +87,6 @@ export class RegisterStockReservationOnStockItemReserved extends EventListener<S
 La raíz de composición del contexto (`composition.ts`) registra el evento con una fábrica que conserva `eventId` y `occurredOn` y suscribe el caso de uso por reacción; en los tests, con los adaptadores en memoria del paquete y el `InMemoryOrderRepository` en memoria del proyecto (`ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`). En `test/contexts/sales/application/register-stock-reservation-on-stock-item-reserved.spec.ts`:
 
 ```ts
-import type { EventBase } from '@archi-code/ddd/domain';
 import {
   DomainEventBus,
   EventRegistry,
@@ -97,7 +96,7 @@ import {
 import { InMemoryOrderRepository } from '../../../../src/contexts/sales/infrastructure/persistence/in-memory-order-repository';
 
 const orders = new InMemoryOrderRepository();
-const registry = new EventRegistry<EventBase>().register(
+const registry = new EventRegistry().register(
   StockItemReservedDomainEvent,
   (json) =>
     new StockItemReservedDomainEvent({
@@ -108,7 +107,7 @@ const registry = new EventRegistry<EventBase>().register(
     }),
 );
 const channel = new InMemoryEventChannel();
-const bus = new DomainEventBus<EventBase>(channel, registry);
+const bus = new DomainEventBus(channel, registry);
 await bus.subscribe(
   new RegisterStockReservationOnStockItemReserved(
     orders,

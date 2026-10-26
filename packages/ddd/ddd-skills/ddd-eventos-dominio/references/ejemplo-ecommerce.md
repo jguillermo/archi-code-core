@@ -25,7 +25,7 @@ Decisiones razonadas:
 
 ## Los eventos de Ventas con @archi-code/ddd
 
-Cada evento del catálogo es una clase `EventBase` con sus datos como primitivos tipados en línea; el dinero viaja en céntimos con su moneda. Las clases de `Order` (`OrderCreatedDomainEvent`, `OrderLineAddedDomainEvent`, `OrderConfirmedDomainEvent`, `OrderCancelledDomainEvent`, `OrderPaymentAuthorizationRejectedDomainEvent` y su unión `OrderEvent`) están escritas en `ddd-skills/ddd-agregados/references/implementacion-ts.md`, junto al agregado que las registra en `create`, `addLine`, `cancel` y al confirmarse, siempre con el reloj que recibe:
+Cada evento del catálogo es una clase `EventBase` con sus datos como primitivos tipados en línea; el dinero viaja en céntimos con su moneda. Las clases de `Order` (`OrderCreatedDomainEvent`, `OrderLineAddedDomainEvent`, `OrderConfirmedDomainEvent`, `OrderCancelledDomainEvent`, `OrderPaymentAuthorizationRejectedDomainEvent`) están escritas en `ddd-skills/ddd-agregados/references/implementacion-ts.md`, junto al agregado que las registra en `create`, `addLine`, `cancel` y al confirmarse, siempre con el reloj que recibe:
 
 ```ts
 addLine(line: OrderLine, clock: Clock): void {
@@ -49,10 +49,9 @@ addLine(line: OrderLine, clock: Clock): void {
 El registro de cada contexto (en su `composition.ts`) reconstruye cada evento que escucha desde su JSON; cada fábrica copia los campos y pasa `eventId` y `occurredOn` para conservarlos, porque los consumidores los usan para deduplicar. Un contexto que solo escucha registra sus copias; el de una proyección de Ventas registra los eventos propios que oye:
 
 ```ts
-import type { EventBase } from '@archi-code/ddd/domain';
 import { EventRegistry } from '@archi-code/ddd/infrastructure';
 
-export const salesEvents = new EventRegistry<EventBase>()
+export const salesEvents = new EventRegistry()
   .register(
     OrderLineAddedDomainEvent,
     (json) =>

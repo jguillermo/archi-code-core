@@ -88,11 +88,6 @@ export class PaymentCapturedDomainEvent extends EventBase {
   }
 }
 
-export type PaymentEvent =
-  | PaymentCreatedDomainEvent
-  | PaymentAuthorizedDomainEvent
-  | PaymentRejectedDomainEvent
-  | PaymentCapturedDomainEvent;
 ```
 
 `EventBase` pone `eventName`, `eventId` y `occurredOn` (texto ISO en UTC, del `clock` que recibe el método del agregado); la identidad del pago es un campo más del evento (`paymentId`), declarado por cada clase. `{ ...event }` da `eventName`, `eventId`, `occurredOn` y los campos, todos datos primitivos (regla del paquete, no comprobada en ejecución): esa es la fila del stream.
@@ -103,6 +98,7 @@ export type PaymentEvent =
 
 ```ts
 import { AggregateRoot, DateType, DomainException, EnumType, IdType, Required, StringType, UuidType } from '@archi-code/ddd/domain';
+import type { EventBase } from '@archi-code/ddd/domain';
 
 export class PaymentId extends IdType<'PaymentId'> {}
 export class OrderReference extends Required(UuidType) {}
@@ -150,7 +146,7 @@ interface Clock {
   now(): Date;
 }
 
-export class Payment extends AggregateRoot<PaymentId, PaymentEvent> {
+export class Payment extends AggregateRoot<PaymentId> {
   private status = new PaymentStatusType(PaymentStatus.REQUESTED);
   private amount: Money | null = null;
   private expiresAt: ExpiresAt | null = null;
@@ -173,7 +169,7 @@ export class Payment extends AggregateRoot<PaymentId, PaymentEvent> {
     return payment;
   }
 
-  static fromHistory(id: PaymentId, history: readonly PaymentEvent[]): Payment {
+  static fromHistory(id: PaymentId, history: readonly EventBase[]): Payment {
     const payment = new Payment(id);
     history.forEach((event) => payment.apply(event));
     payment.replayed = history.length;
@@ -219,12 +215,12 @@ export class Payment extends AggregateRoot<PaymentId, PaymentEvent> {
     return this.status.value === status;
   }
 
-  private emit(event: PaymentEvent): void {
+  private emit(event: EventBase): void {
     this.apply(event);
     this.record(event);
   }
 
-  private apply(event: PaymentEvent): void {
+  private apply(event: EventBase): void {
     if (event instanceof PaymentCreatedDomainEvent) {
       this.amount = Money.fromPrimitives(event.amount);
     } else if (event instanceof PaymentAuthorizedDomainEvent) {
@@ -232,7 +228,7 @@ export class Payment extends AggregateRoot<PaymentId, PaymentEvent> {
       this.expiresAt = new ExpiresAt(event.expiresAt);
     } else if (event instanceof PaymentRejectedDomainEvent) {
       this.status = new PaymentStatusType(PaymentStatus.REJECTED);
-    } else {
+    } else if (event instanceof PaymentCapturedDomainEvent) {
       this.status = new PaymentStatusType(PaymentStatus.CAPTURED);
     }
   }
@@ -271,7 +267,7 @@ El dominio declara el contrato del stream (solo tipos, como los contratos de rep
 ```ts
 export interface PaymentStream {
   load(id: PaymentId): Promise<Payment | null>;
-  append(payment: Payment, changes: readonly PaymentEvent[]): Promise<void>;
+  append(payment: Payment, changes: readonly EventBase[]): Promise<void>;
 }
 ```
 
@@ -282,7 +278,7 @@ import type { SerializedEvent } from '@archi-code/ddd/domain';
 import { EventRegistry, InternalErrorException } from '@archi-code/ddd/infrastructure';
 import { ConcurrencyException } from '@archi-code/ddd/application';
 
-export const paymentEvents = new EventRegistry<PaymentEvent>()
+export const paymentEvents = new EventRegistry()
   .register(
     PaymentCreatedDomainEvent,
     (json) =>
@@ -340,7 +336,7 @@ interface Pool extends SqlClient {
 export class PgPaymentStream implements PaymentStream {
   constructor(
     private readonly pool: Pool,
-    private readonly registry: EventRegistry<PaymentEvent>,
+    private readonly registry: EventRegistry,
   ) {}
 
   async load(id: PaymentId): Promise<Payment | null> {
@@ -357,7 +353,7 @@ export class PgPaymentStream implements PaymentStream {
     );
   }
 
-  async append(payment: Payment, changes: readonly PaymentEvent[]): Promise<void> {
+  async append(payment: Payment, changes: readonly EventBase[]): Promise<void> {
     const expected = payment.streamVersion();
     const client = await this.pool.connect();
     try {
@@ -405,7 +401,7 @@ export class CapturePayment extends UseCase<CapturePaymentInput, CapturePaymentC
 
   constructor(
     private readonly payments: PaymentStream,
-    private readonly events: EventBus<PaymentEvent>,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();
@@ -449,7 +445,7 @@ import { DomainEventBus, FixedClock, InMemoryEventChannel } from '@archi-code/dd
 export class InMemoryPaymentStream implements PaymentStream {
   private readonly streams = new Map<string, readonly SerializedEvent[]>();
 
-  constructor(private readonly registry: EventRegistry<PaymentEvent>) {}
+  constructor(private readonly registry: EventRegistry) {}
 
   async load(id: PaymentId): Promise<Payment | null> {
     const stream = this.streams.get(id.value);
@@ -462,7 +458,7 @@ export class InMemoryPaymentStream implements PaymentStream {
     );
   }
 
-  async append(payment: Payment, changes: readonly PaymentEvent[]): Promise<void> {
+  async append(payment: Payment, changes: readonly EventBase[]): Promise<void> {
     const stream = this.streams.get(payment.id.value) ?? [];
     if (stream.length !== payment.streamVersion()) {
       throw new ConcurrencyException('Payment', payment.id.value, payment.streamVersion());
@@ -474,7 +470,7 @@ export class InMemoryPaymentStream implements PaymentStream {
 const clock = new FixedClock('2026-10-19T09:30:00Z');
 const payments = new InMemoryPaymentStream(paymentEvents);
 const channel = new InMemoryEventChannel();
-const bus = new DomainEventBus<PaymentEvent>(channel, paymentEvents);
+const bus = new DomainEventBus(channel, paymentEvents);
 
 const paymentId = PaymentId.generate();
 const payment = Payment.create(
@@ -510,7 +506,7 @@ Para streams largos, guarda periódicamente el estado serializado con su versió
 Con el paquete, los eventos no llevan número de versión: la fábrica del `EventRegistry` recibe cada fila tal como se guardó, así que el upcasting va ahí y reconoce la forma antigua por sus campos; un cambio que no se pueda leer así se publica como un evento nuevo con otro `eventName` (`'payment.created_v2'`). Por ejemplo, si una primera forma de `PaymentCreatedDomainEvent` guardaba `amountCents` en euros:
 
 ```ts
-new EventRegistry<PaymentEvent>().register(
+new EventRegistry().register(
   PaymentCreatedDomainEvent,
   (json) =>
     new PaymentCreatedDomainEvent({

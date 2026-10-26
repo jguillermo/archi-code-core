@@ -60,7 +60,7 @@ import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
 export class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand, void> {
   constructor(
     private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
-    private readonly events: EventBus<OrderEvent>,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();

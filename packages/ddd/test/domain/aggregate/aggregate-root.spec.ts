@@ -48,15 +48,13 @@ class OrderLineAdded extends EventBase {
   }
 }
 
-type OrderEvent = OrderPlaced | OrderLineAdded;
-
 class OrderAlreadyShippedException extends DomainException {
   constructor(orderId: string) {
     super(`Order ${orderId} is already shipped`, ['ORD001']);
   }
 }
 
-class Order extends AggregateRoot<OrderId, OrderEvent> {
+class Order extends AggregateRoot<OrderId> {
   private constructor(
     id: OrderId,
     readonly customer: CustomerName,
@@ -148,8 +146,8 @@ describe('AggregateRoot: an order that records what happened to it', () => {
       expect(order.pullDomainEvents()).toEqual([]);
     });
 
-    it('types the pulled events as the union the aggregate declares', () => {
-      expectTypeOf(Order.place(orderId, 'Ana').pullDomainEvents()).toEqualTypeOf<OrderEvent[]>();
+    it('types the pulled events as EventBase, the class every event extends', () => {
+      expectTypeOf(Order.place(orderId, 'Ana').pullDomainEvents()).toEqualTypeOf<EventBase[]>();
     });
 
     it('the returned list is a copy: changing it does not touch the aggregate', () => {

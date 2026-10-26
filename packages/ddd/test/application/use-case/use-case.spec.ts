@@ -50,15 +50,13 @@ class OrderShipped extends EventBase {
   }
 }
 
-type OrderEvent = OrderPlaced | OrderShipped;
-
 class OrderAlreadyShippedException extends DomainException {
   constructor(orderId: string) {
     super(`Order ${orderId} is already shipped`, ['ORD001']);
   }
 }
 
-class Order extends AggregateRoot<OrderId, OrderEvent> {
+class Order extends AggregateRoot<OrderId> {
   private constructor(
     id: OrderId,
     readonly customer: CustomerName,
@@ -130,12 +128,12 @@ class FakeOrderRepository
   }
 }
 
-class FakeEventBus implements EventBus<OrderEvent> {
-  readonly published: OrderEvent[] = [];
+class FakeEventBus implements EventBus {
+  readonly published: EventBase[] = [];
 
   constructor(private readonly log: string[] = []) {}
 
-  async publish(events: readonly OrderEvent[]): Promise<void> {
+  async publish(events: readonly EventBase[]): Promise<void> {
     this.log.push(`publish ${events.map((event) => event.eventName).join(',')}`);
     this.published.push(...events);
   }
@@ -156,7 +154,7 @@ class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, { orderId: 
 
   constructor(
     private readonly orders: AggregateSaver<Order>,
-    private readonly bus: EventBus<OrderEvent>,
+    private readonly bus: EventBus,
   ) {
     super();
   }
@@ -180,7 +178,7 @@ class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, { orderId: 
 class ShipOrder extends UseCase<{ orderId: string }, OrderId, void> {
   constructor(
     private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
-    private readonly bus: EventBus<OrderEvent>,
+    private readonly bus: EventBus,
   ) {
     super();
   }

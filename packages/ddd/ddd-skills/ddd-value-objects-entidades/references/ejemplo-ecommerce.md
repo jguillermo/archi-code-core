@@ -11,7 +11,7 @@ Objetos del contexto de Ventas, con la decisión razonada. Los límites de agreg
 | `OrderLines` | Value object | Reglas de la colección: al menos una línea y un SKU por línea; `total()` no suma monedas distintas | `Composite({ items: [OrderLine] })` |
 | `ShippingAddress` | Value object | Describe a dónde va este pedido; si el cliente cambia de casa, el pedido no cambia | `Composite` |
 | `OrderStatusType` | Tipo estándar con comportamiento | Reglas de transición en un solo sitio | Fichero `OrderStatusType.ts`: `enum OrderStatus`, `OrderStatusOption extends EnumType<OrderStatus>`, `OrderStatusType extends Required(OrderStatusOption)` |
-| `Order` | Entidad | Ciclo de vida largo, identidad propia, cambia de estado | `AggregateRoot<OrderId, OrderEvent>` |
+| `Order` | Entidad | Ciclo de vida largo, identidad propia, cambia de estado | `AggregateRoot<OrderId>` |
 
 `Money`, `Quantity`, `Sku`, `OrderLine`, `OrderLines`, `OrderStatusType`, `OrderId` y `CustomerId` están en `ddd-skills/ddd-value-objects-entidades/references/value-objects-ts.md`. Aquí, la dirección:
 
@@ -39,7 +39,7 @@ interface Clock {
   now(): Date;
 }
 
-export class Order extends AggregateRoot<OrderId, OrderEvent> {
+export class Order extends AggregateRoot<OrderId> {
   readonly customerId: CustomerId;
   private _lines: OrderLines;
   readonly shippingAddress: ShippingAddress;

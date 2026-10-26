@@ -11,7 +11,6 @@ import { Order } from '../../domain/aggregate/Order';
 import type { NewOrderLine } from '../../domain/aggregate/NewOrderLine';
 import type { AddressData } from './address-data';
 import type { MoneyData } from './money-data';
-import type { OrderEvent } from '../../domain/event/OrderEvent';
 import { OrderId } from '../../domain/value-object/OrderId';
 import { Quantity } from '../../domain/value-object/Quantity';
 import { Sku } from '../../domain/value-object/Sku';
@@ -43,7 +42,7 @@ export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, stri
   constructor(
     private readonly orders: AggregateSaver<Order>,
     private readonly pricing: OrderPricing,
-    private readonly events: EventBus<OrderEvent>,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();

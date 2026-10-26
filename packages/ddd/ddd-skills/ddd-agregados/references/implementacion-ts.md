@@ -4,7 +4,7 @@ Contenido: 1. Raíz base · 2. Construcción paso a paso · 3. Agregado completo
 
 ## 1. Raíz base
 
-La raíz no se escribe a mano: se extiende `AggregateRoot<Id, Event>` de `@archi-code/ddd/domain`, que ya trae lo que IDDD cap. 10 describe para la raíz salvo la versión (identidad, igualdad por identidad y lista de eventos registrados); la versión para la concurrencia optimista la guarda el repositorio, no el agregado (sección 5) `[Fuera de los libros: convención de @archi-code/ddd]`.
+La raíz no se escribe a mano: se extiende `AggregateRoot<Id>` de `@archi-code/ddd/domain` (solo el tipo del id; los eventos son `EventBase`, sin unión por agregado), que ya trae lo que IDDD cap. 10 describe para la raíz salvo la versión (identidad, igualdad por identidad y lista de eventos registrados); la versión para la concurrencia optimista la guarda el repositorio, no el agregado (sección 5) `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ```ts
 import { AggregateRoot, CreatedAt, UpdatedAt } from '@archi-code/ddd/domain';
@@ -13,7 +13,7 @@ interface Clock {
   now(): Date;
 }
 
-export class Order extends AggregateRoot<OrderId, OrderEvent> {
+export class Order extends AggregateRoot<OrderId> {
   readonly customerId: CustomerId;
   readonly createdAt: CreatedAt;
   private _updatedAt: UpdatedAt;
@@ -31,7 +31,7 @@ La clase completa está en la sección 3. Lo que da la base:
 
 * `readonly id` y `equals(other)` (misma clase y mismo id) de `Entity<Id>`; un id sin valor lanza `RequiredValueException`.
 * `protected record(event)`: guarda el evento tal cual (los hechos no cambian [IDDD cap. 8]: sus campos son `readonly`).
-* `pullDomainEvents()`: devuelve los eventos en orden (tipados como `Event[]`) y vacía la lista; lo llama el caso de uso tras guardar.
+* `pullDomainEvents()`: devuelve los eventos en orden (tipados como `EventBase[]`) y vacía la lista; lo llama el caso de uso tras guardar.
 La base no trae versión: el agregado no la declara, no la mapea en `toPrimitives()` y el caso de uso nunca la ve. Cada repositorio recuerda la versión de cada agregado que cargó o guardó en un `WeakMap<Order, number>` propio y la actualiza solo cuando la escritura ha ido bien; así un segundo `save` del mismo objeto (por ejemplo, dos comandos seguidos en el mismo proceso) no da un falso conflicto de concurrencia `[Fuera de los libros: convención de @archi-code/ddd]`. Lo cumplen todos los repositorios, también el `InMemoryOrderRepository` en memoria (en `infrastructure/persistence/` si la aplicación corre en memoria, o en `test/support/` como doble de test).
 
 Por qué registrar en vez de publicar: IDDD publica desde el agregado con un publicador estático [IDDD cap. 8]. Registrar y dejar que la aplicación publique no requiere un singleton global en el dominio y, con una bandeja de salida (outbox), evita entregar eventos de cambios que no llegaron a guardarse. *DDD in PHP* discute ambas variantes [PHP: Domain Events]. Con el paquete, el caso de uso llama a `await this.orders.save(order)` y después a `events.publish(order.pullDomainEvents())`; la aplicación no abre transacciones, porque la transacción es del repositorio. Si `publish` falla tras `save`, el evento puede perderse; cuando eso no es admisible, el repositorio guarda el agregado y sus eventos pendientes en la misma escritura atómica (outbox) y un proceso aparte los entrega por un `EventChannel`, y el caso de uso no cambia `[Fuera de los libros: convención de @archi-code/ddd]`.
@@ -40,7 +40,7 @@ Por qué registrar en vez de publicar: IDDD publica desde el agregado con un pub
 
 Orden que sigue Destilado para construir la raíz [Destilado cap. 5]:
 
-1. Clase de la raíz (`extends AggregateRoot<OrderId, OrderEvent>`).
+1. Clase de la raíz (`extends AggregateRoot<OrderId>`).
 2. Identidad global única como value object (`class OrderId extends IdType<'OrderId'> {}`; en multi-tenant, también el `TenantId`).
 3. Atributos intrínsecos necesarios para encontrarlo (nombre, descripción).
 4. Getters solo si hacen falta; **sin setters públicos**. Con el paquete, cada campo que se guarda es `readonly` público (si no cambia) o `private _campo` con un getter público con su nombre sin `_`, porque `PrimitiveTypes` los lee para tipar `toPrimitives()`/`fromPrimitives()` (nada lo comprueba en tiempo de ejecución: lo cubre el test de ida y vuelta de cada agregado); los valores derivados son métodos (`total()`) `[Fuera de los libros: convención de @archi-code/ddd]`.
@@ -347,13 +347,6 @@ export class OrderPaymentAuthorizationRejectedDomainEvent extends EventBase {
   }
 }
 
-export type OrderEvent =
-  | OrderCreatedDomainEvent
-  | OrderLineAddedDomainEvent
-  | OrderConfirmedDomainEvent
-  | OrderCancelledDomainEvent
-  | OrderPaymentAuthorizationRejectedDomainEvent;
-
 export class OrderNotModifiable extends DomainException {
   constructor(orderId: string, status: string) {
     super(`Order ${orderId} is ${status} and no longer accepts line changes`, ['SAL001']);
@@ -367,8 +360,6 @@ export class OrderNotCancellable extends DomainException {
 }
 ```
 
-La unión `OrderEvent` va en `domain/event/OrderEvent.ts` con un `import type` de cada evento; todo evento nuevo se añade a ella.
-
 La raíz, `domain/aggregate/Order.ts`:
 
 ```ts
@@ -379,7 +370,7 @@ interface Clock {
   now(): Date;
 }
 
-export class Order extends AggregateRoot<OrderId, OrderEvent> {
+export class Order extends AggregateRoot<OrderId> {
   readonly customerId: CustomerId;
   private _lines: OrderLines;
   readonly shippingAddress: ShippingAddress;
@@ -667,7 +658,7 @@ import { PaymentAuthorizedDomainEvent } from './payment-authorized-domain-event'
 export class RegisterPaymentAuthorizationOnPaymentAuthorized extends EventListener<PaymentAuthorizedDomainEvent> {
   constructor(
     private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
-    private readonly events: EventBus<OrderEvent>,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();
@@ -735,7 +726,7 @@ export function registerStockReservation(
   state: OrderState,
   reservation: ReservationReference,
   clock: { now(): Date },
-): [OrderState, OrderEvent[]] {
+): [OrderState, EventBase[]] {
   if (state.status.value !== OrderStatus.PENDING) {
     return [state, []];
   }

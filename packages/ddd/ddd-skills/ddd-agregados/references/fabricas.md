@@ -44,7 +44,7 @@ interface Clock {
   now(): Date;
 }
 
-export class Customer extends AggregateRoot<CustomerId, CustomerEvent> {
+export class Customer extends AggregateRoot<CustomerId> {
   readonly name: CustomerName;
   readonly email: Email;
   private _blocked: Blocked;
@@ -121,7 +121,7 @@ export class Customer extends AggregateRoot<CustomerId, CustomerEvent> {
 }
 ```
 
-`CustomerCreatedDomainEvent` (`'customer.created'`) y la unión `CustomerEvent` se escriben como los eventos de `Order`. `placeOrder` no cambia al cliente: solo aplica su regla y llama a `Order.create`, que sigue siendo la única forma de iniciar un pedido.
+`CustomerCreatedDomainEvent` (`'customer.created'`) se escribe como los eventos de `Order`. `placeOrder` no cambia al cliente: solo aplica su regla y llama a `Order.create`, que sigue siendo la única forma de iniciar un pedido.
 
 La regla de creación ("un cliente bloqueado no puede realizar pedidos") vive en `Customer`. El caso de uso lee el cliente con `AggregateFinder<Customer>`, genera la identidad nueva con `OrderId.generate()` y guarda solo el pedido con `AggregateSaver<Order>`; `Customer` no se guarda porque no ha cambiado:
 
@@ -146,7 +146,7 @@ export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, stri
   constructor(
     private readonly customers: AggregateFinder<Customer>,
     private readonly orders: AggregateSaver<Order>,
-    private readonly events: EventBus<OrderEvent>,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();

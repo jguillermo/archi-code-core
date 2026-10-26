@@ -8,7 +8,6 @@ import {
 import type { Clock, EventBus } from '../../../../ddd/application';
 import type { Order } from '../../domain/aggregate/Order';
 import type { AddressData } from '../place-order/address-data';
-import type { OrderEvent } from '../../domain/event/OrderEvent';
 import { OrderId } from '../../domain/value-object/OrderId';
 import { ShippingAddress } from '../../domain/value-object/ShippingAddress';
 
@@ -31,7 +30,7 @@ export class ChangeShippingAddress extends UseCase<
 
   constructor(
     private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
-    private readonly events: EventBus<OrderEvent>,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();

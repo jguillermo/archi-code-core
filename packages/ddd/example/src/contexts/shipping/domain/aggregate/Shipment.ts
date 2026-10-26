@@ -11,7 +11,6 @@ import { ShipmentCancelledDomainEvent } from '../event/ShipmentCancelledDomainEv
 import { ShipmentContents } from '../value-object/ShipmentContents';
 import { ShipmentDeliveredDomainEvent } from '../event/ShipmentDeliveredDomainEvent';
 import { ShipmentDispatchedDomainEvent } from '../event/ShipmentDispatchedDomainEvent';
-import type { ShipmentEvent } from '../event/ShipmentEvent';
 import { ShipmentId } from '../value-object/ShipmentId';
 import { ShipmentNotDeliverable } from '../exception/ShipmentNotDeliverable';
 import { ShipmentNotDispatchable } from '../exception/ShipmentNotDispatchable';
@@ -25,7 +24,7 @@ interface Clock {
   now(): Date;
 }
 
-export class Shipment extends AggregateRoot<ShipmentId, ShipmentEvent> {
+export class Shipment extends AggregateRoot<ShipmentId> {
   private static readonly DAY_MS = 24 * 60 * 60 * 1000;
   private static readonly HOME_COUNTRY = 'ES';
 

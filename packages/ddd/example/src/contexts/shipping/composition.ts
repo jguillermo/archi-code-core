@@ -1,4 +1,3 @@
-import type { EventBase } from '../../ddd/domain';
 import type { Clock, Logger } from '../../ddd/application';
 import { DomainEventBus, EventRegistry } from '../../ddd/infrastructure';
 import type { EventChannel, Subscription } from '../../ddd/infrastructure';
@@ -27,7 +26,7 @@ export class ShippingContext {
   ) {}
 
   static async start({ channel, clock, logger }: ShippingSettings): Promise<ShippingContext> {
-    const bus = new DomainEventBus<EventBase>(channel, ShippingContext.registry(), logger);
+    const bus = new DomainEventBus(channel, ShippingContext.registry(), logger);
     const shipments = new InMemoryShipmentRepository();
     const subscriptions = [
       await bus.subscribe(new PrepareShipmentOnOrderPaid(shipments, bus, clock)),
@@ -47,8 +46,8 @@ export class ShippingContext {
     }
   }
 
-  private static registry(): EventRegistry<EventBase> {
-    return new EventRegistry<EventBase>()
+  private static registry(): EventRegistry {
+    return new EventRegistry()
       .register(
         OrderPaidDomainEvent,
         (json) =>

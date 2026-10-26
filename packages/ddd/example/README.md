@@ -42,7 +42,7 @@ src/
         aggregate/       <Aggregate>.ts, New<Child>.ts
         entity/          <Entity>.ts
         value-object/    <ValueObject>.ts
-        event/           <Aggregate><PastAction>DomainEvent.ts, <Aggregate>Event.ts
+        event/           <Aggregate><PastAction>DomainEvent.ts
         exception/       <WhatWentWrong>.ts
         service/         <Service>.ts, <Port>.ts
         specification/   <Rule>.ts
@@ -82,7 +82,7 @@ src/
 
 | Kind                                     | Folder           | File / class name                                  | Extends / is                                                                                          |
 | ---------------------------------------- | ---------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| aggregate root                           | `aggregate/`     | `<Aggregate>`                                      | `AggregateRoot<<Aggregate>Id, <Aggregate>Event>`                                                      |
+| aggregate root                           | `aggregate/`     | `<Aggregate>`                                      | `AggregateRoot<<Aggregate>Id>`                                                                        |
 | shape received by `create`               | `aggregate/`     | `New<Child>`                                       | `interface` of value objects                                                                          |
 | child entity                             | `entity/`        | `<Entity>`                                         | `Entity<<IdVO>>`                                                                                      |
 | id of an aggregate                       | `value-object/`  | `<Aggregate>Id`                                    | `IdType<'<Aggregate>Id'>`                                                                             |
@@ -97,7 +97,6 @@ src/
 | several fields                           | `value-object/`  | `<Name>`                                           | `Composite({ field: VOClass \| CompositeClass \| [ItemClass] })`                                      |
 | free-form JSON                           | `value-object/`  | `<Name>Data`, `<Name>Json`, `<Name>` (three files) | `interface … extends JsonTypeValue`, `JsonType<<Name>Data>`, `Required(<Name>Json)`                   |
 | domain event                             | `event/`         | `<Aggregate><PastAction>DomainEvent`               | `EventBase`                                                                                           |
-| event union                              | `event/`         | `<Aggregate>Event`                                 | `type` union of every event of the aggregate                                                          |
 | business error                           | `exception/`     | `<WhatWentWrong>` (no `Exception` suffix)          | `DomainException`                                                                                     |
 | specification                            | `specification/` | `<Rule>`                                           | `Specification<<Aggregate>>`                                                                          |
 | domain service                           | `service/`       | `<Service>`                                        | plain class                                                                                           |
@@ -129,7 +128,6 @@ Template (`domain/aggregate/<Aggregate>.ts`):
 import { AggregateRoot, CreatedAt, UpdatedAt } from '../../../../ddd/domain';
 import type { PrimitiveTypes } from '../../../../ddd/domain';
 import { <Aggregate>CreatedDomainEvent } from '../event/<Aggregate>CreatedDomainEvent';
-import type { <Aggregate>Event } from '../event/<Aggregate>Event';
 import { <Aggregate>Id } from '../value-object/<Aggregate>Id';
 import { <Status> } from '../value-object/<Status>Type';
 import { <Status>Type } from '../value-object/<Status>Type';
@@ -138,7 +136,7 @@ interface Clock {
   now(): Date;
 }
 
-export class <Aggregate> extends AggregateRoot<<Aggregate>Id, <Aggregate>Event> {
+export class <Aggregate> extends AggregateRoot<<Aggregate>Id> {
   private static readonly <CONSTANT> = <value>;
 
   readonly <field>: <VO>;
@@ -404,7 +402,7 @@ Composite with behavior: `shared-kernel/money/Money.ts` (`static zero`, `add`, `
 | D-EVT4 | The aggregate id is a named field (`orderId`, `paymentId`, `shipmentId`); references to other aggregates too (`orderId` in payment events). No `aggregateId`, no version.                                                   |
 | D-EVT5 | No interfaces or type aliases: field types inline; constructor param typed inline as `{ …fields } & EventMetadata`, destructuring `eventId, occurredOn, clock`; `super({ eventId, occurredOn, clock })`; assign each field. |
 | D-EVT6 | Created only by its aggregate: `this.record(new …DomainEvent({ …primitives, clock }))`, values from `.value` / `.toPrimitives()`.                                                                                           |
-| D-EVT7 | `event/<Aggregate>Event.ts`: `export type <Aggregate>Event = \| …` with an `import type` of every event of the aggregate. Every new event MUST be added.                                                                    |
+| D-EVT7 | No union type of an aggregate's events (no `<Aggregate>Event`): `AggregateRoot<<Aggregate>Id>`, `EventBus`, `DomainEventBus` and `EventRegistry` take no event type and work with `EventBase`.                              |
 | D-EVT8 | No methods, no `toPrimitives`/`fromPrimitives`: the event is its own JSON; consumers rebuild it in `composition.ts` (C-REG).                                                                                                |
 
 ```ts
@@ -498,7 +496,7 @@ A use case = one business action. Two kinds; the only difference is where the in
 | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | A-USR1 | Same file exports `interface <Action>Input` (primitives and data types; `actorId` or `actorRole` when an actor matters) and `interface <Action>Command` (value objects, composites, `New<Child>[]`).                                                                                                                                                                                                                                                                                                                        |
 | A-USR2 | `Output` = `void`, or the new id as `string` (`PlaceOrder`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| A-USR3 | Constructor params, `private readonly`, only what `handle` uses, in this order: repository typed by roles (`AggregateFinder<X> & AggregateSaver<X>`; `AggregateSaver<X>` alone when only creating; `AggregateFinder<X> & AggregateRemover<X>` when removing), domain services, `EventBus<<Aggregate>Event>`, `Clock`, `Logger`. Body `super();`.                                                                                                                                                                            |
+| A-USR3 | Constructor params, `private readonly`, only what `handle` uses, in this order: repository typed by roles (`AggregateFinder<X> & AggregateSaver<X>`; `AggregateSaver<X>` alone when only creating; `AggregateFinder<X> & AggregateRemover<X>` when removing), domain services, `EventBus`, `Clock`, `Logger`. Body `super();`.                                                                                                                                                                                              |
 | A-USR4 | `protected toCommand(input)`: exactly `return ValueObjectBuilder.build({ <field>: () => new <VO>(input.<x>), … })`. Enums: `new <Enum>Type(input.x as <Enum>)`. Composites: `X.fromPrimitives(input.x)`; money: `Money.fromPrimitives(input.x as { amount: number; currency: Currency })`. Lists of shapes: `ValueObjectBuilder.buildList(input.items, (item) => ValueObjectBuilder.build({ … }))` (errors reported as `lines.1.quantity`).                                                                                 |
 | A-USR5 | `protected async handle(command)` steps in order: (1) authorization → `throw new NotAllowedException('<English message>')`; (2) new id `<Aggregate>Id.generate()`; (3) `<Aggregate>.create(...)`, or `findById` and when `null` `throw new AggregateNotFoundException('<Aggregate>', id.value)`; (4) business method(s) with `this.clock`; (5) `await repo.save(x)` once (or `await repo.remove(x)`), then `await this.events.publish(x.pullDomainEvents())`; (6) log if the business wants a trace; (7) return the output. |
 | A-USR6 | A rule that depends only on the actor → `NotAllowedException` here. A rule that depends on aggregate state (only the buyer cancels) → business error in the aggregate (D-AGG10).                                                                                                                                                                                                                                                                                                                                            |
@@ -520,7 +518,6 @@ import { Money } from '../../../shared-kernel/money/Money';
 import type { Currency } from '../../../shared-kernel/money/MoneyCurrency';
 import type { Payment } from '../../domain/aggregate/Payment';
 import type { MoneyData } from '../request-payment/money-data';
-import type { PaymentEvent } from '../../domain/event/PaymentEvent';
 import { PaymentId } from '../../domain/value-object/PaymentId';
 import { StaffRole } from '../../domain/value-object/StaffRoleType';
 import { StaffRoleType } from '../../domain/value-object/StaffRoleType';
@@ -544,7 +541,7 @@ export class ConfirmTransferReceived extends UseCase<
 > {
   constructor(
     private readonly payments: AggregateFinder<Payment> & AggregateSaver<Payment>,
-    private readonly events: EventBus<PaymentEvent>,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();
@@ -602,7 +599,6 @@ import type { Clock, EventBus } from '../../../../ddd/application';
 import { Money } from '../../../shared-kernel/money/Money';
 import type { Currency } from '../../../shared-kernel/money/MoneyCurrency';
 import { Payment } from '../../domain/aggregate/Payment';
-import type { PaymentEvent } from '../../domain/event/PaymentEvent';
 import { OrderReference } from '../../domain/value-object/OrderReference';
 import { PaymentId } from '../../domain/value-object/PaymentId';
 import { PaymentMethodType } from '../../domain/value-object/PaymentMethodType';
@@ -613,7 +609,7 @@ import { OrderCreatedDomainEvent } from './order-created-domain-event';
 export class RequestPaymentOnOrderCreated extends EventListener<OrderCreatedDomainEvent> {
   constructor(
     private readonly payments: AggregateFinder<Payment> & AggregateSaver<Payment>,
-    private readonly events: EventBus<PaymentEvent>,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();
@@ -753,13 +749,13 @@ Error body: `{ code, message, errors }` (`errors` only for `ValidationException`
 
 ### 6.1 `composition.ts` (C-CMP)
 
-| Id     | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| C-CMP1 | One class `<Context>Context` plus `export interface <Context>Settings { channel: EventChannel; clock: Clock; logger: Logger; …own data }`. Only place that instantiates classes of the context.                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| C-CMP2 | `private constructor(readonly <repositories/stores>, readonly controller, private readonly subscriptions: Subscription[])`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| C-CMP3 | `static async start(settings)`: (1) `const bus = new DomainEventBus<EventBase>(channel, <Context>Context.registry(), logger);` (2) repositories, stores, adapters, domain services (`new OrderPricing(new InMemoryCouponCatalog(campaigns))`), projections; (3) every reaction use case with its dependencies (`new RequestPaymentOnOrderCreated(payments, bus, clock)`), each subscribed with `await bus.subscribe(listener)` and its `Subscription` kept; (4) the controller with the user use cases (`new ConfirmTransferReceived(payments, bus, clock)`), query ports and `logger`; (5) `return new <Context>Context(...)`. |
-| C-CMP4 | `async stop()`: `for (const subscription of this.subscriptions.splice(0)) { await subscription.unsubscribe(); }`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| C-CMP5 | `private static registry(): EventRegistry<EventBase>` (C-REG).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Id     | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| C-CMP1 | One class `<Context>Context` plus `export interface <Context>Settings { channel: EventChannel; clock: Clock; logger: Logger; …own data }`. Only place that instantiates classes of the context.                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| C-CMP2 | `private constructor(readonly <repositories/stores>, readonly controller, private readonly subscriptions: Subscription[])`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| C-CMP3 | `static async start(settings)`: (1) `const bus = new DomainEventBus(channel, <Context>Context.registry(), logger);` (2) repositories, stores, adapters, domain services (`new OrderPricing(new InMemoryCouponCatalog(campaigns))`), projections; (3) every reaction use case with its dependencies (`new RequestPaymentOnOrderCreated(payments, bus, clock)`), each subscribed with `await bus.subscribe(listener)` and its `Subscription` kept; (4) the controller with the user use cases (`new ConfirmTransferReceived(payments, bus, clock)`), query ports and `logger`; (5) `return new <Context>Context(...)`. |
+| C-CMP4 | `async stop()`: `for (const subscription of this.subscriptions.splice(0)) { await subscription.unsubscribe(); }`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| C-CMP5 | `private static registry(): EventRegistry` (C-REG).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 
 ### 6.2 Event registry (C-REG)
 
@@ -788,7 +784,7 @@ Error body: `{ code, message, errors }` (`errors` only for `ValidationException`
 
 ### R1 New user action on an existing aggregate
 
-1. Domain: business error(s) in `exception/` (next code, 8.4); `<Aggregate><PastAction>DomainEvent` in `event/` and added to `<Aggregate>Event`; business method on the aggregate (D-AGG9, D-AGG10).
+1. Domain: business error(s) in `exception/` (next code, 8.4); `<Aggregate><PastAction>DomainEvent` in `event/`; business method on the aggregate (D-AGG9, D-AGG10).
 2. Application: `application/<action>/<action>.ts` (A-USR template).
 3. Interfaces: endpoint method in the controller (H-CTL4).
 4. Composition: pass `new <Action>(repo, …, bus, clock)` to the controller.
@@ -803,7 +799,7 @@ Error body: `{ code, message, errors }` (`errors` only for `ValidationException`
 ### R3 New aggregate
 
 1. `value-object/<Aggregate>Id.ts`, status enum, value objects of its fields.
-2. `aggregate/<Aggregate>.ts` (D-AGG template), events + union, errors.
+2. `aggregate/<Aggregate>.ts` (D-AGG template), events, errors.
 3. `infrastructure/persistence/in-memory-<aggregate>-repository.ts` (I-REPO).
 4. Use cases (R1/R2), controller, composition.
 
@@ -910,7 +906,7 @@ Next free codes: `SAL010`, `PAY002`, `SHP004`, `MNY002`.
 ## 9. Review checklist
 
 - [ ] G: English, no comments, named exports, `import type` split, no cross-context import, layer matrix (G9).
-- [ ] D: value objects always valid through `@Validations`; aggregate member order and fields (D-AGG1, D-AGG3); `create` never computes ids; reaction methods return silently, user methods throw; `toPrimitives`/`fromPrimitives` cover every field; events primitive-only, inline types, added to the union; errors with the next code.
+- [ ] D: value objects always valid through `@Validations`; aggregate member order and fields (D-AGG1, D-AGG3); `create` never computes ids; reaction methods return silently, user methods throw; `toPrimitives`/`fromPrimitives` cover every field; events primitive-only, inline types, no event union; errors with the next code.
 - [ ] A: user use case = `UseCase` with one `ValueObjectBuilder.build` in `toCommand` and the A-USR5 steps; reaction use case = one `EventListener` class with consumer `<context>.<file-name>` and the A-RUC5 steps; no use case calls another; one event copy per reaction folder.
 - [ ] I: repositories implement roles only, version check with `WeakMap`, `structuredClone` both ways; adapters wrap bad data in `InternalErrorException`.
 - [ ] H: controllers check only auth and shape, never catch.

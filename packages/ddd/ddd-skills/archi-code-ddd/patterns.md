@@ -193,8 +193,7 @@ export class CarrierLabel extends Required(CarrierLabelJson) {}
 
 ## Events and business errors
 
-`event/PaymentCapturedDomainEvent.ts`, the event union `event/PaymentEvent.ts` and
-`exception/PaymentNotAwaitingTransfer.ts`:
+`event/PaymentCapturedDomainEvent.ts` and `exception/PaymentNotAwaitingTransfer.ts`:
 
 ```ts
 import { EventBase } from '@archi-code/ddd/domain';
@@ -228,17 +227,6 @@ export class PaymentCapturedDomainEvent extends EventBase {
 ```
 
 ```ts
-import type { PaymentCapturedDomainEvent } from './PaymentCapturedDomainEvent';
-import type { PaymentCreatedDomainEvent } from './PaymentCreatedDomainEvent';
-import type { PaymentRejectedDomainEvent } from './PaymentRejectedDomainEvent';
-
-export type PaymentEvent =
-  | PaymentCreatedDomainEvent
-  | PaymentCapturedDomainEvent
-  | PaymentRejectedDomainEvent;
-```
-
-```ts
 import { DomainException } from '@archi-code/ddd/domain';
 
 export class PaymentNotAwaitingTransfer extends DomainException {
@@ -262,7 +250,7 @@ interface Clock {
   now(): Date;
 }
 
-export class Payment extends AggregateRoot<PaymentId, PaymentEvent> {
+export class Payment extends AggregateRoot<PaymentId> {
   private static readonly LIMIT_CENTS: Record<PaymentMethod, number> = {
     [PaymentMethod.CARD]: 50_000,
     [PaymentMethod.TRANSFER]: 500_000,
@@ -602,7 +590,7 @@ export class ConfirmTransferReceived extends UseCase<
 > {
   constructor(
     private readonly payments: AggregateFinder<Payment> & AggregateSaver<Payment>,
-    private readonly events: EventBus<PaymentEvent>,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();
@@ -766,7 +754,7 @@ import { OrderCreatedDomainEvent } from './order-created-domain-event';
 export class RequestPaymentOnOrderCreated extends EventListener<OrderCreatedDomainEvent> {
   constructor(
     private readonly payments: AggregateFinder<Payment> & AggregateSaver<Payment>,
-    private readonly events: EventBus<PaymentEvent>,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();
@@ -801,7 +789,7 @@ business trace is logged after publishing, only when the method recorded events:
 export class CancelUnpaidOrderOnPaymentRejected extends EventListener<PaymentRejectedDomainEvent> {
   constructor(
     private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
-    private readonly events: EventBus<OrderEvent>,
+    private readonly events: EventBus,
     private readonly clock: Clock,
     private readonly logger: Logger,
   ) {
@@ -1071,7 +1059,6 @@ channel, every reaction subscribed, every heard event registered once with a fac
 `eventId` and `occurredOn`:
 
 ```ts
-import type { EventBase } from '@archi-code/ddd/domain';
 import type { Clock, Logger } from '@archi-code/ddd/application';
 import { DomainEventBus, EventRegistry } from '@archi-code/ddd/infrastructure';
 import type { EventChannel, Subscription } from '@archi-code/ddd/infrastructure';
@@ -1090,7 +1077,7 @@ export class PaymentsContext {
   ) {}
 
   static async start({ channel, clock, logger }: PaymentsSettings): Promise<PaymentsContext> {
-    const bus = new DomainEventBus<EventBase>(channel, PaymentsContext.registry(), logger);
+    const bus = new DomainEventBus(channel, PaymentsContext.registry(), logger);
     const payments = new InMemoryPaymentRepository();
     const listeners = [
       new RequestPaymentOnOrderCreated(payments, bus, clock),
@@ -1113,8 +1100,8 @@ export class PaymentsContext {
     }
   }
 
-  private static registry(): EventRegistry<EventBase> {
-    return new EventRegistry<EventBase>()
+  private static registry(): EventRegistry {
+    return new EventRegistry()
       .register(
         OrderCreatedDomainEvent,
         (json) =>

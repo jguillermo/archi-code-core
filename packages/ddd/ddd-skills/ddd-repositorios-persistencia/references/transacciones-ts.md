@@ -178,7 +178,6 @@ import { AggregateNotFoundException, ConcurrencyException, UseCase, ValueObjectB
 import type { Clock, EventBus } from '@archi-code/ddd/application';
 import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
 import type { Order } from '../../domain/aggregate/Order';
-import type { OrderEvent } from '../../domain/event/OrderEvent';
 import { OrderId } from '../../domain/value-object/OrderId';
 import { OrderLine } from '../../domain/value-object/OrderLine';
 
@@ -199,7 +198,7 @@ export class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand
 
   constructor(
     private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
-    private readonly events: EventBus<OrderEvent>,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();
@@ -255,7 +254,6 @@ import {
 } from '@archi-code/ddd/infrastructure';
 import { AddOrderLine } from '../../../../src/contexts/sales/application/add-order-line/add-order-line';
 import { Order } from '../../../../src/contexts/sales/domain/aggregate/Order';
-import type { OrderEvent } from '../../../../src/contexts/sales/domain/event/OrderEvent';
 import { CustomerId } from '../../../../src/contexts/sales/domain/value-object/CustomerId';
 import { OrderId } from '../../../../src/contexts/sales/domain/value-object/OrderId';
 import { OrderLines } from '../../../../src/contexts/sales/domain/value-object/OrderLines';
@@ -269,7 +267,7 @@ describe('Two customers add a line to the same order at once', () => {
     const channel = new InMemoryEventChannel();
     const addOrderLine = new AddOrderLine(
       orders,
-      new DomainEventBus<OrderEvent>(channel, new EventRegistry<OrderEvent>()),
+      new DomainEventBus(channel, new EventRegistry()),
       clock,
     );
     const order = Order.create(

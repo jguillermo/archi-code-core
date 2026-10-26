@@ -4,7 +4,6 @@ import type { Clock, EventBus } from '../../../../ddd/application';
 import { Money } from '../../../shared-kernel/money/Money';
 import type { Currency } from '../../../shared-kernel/money/MoneyCurrency';
 import { Payment } from '../../domain/aggregate/Payment';
-import type { PaymentEvent } from '../../domain/event/PaymentEvent';
 import { OrderReference } from '../../domain/value-object/OrderReference';
 import { PaymentId } from '../../domain/value-object/PaymentId';
 import { PaymentMethodType } from '../../domain/value-object/PaymentMethodType';
@@ -15,7 +14,7 @@ import { OrderCreatedDomainEvent } from './order-created-domain-event';
 export class RequestPaymentOnOrderCreated extends EventListener<OrderCreatedDomainEvent> {
   constructor(
     private readonly payments: AggregateFinder<Payment> & AggregateSaver<Payment>,
-    private readonly events: EventBus<PaymentEvent>,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();

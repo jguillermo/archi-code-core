@@ -12,7 +12,6 @@ import { LineNumber } from '../value-object/LineNumber';
 import type { NewOrderLine } from './NewOrderLine';
 import { OrderCancelledDomainEvent } from '../event/OrderCancelledDomainEvent';
 import { OrderDeliveredDomainEvent } from '../event/OrderDeliveredDomainEvent';
-import type { OrderEvent } from '../event/OrderEvent';
 import { OrderId } from '../value-object/OrderId';
 import { OrderLine } from '../entity/OrderLine';
 import { OrderLineCountOutOfRange } from '../exception/OrderLineCountOutOfRange';
@@ -40,7 +39,7 @@ interface Clock {
   now(): Date;
 }
 
-export class Order extends AggregateRoot<OrderId, OrderEvent> {
+export class Order extends AggregateRoot<OrderId> {
   private static readonly MAX_LINES = 20;
   private static readonly MAX_TOTAL_CENTS = 1_000_000;
 

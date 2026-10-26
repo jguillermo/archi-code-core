@@ -1,4 +1,3 @@
-import type { EventBase } from '../../ddd/domain';
 import type { Clock, Logger } from '../../ddd/application';
 import { DomainEventBus, EventRegistry } from '../../ddd/infrastructure';
 import type { EventChannel, Subscription } from '../../ddd/infrastructure';
@@ -27,7 +26,7 @@ export class PaymentsContext {
   ) {}
 
   static async start({ channel, clock, logger }: PaymentsSettings): Promise<PaymentsContext> {
-    const bus = new DomainEventBus<EventBase>(channel, PaymentsContext.registry(), logger);
+    const bus = new DomainEventBus(channel, PaymentsContext.registry(), logger);
     const payments = new InMemoryPaymentRepository();
     const listeners = [
       new RequestPaymentOnOrderCreated(payments, bus, clock),
@@ -51,8 +50,8 @@ export class PaymentsContext {
     }
   }
 
-  private static registry(): EventRegistry<EventBase> {
-    return new EventRegistry<EventBase>()
+  private static registry(): EventRegistry {
+    return new EventRegistry()
       .register(
         OrderCreatedDomainEvent,
         (json) =>

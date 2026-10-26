@@ -2,7 +2,6 @@ import type { AggregateFinder, AggregateSaver } from '../../../../ddd/domain';
 import { EventListener, ListensTo, ValueObjectBuilder } from '../../../../ddd/application';
 import type { Clock, EventBus } from '../../../../ddd/application';
 import type { Order } from '../../domain/aggregate/Order';
-import type { OrderEvent } from '../../domain/event/OrderEvent';
 import { OrderId } from '../../domain/value-object/OrderId';
 import { PaymentReference } from '../../domain/value-object/PaymentReference';
 import { PaymentCapturedDomainEvent } from './payment-captured-domain-event';
@@ -11,7 +10,7 @@ import { PaymentCapturedDomainEvent } from './payment-captured-domain-event';
 export class MarkOrderPaidOnPaymentCaptured extends EventListener<PaymentCapturedDomainEvent> {
   constructor(
     private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
-    private readonly events: EventBus<OrderEvent>,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();

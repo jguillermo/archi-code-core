@@ -17,14 +17,14 @@ export interface Subscription {
   unsubscribe(): Promise<void>;
 }
 
-export class DomainEventBus<Event extends EventBase = EventBase> implements EventBus<Event> {
+export class DomainEventBus implements EventBus {
   constructor(
     private readonly channel: EventChannel,
-    private readonly registry: EventRegistry<Event>,
+    private readonly registry: EventRegistry,
     private readonly logger: Logger = new SilentLogger(),
   ) {}
 
-  async publish(events: readonly Event[]): Promise<void> {
+  async publish(events: readonly EventBase[]): Promise<void> {
     await this.channel.send(events.map((event: EventBase): SerializedEvent => ({ ...event })));
     this.logger.debug('domain_events_published', {
       events: events.map((event) => ({
@@ -34,7 +34,7 @@ export class DomainEventBus<Event extends EventBase = EventBase> implements Even
     });
   }
 
-  async subscribe(listener: EventListener<Event>): Promise<Subscription> {
+  async subscribe(listener: EventListener): Promise<Subscription> {
     const subscription = ListensTo.subscriptionOf(listener);
     const { eventName, consumer } = subscription;
     if (!this.registry.has(eventName)) {
@@ -53,7 +53,7 @@ export class DomainEventBus<Event extends EventBase = EventBase> implements Even
   }
 
   private async deliver(
-    listener: EventListener<Event>,
+    listener: EventListener,
     { eventName, consumer }: ListenerSubscription,
     serialized: SerializedEvent,
   ): Promise<void> {

@@ -6,7 +6,6 @@ import {
 } from '../../../../ddd/application';
 import type { Clock, EventBus } from '../../../../ddd/application';
 import type { Order } from '../../domain/aggregate/Order';
-import type { OrderEvent } from '../../domain/event/OrderEvent';
 import { OrderId } from '../../domain/value-object/OrderId';
 import { LineNumber } from '../../domain/value-object/LineNumber';
 import { Quantity } from '../../domain/value-object/Quantity';
@@ -30,7 +29,7 @@ export class ChangeOrderLineQuantity extends UseCase<
 > {
   constructor(
     private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
-    private readonly events: EventBus<OrderEvent>,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();

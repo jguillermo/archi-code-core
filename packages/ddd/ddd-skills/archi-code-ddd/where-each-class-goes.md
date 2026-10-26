@@ -65,7 +65,7 @@ src/
         aggregate/       Order.ts, NewOrderLine.ts
         entity/          OrderLine.ts
         value-object/    OrderId.ts, Sku.ts, OrderStatusType.ts, ShippingAddress.ts
-        event/           OrderPaidDomainEvent.ts, OrderEvent.ts
+        event/           OrderCreatedDomainEvent.ts, OrderPaidDomainEvent.ts
         exception/       OrderNotCancellable.ts
         service/         OrderPricing.ts, CouponCatalog.ts (port)
         specification/   FreeShippingEligible.ts
@@ -93,7 +93,6 @@ src/
 | Enum value object            | file `<Enum>Type.ts` with `enum <Enum>`, `<Enum>Option`, `<Enum>Type`; the one exception is money: `MoneyCurrency.ts` with `Currency`, `CurrencyOption`, `MoneyCurrency` |
 | Shape `create` receives      | `New<Child>` (`NewOrderLine`), an interface of value objects                               |
 | Domain event                 | `<Aggregate><PastAction>DomainEvent`, `eventName` `'<aggregate>.<past_action>'`           |
-| Event union                  | `<Aggregate>Event` (`OrderEvent`)                                                          |
 | Business error               | what went wrong, no `Exception` suffix (`OrderNotCancellable`), code `<CTX><NNN>`          |
 | User use case                | the business action (`PlaceOrder`, `ConfirmTransferReceived`), never CRUD nor technical    |
 | Reaction use case            | `<Action>On<Event>` (`MarkOrderPaidOnPaymentCaptured`), file `<action>-on-<event>.ts`      |

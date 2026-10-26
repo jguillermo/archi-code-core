@@ -2,7 +2,6 @@ import type { AggregateFinder, AggregateSaver } from '../../../../ddd/domain';
 import { EventListener, ListensTo, ValueObjectBuilder } from '../../../../ddd/application';
 import type { Clock, EventBus } from '../../../../ddd/application';
 import type { Payment } from '../../domain/aggregate/Payment';
-import type { PaymentEvent } from '../../domain/event/PaymentEvent';
 import { OrderReference } from '../../domain/value-object/OrderReference';
 import { PaymentId } from '../../domain/value-object/PaymentId';
 import { OrderCancelledDomainEvent } from './order-cancelled-domain-event';
@@ -13,7 +12,7 @@ import { OrderCancelledDomainEvent } from './order-cancelled-domain-event';
 export class SettleCancelledOrderPaymentOnOrderCancelled extends EventListener<OrderCancelledDomainEvent> {
   constructor(
     private readonly payments: AggregateFinder<Payment> & AggregateSaver<Payment>,
-    private readonly events: EventBus<PaymentEvent>,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();

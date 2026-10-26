@@ -3,17 +3,14 @@ import type { EntityId } from '../entity/entity';
 import type { EventBase } from '../event/event-base';
 import type { IdType } from '../type/id-type';
 
-export abstract class AggregateRoot<
-  Id extends EntityId = IdType,
-  Event extends EventBase = EventBase,
-> extends Entity<Id> {
-  private readonly domainEvents: Event[] = [];
+export abstract class AggregateRoot<Id extends EntityId = IdType> extends Entity<Id> {
+  private readonly domainEvents: EventBase[] = [];
 
-  protected record(event: Event): void {
+  protected record(event: EventBase): void {
     this.domainEvents.push(event);
   }
 
-  pullDomainEvents(): Event[] {
+  pullDomainEvents(): EventBase[] {
     return this.domainEvents.splice(0);
   }
 }

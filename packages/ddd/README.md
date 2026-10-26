@@ -132,7 +132,7 @@ src/
         aggregate/            Order.ts, NewOrderLine.ts
         entity/               OrderLine.ts
         value-object/         OrderId.ts, Sku.ts, OrderStatusType.ts, ShippingAddress.ts
-        event/                OrderPaidDomainEvent.ts, OrderEvent.ts (union of the order's events)
+        event/                OrderCreatedDomainEvent.ts, OrderPaidDomainEvent.ts
         exception/            OrderNotCancellable.ts
         service/              OrderPricing.ts, CouponCatalog.ts (domain port)
         specification/        FreeShippingEligible.ts
@@ -804,9 +804,9 @@ repository. It does not protect the invariants of an aggregate: those stay in th
 
 ## Aggregates and domain events
 
-- `AggregateRoot<Id = IdType, Event = EventBase>`: abstract class for aggregates. `new (id)` stores
+- `AggregateRoot<Id = IdType>`: abstract class for aggregates. `new (id)` stores
   `readonly id`; `equals(other)` is true for the same class and an equal id, whatever the other
-  attributes are. `Id` may be any required value object (`EntityId`: `IdType`, a `Required(StringType)` code…); an optional value object cannot be an id, and an id that holds no value throws `RequiredValueException`, so two new entities are never taken for the same one [IDDD ch. 5]; `record(event)` is `protected` and keeps the event as it is (a fact never changes [IDDD ch. 8]: its fields are `readonly`); `pullDomainEvents()` returns the events typed as `Event[]`, in order, and empties
+  attributes are. `Id` may be any required value object (`EntityId`: `IdType`, a `Required(StringType)` code…); an optional value object cannot be an id, and an id that holds no value throws `RequiredValueException`, so two new entities are never taken for the same one [IDDD ch. 5]; `record(event)` is `protected` and keeps the event as it is (a fact never changes [IDDD ch. 8]: its fields are `readonly`); `pullDomainEvents()` returns the events typed as `EventBase[]`, in order, and empties
   the list. Pending events are a plain private array: repositories store `toPrimitives()`, never
   the aggregate itself.
 - The aggregate carries no version: optimistic concurrency belongs to the repository, which
@@ -907,9 +907,9 @@ repository. It does not protect the invariants of an aggregate: those stay in th
   clock is not kept in the event. The event is its own JSON: `{ ...event }` and
   `JSON.stringify(event)` give `{ eventName, eventId, occurredOn, ...fields }`, in that order.
 - Only its aggregate creates an event (`this.record(new …DomainEvent({ …, clock }))`), with the
-  clock the method received, and `event/<Aggregate>Event.ts` holds the union of every event of the
-  aggregate (`type OrderEvent = OrderCreatedDomainEvent | OrderPaidDomainEvent | …`), the `Event`
-  type of `AggregateRoot<Id, Event>` and of `EventBus<Event>`.
+  clock the method received. There is no union type of an aggregate's events: `AggregateRoot`,
+  `EventBus`, `DomainEventBus` and `EventRegistry` take and return `EventBase`, the class every
+  event extends.
 - Rule: each event declares only the primitive data it needs (text, finite numbers, booleans,
   `null`, and lists and plain objects of them), taken from value objects: a value object becomes
   its `.value`, money `{ amount, currency }`, a date its ISO text. Never value objects, `Date`s,
@@ -961,9 +961,7 @@ class OrderCreatedDomainEvent extends EventBase {
   }
 }
 
-type OrderEvent = OrderCreatedDomainEvent;
-
-class Order extends AggregateRoot<OrderId, OrderEvent> {
+class Order extends AggregateRoot<OrderId> {
   readonly customer: CustomerName;
   readonly createdAt: CreatedAt;
 
@@ -1042,15 +1040,15 @@ it (types only, nothing to instantiate). The repository is split by role, follow
 segregation principle:
 
 ```ts
-interface AggregateFinder<Aggregate extends AggregateRoot<any, any>> {
+interface AggregateFinder<Aggregate extends AggregateRoot<any>> {
   findById(id: Aggregate['id']): Promise<Aggregate | null>;
 }
 
-interface AggregateSaver<Aggregate extends AggregateRoot<any, any>> {
+interface AggregateSaver<Aggregate extends AggregateRoot<any>> {
   save(aggregate: Aggregate): Promise<void>;
 }
 
-interface AggregateRemover<Aggregate extends AggregateRoot<any, any>> {
+interface AggregateRemover<Aggregate extends AggregateRoot<any>> {
   remove(aggregate: Aggregate): Promise<void>;
 }
 ```
@@ -1336,7 +1334,7 @@ export interface ShipOrderCommand {
 export class ShipOrder extends UseCase<ShipOrderInput, ShipOrderCommand, void> {
   constructor(
     private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
-    private readonly events: EventBus<OrderEvent>,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();
@@ -1454,7 +1452,7 @@ It registers a fact that already happened elsewhere, so it does not refuse it [D
 export class RequestPaymentOnOrderCreated extends EventListener<OrderCreatedDomainEvent> {
   constructor(
     private readonly payments: AggregateFinder<Payment> & AggregateSaver<Payment>,
-    private readonly events: EventBus<PaymentEvent>,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();
@@ -1580,8 +1578,8 @@ contract in the adapter that talks to the broker [IDDD ch. 13].
 `@archi-code/ddd/infrastructure`:
 
 ```ts
-interface EventBus<Event extends EventBase = EventBase> {
-  publish(events: readonly Event[]): Promise<void>;
+interface EventBus {
+  publish(events: readonly EventBase[]): Promise<void>;
 }
 
 interface Subscription {
@@ -1623,14 +1621,13 @@ and a table. The rules every channel follows:
 Both live in `@archi-code/ddd/infrastructure` and are used only by the composition root:
 
 ```ts
-import type { EventBase } from '@archi-code/ddd/domain';
 import {
   DomainEventBus,
   EventRegistry,
   InMemoryEventChannel,
 } from '@archi-code/ddd/infrastructure';
 
-const registry = new EventRegistry<EventBase>().register(
+const registry = new EventRegistry().register(
   OrderCreatedDomainEvent,
   (json) =>
     new OrderCreatedDomainEvent({
@@ -1641,7 +1638,7 @@ const registry = new EventRegistry<EventBase>().register(
     }),
 );
 
-const bus = new DomainEventBus<EventBase>(new InMemoryEventChannel(), registry);
+const bus = new DomainEventBus(new InMemoryEventChannel(), registry);
 const confirming = await bus.subscribe(new SendConfirmationOnOrderCreated(mailer));
 
 const placeOrder = new PlaceOrder(orders, bus, clock); // the use case only sees EventBus
@@ -1662,8 +1659,8 @@ await confirming.unsubscribe();
 - An optional third argument, a `Logger`, logs what was published, the subscriptions and every
   reaction failure with its event and consumer (see [Logging](#logging)); without it, nothing is
   logged.
-- One bus per context, typed `DomainEventBus<EventBase>` when its registry holds events of several
-  aggregates and contexts; every context's bus uses the same channel.
+- One bus per context, whatever aggregates and contexts its registry holds events of; every
+  context's bus uses the same channel.
 
 `EventRegistry`: `register(EventClass, factory)` (the same event twice throws
 `InternalErrorException`: a wiring mistake), `has(eventName)` and `fromJSON(json)` (a parsed
@@ -1683,7 +1680,7 @@ stored, so it can also read an older shape of the same event.
 The sales context creates an order and publishes `OrderCreatedDomainEvent`; a notifications
 context keeps its own copy of that event and a reaction use case sends the confirmation through a
 `Mailer` port. The use cases only know the ports; the composition root chooses the channel.
-`Order`, `OrderId`, `CustomerName`, `OrderEvent` and `InMemoryOrderRepository` are the ones of
+`Order`, `OrderId`, `CustomerName` and `InMemoryOrderRepository` are the ones of
 [Persisting aggregates](#persisting-aggregates) and [Writing a repository](#writing-a-repository).
 
 ```ts
@@ -1710,7 +1707,7 @@ export interface PlaceOrderCommand {
 export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, string> {
   constructor(
     private readonly orders: AggregateSaver<Order>,
-    private readonly events: EventBus<OrderEvent>,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();
@@ -1773,7 +1770,7 @@ export class SendConfirmationOnOrderCreated extends EventListener<OrderCreatedDo
 // composition root
 const mails: string[] = [];
 const mailer: Mailer = { send: async (to, text) => void mails.push(`${to}: ${text}`) };
-const registry = new EventRegistry<EventBase>().register(
+const registry = new EventRegistry().register(
   OrderCreatedDomainEvent,
   (json) =>
     new OrderCreatedDomainEvent({
@@ -1784,7 +1781,7 @@ const registry = new EventRegistry<EventBase>().register(
     }),
 );
 const channel = new InMemoryEventChannel();
-const bus = new DomainEventBus<EventBase>(channel, registry);
+const bus = new DomainEventBus(channel, registry);
 const confirming = await bus.subscribe(new SendConfirmationOnOrderCreated(mailer));
 
 const orders = new InMemoryOrderRepository();
@@ -1906,7 +1903,7 @@ The wiring of the example above changes one line, and the use cases and the reac
 are:
 
 ```ts
-const bus = new DomainEventBus<EventBase>(new RabbitMqEventChannel(amqpChannel), registry);
+const bus = new DomainEventBus(new RabbitMqEventChannel(amqpChannel), registry);
 ```
 
 With a broker, `publish` resolves when the messages were handed to RabbitMQ, not when the reaction
@@ -2100,11 +2097,10 @@ consumer gets its own JSON copy, `send` resolves once the handlers finished, and
 returns a copy of what was sent, in order (for tests).
 
 ```ts
-import type { EventBase } from '@archi-code/ddd/domain';
 import { DomainEventBus, InMemoryEventChannel } from '@archi-code/ddd/infrastructure';
 
 const channel = new InMemoryEventChannel({ delivery: 'parallel' });
-const bus = new DomainEventBus<EventBase>(channel, registry); // the registry of the example above
+const bus = new DomainEventBus(channel, registry); // the registry of the example above
 await bus.subscribe(new SendConfirmationOnOrderCreated(mailer));
 await bus.publish(order.pullDomainEvents());
 channel.sent.map((event) => event.eventName); // ['order.created']
@@ -2129,7 +2125,7 @@ const logger: Logger = new ConsoleLogger({ level: 'info', clock: new SystemClock
 logger.warn('stock_low', { sku: 'TORCH-01', units: 2 });
 // console.warn: {"time":"2026-10-19T09:30:00.000Z","level":"warn","message":"stock_low","context":{"sku":"TORCH-01","units":2}}
 
-const bus = new DomainEventBus<EventBase>(channel, registry, logger);
+const bus = new DomainEventBus(channel, registry, logger);
 ```
 
 `ConsoleLogger` drops entries below `level` (`debug` < `info` < `warn` < `error`; an unknown level
@@ -2283,15 +2279,13 @@ class OrderShippedDomainEvent extends EventBase {
   }
 }
 
-type OrderEvent = OrderCreatedDomainEvent | OrderShippedDomainEvent;
-
 class OrderAlreadyShipped extends DomainException {
   constructor(orderId: string) {
     super(`Order ${orderId} is already shipped`, ['ORD002']);
   }
 }
 
-class Order extends AggregateRoot<OrderId, OrderEvent> {
+class Order extends AggregateRoot<OrderId> {
   readonly customer: CustomerName;
   private _shipped: Shipped;
   private _lines: OrderLine[];
@@ -2722,7 +2716,6 @@ application's entry file opens one channel and starts every context on it, and s
 reverse order.
 
 ```ts
-import type { EventBase } from '@archi-code/ddd/domain';
 import type { Clock, Logger } from '@archi-code/ddd/application';
 import { DomainEventBus, EventRegistry } from '@archi-code/ddd/infrastructure';
 import type { EventChannel, Subscription } from '@archi-code/ddd/infrastructure';
@@ -2741,7 +2734,7 @@ export class PaymentsContext {
   ) {}
 
   static async start({ channel, clock, logger }: PaymentsSettings): Promise<PaymentsContext> {
-    const bus = new DomainEventBus<EventBase>(channel, PaymentsContext.registry(), logger);
+    const bus = new DomainEventBus(channel, PaymentsContext.registry(), logger);
     const payments = new InMemoryPaymentRepository();
     const subscriptions = [
       await bus.subscribe(new RequestPaymentOnOrderCreated(payments, bus, clock)),
@@ -2760,8 +2753,8 @@ export class PaymentsContext {
     }
   }
 
-  private static registry(): EventRegistry<EventBase> {
-    return new EventRegistry<EventBase>()
+  private static registry(): EventRegistry {
+    return new EventRegistry()
       .register(
         OrderCreatedDomainEvent,
         (json) =>
@@ -2872,15 +2865,13 @@ class UserRenamedDomainEvent extends EventBase {
   }
 }
 
-type UserEvent = UserRegisteredDomainEvent | UserRenamedDomainEvent;
-
 class UserBlocked extends DomainException {
   constructor(userId: string) {
     super(`User ${userId} is blocked`, ['USR001']);
   }
 }
 
-class User extends AggregateRoot<UserId, UserEvent> {
+class User extends AggregateRoot<UserId> {
   private _name: Name;
   readonly email: Email;
   private _blocked: Blocked;
@@ -2975,7 +2966,7 @@ interface RegisterUserCommand {
 class RegisterUser extends UseCase<RegisterUserInput, RegisterUserCommand, string> {
   constructor(
     private readonly users: AggregateSaver<User>,
-    private readonly events: EventBus<UserEvent>,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();
@@ -3009,7 +3000,7 @@ interface RenameUserCommand {
 class RenameUser extends UseCase<RenameUserInput, RenameUserCommand, void> {
   constructor(
     private readonly users: AggregateFinder<User> & AggregateSaver<User>,
-    private readonly events: EventBus<UserEvent>,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();
@@ -3050,7 +3041,7 @@ class SendWelcomeEmailOnUserRegistered extends EventListener<UserRegisteredDomai
 const emails: string[] = [];
 const users = new InMemoryUserRepository(); // written like InMemoryOrderRepository
 const channel = new InMemoryEventChannel();
-const registry = new EventRegistry<UserEvent>()
+const registry = new EventRegistry()
   .register(
     UserRegisteredDomainEvent,
     (json) =>
@@ -3071,7 +3062,7 @@ const registry = new EventRegistry<UserEvent>()
         occurredOn: json.occurredOn,
       }),
   );
-const bus = new DomainEventBus<UserEvent>(channel, registry);
+const bus = new DomainEventBus(channel, registry);
 await bus.subscribe(new SendWelcomeEmailOnUserRegistered(emails));
 const clock = new FixedClock('2026-01-01T09:00:00Z');
 

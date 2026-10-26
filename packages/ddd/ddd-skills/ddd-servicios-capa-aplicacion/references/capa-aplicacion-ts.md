@@ -17,7 +17,6 @@ import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
 import { AggregateNotFoundException, UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
 import type { Order } from '../../domain/aggregate/Order';
-import type { OrderEvent } from '../../domain/event/OrderEvent';
 import { OrderCancellation } from '../../domain/service/OrderCancellation';
 import { CancellationReason } from '../../domain/value-object/CancellationReason';
 import { CustomerId } from '../../domain/value-object/CustomerId';
@@ -39,7 +38,7 @@ export class CancelOrder extends UseCase<CancelOrderInput, CancelOrderCommand, v
   constructor(
     private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
     private readonly cancellation: OrderCancellation,
-    private readonly events: EventBus<OrderEvent>,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();
@@ -69,7 +68,7 @@ Cargar, invocar el dominio, guardar y publicar, y ninguna regla de negocio: que 
 
 Orden de `handle` `[Fuera de los libros: convención de @archi-code/ddd]`: (1) autorización → `NotAllowedException`; (2) id nuevo (`OrderId.generate()`); (3) `Order.create(...)`, o `findById` y `AggregateNotFoundException` si es `null`; (4) método o métodos de negocio con `this.clock`; (5) `save` una vez (o `remove`) y después `publish(x.pullDomainEvents())`; (6) log si el negocio quiere traza; (7) devolver la salida.
 
-* El constructor recibe, `private readonly` y en este orden, solo lo que usa `handle`: el repositorio con los roles que usa (`AggregateFinder<Order> & AggregateSaver<Order>`; `AggregateSaver<Order>` solo para crear; `AggregateFinder<Order> & AggregateRemover<Order>` para borrar), servicios de dominio, `EventBus<OrderEvent>`, `Clock` y `Logger`. Nunca una dependencia de transacciones (un runner de transacciones o una unidad de trabajo): no existe puerto de transacciones `[Fuera de los libros: convención de @archi-code/ddd]`.
+* El constructor recibe, `private readonly` y en este orden, solo lo que usa `handle`: el repositorio con los roles que usa (`AggregateFinder<Order> & AggregateSaver<Order>`; `AggregateSaver<Order>` solo para crear; `AggregateFinder<Order> & AggregateRemover<Order>` para borrar), servicios de dominio, `EventBus`, `Clock` y `Logger`. Nunca una dependencia de transacciones (un runner de transacciones o una unidad de trabajo): no existe puerto de transacciones `[Fuera de los libros: convención de @archi-code/ddd]`.
 * `UseCase` no trae ayudas (`findOrFail`, `saveAndPublish`): todos los pasos se escriben en `handle` `[Fuera de los libros: convención de @archi-code/ddd]`.
 * Se guarda antes de publicar, y se publica lo que devuelve `pullDomainEvents()`.
 * La aplicación nunca abre, une ni cierra transacciones. IDDD pone el control de la transacción en el servicio de aplicación [IDDD cap. 14]; con el paquete esa responsabilidad pasa al adaptador del repositorio, que hace atómico cada `save` y `remove`, comprueba la versión y envuelve los errores del driver en `InternalErrorException` con `{ cause }` `[Fuera de los libros: convención de @archi-code/ddd]`. Ver `ddd-skills/ddd-repositorios-persistencia/references/transacciones-ts.md`.
@@ -106,7 +105,6 @@ import type { AggregateFinder, AggregateSaver } from '@archi-code/ddd/domain';
 import { EventListener, ListensTo, ValueObjectBuilder } from '@archi-code/ddd/application';
 import type { Clock, EventBus } from '@archi-code/ddd/application';
 import type { Order } from '../../domain/aggregate/Order';
-import type { OrderEvent } from '../../domain/event/OrderEvent';
 import { OrderId } from '../../domain/value-object/OrderId';
 import { ReservationReference } from '../../domain/value-object/ReservationReference';
 import { StockItemReservedDomainEvent } from './stock-item-reserved-domain-event';
@@ -117,7 +115,7 @@ import { StockItemReservedDomainEvent } from './stock-item-reserved-domain-event
 export class RegisterStockReservationOnStockItemReserved extends EventListener<StockItemReservedDomainEvent> {
   constructor(
     private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
-    private readonly events: EventBus<OrderEvent>,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();
@@ -196,7 +194,7 @@ export class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand
 
   constructor(
     private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
-    private readonly events: EventBus<OrderEvent>,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();
@@ -291,7 +289,7 @@ const clock = new FixedClock('2026-03-01T09:30:00Z');
 function sales() {
   const orders = new InMemoryOrderRepository();
   const channel = new InMemoryEventChannel();
-  const events = new DomainEventBus<OrderEvent>(channel, new EventRegistry<OrderEvent>());
+  const events = new DomainEventBus(channel, new EventRegistry());
   return {
     orders,
     channel,

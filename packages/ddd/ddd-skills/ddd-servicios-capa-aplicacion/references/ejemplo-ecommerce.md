@@ -60,7 +60,7 @@ interface Clock {
   now(): Date;
 }
 
-export class Customer extends AggregateRoot<CustomerId, CustomerEvent> {
+export class Customer extends AggregateRoot<CustomerId> {
   readonly name: CustomerName;
   private _blocked: Blocked;
   readonly createdAt: CreatedAt;
@@ -185,7 +185,7 @@ export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, stri
   constructor(
     private readonly customers: AggregateFinder<Customer>,
     private readonly orders: AggregateSaver<Order>,
-    private readonly events: EventBus<OrderEvent>,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();
@@ -275,7 +275,7 @@ import { StockItemReservedDomainEvent } from './stock-item-reserved-domain-event
 export class RegisterStockReservationOnStockItemReserved extends EventListener<StockItemReservedDomainEvent> {
   constructor(
     private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
-    private readonly events: EventBus<OrderEvent>,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();
@@ -316,7 +316,7 @@ const reservationId = '0f1e2d3c-4b5a-4968-8776-655443322110';
 describe('Registering the stock reservation of an order', () => {
   it('the order keeps the reservation the warehouse made, also when it is delivered twice', async () => {
     const orders = new InMemoryOrderRepository();
-    const registry = new EventRegistry<StockItemReservedDomainEvent>().register(
+    const registry = new EventRegistry().register(
       StockItemReservedDomainEvent,
       (json) =>
         new StockItemReservedDomainEvent({

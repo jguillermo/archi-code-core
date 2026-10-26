@@ -49,7 +49,7 @@ Recomendación de estas fuentes `[Fuera de los libros]`: Event Sourcing solo en 
 
 Guía completa en `ddd-skills/ddd-event-sourcing-cqrs/references/event-sourcing-ts.md`. Esquema:
 
-1. El agregado (`extends AggregateRoot<PaymentId, PaymentEvent>`) separa **decidir** (métodos de comando que comprueban reglas y emiten eventos con `record`) de **aplicar** (un `apply` privado que cambia estado a partir de un evento). IDDD propone incluso dos clases, una de estado y otra de comportamiento, que solo colaboran a través de `apply` [IDDD apéndice A].
+1. El agregado (`extends AggregateRoot<PaymentId>`) separa **decidir** (métodos de comando que comprueban reglas y emiten eventos con `record`) de **aplicar** (un `apply` privado que cambia estado a partir de un evento). IDDD propone incluso dos clases, una de estado y otra de comportamiento, que solo colaboran a través de `apply` [IDDD apéndice A].
 2. Cargar: leer el stream del agregado, reconstruir cada evento con `EventRegistry.fromJSON` y aplicarlos en orden (`Payment.fromHistory`).
 3. Ejecutar el comando: genera eventos nuevos, que `pullDomainEvents()` devuelve como cambios pendientes.
 4. Guardar: anexar los cambios con la **versión esperada** del stream (`streamVersion()`); si otro escribió antes, conflicto (`ConcurrencyException`) [IDDD apéndice A].

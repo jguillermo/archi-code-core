@@ -4,10 +4,10 @@ import type { EventBase, EventClass, SerializedEvent } from '../../domain/index'
 
 export type EventFactory<Event extends EventBase> = (serialized: SerializedEvent) => Event;
 
-export class EventRegistry<Event extends EventBase = EventBase> {
-  private readonly factories = new Map<string, EventFactory<Event>>();
+export class EventRegistry {
+  private readonly factories = new Map<string, EventFactory<EventBase>>();
 
-  register<Registered extends Event>(
+  register<Registered extends EventBase>(
     event: EventClass<Registered>,
     factory: EventFactory<Registered>,
   ): this {
@@ -23,7 +23,7 @@ export class EventRegistry<Event extends EventBase = EventBase> {
     return this.factories.has(eventName);
   }
 
-  fromJSON(event: SerializedEvent): Event {
+  fromJSON(event: SerializedEvent): EventBase {
     if (typeof event !== 'object' || event === null) {
       throw new InternalErrorException('a serialized event must be a JSON object');
     }

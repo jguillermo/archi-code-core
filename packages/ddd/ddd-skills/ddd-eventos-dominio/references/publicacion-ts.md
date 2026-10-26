@@ -51,7 +51,7 @@ export interface AddOrderLineCommand {
 export class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand, void> {
   constructor(
     private readonly orders: AggregateFinder<Order> & AggregateSaver<Order>,
-    private readonly events: EventBus<OrderEvent>,
+    private readonly events: EventBus,
     private readonly clock: Clock,
   ) {
     super();
@@ -89,7 +89,6 @@ En los tests, `InMemoryEventChannel` guarda lo publicado en `channel.sent` (JSON
 
 ```ts
 import { describe, expect, it } from 'vitest';
-import type { EventBase } from '@archi-code/ddd/domain';
 import {
   DomainEventBus,
   FixedClock,
@@ -105,7 +104,7 @@ describe('Adding a line to an order', () => {
     const clock = new FixedClock('2026-03-01T09:30:00Z');
     const orders = new InMemoryOrderRepository();
     const channel = new InMemoryEventChannel();
-    const bus = new DomainEventBus<EventBase>(channel, salesEvents);
+    const bus = new DomainEventBus(channel, salesEvents);
     const order = Order.create(
       new OrderId(orderId),
       new CustomerId(customerId),
@@ -138,7 +137,7 @@ describe('Adding a line to an order', () => {
 });
 ```
 
-`Order`, sus value objects (`OrderId`, `CustomerId`, `OrderLine`, `OrderLines`, `Sku`, `Quantity`, `Money`, `ShippingAddress`) y `OrderEvent` son los de `ddd-skills/ddd-agregados/references/implementacion-ts.md`. `salesEvents` es el `EventRegistry` del contexto, con una fábrica por evento que copia los campos y pasa `eventId` y `occurredOn` (está en `ddd-skills/ddd-eventos-dominio/references/ejemplo-ecommerce.md`). `channel.sent` lista solo `order.line_added` porque el pedido se guardó con `orders.save` sin publicar su `order.created`.
+`Order`, sus value objects (`OrderId`, `CustomerId`, `OrderLine`, `OrderLines`, `Sku`, `Quantity`, `Money`, `ShippingAddress`) son los de `ddd-skills/ddd-agregados/references/implementacion-ts.md`. `salesEvents` es el `EventRegistry` del contexto, con una fábrica por evento que copia los campos y pasa `eventId` y `occurredOn` (está en `ddd-skills/ddd-eventos-dominio/references/ejemplo-ecommerce.md`). `channel.sent` lista solo `order.line_added` porque el pedido se guardó con `orders.save` sin publicar su `order.created`.
 
 ## Outbox: el repositorio guarda los eventos
 
@@ -324,12 +323,11 @@ Cada reacción hace su propia escritura: el reenviador entrega después del comm
 El composition root (`composition.ts`) elige los canales; los casos de uso no cambian:
 
 ```ts
-import type { EventBase } from '@archi-code/ddd/domain';
 import { DomainEventBus, InMemoryEventChannel, SystemClock } from '@archi-code/ddd/infrastructure';
 
 const orders = new PostgresOrderRepository(pool);
 const delivery = new ContractPublishingChannel(broker, new InMemoryEventChannel());
-const bus = new DomainEventBus<EventBase>(delivery, salesEvents);
+const bus = new DomainEventBus(delivery, salesEvents);
 await bus.subscribe(new PrepareShipmentOnOrderLineAdded(new PostgresShipmentPreparations(pool)));
 const forwarder = new OutboxForwarder(pool, delivery);
 setInterval(() => {

@@ -1,4 +1,3 @@
-import type { EventBase } from '../../ddd/domain';
 import type { Clock, Logger } from '../../ddd/application';
 import { DomainEventBus, EventRegistry } from '../../ddd/infrastructure';
 import type { EventChannel, Subscription } from '../../ddd/infrastructure';
@@ -54,7 +53,7 @@ export class SalesContext {
   ) {}
 
   static async start({ channel, clock, logger, campaigns }: SalesSettings): Promise<SalesContext> {
-    const bus = new DomainEventBus<EventBase>(channel, SalesContext.registry(), logger);
+    const bus = new DomainEventBus(channel, SalesContext.registry(), logger);
     const orders = new InMemoryOrderRepository();
     const summaries = new InMemoryOrderSummaryStore();
     const pricing = new OrderPricing(new InMemoryCouponCatalog(campaigns));
@@ -97,8 +96,8 @@ export class SalesContext {
     }
   }
 
-  private static registry(): EventRegistry<EventBase> {
-    return new EventRegistry<EventBase>()
+  private static registry(): EventRegistry {
+    return new EventRegistry()
       .register(
         OrderCreatedDomainEvent,
         (json) =>

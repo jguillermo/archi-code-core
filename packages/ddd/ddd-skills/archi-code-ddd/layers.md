@@ -108,7 +108,7 @@ local `Clock`, the getters named like the fields and `fromPrimitives`/`toPrimiti
 conventions; the books allow a private constructor with a factory [IDDD ch. 11], getters only
 where needed [Destilado ch. 5] and a mapper in infrastructure [IDDD ch. 6].
 
-- Aggregates extend `AggregateRoot<<Aggregate>Id, <Aggregate>Event>` and call `super(id)`; the id
+- Aggregates extend `AggregateRoot<<Aggregate>Id>` and call `super(id)`; the id
   is exposed as `readonly id` (no `_id` + getter), `equals` compares class and id, and an id that
   holds no value throws `RequiredValueException` [IDDD ch. 5].
 - Member order: the local `interface Clock { now(): Date }` above the class (the domain never
@@ -202,10 +202,11 @@ name the event class and its type after the fact alone (`OrderPlaced`) [IDDD ch.
 - Only its aggregate creates it: `this.record(new OrderPaidDomainEvent({ orderId: this.id.value, …, clock }))`,
   always with the clock the method received (`occurredOn` comes from it; without it, from the
   system time). Pass `eventId` and `occurredOn` only when rebuilding an event a channel delivered.
-- `event/<Aggregate>Event.ts` holds `export type <Aggregate>Event = | …`, the union of every
-  event of the aggregate (with `import type`); every new event is added to it.
+- There is no union type of an aggregate's events (no `<Aggregate>Event`): `AggregateRoot` takes
+  only the id type (`AggregateRoot<OrderId>`), and `record`, `pullDomainEvents`, `EventBus`,
+  `DomainEventBus` and `EventRegistry` work with `EventBase`, the class every event extends.
 - `record(event)` is `protected` and keeps the event as it is; `pullDomainEvents()` returns the
-  events (typed `Event[]`) in order and empties the list. Pull them after saving, to publish.
+  events (typed `EventBase[]`) in order and empties the list. Pull them after saving, to publish.
 - **Events carry no schema version.** Adding an optional field old readers can ignore is
   compatible; a change they cannot follow is a new event with its own `eventName`, or the
   `EventRegistry` factory reads both shapes from the stored JSON.
@@ -256,7 +257,7 @@ comes from.
 - Constructor parameters, `private readonly` and only what `handle` uses, in this order: the
   repository typed by the roles it uses (`AggregateFinder<X> & AggregateSaver<X>`;
   `AggregateSaver<X>` alone to create; `AggregateFinder<X> & AggregateRemover<X>` to remove),
-  domain services, `EventBus<<Aggregate>Event>`, `Clock`, `Logger`; the body is `super();`.
+  domain services, `EventBus`, `Clock`, `Logger`; the body is `super();`.
 
 ### User use cases
 
@@ -430,7 +431,7 @@ use case, one class, with no `UseCase` behind it.
 - The composition root (`composition.ts`, one class `<Context>Context` and
   `interface <Context>Settings { channel; clock; logger; …own data }`) is the only place that
   builds classes of the context and reads configuration: `static async start(settings)` builds
-  `new DomainEventBus<EventBase>(channel, <Context>Context.registry(), logger)`, the repositories,
+  `new DomainEventBus(channel, <Context>Context.registry(), logger)`, the repositories,
   stores, adapters, domain services and projections, every reaction use case with its
   dependencies (each subscribed with `await bus.subscribe(listener)`, its `Subscription` kept),
   then the controller with the user use cases; `async stop()` unsubscribes every subscription;

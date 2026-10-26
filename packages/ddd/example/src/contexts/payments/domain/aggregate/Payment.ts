@@ -6,7 +6,6 @@ import { PaymentAmountAdjustedDomainEvent } from '../event/PaymentAmountAdjusted
 import { PaymentAwaitingTransferDomainEvent } from '../event/PaymentAwaitingTransferDomainEvent';
 import { PaymentCapturedDomainEvent } from '../event/PaymentCapturedDomainEvent';
 import { PaymentCreatedDomainEvent } from '../event/PaymentCreatedDomainEvent';
-import type { PaymentEvent } from '../event/PaymentEvent';
 import { PaymentId } from '../value-object/PaymentId';
 import { PaymentMethod } from '../value-object/PaymentMethodType';
 import { PaymentMethodType } from '../value-object/PaymentMethodType';
@@ -23,7 +22,7 @@ interface Clock {
   now(): Date;
 }
 
-export class Payment extends AggregateRoot<PaymentId, PaymentEvent> {
+export class Payment extends AggregateRoot<PaymentId> {
   private static readonly LIMIT_CENTS: Record<PaymentMethod, number> = {
     [PaymentMethod.CARD]: 50_000,
     [PaymentMethod.TRANSFER]: 500_000,

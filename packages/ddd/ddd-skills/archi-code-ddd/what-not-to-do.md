@@ -126,7 +126,9 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
 - An `aggregateId` field or a schema version: the id is a named field (`orderId`).
 - Declaring `eventName` as a method or an instance field, or adding methods to an event.
 - Creating an event outside its aggregate, or without the clock the method received.
-- Forgetting to add a new event to the `<Aggregate>Event` union.
+- Declaring a union type of an aggregate's events (`type OrderEvent = …`) or passing an event type
+  to `AggregateRoot`, `EventBus`, `DomainEventBus` or `EventRegistry`: they take no event type and
+  work with `EventBase`.
 - Generating `eventId`/`occurredOn` yourself for a new event: the base does it.
 - A registry factory that does not pass `eventId: json.eventId` and `occurredOn: json.occurredOn`:
   the event gets a new `eventId`, a reaction cannot skip a redelivery, and `fromJSON` throws.
