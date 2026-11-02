@@ -2296,7 +2296,7 @@ await orders.find({
   range: { equals: 'cus-1' }, // or { startsWith: 'cus-' }, any of gt, gte, lt, lte, an IDBKeyRange or null
   direction: 'prev', // 'next' (default) | 'prev' | 'nextunique' | 'prevunique'
   offset: 20, // default 0
-  limit: 10, // default: no limit
+  limit: 10, // default (or null): no limit
   filter: (row) => row.tags.includes('gift'), // optional, for fields no index covers
   after: undefined, // the next token of the previous page
 });
@@ -2337,8 +2337,8 @@ for await (const row of orders.iterate(
   nor repeated between batches; rows written by others between two batches may or may not appear.
 - `range` also takes a native `IDBKeyRange` as it is, and `index: null` / `range: null` mean the
   id and every row, so the query `toIndexedDbQuery` of `@archi-code/criteria-adapters/indexeddb`
-  builds goes to `find` with only `limit: query.limit ?? undefined` (and on a table whose index
-  names are a typed union, its `index` text must be narrowed). The table does not sort: when that
+  builds goes to `find` as it is (on a table whose index names are a typed union, its `index` text
+  must be narrowed). The table does not sort: when that
   query has a `compare`, find without `offset`/`limit`, sort the items and slice them.
 - A query that is not valid (two lower bounds, a negative offset, a range that is not a key range,
   an unknown direction…) is an `invalid_query`; an index the store does not have is an

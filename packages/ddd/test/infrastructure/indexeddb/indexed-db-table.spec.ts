@@ -645,6 +645,9 @@ describe('IndexedDbTable: one object store of IndexedDB, with plain rows keyed b
       );
       expect(await orders.find({ limit: 0 })).toStrictEqual({ items: [], total: 12, next: null });
       expect(ids((await orders.find({ offset: 10 })).items)).toStrictEqual(orderIds(10, 11));
+      expect(ids((await orders.find({ offset: 9, limit: null })).items)).toStrictEqual(
+        orderIds(9, 10, 11),
+      );
       expect((await orders.find({ offset: 40 })).items).toStrictEqual([]);
     });
 
@@ -800,6 +803,7 @@ describe('IndexedDbTable: one object store of IndexedDB, with plain rows keyed b
       ['an empty index name', { index: '' }, 'index must be the name of an index'],
       ['a negative offset', { offset: -1 }, 'offset must be a whole number'],
       ['a fractional limit', { limit: 1.5 }, 'limit must be a whole number'],
+      ['a null offset', { offset: null }, 'offset must be a whole number'],
       ['gt and gte together', { range: { gt: 1, gte: 1 } }, 'use gt or gte, not both'],
       ['lt and lte together', { range: { lt: 1, lte: 1 } }, 'use lt or lte, not both'],
       ['an empty range', { range: {} }, 'a range needs equals, startsWith or at least one of'],

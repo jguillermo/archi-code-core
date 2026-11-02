@@ -331,8 +331,8 @@ const result: SearchResult<UserPrimitives> = {
 };
 ```
 
-With `IndexedDbTable` of `@archi-code/ddd/infrastructure`, which takes the `IDBKeyRange` and a
-`null` index as they are, read the indexes with `withStore` and pass the query to `find`:
+With `IndexedDbTable` of `@archi-code/ddd/infrastructure`, which takes the `IDBKeyRange`, a `null`
+index and a `null` limit as they are, read the indexes with `withStore` and pass the query to `find`:
 
 ```ts
 let indexes: IndexInfo[] = [];
@@ -342,7 +342,7 @@ await users.withStore('readonly', (store) => {
 });
 const query = toIndexedDbQuery(criteria, indexes);
 if (query.compare === null) {
-  return users.find({ ...query, limit: query.limit ?? undefined });
+  return users.find(query);
 }
 const { items, total } = await users.find({ ...query, offset: undefined, limit: undefined });
 const end = query.limit === null ? undefined : query.offset + query.limit;

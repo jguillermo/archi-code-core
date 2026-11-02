@@ -17,7 +17,7 @@ export interface IndexedDbQuery<Row, Index extends string = string> {
   readonly range?: IndexedDbRange | IDBKeyRange | null;
   readonly direction?: IDBCursorDirection;
   readonly offset?: number;
-  readonly limit?: number;
+  readonly limit?: number | null;
   readonly filter?: (row: Row) => boolean;
   readonly after?: string;
 }
@@ -67,7 +67,7 @@ export class IndexedDbQueryPlan {
       range: IndexedDbQueryPlan.keyRange(query.range),
       direction,
       offset: IndexedDbQueryPlan.count('offset', query.offset, 0),
-      limit: IndexedDbQueryPlan.count('limit', query.limit, Number.POSITIVE_INFINITY),
+      limit: IndexedDbQueryPlan.count('limit', query.limit ?? undefined, Number.POSITIVE_INFINITY),
       filter: query.filter ?? null,
       after:
         query.after === undefined
