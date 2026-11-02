@@ -14,7 +14,8 @@ the abstract repository of each aggregate, with the roles of its verbs `Aggregat
 `EventListener` and `@ListensTo`, and to publish, `EventBus`, the port `Logger`, and
 `AggregateNotFoundException`, `NotAllowedException`…) and `@archi-code/ddd/infrastructure` (the
 event wiring `DomainEventBus`, `EventRegistry` and the `EventChannel` port, in-memory event
-channel, loggers, `InternalErrorException`…). `@archi-code/ddd/infrastructure` also has
+channel, loggers, the IndexedDB utilities `IndexedDbTable` and `IndexedDbInspector`,
+`InternalErrorException`…). `@archi-code/ddd/infrastructure` also has
 `ExceptionClassifier`, which gives every entry point (HTTP, gRPC, queue, CLI) the `ExceptionKind`
 of an error.
 

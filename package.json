@@ -37,6 +37,7 @@
     "@types/node": "24.19.2",
     "@typescript-eslint/eslint-plugin": "8.56.1",
     "@typescript-eslint/parser": "8.56.1",
+    "@vitest/browser-playwright": "5.0.5",
     "@vitest/coverage-v8": "5.0.5",
     "editorconfig-checker": "6.2.0",
     "eslint": "9.39.3",

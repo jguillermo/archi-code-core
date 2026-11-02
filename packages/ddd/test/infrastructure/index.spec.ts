@@ -24,6 +24,8 @@ const PUBLIC_API = [
   'ExceptionKind',
   'InMemoryEventChannel',
   'InMemoryLogger',
+  'IndexedDbInspector',
+  'IndexedDbTable',
   'InfrastructureException',
   'InfrastructureExceptionCode',
   'InternalErrorException',

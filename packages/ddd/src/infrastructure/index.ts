@@ -10,6 +10,8 @@ export type { ConsoleLoggerOptions } from './logging/console-logger';
 export { InMemoryLogger } from './logging/in-memory-logger';
 export type { LogEntry } from './logging/in-memory-logger';
 export { SilentLogger } from './logging/silent-logger';
+export { IndexedDbTable } from './indexeddb/indexed-db-table';
+export { IndexedDbInspector } from './indexeddb/indexed-db-inspector';
 export { InfrastructureException } from './exceptions/infrastructure.exception';
 export { InternalErrorException } from './exceptions/internal-error.exception';
 export { UnknownEventException } from './exceptions/unknown-event.exception';

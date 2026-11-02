@@ -234,6 +234,14 @@ Only when the package needs them, and documented in its README:
   `index.ts` and specs but no `exports`, `typesVersions` nor build hook; `module-boundaries.spec.ts`
   lists it in `INTERNAL_MODULES` and checks that no public `index.ts` re-exports it.
 - Extra keys in `vitest.config.mts` (e.g. `coverage.exclude` for generated files).
+- A browser test project (only `ddd` today, for its IndexedDB utilities): `vitest.config.mts`
+  keeps the common keys at the top level and declares `projects`: `node` (the usual
+  `environment`/`include`, with `exclude` for the specs that need a browser) and `chromium`, which
+  runs those specs through Vitest browser mode (`@vitest/browser-playwright`, root devDependency,
+  headless Chromium of Playwright) on the real browser API, never on a double of it.
+  `test`/`test:coverage` run both projects and merge their coverage, so the scripts and the gate
+  do not change. Browser specs get their environment from a `test/support/` helper
+  (`freshIndexedDb()`).
 
 ## When adding a package
 

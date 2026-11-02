@@ -310,6 +310,22 @@ function smoke(m) {
         );
       },
     ],
+    [
+      'IndexedDbTable refuses to work where there is no IndexedDB',
+      () => {
+        try {
+          m.IndexedDbTable.of('orders', { database: 'shop' });
+          return 'IndexedDbTable.of worked without IndexedDB';
+        } catch (error) {
+          return (
+            (error instanceof m.InfrastructureException &&
+              error.reason === 'unavailable' &&
+              error.code === m.InfrastructureExceptionCode.PersistenceError) ||
+            `unexpected error ${error}`
+          );
+        }
+      },
+    ],
   ];
 }
 
@@ -436,8 +452,115 @@ async function infrastructureInThePage(entry) {
   return failures.length === 0 || failures.join('; ');
 }
 
+async function indexedDbInThePage(entry) {
+  const m = await import(entry);
+  const database = `browser-check-${Date.now()}-${Math.random()}`;
+  const uuid = (number) => `00000000-0000-4000-8000-${String(number).padStart(12, '0')}`;
+  const page = () => ({
+    open: indexedDB.open.bind(indexedDB),
+    deleteDatabase: indexedDB.deleteDatabase.bind(indexedDB),
+    cmp: indexedDB.cmp.bind(indexedDB),
+    databases: indexedDB.databases.bind(indexedDB),
+  });
+  const orders = m.IndexedDbTable.of('orders', {
+    database,
+    indexes: {
+      byCustomer: { keyPath: 'customerId' },
+      byTag: { keyPath: 'tags', multiEntry: true },
+    },
+  });
+  await orders.putMany(
+    Array.from({ length: 30 }, (_, at) => ({
+      id: uuid(at),
+      customerId: `cus-${at % 3}`,
+      tags: at % 2 === 0 ? ['gift'] : ['express'],
+    })),
+  );
+  const outbox = m.IndexedDbTable.of('outbox', { database });
+  const sameOrders = m.IndexedDbTable.of('orders');
+  const walked = [];
+  for await (const row of orders.iterate(
+    { index: 'byCustomer', direction: 'prev' },
+    { batchSize: 4 },
+  )) {
+    walked.push(row.id);
+  }
+  const tagged = await orders.find({
+    index: 'byTag',
+    range: { equals: 'gift' },
+    offset: 2,
+    limit: 3,
+  });
+  const missing = await orders.update({ id: uuid(99), customerId: 'x', tags: [] }).catch((e) => e);
+  const firstPage = await orders.find({ index: 'byCustomer', limit: 4 });
+  const secondPage = await orders.find({ index: 'byCustomer', limit: 4, after: firstPage.next });
+  const rolledBack = await m.IndexedDbTable.transaction(
+    [orders, outbox],
+    'readwrite',
+    async (tx) => {
+      await tx.patch(orders, uuid(1), { customerId: 'cus-9' });
+      await tx.insert(outbox, { id: uuid(101) });
+      throw new Error('payment refused');
+    },
+  ).catch((error) => error.message);
+  const committed = await m.IndexedDbTable.transaction(
+    [orders, outbox],
+    'readwrite',
+    async (tx) => {
+      await tx.patch(orders, uuid(2), { tags: ['express', 'paid'] });
+      await tx.insert(outbox, { id: uuid(102) });
+      return tx.count(outbox);
+    },
+  );
+  const firstEventSaved = await outbox.exists(uuid(101));
+  const deleted = await orders.deleteWhere({ filter: (row) => row.customerId === 'cus-0' });
+  const migrated = m.IndexedDbTable.of('orders', {
+    database,
+    factory: page(),
+    version: 3,
+    migrations: {
+      2: (row) => ({ ...row, customer: row.customerId }),
+      3: (row) =>
+        row.customer === 'cus-2' ? null : { id: row.id, tags: row.tags, customer: row.customer },
+    },
+    indexes: { byCustomer: { keyPath: 'customer' } },
+  });
+  const afterMigration = await migrated.find({ index: 'byCustomer', limit: 1 });
+  const inspector = new m.IndexedDbInspector({ database });
+  const structure = await inspector.structure();
+  const listed = await m.IndexedDbInspector.databases();
+  await m.IndexedDbTable.deleteDatabase(database);
+  return (
+    (walked.length === 30 &&
+      new Set(walked).size === 30 &&
+      walked[0] === uuid(29) &&
+      sameOrders === orders &&
+      tagged.total === 15 &&
+      tagged.items.map((row) => row.id).join() === [4, 6, 8].map(uuid).join() &&
+      missing instanceof m.InfrastructureException &&
+      missing.reason === 'not_found' &&
+      deleted === 10 &&
+      firstPage.items.length === 4 &&
+      secondPage.items[0].id === uuid(12) &&
+      rolledBack === 'payment refused' &&
+      committed === 1 &&
+      firstEventSaved === false &&
+      afterMigration.total === 10 &&
+      afterMigration.items[0].customer === 'cus-1' &&
+      !('customerId' in afterMigration.items[0]) &&
+      (await inspector.exists()) === false &&
+      structure.stores.map((store) => `${store.name}@${store.tableVersion}`).join() ===
+        'orders@3,outbox@1' &&
+      listed.some((info) => info.name === database)) ||
+    `unexpected IndexedDB in the page: ${JSON.stringify({ first: firstPage.items.map((row) => row.id), second: secondPage.items.map((row) => row.id), rolledBack, committed, deleted, afterMigration, structure })}`
+  );
+}
+
 function browser() {
-  return [['runs the event bus, the in-memory channel and the loggers', infrastructureInThePage]];
+  return [
+    ['runs the event bus, the in-memory channel and the loggers', infrastructureInThePage],
+    ['persists, queries, iterates and inspects IndexedDB', indexedDbInThePage],
+  ];
 }
 
 module.exports = { smoke, crossBuild, browser };

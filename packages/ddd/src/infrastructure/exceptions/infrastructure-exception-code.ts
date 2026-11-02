@@ -3,4 +3,5 @@ export enum InfrastructureExceptionCode {
   InternalError = 'INF001',
   UnknownEvent = 'INF002',
   EventDelivery = 'INF003',
+  PersistenceError = 'INF004',
 }
