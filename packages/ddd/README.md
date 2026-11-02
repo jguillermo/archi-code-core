@@ -184,8 +184,8 @@ test/                         mirrors src/
   throws a business error, because events may arrive twice or late.
 - **Money is never a `NumberType`**: model it as a composite (`Money({ amount: Cents, currency })`)
   with whole minor units, and decide the rounding of every division explicitly.
-- **Repositories only get and persist**: `findById`, `save`, `remove`, with no business rule and no
-  business query. Ids come from the value object (`OrderId.generate()`), not from the repository.
+- **Repositories only get, search and persist**: `findById`, `search` (with a `Criteria` of the
+  aggregate), `save`, `remove`, with no business rule and no business query method. Ids come from the value object (`OrderId.generate()`), not from the repository.
   Lists and searches for screens are read queries of the application (SQL, a view, a read model),
   outside the repositories.
 - **Child entities behave, through their root**: a child entity holds its id and value objects and
@@ -1033,7 +1033,7 @@ type PersonData = DataTypes<Person>; // { name?: string; nickname?: string | nul
 
 The domain declares what it needs to load, save and remove each aggregate; infrastructure
 implements it. The package gives two pieces: the abstract class `AggregateRepository`, the base of
-every repository, and three roles (types only) that fix the name and signature of each verb:
+every repository, and four roles (types only) that fix the name and signature of each verb:
 
 ```ts
 abstract class AggregateRepository<Aggregate extends AggregateRoot<any>> {
@@ -1050,6 +1050,10 @@ interface AggregateSaver<Aggregate extends AggregateRoot<any>> {
 
 interface AggregateRemover<Aggregate extends AggregateRoot<any>> {
   remove(aggregate: Aggregate): Promise<void>;
+}
+
+interface AggregateSearcher<Aggregate extends AggregateRoot<any> & CriteriaAggregate> {
+  search(criteria: Criteria<Aggregate>, options?: SearchOptions): Promise<SearchResult<Aggregate>>;
 }
 ```
 
@@ -1075,8 +1079,56 @@ export abstract class OrderRepository
 
 No verb is mandatory: an aggregate that is never deleted declares no `remove`; one the business
 deletes adds `abstract remove(order: Order): Promise<void>` and implements `AggregateRemover<Order>`.
-The class holds nothing else: no business queries (`pendingOlderThan`), no `nextId()` (ids come
-from `OrderId.generate()`), no events and no code.
+One whose aggregates are searched adds `abstract search(criteria: Criteria<Order>, options?:
+SearchOptions): Promise<SearchResult<Order>>` and implements `AggregateSearcher<Order>`: the search
+is a `Criteria` over the aggregate (see "Criteria: searching aggregates"), never a method per
+business query, and returns aggregates (`total` only with `{ withTotal: true }`); the adapter runs
+it with `@archi-code/criteria-adapters` (`searchMemory` in memory, `MongoCriteriaTranslator` or
+`toIndexedDbQuery` and `fromPrimitives` on what it reads). `AggregateSearcher` fits only an
+aggregate with `toPrimitives()`. The class holds nothing else: no business queries
+(`pendingOlderThan`), no `nextId()` (ids come from `OrderId.generate()`), no events and no code.
+
+```ts
+import { AggregateRepository, Criteria } from '@archi-code/ddd/domain';
+import type {
+  AggregateFinder,
+  AggregateSaver,
+  AggregateSearcher,
+  PrimitiveTypes,
+  SearchOptions,
+  SearchResult,
+} from '@archi-code/ddd/domain';
+import { searchMemory } from '@archi-code/criteria-adapters/memory';
+
+export abstract class OrderRepository
+  extends AggregateRepository<Order>
+  implements AggregateFinder<Order>, AggregateSaver<Order>, AggregateSearcher<Order>
+{
+  abstract findById(id: OrderId): Promise<Order | null>;
+  abstract save(order: Order): Promise<void>;
+  abstract search(criteria: Criteria<Order>, options?: SearchOptions): Promise<SearchResult<Order>>;
+}
+
+class InMemoryOrderRepository extends OrderRepository {
+  private readonly rows = new Map<string, PrimitiveTypes<Order>>();
+
+  async search(criteria: Criteria<Order>, options?: SearchOptions): Promise<SearchResult<Order>> {
+    const orders = Array.from(this.rows.values(), (row) => Order.fromPrimitives(row));
+    return searchMemory(orders, criteria, options);
+  }
+
+  // findById, save…
+}
+
+const paid = await orders.search(
+  Criteria.create<Order>({
+    where: { status: new OrderStatusType(OrderStatus.PAID) },
+    orderBy: { createdAt: 'desc' },
+    limit: 20,
+  }),
+  { withTotal: true },
+);
+```
 
 `remove` receives the loaded aggregate, not its id: removing is a change like any other, so the
 repository removes it only where the stored version still equals the one it loaded, and throws
@@ -3787,7 +3839,7 @@ in the repository, not in the npm package:
 | `CompositeSchema`, `CompositeProps`, `CompositePrimitives`, `CompositeInput`, `CompositeType`, `CompositeValue`                                                             | types                |
 | `Entity`, `AggregateRoot`, `EventBase`                                                                                                                                      | abstract classes     |
 | `AggregateRepository`                                                                                                                                                       | abstract class       |
-| `AggregateFinder`, `AggregateSaver`, `AggregateRemover`                                                                                                                     | types (roles)        |
+| `AggregateFinder`, `AggregateSaver`, `AggregateRemover`, `AggregateSearcher`                                                                                                | types (roles)        |
 | `RequiredType`, `JsonTypeValue`, `PrimitiveType`, `PrimitiveTypes`, `DataTypes`                                                                                             | types                |
 | `EventMetadata`, `SerializedEvent`, `EventClass`                                                                                                                            | types                |
 | `EntityId`, `SatisfiedBy`                                                                                                                                                   | types                |

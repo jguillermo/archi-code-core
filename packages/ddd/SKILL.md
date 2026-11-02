@@ -10,7 +10,7 @@ layer, each with the exceptions of its layer: `@archi-code/ddd/domain` (value ob
 `Specification`, `Entity`, `AggregateRoot`, `EventBase`, `Criteria` and `defineCriteriaSchema`
 to search aggregates, `AggregateRepository`, the base of
 the abstract repository of each aggregate, with the roles of its verbs `AggregateFinder`,
-`AggregateSaver`, `AggregateRemover`, and `DomainException`,
+`AggregateSaver`, `AggregateRemover`, `AggregateSearcher`, and `DomainException`,
 `ValidationException`…), `@archi-code/ddd/application` (`UseCase`, the event contract to listen,
 `EventListener` and `@ListensTo`, and to publish, `EventBus`, the port `Logger`, and
 `AggregateNotFoundException`, `NotAllowedException`…) and `@archi-code/ddd/infrastructure` (the

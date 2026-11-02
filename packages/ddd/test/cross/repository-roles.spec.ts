@@ -3,6 +3,7 @@ import { UseCase } from '../../src/application/index';
 import {
   AggregateRepository,
   AggregateRoot,
+  Criteria,
   IdType,
   Required,
   StringType,
@@ -12,7 +13,10 @@ import type {
   AggregateFinder,
   AggregateRemover,
   AggregateSaver,
+  AggregateSearcher,
   PrimitiveTypes,
+  SearchOptions,
+  SearchResult,
 } from '../../src/domain/index';
 
 class CustomerId extends IdType<'CustomerId'> {}
@@ -37,11 +41,19 @@ class Customer extends AggregateRoot<CustomerId> {
 
 abstract class CustomerRepository
   extends AggregateRepository<Customer>
-  implements AggregateFinder<Customer>, AggregateSaver<Customer>, AggregateRemover<Customer>
+  implements
+    AggregateFinder<Customer>,
+    AggregateSaver<Customer>,
+    AggregateRemover<Customer>,
+    AggregateSearcher<Customer>
 {
   abstract findById(id: CustomerId): Promise<Customer | null>;
   abstract save(customer: Customer): Promise<void>;
   abstract remove(customer: Customer): Promise<void>;
+  abstract search(
+    criteria: Criteria<Customer>,
+    options?: SearchOptions,
+  ): Promise<SearchResult<Customer>>;
 }
 
 class KeyValueCustomerRepository extends CustomerRepository {
@@ -58,6 +70,26 @@ class KeyValueCustomerRepository extends CustomerRepository {
 
   async remove(customer: Customer): Promise<void> {
     this.store.delete(customer.id.value);
+  }
+
+  async search(
+    criteria: Criteria<Customer>,
+    options?: SearchOptions,
+  ): Promise<SearchResult<Customer>> {
+    const { filter, pagination } = criteria;
+    const matched = Array.from(this.store.values(), (row) =>
+      Customer.fromPrimitives(JSON.parse(row)),
+    ).filter(
+      (customer) =>
+        filter === null ||
+        (filter.kind === 'compare' &&
+          filter.operator === 'eq' &&
+          (customer.toPrimitives() as Record<string, unknown>)[filter.field] === filter.value),
+    );
+    const offset = pagination?.offset ?? 0;
+    const end = pagination?.limit == null ? undefined : offset + pagination.limit;
+    const items = matched.slice(offset, end);
+    return options?.withTotal === true ? { items, total: matched.length } : { items };
   }
 }
 
@@ -118,7 +150,9 @@ const customerId = '0f8c2b6e-3c1a-4c55-9a4e-0d6c1b2f7a10';
 
 describe('Repository of an aggregate: one abstract class per aggregate in its domain, with the verbs its business needs', () => {
   it('fixes each verb with the signature of its role, typed by the aggregate and its id', () => {
-    expectTypeOf<keyof CustomerRepository>().toEqualTypeOf<'findById' | 'save' | 'remove'>();
+    expectTypeOf<keyof CustomerRepository>().toEqualTypeOf<
+      'findById' | 'save' | 'remove' | 'search'
+    >();
     expectTypeOf<CustomerRepository['findById']>().toEqualTypeOf<
       AggregateFinder<Customer>['findById']
     >();
@@ -131,6 +165,27 @@ describe('Repository of an aggregate: one abstract class per aggregate in its do
     expectTypeOf<CustomerRepository['remove']>().toEqualTypeOf<
       (customer: Customer) => Promise<void>
     >();
+    expectTypeOf<CustomerRepository['search']>().toEqualTypeOf<
+      AggregateSearcher<Customer>['search']
+    >();
+  });
+
+  it('searches customers with a criteria whose values are value objects', async () => {
+    const repository: CustomerRepository = new KeyValueCustomerRepository();
+    const brunoId = '5a1d7c3e-9b2f-4e6a-8c0d-1f2e3d4c5b6a';
+    await repository.save(new Customer(new CustomerId(customerId), new CustomerName('Ana')));
+    await repository.save(new Customer(new CustomerId(brunoId), new CustomerName('Bruno')));
+    const result = await repository.search(
+      Criteria.create<Customer>({ where: { name: new CustomerName('Bruno') } }),
+      { withTotal: true },
+    );
+    expect(result.items.map((customer) => customer.toPrimitives())).toEqual([
+      { id: brunoId, name: 'Bruno' },
+    ]);
+    expect(result.total).toBe(1);
+    expect((await repository.search(Criteria.create<Customer>({ limit: 1 }))).items).toHaveLength(
+      1,
+    );
   });
 
   it('invoices are never deleted, so their repository declares only findById and save', () => {

@@ -37,6 +37,7 @@ import type {
   AggregateFinder,
   AggregateRemover,
   AggregateSaver,
+  AggregateSearcher,
   CriteriaAggregate,
   CriteriaDocument,
   EntityId,

@@ -37,8 +37,10 @@ aggregate and value objects of your own domain.
 - Dates from a request are ISO text with a zone (`'2024-01-01T10:00Z'`) or a plain ISO date (UTC
   midnight); milliseconds only as a JSON number, never as text.
 - A criteria is immutable: `and`, `orderBy`, `paginate` and `page` return a new one.
-- The repository port or query port receives a `Criteria<A>`; the domain and the application never
-  import a database adapter.
+- The abstract repository of an aggregate searches with `search(criteria, options?)`, the verb of
+  the `AggregateSearcher<A>` role (`implements AggregateSearcher<Order>`): never a method per query.
+  Its adapter runs the criteria with `@archi-code/criteria-adapters`; the domain and the
+  application never import a database adapter.
 
 ## Recommended patterns
 

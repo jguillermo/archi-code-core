@@ -244,8 +244,10 @@ name the event class and its type after the fact alone (`OrderPlaced`) [IDDD ch.
   so every repository speaks the same verbs with the same signatures: `findById(id: OrderId):
   Promise<Order | null>` (`AggregateFinder`), `save(order: Order): Promise<void>`
   (`AggregateSaver`), `remove(order: Order): Promise<void>` (`AggregateRemover`, only when the
-  business deletes the aggregate). Nothing else: no business names, queries, `nextId()`, events
-  nor code; the roles never type a dependency on their own.
+  business deletes the aggregate), `search(criteria: Criteria<Order>, options?: SearchOptions):
+  Promise<SearchResult<Order>>` (`AggregateSearcher`, only when its aggregates are searched; the
+  adapter runs the criteria with `@archi-code/criteria-adapters`). Nothing else: no business names,
+  query methods, `nextId()`, events nor code; the roles never type a dependency on their own.
 
 ## Use cases
 
@@ -378,8 +380,9 @@ use case, one class, with no `UseCase` behind it.
 
 ## Infrastructure
 
-- **Repositories only get and persist** (`findById`, `save`, `remove`): no business logic, no
-  business queries (`pendingOlderThan`), no `nextId()`, no events. **One adapter per aggregate
+- **Repositories only get, search and persist** (`findById`, `search` with a `Criteria`, `save`,
+  `remove`): no business logic, no business query methods (`pendingOlderThan`; write it as a
+  `Criteria` for `search`), no `nextId()`, no events. **One adapter per aggregate
   and technology** (`infrastructure/persistence/<technology>-<aggregate>-repository.ts`):
   `InMemoryOrderRepository extends OrderRepository`, implementing exactly the verbs the abstract
   repository of the domain declares; a test double may add technical read helpers for its tests
