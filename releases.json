@@ -22,7 +22,7 @@
       "main": "4.0.0-alpha.1"
     },
     "@archi-code/ddd": {
-      "main": "4.0.0-alpha.1"
+      "main": "4.0.0-alpha.2"
     }
   },
   "deploys": [
@@ -81,6 +81,25 @@
           "bump": "major",
           "reasons": [
             "breaking: releases.json without deploys, new major for the whole set (4.0.0-alpha.1)"
+          ],
+          "dependencies": {
+            "@archi-code/validation": "4.0.0-alpha.1"
+          }
+        }
+      ]
+    },
+    {
+      "date": "2026-11-02T13:24:53.931Z",
+      "commit": "b5d6bdfdf5268e6621e631468188f9701741fff2",
+      "channel": "main",
+      "packages": [
+        {
+          "name": "@archi-code/ddd",
+          "previous": "4.0.0-alpha.1",
+          "version": "4.0.0-alpha.2",
+          "bump": "minor",
+          "reasons": [
+            "commits (minor)"
           ],
           "dependencies": {
             "@archi-code/validation": "4.0.0-alpha.1"
