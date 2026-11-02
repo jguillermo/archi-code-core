@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as api from '../../src/mongodb/index';
 
-const PUBLIC_API = ['MongoCriteriaTranslator', 'escapeRegex', 'searchMongo'];
+const PUBLIC_API = ['MongoCriteriaTranslator', 'escapeRegex'];
 
 describe('@archi-code/criteria-adapters/mongodb', () => {
   it('exports exactly the public API', () => {

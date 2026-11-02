@@ -118,7 +118,7 @@ describe('IndexedDbTable: one object store of IndexedDB, with plain rows keyed b
       });
 
       expectTypeOf<NonNullable<Parameters<typeof orders.count>[0]>['index']>().toEqualTypeOf<
-        'byCustomer' | 'byStatus' | undefined
+        'byCustomer' | 'byStatus' | null | undefined
       >();
       // @ts-expect-error the table declares no index named byCustomr
       await rejection(orders.count({ index: 'byCustomr' }));
@@ -661,6 +661,35 @@ describe('IndexedDbTable: one object store of IndexedDB, with plain rows keyed b
       const orders = await seeded(12);
 
       expect(ids((await orders.find({ range })).items)).toStrictEqual(orderIds(...expected));
+    });
+
+    it('finds, counts and walks by a native IDBKeyRange, also on an index', async () => {
+      const orders = await seeded(12);
+      const range = IDBKeyRange.bound(orderId(4), orderId(6), false, true);
+
+      expect(ids((await orders.find({ range })).items)).toStrictEqual(orderIds(4, 5));
+      expect(await orders.count({ range: IDBKeyRange.upperBound(orderId(2)) })).toBe(3);
+      expect(
+        ids(
+          (await orders.find({ index: 'byCustomer', range: IDBKeyRange.only(customerId(1)) }))
+            .items,
+        ),
+      ).toStrictEqual(
+        ids((await orders.find({ index: 'byCustomer', range: { equals: customerId(1) } })).items),
+      );
+    });
+
+    it('reads the rows by their id when the index is null', async () => {
+      const orders = await seeded(4);
+
+      expect(await orders.count({ index: null, range: null })).toBe(4);
+
+      expect(
+        ids((await orders.find({ index: null, direction: 'prev', limit: 2 })).items),
+      ).toStrictEqual(orderIds(3, 2));
+      expect(
+        await orders.count({ index: null, range: IDBKeyRange.lowerBound(orderId(1), true) }),
+      ).toBe(2);
     });
 
     it('finds by a compound index and by each value of a multiEntry index', async () => {

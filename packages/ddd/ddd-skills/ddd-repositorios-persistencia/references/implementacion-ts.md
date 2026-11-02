@@ -289,7 +289,7 @@ En `infrastructure/read-model/mongo-order-summaries.ts`:
 
 ```ts
 import { Criteria } from '@archi-code/criteria';
-import { searchMongo } from '@archi-code/criteria-adapters/mongodb';
+import { MongoCriteriaTranslator } from '@archi-code/criteria-adapters/mongodb';
 import type { Collection } from 'mongodb';
 import type { PrimitiveTypes } from '@archi-code/ddd/domain';
 import type { Order } from '../../domain/aggregate/Order';
@@ -299,6 +299,8 @@ import type { OrderSummary } from '../../application/order-summaries/order-summa
 import type { OrderSummaries, StaleOrders } from '../../application/order-summaries/order-summaries';
 import type { OrderDocument } from '../persistence/mongo-order-repository';
 
+const translator = new MongoCriteriaTranslator<PrimitiveTypes<Order>>();
+
 export class MongoOrderSummaries implements OrderSummaries {
   constructor(private readonly collection: Collection<OrderDocument>) {}
 
@@ -306,8 +308,7 @@ export class MongoOrderSummaries implements OrderSummaries {
     customerId: CustomerId,
     page: { limit: number; offset: number },
   ): Promise<OrderSummary[]> {
-    const { items } = await searchMongo<PrimitiveTypes<Order>, OrderDocument>(
-      this.collection,
+    const { filter, sort, skip, limit } = translator.translate(
       Criteria.create<PrimitiveTypes<Order>>({
         where: { customerId: customerId.value },
         orderBy: { id: 'asc' },
@@ -315,6 +316,7 @@ export class MongoOrderSummaries implements OrderSummaries {
         offset: page.offset,
       }),
     );
+    const items = await this.collection.find(filter, { sort, skip, limit }).toArray();
     return items.map((order) => ({
       id: order.id,
       status: order.status,
@@ -327,8 +329,7 @@ export class MongoStaleOrders implements StaleOrders {
   constructor(private readonly collection: Collection<OrderDocument>) {}
 
   async ids(expiredBefore: Date, limit: number): Promise<string[]> {
-    const { items } = await searchMongo<PrimitiveTypes<Order>, OrderDocument>(
-      this.collection,
+    const query = translator.translate(
       Criteria.create<PrimitiveTypes<Order>>({
         where: {
           status: OrderStatus.PENDING,
@@ -338,6 +339,9 @@ export class MongoStaleOrders implements StaleOrders {
         limit,
       }),
     );
+    const items = await this.collection
+      .find(query.filter, { sort: query.sort, limit: query.limit })
+      .toArray();
     return items.map((order) => order.id);
   }
 }

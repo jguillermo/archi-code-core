@@ -38,7 +38,7 @@ function smoke(m) {
       },
     ],
     [
-      'searchIndexedDb filters through an index, sorts, paginates and counts',
+      'toIndexedDbQuery gives the native reads that filter, sort, paginate and count',
       async () => {
         const database = await openStore([
           { id: 'a', age: 30, name: 'a' },
@@ -46,12 +46,25 @@ function smoke(m) {
           { id: 'c', age: 40, name: '\u{1F600}' },
           { id: 'd', age: 50, name: 'd' },
         ]);
-        const search = (input) =>
-          m.searchIndexedDb(
-            database.transaction('records', 'readonly').objectStore('records'),
-            Criteria.create(input),
-            { withTotal: true },
-          );
+        const search = async (input) => {
+          const store = database.transaction('records', 'readonly').objectStore('records');
+          const query = m.toIndexedDbQuery(Criteria.create(input), m.readIndexes(store));
+          const source = query.index === null ? store : store.index(query.index);
+          const records = await new Promise((resolve, reject) => {
+            const found = [];
+            const request = source.openCursor(query.range, query.direction);
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => {
+              const cursor = request.result;
+              if (cursor === null) return resolve(found);
+              if (query.filter(cursor.value)) found.push(cursor.value);
+              cursor.continue();
+            };
+          });
+          if (query.compare !== null) records.sort(query.compare);
+          const items = records.slice(query.offset, query.offset + query.limit);
+          return { items, total: records.length, query };
+        };
         const byAge = await search({
           where: { age: { gte: 18 } },
           orderBy: { age: 'desc' },
@@ -65,7 +78,12 @@ function smoke(m) {
         const ages = byAge.items.map((item) => item.id).join();
         const names = byName.items.map((item) => item.id).join();
         return (
-          (ages === 'd,c' && byAge.total === 3 && names === 'c' && byName.total === 4) ||
+          (byAge.query.index === 'age' &&
+            byAge.query.direction === 'prev' &&
+            ages === 'd,c' &&
+            byAge.total === 3 &&
+            names === 'c' &&
+            byName.total === 4) ||
           `unexpected ${ages} (${byAge.total}) / ${names} (${byName.total})`
         );
       },
@@ -77,6 +95,9 @@ async function contractOnTheBrowserIndexedDb(entry) {
   const m = await import(entry);
   const { runCriteriaContract } = await import(
     new URL('/test/contract/run-criteria-contract', entry).href
+  );
+  const { runIndexedDbQuery } = await import(
+    new URL('/test/support/run-indexed-db-query', entry).href
   );
   const layouts = {
     'without indexes': { keyPath: 'id', indexes: [] },
@@ -123,12 +144,14 @@ async function contractOnTheBrowserIndexedDb(entry) {
       setup: async (documents) => {
         database = await open(name, layout, documents);
       },
-      search: (criteria, options) =>
-        m.searchIndexedDb(
-          database.transaction('records', 'readonly').objectStore('records'),
-          criteria,
+      search: (criteria, options) => {
+        const store = database.transaction('records', 'readonly').objectStore('records');
+        return runIndexedDbQuery(
+          store,
+          m.toIndexedDbQuery(criteria, m.readIndexes(store)),
           options,
-        ),
+        );
+      },
     });
     database.close();
     if (failures.length > 0) problems.push(`${name}: ${JSON.stringify(failures)}`);
@@ -139,7 +162,7 @@ async function contractOnTheBrowserIndexedDb(entry) {
 function browser() {
   return [
     [
-      'searchIndexedDb passes the criteria contract on the browser IndexedDB, in every store layout',
+      'toIndexedDbQuery passes the criteria contract on the browser IndexedDB, in every store layout',
       contractOnTheBrowserIndexedDb,
     ],
   ];

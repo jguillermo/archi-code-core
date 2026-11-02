@@ -2292,8 +2292,8 @@ A query selects rows through the primary key or an index:
 
 ```ts
 await orders.find({
-  index: 'byCustomer', // default: the id
-  range: { equals: 'cus-1' }, // or { startsWith: 'cus-' } or any of gt, gte, lt, lte
+  index: 'byCustomer', // default (or null): the id
+  range: { equals: 'cus-1' }, // or { startsWith: 'cus-' }, any of gt, gte, lt, lte, an IDBKeyRange or null
   direction: 'prev', // 'next' (default) | 'prev' | 'nextunique' | 'prevunique'
   offset: 20, // default 0
   limit: 10, // default: no limit
@@ -2335,6 +2335,11 @@ for await (const row of orders.iterate(
 - `nextunique` and `prevunique` give one row per distinct index value (the first in key order).
 - `iterate` resumes after the last row it read, so rows with the same index value are neither lost
   nor repeated between batches; rows written by others between two batches may or may not appear.
+- `range` also takes a native `IDBKeyRange` as it is, and `index: null` / `range: null` mean the
+  id and every row, so the query `toIndexedDbQuery` of `@archi-code/criteria-adapters/indexeddb`
+  builds goes to `find` with only `limit: query.limit ?? undefined` (and on a table whose index
+  names are a typed union, its `index` text must be narrowed). The table does not sort: when that
+  query has a `compare`, find without `offset`/`limit`, sort the items and slice them.
 - A query that is not valid (two lower bounds, a negative offset, a range that is not a key range,
   an unknown direction…) is an `invalid_query`; an index the store does not have is an
   `unknown_index` that names the indexes it has.

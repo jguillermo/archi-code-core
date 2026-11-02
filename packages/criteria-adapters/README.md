@@ -1,13 +1,17 @@
 # @archi-code/criteria-adapters
 
-Runs `@archi-code/criteria` searches on a storage engine. Each adapter is its own entry point, so an
-application loads only the one it uses and the adapters never depend on each other's code:
+Turns `@archi-code/criteria` searches into what a storage engine runs. Each adapter is its own entry
+point, so an application loads only the one it uses and the adapters never depend on each other's
+code:
 
-| Entry point                               | Runs a criteria on                     | Runs in              |
-| ----------------------------------------- | -------------------------------------- | -------------------- |
-| `@archi-code/criteria-adapters/memory`    | arrays in memory (reference semantics) | Node.js and browsers |
-| `@archi-code/criteria-adapters/mongodb`   | a MongoDB collection                   | Node.js              |
-| `@archi-code/criteria-adapters/indexeddb` | an IndexedDB object store              | browsers             |
+| Entry point                               | Does                                                         | Runs in              |
+| ----------------------------------------- | ------------------------------------------------------------ | -------------------- |
+| `@archi-code/criteria-adapters/memory`    | runs a criteria on arrays in memory (reference semantics)    | Node.js and browsers |
+| `@archi-code/criteria-adapters/mongodb`   | converts a criteria into a native MongoDB query              | Node.js              |
+| `@archi-code/criteria-adapters/indexeddb` | converts a criteria into the native reads of an object store | browsers             |
+
+`/mongodb` and `/indexeddb` never touch the database: they only build the query. Your code passes
+it to the driver or to the IndexedDB API, inside the session or transaction it already manages.
 
 The package has no root entry: `import '@archi-code/criteria-adapters'` fails on purpose, always
 import the adapter you need.
@@ -16,11 +20,11 @@ import the adapter you need.
 
 ```bash
 npm install @archi-code/criteria @archi-code/criteria-adapters
-npm install mongodb   # only for /mongodb
 ```
 
-Requires Node.js 24 or later. `@archi-code/criteria` is a dependency; `mongodb` (6 or later) is an
-optional peer dependency that only `/mongodb` needs, and it never imports the driver itself. The
+Requires Node.js 24 or later. `@archi-code/criteria` is the only dependency. `/mongodb` does not
+need the `mongodb` driver: it only builds the query, which your code passes to the driver it already
+uses (the query is checked with the driver 6 and 7). The
 package has no side effects (`sideEffects: false`). The entry points import `@archi-code/criteria`
 by name, so in a browser use a bundler (Vite, webpack, esbuild…) or an import map. `/memory` and
 `/indexeddb` are checked in Chromium and WebKit, `/indexeddb` on each browser's own
@@ -31,8 +35,8 @@ resolves the entry points with every `moduleResolution`, including the old `node
 
 ```ts
 import { searchMemory, matches } from '@archi-code/criteria-adapters/memory';
-import { MongoCriteriaTranslator, searchMongo } from '@archi-code/criteria-adapters/mongodb';
-import { searchIndexedDb } from '@archi-code/criteria-adapters/indexeddb';
+import { MongoCriteriaTranslator } from '@archi-code/criteria-adapters/mongodb';
+import { readIndexes, toIndexedDbQuery } from '@archi-code/criteria-adapters/indexeddb';
 ```
 
 CommonJS:
@@ -43,7 +47,7 @@ const { searchMemory } = require('@archi-code/criteria-adapters/memory');
 
 ## Same results in every adapter
 
-Every adapter returns exactly what `/memory` returns for the same data and criteria: the rules of
+Every adapter gives exactly what `/memory` returns for the same data and criteria: the rules of
 the "Semantics" section of the `@archi-code/criteria` README (missing fields are null, comparisons
 only between values of the same type, strings in code point order, literal text with Unicode
 simple case folding, nulls first when ascending…). Four rules matter for stored lists:
@@ -63,8 +67,8 @@ simple case folding, nulls first when ascending…). Four rules matter for store
 
 MongoDB does the opposite by default; `/mongodb` adds the conditions that make it follow these
 rules. The package checks every rule with one shared contract
-(fixed documents, cases and expected results) that runs against each adapter: in memory, on a real
-MongoDB and on IndexedDB. An adapter only joins the package when it passes the whole contract.
+(fixed documents, cases and expected results) that runs against each adapter: in memory, with the
+translated query on a real MongoDB and with the IndexedDB query on real object stores. An adapter only joins the package when it passes the whole contract.
 
 ## `/memory`
 
@@ -146,91 +150,12 @@ comparisons only between values of the same type, literal and optionally case-in
 
 ## `/mongodb`
 
-### `searchMongo(collection, criteria, options?)`
-
-Translates the criteria, calls `collection.find(filter, { sort, skip, limit, projection })` and,
-with `withTotal: true`, `collection.countDocuments(filter)` at the same time. Returns a
-`SearchResult<T>` (`{ items, total? }`).
-
-```ts
-import { Criteria } from '@archi-code/criteria';
-import { searchMongo } from '@archi-code/criteria-adapters/mongodb';
-import { MongoClient } from 'mongodb';
-
-const users = client.db('app').collection<UserPrimitives>('users');
-
-const result = await searchMongo(
-  users,
-  Criteria.create<UserPrimitives>({
-    where: { status: 'active', age: { gte: 18 } },
-    orderBy: { createdAt: 'desc' },
-    limit: 20,
-  }),
-  { withTotal: true },
-);
-// { items: [...], total: 42 }
-```
-
-Options:
-
-| Option       | Default                                          | Use                                        |
-| ------------ | ------------------------------------------------ | ------------------------------------------ |
-| `fields`     | none                                             | `FieldMap<T>`: entity field → stored field |
-| `withTotal`  | `false`                                          | Also count every match before paginating   |
-| `projection` | `{ _id: 0 }`, or `{}` when a field maps to `_id` | Projection passed to `find`                |
-| `map`        | the document as is                               | Turns each stored document into `T`        |
-| `convert`    | none                                             | Per field: criteria value → stored value   |
-| `session`    | none                                             | `ClientSession` for reads in a transaction |
-| `maxTimeMS`  | none                                             | Time limit of `find` and the count         |
-| `hint`       | none                                             | Index to use, as the driver takes it       |
-| `comment`    | none                                             | Comment shown in the server logs           |
-
-`convert` turns the criteria values of a field (comparisons, ranges, `in`/`nin`, `has`…) into the
-type MongoDB stores, such as an `ObjectId` `_id`; `map` turns the documents back. When a converter
-throws (an id that is not 24 hex characters, for example), the search rejects with a
-`CriteriaError` `INVALID_VALUE` whose `cause` is the converter error, so it maps to a 400 like any
-other invalid criteria:
-
-```ts
-import { ObjectId } from 'mongodb';
-
-const result = await searchMongo<Order, { _id: ObjectId; total: number }>(
-  orders,
-  Criteria.create<Order>({ where: { id: request.params.id } }),
-  {
-    fields: { id: '_id' },
-    convert: { id: (id) => new ObjectId(String(id)) },
-    map: ({ _id, total }) => ({ id: _id.toHexString(), total }),
-  },
-);
-```
-
-`session`, `maxTimeMS`, `hint` and `comment` go to `find` and to `countDocuments` as they are; the
-criteria order, skip, limit and projection always win over them. Inside a transaction pass the
-session, or the search reads outside it and does not see what the transaction wrote:
-
-```ts
-await session.withTransaction(async () => {
-  await orders.insertOne(order, { session });
-  const paid = await searchMongo(orders, criteria, { session, maxTimeMS: 2_000 });
-});
-```
-
-`_id` is left out of the results unless a field is stored in it. When the entity id lives in
-`_id`, map it in both directions:
-
-```ts
-const result = await searchMongo<User, { _id: string; age: number }>(
-  collection,
-  Criteria.create<User>({ where: { age: { gte: 18 } }, orderBy: { id: 'asc' } }),
-  { fields: { id: '_id' }, map: ({ _id, age }) => ({ id: _id, age }) },
-);
-// { items: [{ id: 'a', age: 30 }] }
-```
+The module only translates. It never calls the driver: pass what it returns to `find`,
+`countDocuments` or an aggregation yourself, with your own session, time limit and projection.
 
 ### `MongoCriteriaTranslator`
 
-`new MongoCriteriaTranslator<T>({ fields? }).translate(criteria)` returns a `MongoQuery`
+`new MongoCriteriaTranslator<T>({ fields?, convert? }).translate(criteria)` returns a `MongoQuery`
 (`limit` only when the criteria has one; it is never `0`):
 
 ```ts
@@ -254,8 +179,60 @@ new MongoCriteriaTranslator<User>({ fields: { id: '_id' } }).translate(
 // }
 ```
 
+Run it with the driver, counting only when the total is shown:
+
+```ts
+import { Criteria } from '@archi-code/criteria';
+import { MongoCriteriaTranslator } from '@archi-code/criteria-adapters/mongodb';
+
+const users = client.db('app').collection<UserPrimitives>('users');
+const { filter, sort, skip, limit } = new MongoCriteriaTranslator<UserPrimitives>().translate(
+  Criteria.create<UserPrimitives>({
+    where: { status: 'active', age: { gte: 18 } },
+    orderBy: { createdAt: 'desc' },
+    limit: 20,
+  }),
+);
+const [items, total] = await Promise.all([
+  users.find(filter, { sort, skip, limit, projection: { _id: 0 } }).toArray(),
+  users.countDocuments(filter),
+]);
+```
+
+Inside a transaction pass the session to `find` and `countDocuments`, or the read happens outside
+it and does not see what the transaction wrote.
+
 `translateFilter(criteria.filter)` translates only the filter (`{}` for `null`), for example to
 use it in an aggregation `$match`.
+
+Options:
+
+| Option    | Default | Use                                        |
+| --------- | ------- | ------------------------------------------ |
+| `fields`  | none    | `FieldMap<T>`: entity field → stored field |
+| `convert` | none    | Per field: criteria value → stored value   |
+
+`convert` turns the criteria values of a field (comparisons, ranges, `in`/`nin`, `has`…) into the
+type MongoDB stores, such as an `ObjectId` `_id`; turn the documents back yourself after `find`.
+When a converter throws (an id that is not 24 hex characters, for example), `translate` throws a
+`CriteriaError` `INVALID_VALUE` whose `cause` is the converter error, so it maps to a 400 like any
+other invalid criteria:
+
+```ts
+import { ObjectId } from 'mongodb';
+
+const translator = new MongoCriteriaTranslator<Order>({
+  fields: { id: '_id' },
+  convert: { id: (id) => new ObjectId(String(id)) },
+});
+const { filter } = translator.translate(
+  Criteria.create<Order>({ where: { id: request.params.id } }),
+);
+const items = (await orders.find(filter).toArray()).map(({ _id, total }) => ({
+  id: _id.toHexString(),
+  total,
+}));
+```
 
 | Criteria                               | MongoDB                                                                             |
 | -------------------------------------- | ----------------------------------------------------------------------------------- |
@@ -289,64 +266,112 @@ The translator does not create indexes. Create them for the fields you filter an
 
 ### `/mongodb` exports
 
-| Export                                         | Kind     | Use                                              |
-| ---------------------------------------------- | -------- | ------------------------------------------------ |
-| `searchMongo`                                  | function | Runs a criteria on a collection → `SearchResult` |
-| `MongoCriteriaTranslator`                      | class    | `translate(criteria)`, `translateFilter(filter)` |
-| `escapeRegex`                                  | function | Escapes text for a MongoDB regular expression    |
-| `MongoQuery`                                   | type     | `{ filter, sort, skip, limit? }`                 |
-| `MongoFilter`, `MongoSort`                     | type     | Filter object and `Record<string, 1 \| -1>`      |
-| `MongoCollection`, `MongoFindOptions`          | type     | What `searchMongo` needs from a collection       |
-| `MongoDriverOptions`                           | type     | `session`, `maxTimeMS`, `hint`, `comment`        |
-| `SearchMongoOptions`, `MongoTranslatorOptions` | type     | Options                                          |
-| `MongoValueConverters`                         | type     | `convert`: entity field → value converter        |
+| Export                     | Kind     | Use                                              |
+| -------------------------- | -------- | ------------------------------------------------ |
+| `MongoCriteriaTranslator`  | class    | `translate(criteria)`, `translateFilter(filter)` |
+| `escapeRegex`              | function | Escapes text for a MongoDB regular expression    |
+| `MongoQuery`               | type     | `{ filter, sort, skip, limit? }`                 |
+| `MongoFilter`, `MongoSort` | type     | Filter object and `Record<string, 1 \| -1>`      |
+| `MongoTranslatorOptions`   | type     | `{ fields?, convert? }`                          |
+| `MongoValueConverters`     | type     | `convert`: entity field → value converter        |
 
 ## `/indexeddb`
 
-### `searchIndexedDb(store, criteria, options?)`
+### `toIndexedDbQuery(criteria, indexes)`
 
-Searches the object store you pass (from a transaction you open) and returns a
-`SearchResult<T>`: `{ items }`, plus `total` (every match before paginating) with
-`{ withTotal: true }`. Records are returned as stored.
+Converts a criteria into what the IndexedDB API reads, without opening any request:
+`readIndexes(store)` gives the usable indexes of the store you pass (from a transaction you open)
+and `toIndexedDbQuery` returns an `IndexedDbQuery<T>`:
+
+| Field       | Use                                                                                   |
+| ----------- | ------------------------------------------------------------------------------------- |
+| `index`     | Index to read (`store.index(index)`), or `null` to read the store itself              |
+| `range`     | `IDBKeyRange` for `openCursor`/`getAll`/`count`, or `null` for every record           |
+| `direction` | `'next'` or `'prev'` for `openCursor`                                                 |
+| `filter`    | `(record) => boolean`: the whole criteria filter, which the key range cannot express  |
+| `compare`   | Criteria order for `Array.prototype.sort`, or `null` when the cursor already gives it |
+| `offset`    | Matches to skip after filtering and sorting                                           |
+| `limit`     | Matches to keep after `offset`, or `null`                                             |
+
+Read the range with a cursor, keep the records `filter` accepts, sort them with `compare` when it
+is not `null` and slice `offset`/`limit`. When `compare` is `null` the cursor walks in criteria
+order, so you may stop once `offset + limit` records matched (unless you also count the total):
 
 ```ts
 import { Criteria } from '@archi-code/criteria';
-import { searchIndexedDb } from '@archi-code/criteria-adapters/indexeddb';
+import type { SearchResult } from '@archi-code/criteria';
+import { readIndexes, toIndexedDbQuery } from '@archi-code/criteria-adapters/indexeddb';
 
 const store = database.transaction('users', 'readonly').objectStore('users');
-
-const result = await searchIndexedDb(
-  store,
+const query = toIndexedDbQuery(
   Criteria.create<UserPrimitives>({
     where: { age: { gte: 18 }, status: 'active' },
     orderBy: { age: 'desc' },
     limit: 20,
   }),
-  { withTotal: true },
+  readIndexes(store),
 );
+const source = query.index === null ? store : store.index(query.index);
+const matched = await new Promise<UserPrimitives[]>((resolve, reject) => {
+  const found: UserPrimitives[] = [];
+  const request = source.openCursor(query.range, query.direction);
+  request.onerror = () => reject(request.error);
+  request.onsuccess = () => {
+    const cursor = request.result;
+    if (cursor === null) return resolve(found);
+    if (query.filter(cursor.value)) found.push(cursor.value);
+    cursor.continue();
+  };
+});
+if (query.compare !== null) matched.sort(query.compare);
+const end = query.limit === null ? undefined : query.offset + query.limit;
+const result: SearchResult<UserPrimitives> = {
+  items: matched.slice(query.offset, end),
+  total: matched.length,
+};
+```
+
+With `IndexedDbTable` of `@archi-code/ddd/infrastructure`, which takes the `IDBKeyRange` and a
+`null` index as they are, read the indexes with `withStore` and pass the query to `find`:
+
+```ts
+let indexes: IndexInfo[] = [];
+await users.withStore('readonly', (store) => {
+  indexes = readIndexes(store);
+  return undefined;
+});
+const query = toIndexedDbQuery(criteria, indexes);
+if (query.compare === null) {
+  return users.find({ ...query, limit: query.limit ?? undefined });
+}
+const { items, total } = await users.find({ ...query, offset: undefined, limit: undefined });
+const end = query.limit === null ? undefined : query.offset + query.limit;
+return { items: items.sort(query.compare).slice(query.offset, end), total };
 ```
 
 Store the primitive shape of the entity as is: the criteria fields are the record's properties
-(nested ones with dots, like the index key paths).
+(nested ones with dots, like the index key paths). `toIndexedDbQuery` builds the `IDBKeyRange`
+with the global `IDBKeyRange`, so it runs where IndexedDB exists.
 
 ### How it uses indexes
 
-`planIndexedDbQuery(criteria, readIndexes(store))` decides how to read; `searchIndexedDb` calls it
-for you:
+`planIndexedDbQuery(criteria, indexes)` decides how to read, without the `IDBKeyRange` (it
+returns plain `bounds`, so it also runs without IndexedDB); `toIndexedDbQuery` calls it for you:
 
 1. Among the conditions every match must meet (the top level and nested `AND`), it picks one on a
    field that is the store key path or the key path of an index: equality first, then `between` or a
    case-sensitive `startsWith`, then `gt`/`gte`/`lt`/`lte`. That condition becomes the
-   `IDBKeyRange` of the cursor.
-2. When the criteria sorts by that same field only, the cursor walks the index in that direction
-   and stops as soon as the page is full (unless `withTotal`). With no filter range it can also walk
-   the store by its key path. Otherwise matches are sorted in memory.
+   `IDBKeyRange`.
+2. When the criteria sorts by that same field only, and the field is a number or a date (or the
+   condition is an equality), the cursor walks the index in that direction and `compare` is `null`.
+   Otherwise `compare` sorts the matches in memory.
 3. IndexedDB orders strings by UTF-16 code unit and the criteria semantics by code point; they only
    differ for characters from U+D800 up. A text range whose bound holds such a character is not
-   used as a key range, and a sorted walk that meets such a value reads every match and sorts them
-   in memory, so the results never depend on that difference.
-4. Every record the cursor returns is checked against the whole filter, so `OR`, `NOT`, insensitive
-   text and any other condition keep the same semantics as the other adapters.
+   used as a key range, and a text order is always applied with `compare`, so the results never
+   depend on that difference.
+4. `filter` holds the whole criteria filter, so `OR`, `NOT`, insensitive text and any other
+   condition keep the same semantics as the other adapters when every record the cursor returns
+   passes through it.
 
 | Uses an index                   | Never uses an index                                                 |
 | ------------------------------- | ------------------------------------------------------------------- |
@@ -354,24 +379,24 @@ for you:
 | `gt` `gte` `lt` `lte` `between` | insensitive text, booleans and `null` (not valid IndexedDB keys)    |
 | case-sensitive `startsWith`     | lists (`has`…), compound (array) key paths and `multiEntry` indexes |
 
-A secondary index is never walked only to sort, because records whose field is null or missing
-are not in it and must come first. IndexedDB also orders dates before text while the criteria
-order puts text first, so a walk of the store key that holds both kinds sorts in memory (it counts
-both kinds with two key-range requests first). Create indexes on the fields you filter by equality or ranges
-most often.
+A walk without a key range never gives the order: a secondary index skips records whose field is
+null or missing, which must come first, and a store key may hold dates and text, which IndexedDB
+orders apart from the criteria. Create indexes on the fields you filter by equality or ranges most
+often.
 
 `readIndexes(store)` lists the usable indexes as `{ name, keyPath }` (`name: null` is the store key
-path).
+path); it reads only the store definition, never its records.
 
 ### `/indexeddb` exports
 
-| Export                                   | Kind     | Use                                                     |
-| ---------------------------------------- | -------- | ------------------------------------------------------- |
-| `searchIndexedDb`                        | function | Runs a criteria on an object store → `SearchResult`     |
-| `planIndexedDbQuery`                     | function | Chooses index, key range, direction and whether to sort |
-| `readIndexes`                            | function | Usable key paths of a store                             |
-| `IndexedDbPlan`                          | type     | `{ index, bounds, direction, presorted }`               |
-| `IndexInfo`, `KeyBounds`, `IndexedDbKey` | type     | Plan details                                            |
+| Export                                   | Kind     | Use                                                           |
+| ---------------------------------------- | -------- | ------------------------------------------------------------- |
+| `toIndexedDbQuery`                       | function | Criteria → native reads of an object store                    |
+| `readIndexes`                            | function | Usable key paths of a store                                   |
+| `planIndexedDbQuery`                     | function | Chooses index, key bounds, direction and whether to sort      |
+| `IndexedDbQuery`                         | type     | `{ index, range, direction, filter, compare, offset, limit }` |
+| `IndexedDbPlan`                          | type     | `{ index, bounds, direction, presorted }`                     |
+| `IndexInfo`, `KeyBounds`, `IndexedDbKey` | type     | Plan details                                                  |
 
 ## AI assistant skill
 

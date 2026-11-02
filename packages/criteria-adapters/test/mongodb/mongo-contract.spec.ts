@@ -1,14 +1,35 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Criteria } from '@archi-code/criteria';
+import type { SearchResult } from '@archi-code/criteria';
 import { runCriteriaContract } from '../contract/run-criteria-contract';
 import type { ContractDocument } from '../contract/contract-documents';
 import { MongoClient, ObjectId } from 'mongodb';
 import { MongoClient as MongoClientV6 } from 'mongodb-v6';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import * as os from 'node:os';
-import { searchMongo } from '../../src/mongodb/search-mongo';
+import { MongoCriteriaTranslator } from '../../src/mongodb/mongo-criteria-translator';
+import type { MongoTranslatorOptions } from '../../src/mongodb/mongo-criteria-translator';
 
-describe('searchMongo on a real MongoDB', () => {
+interface NativeCollection<D> {
+  find(filter: object, options: object): { toArray(): Promise<D[]> };
+  countDocuments(filter: object): Promise<number>;
+}
+
+async function runMongoQuery<T, D>(
+  collection: NativeCollection<D>,
+  criteria: Criteria<T>,
+  options: MongoTranslatorOptions<T> & { withTotal?: boolean; map?: (document: D) => T } = {},
+): Promise<SearchResult<T>> {
+  const { filter, sort, skip, limit } = new MongoCriteriaTranslator<T>(options).translate(criteria);
+  const [documents, total] = await Promise.all([
+    collection.find(filter, { sort, skip, limit }).toArray(),
+    options.withTotal === true ? collection.countDocuments(filter) : undefined,
+  ]);
+  const items = documents.map(options.map ?? ((document) => document as unknown as T));
+  return total === undefined ? { items } : { items, total };
+}
+
+describe('MongoCriteriaTranslator on a real MongoDB', () => {
   let server: MongoMemoryServer;
   let client: MongoClient;
   let clientV6: MongoClientV6;
@@ -36,7 +57,8 @@ describe('searchMongo on a real MongoDB', () => {
         await collection.deleteMany({});
         await collection.insertMany(documents);
       },
-      search: (criteria, options) => searchMongo<ContractDocument>(collection, criteria, options),
+      search: (criteria, options) =>
+        runMongoQuery<ContractDocument, ContractDocument>(collection, criteria, options),
     });
     expect(failures).toEqual([]);
   });
@@ -51,7 +73,7 @@ describe('searchMongo on a real MongoDB', () => {
       { _id: 'a', age: 30 },
       { _id: 'b', age: 15 },
     ]);
-    const result = await searchMongo<User, { _id: string; age: number }>(
+    const result = await runMongoQuery<User, { _id: string; age: number }>(
       collection,
       Criteria.create<User>({ where: { age: { gte: 18 } }, orderBy: { id: 'asc' } }),
       { fields: { id: '_id' }, map: ({ _id, age }) => ({ id: _id, age }), withTotal: true },
@@ -76,12 +98,12 @@ describe('searchMongo on a real MongoDB', () => {
       convert: { id: (value: unknown) => new ObjectId(String(value)) },
       map: ({ _id, total }: { _id: ObjectId; total: number }) => ({ id: _id.toHexString(), total }),
     } as const;
-    const byId = await searchMongo<Order, { _id: ObjectId; total: number }>(
+    const byId = await runMongoQuery<Order, { _id: ObjectId; total: number }>(
       collection,
       Criteria.create<Order>({ where: { id: first.toHexString() } }),
       options,
     );
-    const others = await searchMongo<Order, { _id: ObjectId; total: number }>(
+    const others = await runMongoQuery<Order, { _id: ObjectId; total: number }>(
       collection,
       Criteria.create<Order>({ where: { id: { nin: [first.toHexString()] } } }),
       options,
@@ -89,7 +111,7 @@ describe('searchMongo on a real MongoDB', () => {
     expect(byId.items).toEqual([{ id: first.toHexString(), total: 10 }]);
     expect(others.items).toEqual([{ id: second.toHexString(), total: 20 }]);
     await expect(
-      searchMongo<Order, { _id: ObjectId; total: number }>(
+      runMongoQuery<Order, { _id: ObjectId; total: number }>(
         collection,
         Criteria.create<Order>({ where: { id: 'not-an-object-id' } }),
         options,

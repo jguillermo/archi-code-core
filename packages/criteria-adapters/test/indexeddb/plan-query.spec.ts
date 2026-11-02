@@ -151,10 +151,29 @@ describe('planIndexedDbQuery', () => {
     );
   });
 
-  it('walks the store by primary key to sort by it', () => {
-    expect(plan({ orderBy: { id: 'desc' } })).toEqual({
-      index: null,
-      bounds: null,
+  it('sorts in memory without a key range, because the walked key may mix dates and text', () => {
+    expect(plan({ orderBy: { id: 'desc' } })).toEqual({ ...SCAN, presorted: false });
+  });
+
+  it('follows the index order of a range with only an upper bound', () => {
+    expect(plan({ where: { age: { lt: 9 } }, orderBy: { age: 'asc' } })).toEqual({
+      index: 'by-age',
+      bounds: { upper: 9, lowerOpen: false, upperOpen: true },
+      direction: 'next',
+      presorted: true,
+    });
+    expect(plan({ where: { name: { lt: 'm' } }, orderBy: { name: 'asc' } }).presorted).toBe(false);
+  });
+
+  it('sorts text in memory, because IndexedDB orders it by UTF-16 code unit', () => {
+    expect(plan({ where: { name: { gt: 'a' } }, orderBy: { name: 'asc' } })).toEqual({
+      index: 'by-name',
+      bounds: { lower: 'a', lowerOpen: true, upperOpen: false },
+      direction: 'next',
+      presorted: false,
+    });
+    expect(plan({ where: { name: 'Ana' }, orderBy: { name: 'desc' } })).toMatchObject({
+      index: 'by-name',
       direction: 'prev',
       presorted: true,
     });

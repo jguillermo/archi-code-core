@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as api from '../../src/indexeddb/index';
 
-const PUBLIC_API = ['planIndexedDbQuery', 'readIndexes', 'searchIndexedDb'];
+const PUBLIC_API = ['planIndexedDbQuery', 'readIndexes', 'toIndexedDbQuery'];
 
 describe('@archi-code/criteria-adapters/indexeddb', () => {
   it('exports exactly the public API', () => {

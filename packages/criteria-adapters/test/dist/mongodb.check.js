@@ -32,28 +32,26 @@ function smoke(m) {
       },
     ],
     [
-      'searchMongo runs the query on a collection and counts',
-      async () => {
-        const calls = [];
-        const collection = {
-          find: (filter, options) => {
-            calls.push({ filter, options });
-            return { toArray: async () => [{ id: 'a', age: 30 }] };
+      'MongoCriteriaTranslator converts values and reports the ones it cannot store',
+      () => {
+        const translator = new m.MongoCriteriaTranslator({
+          convert: {
+            age: (value) => {
+              if (value < 0) throw new Error('negative');
+              return String(value);
+            },
           },
-          countDocuments: async () => 3,
-        };
-        const result = await m.searchMongo(
-          collection,
-          Criteria.create({ where: { age: { gt: 18 } } }),
-          { withTotal: true },
-        );
+        });
+        const filter = translator.translateFilter(Criteria.create({ where: { age: 7 } }).filter);
+        let code = null;
+        try {
+          translator.translate(Criteria.create({ where: { age: -1 } }));
+        } catch (error) {
+          code = error.code;
+        }
         return (
-          (result.total === 3 &&
-            result.items[0].id === 'a' &&
-            JSON.stringify(calls[0].filter) ===
-              JSON.stringify({ age: { $gt: 18, $not: { $type: 'array' } } }) &&
-            calls[0].options.projection._id === 0) ||
-          `unexpected result ${JSON.stringify(result)} ${JSON.stringify(calls)}`
+          (filter.age.$eq === '7' && code === 'INVALID_VALUE') ||
+          `unexpected ${JSON.stringify(filter)} / ${code}`
         );
       },
     ],

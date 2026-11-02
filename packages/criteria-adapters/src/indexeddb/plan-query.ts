@@ -98,6 +98,11 @@ function candidateOf(node: FilterNode): Candidate | null {
   return null;
 }
 
+function keepsCriteriaOrder(candidate: Candidate): boolean {
+  const bound = candidate.bounds.lower ?? candidate.bounds.upper;
+  return candidate.rank === 0 || typeof bound !== 'string';
+}
+
 function requiredNodes(filter: FilterNode | null): FilterNode[] {
   if (filter === null) {
     return [];
@@ -129,17 +134,14 @@ export function planIndexedDbQuery(
         Number(right.field === sortField) - Number(left.field === sortField),
     );
   const best = candidates[0];
-  if (best !== undefined) {
-    const sortedByIndex = best.field === sortField;
-    return {
-      index: (byField.get(best.field) as IndexInfo).name,
-      bounds: best.bounds,
-      direction: sortedByIndex ? direction : 'next',
-      presorted: sortedByIndex || order.length === 0,
-    };
+  if (best === undefined) {
+    return { index: null, bounds: null, direction: 'next', presorted: order.length === 0 };
   }
-  if (sortField !== null && byField.get(sortField)?.name === null) {
-    return { index: null, bounds: null, direction, presorted: true };
-  }
-  return { index: null, bounds: null, direction: 'next', presorted: order.length === 0 };
+  const sortedByIndex = best.field === sortField && keepsCriteriaOrder(best);
+  return {
+    index: (byField.get(best.field) as IndexInfo).name,
+    bounds: best.bounds,
+    direction: sortedByIndex ? direction : 'next',
+    presorted: sortedByIndex || order.length === 0,
+  };
 }

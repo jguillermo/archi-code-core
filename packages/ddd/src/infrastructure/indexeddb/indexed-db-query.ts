@@ -13,8 +13,8 @@ export type IndexedDbRange =
     };
 
 export interface IndexedDbQuery<Row, Index extends string = string> {
-  readonly index?: Index;
-  readonly range?: IndexedDbRange;
+  readonly index?: Index | null;
+  readonly range?: IndexedDbRange | IDBKeyRange | null;
   readonly direction?: IDBCursorDirection;
   readonly offset?: number;
   readonly limit?: number;
@@ -51,7 +51,11 @@ export class IndexedDbQueryPlan {
     if (query.filter !== undefined && typeof query.filter !== 'function') {
       throw new IndexedDbException('invalid_query', 'filter must be a function of the row');
     }
-    if (query.index !== undefined && (typeof query.index !== 'string' || query.index === '')) {
+    if (
+      query.index !== undefined &&
+      query.index !== null &&
+      (typeof query.index !== 'string' || query.index === '')
+    ) {
       throw new IndexedDbException('invalid_query', 'index must be the name of an index');
     }
     const index = query.index ?? null;
@@ -72,9 +76,12 @@ export class IndexedDbQueryPlan {
     };
   }
 
-  static keyRange(range: IndexedDbRange | undefined): IDBKeyRange | null {
-    if (range === undefined) {
+  static keyRange(range: IndexedDbRange | IDBKeyRange | null | undefined): IDBKeyRange | null {
+    if (range === undefined || range === null) {
       return null;
+    }
+    if (IndexedDbQueryPlan.isKeyRange(range)) {
+      return range;
     }
     try {
       if ('equals' in range) {
@@ -99,6 +106,10 @@ export class IndexedDbQueryPlan {
         },
       );
     }
+  }
+
+  private static isKeyRange(range: IndexedDbRange | IDBKeyRange): range is IDBKeyRange {
+    return Object.prototype.toString.call(range) === '[object IDBKeyRange]';
   }
 
   static isUnique(direction: IDBCursorDirection): boolean {
