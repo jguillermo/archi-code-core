@@ -9,10 +9,6 @@ La raíz no se escribe a mano: se extiende `AggregateRoot<Id>` de `@archi-code/d
 ```ts
 import { AggregateRoot, CreatedAt, UpdatedAt } from '@archi-code/ddd/domain';
 
-interface Clock {
-  now(): Date;
-}
-
 export class Order extends AggregateRoot<OrderId> {
   readonly customerId: CustomerId;
   readonly createdAt: CreatedAt;
@@ -46,7 +42,7 @@ Orden que sigue Destilado para construir la raíz [Destilado cap. 5]:
 4. Getters solo si hacen falta; **sin setters públicos**. Con el paquete, cada campo que se guarda es `readonly` público (si no cambia) o `private _campo` con un getter público con su nombre sin `_`, porque `PrimitiveTypes` los lee para tipar `toPrimitives()`/`fromPrimitives()` (nada lo comprueba en tiempo de ejecución: lo cubre el test de ida y vuelta de cada agregado); los valores derivados son métodos (`total()`) `[Fuera de los libros: convención de @archi-code/ddd]`.
 5. Comportamiento complejo con nombres del lenguaje (`planBacklogItem`, `scheduleRelease`).
 
-Con el paquete, la clase sigue siempre el mismo orden `[Fuera de los libros: convención de @archi-code/ddd]`: la interfaz local `Clock` encima de la clase (el dominio no importa el puerto `Clock` de `/application`; este encaja por estructura) → constantes de negocio `private static readonly` → campos (`createdAt` y `_updatedAt` los últimos) → constructor público que solo asigna → `static create` → `static fromPrimitives` → getters → consultas → métodos de negocio → `toPrimitives` → ayudantes privados.
+Con el paquete, la clase sigue siempre el mismo orden `[Fuera de los libros: convención de @archi-code/ddd]`: constantes de negocio `private static readonly` → campos (`createdAt` y `_updatedAt` los últimos) → constructor público que solo asigna → `static create` → `static fromPrimitives` → getters → consultas → métodos de negocio → `toPrimitives` → ayudantes privados.
 
 ## 3. Agregado completo: Order
 
@@ -223,14 +219,13 @@ export class OrderCreatedDomainEvent extends EventBase {
     total,
     eventId,
     occurredOn,
-    clock,
   }: {
     orderId: string;
     customerId: string;
     lines: { sku: string; quantity: number; unitPrice: { amount: number; currency: string } }[];
     total: { amount: number; currency: string };
   } & EventMetadata) {
-    super({ eventId, occurredOn, clock });
+    super({ eventId, occurredOn });
     this.orderId = orderId;
     this.customerId = customerId;
     this.lines = lines;
@@ -253,14 +248,13 @@ export class OrderLineAddedDomainEvent extends EventBase {
     total,
     eventId,
     occurredOn,
-    clock,
   }: {
     orderId: string;
     sku: string;
     quantity: number;
     total: { amount: number; currency: string };
   } & EventMetadata) {
-    super({ eventId, occurredOn, clock });
+    super({ eventId, occurredOn });
     this.orderId = orderId;
     this.sku = sku;
     this.quantity = quantity;
@@ -279,9 +273,8 @@ export class OrderConfirmedDomainEvent extends EventBase {
     total,
     eventId,
     occurredOn,
-    clock,
   }: { orderId: string; total: { amount: number; currency: string } } & EventMetadata) {
-    super({ eventId, occurredOn, clock });
+    super({ eventId, occurredOn });
     this.orderId = orderId;
     this.total = total;
   }
@@ -302,14 +295,13 @@ export class OrderCancelledDomainEvent extends EventBase {
     paymentId,
     eventId,
     occurredOn,
-    clock,
   }: {
     orderId: string;
     reason: string;
     reservationId: string | null;
     paymentId: string | null;
   } & EventMetadata) {
-    super({ eventId, occurredOn, clock });
+    super({ eventId, occurredOn });
     this.orderId = orderId;
     this.reason = reason;
     this.reservationId = reservationId;
@@ -332,14 +324,13 @@ export class OrderPaymentAuthorizationRejectedDomainEvent extends EventBase {
     required,
     eventId,
     occurredOn,
-    clock,
   }: {
     orderId: string;
     paymentId: string;
     authorized: { amount: number; currency: string };
     required: { amount: number; currency: string };
   } & EventMetadata) {
-    super({ eventId, occurredOn, clock });
+    super({ eventId, occurredOn });
     this.orderId = orderId;
     this.paymentId = paymentId;
     this.authorized = authorized;
@@ -365,10 +356,6 @@ La raíz, `domain/aggregate/Order.ts`:
 ```ts
 import { AggregateRoot, CreatedAt, UpdatedAt } from '@archi-code/ddd/domain';
 import type { PrimitiveTypes } from '@archi-code/ddd/domain';
-
-interface Clock {
-  now(): Date;
-}
 
 export class Order extends AggregateRoot<OrderId> {
   readonly customerId: CustomerId;
@@ -407,7 +394,6 @@ export class Order extends AggregateRoot<OrderId> {
     customerId: CustomerId,
     lines: OrderLines,
     shippingAddress: ShippingAddress,
-    clock: Clock,
   ): Order {
     const order = new Order(
       id,
@@ -417,8 +403,8 @@ export class Order extends AggregateRoot<OrderId> {
       new OrderStatusType(OrderStatus.PENDING),
       new ReservationReference(null),
       null,
-      CreatedAt.now(clock),
-      UpdatedAt.now(clock),
+      CreatedAt.now(),
+      UpdatedAt.now(),
     );
     order.record(
       new OrderCreatedDomainEvent({
@@ -430,7 +416,6 @@ export class Order extends AggregateRoot<OrderId> {
           unitPrice: line.unitPrice.toPrimitives(),
         })),
         total: order.total().toPrimitives(),
-        clock,
       }),
     );
     return order;
@@ -480,49 +465,47 @@ export class Order extends AggregateRoot<OrderId> {
     return this._status.value === status;
   }
 
-  addLine(line: OrderLine, clock: Clock): void {
+  addLine(line: OrderLine): void {
     if (!this.isIn(OrderStatus.PENDING)) {
       throw new OrderNotModifiable(this.id.value, this._status.value);
     }
     this._lines = this._lines.withLine(line);
-    this.touch(clock);
+    this.touch();
     this.record(
       new OrderLineAddedDomainEvent({
         orderId: this.id.value,
         sku: line.sku.value,
         quantity: line.quantity.value,
         total: this.total().toPrimitives(),
-        clock,
       }),
     );
   }
 
-  cancel(reason: CancellationReason, clock: Clock): void {
+  cancel(reason: CancellationReason): void {
     if (this.isIn(OrderStatus.CANCELLED)) {
       throw new OrderNotCancellable(this.id.value, this._status.value);
     }
-    this.moveTo(OrderStatus.CANCELLED, clock);
+    this.moveTo(OrderStatus.CANCELLED);
     this.record(
       new OrderCancelledDomainEvent({
         orderId: this.id.value,
         reason: reason.value,
         reservationId: this._stockReservation.value,
         paymentId: this._paymentAuthorization?.paymentId.value ?? null,
-        clock,
       }),
     );
   }
 
-  registerStockReservation(reservation: ReservationReference, clock: Clock): void {
+  registerStockReservation(reservation: ReservationReference): void {
     if (!this.isIn(OrderStatus.PENDING)) {
       return;
     }
     this._stockReservation = reservation;
-    this.touch(clock);
-    this.tryToConfirm(clock);
+    this.touch();
+    this.tryToConfirm();
   }
 
-  registerPaymentAuthorization(authorization: PaymentAuthorization, clock: Clock): void {
+  registerPaymentAuthorization(authorization: PaymentAuthorization): void {
     if (!this.isIn(OrderStatus.PENDING)) {
       return;
     }
@@ -533,14 +516,13 @@ export class Order extends AggregateRoot<OrderId> {
           paymentId: authorization.paymentId.value,
           authorized: authorization.amount.toPrimitives(),
           required: this.total().toPrimitives(),
-          clock,
         }),
       );
       return;
     }
     this._paymentAuthorization = authorization;
-    this.touch(clock);
-    this.tryToConfirm(clock);
+    this.touch();
+    this.tryToConfirm();
   }
 
   toPrimitives(): PrimitiveTypes<Order> {
@@ -557,26 +539,25 @@ export class Order extends AggregateRoot<OrderId> {
     };
   }
 
-  private tryToConfirm(clock: Clock): void {
+  private tryToConfirm(): void {
     if (this._stockReservation.value !== null && this._paymentAuthorization !== null) {
-      this.moveTo(OrderStatus.CONFIRMED, clock);
+      this.moveTo(OrderStatus.CONFIRMED);
       this.record(
         new OrderConfirmedDomainEvent({
           orderId: this.id.value,
           total: this.total().toPrimitives(),
-          clock,
         }),
       );
     }
   }
 
-  private moveTo(status: OrderStatus, clock: Clock): void {
+  private moveTo(status: OrderStatus): void {
     this._status = new OrderStatusType(status);
-    this.touch(clock);
+    this.touch();
   }
 
-  private touch(clock: Clock): void {
-    this._updatedAt = UpdatedAt.now(clock);
+  private touch(): void {
+    this._updatedAt = UpdatedAt.now();
   }
 }
 ```
@@ -585,8 +566,8 @@ Cómo encaja con las reglas:
 
 * `customerId` es una referencia por identidad (regla 3); `stockReservation` es la identidad de un agregado de otro contexto, y `paymentAuthorization` un value object con lo mínimo que el pedido necesita de Pagos.
 * Las líneas son un value object (`OrderLines`, parte reemplazable entera); `addLine` sustituye la colección por la que devuelve `withLine`, y la regla de SKU único la comprueba el propio value object.
-* Constructor público que solo asigna (sin comprobaciones, eventos ni valores por defecto), `static create(id, …valueObjects, clock)` que fija el estado inicial, comprueba las invariantes de creación y registra `OrderCreatedDomainEvent`, y `fromPrimitives`, que reconstruye sin reglas de creación ni eventos; `toPrimitives()` devuelve solo datos planos. El id lo pasa el caso de uso (`OrderId.generate()`); `create` nunca lo genera ni lo calcula. La conversión es solo del propio agregado (instantánea): el repositorio, cuyo constructor recibe solo las dependencias de su tecnología, llama directamente a `order.toPrimitives()` al escribir y a `Order.fromPrimitives(row.primitives)` al leer (la versión de la fila la guarda en su `WeakMap`, no en el agregado), sin mapper ni comprobación de forma en medio, y no lee los campos. Quien añade un campo lo añade a `toPrimitives`/`fromPrimitives`, y el spec del agregado comprueba la ida y vuelta `[Fuera de los libros: convención de @archi-code/ddd]`. IDDD usa un constructor privado y una fábrica con nombre del negocio [IDDD cap. 11]; el paquete hace público el constructor para que `create` y `fromPrimitives` usen el mismo.
-* Cada método recibe el reloj (`clock: Clock`, la interfaz local) y lo pasa a los eventos (`clock` en el objeto del constructor) y a `UpdatedAt.now(clock)`: el dominio no llama a `new Date()` y los tests son deterministas.
+* Constructor público que solo asigna (sin comprobaciones, eventos ni valores por defecto), `static create(id, …valueObjects)` que fija el estado inicial, comprueba las invariantes de creación y registra `OrderCreatedDomainEvent`, y `fromPrimitives`, que reconstruye sin reglas de creación ni eventos; `toPrimitives()` devuelve solo datos planos. El id lo pasa el caso de uso (`OrderId.generate()`); `create` nunca lo genera ni lo calcula. La conversión es solo del propio agregado (instantánea): el repositorio, cuyo constructor recibe solo las dependencias de su tecnología, llama directamente a `order.toPrimitives()` al escribir y a `Order.fromPrimitives(row.primitives)` al leer (la versión de la fila la guarda en su `WeakMap`, no en el agregado), sin mapper ni comprobación de forma en medio, y no lee los campos. Quien añade un campo lo añade a `toPrimitives`/`fromPrimitives`, y el spec del agregado comprueba la ida y vuelta `[Fuera de los libros: convención de @archi-code/ddd]`. IDDD usa un constructor privado y una fábrica con nombre del negocio [IDDD cap. 11]; el paquete hace público el constructor para que `create` y `fromPrimitives` usen el mismo.
+* La hora actual sale de los value objects del paquete: `create` usa `CreatedAt.now()` y `UpdatedAt.now()`, y `touch()` pone `UpdatedAt.now()`; el dominio no llama a `new Date()` ni recibe la hora como parámetro. Los eventos se registran sin fecha: `occurredOn` lo pone `DomainEventBus` al enviarlos `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ### Comandos frente a hechos
 
@@ -628,14 +609,13 @@ export class PaymentAuthorizedDomainEvent extends EventBase {
     expiresAt,
     eventId,
     occurredOn,
-    clock,
   }: {
     paymentId: string;
     orderId: string;
     amount: { amount: number; currency: string };
     expiresAt: string;
   } & EventMetadata) {
-    super({ eventId, occurredOn, clock });
+    super({ eventId, occurredOn });
     this.paymentId = paymentId;
     this.orderId = orderId;
     this.amount = amount;
@@ -648,7 +628,7 @@ El caso de uso por reacción es el propio listener: una sola clase que construye
 
 ```ts
 import { EventListener, ListensTo, ValueObjectBuilder } from '@archi-code/ddd/application';
-import type { Clock, EventBus } from '@archi-code/ddd/application';
+import type { EventBus } from '@archi-code/ddd/application';
 import { PaymentAuthorizedDomainEvent } from './payment-authorized-domain-event';
 
 @ListensTo(PaymentAuthorizedDomainEvent, {
@@ -658,7 +638,6 @@ export class RegisterPaymentAuthorizationOnPaymentAuthorized extends EventListen
   constructor(
     private readonly orders: OrderRepository,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }
@@ -677,7 +656,7 @@ export class RegisterPaymentAuthorizationOnPaymentAuthorized extends EventListen
     if (order === null) {
       return;
     }
-    order.registerPaymentAuthorization(authorization, this.clock);
+    order.registerPaymentAuthorization(authorization);
     await this.orders.save(order);
     await this.events.publish(order.pullDomainEvents());
   }
@@ -724,7 +703,6 @@ type OrderState = Readonly<{
 export function registerStockReservation(
   state: OrderState,
   reservation: ReservationReference,
-  clock: { now(): Date },
 ): [OrderState, EventBase[]] {
   if (state.status.value !== OrderStatus.PENDING) {
     return [state, []];
@@ -739,7 +717,6 @@ export function registerStockReservation(
       new OrderConfirmedDomainEvent({
         orderId: state.id.value,
         total: state.lines.total().toPrimitives(),
-        clock,
       }),
     ],
   ];
@@ -752,13 +729,9 @@ Mismas reglas: un estado, un límite de consistencia, eventos como salida.
 
 Los agregados deben ser unidades fáciles de probar; uno complejo es difícil de verificar [Destilado cap. 5]. Los tests unitarios del agregado van **después** de los tests de aceptación de los escenarios y comprueban que hace bien lo que debe [Destilado cap. 5].
 
-Fábricas de datos en `test/support/` del proyecto, con un reloj fijo:
+Fábricas de datos en `test/support/` del proyecto. Los datos con fecha conocida se construyen con la fecha explícita (`expiresAt`, o `createdAt` en los datos de `fromPrimitives`) y de lo que se fecha con la hora actual (`create`, los métodos de negocio) solo se comprueba que es una fecha válida `[Fuera de los libros: convención de @archi-code/ddd]`:
 
 ```ts
-import { FixedClock } from '@archi-code/ddd/infrastructure';
-
-export const clock = new FixedClock('2026-03-01T09:30:00Z');
-
 export function aPendingOrderOf(cents: number): Order {
   return Order.create(
     OrderId.generate(),
@@ -767,7 +740,6 @@ export function aPendingOrderOf(cents: number): Order {
       items: [{ sku: 'MUG-350', quantity: 1, unitPrice: { amount: cents, currency: 'EUR' } }],
     }),
     ShippingAddress.fromPrimitives({ street: 'Calle Mayor 1', city: 'Huelva', country: 'ES' }),
-    clock,
   );
 }
 
@@ -785,8 +757,8 @@ export function aReservation(): ReservationReference {
 
 export function aConfirmedOrder(): Order {
   const order = aPendingOrderOf(1700);
-  order.registerStockReservation(aReservation(), clock);
-  order.registerPaymentAuthorization(anAuthorizationOf(1700), clock);
+  order.registerStockReservation(aReservation());
+  order.registerPaymentAuthorization(anAuthorizationOf(1700));
   order.pullDomainEvents();
   return order;
 }
@@ -796,19 +768,24 @@ export function aConfirmedOrder(): Order {
 import { describe, expect, it } from 'vitest';
 
 describe('Order', () => {
+  it('stamps a valid creation date', () => {
+    const order = aPendingOrderOf(1700);
+    expect(Number.isNaN(order.createdAt.value.getTime())).toBe(false);
+  });
+
   it('is confirmed when the reservation and the authorization arrive, in any order', () => {
     const order = aPendingOrderOf(1700);
-    order.registerPaymentAuthorization(anAuthorizationOf(1700), clock);
+    order.registerPaymentAuthorization(anAuthorizationOf(1700));
     expect(order.isIn(OrderStatus.CONFIRMED)).toBe(false);
-    order.registerStockReservation(aReservation(), clock);
+    order.registerStockReservation(aReservation());
     expect(order.isIn(OrderStatus.CONFIRMED)).toBe(true);
     expect(order.pullDomainEvents().map((event) => event.eventName)).toContain('order.confirmed');
   });
 
   it('records an insufficient authorization without throwing and without confirming', () => {
     const order = aPendingOrderOf(1700);
-    order.registerStockReservation(aReservation(), clock);
-    order.registerPaymentAuthorization(anAuthorizationOf(1000), clock);
+    order.registerStockReservation(aReservation());
+    order.registerPaymentAuthorization(anAuthorizationOf(1000));
     expect(order.isIn(OrderStatus.CONFIRMED)).toBe(false);
     expect(order.pullDomainEvents().map((event) => event.eventName)).toContain(
       'order.payment_authorization_rejected',
@@ -817,7 +794,7 @@ describe('Order', () => {
 
   it('ignores a repeated reservation (duplicated message)', () => {
     const order = aConfirmedOrder();
-    order.registerStockReservation(aReservation(), clock);
+    order.registerStockReservation(aReservation());
     expect(order.pullDomainEvents()).toHaveLength(0);
   });
 
@@ -827,7 +804,7 @@ describe('Order', () => {
       quantity: 3,
       unitPrice: { amount: 900, currency: 'EUR' },
     });
-    expect(() => aConfirmedOrder().addLine(line, clock)).toThrow(OrderNotModifiable);
+    expect(() => aConfirmedOrder().addLine(line)).toThrow(OrderNotModifiable);
   });
 
   it('keeps every field when stored and loaded', () => {

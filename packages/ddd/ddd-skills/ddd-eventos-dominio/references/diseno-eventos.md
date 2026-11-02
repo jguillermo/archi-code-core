@@ -20,7 +20,7 @@
 
 Pregunta guía: ¿qué estimuló la publicación del evento? Normalmente un comando, y el evento debería llevar las propiedades que llevaba ese comando [Destilado cap. 6]. IDDD añade [IDDD cap. 8]:
 
-* Marca de tiempo de cuándo ocurrió (`occurredOn`, que pone `EventBase`).
+* Marca de tiempo de cuándo ocurrió (`occurredOn`; con el paquete la pone `DomainEventBus` al enviar el evento, no el agregado `[Fuera de los libros: convención de @archi-code/ddd]`).
 * Lo necesario para "volver a disparar" el evento: identidad del agregado (un campo del payload que declara el evento, como `orderId`; `EventBase` no la pone) y de los agregados implicados.
 * Parámetros del comando si se demuestran útiles.
 * Valores del estado resultante que ayuden a los suscriptores.
@@ -53,37 +53,38 @@ export class OrderConfirmedDomainEvent extends EventBase {
     total,
     eventId,
     occurredOn,
-    clock,
   }: { orderId: string; total: { amount: number; currency: string } } & EventMetadata) {
-    super({ eventId, occurredOn, clock });
+    super({ eventId, occurredOn });
     this.orderId = orderId;
     this.total = total;
   }
 }
 ```
 
-Va en su propio fichero de `domain/event/`, sin unión de eventos que actualizar. El agregado lo registra en el método que causa el hecho, pasando el reloj que recibió para que `occurredOn` sea determinista en los tests. En el `Order` de `ddd-skills/ddd-agregados/references/implementacion-ts.md` el pedido se confirma solo cuando ya tiene reserva y autorización, desde `registerStockReservation` o `registerPaymentAuthorization`:
+Va en su propio fichero de `domain/event/`, sin unión de eventos que actualizar. El agregado lo registra en el método que causa el hecho, sin fecha: `occurredOn` lo pone `DomainEventBus` al enviarlo. En el `Order` de `ddd-skills/ddd-agregados/references/implementacion-ts.md` el pedido se confirma solo cuando ya tiene reserva y autorización, desde `registerStockReservation` o `registerPaymentAuthorization`:
 
 ```ts
-private tryToConfirm(clock: Clock): void {
+private tryToConfirm(): void {
   if (this._stockReservation.value !== null && this._paymentAuthorization !== null) {
-    this.moveTo(OrderStatus.CONFIRMED, clock);
+    this.moveTo(OrderStatus.CONFIRMED);
     this.record(
       new OrderConfirmedDomainEvent({
         orderId: this.id.value,
         total: this.total().toPrimitives(),
-        clock,
       }),
     );
   }
 }
 ```
 
-`EventBase` pone `eventName`, `eventId` (UUID v4) y `occurredOn` (texto ISO en UTC, del `clock` o de la hora del sistema), y `record()` guarda el evento tal cual: sus campos son `readonly` y el constructor está completo [IDDD cap. 8]. No generes tú el id ni la fecha de un evento nuevo; pasa `eventId` y `occurredOn` solo al reconstruir uno que entregó un canal. El evento ya es la forma que viaja:
+`EventBase` pone `eventName` y `eventId` (UUID v4), y `record()` guarda el evento tal cual: sus campos son `readonly` y el constructor está completo [IDDD cap. 8]. Un evento nuevo no tiene `occurredOn`: `DomainEventBus.publish` lo pone con la hora del envío (texto ISO en UTC) en el JSON que envía y conserva el que ya traiga un evento reconstruido `[Fuera de los libros: convención de @archi-code/ddd]`. No generes tú el id ni la fecha de un evento nuevo; pasa `eventId` y `occurredOn` solo al reconstruir uno que entregó un canal. El evento ya es la forma que viaja:
 
 ```ts
 const [confirmed] = order.pullDomainEvents();
 ({ ...confirmed });
+// { eventName: 'order.confirmed', eventId: '…',
+//   orderId: '9b2f6c1e-…', total: { amount: 7000, currency: 'EUR' } }
+// enviado por DomainEventBus.publish:
 // { eventName: 'order.confirmed', eventId: '…', occurredOn: '2026-03-01T09:30:00.000Z',
 //   orderId: '9b2f6c1e-…', total: { amount: 7000, currency: 'EUR' } }
 ```
@@ -121,13 +122,12 @@ export class OrderCancelledDomainEvent extends EventBase {
     refund,
     eventId,
     occurredOn,
-    clock,
   }: {
     orderId: string;
     reason: string;
     refund: { amount: number; currency: string };
   } & EventMetadata) {
-    super({ eventId, occurredOn, clock });
+    super({ eventId, occurredOn });
     this.orderId = orderId;
     this.reason = reason;
     this.refund = refund;

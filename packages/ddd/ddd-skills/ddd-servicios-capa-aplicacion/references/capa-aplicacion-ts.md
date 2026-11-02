@@ -14,7 +14,7 @@ Un caso de uso de usuario extiende `UseCase<Input, Command, Output>` de `@archi-
 ```ts
 // src/contexts/sales/application/cancel-order/cancel-order.ts
 import { AggregateNotFoundException, UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
-import type { Clock, EventBus } from '@archi-code/ddd/application';
+import type { EventBus } from '@archi-code/ddd/application';
 import type { OrderRepository } from '../../domain/repository/OrderRepository';
 import { OrderCancellation } from '../../domain/service/OrderCancellation';
 import { CancellationReason } from '../../domain/value-object/CancellationReason';
@@ -38,7 +38,6 @@ export class CancelOrder extends UseCase<CancelOrderInput, CancelOrderCommand, v
     private readonly orders: OrderRepository,
     private readonly cancellation: OrderCancellation,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }
@@ -56,7 +55,7 @@ export class CancelOrder extends UseCase<CancelOrderInput, CancelOrderCommand, v
     if (order === null) {
       throw new AggregateNotFoundException('Order', command.orderId.value);
     }
-    this.cancellation.cancel(order, command.actorId, command.reason, this.clock);
+    this.cancellation.cancel(order, command.actorId, command.reason);
     await this.orders.save(order);
     await this.events.publish(order.pullDomainEvents());
   }
@@ -65,9 +64,9 @@ export class CancelOrder extends UseCase<CancelOrderInput, CancelOrderCommand, v
 
 Cargar, invocar el dominio, guardar y publicar, y ninguna regla de negocio: que solo el comprador pueda cancelar lo comprueba el servicio de dominio `OrderCancellation` (`NotTheCustomerOfOrder`), y que el pedido no esté ya cancelado, `order.cancel` (`OrderNotCancellable`). Coincide con la forma de IDDD: parámetros, repositorio, comando sobre el agregado [IDDD cap. 4] y con la anatomía de *DDD in PHP* [PHP: Application].
 
-Orden de `handle` `[Fuera de los libros: convención de @archi-code/ddd]`: (1) autorización → `NotAllowedException`; (2) id nuevo (`OrderId.generate()`); (3) `Order.create(...)`, o `findById` y `AggregateNotFoundException` si es `null`; (4) método o métodos de negocio con `this.clock`; (5) `save` una vez (o `remove`) y después `publish(x.pullDomainEvents())`; (6) log si el negocio quiere traza; (7) devolver la salida.
+Orden de `handle` `[Fuera de los libros: convención de @archi-code/ddd]`: (1) autorización → `NotAllowedException`; (2) id nuevo (`OrderId.generate()`); (3) `Order.create(...)`, o `findById` y `AggregateNotFoundException` si es `null`; (4) método o métodos de negocio; (5) `save` una vez (o `remove`) y después `publish(x.pullDomainEvents())`; (6) log si el negocio quiere traza; (7) devolver la salida.
 
-* El constructor recibe, `private readonly` y en este orden, solo lo que usa `handle`: el repositorio abstracto del agregado (`OrderRepository`, de `domain/repository/`, el mismo para crear, cambiar o borrar; nunca `AggregateFinder<Order> & AggregateSaver<Order>` ni un rol suelto `[Fuera de los libros: convención de @archi-code/ddd]`), servicios de dominio, `EventBus`, `Clock` y `Logger`. Nunca una dependencia de transacciones (un runner de transacciones o una unidad de trabajo): no existe puerto de transacciones `[Fuera de los libros: convención de @archi-code/ddd]`.
+* El constructor recibe, `private readonly` y en este orden, solo lo que usa `handle`: el repositorio abstracto del agregado (`OrderRepository`, de `domain/repository/`, el mismo para crear, cambiar o borrar; nunca `AggregateFinder<Order> & AggregateSaver<Order>` ni un rol suelto `[Fuera de los libros: convención de @archi-code/ddd]`), servicios de dominio, `EventBus` y `Logger`. Nunca una dependencia de transacciones (un runner de transacciones o una unidad de trabajo): no existe puerto de transacciones `[Fuera de los libros: convención de @archi-code/ddd]`.
 * `UseCase` no trae ayudas (`findOrFail`, `saveAndPublish`): todos los pasos se escriben en `handle` `[Fuera de los libros: convención de @archi-code/ddd]`.
 * Se guarda antes de publicar, y se publica lo que devuelve `pullDomainEvents()`.
 * La aplicación nunca abre, une ni cierra transacciones. IDDD pone el control de la transacción en el servicio de aplicación [IDDD cap. 14]; con el paquete esa responsabilidad pasa al adaptador del repositorio, que hace atómico cada `save` y `remove`, comprueba la versión y envuelve los errores del driver en `InternalErrorException` con `{ cause }` `[Fuera de los libros: convención de @archi-code/ddd]`. Ver `ddd-skills/ddd-repositorios-persistencia/references/transacciones-ts.md`.
@@ -86,7 +85,6 @@ Crear: el caso de uso genera el id, crea el agregado y devuelve el id nuevo (la 
       command.customerId,
       command.lines,
       command.shippingAddress,
-      this.clock,
     );
     await this.orders.save(order);
     await this.events.publish(order.pullDomainEvents());
@@ -101,7 +99,7 @@ El listener es el caso de uso: una clase, un fichero, sin un `UseCase` detrás. 
 ```ts
 // src/contexts/sales/application/register-stock-reservation/register-stock-reservation-on-stock-item-reserved.ts
 import { EventListener, ListensTo, ValueObjectBuilder } from '@archi-code/ddd/application';
-import type { Clock, EventBus } from '@archi-code/ddd/application';
+import type { EventBus } from '@archi-code/ddd/application';
 import type { OrderRepository } from '../../domain/repository/OrderRepository';
 import { OrderId } from '../../domain/value-object/OrderId';
 import { ReservationReference } from '../../domain/value-object/ReservationReference';
@@ -114,7 +112,6 @@ export class RegisterStockReservationOnStockItemReserved extends EventListener<S
   constructor(
     private readonly orders: OrderRepository,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }
@@ -128,7 +125,7 @@ export class RegisterStockReservationOnStockItemReserved extends EventListener<S
     if (order === null) {
       return;
     }
-    order.registerStockReservation(reservationId, this.clock);
+    order.registerStockReservation(reservationId);
     await this.orders.save(order);
     await this.events.publish(order.pullDomainEvents());
   }
@@ -193,7 +190,6 @@ export class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand
   constructor(
     private readonly orders: OrderRepository,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }
@@ -212,7 +208,7 @@ export class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand
         if (order === null) {
           throw new AggregateNotFoundException('Order', command.orderId.value);
         }
-        order.addLine(command.line, this.clock);
+        order.addLine(command.line);
         await this.orders.save(order);
         return await this.events.publish(order.pullDomainEvents());
       } catch (error) {
@@ -271,18 +267,15 @@ La identidad del solicitante sale del token (`request.auth`), nunca del cuerpo.
 
 ## Tests
 
-Con adaptadores en memoria: el repositorio en memoria del proyecto (uno por agregado; cada `save` y `remove` es atómico y comprueba la versión; cómo se escribe, en `ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`), y del paquete `DomainEventBus` sobre `InMemoryEventChannel` (`channel.sent` lista lo publicado) y `FixedClock`. Los puertos propios se sustituyen por objetos simples.
+Con adaptadores en memoria: el repositorio en memoria del proyecto (uno por agregado; cada `save` y `remove` es atómico y comprueba la versión; cómo se escribe, en `ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`), y del paquete `DomainEventBus` sobre `InMemoryEventChannel` (`channel.sent` lista lo publicado). Los puertos propios se sustituyen por objetos simples.
 
 ```ts
 import { describe, expect, it } from 'vitest';
 import {
   DomainEventBus,
   EventRegistry,
-  FixedClock,
   InMemoryEventChannel,
 } from '@archi-code/ddd/infrastructure';
-
-const clock = new FixedClock('2026-03-01T09:30:00Z');
 
 function sales() {
   const orders = new InMemoryOrderRepository();
@@ -291,7 +284,7 @@ function sales() {
   return {
     orders,
     channel,
-    cancelOrder: new CancelOrder(orders, new OrderCancellation(), events, clock),
+    cancelOrder: new CancelOrder(orders, new OrderCancellation(), events),
   };
 }
 

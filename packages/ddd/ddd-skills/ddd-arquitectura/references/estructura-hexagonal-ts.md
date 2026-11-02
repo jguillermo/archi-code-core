@@ -75,7 +75,7 @@ test/
 
 Nombres de fichero: PascalCase igual al nombre de la clase en `domain/` y `shared-kernel/`; kebab-case del export principal en todo lo demás. Imports relativos al fichero que declara cada símbolo, nunca a una carpeta ni a un `index.ts`, con `import type` para los tipos.
 
-Lo que no aparece porque lo da `@archi-code/ddd`: clases base (`AggregateRoot`, `Entity`, `EventBase`, los tipos de value object, `Composite`), una interfaz de repositorio genérica (`AggregateRepository` y los roles `AggregateFinder`, `AggregateSaver` y `AggregateRemover` vienen de `@archi-code/ddd/domain`; el proyecto solo declara la clase abstracta `OrderRepository` que los usa), un `OrderMapper` (la conversión es del agregado, `toPrimitives()` y `static fromPrimitives()`, y cada repositorio los llama directamente; la versión la recuerda el propio repositorio en un `WeakMap<Order, number>`, nunca el agregado), un publicador de eventos (`DomainEventBus` implementa `EventBus`) y el puerto `Clock`. Tampoco hay un runner de transacciones ni una unidad de trabajo: la transacción es del repositorio `[Fuera de los libros: convención de @archi-code/ddd]`.
+Lo que no aparece porque lo da `@archi-code/ddd`: clases base (`AggregateRoot`, `Entity`, `EventBase`, los tipos de value object, `Composite`), una interfaz de repositorio genérica (`AggregateRepository` y los roles `AggregateFinder`, `AggregateSaver` y `AggregateRemover` vienen de `@archi-code/ddd/domain`; el proyecto solo declara la clase abstracta `OrderRepository` que los usa), un `OrderMapper` (la conversión es del agregado, `toPrimitives()` y `static fromPrimitives()`, y cada repositorio los llama directamente; la versión la recuerda el propio repositorio en un `WeakMap<Order, number>`, nunca el agregado) y un publicador de eventos (`DomainEventBus` implementa `EventBus`). No hay puerto para la hora actual: la dan `CreatedAt.now()` y `UpdatedAt.now()`, y `occurredOn` lo pone `DomainEventBus` al enviar. Tampoco hay un runner de transacciones ni una unidad de trabajo: la transacción es del repositorio `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 Lo que el paquete no da y escribe el proyecto: el repositorio abstracto de cada agregado en `domain/repository/`, que reciben todos sus casos de uso, y cada adaptador que lo extiende, uno por agregado y tecnología. Su constructor recibe solo las dependencias de su tecnología (la `collection` de Mongo, el `pool` de Postgres; nada en memoria), nunca la clase del agregado ni un mapper. Nada comprueba en ejecución la forma del agregado: que su estado sean value objects expuestos por getters y que `toPrimitives()`/`fromPrimitives()` no pierdan campos lo garantizan el agregado y su test de ida y vuelta. El repositorio en memoria es una implementación más [IDDD cap. 12]: vive en `infrastructure/persistence/` cuando la aplicación corre en memoria, o en `test/support/` cuando solo es un doble de test (ver `InMemoryOrderRepository` en `ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`).
 
@@ -116,7 +116,7 @@ Reglas de encaje:
 |---|---|---|---|
 | Entrada (driving) | HTTP `POST /orders`, un evento de Pagos | El caso de uso es la API de entrada (`execute(input)`, o `handle(event)` en un caso de uso por reacción) | `interfaces/` (controlador); el bus entrega el evento a la reacción |
 | Salida de dominio | `OrderRepository` (tuyo, abstracto, sobre `AggregateRepository` y los roles del paquete); `CouponCatalog` (tuyo) | `domain/repository/`; `domain/service/` | `infrastructure/` (`InMemoryOrderRepository`, `MongoOrderRepository`, `InMemoryCouponCatalog`) |
-| Salida de aplicación | `EventBus`, `Clock`, `Logger` (del paquete); el store y la consulta de un read model (tuyos) | `@archi-code/ddd/application`; `application/` | `DomainEventBus` sobre tu `EventChannel`, `SystemClock`, `ConsoleLogger` o tu adaptador; `InMemoryOrderSummaryStore` |
+| Salida de aplicación | `EventBus`, `Logger` (del paquete); el store y la consulta de un read model (tuyos) | `@archi-code/ddd/application`; `application/` | `DomainEventBus` sobre tu `EventChannel`, `ConsoleLogger` o tu adaptador; `InMemoryOrderSummaryStore` |
 
 En IDDD los puertos no se implementan "a mano": el puerto es HTTP o el bus de mensajes, y el adaptador es el controlador o el suscriptor que traduce a la API de aplicación [IDDD cap. 4]. El interior se diseña por casos de uso, no por número de clientes [IDDD cap. 4].
 
@@ -128,7 +128,7 @@ Un composition root por contexto: una clase `<Context>Context` con `static async
 
 ```ts
 // src/contexts/payments/composition.ts
-import type { Clock, Logger } from '@archi-code/ddd/application';
+import type { Logger } from '@archi-code/ddd/application';
 import { DomainEventBus, EventRegistry } from '@archi-code/ddd/infrastructure';
 import type { EventChannel, Subscription } from '@archi-code/ddd/infrastructure';
 import { ConfirmTransferReceived } from './application/confirm-transfer-received/confirm-transfer-received';
@@ -142,7 +142,6 @@ import { PaymentsController } from './interfaces/http/payments-controller';
 
 export interface PaymentsSettings {
   channel: EventChannel;
-  clock: Clock;
   logger: Logger;
 }
 
@@ -153,19 +152,19 @@ export class PaymentsContext {
     private readonly subscriptions: Subscription[],
   ) {}
 
-  static async start({ channel, clock, logger }: PaymentsSettings): Promise<PaymentsContext> {
+  static async start({ channel, logger }: PaymentsSettings): Promise<PaymentsContext> {
     const bus = new DomainEventBus(channel, PaymentsContext.registry(), logger);
     const payments = new InMemoryPaymentRepository();
     const listeners = [
-      new RequestPaymentOnOrderCreated(payments, bus, clock),
-      new SettleCancelledOrderPaymentOnOrderCancelled(payments, bus, clock),
+      new RequestPaymentOnOrderCreated(payments, bus),
+      new SettleCancelledOrderPaymentOnOrderCancelled(payments, bus),
     ];
     const subscriptions: Subscription[] = [];
     for (const listener of listeners) {
       subscriptions.push(await bus.subscribe(listener));
     }
     const controller = new PaymentsController(
-      new ConfirmTransferReceived(payments, bus, clock),
+      new ConfirmTransferReceived(payments, bus),
       logger,
     );
     return new PaymentsContext(payments, controller, subscriptions);
@@ -203,19 +202,19 @@ export class PaymentsContext {
 }
 ```
 
-El arranque abre un canal y arranca cada contexto sobre él, con el mismo reloj y el mismo logger, y los para en orden inverso:
+El arranque abre un canal y arranca cada contexto sobre él, con el mismo logger, y los para en orden inverso:
 
 ```ts
 // src/shop.ts
 const channel = new InMemoryEventChannel({ delivery: 'serial' });
-const sales = await SalesContext.start({ channel, clock, logger, campaigns });
-const payments = await PaymentsContext.start({ channel, clock, logger });
-const shipping = await ShippingContext.start({ channel, clock, logger });
+const sales = await SalesContext.start({ channel, logger, campaigns });
+const payments = await PaymentsContext.start({ channel, logger });
+const shipping = await ShippingContext.start({ channel, logger });
 // cerrar: await shipping.stop(); await payments.stop(); await sales.stop();
 ```
 
 Qué hace cada pieza:
-* Del paquete, en `@archi-code/ddd/infrastructure`: `EventRegistry` (reconstruye cada evento desde su JSON; la factoría copia cada campo con un cast y pasa `eventId: json.eventId` y `occurredOn: json.occurredOn`, que las reacciones necesitan para ignorar una reentrega), `DomainEventBus` (implementa `EventBus`, lo único que reciben los casos de uso; su `subscribe(listener)` solo lo llama el composition root) y `SystemClock` o `FixedClock` (implementan `Clock`).
+* Del paquete, en `@archi-code/ddd/infrastructure`: `EventRegistry` (reconstruye cada evento desde su JSON; la factoría copia cada campo con un cast y pasa `eventId: json.eventId` y `occurredOn: json.occurredOn`, que las reacciones necesitan para ignorar una reentrega) y `DomainEventBus` (implementa `EventBus`, lo único que reciben los casos de uso; su `subscribe(listener)` solo lo llama el composition root; `publish` pone `occurredOn` con la hora del envío).
 * Código del proyecto sobre los puertos del paquete `[Fuera de los libros: convención de @archi-code/ddd]`: el repositorio (`InMemoryPaymentRepository extends PaymentRepository`, el repositorio abstracto que declara el dominio; llama a `payment.toPrimitives()` y a `Payment.fromPrimitives(...)` y controla la versión, que recuerda por agregado en un `WeakMap`; responsable de toda la persistencia, ver `ddd-skills/ddd-repositorios-persistencia/GUIA.md`), el canal (`InMemoryEventChannel` del paquete, o un `EventChannel` propio como RabbitMQ, ver `ddd-skills/ddd-eventos-dominio/GUIA.md`) y el controlador.
 * Cada caso de uso por reacción se construye con sus dependencias y se suscribe con `bus.subscribe(listener)`, que lee su `@ListensTo(OrderCreatedDomainEvent, { consumer: 'payments.request-payment-on-order-created' })` y rechaza un evento que el registro no sabe reconstruir (`UnknownEventException`). El composition root guarda cada `Subscription` para `stop()`.
 * Cambiar la memoria por RabbitMQ o por un outbox cambia solo la línea del canal; con una base de datos real, `start` recibe la conexión en sus `Settings` y construye el repositorio de esa tecnología.
@@ -225,14 +224,13 @@ Por qué sin contenedor: en TypeScript las interfaces desaparecen en tiempo de e
 
 ## El mismo grafo en los tests de aplicación
 
-Los tests de `application/` arrancan el contexto con su composition root sobre un `InMemoryEventChannel` y un `FixedClock`; los casos de uso y las reacciones son los mismos que en producción:
+Los tests de `application/` arrancan el contexto con su composition root sobre un `InMemoryEventChannel`; los casos de uso y las reacciones son los mismos que en producción:
 
 ```ts
 import { describe, expect, it } from 'vitest';
 import {
   DomainEventBus,
   EventRegistry,
-  FixedClock,
   InMemoryEventChannel,
   SilentLogger,
 } from '@archi-code/ddd/infrastructure';
@@ -240,14 +238,12 @@ import {
 describe('Requesting the payment of a new order', () => {
   it('creates one payment per order even when the event arrives twice', async () => {
     const channel = new InMemoryEventChannel();
-    const clock = new FixedClock('2026-03-01T09:30:00Z');
-    const context = await PaymentsContext.start({ channel, clock, logger: new SilentLogger() });
+    const context = await PaymentsContext.start({ channel, logger: new SilentLogger() });
     const bus = new DomainEventBus(channel, new EventRegistry());
     const orderCreated = new OrderCreatedDomainEvent({
       orderId,
       total: { amount: 4990, currency: 'EUR' },
       paymentMethod: 'card',
-      clock,
     });
 
     await bus.publish([orderCreated]);

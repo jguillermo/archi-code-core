@@ -3,7 +3,7 @@ import {
   UseCase,
   ValueObjectBuilder,
 } from '../../../../ddd/application';
-import type { Clock, EventBus } from '../../../../ddd/application';
+import type { EventBus } from '../../../../ddd/application';
 import type { OrderRepository } from '../../domain/repository/OrderRepository';
 import { OrderId } from '../../domain/value-object/OrderId';
 import { LineNumber } from '../../domain/value-object/LineNumber';
@@ -29,7 +29,6 @@ export class ChangeOrderLineQuantity extends UseCase<
   constructor(
     private readonly orders: OrderRepository,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }
@@ -47,7 +46,7 @@ export class ChangeOrderLineQuantity extends UseCase<
     if (order === null) {
       throw new AggregateNotFoundException('Order', command.orderId.value);
     }
-    order.changeLineQuantity(command.lineNumber, command.quantity, this.clock);
+    order.changeLineQuantity(command.lineNumber, command.quantity);
     await this.orders.save(order);
     await this.events.publish(order.pullDomainEvents());
   }

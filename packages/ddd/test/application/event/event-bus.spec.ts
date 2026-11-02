@@ -26,7 +26,15 @@ class OutboxEventBus implements EventBus {
   readonly rows: SerializedEvent[] = [];
 
   async publish(events: readonly EventBase[]): Promise<void> {
-    this.rows.push(...events.map((event) => ({ ...event })));
+    const storedOn = new Date().toISOString();
+    this.rows.push(
+      ...events.map(({ eventName, eventId, occurredOn = storedOn, ...data }) => ({
+        eventName,
+        eventId,
+        occurredOn,
+        ...data,
+      })),
+    );
   }
 }
 

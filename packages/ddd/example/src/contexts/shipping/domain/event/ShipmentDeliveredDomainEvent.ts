@@ -12,9 +12,8 @@ export class ShipmentDeliveredDomainEvent extends EventBase {
     orderId,
     eventId,
     occurredOn,
-    clock,
   }: { shipmentId: string; orderId: string } & EventMetadata) {
-    super({ eventId, occurredOn, clock });
+    super({ eventId, occurredOn });
     this.shipmentId = shipmentId;
     this.orderId = orderId;
   }

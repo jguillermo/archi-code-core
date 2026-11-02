@@ -20,7 +20,7 @@
 
 ## Táctico
 * Preferir value objects; inmutables, igualdad por valor, sin efectos secundarios [IDDD cap. 6].
-* Entidades: identidad estable, comportamiento con nombres del negocio, sin setters públicos [IDDD cap. 5]. Con el paquete, constructor público que solo asigna, `static create(id, …, clock)` con el estado inicial, las invariantes de creación y `<Agregado>CreatedDomainEvent`, y el id lo pasa el caso de uso `[Fuera de los libros: convención de @archi-code/ddd]`.
+* Entidades: identidad estable, comportamiento con nombres del negocio, sin setters públicos [IDDD cap. 5]. Con el paquete, constructor público que solo asigna, `static create(id, …)` con el estado inicial, las invariantes de creación y `<Agregado>CreatedDomainEvent`, y el id lo pasa el caso de uso `[Fuera de los libros: convención de @archi-code/ddd]`.
 * Identidad temprana si hay eventos de creación [IDDD cap. 5].
 * El modelo de datos se subordina al de dominio [IDDD cap. 6].
 * Agregados: invariantes reales dentro, pequeños, referencias por identidad, consistencia eventual fuera [Destilado cap. 5; IDDD cap. 10].

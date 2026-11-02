@@ -25,22 +25,21 @@ Decisiones razonadas:
 
 ## Los eventos de Ventas con @archi-code/ddd
 
-Cada evento del catálogo es una clase `EventBase` con sus datos como primitivos tipados en línea; el dinero viaja en céntimos con su moneda. Las clases de `Order` (`OrderCreatedDomainEvent`, `OrderLineAddedDomainEvent`, `OrderConfirmedDomainEvent`, `OrderCancelledDomainEvent`, `OrderPaymentAuthorizationRejectedDomainEvent`) están escritas en `ddd-skills/ddd-agregados/references/implementacion-ts.md`, junto al agregado que las registra en `create`, `addLine`, `cancel` y al confirmarse, siempre con el reloj que recibe:
+Cada evento del catálogo es una clase `EventBase` con sus datos como primitivos tipados en línea; el dinero viaja en céntimos con su moneda. Las clases de `Order` (`OrderCreatedDomainEvent`, `OrderLineAddedDomainEvent`, `OrderConfirmedDomainEvent`, `OrderCancelledDomainEvent`, `OrderPaymentAuthorizationRejectedDomainEvent`) están escritas en `ddd-skills/ddd-agregados/references/implementacion-ts.md`, junto al agregado que las registra en `create`, `addLine`, `cancel` y al confirmarse, siempre sin fecha (`occurredOn` lo pone el bus al enviarlas):
 
 ```ts
-addLine(line: OrderLine, clock: Clock): void {
+addLine(line: OrderLine): void {
   if (!this.isIn(OrderStatus.PENDING)) {
     throw new OrderNotModifiable(this.id.value, this._status.value);
   }
   this._lines = this._lines.withLine(line);
-  this.touch(clock);
+  this.touch();
   this.record(
     new OrderLineAddedDomainEvent({
       orderId: this.id.value,
       sku: line.sku.value,
       quantity: line.quantity.value,
       total: this.total().toPrimitives(),
-      clock,
     }),
   );
 }

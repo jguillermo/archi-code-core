@@ -157,7 +157,7 @@ def scan(root: Path, domain_dir: str):
         if zone in (domain_dir, "application") and not is_test:
             for m in NEW_DATE_RE.finditer(text):
                 add("new-date-en-dominio-o-aplicacion", "media", path, line_of(text, m.start()),
-                    "usa new Date(); inyecta un Clock")
+                    "usa new Date(); usa CreatedAt.now() / UpdatedAt.now()")
 
         if zone == "interfaces" and not is_test:
             if re.search(r"Repository\b", text):

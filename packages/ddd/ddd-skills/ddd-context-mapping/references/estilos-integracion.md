@@ -41,13 +41,13 @@ El evento de Almacén llega por un `EventChannel` a un caso de uso por reacción
 El método de `Order` (el de `ddd-skills/ddd-agregados/references/implementacion-ts.md`), que guarda la reserva en `private _stockReservation: ReservationReference` (un `UuidType` opcional, construido con `null` mientras no hay reserva) y confirma el pedido cuando también tiene la autorización de pago:
 
 ```ts
-registerStockReservation(reservation: ReservationReference, clock: Clock): void {
+registerStockReservation(reservation: ReservationReference): void {
   if (!this.isIn(OrderStatus.PENDING)) {
     return;
   }
   this._stockReservation = reservation;
-  this.touch(clock);
-  this.tryToConfirm(clock);
+  this.touch();
+  this.tryToConfirm();
 }
 ```
 

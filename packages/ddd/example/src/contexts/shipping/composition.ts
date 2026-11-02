@@ -1,4 +1,4 @@
-import type { Clock, Logger } from '../../ddd/application';
+import type { Logger } from '../../ddd/application';
 import { DomainEventBus, EventRegistry } from '../../ddd/infrastructure';
 import type { EventChannel, Subscription } from '../../ddd/infrastructure';
 import { CancelShipmentOnOrderCancelled } from './application/cancel-shipment/cancel-shipment-on-order-cancelled';
@@ -14,7 +14,6 @@ import { ShipmentsController } from './interfaces/http/shipments-controller';
 
 export interface ShippingSettings {
   channel: EventChannel;
-  clock: Clock;
   logger: Logger;
 }
 
@@ -25,16 +24,16 @@ export class ShippingContext {
     private readonly subscriptions: Subscription[],
   ) {}
 
-  static async start({ channel, clock, logger }: ShippingSettings): Promise<ShippingContext> {
+  static async start({ channel, logger }: ShippingSettings): Promise<ShippingContext> {
     const bus = new DomainEventBus(channel, ShippingContext.registry(), logger);
     const shipments = new InMemoryShipmentRepository();
     const subscriptions = [
-      await bus.subscribe(new PrepareShipmentOnOrderPaid(shipments, bus, clock)),
-      await bus.subscribe(new CancelShipmentOnOrderCancelled(shipments, bus, clock)),
+      await bus.subscribe(new PrepareShipmentOnOrderPaid(shipments, bus)),
+      await bus.subscribe(new CancelShipmentOnOrderCancelled(shipments, bus)),
     ];
     const controller = new ShipmentsController(
-      new DispatchShipment(shipments, bus, clock),
-      new DeliverShipment(shipments, bus, clock),
+      new DispatchShipment(shipments, bus),
+      new DeliverShipment(shipments, bus),
       logger,
     );
     return new ShippingContext(shipments, controller, subscriptions);

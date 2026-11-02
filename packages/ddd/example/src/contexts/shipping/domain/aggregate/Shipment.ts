@@ -20,10 +20,6 @@ import { ShipmentStatusType } from '../value-object/ShipmentStatusType';
 import { TrackingNumber } from '../value-object/TrackingNumber';
 import { TrackingNumberMissing } from '../exception/TrackingNumberMissing';
 
-interface Clock {
-  now(): Date;
-}
-
 export class Shipment extends AggregateRoot<ShipmentId> {
   private static readonly DAY_MS = 24 * 60 * 60 * 1000;
   private static readonly HOME_COUNTRY = 'ES';
@@ -71,10 +67,10 @@ export class Shipment extends AggregateRoot<ShipmentId> {
     address: ShipmentAddress,
     contents: ShipmentContents,
     giftWrap: GiftWrapRequested,
-    clock: Clock,
   ): Shipment {
     const domestic = address.country.value === Shipment.HOME_COUNTRY;
     const carrier = new CarrierType(domestic ? Carrier.SEUR : Carrier.DHL);
+    const createdAt = CreatedAt.now();
     const shipment = new Shipment(
       id,
       orderReference,
@@ -87,11 +83,13 @@ export class Shipment extends AggregateRoot<ShipmentId> {
         country: address.country.value,
         units: contents.units(),
       }),
-      new ExpectedDelivery(new Date(clock.now().getTime() + (domestic ? 2 : 5) * Shipment.DAY_MS)),
+      new ExpectedDelivery(
+        new Date(createdAt.value.getTime() + (domestic ? 2 : 5) * Shipment.DAY_MS),
+      ),
       new ShipmentStatusType(ShipmentStatus.PREPARING),
       new TrackingNumber(null),
-      CreatedAt.now(clock),
-      UpdatedAt.now(clock),
+      createdAt,
+      new UpdatedAt(createdAt.value),
     );
 
     shipment.record(
@@ -100,7 +98,6 @@ export class Shipment extends AggregateRoot<ShipmentId> {
         orderId: shipment.orderReference.value,
         carrier: carrier.value,
         expectedDeliveryOn: shipment.expectedDelivery.toString(),
-        clock,
       }),
     );
 
@@ -135,7 +132,7 @@ export class Shipment extends AggregateRoot<ShipmentId> {
     return this._updatedAt;
   }
 
-  dispatch(trackingNumber: TrackingNumber, clock: Clock): void {
+  dispatch(trackingNumber: TrackingNumber): void {
     if (this._status.value !== ShipmentStatus.PREPARING) {
       throw new ShipmentNotDispatchable(this.id.value, this._status.value);
     }
@@ -143,42 +140,39 @@ export class Shipment extends AggregateRoot<ShipmentId> {
       throw new TrackingNumberMissing(this.id.value);
     }
     this._trackingNumber = trackingNumber;
-    this.moveTo(ShipmentStatus.DISPATCHED, clock);
+    this.moveTo(ShipmentStatus.DISPATCHED);
     this.record(
       new ShipmentDispatchedDomainEvent({
         shipmentId: this.id.value,
         orderId: this.orderReference.value,
         trackingNumber: trackingNumber.toString(),
         carrier: this.carrier.value,
-        clock,
       }),
     );
   }
 
-  deliver(clock: Clock): void {
+  deliver(): void {
     if (this._status.value !== ShipmentStatus.DISPATCHED) {
       throw new ShipmentNotDeliverable(this.id.value, this._status.value);
     }
-    this.moveTo(ShipmentStatus.DELIVERED, clock);
+    this.moveTo(ShipmentStatus.DELIVERED);
     this.record(
       new ShipmentDeliveredDomainEvent({
         shipmentId: this.id.value,
         orderId: this.orderReference.value,
-        clock,
       }),
     );
   }
 
-  cancelForCancelledOrder(clock: Clock): void {
+  cancelForCancelledOrder(): void {
     if (this._status.value !== ShipmentStatus.PREPARING) {
       return;
     }
-    this.moveTo(ShipmentStatus.CANCELLED, clock);
+    this.moveTo(ShipmentStatus.CANCELLED);
     this.record(
       new ShipmentCancelledDomainEvent({
         shipmentId: this.id.value,
         orderId: this.orderReference.value,
-        clock,
       }),
     );
   }
@@ -199,8 +193,8 @@ export class Shipment extends AggregateRoot<ShipmentId> {
     };
   }
 
-  private moveTo(status: ShipmentStatus, clock: Clock): void {
+  private moveTo(status: ShipmentStatus): void {
     this._status = new ShipmentStatusType(status);
-    this._updatedAt = UpdatedAt.now(clock);
+    this._updatedAt = UpdatedAt.now();
   }
 }

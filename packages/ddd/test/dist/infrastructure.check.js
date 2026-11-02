@@ -225,10 +225,9 @@ function smoke(m) {
         const original = console.warn;
         console.warn = (line) => written.push(JSON.parse(line));
         try {
-          const clock = new m.FixedClock('2026-10-19T09:30:00Z');
-          const logger = new m.ConsoleLogger({ level: 'warn', clock });
+          const logger = new m.ConsoleLogger({ level: 'warn' });
           logger.info('order_placed');
-          logger.warn('stock_low', { sku: 'TORCH-01', at: clock.now() });
+          logger.warn('stock_low', { sku: 'TORCH-01', at: new Date('2026-10-19T09:30:00Z') });
         } finally {
           console.warn = original;
         }
@@ -257,22 +256,10 @@ function smoke(m) {
         return (
           (written.length === 1 &&
             written[0].level === 'warn' &&
-            written[0].time === '2026-10-19T09:30:00.000Z' &&
+            !Number.isNaN(Date.parse(written[0].time)) &&
             written[0].context.at === '2026-10-19T09:30:00.000Z' &&
             levels.join() === 'info:event_listener_subscribed,error:event_listener_failed') ||
           `unexpected logging: ${JSON.stringify(written)} ${levels.join()}`
-        );
-      },
-    ],
-    [
-      'clocks are injectable',
-      () => {
-        const clock = new m.FixedClock('2026-01-01T00:00:00Z');
-        clock.advance(1000);
-        return (
-          (clock.now().toISOString() === '2026-01-01T00:00:01.000Z' &&
-            new m.SystemClock().now() instanceof Date) ||
-          'unexpected clock'
         );
       },
     ],
@@ -424,7 +411,7 @@ async function infrastructureInThePage(entry) {
   const original = console.info;
   console.info = (line) => lines.push(JSON.parse(line));
   try {
-    new m.ConsoleLogger({ clock: new m.FixedClock('2026-10-19T09:30:00Z') }).info('order_placed', {
+    new m.ConsoleLogger().info('order_placed', {
       cause: new Error('ignored'),
     });
   } finally {
@@ -433,7 +420,7 @@ async function infrastructureInThePage(entry) {
   expect(
     'ConsoleLogger writes one JSON line',
     lines.length === 1 &&
-      lines[0].time === '2026-10-19T09:30:00.000Z' &&
+      !Number.isNaN(Date.parse(lines[0].time)) &&
       lines[0].context.cause.message === 'ignored',
   );
 

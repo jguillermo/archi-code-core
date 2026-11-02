@@ -22,11 +22,10 @@ static create(
   customerId: CustomerId,
   lines: OrderLines,
   shippingAddress: ShippingAddress,
-  clock: Clock,
 ): Order;
-addLine(line: OrderLine, clock: Clock): void;
-registerStockReservation(reservation: ReservationReference, clock: Clock): void;
-cancel(reason: CancellationReason, clock: Clock): void;
+addLine(line: OrderLine): void;
+registerStockReservation(reservation: ReservationReference): void;
+cancel(reason: CancellationReason): void;
 total(): Money;
 ```
 
@@ -56,10 +55,6 @@ export class CustomerName extends Required(StringType) {}
 export class Blocked extends Required(BooleanType) {}
 
 // domain/aggregate/Customer.ts
-interface Clock {
-  now(): Date;
-}
-
 export class Customer extends AggregateRoot<CustomerId> {
   readonly name: CustomerName;
   private _blocked: Blocked;
@@ -98,16 +93,11 @@ export class Customer extends AggregateRoot<CustomerId> {
     return this._updatedAt;
   }
 
-  placeOrder(
-    id: OrderId,
-    lines: OrderLines,
-    address: ShippingAddress,
-    clock: Clock,
-  ): Order {
+  placeOrder(id: OrderId, lines: OrderLines, address: ShippingAddress): Order {
     if (this._blocked.value) {
       throw new BlockedCustomerCannotOrder(this.id.value);
     }
-    return Order.create(id, this.id, lines, address, clock);
+    return Order.create(id, this.id, lines, address);
   }
 
   toPrimitives(): PrimitiveTypes<Customer> {
@@ -129,21 +119,12 @@ export class NotTheCustomerOfOrder extends DomainException {
 }
 
 // domain/service/OrderCancellation.ts
-interface Clock {
-  now(): Date;
-}
-
 export class OrderCancellation {
-  cancel(
-    order: Order,
-    requester: CustomerId,
-    reason: CancellationReason,
-    clock: Clock,
-  ): void {
+  cancel(order: Order, requester: CustomerId, reason: CancellationReason): void {
     if (!order.customerId.equals(requester)) {
       throw new NotTheCustomerOfOrder(order.id.value);
     }
-    order.cancel(reason, clock);
+    order.cancel(reason);
   }
 }
 ```
@@ -162,7 +143,7 @@ import {
   UseCase,
   ValueObjectBuilder,
 } from '@archi-code/ddd/application';
-import type { Clock, EventBus } from '@archi-code/ddd/application';
+import type { EventBus } from '@archi-code/ddd/application';
 import type { AddressData } from './address-data';
 import type { MoneyData } from './money-data';
 
@@ -185,7 +166,6 @@ export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, stri
     private readonly customers: CustomerRepository,
     private readonly orders: OrderRepository,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }
@@ -213,7 +193,6 @@ export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, stri
       OrderId.generate(),
       command.lines,
       command.shippingAddress,
-      this.clock,
     );
     await this.orders.save(order);
     await this.events.publish(order.pullDomainEvents());
@@ -252,9 +231,8 @@ export class StockItemReservedDomainEvent extends EventBase {
     orderId,
     eventId,
     occurredOn,
-    clock,
   }: { reservationId: string; orderId: string } & EventMetadata) {
-    super({ eventId, occurredOn, clock });
+    super({ eventId, occurredOn });
     this.reservationId = reservationId;
     this.orderId = orderId;
   }
@@ -264,7 +242,7 @@ export class StockItemReservedDomainEvent extends EventBase {
 ```ts
 // src/contexts/sales/application/register-stock-reservation/register-stock-reservation-on-stock-item-reserved.ts
 import { EventListener, ListensTo, ValueObjectBuilder } from '@archi-code/ddd/application';
-import type { Clock, EventBus } from '@archi-code/ddd/application';
+import type { EventBus } from '@archi-code/ddd/application';
 import { StockItemReservedDomainEvent } from './stock-item-reserved-domain-event';
 
 @ListensTo(StockItemReservedDomainEvent, {
@@ -274,7 +252,6 @@ export class RegisterStockReservationOnStockItemReserved extends EventListener<S
   constructor(
     private readonly orders: OrderRepository,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }
@@ -288,7 +265,7 @@ export class RegisterStockReservationOnStockItemReserved extends EventListener<S
     if (order === null) {
       return;
     }
-    order.registerStockReservation(reservationId, this.clock);
+    order.registerStockReservation(reservationId);
     await this.orders.save(order);
     await this.events.publish(order.pullDomainEvents());
   }
@@ -304,11 +281,9 @@ import { describe, expect, it } from 'vitest';
 import {
   DomainEventBus,
   EventRegistry,
-  FixedClock,
   InMemoryEventChannel,
 } from '@archi-code/ddd/infrastructure';
 
-const clock = new FixedClock('2026-03-01T09:30:00Z');
 const reservationId = '0f1e2d3c-4b5a-4968-8776-655443322110';
 
 describe('Registering the stock reservation of an order', () => {
@@ -326,9 +301,9 @@ describe('Registering the stock reservation of an order', () => {
     );
     const channel = new InMemoryEventChannel();
     const bus = new DomainEventBus(channel, registry);
-    await bus.subscribe(new RegisterStockReservationOnStockItemReserved(orders, bus, clock));
+    await bus.subscribe(new RegisterStockReservationOnStockItemReserved(orders, bus));
     await orders.save(aPendingOrderOf(laura));
-    const reserved = new StockItemReservedDomainEvent({ reservationId, orderId, clock });
+    const reserved = new StockItemReservedDomainEvent({ reservationId, orderId });
 
     await bus.publish([reserved]);
     await bus.publish([reserved]);

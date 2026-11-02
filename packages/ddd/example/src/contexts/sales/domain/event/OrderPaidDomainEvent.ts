@@ -24,7 +24,6 @@ export class OrderPaidDomainEvent extends EventBase {
     giftWrap,
     eventId,
     occurredOn,
-    clock,
   }: {
     orderId: string;
     paymentId: string;
@@ -38,7 +37,7 @@ export class OrderPaidDomainEvent extends EventBase {
     items: { sku: string; quantity: number }[];
     giftWrap: boolean;
   } & EventMetadata) {
-    super({ eventId, occurredOn, clock });
+    super({ eventId, occurredOn });
     this.orderId = orderId;
     this.paymentId = paymentId;
     this.address = address;

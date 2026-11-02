@@ -9,8 +9,8 @@
 [Fuera de los libros: convención de @archi-code/ddd]
 
 * En código hecho con el paquete, aplica además cada punto de `ddd-skills/archi-code-ddd/what-not-to-do.md` como lista de comprobación: el paquete da las clases base, pero no impide un agregado anémico con setters, un caso de uso CRUD, dos agregados guardados en el mismo caso de uso o un caso de uso que abre su propia transacción (la transacción es del repositorio).
-* La dirección de dependencias es la del paquete: el dominio importa solo `@archi-code/ddd/domain` (que exporta también las excepciones de dominio) y `@archi-code/validation`; importar `/application` o `/infrastructure` (por ejemplo `SystemClock`) o un adaptador de `infrastructure/` del proyecto desde el dominio es un hallazgo de severidad alta (A8 de la lista).
-* El reloj es un puerto (`Clock`; `FixedClock` en tests; el agregado declara su interfaz local `Clock`): `new Date()` en dominio o aplicación es un hallazgo (A9).
+* La dirección de dependencias es la del paquete: el dominio importa solo `@archi-code/ddd/domain` (que exporta también las excepciones de dominio) y `@archi-code/validation`; importar `/application` o `/infrastructure` (por ejemplo `DomainEventBus`) o un adaptador de `infrastructure/` del proyecto desde el dominio es un hallazgo de severidad alta (A8 de la lista).
+* La hora actual la dan `CreatedAt.now()` y `UpdatedAt.now()` del paquete; nada recibe ni inyecta la hora y los eventos no se fechan al crearlos (`occurredOn` lo pone el bus al enviar): `new Date()` para "ahora" en dominio o aplicación es un hallazgo (A9).
 * La forma del código es la de `ddd-skills/archi-code-ddd/`: un listener con un `UseCase` detrás, un evento con `eventName` igual al nombre de la clase, un constructor privado del agregado, un error con sufijo `Exception` o un contexto que importa clases de otro son hallazgos (T10, T15, T20, E2).
 * El escáner detecta guardados de cualquier variable (`this.orders.save(...)`, `this.customers.remove(...)`) dentro del mismo bloque transaccional o de la misma clase de aplicación, transacciones abiertas o recibidas en dominio y aplicación (bloques transaccionales, `startSession`, runners de transacciones, unidades de trabajo), imports de `@archi-code/ddd/application` o `/infrastructure` desde el dominio, `new Date()` en dominio y aplicación, y campos de estado primitivos con el prefijo `_` del paquete (`private _status: string`). No marca `amount: number` ni `status: string` en `domain/event/` ni en `domain/exception/` (el payload de un evento y los datos del mensaje de un error son primitivos). Con la forma del paquete marca además un `EventListener` que llama a `execute()` (la reacción es el propio caso de uso), un `eventName` que es un nombre de clase en vez de `'<agregado>.<acción_en_pasado>'` y las importaciones entre contextos salvo las de `shared-kernel/`.
 
@@ -49,7 +49,7 @@ Severidad `[Fuera de los libros]`:
 |---|---|
 | Crítica | Corrompe datos o reglas de negocio hoy (invariantes sin proteger, varios agregados en una transacción con conflictos, eventos que se pierden) |
 | Alta | Impide cambiar el Core Domain con seguridad (lenguaje mezclado, dominio acoplado al ORM, lógica en controladores) |
-| Media | Encarece el cambio (primitivos en el estado, setters, repositorios de partes, `new Date()` en vez de `Clock`) |
+| Media | Encarece el cambio (primitivos en el estado, setters, repositorios de partes, `new Date()` en vez de `CreatedAt.now()`/`UpdatedAt.now()`) |
 | Baja | Estilo y nomenclatura |
 
 ## Paso 4. Plan de refactorización

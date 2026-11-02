@@ -56,7 +56,6 @@ import {
   ValueObjectBuilder,
 } from '@archi-code/ddd/application';
 import type {
-  Clock,
   EventBus,
   ListenerSubscription,
   LogContext,
@@ -69,14 +68,12 @@ import {
   EventRegistry,
   ExceptionClassifier,
   ExceptionKind,
-  FixedClock,
   InfrastructureException,
   InfrastructureExceptionCode,
   InMemoryEventChannel,
   InMemoryLogger,
   InternalErrorException,
   SilentLogger,
-  SystemClock,
   UnknownEventException,
 } from '@archi-code/ddd/infrastructure';
 import type {

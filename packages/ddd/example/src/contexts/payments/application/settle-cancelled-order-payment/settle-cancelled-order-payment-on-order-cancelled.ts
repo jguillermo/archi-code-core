@@ -1,5 +1,5 @@
 import { EventListener, ListensTo, ValueObjectBuilder } from '../../../../ddd/application';
-import type { Clock, EventBus } from '../../../../ddd/application';
+import type { EventBus } from '../../../../ddd/application';
 import type { PaymentRepository } from '../../domain/repository/PaymentRepository';
 import { OrderReference } from '../../domain/value-object/OrderReference';
 import { PaymentId } from '../../domain/value-object/PaymentId';
@@ -12,7 +12,6 @@ export class SettleCancelledOrderPaymentOnOrderCancelled extends EventListener<O
   constructor(
     private readonly payments: PaymentRepository,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }
@@ -25,7 +24,7 @@ export class SettleCancelledOrderPaymentOnOrderCancelled extends EventListener<O
     if (payment === null) {
       return;
     }
-    payment.settleForCancelledOrder(this.clock);
+    payment.settleForCancelledOrder();
     await this.payments.save(payment);
     await this.events.publish(payment.pullDomainEvents());
   }

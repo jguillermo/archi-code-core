@@ -4,7 +4,6 @@ export { EventListener } from './event/event-listener';
 export { ListensTo } from './event/listens-to';
 export type { ListenerSubscription, ListensToOptions } from './event/listens-to';
 export type { EventBus } from './event/event-bus';
-export type { Clock } from './ports/clock';
 export type { LogContext, Logger, LogLevel } from './ports/logger';
 export { ApplicationException } from './exceptions/application.exception';
 export { ConcurrencyException } from './exceptions/concurrency.exception';

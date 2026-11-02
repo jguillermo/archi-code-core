@@ -1,5 +1,5 @@
 import { EventListener, ListensTo, ValueObjectBuilder } from '../../../../ddd/application';
-import type { Clock, EventBus } from '../../../../ddd/application';
+import type { EventBus } from '../../../../ddd/application';
 import { Shipment } from '../../domain/aggregate/Shipment';
 import type { ShipmentRepository } from '../../domain/repository/ShipmentRepository';
 import { GiftWrapRequested } from '../../domain/value-object/GiftWrapRequested';
@@ -14,7 +14,6 @@ export class PrepareShipmentOnOrderPaid extends EventListener<OrderPaidDomainEve
   constructor(
     private readonly shipments: ShipmentRepository,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }
@@ -30,14 +29,7 @@ export class PrepareShipmentOnOrderPaid extends EventListener<OrderPaidDomainEve
     if ((await this.shipments.findById(shipmentId)) !== null) {
       return;
     }
-    const shipment = Shipment.create(
-      shipmentId,
-      orderReference,
-      address,
-      contents,
-      giftWrap,
-      this.clock,
-    );
+    const shipment = Shipment.create(shipmentId, orderReference, address, contents, giftWrap);
     await this.shipments.save(shipment);
     await this.events.publish(shipment.pullDomainEvents());
   }

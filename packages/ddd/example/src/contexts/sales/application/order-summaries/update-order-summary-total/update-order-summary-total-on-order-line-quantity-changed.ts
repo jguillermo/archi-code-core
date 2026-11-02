@@ -18,7 +18,7 @@ export class UpdateOrderSummaryTotalOnOrderLineQuantityChanged extends EventList
     const { eventId, orderId, occurredOn, total } = ValueObjectBuilder.build({
       eventId: () => new UuidType(event.eventId),
       orderId: () => new OrderId(event.orderId),
-      occurredOn: () => new CreatedAt(event.occurredOn),
+      occurredOn: () => new CreatedAt(event.occurredOn as string),
       total: () => Money.fromPrimitives(event.total as { amount: number; currency: Currency }),
     });
     await this.projection.apply({

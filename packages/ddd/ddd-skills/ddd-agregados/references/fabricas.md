@@ -2,7 +2,7 @@
 
 ## Para qué
 
-Encapsular la creación de agregados complejos y expresarla con el lenguaje ubicuo. Si crear es sencillo, un método estático en la propia clase basta [IDDD cap. 11; PHP: Factories]; con el paquete se llama siempre `static create(id, …valueObjects, clock)` y el constructor es público y solo asigna `[Fuera de los libros: convención de @archi-code/ddd]`.
+Encapsular la creación de agregados complejos y expresarla con el lenguaje ubicuo. Si crear es sencillo, un método estático en la propia clase basta [IDDD cap. 11; PHP: Factories]; con el paquete se llama siempre `static create(id, …valueObjects)` y el constructor es público y solo asigna `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ## Método fábrica en la raíz de otro agregado
 
@@ -40,10 +40,6 @@ export class BlockedCustomerCannotOrder extends DomainException {
   }
 }
 
-interface Clock {
-  now(): Date;
-}
-
 export class Customer extends AggregateRoot<CustomerId> {
   readonly name: CustomerName;
   readonly email: Email;
@@ -67,18 +63,16 @@ export class Customer extends AggregateRoot<CustomerId> {
     this._updatedAt = updatedAt;
   }
 
-  static create(id: CustomerId, name: CustomerName, email: Email, clock: Clock): Customer {
+  static create(id: CustomerId, name: CustomerName, email: Email): Customer {
     const customer = new Customer(
       id,
       name,
       email,
       new Blocked(false),
-      CreatedAt.now(clock),
-      UpdatedAt.now(clock),
+      CreatedAt.now(),
+      UpdatedAt.now(),
     );
-    customer.record(
-      new CustomerCreatedDomainEvent({ customerId: customer.id.value, clock }),
-    );
+    customer.record(new CustomerCreatedDomainEvent({ customerId: customer.id.value }));
     return customer;
   }
 
@@ -101,11 +95,11 @@ export class Customer extends AggregateRoot<CustomerId> {
     return this._updatedAt;
   }
 
-  placeOrder(id: OrderId, lines: OrderLines, address: ShippingAddress, clock: Clock): Order {
+  placeOrder(id: OrderId, lines: OrderLines, address: ShippingAddress): Order {
     if (this._blocked.value) {
       throw new BlockedCustomerCannotOrder(this.id.value);
     }
-    return Order.create(id, this.id, lines, address, clock);
+    return Order.create(id, this.id, lines, address);
   }
 
   toPrimitives(): PrimitiveTypes<Customer> {
@@ -127,7 +121,7 @@ La regla de creación ("un cliente bloqueado no puede realizar pedidos") vive en
 
 ```ts
 import { AggregateNotFoundException, UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
-import type { Clock, EventBus } from '@archi-code/ddd/application';
+import type { EventBus } from '@archi-code/ddd/application';
 
 export interface PlaceOrderInput {
   customerId: string;
@@ -146,7 +140,6 @@ export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, stri
     private readonly customers: CustomerRepository,
     private readonly orders: OrderRepository,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }
@@ -168,7 +161,6 @@ export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, stri
       OrderId.generate(),
       command.lines,
       command.shippingAddress,
-      this.clock,
     );
     await this.orders.save(order);
     await this.events.publish(order.pullDomainEvents());
@@ -189,9 +181,7 @@ Prueba que la fábrica produce objetos válidos y que aplica las reglas de creac
 
 ```ts
 import { describe, expect, it } from 'vitest';
-import { FixedClock } from '@archi-code/ddd/infrastructure';
 
-const clock = new FixedClock('2026-03-01T09:30:00Z');
 const lines = OrderLines.fromPrimitives({
   items: [{ sku: 'MUG-350', quantity: 2, unitPrice: { amount: 850, currency: 'EUR' } }],
 });
@@ -207,9 +197,8 @@ describe('Customer.placeOrder', () => {
       CustomerId.generate(),
       new CustomerName('Ana'),
       new Email('ana@example.com'),
-      clock,
     );
-    const order = customer.placeOrder(OrderId.generate(), lines, address, clock);
+    const order = customer.placeOrder(OrderId.generate(), lines, address);
     expect(order.customerId.equals(customer.id)).toBe(true);
     expect(order.pullDomainEvents().map((event) => event.eventName)).toEqual(['order.created']);
   });
@@ -223,7 +212,7 @@ describe('Customer.placeOrder', () => {
       createdAt: new Date('2026-01-10T08:00:00Z'),
       updatedAt: new Date('2026-02-01T08:00:00Z'),
     });
-    expect(() => blocked.placeOrder(OrderId.generate(), lines, address, clock)).toThrow(
+    expect(() => blocked.placeOrder(OrderId.generate(), lines, address)).toThrow(
       BlockedCustomerCannotOrder,
     );
   });

@@ -196,7 +196,7 @@ Decisiones visibles:
 ```ts
 // src/contexts/sales/application/place-order/place-order.ts
 import { UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
-import type { Clock, EventBus } from '@archi-code/ddd/application';
+import type { EventBus } from '@archi-code/ddd/application';
 import { Order } from '../../domain/aggregate/Order';
 import { ProductNotSellable } from '../../domain/exception/ProductNotSellable';
 import type { OrderRepository } from '../../domain/repository/OrderRepository';
@@ -227,7 +227,6 @@ export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, stri
     private readonly orders: OrderRepository,
     private readonly pricing: ProductPricing,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }
@@ -262,7 +261,6 @@ export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, stri
       command.customerId,
       new OrderLines({ items: lines }),
       command.shippingAddress,
-      this.clock,
     );
     await this.orders.save(order);
     await this.events.publish(order.pullDomainEvents());
@@ -365,9 +363,8 @@ export class StockReservedDomainEvent extends EventBase {
     orderId,
     eventId,
     occurredOn,
-    clock,
   }: { reservationId: string; orderId: string } & EventMetadata) {
-    super({ eventId, occurredOn, clock });
+    super({ eventId, occurredOn });
     this.reservationId = reservationId;
     this.orderId = orderId;
   }
@@ -377,7 +374,7 @@ export class StockReservedDomainEvent extends EventBase {
 ```ts
 // src/contexts/sales/application/register-stock-reservation/register-stock-reservation-on-stock-reserved.ts
 import { EventListener, ListensTo, ValueObjectBuilder } from '@archi-code/ddd/application';
-import type { Clock, EventBus } from '@archi-code/ddd/application';
+import type { EventBus } from '@archi-code/ddd/application';
 import type { OrderRepository } from '../../domain/repository/OrderRepository';
 import { OrderId } from '../../domain/value-object/OrderId';
 import { ReservationReference } from '../../domain/value-object/ReservationReference';
@@ -390,7 +387,6 @@ export class RegisterStockReservationOnStockReserved extends EventListener<Stock
   constructor(
     private readonly orders: OrderRepository,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }
@@ -404,7 +400,7 @@ export class RegisterStockReservationOnStockReserved extends EventListener<Stock
     if (order === null) {
       return;
     }
-    order.registerStockReservation(reservation, this.clock);
+    order.registerStockReservation(reservation);
     await this.orders.save(order);
     await this.events.publish(order.pullDomainEvents());
   }
@@ -431,7 +427,7 @@ const warehouseBus = new DomainEventBus(
   logger,
 );
 subscriptions.push(
-  await warehouseBus.subscribe(new RegisterStockReservationOnStockReserved(orders, salesBus, clock)),
+  await warehouseBus.subscribe(new RegisterStockReservationOnStockReserved(orders, salesBus)),
 );
 ```
 
@@ -463,7 +459,7 @@ export class InMemoryProductPricing implements ProductPricing {
 }
 ```
 
-El adaptador en memoria vive en `test/support/in-memory-product-pricing.ts` como doble de test, o en `infrastructure/catalog/in-memory-product-pricing.ts` si la aplicación corre en memoria. Con él, `PlaceOrder` se prueba con `new InMemoryOrderRepository()` (el repositorio en memoria del proyecto, en `infrastructure/persistence/` o en `test/support/`, como en `ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`), un `DomainEventBus` sobre `InMemoryEventChannel` y `new FixedClock('2026-03-01T09:30:00Z')`, comprobando `channel.sent` y lo guardado.
+El adaptador en memoria vive en `test/support/in-memory-product-pricing.ts` como doble de test, o en `infrastructure/catalog/in-memory-product-pricing.ts` si la aplicación corre en memoria. Con él, `PlaceOrder` se prueba con `new InMemoryOrderRepository()` (el repositorio en memoria del proyecto, en `infrastructure/persistence/` o en `test/support/`, como en `ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`) y un `DomainEventBus` sobre `InMemoryEventChannel`, comprobando `channel.sent` y lo guardado.
 
 ## Errores frecuentes
 

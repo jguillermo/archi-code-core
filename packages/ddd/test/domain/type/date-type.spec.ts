@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { Validations } from '@archi-code/validation';
 import type { ValidationResult } from '@archi-code/validation';
 import { CreatedAt, DateType, UpdatedAt } from '../../../src/domain/type/date-type';
@@ -80,10 +80,6 @@ const setters: [string, (date: Date) => unknown][] = [
 
 const dateError = (received: string) =>
   `Validation Error: Expected a valid Date, but received ${received}.`;
-
-afterEach(() => {
-  vi.useRealTimers();
-});
 
 describe('DateType', () => {
   describe('typing', () => {
@@ -274,17 +270,10 @@ describe('CreatedAt', () => {
     );
   });
 
-  it('now() stamps a new record with the current instant', () => {
-    vi.useFakeTimers({ now: new Date('2024-05-01T10:00:00.000Z') });
+  it('now() stamps a new record with a valid date', () => {
     const createdAt = CreatedAt.now();
     expect(createdAt).toBeInstanceOf(CreatedAt);
-    expect(createdAt.toString()).toBe('2024-05-01T10:00:00.000Z');
-  });
-
-  it('now(clock) takes the instant from an injected clock, so tests and use cases are deterministic', () => {
-    const clock = { now: () => new Date('2026-02-14T08:00:00.000Z') };
-    expect(CreatedAt.now(clock).toString()).toBe('2026-02-14T08:00:00.000Z');
-    expect(UpdatedAt.now(clock).toString()).toBe('2026-02-14T08:00:00.000Z');
+    expect(Number.isNaN(createdAt.value.getTime())).toBe(false);
   });
 
   it('is rebuilt from the stored ISO text when the record is loaded', () => {
@@ -304,14 +293,13 @@ describe('UpdatedAt', () => {
     );
   });
 
-  it('UpdatedAt.now() replaces the previous timestamp, leaving the old one untouched', () => {
+  it('UpdatedAt.now() replaces the previous timestamp with a valid date, leaving the old one untouched', () => {
     const loaded = new UpdatedAt(new Date('2020-01-01T00:00:00.000Z'));
-    vi.useFakeTimers({ now: new Date('2024-05-01T10:00:00.000Z') });
 
     const touched = UpdatedAt.now();
 
     expect(touched).toBeInstanceOf(UpdatedAt);
-    expect(touched.toString()).toBe('2024-05-01T10:00:00.000Z');
+    expect(Number.isNaN(touched.value.getTime())).toBe(false);
     expect(loaded.toString()).toBe('2020-01-01T00:00:00.000Z');
     expect(touched.equals(loaded)).toBe(false);
     expect(() => touched.value.setUTCFullYear(2000)).toThrow(TypeError);

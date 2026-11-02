@@ -16,14 +16,13 @@ export class PaymentRejectedDomainEvent extends EventBase {
     reason,
     eventId,
     occurredOn,
-    clock,
   }: {
     paymentId: string;
     orderId: string;
     amount: { amount: number; currency: string };
     reason: string;
   } & EventMetadata) {
-    super({ eventId, occurredOn, clock });
+    super({ eventId, occurredOn });
     this.paymentId = paymentId;
     this.orderId = orderId;
     this.amount = amount;

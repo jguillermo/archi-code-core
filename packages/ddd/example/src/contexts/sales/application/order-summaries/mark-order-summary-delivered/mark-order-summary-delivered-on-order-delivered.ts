@@ -17,7 +17,7 @@ export class MarkOrderSummaryDeliveredOnOrderDelivered extends EventListener<Ord
     const { eventId, orderId, occurredOn } = ValueObjectBuilder.build({
       eventId: () => new UuidType(event.eventId),
       orderId: () => new OrderId(event.orderId),
-      occurredOn: () => new CreatedAt(event.occurredOn),
+      occurredOn: () => new CreatedAt(event.occurredOn as string),
     });
     await this.projection.apply({
       eventId,

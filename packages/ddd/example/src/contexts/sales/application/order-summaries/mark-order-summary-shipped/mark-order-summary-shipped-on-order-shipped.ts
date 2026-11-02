@@ -18,7 +18,7 @@ export class MarkOrderSummaryShippedOnOrderShipped extends EventListener<OrderSh
     const { eventId, orderId, occurredOn, trackingNumber } = ValueObjectBuilder.build({
       eventId: () => new UuidType(event.eventId),
       orderId: () => new OrderId(event.orderId),
-      occurredOn: () => new CreatedAt(event.occurredOn),
+      occurredOn: () => new CreatedAt(event.occurredOn as string),
       trackingNumber: () => new CarrierTrackingNumber(event.trackingNumber),
     });
     await this.projection.apply({

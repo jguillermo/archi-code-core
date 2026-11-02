@@ -1,4 +1,4 @@
-import type { Clock, Logger } from '../../ddd/application';
+import type { Logger } from '../../ddd/application';
 import { DomainEventBus, EventRegistry } from '../../ddd/infrastructure';
 import type { EventChannel, Subscription } from '../../ddd/infrastructure';
 import { AdjustPaymentAmountOnOrderLineQuantityChanged } from './application/adjust-payment-amount/adjust-payment-amount-on-order-line-quantity-changed';
@@ -14,7 +14,6 @@ import { PaymentsController } from './interfaces/http/payments-controller';
 
 export interface PaymentsSettings {
   channel: EventChannel;
-  clock: Clock;
   logger: Logger;
 }
 
@@ -25,22 +24,19 @@ export class PaymentsContext {
     private readonly subscriptions: Subscription[],
   ) {}
 
-  static async start({ channel, clock, logger }: PaymentsSettings): Promise<PaymentsContext> {
+  static async start({ channel, logger }: PaymentsSettings): Promise<PaymentsContext> {
     const bus = new DomainEventBus(channel, PaymentsContext.registry(), logger);
     const payments = new InMemoryPaymentRepository();
     const listeners = [
-      new RequestPaymentOnOrderCreated(payments, bus, clock),
-      new AdjustPaymentAmountOnOrderLineQuantityChanged(payments, bus, clock),
-      new SettleCancelledOrderPaymentOnOrderCancelled(payments, bus, clock),
+      new RequestPaymentOnOrderCreated(payments, bus),
+      new AdjustPaymentAmountOnOrderLineQuantityChanged(payments, bus),
+      new SettleCancelledOrderPaymentOnOrderCancelled(payments, bus),
     ];
     const subscriptions: Subscription[] = [];
     for (const listener of listeners) {
       subscriptions.push(await bus.subscribe(listener));
     }
-    const controller = new PaymentsController(
-      new ConfirmTransferReceived(payments, bus, clock),
-      logger,
-    );
+    const controller = new PaymentsController(new ConfirmTransferReceived(payments, bus), logger);
     return new PaymentsContext(payments, controller, subscriptions);
   }
 

@@ -59,16 +59,14 @@ export class DateType extends AbstractType<Date, Date | string> {
   }
 }
 
-const SYSTEM_TIME = { now: (): Date => new Date() };
-
 export class CreatedAt extends Required(DateType) {
-  static now(clock: { now(): Date } = SYSTEM_TIME): CreatedAt {
-    return new CreatedAt(clock.now());
+  static now(): CreatedAt {
+    return new CreatedAt(new Date());
   }
 }
 
 export class UpdatedAt extends Required(DateType) {
-  static now(clock: { now(): Date } = SYSTEM_TIME): UpdatedAt {
-    return new UpdatedAt(clock.now());
+  static now(): UpdatedAt {
+    return new UpdatedAt(new Date());
   }
 }

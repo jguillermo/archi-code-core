@@ -32,13 +32,9 @@ export class Country extends Required(StringType) {
 export class ShippingAddress extends Composite({ street: Street, city: City, country: Country }) {}
 ```
 
-La entidad es el `Order` de `ddd-skills/ddd-agregados/references/implementacion-ts.md`, donde está la clase completa con sus eventos y su reloj; no se redefine aquí (constructor, `create`, `fromPrimitives` y el resto de métodos están allí). Lo que importa para decidir valor o entidad:
+La entidad es el `Order` de `ddd-skills/ddd-agregados/references/implementacion-ts.md`, donde está la clase completa con sus eventos; no se redefine aquí (constructor, `create`, `fromPrimitives` y el resto de métodos están allí). Lo que importa para decidir valor o entidad:
 
 ```ts
-interface Clock {
-  now(): Date;
-}
-
 export class Order extends AggregateRoot<OrderId> {
   readonly customerId: CustomerId;
   private _lines: OrderLines;
@@ -49,19 +45,18 @@ export class Order extends AggregateRoot<OrderId> {
   readonly createdAt: CreatedAt;
   private _updatedAt: UpdatedAt;
 
-  addLine(line: OrderLine, clock: Clock): void {
+  addLine(line: OrderLine): void {
     if (!this.isIn(OrderStatus.PENDING)) {
       throw new OrderNotModifiable(this.id.value, this._status.value);
     }
     this._lines = this._lines.withLine(line);
-    this.touch(clock);
+    this.touch();
     this.record(
       new OrderLineAddedDomainEvent({
         orderId: this.id.value,
         sku: line.sku.value,
         quantity: line.quantity.value,
         total: this.total().toPrimitives(),
-        clock,
       }),
     );
   }
@@ -74,7 +69,7 @@ export class Order extends AggregateRoot<OrderId> {
 
 La entidad apenas tiene lógica propia: delega en sus valores (`OrderLines.total`, `OrderLines.withLine`, el estado de `OrderStatusType`). Es lo que IDDD llama orientar la entidad a contenedor de valores [IDDD cap. 6]. `addLine` reemplaza el `OrderLines` entero por el que devuelve `withLine`; nunca cambia una línea por dentro.
 
-El pedido referencia al cliente por su id (`customerId: CustomerId`), nunca por el objeto. Los eventos que registra (`OrderCreatedDomainEvent`, `OrderLineAddedDomainEvent`…) y el reloj que recibe cada método se explican en `ddd-skills/ddd-eventos-dominio/GUIA.md`.
+El pedido referencia al cliente por su id (`customerId: CustomerId`), nunca por el objeto. Los eventos que registra (`OrderCreatedDomainEvent`, `OrderLineAddedDomainEvent`…), sin fecha porque `occurredOn` lo pone el bus al enviarlos, se explican en `ddd-skills/ddd-eventos-dominio/GUIA.md`.
 
 Un test de ida y vuelta por agregado comprueba que se puede guardar y rehacer `[Fuera de los libros: convención de @archi-code/ddd]`:
 
@@ -82,7 +77,7 @@ Un test de ida y vuelta por agregado comprueba que se puede guardar y rehacer `[
 import { expect, it } from 'vitest';
 
 it('rebuilds the order it stored', () => {
-  const order = Order.create(OrderId.generate(), CustomerId.generate(), lines, address, clock);
+  const order = Order.create(OrderId.generate(), CustomerId.generate(), lines, address);
   expect(Order.fromPrimitives(order.toPrimitives()).toPrimitives()).toEqual(order.toPrimitives());
 });
 ```

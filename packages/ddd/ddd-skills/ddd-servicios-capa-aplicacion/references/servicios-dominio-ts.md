@@ -163,10 +163,6 @@ describe('ShippingCostCalculator', () => {
 ```
 
 ```ts
-import { FixedClock } from '@archi-code/ddd/infrastructure';
-
-const clock = new FixedClock('2026-03-01T09:30:00Z');
-
 export const euros = (cents: number): Money => Money.fromPrimitives({ amount: cents, currency: 'EUR' });
 
 export const anOrderWorth = (cents: number): Order =>
@@ -177,7 +173,6 @@ export const anOrderWorth = (cents: number): Order =>
       items: [{ sku: 'TORCH-01', quantity: 1, unitPrice: { amount: cents, currency: 'EUR' } }],
     }),
     ShippingAddress.fromPrimitives({ street: 'Calle Mayor 1', city: 'Huelva', country: 'ES' }),
-    clock,
   );
 
 export const standardRates = (): ShippingRates =>

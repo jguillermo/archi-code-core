@@ -39,9 +39,8 @@ export class StockItemReservedDomainEvent extends EventBase {
     reservationId,
     eventId,
     occurredOn,
-    clock,
   }: { orderId: string; reservationId: string } & EventMetadata) {
-    super({ eventId, occurredOn, clock });
+    super({ eventId, occurredOn });
     this.orderId = orderId;
     this.reservationId = reservationId;
   }
@@ -52,7 +51,7 @@ El caso de uso por reacción registra el hecho: un agregado, un `save` atómico,
 
 ```ts
 import { EventListener, ListensTo, ValueObjectBuilder } from '@archi-code/ddd/application';
-import type { Clock, EventBus } from '@archi-code/ddd/application';
+import type { EventBus } from '@archi-code/ddd/application';
 import { StockItemReservedDomainEvent } from './stock-item-reserved-domain-event';
 
 @ListensTo(StockItemReservedDomainEvent, {
@@ -62,7 +61,6 @@ export class RegisterStockReservationOnStockItemReserved extends EventListener<S
   constructor(
     private readonly orders: OrderRepository,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }
@@ -76,7 +74,7 @@ export class RegisterStockReservationOnStockItemReserved extends EventListener<S
     if (order === null) {
       return;
     }
-    order.registerStockReservation(reservation, this.clock);
+    order.registerStockReservation(reservation);
     await this.orders.save(order);
     await this.events.publish(order.pullDomainEvents());
   }
@@ -89,7 +87,6 @@ La raíz de composición del contexto (`composition.ts`) registra el evento con 
 import {
   DomainEventBus,
   EventRegistry,
-  FixedClock,
   InMemoryEventChannel,
 } from '@archi-code/ddd/infrastructure';
 import { InMemoryOrderRepository } from '../../../../src/contexts/sales/infrastructure/persistence/in-memory-order-repository';
@@ -107,13 +104,7 @@ const registry = new EventRegistry().register(
 );
 const channel = new InMemoryEventChannel();
 const bus = new DomainEventBus(channel, registry);
-await bus.subscribe(
-  new RegisterStockReservationOnStockItemReserved(
-    orders,
-    bus,
-    new FixedClock('2026-03-01T09:30:00Z'),
-  ),
-);
+await bus.subscribe(new RegisterStockReservationOnStockItemReserved(orders, bus));
 ```
 
 En producción se cambia solo el canal (`InMemoryEventChannel` por el de tu broker o tu outbox); los casos de uso no cambian.

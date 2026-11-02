@@ -1,5 +1,5 @@
 import { EventListener, ListensTo, ValueObjectBuilder } from '../../../../ddd/application';
-import type { Clock, EventBus } from '../../../../ddd/application';
+import type { EventBus } from '../../../../ddd/application';
 import type { OrderRepository } from '../../domain/repository/OrderRepository';
 import { OrderId } from '../../domain/value-object/OrderId';
 import { PaymentReference } from '../../domain/value-object/PaymentReference';
@@ -10,7 +10,6 @@ export class MarkOrderPaidOnPaymentCaptured extends EventListener<PaymentCapture
   constructor(
     private readonly orders: OrderRepository,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }
@@ -24,7 +23,7 @@ export class MarkOrderPaidOnPaymentCaptured extends EventListener<PaymentCapture
     if (order === null) {
       return;
     }
-    order.markPaid(payment, this.clock);
+    order.markPaid(payment);
     await this.orders.save(order);
     await this.events.publish(order.pullDomainEvents());
   }

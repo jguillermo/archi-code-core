@@ -11,10 +11,10 @@ layer, each with the exceptions of its layer: `@archi-code/ddd/domain` (value ob
 the abstract repository of each aggregate, with the roles of its verbs `AggregateFinder`,
 `AggregateSaver`, `AggregateRemover`, and `DomainException`,
 `ValidationException`…), `@archi-code/ddd/application` (`UseCase`, the event contract to listen,
-`EventListener` and `@ListensTo`, and to publish, `EventBus`, the ports `Clock`, `Logger`, and
+`EventListener` and `@ListensTo`, and to publish, `EventBus`, the port `Logger`, and
 `AggregateNotFoundException`, `NotAllowedException`…) and `@archi-code/ddd/infrastructure` (the
 event wiring `DomainEventBus`, `EventRegistry` and the `EventChannel` port, in-memory event
-channel, clocks, loggers, `InternalErrorException`…). `@archi-code/ddd/infrastructure` also has
+channel, loggers, `InternalErrorException`…). `@archi-code/ddd/infrastructure` also has
 `ExceptionClassifier`, which gives every entry point (HTTP, gRPC, queue, CLI) the `ExceptionKind`
 of an error.
 
@@ -123,8 +123,8 @@ details and the code.
 - **Value objects are always valid**: one named class per file, rules in `@Validations`,
   `Required(...)` when mandatory, built with `ValueObjectBuilder.build` so every field is reported.
   Several fields are a `Composite`; free-form JSON is a `JsonType`, never a composite.
-- **Aggregates**: public constructor that only assigns; `static create(id, ...valueObjects, clock)`
-  sets the initial state, checks the creation invariants and records
+- **Aggregates**: public constructor that only assigns; `static create(id, ...valueObjects)`
+  sets the initial state (`CreatedAt.now()`, `UpdatedAt.now()`), checks the creation invariants and records
   `<Aggregate>CreatedDomainEvent`; `fromPrimitives`/`toPrimitives` cover every field; the id comes
   from the use case (`OrderId.generate()`, or derived: `PaymentId.forOrder(order)`). Methods a
   user asks for throw business errors; methods that register a fact (called by reactions) return

@@ -5,8 +5,8 @@ Domain-Driven Design building blocks for TypeScript, one entry point per layer:
 | Entry point                      | Layer          | What it gives you                                                                                                                                                                                                                                                                                       |
 | -------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `@archi-code/ddd/domain`         | Domain         | Value objects, `Required(...)`, `Composite(...)`, `Entity`, `AggregateRoot`, `EventBase`, `Specification`, the repository contracts (`AggregateRepository` and the roles `AggregateFinder`, `AggregateSaver`, `AggregateRemover`) and the domain exceptions (`DomainException`, `ValidationException`…) |
-| `@archi-code/ddd/application`    | Application    | `UseCase`, `ValueObjectBuilder`, the event contract (`EventListener`, `@ListensTo` to listen, `EventBus` to publish), the ports `Clock` and `Logger` and the application exceptions (`AggregateNotFoundException`, `NotAllowedException`…)                                                              |
-| `@archi-code/ddd/infrastructure` | Infrastructure | The event wiring (`DomainEventBus`, `EventRegistry`, the `EventChannel` port, `InMemoryEventChannel`), clocks, loggers, the infrastructure exceptions and `ExceptionClassifier`, which tells any entry point the `ExceptionKind` of an error                                                            |
+| `@archi-code/ddd/application`    | Application    | `UseCase`, `ValueObjectBuilder`, the event contract (`EventListener`, `@ListensTo` to listen, `EventBus` to publish), the port `Logger` and the application exceptions (`AggregateNotFoundException`, `NotAllowedException`…)                                                                           |
+| `@archi-code/ddd/infrastructure` | Infrastructure | The event wiring (`DomainEventBus`, `EventRegistry`, the `EventChannel` port, `InMemoryEventChannel`), loggers, the infrastructure exceptions and `ExceptionClassifier`, which tells any entry point the `ExceptionKind` of an error                                                                    |
 
 The layers only depend inwards: `domain` imports nothing of the package, `application` imports
 `domain`, and `infrastructure` imports both. Each layer declares and exports its own exceptions,
@@ -77,28 +77,28 @@ library built on this package): the exceptions of one build are `instanceof` the
 Every class of a project built on this package goes in exactly one layer. The table says where,
 what it may import and what it must never do; the package itself is organized the same way.
 
-| Class                                                                          | Layer          | Responsibility                                                                                     | May depend on                                                                             | Never                                                                        |
-| ------------------------------------------------------------------------------ | -------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| Value object (`extends StringType`…)                                           | domain         | One concept of the business; converts and validates its own value                                  | other value objects, `@archi-code/validation`, domain exceptions                          | mutate, know about storage or transport                                      |
-| Aggregate (`extends AggregateRoot`)                                            | domain         | Business rules and invariants; records an event for every fact                                     | its value objects, child entities, events, domain services, domain ports                  | read a repository, publish events, use `new Date()`                          |
-| Composite value object (`Composite({...})`)                                    | domain         | Several values that only make sense together (money, a date range, an order line)                  | value objects, other composites                                                           | change, hold an id, be loaded or saved on its own                            |
-| Child entity (`extends Entity`)                                                | domain         | A part of an aggregate with its own id; value objects and business methods only the root calls     | value objects                                                                             | setters, be called from outside its aggregate, be loaded or saved on its own |
-| Specification (`extends Specification`)                                        | domain         | A named business rule that validates, selects or builds; combinable                                | value objects, aggregates, data already loaded                                            | read a repository, protect an aggregate invariant                            |
-| Domain event (`extends EventBase`)                                             | domain         | A fact that happened (`OrderPaidDomainEvent`, `'order.paid'`), with primitive data                 | nothing: primitive fields typed inline                                                    | carry behavior or value objects, reference infrastructure                    |
-| Business error (`extends DomainException`)                                     | domain         | A broken business rule, named after what went wrong (`OrderNotCancellable`), with its own code     | `DomainException`                                                                         | hold anything but a constructor                                              |
-| Repository (`OrderRepository extends AggregateRepository`)                     | domain         | Abstract class per aggregate: only the verbs it needs to get and persist it, each from its role    | the aggregate, `AggregateFinder`/`AggregateSaver`/`AggregateRemover`                      | hold code, rules, business queries, `nextId()` or events                     |
-| Domain service                                                                 | domain         | A business rule that spans several aggregates or fits none                                         | aggregates, value objects, the aggregate's repository (only `findById`), domain ports     | I/O, saving, transactions, publishing                                        |
-| Domain port (`ProductPricing`)                                                 | domain         | What the model needs from another context or an external service, in its own words                 | value objects of this context                                                             | contain code, expose the other system's model                                |
-| User use case (`extends UseCase`)                                              | application    | One business action a user asks for: input → command of value objects → change one aggregate       | domain, the aggregate's repository, domain services, application ports and exceptions     | import another use case or a reaction, persist or call the network by itself |
-| Reaction use case (`extends EventListener`)                                    | application    | One business action run by an event: builds its value objects, finds or creates, changes, saves    | the same as a user use case, and the event it listens to                                  | authorization, `AggregateNotFoundException`, business errors, call use cases |
-| Copy of another context's event                                                | application    | The consumer's own class for a foreign event, next to the reaction that hears it                   | nothing                                                                                   | import the producer's class                                                  |
-| Application port (`EventBus`, `Clock`, `Logger`, your own such as `Warehouse`) | application    | A technical capability the application needs, as a type                                            | domain types                                                                              | contain code                                                                 |
-| Read query (`OrderSummaries`)                                                  | application    | An interface that answers a screen or a list with DTOs or ids, outside the aggregates              | domain types, DTOs                                                                        | load aggregates, go through a repository, change data                        |
-| Projection (`OrderSummaryProjection`)                                          | application    | Applies the changes of each event to a read model row once, through a store port                   | the store port, value objects                                                             | hear events itself, load aggregates, hold business rules                     |
-| Adapter (repository, outbox, read query, clock…)                               | infrastructure | Implements a contract with a database, a queue, a broker, HTTP or memory                           | domain, application, exceptions, drivers                                                  | contain business rules                                                       |
-| Anti-corruption layer (adapter + translator)                                   | infrastructure | Implements a domain port by calling another context or service and translating its model into ours | domain, application, exceptions, clients                                                  | leak the other model into the domain, hold business rules                    |
-| Entry point (controller, message consumer, CLI)                                | interfaces     | Turns HTTP, a message or a command line into the input of a use case, and back                     | application, `ExceptionClassifier` and `ExceptionKind` (domain types only if unavoidable) | hold business rules, use a repository or another adapter directly            |
-| Composition root (`composition.ts`)                                            | (per context)  | Reads the configuration, builds adapters, use cases and entry points, subscribes every reaction    | everything                                                                                | be imported by the domain, the application or the interfaces                 |
+| Class                                                                 | Layer          | Responsibility                                                                                     | May depend on                                                                             | Never                                                                        |
+| --------------------------------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Value object (`extends StringType`…)                                  | domain         | One concept of the business; converts and validates its own value                                  | other value objects, `@archi-code/validation`, domain exceptions                          | mutate, know about storage or transport                                      |
+| Aggregate (`extends AggregateRoot`)                                   | domain         | Business rules and invariants; records an event for every fact                                     | its value objects, child entities, events, domain services, domain ports                  | read a repository, publish events, use `new Date()`                          |
+| Composite value object (`Composite({...})`)                           | domain         | Several values that only make sense together (money, a date range, an order line)                  | value objects, other composites                                                           | change, hold an id, be loaded or saved on its own                            |
+| Child entity (`extends Entity`)                                       | domain         | A part of an aggregate with its own id; value objects and business methods only the root calls     | value objects                                                                             | setters, be called from outside its aggregate, be loaded or saved on its own |
+| Specification (`extends Specification`)                               | domain         | A named business rule that validates, selects or builds; combinable                                | value objects, aggregates, data already loaded                                            | read a repository, protect an aggregate invariant                            |
+| Domain event (`extends EventBase`)                                    | domain         | A fact that happened (`OrderPaidDomainEvent`, `'order.paid'`), with primitive data                 | nothing: primitive fields typed inline                                                    | carry behavior or value objects, reference infrastructure                    |
+| Business error (`extends DomainException`)                            | domain         | A broken business rule, named after what went wrong (`OrderNotCancellable`), with its own code     | `DomainException`                                                                         | hold anything but a constructor                                              |
+| Repository (`OrderRepository extends AggregateRepository`)            | domain         | Abstract class per aggregate: only the verbs it needs to get and persist it, each from its role    | the aggregate, `AggregateFinder`/`AggregateSaver`/`AggregateRemover`                      | hold code, rules, business queries, `nextId()` or events                     |
+| Domain service                                                        | domain         | A business rule that spans several aggregates or fits none                                         | aggregates, value objects, the aggregate's repository (only `findById`), domain ports     | I/O, saving, transactions, publishing                                        |
+| Domain port (`ProductPricing`)                                        | domain         | What the model needs from another context or an external service, in its own words                 | value objects of this context                                                             | contain code, expose the other system's model                                |
+| User use case (`extends UseCase`)                                     | application    | One business action a user asks for: input → command of value objects → change one aggregate       | domain, the aggregate's repository, domain services, application ports and exceptions     | import another use case or a reaction, persist or call the network by itself |
+| Reaction use case (`extends EventListener`)                           | application    | One business action run by an event: builds its value objects, finds or creates, changes, saves    | the same as a user use case, and the event it listens to                                  | authorization, `AggregateNotFoundException`, business errors, call use cases |
+| Copy of another context's event                                       | application    | The consumer's own class for a foreign event, next to the reaction that hears it                   | nothing                                                                                   | import the producer's class                                                  |
+| Application port (`EventBus`, `Logger`, your own such as `Warehouse`) | application    | A technical capability the application needs, as a type                                            | domain types                                                                              | contain code                                                                 |
+| Read query (`OrderSummaries`)                                         | application    | An interface that answers a screen or a list with DTOs or ids, outside the aggregates              | domain types, DTOs                                                                        | load aggregates, go through a repository, change data                        |
+| Projection (`OrderSummaryProjection`)                                 | application    | Applies the changes of each event to a read model row once, through a store port                   | the store port, value objects                                                             | hear events itself, load aggregates, hold business rules                     |
+| Adapter (repository, outbox, read query…)                             | infrastructure | Implements a contract with a database, a queue, a broker, HTTP or memory                           | domain, application, exceptions, drivers                                                  | contain business rules                                                       |
+| Anti-corruption layer (adapter + translator)                          | infrastructure | Implements a domain port by calling another context or service and translating its model into ours | domain, application, exceptions, clients                                                  | leak the other model into the domain, hold business rules                    |
+| Entry point (controller, message consumer, CLI)                       | interfaces     | Turns HTTP, a message or a command line into the input of a use case, and back                     | application, `ExceptionClassifier` and `ExceptionKind` (domain types only if unavoidable) | hold business rules, use a repository or another adapter directly            |
+| Composition root (`composition.ts`)                                   | (per context)  | Reads the configuration, builds adapters, use cases and entry points, subscribes every reaction    | everything                                                                                | be imported by the domain, the application or the interfaces                 |
 
 Dependencies only point inwards. Your domain imports only `@archi-code/ddd/domain` and
 `@archi-code/validation`; the application adds
@@ -472,13 +472,15 @@ import { CreatedAt, UpdatedAt } from '@archi-code/ddd/domain';
 const createdAt = CreatedAt.now();
 let updatedAt = UpdatedAt.now();
 updatedAt = UpdatedAt.now(); // a new timestamp is a new value object
-createdAt.value; // Date
+createdAt.value; // Date, the current system time
 
-CreatedAt.now(clock); // takes the instant from any { now(): Date }, such as a Clock port
+new CreatedAt('2026-10-17T10:00:00Z'); // a known date, such as one loaded or one a test sets
 ```
 
-Pass a `Clock` (see the application layer) to `now(clock)` so use cases and tests get a known
-time.
+`now()` takes no argument: it is the current system time. The domain stamps creation and changes
+with `CreatedAt.now()` and `UpdatedAt.now()`, never with `new Date()`. Tests do not fix the time:
+they check that a stamped date is valid, and build the dates of the state they load with the
+constructor.
 
 ### `EnumType`
 
@@ -896,19 +898,19 @@ repository. It does not protect the invariants of an aggregate: those stay in th
   in the whole system (reactions and registries refer to the event by its class, without an
   instance, and a subclass inherits it). An event is a plain object of primitive data with no
   methods: `super(metadata)` copies the static name into the `readonly eventName` field and sets
-  `eventId` (a new UUID v4) and `occurredOn` (ISO text in UTC, `'2026-10-17T10:00:00.000Z'`);
-  everything else is data the subclass declares as `readonly` fields, including the id of the
+  `eventId` (a new UUID v4); everything else is data the subclass declares as `readonly` fields, including the id of the
   aggregate (`readonly orderId: string`). The constructor takes one object typed inline as
   `{ …fields } & EventMetadata`, with no interfaces nor type aliases of its own, and passes
-  `{ eventId, occurredOn, clock }` to `super`. Creating an event whose class has no non-blank
-  `eventName` throws `InvalidEventDefinitionException`. Pass `clock` (any `{ now(): Date }`, such
-  as the `Clock` port) to take the moment from it; without a clock it is the system time. When you
-  rebuild an event a channel delivered, pass `eventId` and `occurredOn` (`Date` or ISO string with
-  zone) to keep them; a stored `occurredOn` wins over a clock and is stored as UTC ISO text. The
-  clock is not kept in the event. The event is its own JSON: `{ ...event }` and
-  `JSON.stringify(event)` give `{ eventName, eventId, occurredOn, ...fields }`, in that order.
-- Only its aggregate creates an event (`this.record(new …DomainEvent({ …, clock }))`), with the
-  clock the method received. There is no union type of an aggregate's events: `AggregateRoot`,
+  `{ eventId, occurredOn }` to `super`. Creating an event whose class has no non-blank
+  `eventName` throws `InvalidEventDefinitionException`.
+- `occurredOn` (`string | undefined`, ISO text in UTC) is not set when the event is created: the
+  event bus sets it when it sends the event, so `DomainEventBus.publish` sends
+  `{ eventName, eventId, occurredOn, ...fields }`, in that order, with the time of the send. An
+  event that already carries `occurredOn` keeps it. When you rebuild an event a channel delivered,
+  pass `eventId` and `occurredOn` (`Date` or ISO string with zone) to keep them; `occurredOn` is
+  stored as UTC ISO text. A new event has no `occurredOn` key, so `{ ...event }` and
+  `JSON.stringify(event)` give `{ eventName, eventId, ...fields }`.
+- Only its aggregate creates an event (`this.record(new …DomainEvent({ … }))`). There is no union type of an aggregate's events: `AggregateRoot`,
   `EventBus`, `DomainEventBus` and `EventRegistry` take and return `EventBase`, the class every
   event extends.
 - Rule: each event declares only the primitive data it needs (text, finite numbers, booleans,
@@ -934,11 +936,6 @@ import {
   StringType,
 } from '@archi-code/ddd/domain';
 import type { EventMetadata } from '@archi-code/ddd/domain';
-import { FixedClock } from '@archi-code/ddd/infrastructure';
-
-interface Clock {
-  now(): Date;
-}
 
 class OrderId extends IdType<'OrderId'> {}
 class CustomerName extends Required(StringType) {}
@@ -954,9 +951,8 @@ class OrderCreatedDomainEvent extends EventBase {
     customer,
     eventId,
     occurredOn,
-    clock,
   }: { orderId: string; customer: string } & EventMetadata) {
-    super({ eventId, occurredOn, clock });
+    super({ eventId, occurredOn });
     this.orderId = orderId;
     this.customer = customer;
   }
@@ -972,13 +968,12 @@ class Order extends AggregateRoot<OrderId> {
     this.createdAt = createdAt;
   }
 
-  static create(id: OrderId, customer: CustomerName, clock: Clock): Order {
-    const order = new Order(id, customer, CreatedAt.now(clock));
+  static create(id: OrderId, customer: CustomerName): Order {
+    const order = new Order(id, customer, CreatedAt.now());
     order.record(
       new OrderCreatedDomainEvent({
         orderId: order.id.value,
         customer: order.customer.value,
-        clock,
       }),
     );
     return order;
@@ -988,12 +983,12 @@ class Order extends AggregateRoot<OrderId> {
 const order = Order.create(
   new OrderId('9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c'),
   new CustomerName('Ana'),
-  new FixedClock('2026-10-17T10:00:00Z'),
 );
 const [created] = order.pullDomainEvents(); // EventBase[]
 order.pullDomainEvents(); // []
+created.occurredOn; // undefined: the event bus sets it when it sends the event
 JSON.stringify(created);
-// {"eventName":"order.created","eventId":"…","occurredOn":"2026-10-17T10:00:00.000Z","orderId":"9b2f6c1e-…","customer":"Ana"}
+// {"eventName":"order.created","eventId":"…","orderId":"9b2f6c1e-…","customer":"Ana"}
 ```
 
 ### Primitive types
@@ -1159,7 +1154,7 @@ interface AddOrderLineCommand {
 class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand, void> {
   private static readonly ATTEMPTS = 3;
 
-  // constructor (orders, events, clock) as in "Persistence belongs to the repository";
+  // constructor (orders, events) as in "Persistence belongs to the repository";
   // toCommand builds orderId, sku and quantity with ValueObjectBuilder.build;
   // Order, OrderLine, Sku and Quantity as in "Persisting aggregates"
 
@@ -1170,7 +1165,7 @@ class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand, void>
         if (order === null) {
           throw new AggregateNotFoundException('Order', command.orderId.value);
         }
-        order.addLine(new OrderLine({ sku: command.sku, quantity: command.quantity }), this.clock);
+        order.addLine(new OrderLine({ sku: command.sku, quantity: command.quantity }));
         await this.orders.save(order);
         return await this.events.publish(order.pullDomainEvents());
       } catch (error) {
@@ -1248,10 +1243,8 @@ the one of [Persisting aggregates](#persisting-aggregates)):
 ```ts
 import { describe, expect, it } from 'vitest';
 import { ConcurrencyException } from '@archi-code/ddd/application';
-import { FixedClock } from '@archi-code/ddd/infrastructure';
 
-const clock = new FixedClock('2026-10-17T10:00:00Z');
-const anOrder = () => Order.create(OrderId.generate(), new CustomerName('Ana'), clock);
+const anOrder = () => Order.create(OrderId.generate(), new CustomerName('Ana'));
 
 export function orderRepositoryContract(make: () => Promise<OrderRepository>): void {
   it('finds what it saved', async () => {
@@ -1265,7 +1258,7 @@ export function orderRepositoryContract(make: () => Promise<OrderRepository>): v
     const orders = await make();
     const order = anOrder();
     await orders.save(order);
-    order.ship(clock);
+    order.ship();
     await orders.save(order);
     expect((await orders.findById(order.id))?.toPrimitives()).toStrictEqual(order.toPrimitives());
   });
@@ -1276,9 +1269,9 @@ export function orderRepositoryContract(make: () => Promise<OrderRepository>): v
     await orders.save(order);
     const first = (await orders.findById(order.id))!;
     const second = (await orders.findById(order.id))!;
-    first.ship(clock);
+    first.ship();
     await orders.save(first);
-    second.ship(clock);
+    second.ship();
     await expect(orders.save(second)).rejects.toBeInstanceOf(ConcurrencyException);
   });
 
@@ -1286,7 +1279,7 @@ export function orderRepositoryContract(make: () => Promise<OrderRepository>): v
     const orders = await make();
     const order = anOrder();
     await orders.save(order);
-    const copy = Order.create(order.id, new CustomerName('Luis'), clock);
+    const copy = Order.create(order.id, new CustomerName('Luis'));
     await expect(orders.save(copy)).rejects.toBeInstanceOf(ConcurrencyException);
   });
 }
@@ -1326,7 +1319,7 @@ order:
 2. `protected handle(command: Command)` (sync or async) coordinates the action with value objects
    only, in this order: authorization (`NotAllowedException`), a new id (`OrderId.generate()`)
    and `Order.create(...)` or `findById` (`AggregateNotFoundException` when it is `null`), the
-   business method with the clock, one `save` (or `remove`), then publish
+   business method, one `save` (or `remove`), then publish
    `aggregate.pullDomainEvents()`, log if the business wants a trace, and return. It never opens a transaction: each write is made atomic by the
    repository (see [Persistence belongs to the repository](#persistence-belongs-to-the-repository)).
 
@@ -1347,7 +1340,7 @@ import {
   UseCase,
   ValueObjectBuilder,
 } from '@archi-code/ddd/application';
-import type { Clock, EventBus } from '@archi-code/ddd/application';
+import type { EventBus } from '@archi-code/ddd/application';
 
 export interface ShipOrderInput {
   orderId: string;
@@ -1361,7 +1354,6 @@ export class ShipOrder extends UseCase<ShipOrderInput, ShipOrderCommand, void> {
   constructor(
     private readonly orders: OrderRepository,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }
@@ -1375,7 +1367,7 @@ export class ShipOrder extends UseCase<ShipOrderInput, ShipOrderCommand, void> {
     if (order === null) {
       throw new AggregateNotFoundException('Order', command.orderId.value);
     }
-    order.ship(this.clock);
+    order.ship();
     await this.orders.save(order);
     await this.events.publish(order.pullDomainEvents());
   }
@@ -1384,7 +1376,7 @@ export class ShipOrder extends UseCase<ShipOrderInput, ShipOrderCommand, void> {
 
 Save before publishing, and publish what `pullDomainEvents()` returns, so a failed save publishes
 nothing and events are never sent twice. The constructor receives, in this order and only what
-`handle` uses, the abstract repository of its aggregate (`OrderRepository`), domain services, `EventBus`, `Clock`
+`handle` uses, the abstract repository of its aggregate (`OrderRepository`), domain services, `EventBus`
 and `Logger`. A use case never imports another use case.
 
 ### Building every value object of an input at once: `ValueObjectBuilder.build`
@@ -1479,7 +1471,6 @@ export class RequestPaymentOnOrderCreated extends EventListener<OrderCreatedDoma
   constructor(
     private readonly payments: PaymentRepository,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }
@@ -1493,7 +1484,7 @@ export class RequestPaymentOnOrderCreated extends EventListener<OrderCreatedDoma
     if ((await this.payments.findById(paymentId)) !== null) {
       return;
     }
-    const payment = Payment.create(paymentId, orderReference, amount, this.clock);
+    const payment = Payment.create(paymentId, orderReference, amount);
     await this.payments.save(payment);
     await this.events.publish(payment.pullDomainEvents());
   }
@@ -1512,7 +1503,7 @@ async handle(event: ShipmentDispatchedDomainEvent): Promise<void> {
   if (order === null) {
     return;
   }
-  order.markShipped(trackingNumber, this.clock); // returns without changes unless the order is paid
+  order.markShipped(trackingNumber); // returns without changes unless the order is paid
   await this.orders.save(order);
   await this.events.publish(order.pullDomainEvents());
 }
@@ -1667,14 +1658,17 @@ const registry = new EventRegistry().register(
 const bus = new DomainEventBus(new InMemoryEventChannel(), registry);
 const confirming = await bus.subscribe(new SendConfirmationOnOrderCreated(mailer));
 
-const placeOrder = new PlaceOrder(orders, bus, clock); // the use case only sees EventBus
+const placeOrder = new PlaceOrder(orders, bus); // the use case only sees EventBus
 await placeOrder.execute({ customer: 'Ana' }); // the reaction ran with a rebuilt event
 await confirming.unsubscribe();
 ```
 
 - `DomainEventBus` implements `EventBus`; `subscribe(listener)` is its own method, called only by
   the wiring.
-- `publish(events)` sends a plain copy of each event (`{ ...event }`) to the channel in one `send`.
+- `publish(events)` sends the JSON of each event to the channel in one `send`:
+  `{ eventName, eventId, occurredOn, ...fields }`, where `occurredOn` is the time of the send (ISO
+  text in UTC). An event that already carries `occurredOn` (one rebuilt from its JSON and published
+  again) keeps it.
 - `subscribe(listener)` reads the event and the consumer with `ListensTo.subscriptionOf` (`ApplicationException` without
   `@ListensTo`), refuses an event the registry cannot rebuild (`UnknownEventException`, at wiring
   time rather than at the first delivery) and calls
@@ -1713,11 +1707,10 @@ context keeps its own copy of that event and a reaction use case sends the confi
 import { EventBase } from '@archi-code/ddd/domain';
 import type { EventMetadata } from '@archi-code/ddd/domain';
 import { EventListener, ListensTo, UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
-import type { Clock, EventBus } from '@archi-code/ddd/application';
+import type { EventBus } from '@archi-code/ddd/application';
 import {
   DomainEventBus,
   EventRegistry,
-  FixedClock,
   InMemoryEventChannel,
 } from '@archi-code/ddd/infrastructure';
 
@@ -1734,7 +1727,6 @@ export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, stri
   constructor(
     private readonly orders: OrderRepository,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }
@@ -1744,7 +1736,7 @@ export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, stri
   }
 
   protected async handle(command: PlaceOrderCommand): Promise<string> {
-    const order = Order.create(OrderId.generate(), command.customer, this.clock);
+    const order = Order.create(OrderId.generate(), command.customer);
     await this.orders.save(order);
     await this.events.publish(order.pullDomainEvents());
     return order.id.value;
@@ -1763,9 +1755,8 @@ export class OrderCreatedDomainEvent extends EventBase {
     customer,
     eventId,
     occurredOn,
-    clock,
   }: { orderId: string; customer: string } & EventMetadata) {
-    super({ eventId, occurredOn, clock });
+    super({ eventId, occurredOn });
     this.orderId = orderId;
     this.customer = customer;
   }
@@ -1811,12 +1802,12 @@ const bus = new DomainEventBus(channel, registry);
 const confirming = await bus.subscribe(new SendConfirmationOnOrderCreated(mailer));
 
 const orders = new InMemoryOrderRepository();
-const placeOrder = new PlaceOrder(orders, bus, new FixedClock('2026-10-19T09:30:00Z'));
+const placeOrder = new PlaceOrder(orders, bus);
 const orderId = await placeOrder.execute({ customer: 'Ana' });
 
 mails; // ['Ana: Order <orderId> confirmed']: the reaction ran before publish resolved
 channel.sent;
-// [{ eventName: 'order.created', eventId: '…', occurredOn: '2026-10-19T09:30:00.000Z',
+// [{ eventName: 'order.created', eventId: '…', occurredOn: '<time of the send>',
 //    orderId, customer: 'Ana' }]
 
 await bus.subscribe(new SendConfirmationOnOrderCreated(mailer));
@@ -1943,10 +1934,6 @@ pass.
 Technical capabilities the application needs and infrastructure implements (types only):
 
 ```ts
-interface Clock {
-  now(): Date;
-}
-
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 type LogContext = Readonly<Record<string, unknown>>;
 
@@ -2085,7 +2072,7 @@ export class MarkOrderSummaryShippedOnOrderShipped extends EventListener<OrderSh
     const { eventId, orderId, occurredOn } = ValueObjectBuilder.build({
       eventId: () => new UuidType(event.eventId),
       orderId: () => new OrderId(event.orderId),
-      occurredOn: () => new CreatedAt(event.occurredOn),
+      occurredOn: () => new CreatedAt(event.occurredOn as string),
     });
     await this.projection.apply({ eventId, orderId, occurredOn, changes: { status: 'shipped' } });
   }
@@ -2099,9 +2086,8 @@ Ready adapters for tests, prototypes and the edges of an API:
 | Export                                | What it is                                                                                                  |
 | ------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | `InMemoryEventChannel({ delivery }?)` | `EventChannel` inside the process, built on emittery's techniques; `sent` lists what was sent               |
-| `ConsoleLogger({ level?, clock? }?)`  | `Logger` that writes one JSON line per entry from `level` up (`info` by default)                            |
+| `ConsoleLogger({ level? }?)`          | `Logger` that writes one JSON line per entry from `level` up (`info` by default)                            |
 | `InMemoryLogger`, `SilentLogger`      | `Logger` that keeps `entries` for tests, and one that writes nothing (the default of every piece that logs) |
-| `SystemClock`, `FixedClock(at)`       | `Clock` with the real time, and a test clock with `set(at)` and `advance(ms)`                               |
 
 The package ships no repository: each project writes one per aggregate and technology (see
 [Writing a repository](#writing-a-repository)), including the in-memory one.
@@ -2137,17 +2123,17 @@ channel.sent.map((event) => event.eventName); // ['order.created']
 The application declares the [`Logger` port](#ports); infrastructure ships three providers and
 logs on its own only where nobody else sees the error:
 
-| Provider                             | Use                                                                                                   |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------- |
-| `ConsoleLogger({ level?, clock? }?)` | Production without a logging library, Node and browsers: one JSON line per entry on `console.<level>` |
-| `InMemoryLogger`                     | Tests: `entries` lists `{ level, message, context? }` in order (a copy)                               |
-| `SilentLogger`                       | Writes nothing; the default when no logger is passed                                                  |
+| Provider                     | Use                                                                                                   |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `ConsoleLogger({ level? }?)` | Production without a logging library, Node and browsers: one JSON line per entry on `console.<level>` |
+| `InMemoryLogger`             | Tests: `entries` lists `{ level, message, context? }` in order (a copy)                               |
+| `SilentLogger`               | Writes nothing; the default when no logger is passed                                                  |
 
 ```ts
 import type { Logger } from '@archi-code/ddd/application';
-import { ConsoleLogger, DomainEventBus, SystemClock } from '@archi-code/ddd/infrastructure';
+import { ConsoleLogger, DomainEventBus } from '@archi-code/ddd/infrastructure';
 
-const logger: Logger = new ConsoleLogger({ level: 'info', clock: new SystemClock() });
+const logger: Logger = new ConsoleLogger({ level: 'info' });
 logger.warn('stock_low', { sku: 'TORCH-01', units: 2 });
 // console.warn: {"time":"2026-10-19T09:30:00.000Z","level":"warn","message":"stock_low","context":{"sku":"TORCH-01","units":2}}
 
@@ -2218,8 +2204,9 @@ aggregate:
    data does not have.
 3. **A public constructor that only assigns, and two factories**: the constructor receives every
    field already built (id first, `createdAt` and `updatedAt` last), calls `super(id)` and assigns,
-   with no checks, events nor defaults. `static create(id, ...valueObjects, clock)` receives the id
-   from the use case (it never generates nor computes it), sets the initial state, checks the
+   with no checks, events nor defaults. `static create(id, ...valueObjects)` receives the id
+   from the use case (it never generates nor computes it), sets the initial state (`createdAt` and
+   `updatedAt` with `CreatedAt.now()` and `UpdatedAt.now()`), checks the
    creation invariants and records `<Aggregate>CreatedDomainEvent`; `static
 fromPrimitives(primitives: PrimitiveTypes<Order>)` rebuilds it from stored data, building each
    value object from its primitive and recording no event. Because value objects validate in their
@@ -2233,11 +2220,9 @@ fromPrimitives(primitives: PrimitiveTypes<Order>)` rebuilds it from stored data,
 6. **One round-trip test per aggregate**: `Order.fromPrimitives(order.toPrimitives()).toPrimitives()`
    equals `order.toPrimitives()`.
 
-Members go in this order: a local `interface Clock { now(): Date }` above the class (the domain
-never imports the `Clock` port from `/application`; the port matches it), `private static
-readonly` business constants, fields, constructor, `create`, `fromPrimitives`, getters, queries,
+Members go in this order: `private static readonly` business constants, fields, constructor, `create`, `fromPrimitives`, getters, queries,
 business methods, `toPrimitives` and private helpers. Each business method is named after the
-business action, takes value objects and the `clock` last, updates `_updatedAt` and records its
+business action, takes value objects, updates `_updatedAt` with `UpdatedAt.now()` and records its
 events. A method a user asks for throws a business error when it does not apply (`ship` on a
 shipped order); a method a reaction calls to register a fact returns without changes instead.
 
@@ -2263,10 +2248,6 @@ import {
 } from '@archi-code/ddd/domain';
 import type { EventMetadata, PrimitiveTypes } from '@archi-code/ddd/domain';
 
-interface Clock {
-  now(): Date;
-}
-
 class OrderId extends IdType<'OrderId'> {}
 class CustomerName extends Required(StringType) {}
 class Shipped extends Required(BooleanType) {}
@@ -2286,9 +2267,8 @@ class OrderCreatedDomainEvent extends EventBase {
     customer,
     eventId,
     occurredOn,
-    clock,
   }: { orderId: string; customer: string } & EventMetadata) {
-    super({ eventId, occurredOn, clock });
+    super({ eventId, occurredOn });
     this.orderId = orderId;
     this.customer = customer;
   }
@@ -2299,8 +2279,8 @@ class OrderShippedDomainEvent extends EventBase {
 
   readonly orderId: string;
 
-  constructor({ orderId, eventId, occurredOn, clock }: { orderId: string } & EventMetadata) {
-    super({ eventId, occurredOn, clock });
+  constructor({ orderId, eventId, occurredOn }: { orderId: string } & EventMetadata) {
+    super({ eventId, occurredOn });
     this.orderId = orderId;
   }
 }
@@ -2334,20 +2314,12 @@ class Order extends AggregateRoot<OrderId> {
     this._updatedAt = updatedAt;
   }
 
-  static create(id: OrderId, customer: CustomerName, clock: Clock): Order {
-    const order = new Order(
-      id,
-      customer,
-      new Shipped(false),
-      [],
-      CreatedAt.now(clock),
-      UpdatedAt.now(clock),
-    );
+  static create(id: OrderId, customer: CustomerName): Order {
+    const order = new Order(id, customer, new Shipped(false), [], CreatedAt.now(), UpdatedAt.now());
     order.record(
       new OrderCreatedDomainEvent({
         orderId: order.id.value,
         customer: order.customer.value,
-        clock,
       }),
     );
     return order;
@@ -2380,17 +2352,17 @@ class Order extends AggregateRoot<OrderId> {
     return this._lines.reduce((total, line) => total + line.quantity.value, 0);
   }
 
-  addLine(line: OrderLine, clock: Clock): void {
+  addLine(line: OrderLine): void {
     this.assertNotShipped();
     this._lines = [...this._lines, line];
-    this.touch(clock);
+    this.touch();
   }
 
-  ship(clock: Clock): void {
+  ship(): void {
     this.assertNotShipped();
     this._shipped = new Shipped(true);
-    this.touch(clock);
-    this.record(new OrderShippedDomainEvent({ orderId: this.id.value, clock }));
+    this.touch();
+    this.record(new OrderShippedDomainEvent({ orderId: this.id.value }));
   }
 
   toPrimitives(): PrimitiveTypes<Order> {
@@ -2410,8 +2382,8 @@ class Order extends AggregateRoot<OrderId> {
     }
   }
 
-  private touch(clock: Clock): void {
-    this._updatedAt = UpdatedAt.now(clock);
+  private touch(): void {
+    this._updatedAt = UpdatedAt.now();
   }
 }
 
@@ -2450,7 +2422,6 @@ also declares `abstract remove(order: Order): Promise<void>` and implements
 ```ts
 import type { PrimitiveTypes } from '@archi-code/ddd/domain';
 import { ConcurrencyException } from '@archi-code/ddd/application';
-import { FixedClock } from '@archi-code/ddd/infrastructure';
 
 interface OrderRow {
   version: number;
@@ -2493,14 +2464,13 @@ export class InMemoryOrderRepository extends OrderRepository {
   }
 }
 
-const clock = new FixedClock('2026-10-17T10:00:00Z');
 const orders = new InMemoryOrderRepository();
-await orders.save(Order.create(new OrderId(id), new CustomerName('Ana'), clock));
+await orders.save(Order.create(new OrderId(id), new CustomerName('Ana')));
 const byAna = (await orders.findById(new OrderId(id)))!; // version 1, a copy
 const byLuis = (await orders.findById(new OrderId(id)))!; // version 1, another copy
-byAna.ship(clock);
+byAna.ship();
 await orders.save(byAna); // stored as version 2
-byLuis.addLine(new OrderLine({ sku: new Sku('TORCH-01'), quantity: new Quantity(1) }), clock);
+byLuis.addLine(new OrderLine({ sku: new Sku('TORCH-01'), quantity: new Quantity(1) }));
 await orders.save(byLuis);
 // ConcurrencyException: Order with ID … was changed by someone else: expected version 1.
 ```
@@ -2732,7 +2702,7 @@ confirmTransfer(request: HttpRequest): Promise<HttpResponse> {
 
 Each context has one `composition.ts`, the only place that builds its classes and reads its
 configuration: a class `<Context>Context` with `interface <Context>Settings` (the shared
-`channel`, the `clock`, the `logger` and the context's own data). `static async start(settings)`
+`channel`, the `logger` and the context's own data). `static async start(settings)`
 builds one `DomainEventBus` over the shared channel with the context's registry, the
 repositories, adapters, domain services and projections, every reaction use case (each
 subscribed, its `Subscription` kept) and the controllers with the user use cases; `stop()`
@@ -2741,13 +2711,12 @@ application's entry file opens one channel and starts every context on it, and s
 reverse order.
 
 ```ts
-import type { Clock, Logger } from '@archi-code/ddd/application';
+import type { Logger } from '@archi-code/ddd/application';
 import { DomainEventBus, EventRegistry } from '@archi-code/ddd/infrastructure';
 import type { EventChannel, Subscription } from '@archi-code/ddd/infrastructure';
 
 export interface PaymentsSettings {
   channel: EventChannel;
-  clock: Clock;
   logger: Logger;
 }
 
@@ -2758,17 +2727,14 @@ export class PaymentsContext {
     private readonly subscriptions: Subscription[],
   ) {}
 
-  static async start({ channel, clock, logger }: PaymentsSettings): Promise<PaymentsContext> {
+  static async start({ channel, logger }: PaymentsSettings): Promise<PaymentsContext> {
     const bus = new DomainEventBus(channel, PaymentsContext.registry(), logger);
     const payments = new InMemoryPaymentRepository();
     const subscriptions = [
-      await bus.subscribe(new RequestPaymentOnOrderCreated(payments, bus, clock)),
-      await bus.subscribe(new SettleCancelledOrderPaymentOnOrderCancelled(payments, bus, clock)),
+      await bus.subscribe(new RequestPaymentOnOrderCreated(payments, bus)),
+      await bus.subscribe(new SettleCancelledOrderPaymentOnOrderCancelled(payments, bus)),
     ];
-    const controller = new PaymentsController(
-      new ConfirmTransferReceived(payments, bus, clock),
-      logger,
-    );
+    const controller = new PaymentsController(new ConfirmTransferReceived(payments, bus), logger);
     return new PaymentsContext(payments, controller, subscriptions);
   }
 
@@ -2803,8 +2769,8 @@ export class PaymentsContext {
 }
 
 const channel = new InMemoryEventChannel({ delivery: 'serial' });
-const sales = await SalesContext.start({ channel, clock, logger });
-const payments = await PaymentsContext.start({ channel, clock, logger });
+const sales = await SalesContext.start({ channel, logger });
+const payments = await PaymentsContext.start({ channel, logger });
 ```
 
 ## Full example
@@ -2836,12 +2802,11 @@ import {
   UseCase,
   ValueObjectBuilder,
 } from '@archi-code/ddd/application';
-import type { Clock, EventBus } from '@archi-code/ddd/application';
+import type { EventBus } from '@archi-code/ddd/application';
 import {
   DomainEventBus,
   EventRegistry,
   ExceptionClassifier,
-  FixedClock,
   InMemoryEventChannel,
 } from '@archi-code/ddd/infrastructure';
 import { InMemoryUserRepository } from './test/support/in-memory-user-repository';
@@ -2864,9 +2829,8 @@ class UserRegisteredDomainEvent extends EventBase {
     email,
     eventId,
     occurredOn,
-    clock,
   }: { userId: string; email: string } & EventMetadata) {
-    super({ eventId, occurredOn, clock });
+    super({ eventId, occurredOn });
     this.userId = userId;
     this.email = email;
   }
@@ -2883,9 +2847,8 @@ class UserRenamedDomainEvent extends EventBase {
     name,
     eventId,
     occurredOn,
-    clock,
   }: { userId: string; name: string } & EventMetadata) {
-    super({ eventId, occurredOn, clock });
+    super({ eventId, occurredOn });
     this.userId = userId;
     this.name = name;
   }
@@ -2920,18 +2883,9 @@ class User extends AggregateRoot<UserId> {
     this._updatedAt = updatedAt;
   }
 
-  static create(id: UserId, name: Name, email: Email, clock: Clock): User {
-    const user = new User(
-      id,
-      name,
-      email,
-      new Blocked(false),
-      CreatedAt.now(clock),
-      UpdatedAt.now(clock),
-    );
-    user.record(
-      new UserRegisteredDomainEvent({ userId: user.id.value, email: user.email.value, clock }),
-    );
+  static create(id: UserId, name: Name, email: Email): User {
+    const user = new User(id, name, email, new Blocked(false), CreatedAt.now(), UpdatedAt.now());
+    user.record(new UserRegisteredDomainEvent({ userId: user.id.value, email: user.email.value }));
     return user;
   }
 
@@ -2958,13 +2912,13 @@ class User extends AggregateRoot<UserId> {
     return this._updatedAt;
   }
 
-  rename(name: Name, clock: Clock): void {
+  rename(name: Name): void {
     if (this._blocked.value) {
       throw new UserBlocked(this.id.value);
     }
     this._name = name;
-    this._updatedAt = UpdatedAt.now(clock);
-    this.record(new UserRenamedDomainEvent({ userId: this.id.value, name: name.value, clock }));
+    this._updatedAt = UpdatedAt.now();
+    this.record(new UserRenamedDomainEvent({ userId: this.id.value, name: name.value }));
   }
 
   toPrimitives(): PrimitiveTypes<User> {
@@ -3001,7 +2955,6 @@ class RegisterUser extends UseCase<RegisterUserInput, RegisterUserCommand, strin
   constructor(
     private readonly users: UserRepository,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }
@@ -3014,7 +2967,7 @@ class RegisterUser extends UseCase<RegisterUserInput, RegisterUserCommand, strin
   }
 
   protected async handle(command: RegisterUserCommand): Promise<string> {
-    const user = User.create(UserId.generate(), command.name, command.email, this.clock);
+    const user = User.create(UserId.generate(), command.name, command.email);
     await this.users.save(user);
     await this.events.publish(user.pullDomainEvents());
     return user.id.value;
@@ -3035,7 +2988,6 @@ class RenameUser extends UseCase<RenameUserInput, RenameUserCommand, void> {
   constructor(
     private readonly users: UserRepository,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }
@@ -3052,7 +3004,7 @@ class RenameUser extends UseCase<RenameUserInput, RenameUserCommand, void> {
     if (user === null) {
       throw new AggregateNotFoundException('User', command.userId.value);
     }
-    user.rename(command.name, this.clock);
+    user.rename(command.name);
     await this.users.save(user);
     await this.events.publish(user.pullDomainEvents());
   }
@@ -3098,25 +3050,24 @@ const registry = new EventRegistry()
   );
 const bus = new DomainEventBus(channel, registry);
 await bus.subscribe(new SendWelcomeEmailOnUserRegistered(emails));
-const clock = new FixedClock('2026-01-01T09:00:00Z');
 
-const id = await new RegisterUser(users, bus, clock).execute({
+const id = await new RegisterUser(users, bus).execute({
   name: 'Ana',
   email: 'ana@example.com',
 });
-await new RenameUser(users, bus, clock).execute({ userId: id, name: 'Ana María' });
+await new RenameUser(users, bus).execute({ userId: id, name: 'Ana María' });
 
 channel.sent.map((event) => event.eventName); // ['user.registered', 'user.renamed']
 emails; // ['Welcome, ana@example.com']
 (await users.findById(new UserId(id)))?.toPrimitives();
 // { id, name: 'Ana María', email: 'ana@example.com', blocked: false,
-//   createdAt: 2026-01-01T09:00:00.000Z, updatedAt: 2026-01-01T09:00:00.000Z }
+//   createdAt: <Date of the registration>, updatedAt: <Date of the rename> }
 
-await new RenameUser(users, bus, clock)
+await new RenameUser(users, bus)
   .execute({ userId: UserId.random(), name: 'Eva' })
   .catch((error) => ExceptionClassifier.classify(error));
 // 'not_found'
-await new RegisterUser(users, bus, clock)
+await new RegisterUser(users, bus)
   .execute({ name: 'Eva', email: 'x' })
   .catch((error) => ExceptionClassifier.classify(error));
 // 'invalid'
@@ -3166,7 +3117,7 @@ in the repository, not in the npm package:
 | `ListensToOptions`                                                                                                              | type (`{ consumer }`)            |
 | `ListenerSubscription`                                                                                                          | type (`{ eventName, consumer }`) |
 | `EventBus`                                                                                                                      | type (event port)                |
-| `Clock`, `Logger`                                                                                                               | types (ports)                    |
+| `Logger`                                                                                                                        | type (port)                      |
 | `LogLevel`, `LogContext`                                                                                                        | types (logger port)              |
 | `ApplicationException`, `ConcurrencyException`, `AggregateNotFoundException`, `NotAllowedException`, `UnexpectedErrorException` | classes (exceptions)             |
 | `ApplicationExceptionCode`                                                                                                      | enum                             |
@@ -3175,7 +3126,7 @@ in the repository, not in the npm package:
 
 | Export                                                                                                 | Kind                   |
 | ------------------------------------------------------------------------------------------------------ | ---------------------- |
-| `InMemoryEventChannel`, `SystemClock`, `FixedClock`                                                    | classes                |
+| `InMemoryEventChannel`                                                                                 | class                  |
 | `ConsoleLogger`, `InMemoryLogger`, `SilentLogger`                                                      | classes (loggers)      |
 | `DomainEventBus`, `EventRegistry`                                                                      | classes (event wiring) |
 | `EventChannel`, `ChannelHandler`, `ChannelSubscription`                                                | types (channel port)   |

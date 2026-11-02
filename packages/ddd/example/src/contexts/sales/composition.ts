@@ -1,4 +1,4 @@
-import type { Clock, Logger } from '../../ddd/application';
+import type { Logger } from '../../ddd/application';
 import { DomainEventBus, EventRegistry } from '../../ddd/infrastructure';
 import type { EventChannel, Subscription } from '../../ddd/infrastructure';
 import { CancelOrder } from './application/cancel-order/cancel-order';
@@ -39,7 +39,6 @@ import { OrdersController } from './interfaces/http/orders-controller';
 
 export interface SalesSettings {
   channel: EventChannel;
-  clock: Clock;
   logger: Logger;
   campaigns: readonly MarketingCampaign[];
 }
@@ -52,7 +51,7 @@ export class SalesContext {
     private readonly subscriptions: Subscription[],
   ) {}
 
-  static async start({ channel, clock, logger, campaigns }: SalesSettings): Promise<SalesContext> {
+  static async start({ channel, logger, campaigns }: SalesSettings): Promise<SalesContext> {
     const bus = new DomainEventBus(channel, SalesContext.registry(), logger);
     const orders = new InMemoryOrderRepository();
     const summaries = new InMemoryOrderSummaryStore();
@@ -66,10 +65,10 @@ export class SalesContext {
       new MarkOrderSummaryCancelledOnOrderCancelled(projection),
       new MarkOrderSummaryShippedOnOrderShipped(projection),
       new MarkOrderSummaryDeliveredOnOrderDelivered(projection),
-      new MarkOrderPaidOnPaymentCaptured(orders, bus, clock),
-      new CancelUnpaidOrderOnPaymentRejected(orders, bus, clock, logger),
-      new MarkOrderShippedOnShipmentDispatched(orders, bus, clock),
-      new MarkOrderDeliveredOnShipmentDelivered(orders, bus, clock),
+      new MarkOrderPaidOnPaymentCaptured(orders, bus),
+      new CancelUnpaidOrderOnPaymentRejected(orders, bus, logger),
+      new MarkOrderShippedOnShipmentDispatched(orders, bus),
+      new MarkOrderDeliveredOnShipmentDelivered(orders, bus),
     ];
     const subscriptions: Subscription[] = [];
     for (const listener of listeners) {
@@ -78,10 +77,10 @@ export class SalesContext {
 
     const controller = new OrdersController(
       {
-        placeOrder: new PlaceOrder(orders, pricing, bus, clock),
-        changeOrderLineQuantity: new ChangeOrderLineQuantity(orders, bus, clock),
-        changeShippingAddress: new ChangeShippingAddress(orders, bus, clock),
-        cancelOrder: new CancelOrder(orders, bus, clock),
+        placeOrder: new PlaceOrder(orders, pricing, bus),
+        changeOrderLineQuantity: new ChangeOrderLineQuantity(orders, bus),
+        changeShippingAddress: new ChangeShippingAddress(orders, bus),
+        cancelOrder: new CancelOrder(orders, bus),
         discardCancelledOrder: new DiscardCancelledOrder(orders),
       },
       summaries,

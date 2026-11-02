@@ -1,5 +1,5 @@
 import { EventListener, ListensTo, ValueObjectBuilder } from '../../../../ddd/application';
-import type { Clock, EventBus } from '../../../../ddd/application';
+import type { EventBus } from '../../../../ddd/application';
 import type { ShipmentRepository } from '../../domain/repository/ShipmentRepository';
 import { OrderReference } from '../../domain/value-object/OrderReference';
 import { ShipmentId } from '../../domain/value-object/ShipmentId';
@@ -10,7 +10,6 @@ export class CancelShipmentOnOrderCancelled extends EventListener<OrderCancelled
   constructor(
     private readonly shipments: ShipmentRepository,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }
@@ -23,7 +22,7 @@ export class CancelShipmentOnOrderCancelled extends EventListener<OrderCancelled
     if (shipment === null) {
       return;
     }
-    shipment.cancelForCancelledOrder(this.clock);
+    shipment.cancelForCancelledOrder();
     await this.shipments.save(shipment);
     await this.events.publish(shipment.pullDomainEvents());
   }

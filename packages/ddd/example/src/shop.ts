@@ -1,4 +1,4 @@
-import type { Clock, Logger } from './ddd/application';
+import type { Logger } from './ddd/application';
 import { InMemoryEventChannel } from './ddd/infrastructure';
 import { PaymentsContext } from './contexts/payments/composition';
 import { SalesContext } from './contexts/sales/composition';
@@ -6,7 +6,6 @@ import type { MarketingCampaign } from './contexts/sales/infrastructure/coupon/i
 import { ShippingContext } from './contexts/shipping/composition';
 
 export interface ShopSettings {
-  clock: Clock;
   logger: Logger;
   campaigns?: readonly MarketingCampaign[];
 }
@@ -19,11 +18,11 @@ export class Shop {
     readonly shipping: ShippingContext,
   ) {}
 
-  static async open({ clock, logger, campaigns = [] }: ShopSettings): Promise<Shop> {
+  static async open({ logger, campaigns = [] }: ShopSettings): Promise<Shop> {
     const channel = new InMemoryEventChannel({ delivery: 'serial' });
-    const sales = await SalesContext.start({ channel, clock, logger, campaigns });
-    const payments = await PaymentsContext.start({ channel, clock, logger });
-    const shipping = await ShippingContext.start({ channel, clock, logger });
+    const sales = await SalesContext.start({ channel, logger, campaigns });
+    const payments = await PaymentsContext.start({ channel, logger });
+    const shipping = await ShippingContext.start({ channel, logger });
     return new Shop(channel, sales, payments, shipping);
   }
 

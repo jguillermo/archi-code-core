@@ -36,7 +36,7 @@ import { IdType } from '@archi-code/ddd/domain';
 
 export class OrderId extends IdType<'OrderId'> {}
 
-const order = Order.create(OrderId.generate(), customerId, lines, shippingAddress, clock);
+const order = Order.create(OrderId.generate(), customerId, lines, shippingAddress);
 ```
 
 `XId.generate()` crea un value object de la clase sobre la que se llama (`OrderId.generate()` es un `OrderId`) con un UUID v4. Si conviene orden temporal en índices, `new OrderId(uuidv7())` `[Fuera de los libros]`.
@@ -95,11 +95,11 @@ new Seat(new SeatNumber(7), new SeatLabel('A1'), new Sold(false)).equals(
 ); // true: misma clase y mismo id
 ```
 
-Una entidad hija no tiene reloj, eventos, `create` ni `toPrimitives`/`fromPrimitives`: la raíz la construye (asignándole su id local) y la convierte. Si nadie busca la parte por su id (las líneas de un pedido), no es una entidad hija sino un `Composite` (`ddd-skills/ddd-value-objects-entidades/references/value-objects-ts.md`, sección 7).
+Una entidad hija no tiene eventos, `create` ni `toPrimitives`/`fromPrimitives`: la raíz la construye (asignándole su id local) y la convierte. Si nadie busca la parte por su id (las líneas de un pedido), no es una entidad hija sino un `Composite` (`ddd-skills/ddd-value-objects-entidades/references/value-objects-ts.md`, sección 7).
 
 ### Creación frente a reconstitución
 
-Separar dos caminos evita que la carga desde base de datos vuelva a disparar reglas de creación o eventos `[Fuera de los libros como patrón explícito; IDDD lo resuelve con acceso por campo del ORM]`. Con el paquete, los dos caminos son `static create(id, …valueObjects, clock)` y `static fromPrimitives(primitives: PrimitiveTypes<X>)`, que llaman al mismo constructor público, con su `toPrimitives()` para guardar `[Fuera de los libros: convención de @archi-code/ddd]`. En `domain/value-object/CustomerStatusType.ts`, el estado:
+Separar dos caminos evita que la carga desde base de datos vuelva a disparar reglas de creación o eventos `[Fuera de los libros como patrón explícito; IDDD lo resuelve con acceso por campo del ORM]`. Con el paquete, los dos caminos son `static create(id, …valueObjects)` y `static fromPrimitives(primitives: PrimitiveTypes<X>)`, que llaman al mismo constructor público, con su `toPrimitives()` para guardar `[Fuera de los libros: convención de @archi-code/ddd]`. En `domain/value-object/CustomerStatusType.ts`, el estado:
 
 ```ts
 import { EnumType, Required } from '@archi-code/ddd/domain';
@@ -141,9 +141,8 @@ export class CustomerBlockedDomainEvent extends EventBase {
     reason,
     eventId,
     occurredOn,
-    clock,
   }: { customerId: string; reason: string } & EventMetadata) {
-    super({ eventId, occurredOn, clock });
+    super({ eventId, occurredOn });
     this.customerId = customerId;
     this.reason = reason;
   }
@@ -161,10 +160,6 @@ export class BlockedCustomerCannotChangeEmail extends DomainException {
 ```ts
 import { AggregateRoot, CreatedAt, UpdatedAt } from '@archi-code/ddd/domain';
 import type { PrimitiveTypes } from '@archi-code/ddd/domain';
-
-interface Clock {
-  now(): Date;
-}
 
 export class Customer extends AggregateRoot<CustomerId> {
   private _name: CustomerName;
@@ -189,16 +184,16 @@ export class Customer extends AggregateRoot<CustomerId> {
     this._updatedAt = updatedAt;
   }
 
-  static create(id: CustomerId, name: CustomerName, email: Email, clock: Clock): Customer {
+  static create(id: CustomerId, name: CustomerName, email: Email): Customer {
     const customer = new Customer(
       id,
       name,
       email,
       new CustomerStatusType(CustomerStatus.ACTIVE),
-      CreatedAt.now(clock),
-      UpdatedAt.now(clock),
+      CreatedAt.now(),
+      UpdatedAt.now(),
     );
-    customer.record(new CustomerCreatedDomainEvent({ customerId: customer.id.value, clock }));
+    customer.record(new CustomerCreatedDomainEvent({ customerId: customer.id.value }));
     return customer;
   }
 
@@ -233,22 +228,22 @@ export class Customer extends AggregateRoot<CustomerId> {
     return this._status.value === CustomerStatus.BLOCKED;
   }
 
-  changeEmail(email: Email, clock: Clock): void {
+  changeEmail(email: Email): void {
     if (this.isBlocked()) {
       throw new BlockedCustomerCannotChangeEmail(this.id.value);
     }
     this._email = email;
-    this.touch(clock);
+    this.touch();
   }
 
-  block(reason: BlockReason, clock: Clock): void {
+  block(reason: BlockReason): void {
     if (this.isBlocked()) {
       return;
     }
     this._status = new CustomerStatusType(CustomerStatus.BLOCKED);
-    this.touch(clock);
+    this.touch();
     this.record(
-      new CustomerBlockedDomainEvent({ customerId: this.id.value, reason: reason.value, clock }),
+      new CustomerBlockedDomainEvent({ customerId: this.id.value, reason: reason.value }),
     );
   }
 
@@ -263,8 +258,8 @@ export class Customer extends AggregateRoot<CustomerId> {
     };
   }
 
-  private touch(clock: Clock): void {
-    this._updatedAt = UpdatedAt.now(clock);
+  private touch(): void {
+    this._updatedAt = UpdatedAt.now();
   }
 }
 ```
@@ -273,7 +268,7 @@ export class Customer extends AggregateRoot<CustomerId> {
 
 Fíjate en:
 * Constructor público que solo asigna y dos caminos que lo usan: `create` (fija el estado inicial, comprueba las reglas de creación y registra `CustomerCreatedDomainEvent`) y `fromPrimitives` (técnica, solo para repositorios: rehace cada value object desde su primitivo, que vuelve a validar, y no registra nada). Los libros usan un constructor privado y una fábrica con nombre del negocio [IDDD cap. 11].
-* Ningún setter; cada cambio es un comportamiento con nombre y sus reglas, y actualiza `_updatedAt` con el reloj que recibe (la `interface Clock` local: el dominio no importa `/application`). `changeEmail` lo pide un usuario y lanza un error de negocio; `block` es idempotente y registra `CustomerBlockedDomainEvent` con el reloj, nunca con `new Date()`.
+* Ningún setter; cada cambio es un comportamiento con nombre y sus reglas, y actualiza `_updatedAt` con `UpdatedAt.now()` (en `touch()`), nunca con `new Date()`, sin recibir la hora como parámetro `[Fuera de los libros: convención de @archi-code/ddd]`. `changeEmail` lo pide un usuario y lanza un error de negocio; `block` es idempotente y registra `CustomerBlockedDomainEvent` sin fecha (`occurredOn` lo pone el bus al enviarlo).
 * Todos los atributos son value objects; cambiar el correo es reemplazar un `Email`.
 * Getters solo para lo que los clientes necesitan leer, dicen los libros. Con el paquete, cada campo que se guarda es `readonly` público o `private _campo` con un getter público con su nombre sin `_`, porque `toPrimitives()` los lee, y `createdAt`/`_updatedAt` van los últimos `[Fuera de los libros: convención de @archi-code/ddd]`. Los valores derivados son métodos (`isBlocked()`), nunca getters.
 * El agregado no declara `version` ni la incluye en `toPrimitives()`: la versión es solo del repositorio, que la recuerda por agregado en un `WeakMap` y la guarda junto a los primitivos.

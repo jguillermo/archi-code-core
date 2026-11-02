@@ -4,7 +4,7 @@ import {
   UseCase,
   ValueObjectBuilder,
 } from '../../../../ddd/application';
-import type { Clock, EventBus } from '../../../../ddd/application';
+import type { EventBus } from '../../../../ddd/application';
 import type { OrderRepository } from '../../domain/repository/OrderRepository';
 import type { AddressData } from '../place-order/address-data';
 import { OrderId } from '../../domain/value-object/OrderId';
@@ -30,7 +30,6 @@ export class ChangeShippingAddress extends UseCase<
   constructor(
     private readonly orders: OrderRepository,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }
@@ -49,7 +48,7 @@ export class ChangeShippingAddress extends UseCase<
         if (order === null) {
           throw new AggregateNotFoundException('Order', command.orderId.value);
         }
-        order.changeShippingAddress(command.shippingAddress, this.clock);
+        order.changeShippingAddress(command.shippingAddress);
         await this.orders.save(order);
         return await this.events.publish(order.pullDomainEvents());
       } catch (error) {

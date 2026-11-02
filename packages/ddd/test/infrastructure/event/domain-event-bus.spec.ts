@@ -107,7 +107,34 @@ describe('DomainEventBus: the bus every channel shares', () => {
 
     await bus.publish([placed, shipped]);
 
-    expect(channel.sends).toStrictEqual([[{ ...placed }, { ...shipped }]]);
+    const occurredOn = expect.any(String);
+    expect(channel.sends).toStrictEqual([
+      [
+        { ...placed, occurredOn },
+        { ...shipped, occurredOn },
+      ],
+    ]);
+  });
+
+  it('stamps every event it sends with a valid date, in the envelope before the data', async () => {
+    const channel = new RecordingChannel();
+    const bus = new DomainEventBus(channel, orderEvents());
+
+    await bus.publish([new OrderShipped(orderId)]);
+
+    const [[sent]] = channel.sends;
+    expect(Object.keys(sent).slice(0, 3)).toStrictEqual(['eventName', 'eventId', 'occurredOn']);
+    expect(Number.isNaN(Date.parse(sent.occurredOn))).toBe(false);
+  });
+
+  it('keeps the date an event already carries, so an event read back is sent again as it was', async () => {
+    const channel = new RecordingChannel();
+    const bus = new DomainEventBus(channel, orderEvents());
+    const stored = new OrderShipped(orderId, { occurredOn: '2026-03-01T09:30:00Z' });
+
+    await bus.publish([stored]);
+
+    expect(channel.sends[0][0].occurredOn).toBe('2026-03-01T09:30:00.000Z');
   });
 
   it('subscribes a listener under its event name, with the consumer name it declares', async () => {
@@ -136,7 +163,8 @@ describe('DomainEventBus: the bus every channel shares', () => {
     const [received] = listener.reserved;
     expect(received).toBeInstanceOf(OrderPlaced);
     expect(received).not.toBe(placed);
-    expect({ ...received }).toStrictEqual({ ...placed });
+    expect({ ...received }).toStrictEqual({ ...placed, occurredOn: received.occurredOn });
+    expect(Number.isNaN(Date.parse(received.occurredOn as string))).toBe(false);
   });
 
   it('closes the channel subscription on unsubscribe', async () => {
@@ -309,7 +337,11 @@ describe('DomainEventBus: the bus every channel shares', () => {
       const [receiver] = channel.receivers;
 
       await expect(
-        receiver.handler({ ...new OrderShipped(orderId), eventName: 'OrderReturned' }),
+        receiver.handler({
+          ...new OrderShipped(orderId),
+          eventName: 'OrderReturned',
+          occurredOn: '2026-03-01T09:30:00Z',
+        }),
       ).rejects.toThrow(UnknownEventException);
 
       expect(logger.entries[logger.entries.length - 1]).toMatchObject({

@@ -23,13 +23,12 @@ export class PaymentCreatedDomainEvent extends EventBase {
     amount,
     eventId,
     occurredOn,
-    clock,
   }: {
     paymentId: string;
     orderId: string;
     amount: { amount: number; currency: string };
   } & EventMetadata) {
-    super({ eventId, occurredOn, clock });
+    super({ eventId, occurredOn });
     this.paymentId = paymentId;
     this.orderId = orderId;
     this.amount = amount;
@@ -49,9 +48,8 @@ export class PaymentAuthorizedDomainEvent extends EventBase {
     expiresAt,
     eventId,
     occurredOn,
-    clock,
   }: { paymentId: string; authorizationCode: string; expiresAt: string } & EventMetadata) {
-    super({ eventId, occurredOn, clock });
+    super({ eventId, occurredOn });
     this.paymentId = paymentId;
     this.authorizationCode = authorizationCode;
     this.expiresAt = expiresAt;
@@ -69,9 +67,8 @@ export class PaymentRejectedDomainEvent extends EventBase {
     reason,
     eventId,
     occurredOn,
-    clock,
   }: { paymentId: string; reason: string } & EventMetadata) {
-    super({ eventId, occurredOn, clock });
+    super({ eventId, occurredOn });
     this.paymentId = paymentId;
     this.reason = reason;
   }
@@ -82,22 +79,22 @@ export class PaymentCapturedDomainEvent extends EventBase {
 
   readonly paymentId: string;
 
-  constructor({ paymentId, eventId, occurredOn, clock }: { paymentId: string } & EventMetadata) {
-    super({ eventId, occurredOn, clock });
+  constructor({ paymentId, eventId, occurredOn }: { paymentId: string } & EventMetadata) {
+    super({ eventId, occurredOn });
     this.paymentId = paymentId;
   }
 }
 
 ```
 
-`EventBase` pone `eventName`, `eventId` y `occurredOn` (texto ISO en UTC, del `clock` que recibe el método del agregado); la identidad del pago es un campo más del evento (`paymentId`), declarado por cada clase. `{ ...event }` da `eventName`, `eventId`, `occurredOn` y los campos, todos datos primitivos (regla del paquete, no comprobada en ejecución): esa es la fila del stream.
+`EventBase` pone `eventName` y `eventId`; un evento nuevo nace sin `occurredOn` (el agregado no lo fecha) y lo recibe, como texto ISO en UTC, quien lo guarda o lo envía: el stream al anexarlo y `DomainEventBus` al publicarlo `[Fuera de los libros: convención de @archi-code/ddd]`. La identidad del pago es un campo más del evento (`paymentId`), declarado por cada clase. `{ ...event }` da `eventName`, `eventId` y los campos, todos datos primitivos (regla del paquete, no comprobada en ejecución); con su `occurredOn` es la fila del stream.
 
 ## Agregado con decidir y aplicar
 
 `[Fuera de los libros como código; estructura basada en IDDD apéndice A]`
 
 ```ts
-import { AggregateRoot, DateType, DomainException, EnumType, IdType, Required, StringType, UuidType } from '@archi-code/ddd/domain';
+import { AggregateRoot, DateType, DomainException, EnumType, IdType, Required, StringType, UpdatedAt, UuidType } from '@archi-code/ddd/domain';
 import type { EventBase } from '@archi-code/ddd/domain';
 
 export class PaymentId extends IdType<'PaymentId'> {}
@@ -142,10 +139,6 @@ export class PaymentAlreadyDecided extends DomainException {
 }
 
 // aggregate/Payment.ts
-interface Clock {
-  now(): Date;
-}
-
 export class Payment extends AggregateRoot<PaymentId> {
   private status = new PaymentStatusType(PaymentStatus.REQUESTED);
   private amount: Money | null = null;
@@ -156,14 +149,13 @@ export class Payment extends AggregateRoot<PaymentId> {
     super(id);
   }
 
-  static create(id: PaymentId, order: OrderReference, amount: Money, clock: Clock): Payment {
+  static create(id: PaymentId, order: OrderReference, amount: Money): Payment {
     const payment = new Payment(id);
     payment.emit(
       new PaymentCreatedDomainEvent({
         paymentId: id.value,
         orderId: order.value,
         amount: amount.toPrimitives(),
-        clock,
       }),
     );
     return payment;
@@ -180,7 +172,7 @@ export class Payment extends AggregateRoot<PaymentId> {
     return this.replayed;
   }
 
-  authorize(code: AuthorizationCode, expiresAt: ExpiresAt, clock: Clock): void {
+  authorize(code: AuthorizationCode, expiresAt: ExpiresAt): void {
     if (!this.isIn(PaymentStatus.REQUESTED)) {
       throw new PaymentAlreadyDecided(this.id.value);
     }
@@ -189,26 +181,25 @@ export class Payment extends AggregateRoot<PaymentId> {
         paymentId: this.id.value,
         authorizationCode: code.value,
         expiresAt: expiresAt.value.toISOString(),
-        clock,
       }),
     );
   }
 
-  reject(reason: RejectionReason, clock: Clock): void {
+  reject(reason: RejectionReason): void {
     if (!this.isIn(PaymentStatus.REQUESTED)) {
       throw new PaymentAlreadyDecided(this.id.value);
     }
-    this.emit(new PaymentRejectedDomainEvent({ paymentId: this.id.value, reason: reason.value, clock }));
+    this.emit(new PaymentRejectedDomainEvent({ paymentId: this.id.value, reason: reason.value }));
   }
 
-  capture(clock: Clock): void {
+  capture(): void {
     if (!this.isIn(PaymentStatus.AUTHORIZED) || this.expiresAt === null) {
       throw new PaymentNotAuthorized(this.id.value);
     }
-    if (this.expiresAt.value < clock.now()) {
+    if (this.expiresAt.value < UpdatedAt.now().value) {
       throw new AuthorizationExpired(this.id.value);
     }
-    this.emit(new PaymentCapturedDomainEvent({ paymentId: this.id.value, clock }));
+    this.emit(new PaymentCapturedDomainEvent({ paymentId: this.id.value }));
   }
 
   private isIn(status: PaymentStatus): boolean {
@@ -242,7 +233,7 @@ Reglas:
 * Las reglas viven en los métodos de comando (`authorize`, `capture`), antes de emitir, y lanzan errores de negocio (subclases de `DomainException` sin sufijo `Exception`, con su código).
 * El estado solo cambia vía eventos: `emit` aplica y después llama a `record` (protegido en `AggregateRoot`), así que `pullDomainEvents()` devuelve exactamente los cambios pendientes, en orden.
 * `fromHistory` aplica sin `record`: reconstituir no genera eventos nuevos.
-* El reloj se recibe con la interfaz local `Clock` (`{ now(): Date }`, sin importar el puerto de `/application`) y se pasa a cada evento (`clock`), para que reconstruir no dependa de la hora actual; en pruebas, `FixedClock`.
+* La hora actual sale de `UpdatedAt.now()` (la caducidad de `capture`), nunca de `new Date()`, y nada recibe la hora como parámetro. Los eventos se crean sin fecha; el stream guarda cada uno con su `occurredOn`, así que reconstruir no depende de la hora actual `[Fuera de los libros: convención de @archi-code/ddd]`.
 * IDDD propone separar estado y comportamiento en dos clases que solo colaboran a través de `apply` [IDDD apéndice A]; aquí el estado son campos privados de value objects que solo `apply` escribe. Si el agregado crece, extrae ese estado a una clase propia con su `apply`.
 * `[Fuera de los libros: convención de @archi-code/ddd]` `AggregateRoot` no tiene versión, y la que recuerda un repositorio de instantáneas en su `WeakMap` cuenta guardados, no eventos (crece 1 por `save`), así que este agregado lleva su propia versión de stream (`streamVersion()`, los eventos que se aplicaron al cargar) y no se guarda como instantánea: no necesita `toPrimitives()`/`fromPrimitives()` ni getters para sus campos, porque lo que se persiste son los eventos. Por eso su constructor público recibe solo el id: el resto del estado lo ponen los eventos, a través de `create` (que emite `PaymentCreatedDomainEvent`) o de `fromHistory`.
 
@@ -260,7 +251,7 @@ CREATE TABLE event_streams (
 );
 ```
 
-La clave primaria `(stream_id, version)` impide dos escrituras con la misma versión; `global_seq` da el orden global que necesitan la publicación y la reconstrucción de proyecciones. `body` es la copia plana del evento (`{ ...event }`).
+La clave primaria `(stream_id, version)` impide dos escrituras con la misma versión; `global_seq` da el orden global que necesitan la publicación y la reconstrucción de proyecciones. `body` es la copia plana del evento (`{ ...event }`) con el `occurredOn` que le pone `append` si aún no lo tiene.
 
 El dominio declara el contrato del stream (una interfaz de solo tipos) `[Fuera de los libros: convención de @archi-code/ddd]`: no es el repositorio abstracto del agregado (`AggregateRepository` con `findById`/`save`), porque guardar necesita los cambios que el caso de uso ya sacó con `pullDomainEvents()` para publicarlos.
 
@@ -355,13 +346,18 @@ export class PgPaymentStream implements PaymentStream {
 
   async append(payment: Payment, changes: readonly EventBase[]): Promise<void> {
     const expected = payment.streamVersion();
+    const appendedOn = new Date().toISOString();
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN', []);
       for (const [index, event] of changes.entries()) {
         await client.query(
           'INSERT INTO event_streams (stream_id, version, body) VALUES ($1, $2, $3)',
-          [payment.id.value, expected + index + 1, JSON.stringify(event)],
+          [
+            payment.id.value,
+            expected + index + 1,
+            JSON.stringify({ ...event, occurredOn: event.occurredOn ?? appendedOn }),
+          ],
         );
       }
       await client.query('COMMIT', []);
@@ -386,7 +382,7 @@ El caso de uso carga, decide, anexa y publica; no abre transacciones ni recibe u
 
 ```ts
 import { AggregateNotFoundException, ConcurrencyException, UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
-import type { Clock, EventBus } from '@archi-code/ddd/application';
+import type { EventBus } from '@archi-code/ddd/application';
 
 export interface CapturePaymentInput {
   paymentId: string;
@@ -402,7 +398,6 @@ export class CapturePayment extends UseCase<CapturePaymentInput, CapturePaymentC
   constructor(
     private readonly payments: PaymentStream,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }
@@ -418,7 +413,7 @@ export class CapturePayment extends UseCase<CapturePaymentInput, CapturePaymentC
         if (payment === null) {
           throw new AggregateNotFoundException('Payment', paymentId.value);
         }
-        payment.capture(this.clock);
+        payment.capture();
         const changes = payment.pullDomainEvents();
         await this.payments.append(payment, changes);
         await this.events.publish(changes);
@@ -440,7 +435,7 @@ Publicar: IDDD publica con un proceso en segundo plano que lee lo anexado [IDDD 
 Una implementación en memoria del stream sirve como doble de pruebas y como referencia del contrato; anexa todos los cambios de una vez o ninguno, como `PgPaymentStream`:
 
 ```ts
-import { DomainEventBus, FixedClock, InMemoryEventChannel } from '@archi-code/ddd/infrastructure';
+import { DomainEventBus, InMemoryEventChannel } from '@archi-code/ddd/infrastructure';
 
 export class InMemoryPaymentStream implements PaymentStream {
   private readonly streams = new Map<string, readonly SerializedEvent[]>();
@@ -463,11 +458,14 @@ export class InMemoryPaymentStream implements PaymentStream {
     if (stream.length !== payment.streamVersion()) {
       throw new ConcurrencyException('Payment', payment.id.value, payment.streamVersion());
     }
-    this.streams.set(payment.id.value, [...stream, ...changes.map((event) => ({ ...event }))]);
+    const appendedOn = new Date().toISOString();
+    this.streams.set(payment.id.value, [
+      ...stream,
+      ...changes.map((event) => ({ ...event, occurredOn: event.occurredOn ?? appendedOn })),
+    ]);
   }
 }
 
-const clock = new FixedClock('2026-10-19T09:30:00Z');
 const payments = new InMemoryPaymentStream(paymentEvents);
 const channel = new InMemoryEventChannel();
 const bus = new DomainEventBus(channel, paymentEvents);
@@ -477,16 +475,14 @@ const payment = Payment.create(
   paymentId,
   new OrderReference('9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c'),
   Money.fromPrimitives({ amount: 4990, currency: 'EUR' }),
-  clock,
 );
 payment.authorize(
   new AuthorizationCode('AUTH-7731'),
-  new ExpiresAt(new Date('2026-10-26T09:30:00Z')),
-  clock,
+  new ExpiresAt(new Date('2099-10-26T09:30:00Z')),
 );
 await payments.append(payment, payment.pullDomainEvents());
 
-await new CapturePayment(payments, bus, clock).execute({
+await new CapturePayment(payments, bus).execute({
   paymentId: paymentId.value,
 });
 channel.sent.map((event) => event.eventName); // ['payment.captured']

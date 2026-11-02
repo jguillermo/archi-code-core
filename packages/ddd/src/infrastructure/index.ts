@@ -1,5 +1,3 @@
-export { SystemClock } from './clock/system-clock';
-export { FixedClock } from './clock/fixed-clock';
 export { DomainEventBus } from './event/domain-event-bus';
 export type { Subscription } from './event/domain-event-bus';
 export { EventRegistry } from './event/event-registry';

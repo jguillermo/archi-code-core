@@ -68,13 +68,12 @@ Si el negocio borra pedidos, la clase añade `abstract remove(order: Order): Pro
 
 ```ts
 import { UseCase } from '@archi-code/ddd/application';
-import type { Clock, EventBus } from '@archi-code/ddd/application';
+import type { EventBus } from '@archi-code/ddd/application';
 
 export class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand, void> {
   constructor(
     private readonly orders: OrderRepository,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }

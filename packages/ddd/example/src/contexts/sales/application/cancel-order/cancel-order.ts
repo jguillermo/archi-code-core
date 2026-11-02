@@ -3,7 +3,7 @@ import {
   UseCase,
   ValueObjectBuilder,
 } from '../../../../ddd/application';
-import type { Clock, EventBus } from '../../../../ddd/application';
+import type { EventBus } from '../../../../ddd/application';
 import { CustomerId } from '../../domain/value-object/CustomerId';
 import type { OrderRepository } from '../../domain/repository/OrderRepository';
 import { OrderId } from '../../domain/value-object/OrderId';
@@ -22,7 +22,6 @@ export class CancelOrder extends UseCase<CancelOrderInput, CancelOrderCommand, v
   constructor(
     private readonly orders: OrderRepository,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }
@@ -39,7 +38,7 @@ export class CancelOrder extends UseCase<CancelOrderInput, CancelOrderCommand, v
     if (order === null) {
       throw new AggregateNotFoundException('Order', command.orderId.value);
     }
-    order.cancel(command.requester, this.clock);
+    order.cancel(command.requester);
     await this.orders.save(order);
     await this.events.publish(order.pullDomainEvents());
   }

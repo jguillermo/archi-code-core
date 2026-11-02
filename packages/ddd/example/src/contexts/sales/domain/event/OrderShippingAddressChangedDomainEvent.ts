@@ -18,7 +18,6 @@ export class OrderShippingAddressChangedDomainEvent extends EventBase {
     address,
     eventId,
     occurredOn,
-    clock,
   }: {
     orderId: string;
     address: {
@@ -29,7 +28,7 @@ export class OrderShippingAddressChangedDomainEvent extends EventBase {
       country: string;
     };
   } & EventMetadata) {
-    super({ eventId, occurredOn, clock });
+    super({ eventId, occurredOn });
     this.orderId = orderId;
     this.address = address;
   }

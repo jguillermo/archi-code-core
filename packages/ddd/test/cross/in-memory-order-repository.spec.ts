@@ -9,7 +9,6 @@ import {
   Required,
   StringType,
 } from '../../src/domain/index';
-import { FixedClock } from '../../src/infrastructure/index';
 import { ConcurrencyException } from '../../src/application/exceptions/concurrency.exception';
 import { DomainException } from '../../src/domain/exceptions/domain.exception';
 import type { PrimitiveTypes } from '../../src/domain/index';
@@ -48,13 +47,13 @@ class Order extends AggregateRoot<OrderId> {
     super(id);
   }
 
-  static place(id: string, customer: string, clock: FixedClock): Order {
+  static place(id: string, customer: string): Order {
     return new Order(
       new OrderId(id),
       new CustomerName(customer),
       [],
       new OrderStatus(Status.PLACED),
-      CreatedAt.now(clock),
+      CreatedAt.now(),
     );
   }
 
@@ -156,14 +155,13 @@ class InMemoryOrderRepository extends OrderRepository {
 
 const orderId = '9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c';
 const otherOrderId = '3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f';
-const clock = new FixedClock('2026-03-01T09:30:00Z');
 
 function orders() {
   return new InMemoryOrderRepository();
 }
 
 async function storedOrder(repository = orders()) {
-  const order = Order.place(orderId, 'Ana', clock);
+  const order = Order.place(orderId, 'Ana');
   order.addLine('TORCH-01');
   await repository.save(order);
   return repository;
@@ -189,8 +187,9 @@ describe('InMemoryOrderRepository: a repository a project writes in its tests, o
         customer: 'Ana',
         lines: ['TORCH-01'],
         status: 'placed',
-        createdAt: new Date('2026-03-01T09:30:00Z'),
+        createdAt: expect.any(Date),
       });
+      expect(Number.isNaN(loaded?.createdAt.value.getTime())).toBe(false);
     });
   });
 
@@ -240,7 +239,7 @@ describe('InMemoryOrderRepository: a repository a project writes in its tests, o
 
     it('the same order can be saved twice in a row: the repository follows its version', async () => {
       const repository = orders();
-      const order = Order.place(orderId, 'Ana', clock);
+      const order = Order.place(orderId, 'Ana');
       await repository.save(order);
       order.addLine('TORCH-01');
       await repository.save(order);
@@ -251,7 +250,7 @@ describe('InMemoryOrderRepository: a repository a project writes in its tests, o
 
     it('a new order with an id already stored is rejected, it does not replace the stored one', async () => {
       const repository = await storedOrder();
-      await expect(repository.save(Order.place(orderId, 'Luis', clock))).rejects.toThrow(
+      await expect(repository.save(Order.place(orderId, 'Luis'))).rejects.toThrow(
         `Order with ID ${orderId} was changed by someone else: expected version 0.`,
       );
       const stored = (await repository.findById(new OrderId(orderId))) as Order;
@@ -261,7 +260,7 @@ describe('InMemoryOrderRepository: a repository a project writes in its tests, o
 
     it('a rejected save leaves the aggregate as new, so it is rejected again', async () => {
       const repository = await storedOrder();
-      const duplicate = Order.place(orderId, 'Luis', clock);
+      const duplicate = Order.place(orderId, 'Luis');
       await expect(repository.save(duplicate)).rejects.toThrow(ConcurrencyException);
       await expect(repository.save(duplicate)).rejects.toThrow('expected version 0.');
     });
@@ -287,7 +286,7 @@ describe('InMemoryOrderRepository: a repository a project writes in its tests, o
         return primitives;
       });
       const repository = orders();
-      await repository.save(Order.place(orderId, 'Ana', clock));
+      await repository.save(Order.place(orderId, 'Ana'));
       spy.mockRestore();
       (written as PrimitiveTypes<Order>).customer = 'Mallory';
       (written as PrimitiveTypes<Order>).lines.push('STOLEN-99');
@@ -319,7 +318,7 @@ describe('InMemoryOrderRepository: a repository a project writes in its tests, o
 
     it('lists every stored order', async () => {
       const repository = await storedOrder();
-      await repository.save(Order.place(otherOrderId, 'Luis', clock));
+      await repository.save(Order.place(otherOrderId, 'Luis'));
       const all = await repository.findAll();
       expect(all.map((order) => order.customer.value).sort()).toEqual(['Ana', 'Luis']);
       expect(all.every((order) => order instanceof Order)).toBe(true);
@@ -327,7 +326,7 @@ describe('InMemoryOrderRepository: a repository a project writes in its tests, o
 
     it('lists every order with the version it was stored with, so each one can be saved', async () => {
       const repository = await storedOrder();
-      const second = Order.place(otherOrderId, 'Luis', clock);
+      const second = Order.place(otherOrderId, 'Luis');
       await repository.save(second);
       await repository.save(second);
       for (const order of await repository.findAll()) {
@@ -355,15 +354,13 @@ describe('InMemoryOrderRepository: a repository a project writes in its tests, o
     it('lets a new order reuse the id', async () => {
       const repository = await storedOrder();
       await repository.remove(await loaded(repository));
-      await repository.save(Order.place(orderId, 'Luis', clock));
+      await repository.save(Order.place(orderId, 'Luis'));
       expect((await repository.findById(new OrderId(orderId)))?.customer.value).toBe('Luis');
     });
 
     it('does nothing for a new order that was never saved', async () => {
       const repository = await storedOrder();
-      await expect(
-        repository.remove(Order.place(otherOrderId, 'Luis', clock)),
-      ).resolves.toBeUndefined();
+      await expect(repository.remove(Order.place(otherOrderId, 'Luis'))).resolves.toBeUndefined();
       expect(await repository.findAll()).toHaveLength(1);
     });
 

@@ -14,13 +14,12 @@ export class PaymentRefundedDomainEvent extends EventBase {
     amount,
     eventId,
     occurredOn,
-    clock,
   }: {
     paymentId: string;
     orderId: string;
     amount: { amount: number; currency: string };
   } & EventMetadata) {
-    super({ eventId, occurredOn, clock });
+    super({ eventId, occurredOn });
     this.paymentId = paymentId;
     this.orderId = orderId;
     this.amount = amount;

@@ -212,13 +212,12 @@ export class PaymentCapturedDomainEvent extends EventBase {
     amount,
     eventId,
     occurredOn,
-    clock,
   }: {
     paymentId: string;
     orderId: string;
     amount: { amount: number; currency: string };
   } & EventMetadata) {
-    super({ eventId, occurredOn, clock });
+    super({ eventId, occurredOn });
     this.paymentId = paymentId;
     this.orderId = orderId;
     this.amount = amount;
@@ -245,10 +244,6 @@ reaction methods (return silently):
 ```ts
 import { AggregateRoot, CreatedAt, UpdatedAt } from '@archi-code/ddd/domain';
 import type { PrimitiveTypes } from '@archi-code/ddd/domain';
-
-interface Clock {
-  now(): Date;
-}
 
 export class Payment extends AggregateRoot<PaymentId> {
   private static readonly LIMIT_CENTS: Record<PaymentMethod, number> = {
@@ -289,7 +284,6 @@ export class Payment extends AggregateRoot<PaymentId> {
     orderReference: OrderReference,
     amount: Money,
     method: PaymentMethodType,
-    clock: Clock,
   ): Payment {
     const payment = new Payment(
       id,
@@ -298,8 +292,8 @@ export class Payment extends AggregateRoot<PaymentId> {
       method,
       new PaymentStatusType(PaymentStatus.PENDING),
       new RejectionCodeType(null),
-      CreatedAt.now(clock),
-      UpdatedAt.now(clock),
+      CreatedAt.now(),
+      UpdatedAt.now(),
     );
     payment.record(
       new PaymentCreatedDomainEvent({
@@ -307,7 +301,6 @@ export class Payment extends AggregateRoot<PaymentId> {
         orderId: payment.orderReference.value,
         amount: payment._amount.toPrimitives(),
         method: payment.method.value,
-        clock,
       }),
     );
     return payment;
@@ -342,27 +335,27 @@ export class Payment extends AggregateRoot<PaymentId> {
     return this._updatedAt;
   }
 
-  process(clock: Clock): void {
+  process(): void {
     if (this._status.value !== PaymentStatus.PENDING) {
       return;
     }
     if (this.exceedsLimit()) {
-      this.reject(RejectionCode.LIMIT_EXCEEDED, clock);
+      this.reject(RejectionCode.LIMIT_EXCEEDED);
     } else if (this.method.value === PaymentMethod.CARD) {
-      this.capture(clock);
+      this.capture();
     } else {
-      this.moveTo(PaymentStatus.AWAITING_TRANSFER, clock);
+      this.moveTo(PaymentStatus.AWAITING_TRANSFER);
     }
   }
 
-  confirmTransfer(received: Money, clock: Clock): void {
+  confirmTransfer(received: Money): void {
     if (this._status.value !== PaymentStatus.AWAITING_TRANSFER) {
       throw new PaymentNotAwaitingTransfer(this.id.value, this._status.value);
     }
     if (received.equals(this._amount)) {
-      this.capture(clock);
+      this.capture();
     } else {
-      this.reject(RejectionCode.AMOUNT_MISMATCH, clock);
+      this.reject(RejectionCode.AMOUNT_MISMATCH);
     }
   }
 
@@ -383,35 +376,33 @@ export class Payment extends AggregateRoot<PaymentId> {
     return this._amount.isAtLeast(Payment.LIMIT_CENTS[this.method.value] + 1);
   }
 
-  private capture(clock: Clock): void {
-    this.moveTo(PaymentStatus.CAPTURED, clock);
+  private capture(): void {
+    this.moveTo(PaymentStatus.CAPTURED);
     this.record(
       new PaymentCapturedDomainEvent({
         paymentId: this.id.value,
         orderId: this.orderReference.value,
         amount: this._amount.toPrimitives(),
-        clock,
       }),
     );
   }
 
-  private reject(code: RejectionCode, clock: Clock): void {
+  private reject(code: RejectionCode): void {
     this._rejection = new RejectionCodeType(code);
-    this.moveTo(PaymentStatus.REJECTED, clock);
+    this.moveTo(PaymentStatus.REJECTED);
     this.record(
       new PaymentRejectedDomainEvent({
         paymentId: this.id.value,
         orderId: this.orderReference.value,
         amount: this._amount.toPrimitives(),
         reason: code,
-        clock,
       }),
     );
   }
 
-  private moveTo(status: PaymentStatus, clock: Clock): void {
+  private moveTo(status: PaymentStatus): void {
     this._status = new PaymentStatusType(status);
-    this._updatedAt = UpdatedAt.now(clock);
+    this._updatedAt = UpdatedAt.now();
   }
 }
 ```
@@ -453,7 +444,7 @@ export class OrderLine extends Entity<LineNumber> {
 }
 
 // inside Order
-  static create(id: OrderId, customerId: CustomerId, lines: NewOrderLine[], clock: Clock): Order {
+  static create(id: OrderId, customerId: CustomerId, lines: NewOrderLine[]): Order {
     if (lines.length < 1 || lines.length > Order.MAX_LINES) {
       throw new OrderLineCountOutOfRange(lines.length);
     }
@@ -465,16 +456,16 @@ export class OrderLine extends Entity<LineNumber> {
           new OrderLine(new LineNumber(index + 1), line.sku, line.quantity, line.unitPrice),
       ),
       new OrderStatusType(OrderStatus.PENDING_PAYMENT),
-      CreatedAt.now(clock),
-      UpdatedAt.now(clock),
+      CreatedAt.now(),
+      UpdatedAt.now(),
     );
     order.assertDistinctSkus();
     order.assertTotal();
-    order.record(new OrderCreatedDomainEvent({ orderId: order.id.value, /* … */ clock }));
+    order.record(new OrderCreatedDomainEvent({ orderId: order.id.value, /* … */ }));
     return order;
   }
 
-  changeLineQuantity(lineNumber: LineNumber, quantity: Quantity, clock: Clock): void {
+  changeLineQuantity(lineNumber: LineNumber, quantity: Quantity): void {
     this.assertPendingPayment();
     const line = this._lines.find((candidate) => candidate.id.equals(lineNumber));
     if (line === undefined) {
@@ -488,7 +479,7 @@ export class OrderLine extends Entity<LineNumber> {
       line.changeQuantity(previous);
       throw error;
     }
-    this.touch(clock);
+    this.touch();
     this.record(/* OrderLineQuantityChangedDomainEvent */);
   }
 
@@ -568,7 +559,7 @@ import {
   UseCase,
   ValueObjectBuilder,
 } from '@archi-code/ddd/application';
-import type { Clock, EventBus } from '@archi-code/ddd/application';
+import type { EventBus } from '@archi-code/ddd/application';
 
 export interface ConfirmTransferReceivedInput {
   actorRole: string;
@@ -590,7 +581,6 @@ export class ConfirmTransferReceived extends UseCase<
   constructor(
     private readonly payments: PaymentRepository,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }
@@ -614,7 +604,7 @@ export class ConfirmTransferReceived extends UseCase<
     if (payment === null) {
       throw new AggregateNotFoundException('Payment', command.paymentId.value);
     }
-    payment.confirmTransfer(command.received, this.clock);
+    payment.confirmTransfer(command.received);
     await this.payments.save(payment);
     await this.events.publish(payment.pullDomainEvents());
   }
@@ -661,7 +651,7 @@ Creating: the use case generates the id and passes a domain service's answer; li
       );
     }
     const discount = await this.pricing.discountFor(command.couponCodes);
-    const order = Order.create(OrderId.generate(), command.customerId, command.lines, /* … */ discount, this.clock);
+    const order = Order.create(OrderId.generate(), command.customerId, command.lines, /* … */ discount);
     await this.orders.save(order);
     await this.events.publish(order.pullDomainEvents());
     return order.id.value;
@@ -680,7 +670,7 @@ A change safe to repeat retries the whole load → change → save on a conflict
         if (order === null) {
           throw new AggregateNotFoundException('Order', command.orderId.value);
         }
-        order.changeShippingAddress(command.shippingAddress, this.clock);
+        order.changeShippingAddress(command.shippingAddress);
         await this.orders.save(order);
         return await this.events.publish(order.pullDomainEvents());
       } catch (error) {
@@ -726,13 +716,12 @@ export class OrderCreatedDomainEvent extends EventBase {
     paymentMethod,
     eventId,
     occurredOn,
-    clock,
   }: {
     orderId: string;
     total: { amount: number; currency: string };
     paymentMethod: string;
   } & EventMetadata) {
-    super({ eventId, occurredOn, clock });
+    super({ eventId, occurredOn });
     this.orderId = orderId;
     this.total = total;
     this.paymentMethod = paymentMethod;
@@ -745,7 +734,7 @@ a redelivery a no-op:
 
 ```ts
 import { EventListener, ListensTo, ValueObjectBuilder } from '@archi-code/ddd/application';
-import type { Clock, EventBus } from '@archi-code/ddd/application';
+import type { EventBus } from '@archi-code/ddd/application';
 import { OrderCreatedDomainEvent } from './order-created-domain-event';
 
 @ListensTo(OrderCreatedDomainEvent, { consumer: 'payments.request-payment-on-order-created' })
@@ -753,7 +742,6 @@ export class RequestPaymentOnOrderCreated extends EventListener<OrderCreatedDoma
   constructor(
     private readonly payments: PaymentRepository,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }
@@ -768,8 +756,8 @@ export class RequestPaymentOnOrderCreated extends EventListener<OrderCreatedDoma
     if ((await this.payments.findById(paymentId)) !== null) {
       return;
     }
-    const payment = Payment.create(paymentId, orderReference, amount, method, this.clock);
-    payment.process(this.clock);
+    const payment = Payment.create(paymentId, orderReference, amount, method);
+    payment.process();
     await this.payments.save(payment);
     await this.events.publish(payment.pullDomainEvents());
   }
@@ -788,7 +776,6 @@ export class CancelUnpaidOrderOnPaymentRejected extends EventListener<PaymentRej
   constructor(
     private readonly orders: OrderRepository,
     private readonly events: EventBus,
-    private readonly clock: Clock,
     private readonly logger: Logger,
   ) {
     super();
@@ -803,7 +790,7 @@ export class CancelUnpaidOrderOnPaymentRejected extends EventListener<PaymentRej
     if (order === null) {
       return;
     }
-    order.cancelForRejectedPayment(reason, this.clock);
+    order.cancelForRejectedPayment(reason);
     await this.orders.save(order);
     const events = order.pullDomainEvents();
     await this.events.publish(events);
@@ -887,7 +874,7 @@ export class MarkOrderSummaryPaidOnOrderPaid extends EventListener<OrderPaidDoma
     const { eventId, orderId, occurredOn, quantities } = ValueObjectBuilder.build({
       eventId: () => new UuidType(event.eventId),
       orderId: () => new OrderId(event.orderId),
-      occurredOn: () => new CreatedAt(event.occurredOn),
+      occurredOn: () => new CreatedAt(event.occurredOn as string),
       quantities: () =>
         ValueObjectBuilder.buildList(event.items, (item) => new Quantity(item.quantity)),
     });
@@ -1075,13 +1062,12 @@ channel, every reaction subscribed, every heard event registered once with a fac
 `eventId` and `occurredOn`:
 
 ```ts
-import type { Clock, Logger } from '@archi-code/ddd/application';
+import type { Logger } from '@archi-code/ddd/application';
 import { DomainEventBus, EventRegistry } from '@archi-code/ddd/infrastructure';
 import type { EventChannel, Subscription } from '@archi-code/ddd/infrastructure';
 
 export interface PaymentsSettings {
   channel: EventChannel;
-  clock: Clock;
   logger: Logger;
 }
 
@@ -1092,19 +1078,19 @@ export class PaymentsContext {
     private readonly subscriptions: Subscription[],
   ) {}
 
-  static async start({ channel, clock, logger }: PaymentsSettings): Promise<PaymentsContext> {
+  static async start({ channel, logger }: PaymentsSettings): Promise<PaymentsContext> {
     const bus = new DomainEventBus(channel, PaymentsContext.registry(), logger);
     const payments = new InMemoryPaymentRepository();
     const listeners = [
-      new RequestPaymentOnOrderCreated(payments, bus, clock),
-      new SettleCancelledOrderPaymentOnOrderCancelled(payments, bus, clock),
+      new RequestPaymentOnOrderCreated(payments, bus),
+      new SettleCancelledOrderPaymentOnOrderCancelled(payments, bus),
     ];
     const subscriptions: Subscription[] = [];
     for (const listener of listeners) {
       subscriptions.push(await bus.subscribe(listener));
     }
     const controller = new PaymentsController(
-      new ConfirmTransferReceived(payments, bus, clock),
+      new ConfirmTransferReceived(payments, bus),
       logger,
     );
     return new PaymentsContext(payments, controller, subscriptions);
@@ -1146,9 +1132,9 @@ The top level opens one channel and starts every context on it:
 
 ```ts
 const channel = new InMemoryEventChannel({ delivery: 'serial' });
-const sales = await SalesContext.start({ channel, clock, logger, campaigns });
-const payments = await PaymentsContext.start({ channel, clock, logger });
-const shipping = await ShippingContext.start({ channel, clock, logger });
+const sales = await SalesContext.start({ channel, logger, campaigns });
+const payments = await PaymentsContext.start({ channel, logger });
+const shipping = await ShippingContext.start({ channel, logger });
 // close: shipping.stop(), payments.stop(), sales.stop()
 ```
 
@@ -1235,23 +1221,24 @@ export class PaymentsController {
 
 Tests with Vitest describe real situations, use plain fixture factories in the project's
 `test/support/` and the native matchers. Dates held by VOs are immutable `Date` subclasses:
-compare them with `toEqual` or `.toISOString()`; an event's `occurredOn` is already ISO text.
+compare them with `toEqual` or `.toISOString()`. Nothing fixes the time: a date stamped with
+`CreatedAt.now()` / `UpdatedAt.now()` or an `occurredOn` set by the bus is only checked to be a
+valid date, and the dates of a state the test loads are built with the constructor
+(`new CreatedAt('2026-03-01T09:30:00Z')`).
 
 ```ts
 import { describe, expect, it } from 'vitest';
 
 describe('Payment', () => {
   it('a card payment within the limit is captured at once', () => {
-    const clock = new FixedClock('2026-03-01T09:30:00Z');
     const order = new OrderReference(orderId);
     const payment = Payment.create(
       PaymentId.forOrder(order),
       order,
       Money.fromPrimitives({ amount: 4_990, currency: 'EUR' }),
       new PaymentMethodType(PaymentMethod.CARD),
-      clock,
     );
-    payment.process(clock);
+    payment.process();
     expect(payment.pullDomainEvents().map((event) => ({ ...event }))).toMatchObject([
       { eventName: 'payment.created', orderId },
       { eventName: 'payment.captured', amount: { amount: 4_990, currency: 'EUR' } },
@@ -1270,13 +1257,12 @@ never on the reaction being called, and delivers the same event twice:
 describe('Requesting the payment of a new order', () => {
   it('creates one payment per order even when the event arrives twice', async () => {
     const channel = new InMemoryEventChannel();
-    const context = await PaymentsContext.start({ channel, clock, logger: new SilentLogger() });
+    const context = await PaymentsContext.start({ channel, logger: new SilentLogger() });
     const bus = new DomainEventBus(channel, new EventRegistry());
     const orderCreated = new OrderCreatedDomainEvent({
       orderId,
       total: { amount: 4_990, currency: 'EUR' },
       paymentMethod: 'card',
-      clock,
     });
 
     await bus.publish([orderCreated]);

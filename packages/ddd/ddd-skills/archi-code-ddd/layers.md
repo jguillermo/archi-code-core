@@ -72,7 +72,7 @@ from is in `patterns.md`; the folders and names are in `where-each-class-goes.md
     value is never a composite and a composite is never a JSON value.
 - Values are **immutable**: `_value` is `readonly`; behavior returns new instances
   (`money.add(other)`, `money.lessPercent(10)`); `ArrayType.withItem/withoutItem` return a new
-  instance; `UpdatedAt` is replaced with `UpdatedAt.now(clock)`.
+  instance; `UpdatedAt` is replaced with `UpdatedAt.now()`.
 - `toString()` is a method, `equals(other)` compares class and value (dates by instant, arrays
   and objects by content). An optional value object with no value answers `isNull`
   (`if (trackingNumber.isNull)`), and a `DateType` gives its ISO text with `toString()`
@@ -104,16 +104,14 @@ from is in `patterns.md`; the folders and names are in `where-each-class-goes.md
 ## Aggregates
 
 `[Fuera de los libros: convención de @archi-code/ddd]`: the public constructor, `create`, the
-local `Clock`, the getters named like the fields and `fromPrimitives`/`toPrimitives` are package
+getters named like the fields and `fromPrimitives`/`toPrimitives` are package
 conventions; the books allow a private constructor with a factory [IDDD ch. 11], getters only
 where needed [Destilado ch. 5] and a mapper in infrastructure [IDDD ch. 6].
 
 - Aggregates extend `AggregateRoot<<Aggregate>Id>` and call `super(id)`; the id
   is exposed as `readonly id` (no `_id` + getter), `equals` compares class and id, and an id that
   holds no value throws `RequiredValueException` [IDDD ch. 5].
-- Member order: the local `interface Clock { now(): Date }` above the class (the domain never
-  imports `Clock` from `/application`; the port matches it structurally) → `private static
-  readonly` business constants → fields → public constructor → `static create` →
+- Member order: `private static readonly` business constants → fields → public constructor → `static create` →
   `static fromPrimitives` → getters → public queries → business methods → `toPrimitives` →
   private helpers.
 - Fields: a value that never changes is `readonly <name>`; one that changes is
@@ -124,11 +122,11 @@ where needed [Destilado ch. 5] and a mapper in infrastructure [IDDD ch. 6].
 - **Constructor: public, and it only assigns.** It receives every field already built (id first,
   `createdAt` and `updatedAt` last), calls `super(id)` and assigns: no checks, no events, no
   defaults. `create` and `fromPrimitives` both call it.
-- **`static create(id, ...valueObjects, clock: Clock)`** starts the aggregate: it receives the id
-  and the value objects already built (the clock last), builds the child entities from
+- **`static create(id, ...valueObjects)`** starts the aggregate: it receives the id
+  and the value objects already built, builds the child entities from
   `New<Child>` shapes and assigns their local ids (`new LineNumber(index + 1)`), sets the initial
   state (`new OrderStatusType(OrderStatus.PENDING_PAYMENT)`, `new PaymentReference(null)`,
-  `CreatedAt.now(clock)`, `UpdatedAt.now(clock)`), checks the creation invariants (on the input
+  `CreatedAt.now()`, `UpdatedAt.now()`), checks the creation invariants (on the input
   before building, or with private `assert…()` after) throwing business errors, records
   `<Aggregate>CreatedDomainEvent` and returns. It never generates nor computes the id: the use
   case passes it (`OrderId.generate()`, `PaymentId.forOrder(order)`).
@@ -144,9 +142,9 @@ where needed [Destilado ch. 5] and a mapper in infrastructure [IDDD ch. 6].
   run time, so a private field without its getter or left out of `toPrimitives()` compiles and is
   lost when saving.
 - **Each state change is a business method** named after the business action (`cancel`,
-  `markShipped`, `changeLineQuantity`): parameters are value objects, `clock: Clock` last; it
-  returns `void`, changes the fields, updates `_updatedAt` (through private `moveTo(status, clock)`
-  / `touch(clock)`) and records zero or more events.
+  `markShipped`, `changeLineQuantity`): parameters are value objects; it
+  returns `void`, changes the fields, updates `_updatedAt` (through private `moveTo(status)`
+  / `touch()`) and records zero or more events.
 - **A command can be refused, a fact cannot.** A method a user asks for (called by a user use
   case) throws a business error when it does not apply in the current state
   (`OrderNotCancellable`). A method that registers a fact that already happened elsewhere (called
@@ -166,8 +164,8 @@ where needed [Destilado ch. 5] and a mapper in infrastructure [IDDD ch. 6].
   aggregate) extend `Entity<<IdVO>>` (`LineNumber extends Required(NumberType)`); fields as the
   aggregate's without `createdAt`/`updatedAt`; the constructor receives value objects, calls
   `super(id)` and assigns. They may have queries (`subtotal()`) and business methods only their
-  root calls (`changeQuantity(quantity)`; Tell, Don't Ask [IDDD ch. 5 and 10]), never setters, a
-  clock, events, `create` nor `toPrimitives`/`fromPrimitives` (the aggregate converts them). Their
+  root calls (`changeQuantity(quantity)`; Tell, Don't Ask [IDDD ch. 5 and 10]), never setters,
+  events, `create` nor `toPrimitives`/`fromPrimitives` (the aggregate converts them). Their
   identity is local to the aggregate [IDDD ch. 10]. Prefer a composite over a child entity when
   nobody looks the part up by id [IDDD ch. 6]; as soon as a use case changes one part by its
   number (`changeLineQuantity(lineNumber, quantity)`), the part is a child entity: `create`
@@ -194,14 +192,15 @@ name the event class and its type after the fact alone (`OrderPlaced`) [IDDD ch.
   schema version.
 - No interfaces nor type aliases in an event file: the field types are inline and the
   constructor takes one object typed inline as `{ …fields } & EventMetadata`, destructures
-  `eventId, occurredOn, clock`, calls `super({ eventId, occurredOn, clock })` and assigns each
+  `eventId, occurredOn`, calls `super({ eventId, occurredOn })` and assigns each
   field.
-- An event is plain data: no methods, no `toPrimitives`/`fromPrimitives`. It is its own JSON:
-  `{ ...event }` / `JSON.stringify(event)` give `eventName`, `eventId`, `occurredOn` and the
-  fields, in that order.
-- Only its aggregate creates it: `this.record(new OrderPaidDomainEvent({ orderId: this.id.value, …, clock }))`,
-  always with the clock the method received (`occurredOn` comes from it; without it, from the
-  system time). Pass `eventId` and `occurredOn` only when rebuilding an event a channel delivered.
+- An event is plain data: no methods, no `toPrimitives`/`fromPrimitives`. A new event has no
+  `occurredOn`: the event bus sets it when it sends the event, so the JSON it sends is
+  `{ eventName, eventId, occurredOn, ...fields }`, in that order (an event that already carries
+  `occurredOn` keeps it). A listener reads `event.occurredOn` (`string | undefined`) from the
+  rebuilt event.
+- Only its aggregate creates it: `this.record(new OrderPaidDomainEvent({ orderId: this.id.value, … }))`.
+  Pass `eventId` and `occurredOn` only when rebuilding an event a channel delivered.
 - There is no union type of an aggregate's events (no `<Aggregate>Event`): `AggregateRoot` takes
   only the id type (`AggregateRoot<OrderId>`), and `record`, `pullDomainEvents`, `EventBus`,
   `DomainEventBus` and `EventRegistry` work with `EventBase`, the class every event extends.
@@ -269,7 +268,7 @@ comes from.
 - Constructor parameters, `private readonly` and only what `handle` uses, in this order: the
   repository of the aggregate (`private readonly orders: OrderRepository`, the abstract class of
   the domain, never `AggregateFinder<X> & AggregateSaver<X>`), domain services, `EventBus`,
-  `Clock`, `Logger`; the body is `super();`.
+  `Logger`; the body is `super();`.
 
 ### User use cases
 
@@ -284,8 +283,7 @@ comes from.
 - `protected async handle(command)`, in this order: (1) authorization → `throw new
   NotAllowedException('<English message>')`; (2) a new id, `<Aggregate>Id.generate()`; (3)
   `<Aggregate>.create(...)`, or `findById` and, when it is `null`, `throw new
-  AggregateNotFoundException('<Aggregate>', id.value)`; (4) the business method(s) with
-  `this.clock`; (5) `await repo.save(x)` once (or `await repo.remove(x)`), then
+  AggregateNotFoundException('<Aggregate>', id.value)`; (4) the business method(s); (5) `await repo.save(x)` once (or `await repo.remove(x)`), then
   `await this.events.publish(x.pullDomainEvents())`; (6) log if the business wants a trace; (7)
   return the output. `UseCase` has no helpers. `execute` keeps package exceptions and wraps any
   other error of either step in `UnexpectedErrorException` with `cause`: let errors propagate.
@@ -315,7 +313,7 @@ use case, one class, with no `UseCase` behind it.
   is its identity in the channel (its queue in a broker), a stable literal unique in the system,
   never derived from the class name, which minifiers change. The event class is the local copy
   of another context's event, or the context's own event (read models).
-- Constructor as a user use case (the aggregate's repository, services, `EventBus`, `Clock`,
+- Constructor as a user use case (the aggregate's repository, services, `EventBus`,
   `Logger`); a
   read-model reaction receives only its projection.
 - `async handle(event)`, in this order: (1) `const { a, b } = ValueObjectBuilder.build({ a: () =>
@@ -371,7 +369,7 @@ use case, one class, with no `UseCase` behind it.
   was applied, merges the changes into the stored row (or a default row), sets `lastEventAt` and
   saves with the `eventId`.
 - Each event that changes the row has its own reaction use case, which builds `eventId: new
-  UuidType(event.eventId)`, the id, `occurredOn: new CreatedAt(event.occurredOn)` and what it
+  UuidType(event.eventId)`, the id, `occurredOn: new CreatedAt(event.occurredOn as string)` and what it
   needs, decides the change and calls `await this.projection.apply(...)`.
 - Queries have no use case: the entry point receives the query port and calls it. One
   infrastructure class implements both ports and returns copies (`structuredClone`). A read model
@@ -442,20 +440,24 @@ use case, one class, with no `UseCase` behind it.
   204 for a command, 200 for a query (a missing row → 404). It never catches errors, maps statuses
   nor holds rules.
 - The composition root (`composition.ts`, one class `<Context>Context` and
-  `interface <Context>Settings { channel; clock; logger; …own data }`) is the only place that
+  `interface <Context>Settings { channel; logger; …own data }`) is the only place that
   builds classes of the context and reads configuration: `static async start(settings)` builds
   `new DomainEventBus(channel, <Context>Context.registry(), logger)`, the repositories,
   stores, adapters, domain services and projections, every reaction use case with its
   dependencies (each subscribed with `await bus.subscribe(listener)`, its `Subscription` kept),
   then the controller with the user use cases; `async stop()` unsubscribes every subscription;
   `private static registry()` builds the `EventRegistry`. One top-level file opens one channel and
-  starts every context with the same channel, clock and logger, and stops them in reverse order.
+  starts every context with the same channel and logger, and stops them in reverse order.
 
 ## Time and logging
 
-- Business time comes only from a `Clock` (`clock.now()`, `CreatedAt.now(clock)`): never
-  `Date.now()` nor `new Date()` without a clock value. Use cases receive the `Clock` port and pass
-  it to every aggregate method; tests use `FixedClock`.
+- The current time comes only from the date value objects: `CreatedAt.now()` and
+  `UpdatedAt.now()` (no argument, the system time), called inside the aggregate; never
+  `Date.now()` nor `new Date()` for the current time (`new Date(createdAt.value.getTime() + ms)`
+  from a known value is fine). Nothing receives nor passes a time source: not the aggregate
+  methods, the use cases nor the composition. An event's `occurredOn` is set by the event bus when
+  it sends the event. Tests never fix the time: they check that a stamped date is valid and build
+  the dates of a loaded state with the constructor (`new CreatedAt('2026-03-01T09:30:00Z')`).
 - Logging goes through the `Logger` port of `/application` (`debug`, `info`, `warn`, `error`,
   each `(message, context?)`): the message is a stable snake_case name and the data goes in the
   context (`this.logger.info('order_cancelled_for_rejected_payment', { orderId: orderId.value })`,

@@ -1,5 +1,5 @@
 import { EventListener, ListensTo, ValueObjectBuilder } from '../../../../ddd/application';
-import type { Clock, EventBus } from '../../../../ddd/application';
+import type { EventBus } from '../../../../ddd/application';
 import { Money } from '../../../shared-kernel/money/Money';
 import type { Currency } from '../../../shared-kernel/money/MoneyCurrency';
 import type { PaymentRepository } from '../../domain/repository/PaymentRepository';
@@ -14,7 +14,6 @@ export class AdjustPaymentAmountOnOrderLineQuantityChanged extends EventListener
   constructor(
     private readonly payments: PaymentRepository,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }
@@ -28,7 +27,7 @@ export class AdjustPaymentAmountOnOrderLineQuantityChanged extends EventListener
     if (payment === null) {
       return;
     }
-    payment.adjustAmount(amount, this.clock);
+    payment.adjustAmount(amount);
     await this.payments.save(payment);
     await this.events.publish(payment.pullDomainEvents());
   }

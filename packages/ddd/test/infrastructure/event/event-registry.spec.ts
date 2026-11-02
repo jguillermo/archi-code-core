@@ -92,7 +92,10 @@ describe('EventRegistry: rebuilding the events a channel delivers', () => {
       .fromJSON(
         JSON.parse(
           JSON.stringify(
-            new OrderLinesChanged(orderId, [{ sku: 'TORCH-01', units: 2 }], { eventId }),
+            new OrderLinesChanged(orderId, [{ sku: 'TORCH-01', units: 2 }], {
+              eventId,
+              occurredOn: '2026-03-01T09:30:00Z',
+            }),
           ),
         ),
       );
@@ -186,15 +189,16 @@ describe('EventRegistry: rebuilding the events a channel delivers', () => {
       occurredOn: '2026-03-01T09:30:00Z',
     });
 
-    const rebuild = () => forgetful.fromJSON({ ...delivered });
+    const rebuild = () =>
+      forgetful.fromJSON({ ...delivered, occurredOn: '2026-03-01T09:30:00.000Z' });
     expect(rebuild).toThrow(InternalErrorException);
     expect(rebuild).toThrow(
       'the factory of "OrderShipped" must pass the serialized event as metadata, so it keeps its eventId and occurredOn',
     );
   });
 
-  it('refuses a factory that keeps the eventId but stamps a new occurredOn', () => {
-    const restamping = new EventRegistry().register(
+  it('refuses a factory that keeps the eventId but drops the occurredOn', () => {
+    const dropping = new EventRegistry().register(
       OrderShipped,
       (e) => new OrderShipped(e.orderId as string, e.carrier as string, { eventId: e.eventId }),
     );
@@ -203,7 +207,30 @@ describe('EventRegistry: rebuilding the events a channel delivers', () => {
       occurredOn: '2026-03-01T09:30:00Z',
     });
 
-    expect(() => restamping.fromJSON({ ...delivered })).toThrow(InternalErrorException);
+    expect(() =>
+      dropping.fromJSON({ ...delivered, occurredOn: '2026-03-01T09:30:00.000Z' }),
+    ).toThrow(InternalErrorException);
+  });
+
+  it('refuses a factory that keeps the eventId but stamps another occurredOn', () => {
+    const restamping = new EventRegistry().register(
+      OrderShipped,
+      (e) =>
+        new OrderShipped(e.orderId as string, e.carrier as string, {
+          eventId: e.eventId,
+          occurredOn: '2026-03-02T10:00:00Z',
+        }),
+    );
+
+    expect(() =>
+      restamping.fromJSON({
+        eventName: 'OrderShipped',
+        eventId,
+        occurredOn: '2026-03-01T09:30:00.000Z',
+        orderId,
+        carrier: 'UPS',
+      }),
+    ).toThrow(InternalErrorException);
   });
 
   it('accepts the same identity written by another producer: upper case id, time without milliseconds', () => {

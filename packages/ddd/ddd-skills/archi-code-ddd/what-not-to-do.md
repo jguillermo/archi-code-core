@@ -86,8 +86,6 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   `PaymentId.forOrder(...)` in the aggregate): the use case passes the id.
 - A business factory with another name than `create`, or one that records anything but
   `<Aggregate>CreatedDomainEvent` and skips the creation invariants.
-- Importing `Clock` from `@archi-code/ddd/application` in the domain: declare
-  `interface Clock { now(): Date }` above the aggregate.
 - Raw state in an aggregate (`private _shipped: boolean`, `private _at: Date`, a `string` field):
   wrap it in a value object.
 - A private field without its public getter, or left out of `toPrimitives()`: it compiles and is
@@ -107,11 +105,12 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   (`NotAllowedException`); rules over the aggregate's state stay in the aggregate.
 - Declaring a `version` field in an aggregate, or putting it in `toPrimitives()`.
 - Calling `record()` from outside the aggregate (it is `protected`) or forgetting `super(...)`.
-- A child entity as a plain class, with setters, a clock, events, `create` or its own
+- A child entity as a plain class, with setters, events, `create` or its own
   `toPrimitives`, or called from outside its aggregate.
 - A specification that loads data through a repository, a generic one without a business name
   (`FieldEquals`), or one used instead of the aggregate to protect an invariant.
-- Using `new Date()` or `Date.now()` in domain or application code: use the `Clock`.
+- Using `new Date()` or `Date.now()` for the current time in domain or application code: use
+  `CreatedAt.now()` / `UpdatedAt.now()`.
 - Logging from the domain: it records events or throws.
 
 ## Events
@@ -125,11 +124,13 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   parameters: the constructor takes one object typed inline as `{ …fields } & EventMetadata`.
 - An `aggregateId` field or a schema version: the id is a named field (`orderId`).
 - Declaring `eventName` as a method or an instance field, or adding methods to an event.
-- Creating an event outside its aggregate, or without the clock the method received.
+- Creating an event outside its aggregate, or setting its `occurredOn` when recording it (the
+  event bus sets it when it sends the event).
 - Declaring a union type of an aggregate's events (`type OrderEvent = …`) or passing an event type
   to `AggregateRoot`, `EventBus`, `DomainEventBus` or `EventRegistry`: they take no event type and
   work with `EventBase`.
-- Generating `eventId`/`occurredOn` yourself for a new event: the base does it.
+- Generating `eventId`/`occurredOn` yourself for a new event: the base sets `eventId` and the
+  event bus sets `occurredOn` when it sends the event.
 - A registry factory that does not pass `eventId: json.eventId` and `occurredOn: json.occurredOn`:
   the event gets a new `eventId`, a reaction cannot skip a redelivery, and `fromJSON` throws.
 - Registering an event twice, or subscribing a reaction to an event the registry does not know

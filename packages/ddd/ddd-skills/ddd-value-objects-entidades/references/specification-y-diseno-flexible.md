@@ -16,7 +16,7 @@ price.amount.value * 21 / 100;
 ```
 
 ```ts
-order.cancel(new CancellationReason('customer request'), clock);
+order.cancel(new CancellationReason('customer request'));
 price.percentage('21');
 ```
 

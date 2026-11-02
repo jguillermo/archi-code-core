@@ -18,10 +18,6 @@ import { PaymentVoidedDomainEvent } from '../event/PaymentVoidedDomainEvent';
 import { RejectionCode } from '../value-object/RejectionCodeType';
 import { RejectionCodeType } from '../value-object/RejectionCodeType';
 
-interface Clock {
-  now(): Date;
-}
-
 export class Payment extends AggregateRoot<PaymentId> {
   private static readonly LIMIT_CENTS: Record<PaymentMethod, number> = {
     [PaymentMethod.CARD]: 50_000,
@@ -61,7 +57,6 @@ export class Payment extends AggregateRoot<PaymentId> {
     orderReference: OrderReference,
     amount: Money,
     method: PaymentMethodType,
-    clock: Clock,
   ): Payment {
     const payment = new Payment(
       id,
@@ -70,8 +65,8 @@ export class Payment extends AggregateRoot<PaymentId> {
       method,
       new PaymentStatusType(PaymentStatus.PENDING),
       new RejectionCodeType(null),
-      CreatedAt.now(clock),
-      UpdatedAt.now(clock),
+      CreatedAt.now(),
+      UpdatedAt.now(),
     );
 
     payment.record(
@@ -80,7 +75,6 @@ export class Payment extends AggregateRoot<PaymentId> {
         orderId: payment.orderReference.value,
         amount: payment._amount.toPrimitives(),
         method: payment.method.value,
-        clock,
       }),
     );
 
@@ -116,64 +110,61 @@ export class Payment extends AggregateRoot<PaymentId> {
     return this._updatedAt;
   }
 
-  process(clock: Clock): void {
+  process(): void {
     if (this._status.value !== PaymentStatus.PENDING) {
       return;
     }
     if (this.exceedsLimit()) {
-      this.reject(RejectionCode.LIMIT_EXCEEDED, clock);
+      this.reject(RejectionCode.LIMIT_EXCEEDED);
     } else if (this.method.value === PaymentMethod.CARD) {
-      this.capture(clock);
+      this.capture();
     } else {
-      this.awaitTransfer(clock);
+      this.awaitTransfer();
     }
   }
 
-  confirmTransfer(received: Money, clock: Clock): void {
+  confirmTransfer(received: Money): void {
     if (this._status.value !== PaymentStatus.AWAITING_TRANSFER) {
       throw new PaymentNotAwaitingTransfer(this.id.value, this._status.value);
     }
     if (received.equals(this._amount)) {
-      this.capture(clock);
+      this.capture();
     } else {
-      this.reject(RejectionCode.AMOUNT_MISMATCH, clock);
+      this.reject(RejectionCode.AMOUNT_MISMATCH);
     }
   }
 
-  adjustAmount(amount: Money, clock: Clock): void {
+  adjustAmount(amount: Money): void {
     if (this._status.value !== PaymentStatus.AWAITING_TRANSFER || amount.equals(this._amount)) {
       return;
     }
     this._amount = amount;
-    this._updatedAt = UpdatedAt.now(clock);
+    this._updatedAt = UpdatedAt.now();
     this.record(
       new PaymentAmountAdjustedDomainEvent({
         paymentId: this.id.value,
         orderId: this.orderReference.value,
         amount: amount.toPrimitives(),
-        clock,
       }),
     );
   }
 
-  settleForCancelledOrder(clock: Clock): void {
+  settleForCancelledOrder(): void {
     if (this._status.value === PaymentStatus.CAPTURED) {
-      this.moveTo(PaymentStatus.REFUNDED, clock);
+      this.moveTo(PaymentStatus.REFUNDED);
       this.record(
         new PaymentRefundedDomainEvent({
           paymentId: this.id.value,
           orderId: this.orderReference.value,
           amount: this._amount.toPrimitives(),
-          clock,
         }),
       );
     } else if (this._status.value === PaymentStatus.AWAITING_TRANSFER) {
-      this.moveTo(PaymentStatus.VOIDED, clock);
+      this.moveTo(PaymentStatus.VOIDED);
       this.record(
         new PaymentVoidedDomainEvent({
           paymentId: this.id.value,
           orderId: this.orderReference.value,
-          clock,
         }),
       );
     }
@@ -196,46 +187,43 @@ export class Payment extends AggregateRoot<PaymentId> {
     return this._amount.isAtLeast(Payment.LIMIT_CENTS[this.method.value] + 1);
   }
 
-  private awaitTransfer(clock: Clock): void {
-    this.moveTo(PaymentStatus.AWAITING_TRANSFER, clock);
+  private awaitTransfer(): void {
+    this.moveTo(PaymentStatus.AWAITING_TRANSFER);
     this.record(
       new PaymentAwaitingTransferDomainEvent({
         paymentId: this.id.value,
         orderId: this.orderReference.value,
         amount: this._amount.toPrimitives(),
-        clock,
       }),
     );
   }
 
-  private capture(clock: Clock): void {
-    this.moveTo(PaymentStatus.CAPTURED, clock);
+  private capture(): void {
+    this.moveTo(PaymentStatus.CAPTURED);
     this.record(
       new PaymentCapturedDomainEvent({
         paymentId: this.id.value,
         orderId: this.orderReference.value,
         amount: this._amount.toPrimitives(),
-        clock,
       }),
     );
   }
 
-  private reject(code: RejectionCode, clock: Clock): void {
+  private reject(code: RejectionCode): void {
     this._rejection = new RejectionCodeType(code);
-    this.moveTo(PaymentStatus.REJECTED, clock);
+    this.moveTo(PaymentStatus.REJECTED);
     this.record(
       new PaymentRejectedDomainEvent({
         paymentId: this.id.value,
         orderId: this.orderReference.value,
         amount: this._amount.toPrimitives(),
         reason: code,
-        clock,
       }),
     );
   }
 
-  private moveTo(status: PaymentStatus, clock: Clock): void {
+  private moveTo(status: PaymentStatus): void {
     this._status = new PaymentStatusType(status);
-    this._updatedAt = UpdatedAt.now(clock);
+    this._updatedAt = UpdatedAt.now();
   }
 }

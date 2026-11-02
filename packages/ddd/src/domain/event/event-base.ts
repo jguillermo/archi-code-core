@@ -6,7 +6,6 @@ import { InvalidEventDefinitionException } from '../exceptions/invalid-event-def
 export interface EventMetadata {
   eventId?: string;
   occurredOn?: Date | string;
-  clock?: { now(): Date };
 }
 
 export interface SerializedEvent {
@@ -24,7 +23,7 @@ export interface EventClass<Event extends EventBase = EventBase> {
 export abstract class EventBase {
   readonly eventName: string;
   readonly eventId: string;
-  readonly occurredOn: string;
+  readonly occurredOn?: string;
 
   constructor(metadata: EventMetadata = {}) {
     const { eventName } = this.constructor as Partial<EventClass>;
@@ -33,10 +32,8 @@ export abstract class EventBase {
     }
     this.eventName = eventName;
     this.eventId = new IdType(metadata.eventId ?? UuidType.random()).value;
-    this.occurredOn = (
-      metadata.occurredOn === undefined
-        ? CreatedAt.now(metadata.clock)
-        : new CreatedAt(metadata.occurredOn as Date)
-    ).value.toISOString();
+    if (metadata.occurredOn !== undefined) {
+      this.occurredOn = new CreatedAt(metadata.occurredOn as Date).value.toISOString();
+    }
   }
 }

@@ -2,14 +2,13 @@ import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'v
 import type { MockInstance } from 'vitest';
 import type { Logger, LogLevel } from '../../../src/application/index';
 import { InternalErrorException } from '../../../src/infrastructure/exceptions/internal-error.exception';
-import { FixedClock } from '../../../src/infrastructure/clock/fixed-clock';
 import { ConsoleLogger } from '../../../src/infrastructure/logging/console-logger';
 
 const LEVELS: LogLevel[] = ['debug', 'info', 'warn', 'error'];
+const validIsoTime = expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
 
 describe('ConsoleLogger: one JSON line per entry on the console', () => {
   let output: Record<LogLevel, MockInstance>;
-  const clock = new FixedClock('2026-10-19T09:30:00Z');
 
   beforeEach(() => {
     output = {
@@ -22,7 +21,6 @@ describe('ConsoleLogger: one JSON line per entry on the console', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
-    vi.useRealTimers();
   });
 
   const lines = (level: LogLevel): unknown[] =>
@@ -33,7 +31,7 @@ describe('ConsoleLogger: one JSON line per entry on the console', () => {
   });
 
   it('writes the time, the level, the message and the context through the console method of its level', () => {
-    const logger = new ConsoleLogger({ level: 'debug', clock });
+    const logger = new ConsoleLogger({ level: 'debug' });
 
     LEVELS.forEach((level) => logger[level]('order_placed', { orderId: 'ord-1001' }));
 
@@ -41,7 +39,7 @@ describe('ConsoleLogger: one JSON line per entry on the console', () => {
       expect(output[level]).toHaveBeenCalledTimes(1);
       expect(lines(level)).toStrictEqual([
         {
-          time: '2026-10-19T09:30:00.000Z',
+          time: validIsoTime,
           level,
           message: 'order_placed',
           context: { orderId: 'ord-1001' },
@@ -51,15 +49,15 @@ describe('ConsoleLogger: one JSON line per entry on the console', () => {
   });
 
   it('writes no context key when the entry has none', () => {
-    new ConsoleLogger({ clock }).info('server_started');
+    new ConsoleLogger().info('server_started');
 
-    expect(output.info).toHaveBeenCalledWith(
-      '{"time":"2026-10-19T09:30:00.000Z","level":"info","message":"server_started"}',
-    );
+    expect(lines('info')).toStrictEqual([
+      { time: validIsoTime, level: 'info', message: 'server_started' },
+    ]);
   });
 
   it('writes from info up by default, so debug stays out of production', () => {
-    const logger = new ConsoleLogger({ clock });
+    const logger = new ConsoleLogger();
 
     logger.debug('cart_loaded');
     logger.info('order_placed');
@@ -69,7 +67,7 @@ describe('ConsoleLogger: one JSON line per entry on the console', () => {
   });
 
   it('drops every entry below the minimum level', () => {
-    const logger = new ConsoleLogger({ level: 'warn', clock });
+    const logger = new ConsoleLogger({ level: 'warn' });
 
     LEVELS.forEach((level) => logger[level]('payment_retried'));
 
@@ -79,19 +77,18 @@ describe('ConsoleLogger: one JSON line per entry on the console', () => {
     ]);
   });
 
-  it('takes the time from the system clock when none is given', () => {
-    vi.useFakeTimers({ now: new Date('2026-03-01T08:00:00Z') });
-
+  it('stamps every entry with a valid date', () => {
     new ConsoleLogger().error('payment_failed');
 
-    expect(lines('error')).toMatchObject([{ time: '2026-03-01T08:00:00.000Z' }]);
+    const [{ time }] = lines('error') as { time: string }[];
+    expect(Number.isNaN(Date.parse(time))).toBe(false);
   });
 
   it('writes an error with its name, code, message, stack and cause, which JSON.stringify would lose', () => {
     const cause = new Error('connection refused');
     const failure = new InternalErrorException('database unavailable', { cause });
 
-    new ConsoleLogger({ clock }).error('http_request_failed', { error: failure });
+    new ConsoleLogger().error('http_request_failed', { error: failure });
 
     const [line] = lines('error') as { context: { error: Record<string, unknown> } }[];
     expect(line.context.error).toMatchObject({

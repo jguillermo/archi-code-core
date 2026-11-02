@@ -4,7 +4,7 @@ import {
   UseCase,
   ValueObjectBuilder,
 } from '../../../../ddd/application';
-import type { Clock, EventBus } from '../../../../ddd/application';
+import type { EventBus } from '../../../../ddd/application';
 import type { ShipmentRepository } from '../../domain/repository/ShipmentRepository';
 import { ShipmentId } from '../../domain/value-object/ShipmentId';
 import { StaffRole } from '../../domain/value-object/StaffRoleType';
@@ -24,7 +24,6 @@ export class DeliverShipment extends UseCase<DeliverShipmentInput, DeliverShipme
   constructor(
     private readonly shipments: ShipmentRepository,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }
@@ -44,7 +43,7 @@ export class DeliverShipment extends UseCase<DeliverShipmentInput, DeliverShipme
     if (shipment === null) {
       throw new AggregateNotFoundException('Shipment', command.shipmentId.value);
     }
-    shipment.deliver(this.clock);
+    shipment.deliver();
     await this.shipments.save(shipment);
     await this.events.publish(shipment.pullDomainEvents());
   }

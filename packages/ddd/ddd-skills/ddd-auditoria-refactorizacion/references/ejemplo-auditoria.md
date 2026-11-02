@@ -63,7 +63,7 @@ class UpdateOrder extends UseCase<UpdateOrderInput, UpdateOrderInput, void> {
 class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, void> {
   protected handle(command: PlaceOrderCommand): Promise<void> {
     return this.unitOfWork.run(async () => {
-      const order = Order.create(command.orderId, command.customerId, this.clock);
+      const order = Order.create(command.orderId, command.customerId);
       const customer = await this.customers.findById(command.customerId);
       customer!.awardPointsFor(command.orderId);
       await this.orders.save(order);
@@ -84,7 +84,7 @@ class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, void> {
 | 4 | El dominio importa `OrderMapper`, un mapper escrito a mano en `infrastructure/`, y le delega la conversión a primitivos | `domain/order/order.ts:2` | Alta |
 | 5 | Estado y total como primitivos (`_status: string`, `_total: number`) en vez de value objects | `domain/order/order.ts:5-6` | Media |
 | 6 | `toCommand` devuelve el input tal cual: ningún value object se construye ni valida antes de `handle` | `application/update-order/update-order.ts:14` | Media |
-| 7 | `new Date()` en el agregado: fechas no deterministas en tests | `domain/order/order.ts:10` | Media |
+| 7 | `new Date()` en el agregado en vez de `UpdatedAt.now()` | `domain/order/order.ts:10` | Media |
 | 8 | `throw new Error(...)` en vez de un error de negocio con nombre y código (`OrderNotModifiable extends DomainException`, `SAL001`): `ExceptionClassifier` lo clasifica como `ExceptionKind.Internal` y el cliente recibe 500 | `application/update-order/update-order.ts:18` | Media |
 | 9 | Los casos de uso reciben un `UnitOfWork` del proyecto y abren la transacción con `unitOfWork.run`: la transacción y todo lo de persistencia son del adaptador del repositorio, que hace atómico cada `save` | `application/update-order/update-order.ts:17`, `application/place-order/place-order.ts:27` | Media |
 
@@ -100,16 +100,15 @@ static create(
   customerId: CustomerId,
   lines: OrderLines,
   shippingAddress: ShippingAddress,
-  clock: Clock,
 ): Order;
-addLine(line: OrderLine, clock: Clock): void;
+addLine(line: OrderLine): void;
 ```
 
 Enviar no es trabajo del pedido de Ventas: lo hace `Shipment` en Almacén, que publica `ShipmentDispatchedDomainEvent` (`ddd-skills/ddd-agregados/references/ejemplo-ecommerce.md`), así que `status: 'shipped'` y su errata desaparecen de Ventas. `UpdateOrder` se parte en un caso de uso por acción de negocio (`AddOrderLine` aquí; el envío, en Almacén); cada uno construye sus value objects en `toCommand` y guarda un solo agregado:
 
 ```ts
 import { AggregateNotFoundException, UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
-import type { Clock, EventBus } from '@archi-code/ddd/application';
+import type { EventBus } from '@archi-code/ddd/application';
 
 // application/add-order-line/add-order-line.ts
 export interface AddOrderLineInput {
@@ -128,7 +127,6 @@ export class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand
   constructor(
     private readonly orders: OrderRepository,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }
@@ -150,14 +148,14 @@ export class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand
     if (order === null) {
       throw new AggregateNotFoundException('Order', command.orderId.value);
     }
-    order.addLine(command.line, this.clock);
+    order.addLine(command.line);
     await this.orders.save(order);
     await this.events.publish(order.pullDomainEvents());
   }
 }
 ```
 
-`PlaceOrder` genera el id, crea el pedido, lo guarda y devuelve su id; los puntos del cliente se conceden después, en su propia escritura atómica, cuando llega `OrderCreatedDomainEvent` (consistencia eventual fuera del límite del agregado [IDDD cap. 10]). La reacción es un caso de uso por reacción, una sola clase sin un `UseCase` detrás: no rechaza el hecho (si el cliente no existe, retorna) y `Customer.awardPointsFor(orderId, clock)` (un método de reacción del agregado `Customer`) retorna sin cambios si el pedido ya estaba premiado, porque el canal entrega al menos una vez:
+`PlaceOrder` genera el id, crea el pedido, lo guarda y devuelve su id; los puntos del cliente se conceden después, en su propia escritura atómica, cuando llega `OrderCreatedDomainEvent` (consistencia eventual fuera del límite del agregado [IDDD cap. 10]). La reacción es un caso de uso por reacción, una sola clase sin un `UseCase` detrás: no rechaza el hecho (si el cliente no existe, retorna) y `Customer.awardPointsFor(orderId)` (un método de reacción del agregado `Customer`) retorna sin cambios si el pedido ya estaba premiado, porque el canal entrega al menos una vez:
 
 ```ts
 // application/place-order/place-order.ts
@@ -177,7 +175,6 @@ export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, stri
   constructor(
     private readonly orders: OrderRepository,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }
@@ -196,7 +193,6 @@ export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, stri
       command.customerId,
       command.lines,
       command.shippingAddress,
-      this.clock,
     );
     await this.orders.save(order);
     await this.events.publish(order.pullDomainEvents());
@@ -214,7 +210,6 @@ export class AwardLoyaltyPointsOnOrderCreated extends EventListener<OrderCreated
   constructor(
     private readonly customers: CustomerRepository,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }
@@ -228,7 +223,7 @@ export class AwardLoyaltyPointsOnOrderCreated extends EventListener<OrderCreated
     if (customer === null) {
       return;
     }
-    customer.awardPointsFor(orderId, this.clock);
+    customer.awardPointsFor(orderId);
     await this.customers.save(customer);
     await this.events.publish(customer.pullDomainEvents());
   }
@@ -242,7 +237,6 @@ import { expect } from 'vitest';
 import {
   DomainEventBus,
   EventRegistry,
-  FixedClock,
   InMemoryEventChannel,
 } from '@archi-code/ddd/infrastructure';
 import { ValidationException } from '@archi-code/ddd/domain';
@@ -267,11 +261,10 @@ const registry = new EventRegistry().register(
 );
 const channel = new InMemoryEventChannel();
 const bus = new DomainEventBus(channel, registry);
-const clock = new FixedClock('2026-03-01T09:30:00Z');
-await bus.subscribe(new AwardLoyaltyPointsOnOrderCreated(customers, bus, clock));
+await bus.subscribe(new AwardLoyaltyPointsOnOrderCreated(customers, bus));
 const customerId = '3c1d2e4f-5a6b-4c7d-8e9f-0a1b2c3d4e5f';
 const shippingAddress = { street: 'Calle Mayor 1', city: 'Huelva', country: 'ES' };
-const placeOrder = new PlaceOrder(orders, bus, clock);
+const placeOrder = new PlaceOrder(orders, bus);
 
 await placeOrder.execute({
   customerId,
@@ -289,7 +282,7 @@ await expect(
 
 ## Plan
 
-* **Fase 0:** tests de caracterización de alta, envío y puntos de fidelidad sobre `InMemoryOrderRepository` e `InMemoryCustomerRepository` (del proyecto), `InMemoryEventChannel` y `FixedClock`.
-* **Fase 1:** borrar `OrderMapper`: la conversión pasa al agregado (`toPrimitives()` y `static fromPrimitives()`, con un test de ida y vuelta) y `MongoOrderRepository` la llama directamente (su constructor recibe solo la `collection`), sustituir `new Date()` por el `Clock` inyectado y `Error` por errores de negocio con nombre y código (`OrderNotModifiable`, `SAL001`); `ExceptionClassifier` clasifica las reglas de negocio como `ExceptionKind.Invalid` (422 en HTTP). Quitar el `UnitOfWork` de los casos de uso: `MongoOrderRepository` hace atómico cada `save` (una escritura de un documento con condición de versión) y los casos de uso solo reciben el repositorio abstracto de su agregado (`OrderRepository`, `CustomerRepository`, declarados en `domain/repository/` y extendidos por `MongoOrderRepository` y los repositorios en memoria), `EventBus` y `Clock`.
+* **Fase 0:** tests de caracterización de alta, envío y puntos de fidelidad sobre `InMemoryOrderRepository` e `InMemoryCustomerRepository` (del proyecto) e `InMemoryEventChannel`.
+* **Fase 1:** borrar `OrderMapper`: la conversión pasa al agregado (`toPrimitives()` y `static fromPrimitives()`, con un test de ida y vuelta) y `MongoOrderRepository` la llama directamente (su constructor recibe solo la `collection`), sustituir `new Date()` por `CreatedAt.now()`/`UpdatedAt.now()` y `Error` por errores de negocio con nombre y código (`OrderNotModifiable`, `SAL001`); `ExceptionClassifier` clasifica las reglas de negocio como `ExceptionKind.Invalid` (422 en HTTP). Quitar el `UnitOfWork` de los casos de uso: `MongoOrderRepository` hace atómico cada `save` (una escritura de un documento con condición de versión) y los casos de uso solo reciben el repositorio abstracto de su agregado (`OrderRepository`, `CustomerRepository`, declarados en `domain/repository/` y extendidos por `MongoOrderRepository` y los repositorios en memoria) y `EventBus`.
 * **Fase 2:** `OrderStatusType`, `OrderLines` (con `OrderLine` y `Money`) como value objects; constructor público y `Order.create`; `addLine` sustituye a los setters; `UpdateOrder` se parte en `AddOrderLine` y el envío pasa a `Shipment` en Almacén.
 * **Fase 3:** `PlaceOrder` guarda solo el pedido; el caso de uso por reacción `AwardLoyaltyPointsOnOrderCreated` concede los puntos por evento. Para que `OrderCreatedDomainEvent` no se pierda si el proceso cae entre `save` y `publish`, `MongoOrderRepository` escribe el pedido y sus eventos pendientes en el mismo documento (outbox) y un relay los entrega después por el `EventChannel`; los casos de uso no cambian.

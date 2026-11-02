@@ -14,9 +14,8 @@ export class OrderCancelledDomainEvent extends EventBase {
     wasPaid,
     eventId,
     occurredOn,
-    clock,
   }: { orderId: string; reason: string; wasPaid: boolean } & EventMetadata) {
-    super({ eventId, occurredOn, clock });
+    super({ eventId, occurredOn });
     this.orderId = orderId;
     this.reason = reason;
     this.wasPaid = wasPaid;

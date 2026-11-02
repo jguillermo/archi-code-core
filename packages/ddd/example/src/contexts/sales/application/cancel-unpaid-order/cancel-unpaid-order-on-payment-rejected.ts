@@ -1,5 +1,5 @@
 import { EventListener, ListensTo, ValueObjectBuilder } from '../../../../ddd/application';
-import type { Clock, EventBus, Logger } from '../../../../ddd/application';
+import type { EventBus, Logger } from '../../../../ddd/application';
 import type { OrderRepository } from '../../domain/repository/OrderRepository';
 import { OrderId } from '../../domain/value-object/OrderId';
 import { RejectionReason } from '../../domain/value-object/RejectionReason';
@@ -12,7 +12,6 @@ export class CancelUnpaidOrderOnPaymentRejected extends EventListener<PaymentRej
   constructor(
     private readonly orders: OrderRepository,
     private readonly events: EventBus,
-    private readonly clock: Clock,
     private readonly logger: Logger,
   ) {
     super();
@@ -27,7 +26,7 @@ export class CancelUnpaidOrderOnPaymentRejected extends EventListener<PaymentRej
     if (order === null) {
       return;
     }
-    order.cancelForRejectedPayment(reason, this.clock);
+    order.cancelForRejectedPayment(reason);
     await this.orders.save(order);
     const events = order.pullDomainEvents();
     await this.events.publish(events);

@@ -1,11 +1,9 @@
-import type { Clock, LogContext, Logger, LogLevel } from '../../application/index';
+import type { LogContext, Logger, LogLevel } from '../../application/index';
 import { InternalErrorException } from '../exceptions/internal-error.exception';
-import { SystemClock } from '../clock/system-clock';
 import { LogSerializer } from './log-serializer';
 
 export interface ConsoleLoggerOptions {
   readonly level?: LogLevel;
-  readonly clock?: Clock;
 }
 
 export class ConsoleLogger implements Logger {
@@ -13,16 +11,14 @@ export class ConsoleLogger implements Logger {
 
   private readonly output: Pick<Console, LogLevel> = console;
   private readonly minimum: number;
-  private readonly clock: Clock;
 
-  constructor({ level = 'info', clock = new SystemClock() }: ConsoleLoggerOptions = {}) {
+  constructor({ level = 'info' }: ConsoleLoggerOptions = {}) {
     this.minimum = ConsoleLogger.levels.indexOf(level);
     if (this.minimum === -1) {
       throw new InternalErrorException(
         `unknown log level "${String(level)}": use ${ConsoleLogger.levels.join(', ')}`,
       );
     }
-    this.clock = clock;
   }
 
   debug(message: string, context?: LogContext): void {
@@ -45,7 +41,7 @@ export class ConsoleLogger implements Logger {
     if (ConsoleLogger.levels.indexOf(level) < this.minimum) {
       return;
     }
-    const entry = { time: this.clock.now().toISOString(), level, message };
+    const entry = { time: new Date().toISOString(), level, message };
     this.output[level](LogSerializer.line(entry, context));
   }
 }

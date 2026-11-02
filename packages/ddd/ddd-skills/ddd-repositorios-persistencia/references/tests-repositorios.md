@@ -75,7 +75,6 @@ Un único conjunto de tests, en `test/support/order-repository-contract.ts` del 
 ```ts
 import { expect, it } from 'vitest';
 import { ConcurrencyException } from '@archi-code/ddd/application';
-import { FixedClock } from '@archi-code/ddd/infrastructure';
 import { Order } from '../../src/contexts/sales/domain/aggregate/Order';
 import type { OrderRepository } from '../../src/contexts/sales/domain/repository/OrderRepository';
 import { CustomerId } from '../../src/contexts/sales/domain/value-object/CustomerId';
@@ -90,7 +89,6 @@ const customerId = '3f1d2c4b-5a6e-4f70-8b9c-0d1e2f3a4b5c';
 export function orderRepositoryContract(
   make: () => Promise<OrderRepository>,
 ): void {
-  const clock = new FixedClock('2026-03-01T09:30:00Z');
   const line = (sku: string) =>
     OrderLine.fromPrimitives({ sku, quantity: 1, unitPrice: { amount: 4990, currency: 'EUR' } });
   const placeOrder = () =>
@@ -99,13 +97,12 @@ export function orderRepositoryContract(
       new CustomerId(customerId),
       new OrderLines({ items: [line('TORCH-01')] }),
       ShippingAddress.fromPrimitives({ street: 'Calle Mayor 1', city: 'Huelva', country: 'ES' }),
-      clock,
     );
 
   it('loads what it saved', async () => {
     const orders = await make();
     const order = placeOrder();
-    order.addLine(line('HELMET-02'), clock);
+    order.addLine(line('HELMET-02'));
     await orders.save(order);
     expect((await orders.findById(order.id))?.toPrimitives()).toEqual(order.toPrimitives());
   });
@@ -114,7 +111,7 @@ export function orderRepositoryContract(
     const orders = await make();
     const order = placeOrder();
     await orders.save(order);
-    order.addLine(line('HELMET-02'), clock);
+    order.addLine(line('HELMET-02'));
     await expect(orders.save(order)).resolves.toBeUndefined();
   });
 
@@ -123,9 +120,9 @@ export function orderRepositoryContract(
     await orders.save(placeOrder());
     const first = await orders.findById(new OrderId(orderId));
     const second = await orders.findById(new OrderId(orderId));
-    first!.addLine(line('HELMET-02'), clock);
+    first!.addLine(line('HELMET-02'));
     await orders.save(first!);
-    second!.addLine(line('GLOVES-03'), clock);
+    second!.addLine(line('GLOVES-03'));
     await expect(orders.save(second!)).rejects.toThrow(ConcurrencyException);
     await expect(orders.save(placeOrder())).rejects.toThrow(ConcurrencyException);
   });

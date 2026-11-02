@@ -12,9 +12,8 @@ export class OrderLineQuantityChangedDomainEvent extends EventBase {
     total,
     eventId,
     occurredOn,
-    clock,
   }: { orderId: string; total: { amount: number; currency: string } } & EventMetadata) {
-    super({ eventId, occurredOn, clock });
+    super({ eventId, occurredOn });
     this.orderId = orderId;
     this.total = total;
   }

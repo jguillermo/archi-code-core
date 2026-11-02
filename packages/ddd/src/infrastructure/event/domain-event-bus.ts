@@ -25,7 +25,17 @@ export class DomainEventBus implements EventBus {
   ) {}
 
   async publish(events: readonly EventBase[]): Promise<void> {
-    await this.channel.send(events.map((event: EventBase): SerializedEvent => ({ ...event })));
+    const sentOn = new Date().toISOString();
+    await this.channel.send(
+      events.map(
+        ({ eventName, eventId, occurredOn = sentOn, ...data }: EventBase): SerializedEvent => ({
+          eventName,
+          eventId,
+          occurredOn,
+          ...data,
+        }),
+      ),
+    );
     this.logger.debug('domain_events_published', {
       events: events.map((event) => ({
         eventName: event.eventName,

@@ -1,7 +1,6 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import * as application from '../../src/application/index';
 import type {
-  Clock,
   EventBus,
   ListenerSubscription,
   ListensToOptions,
@@ -69,7 +68,6 @@ describe('@archi-code/ddd/application', () => {
   });
 
   it('exports the ports as types', () => {
-    expectTypeOf<Clock>().toEqualTypeOf<{ now(): Date }>();
     expectTypeOf<EventBus['publish']>().toEqualTypeOf<
       (events: readonly EventBase[]) => Promise<void>
     >();

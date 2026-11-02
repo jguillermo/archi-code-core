@@ -29,11 +29,11 @@ Qué pone `@archi-code/ddd` y qué escribe el proyecto:
 
 ## Publicar desde el caso de uso
 
-El caso de uso guarda y después publica lo que devuelve `pullDomainEvents()`: si `save` falla no se publica nada, y los eventos nunca salen dos veces. No hay puerto de transacciones: el caso de uso recibe el repositorio abstracto de su agregado (`OrderRepository`), el `EventBus` y el `Clock`, y el repositorio garantiza que `save` es una escritura atómica `[Fuera de los libros: convención de @archi-code/ddd]`.
+El caso de uso guarda y después publica lo que devuelve `pullDomainEvents()`: si `save` falla no se publica nada, y los eventos nunca salen dos veces. No hay puerto de transacciones: el caso de uso recibe el repositorio abstracto de su agregado (`OrderRepository`) y el `EventBus`, y el repositorio garantiza que `save` es una escritura atómica `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ```ts
 import { AggregateNotFoundException, UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
-import type { Clock, EventBus } from '@archi-code/ddd/application';
+import type { EventBus } from '@archi-code/ddd/application';
 
 export interface AddOrderLineInput {
   orderId: string;
@@ -51,7 +51,6 @@ export class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand
   constructor(
     private readonly orders: OrderRepository,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }
@@ -73,7 +72,7 @@ export class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand
     if (order === null) {
       throw new AggregateNotFoundException('Order', command.orderId.value);
     }
-    order.addLine(command.line, this.clock);
+    order.addLine(command.line);
     await this.orders.save(order);
     await this.events.publish(order.pullDomainEvents());
   }
@@ -90,7 +89,6 @@ En los tests, `InMemoryEventChannel` guarda lo publicado en `channel.sent` (JSON
 import { describe, expect, it } from 'vitest';
 import {
   DomainEventBus,
-  FixedClock,
   InMemoryEventChannel,
 } from '@archi-code/ddd/infrastructure';
 import { InMemoryOrderRepository } from '../support/in-memory-order-repository';
@@ -100,7 +98,6 @@ const customerId = '5c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f';
 
 describe('Adding a line to an order', () => {
   it('publishes the added line with the new total', async () => {
-    const clock = new FixedClock('2026-03-01T09:30:00Z');
     const orders = new InMemoryOrderRepository();
     const channel = new InMemoryEventChannel();
     const bus = new DomainEventBus(channel, salesEvents);
@@ -111,11 +108,10 @@ describe('Adding a line to an order', () => {
         items: [{ sku: 'TORCH-01', quantity: 1, unitPrice: { amount: 4500, currency: 'EUR' } }],
       }),
       ShippingAddress.fromPrimitives({ street: 'Calle Mayor 1', city: 'Huelva', country: 'ES' }),
-      clock,
     );
     await orders.save(order);
 
-    await new AddOrderLine(orders, bus, clock).execute({
+    await new AddOrderLine(orders, bus).execute({
       orderId,
       sku: 'GLOVES-02',
       quantity: 2,
@@ -129,9 +125,9 @@ describe('Adding a line to an order', () => {
         sku: 'GLOVES-02',
         quantity: 2,
         total: { amount: 7000, currency: 'EUR' },
-        occurredOn: '2026-03-01T09:30:00.000Z',
       },
     ]);
+    expect(Number.isNaN(Date.parse(channel.sent[0].occurredOn))).toBe(false);
   });
 });
 ```
@@ -159,7 +155,7 @@ CREATE TABLE stored_events (
 CREATE INDEX stored_events_unpublished ON stored_events (sequence) WHERE published_at IS NULL;
 ```
 
-`sequence` conserva el orden causal dentro del contexto; `body` es el `SerializedEvent`, la copia plana del evento (`{ ...event }`).
+`sequence` conserva el orden causal dentro del contexto; `body` es el `SerializedEvent`, la copia plana del evento (`{ ...event }`) con el `occurredOn` que le pone `save`, porque un evento nuevo aún no lo tiene (fuera del outbox lo pone `DomainEventBus` al enviar).
 
 ### El repositorio
 
@@ -217,7 +213,10 @@ export class PostgresOrderRepository extends OrderRepository {
   async save(order: Order): Promise<void> {
     const version = this.versions.get(order) ?? 0;
     const primitives = order.toPrimitives();
-    const events = order.pullDomainEvents().map((event) => ({ ...event }));
+    const storedOn = new Date().toISOString();
+    const events = order
+      .pullDomainEvents()
+      .map((event) => ({ ...event, occurredOn: event.occurredOn ?? storedOn }));
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
@@ -324,7 +323,7 @@ Cada reacción hace su propia escritura: el reenviador entrega después del comm
 El composition root (`composition.ts`) elige los canales; los casos de uso no cambian:
 
 ```ts
-import { DomainEventBus, InMemoryEventChannel, SystemClock } from '@archi-code/ddd/infrastructure';
+import { DomainEventBus, InMemoryEventChannel } from '@archi-code/ddd/infrastructure';
 
 const orders = new PostgresOrderRepository(pool);
 const delivery = new ContractPublishingChannel(broker, new InMemoryEventChannel());
@@ -334,7 +333,7 @@ const forwarder = new OutboxForwarder(pool, delivery);
 setInterval(() => {
   forwarder.forwardBatch().catch((error) => console.error('forwarding stored events failed', error));
 }, 1000);
-const addOrderLine = new AddOrderLine(orders, bus, new SystemClock());
+const addOrderLine = new AddOrderLine(orders, bus);
 ```
 
 Un lote que falla se queda en el outbox y lo reintenta la pasada siguiente; el `catch` evita que el rechazo quede sin atender y tumbe el proceso de Node. Aquí `InMemoryEventChannel` solo entrega en proceso lo que el reenviador ya sacó del outbox, después del commit; el `publish` del caso de uso llega vacío desde `PostgresOrderRepository`, y los eventos de un agregado cuyo repositorio no tenga outbox saldrían directamente por `delivery`, sin esa garantía. Si los casos de uso por reacción viven en otro proceso, `delivery` es un canal de broker (el `RabbitMqEventChannel` de `ddd-skills/archi-code-ddd/patterns.md`).

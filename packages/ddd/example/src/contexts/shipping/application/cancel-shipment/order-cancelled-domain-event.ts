@@ -6,8 +6,8 @@ export class OrderCancelledDomainEvent extends EventBase {
 
   readonly orderId: string;
 
-  constructor({ orderId, eventId, occurredOn, clock }: { orderId: string } & EventMetadata) {
-    super({ eventId, occurredOn, clock });
+  constructor({ orderId, eventId, occurredOn }: { orderId: string } & EventMetadata) {
+    super({ eventId, occurredOn });
     this.orderId = orderId;
   }
 }

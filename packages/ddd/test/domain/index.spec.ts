@@ -128,7 +128,6 @@ describe('@archi-code/ddd/domain', () => {
     expectTypeOf<EventMetadata>().toEqualTypeOf<{
       eventId?: string;
       occurredOn?: Date | string;
-      clock?: { now(): Date };
     }>();
     expectTypeOf<SerializedEvent>().toMatchTypeOf<{
       eventName: string;

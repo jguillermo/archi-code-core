@@ -20,7 +20,7 @@ export class OpenOrderSummaryOnOrderCreated extends EventListener<OrderCreatedDo
       ValueObjectBuilder.build({
         eventId: () => new UuidType(event.eventId),
         orderId: () => new OrderId(event.orderId),
-        occurredOn: () => new CreatedAt(event.occurredOn),
+        occurredOn: () => new CreatedAt(event.occurredOn as string),
         customerId: () => new CustomerId(event.customerId),
         total: () => Money.fromPrimitives(event.total as { amount: number; currency: Currency }),
         quantities: () =>

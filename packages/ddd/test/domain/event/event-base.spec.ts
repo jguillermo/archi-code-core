@@ -1,6 +1,6 @@
-import { describe, expect, expectTypeOf, it, vi } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 import { EventBase } from '../../../src/domain/event/event-base';
-import type { EventMetadata, SerializedEvent } from '../../../src/domain/event/event-base';
+import type { EventMetadata } from '../../../src/domain/event/event-base';
 import { TypePrimitiveException } from '../../../src/domain/exceptions/type-primitive.exception';
 import { InvalidEventDefinitionException } from '../../../src/domain/exceptions/invalid-event-definition.exception';
 
@@ -59,42 +59,10 @@ describe('EventBase: a fact the domain publishes', () => {
       expect(first.eventId).not.toBe(second.eventId);
     });
 
-    it('takes the moment from the clock the use case injects, so tests know the exact time', () => {
-      const clock = { now: () => new Date('2026-03-01T09:30:00Z') };
-      const event = new PaymentCaptured(orderId, 10, 'EUR', { clock });
-      expect(event.occurredOn).toBe('2026-03-01T09:30:00.000Z');
-    });
-
-    it('asks the clock once per event, so two events of a moving clock keep their own moment', () => {
-      let tick = Date.parse('2026-03-01T09:30:00Z');
-      const clock = { now: () => new Date((tick += 1000)) };
-      const first = new PaymentCaptured(orderId, 10, 'EUR', { clock });
-      const second = new PaymentCaptured(orderId, 10, 'EUR', { clock });
-      expect(first.occurredOn).toBe('2026-03-01T09:30:01.000Z');
-      expect(second.occurredOn).toBe('2026-03-01T09:30:02.000Z');
-    });
-
-    it('does not keep the clock: it is not part of the event', () => {
-      const event = new PaymentCaptured(orderId, 10, 'EUR', {
-        clock: { now: () => new Date('2026-03-01T09:30:00Z') },
-      });
-      expect(Object.keys(event)).not.toContain('clock');
-    });
-
-    it('refuses a broken clock that returns an invalid date', () => {
-      const clock = { now: () => new Date('not a date') };
-      expect(() => new PaymentCaptured(orderId, 10, 'EUR', { clock })).toThrow(
-        TypePrimitiveException,
-      );
-    });
-
-    it('uses the system time when no clock is given', () => {
-      vi.useFakeTimers({ now: new Date('2026-03-01T09:30:00Z') });
-      try {
-        expect(new PaymentCaptured(orderId, 10, 'EUR').occurredOn).toBe('2026-03-01T09:30:00.000Z');
-      } finally {
-        vi.useRealTimers();
-      }
+    it('has no moment yet: the event bus sets it when it sends the event', () => {
+      const event = new PaymentCaptured(orderId, 10, 'EUR');
+      expect(event.occurredOn).toBeUndefined();
+      expect(Object.keys(event)).not.toContain('occurredOn');
     });
 
     it('keeps only its own payload, where the id of the aggregate is one more field', () => {
@@ -113,15 +81,6 @@ describe('EventBase: a fact the domain publishes', () => {
         occurredOn: '2026-03-01T09:30:00.000Z',
       });
       expect(event.eventId).toBe(eventId);
-      expect(event.occurredOn).toBe('2026-03-01T09:30:00.000Z');
-    });
-
-    it('keeps the stored moment even when a clock is also given', () => {
-      const clock = { now: () => new Date('2030-01-01T00:00:00Z') };
-      const event = new PaymentCaptured(orderId, 1, 'EUR', {
-        occurredOn: '2026-03-01T09:30:00.000Z',
-        clock,
-      });
       expect(event.occurredOn).toBe('2026-03-01T09:30:00.000Z');
     });
 
@@ -162,7 +121,7 @@ describe('EventBase: a fact the domain publishes', () => {
         eventId,
         occurredOn: '2026-03-01T09:30:00Z',
       });
-      const serialized: SerializedEvent = { ...event };
+      const serialized = { ...event };
       expect(serialized).toStrictEqual({
         eventName: 'PaymentCaptured',
         eventId,
@@ -175,7 +134,10 @@ describe('EventBase: a fact the domain publishes', () => {
     });
 
     it('lists the envelope first and its data after, so outbox rows read the same', () => {
-      const event = new PaymentCaptured(orderId, 49.9, 'EUR', { eventId });
+      const event = new PaymentCaptured(orderId, 49.9, 'EUR', {
+        eventId,
+        occurredOn: '2026-03-01T09:30:00Z',
+      });
       expect(Object.keys(event)).toEqual([
         'eventName',
         'eventId',
@@ -193,7 +155,7 @@ describe('EventBase: a fact the domain publishes', () => {
     it('types its envelope as primitives', () => {
       expectTypeOf<EventBase['eventName']>().toEqualTypeOf<string>();
       expectTypeOf<EventBase['eventId']>().toEqualTypeOf<string>();
-      expectTypeOf<EventBase['occurredOn']>().toEqualTypeOf<string>();
+      expectTypeOf<EventBase['occurredOn']>().toEqualTypeOf<string | undefined>();
     });
   });
 });

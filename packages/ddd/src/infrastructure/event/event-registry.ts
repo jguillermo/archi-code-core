@@ -42,6 +42,7 @@ export class EventRegistry {
   private static assertSameIdentity(serialized: SerializedEvent, rebuilt: EventBase): void {
     if (
       rebuilt.eventId !== String(serialized.eventId).toLowerCase() ||
+      rebuilt.occurredOn === undefined ||
       Date.parse(rebuilt.occurredOn) !== Date.parse(serialized.occurredOn)
     ) {
       throw new InternalErrorException(

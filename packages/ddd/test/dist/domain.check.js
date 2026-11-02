@@ -343,7 +343,7 @@ async function domainInThePage(entry) {
     json.eventName === 'OrderPlaced' &&
       json.orderId === generated.value &&
       /^[0-9a-f-]{36}$/.test(json.eventId) &&
-      !Number.isNaN(Date.parse(json.occurredOn)) &&
+      !('occurredOn' in json) &&
       order.pullDomainEvents().length === 0,
   );
 

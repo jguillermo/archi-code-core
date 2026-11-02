@@ -2,7 +2,7 @@
 
 El dominio nunca es el lugar para gestionar transacciones; sus operaciones son demasiado finas y no deben saber que existen. Los libros las sitúan en la capa de aplicación, a menudo con una fachada transaccional o de forma declarativa [IDDD cap. 12; PHP: Repositories, "Managing Transactions"].
 
-Con el paquete la transacción baja un nivel más: es del repositorio, igual que todo lo demás de la persistencia `[Fuera de los libros: convención de @archi-code/ddd]`. La aplicación nunca abre, une ni cierra transacciones y no hay ningún puerto para hacerlo. Un caso de uso recibe el repositorio abstracto de su agregado (`OrderRepository`, declarado en `domain/repository/`), el `EventBus`, el `Clock` y sus puertos propios; nunca una dependencia `transactions`, `unitOfWork` o parecida.
+Con el paquete la transacción baja un nivel más: es del repositorio, igual que todo lo demás de la persistencia `[Fuera de los libros: convención de @archi-code/ddd]`. La aplicación nunca abre, une ni cierra transacciones y no hay ningún puerto para hacerlo. Un caso de uso recibe el repositorio abstracto de su agregado (`OrderRepository`, declarado en `domain/repository/`), el `EventBus` y sus puertos propios; nunca una dependencia `transactions`, `unitOfWork` o parecida.
 
 ## Por qué basta con el repositorio
 
@@ -178,7 +178,7 @@ El caso de uso carga, cambia, guarda y publica, sin abrir nada. Si el comando es
 
 ```ts
 import { AggregateNotFoundException, ConcurrencyException, UseCase, ValueObjectBuilder } from '@archi-code/ddd/application';
-import type { Clock, EventBus } from '@archi-code/ddd/application';
+import type { EventBus } from '@archi-code/ddd/application';
 import type { OrderRepository } from '../../domain/repository/OrderRepository';
 import { OrderId } from '../../domain/value-object/OrderId';
 import { OrderLine } from '../../domain/value-object/OrderLine';
@@ -201,7 +201,6 @@ export class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand
   constructor(
     private readonly orders: OrderRepository,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }
@@ -224,7 +223,7 @@ export class AddOrderLine extends UseCase<AddOrderLineInput, AddOrderLineCommand
       if (order === null) {
         throw new AggregateNotFoundException('Order', command.orderId.value);
       }
-      order.addLine(command.line, this.clock);
+      order.addLine(command.line);
       try {
         await this.orders.save(order);
       } catch (error) {
@@ -251,7 +250,6 @@ import { describe, expect, it } from 'vitest';
 import {
   DomainEventBus,
   EventRegistry,
-  FixedClock,
   InMemoryEventChannel,
 } from '@archi-code/ddd/infrastructure';
 import { AddOrderLine } from '../../../../src/contexts/sales/application/add-order-line/add-order-line';
@@ -264,13 +262,11 @@ import { InMemoryOrderRepository } from '../../../../src/contexts/sales/infrastr
 
 describe('Two customers add a line to the same order at once', () => {
   it('the second one retries with the reloaded order and both lines are kept', async () => {
-    const clock = new FixedClock('2026-03-01T09:30:00Z');
     const orders = new InMemoryOrderRepository();
     const channel = new InMemoryEventChannel();
     const addOrderLine = new AddOrderLine(
       orders,
       new DomainEventBus(channel, new EventRegistry()),
-      clock,
     );
     const order = Order.create(
       OrderId.generate(),
@@ -279,7 +275,6 @@ describe('Two customers add a line to the same order at once', () => {
         items: [{ sku: 'TORCH-01', quantity: 2, unitPrice: { amount: 4990, currency: 'EUR' } }],
       }),
       ShippingAddress.fromPrimitives({ street: 'Calle Mayor 1', city: 'Huelva', country: 'ES' }),
-      clock,
     );
     await orders.save(order);
     const unitPrice = { amount: 1990, currency: 'EUR' };

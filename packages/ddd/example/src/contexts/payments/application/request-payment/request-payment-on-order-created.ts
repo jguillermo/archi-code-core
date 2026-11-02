@@ -1,5 +1,5 @@
 import { EventListener, ListensTo, ValueObjectBuilder } from '../../../../ddd/application';
-import type { Clock, EventBus } from '../../../../ddd/application';
+import type { EventBus } from '../../../../ddd/application';
 import { Money } from '../../../shared-kernel/money/Money';
 import type { Currency } from '../../../shared-kernel/money/MoneyCurrency';
 import { Payment } from '../../domain/aggregate/Payment';
@@ -15,7 +15,6 @@ export class RequestPaymentOnOrderCreated extends EventListener<OrderCreatedDoma
   constructor(
     private readonly payments: PaymentRepository,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }
@@ -30,8 +29,8 @@ export class RequestPaymentOnOrderCreated extends EventListener<OrderCreatedDoma
     if ((await this.payments.findById(paymentId)) !== null) {
       return;
     }
-    const payment = Payment.create(paymentId, orderReference, amount, method, this.clock);
-    payment.process(this.clock);
+    const payment = Payment.create(paymentId, orderReference, amount, method);
+    payment.process();
     await this.payments.save(payment);
     await this.events.publish(payment.pullDomainEvents());
   }

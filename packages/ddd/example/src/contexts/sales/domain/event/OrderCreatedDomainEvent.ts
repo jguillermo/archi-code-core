@@ -24,7 +24,6 @@ export class OrderCreatedDomainEvent extends EventBase {
     freeShipping,
     eventId,
     occurredOn,
-    clock,
   }: {
     orderId: string;
     customerId: string;
@@ -33,7 +32,7 @@ export class OrderCreatedDomainEvent extends EventBase {
     paymentMethod: string;
     freeShipping: boolean;
   } & EventMetadata) {
-    super({ eventId, occurredOn, clock });
+    super({ eventId, occurredOn });
     this.orderId = orderId;
     this.customerId = customerId;
     this.lines = lines;

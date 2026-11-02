@@ -11,7 +11,7 @@ import type {
   Subscription,
 } from '../../src/infrastructure/index';
 import type { EventBase, SerializedEvent } from '../../src/domain/index';
-import type { Clock, LogContext, Logger, LogLevel } from '../../src/application/index';
+import type { LogContext, Logger, LogLevel } from '../../src/application/index';
 import { DomainEventBus } from '../../src/infrastructure/event/domain-event-bus';
 import { EventRegistry } from '../../src/infrastructure/event/event-registry';
 
@@ -22,14 +22,12 @@ const PUBLIC_API = [
   'EventRegistry',
   'ExceptionClassifier',
   'ExceptionKind',
-  'FixedClock',
   'InMemoryEventChannel',
   'InMemoryLogger',
   'InfrastructureException',
   'InfrastructureExceptionCode',
   'InternalErrorException',
   'SilentLogger',
-  'SystemClock',
   'UnknownEventException',
 ];
 
@@ -94,7 +92,6 @@ describe('@archi-code/ddd/infrastructure', () => {
     >();
     expectTypeOf<ConsoleLoggerOptions>().toEqualTypeOf<{
       readonly level?: LogLevel;
-      readonly clock?: Clock;
     }>();
     expectTypeOf<LogEntry>().toEqualTypeOf<{
       readonly level: LogLevel;

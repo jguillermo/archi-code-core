@@ -1,5 +1,5 @@
 import { EventListener, ListensTo, ValueObjectBuilder } from '../../../../ddd/application';
-import type { Clock, EventBus } from '../../../../ddd/application';
+import type { EventBus } from '../../../../ddd/application';
 import type { OrderRepository } from '../../domain/repository/OrderRepository';
 import { CarrierTrackingNumber } from '../../domain/value-object/CarrierTrackingNumber';
 import { OrderId } from '../../domain/value-object/OrderId';
@@ -12,7 +12,6 @@ export class MarkOrderShippedOnShipmentDispatched extends EventListener<Shipment
   constructor(
     private readonly orders: OrderRepository,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }
@@ -26,7 +25,7 @@ export class MarkOrderShippedOnShipmentDispatched extends EventListener<Shipment
     if (order === null) {
       return;
     }
-    order.markShipped(trackingNumber, this.clock);
+    order.markShipped(trackingNumber);
     await this.orders.save(order);
     await this.events.publish(order.pullDomainEvents());
   }

@@ -26,7 +26,7 @@
 | G8  | A context MUST NOT import another context. Only `shared-kernel/money` is shared. Cross-context data travels only as events (A-EVC).                                                                                                                                                                                                                                                          |
 | G9  | Layer import matrix (allowed targets): `domain` → `ddd/domain`, own `domain`, `shared-kernel`. `application` → `ddd/domain`, `ddd/application`, own `domain`, own `application`, `shared-kernel`. `infrastructure` → `ddd/*`, own `domain`, own `application`. `interfaces` → `ddd/application`, own `application`, `platform/http`. `composition.ts` → anything of its context and `ddd/*`. |
 | G10 | Prettier: single quotes, trailing commas, width 100, 2 spaces, semicolons. Run `npm run fix:format` (root) instead of formatting by hand.                                                                                                                                                                                                                                                    |
-| G11 | Everything is in memory. Business time comes only from `Clock` (`clock.now()`, `CreatedAt.now(clock)`); never `Date.now()` or `new Date()` without a clock value.                                                                                                                                                                                                                            |
+| G11 | Everything is in memory. The current time comes only from `CreatedAt.now()` / `UpdatedAt.now()` (no argument), called inside the aggregate; never `Date.now()` or `new Date()` for the current time. Nothing receives or passes a time source.                                                                                                                                               |
 
 ### 1.1 Tree
 
@@ -106,23 +106,23 @@ src/
 
 ### 2.2 Aggregates (D-AGG)
 
-| Id      | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| D-AGG1  | Member order: local `interface Clock { now(): Date }` (above the class) → `private static readonly` business constants → fields → public constructor → `static create` → `static fromPrimitives` → getters → public queries → business methods → `toPrimitives` → private helpers.                                                                                                                                                                                                                                                                                               |
-| D-AGG2  | MUST NOT import `Clock` from `ddd/application`; declare the local `Clock` interface.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| D-AGG3  | Fields: never-changing → `readonly <name>`; changing → `private _<name>` + `get <name>()`. `readonly createdAt: CreatedAt` and `private _updatedAt: UpdatedAt` (+ getter) are the last two fields.                                                                                                                                                                                                                                                                                                                                                                               |
-| D-AGG4  | Field types: value objects, composites, arrays of child entities. Never primitives, `Date`, plain objects.                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| D-AGG5  | Constructor: `public`; receives every field already built (id first, `createdAt`, `updatedAt` last); `super(id)`; assigns. No checks, no events, no defaults. `fromPrimitives` and `create` both use it.                                                                                                                                                                                                                                                                                                                                                                         |
-| D-AGG6  | `static create(id, ...valueObjects, clock: Clock): <Aggregate>`: receives the id and value objects already built, clock last; builds child entities from `New<Child>` shapes (assigns their ids); sets initial state (`new <Status>Type(<Status>.<INITIAL>)`, `new <OptionalVO>(null)`, `CreatedAt.now(clock)`, `UpdatedAt.now(clock)`) and calls the constructor; checks creation invariants (on the input before building, or with private `assert…()` after) throwing business errors; records `<Aggregate>CreatedDomainEvent`; returns. MUST NOT compute or generate the id. |
-| D-AGG7  | `static fromPrimitives(primitives: PrimitiveTypes<<Aggregate>>)`: rebuilds every field with its constructor (`new X(primitives.x)`) or `X.fromPrimitives(primitives.x)` for composites, rebuilds child entities with their constructor, calls the aggregate constructor. No events, no invariant checks.                                                                                                                                                                                                                                                                         |
-| D-AGG8  | `toPrimitives(): PrimitiveTypes<<Aggregate>>`: every field; VO → `.value`; composite → `.toPrimitives()`; child entity → object literal `{ id: child.id.value, …fields }` written by the aggregate. `fromPrimitives(toPrimitives())` MUST give an equal aggregate.                                                                                                                                                                                                                                                                                                               |
-| D-AGG9  | Each state change is a business method named after the business action (`process`, `cancel`, `markShipped`): params = value objects, `clock: Clock` last; returns `void`; changes fields; updates `_updatedAt` (through `moveTo`/`touch`); records zero or more events.                                                                                                                                                                                                                                                                                                          |
-| D-AGG10 | User-requested method (called by a user use case): if it does not apply in the current state, MUST throw a business error (`OrderNotCancellable`).                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| D-AGG11 | Reaction method (called by a reaction use case: `process`, `markPaid`, `cancelForRejectedPayment`, `markShipped`, `markDelivered`, `adjustAmount`, `settleForCancelledOrder`, `cancelForCancelledOrder`): if it does not apply, MUST `return` without changes. MUST NOT throw business errors (events may arrive twice).                                                                                                                                                                                                                                                         |
-| D-AGG12 | A method that mutates and then finds a broken invariant MUST restore the previous state before rethrowing (`Order.changeLineQuantity` restores the quantity when `assertTotal` throws).                                                                                                                                                                                                                                                                                                                                                                                          |
-| D-AGG13 | Public queries MAY exist (`subtotal()`, `total()`, `isIn(status)`). A public `assert…()` MAY exist for a precondition a use case checks before a non-mutating operation (`assertDiscardable()` before `remove`).                                                                                                                                                                                                                                                                                                                                                                 |
-| D-AGG14 | Private helpers: `moveTo(status, clock)` (status + touch), `touch(clock)`, `assert…()` (throw business error), event-recording steps (`capture`, `reject`, `awaitTransfer`).                                                                                                                                                                                                                                                                                                                                                                                                     |
-| D-AGG15 | MUST NOT contain: repositories, event bus, logger, HTTP, ids derived from other data, version fields, setters.                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Id      | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D-AGG1  | Member order: `private static readonly` business constants → fields → public constructor → `static create` → `static fromPrimitives` → getters → public queries → business methods → `toPrimitives` → private helpers.                                                                                                                                                                                                                                                                                                                       |
+| D-AGG2  | MUST NOT receive, declare or import a time source; the current time comes from `CreatedAt.now()` / `UpdatedAt.now()` inside the aggregate.                                                                                                                                                                                                                                                                                                                                                                                                   |
+| D-AGG3  | Fields: never-changing → `readonly <name>`; changing → `private _<name>` + `get <name>()`. `readonly createdAt: CreatedAt` and `private _updatedAt: UpdatedAt` (+ getter) are the last two fields.                                                                                                                                                                                                                                                                                                                                           |
+| D-AGG4  | Field types: value objects, composites, arrays of child entities. Never primitives, `Date`, plain objects.                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| D-AGG5  | Constructor: `public`; receives every field already built (id first, `createdAt`, `updatedAt` last); `super(id)`; assigns. No checks, no events, no defaults. `fromPrimitives` and `create` both use it.                                                                                                                                                                                                                                                                                                                                     |
+| D-AGG6  | `static create(id, ...valueObjects): <Aggregate>`: receives the id and value objects already built; builds child entities from `New<Child>` shapes (assigns their ids); sets initial state (`new <Status>Type(<Status>.<INITIAL>)`, `new <OptionalVO>(null)`, `CreatedAt.now()`, `UpdatedAt.now()`) and calls the constructor; checks creation invariants (on the input before building, or with private `assert…()` after) throwing business errors; records `<Aggregate>CreatedDomainEvent`; returns. MUST NOT compute or generate the id. |
+| D-AGG7  | `static fromPrimitives(primitives: PrimitiveTypes<<Aggregate>>)`: rebuilds every field with its constructor (`new X(primitives.x)`) or `X.fromPrimitives(primitives.x)` for composites, rebuilds child entities with their constructor, calls the aggregate constructor. No events, no invariant checks.                                                                                                                                                                                                                                     |
+| D-AGG8  | `toPrimitives(): PrimitiveTypes<<Aggregate>>`: every field; VO → `.value`; composite → `.toPrimitives()`; child entity → object literal `{ id: child.id.value, …fields }` written by the aggregate. `fromPrimitives(toPrimitives())` MUST give an equal aggregate.                                                                                                                                                                                                                                                                           |
+| D-AGG9  | Each state change is a business method named after the business action (`process`, `cancel`, `markShipped`): params = value objects; returns `void`; changes fields; updates `_updatedAt` with `UpdatedAt.now()` (through `moveTo`/`touch`); records zero or more events.                                                                                                                                                                                                                                                                    |
+| D-AGG10 | User-requested method (called by a user use case): if it does not apply in the current state, MUST throw a business error (`OrderNotCancellable`).                                                                                                                                                                                                                                                                                                                                                                                           |
+| D-AGG11 | Reaction method (called by a reaction use case: `process`, `markPaid`, `cancelForRejectedPayment`, `markShipped`, `markDelivered`, `adjustAmount`, `settleForCancelledOrder`, `cancelForCancelledOrder`): if it does not apply, MUST `return` without changes. MUST NOT throw business errors (events may arrive twice).                                                                                                                                                                                                                     |
+| D-AGG12 | A method that mutates and then finds a broken invariant MUST restore the previous state before rethrowing (`Order.changeLineQuantity` restores the quantity when `assertTotal` throws).                                                                                                                                                                                                                                                                                                                                                      |
+| D-AGG13 | Public queries MAY exist (`subtotal()`, `total()`, `isIn(status)`). A public `assert…()` MAY exist for a precondition a use case checks before a non-mutating operation (`assertDiscardable()` before `remove`).                                                                                                                                                                                                                                                                                                                             |
+| D-AGG14 | Private helpers: `moveTo(status)` (status + touch), `touch()`, `assert…()` (throw business error), event-recording steps (`capture`, `reject`, `awaitTransfer`).                                                                                                                                                                                                                                                                                                                                                                             |
+| D-AGG15 | MUST NOT contain: repositories, event bus, logger, HTTP, ids derived from other data, version fields, setters.                                                                                                                                                                                                                                                                                                                                                                                                                               |
 
 Template (`domain/aggregate/<Aggregate>.ts`):
 
@@ -133,10 +133,6 @@ import { <Aggregate>CreatedDomainEvent } from '../event/<Aggregate>CreatedDomain
 import { <Aggregate>Id } from '../value-object/<Aggregate>Id';
 import { <Status> } from '../value-object/<Status>Type';
 import { <Status>Type } from '../value-object/<Status>Type';
-
-interface Clock {
-  now(): Date;
-}
 
 export class <Aggregate> extends AggregateRoot<<Aggregate>Id> {
   private static readonly <CONSTANT> = <value>;
@@ -160,19 +156,18 @@ export class <Aggregate> extends AggregateRoot<<Aggregate>Id> {
     this._updatedAt = updatedAt;
   }
 
-  static create(id: <Aggregate>Id, <field>: <VO>, clock: Clock): <Aggregate> {
+  static create(id: <Aggregate>Id, <field>: <VO>): <Aggregate> {
     const <aggregate> = new <Aggregate>(
       id,
       <field>,
       new <Status>Type(<Status>.<INITIAL>),
-      CreatedAt.now(clock),
-      UpdatedAt.now(clock),
+      CreatedAt.now(),
+      UpdatedAt.now(),
     );
     <aggregate>.record(
       new <Aggregate>CreatedDomainEvent({
         <aggregate>Id: <aggregate>.id.value,
         <field>: <aggregate>.<field>.value,
-        clock,
       }),
     );
     return <aggregate>;
@@ -206,19 +201,19 @@ export class <Aggregate> extends AggregateRoot<<Aggregate>Id> {
     };
   }
 
-  private moveTo(status: <Status>, clock: Clock): void {
+  private moveTo(status: <Status>): void {
     this._status = new <Status>Type(status);
-    this._updatedAt = UpdatedAt.now(clock);
+    this._updatedAt = UpdatedAt.now();
   }
 }
 ```
 
-References: `payments/domain/aggregate/Payment.ts` (status machine, limits by method, reaction methods), `sales/domain/aggregate/Order.ts` (child entities, invariants, specification, rollback), `shipping/domain/aggregate/Shipment.ts` (JSON value, date from clock).
+References: `payments/domain/aggregate/Payment.ts` (status machine, limits by method, reaction methods), `sales/domain/aggregate/Order.ts` (child entities, invariants, specification, rollback), `shipping/domain/aggregate/Shipment.ts` (JSON value, expected delivery computed from `createdAt`).
 
 User-requested vs reaction method (`Order`):
 
 ```ts
-  cancel(requester: CustomerId, clock: Clock): void {
+  cancel(requester: CustomerId): void {
     if (!requester.equals(this.customerId)) {
       throw new OrderOwnedByAnotherCustomer(this.id.value);
     }
@@ -226,27 +221,25 @@ User-requested vs reaction method (`Order`):
       throw new OrderNotCancellable(this.id.value, this._status.value);
     }
     const wasPaid = this.isIn(OrderStatus.PAID);
-    this.moveTo(OrderStatus.CANCELLED, clock);
+    this.moveTo(OrderStatus.CANCELLED);
     this.record(
       new OrderCancelledDomainEvent({
         orderId: this.id.value,
         reason: 'cancelled_by_customer',
         wasPaid,
-        clock,
       }),
     );
   }
 
-  markShipped(trackingNumber: CarrierTrackingNumber, clock: Clock): void {
+  markShipped(trackingNumber: CarrierTrackingNumber): void {
     if (!this.isIn(OrderStatus.PAID)) {
       return;
     }
-    this.moveTo(OrderStatus.SHIPPED, clock);
+    this.moveTo(OrderStatus.SHIPPED);
     this.record(
       new OrderShippedDomainEvent({
         orderId: this.id.value,
         trackingNumber: trackingNumber.value,
-        clock,
       }),
     );
   }
@@ -258,12 +251,12 @@ User-requested vs reaction method (`Order`):
 
 ### 2.4 Child entities (D-ENT)
 
-| Id     | Rule                                                                                                                           |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| D-ENT1 | `entity/<Entity>.ts`, `extends Entity<<IdVO>>`; the id is a value object (`LineNumber extends Required(NumberType)`).          |
-| D-ENT2 | Fields as D-AGG3 without `createdAt`/`updatedAt`; constructor receives value objects, `super(id)`, assigns.                    |
-| D-ENT3 | MAY have queries (`subtotal()`) and mutators that only its aggregate calls (`changeQuantity(quantity)`). No setters, no clock. |
-| D-ENT4 | MUST NOT record events, have `create`, or have `toPrimitives`/`fromPrimitives` (the aggregate converts it).                    |
+| Id     | Rule                                                                                                                  |
+| ------ | --------------------------------------------------------------------------------------------------------------------- |
+| D-ENT1 | `entity/<Entity>.ts`, `extends Entity<<IdVO>>`; the id is a value object (`LineNumber extends Required(NumberType)`). |
+| D-ENT2 | Fields as D-AGG3 without `createdAt`/`updatedAt`; constructor receives value objects, `super(id)`, assigns.           |
+| D-ENT3 | MAY have queries (`subtotal()`) and mutators that only its aggregate calls (`changeQuantity(quantity)`). No setters.  |
+| D-ENT4 | MUST NOT record events, have `create`, or have `toPrimitives`/`fromPrimitives` (the aggregate converts it).           |
 
 Reference: `sales/domain/entity/OrderLine.ts`.
 
@@ -396,16 +389,16 @@ Composite with behavior: `shared-kernel/money/Money.ts` (`static zero`, `add`, `
 
 ### 2.6 Domain events (D-EVT)
 
-| Id     | Rule                                                                                                                                                                                                                        |
-| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| D-EVT1 | `event/<Aggregate><PastAction>DomainEvent.ts`, `extends EventBase`. Creation event: `<Aggregate>CreatedDomainEvent`.                                                                                                        |
-| D-EVT2 | `static readonly eventName = '<aggregate>.<past_action>'`, snake_case (`'order.line_quantity_changed'`), unique in the shop.                                                                                                |
-| D-EVT3 | Fields `readonly`, primitive data only: `string`, `number`, `boolean`, plain objects/arrays of them. Money → `{ amount: number; currency: string }`; dates → ISO `string`. Never value objects, `Date` or class instances.  |
-| D-EVT4 | The aggregate id is a named field (`orderId`, `paymentId`, `shipmentId`); references to other aggregates too (`orderId` in payment events). No `aggregateId`, no version.                                                   |
-| D-EVT5 | No interfaces or type aliases: field types inline; constructor param typed inline as `{ …fields } & EventMetadata`, destructuring `eventId, occurredOn, clock`; `super({ eventId, occurredOn, clock })`; assign each field. |
-| D-EVT6 | Created only by its aggregate: `this.record(new …DomainEvent({ …primitives, clock }))`, values from `.value` / `.toPrimitives()`.                                                                                           |
-| D-EVT7 | No union type of an aggregate's events (no `<Aggregate>Event`): `AggregateRoot<<Aggregate>Id>`, `EventBus`, `DomainEventBus` and `EventRegistry` take no event type and work with `EventBase`.                              |
-| D-EVT8 | No methods, no `toPrimitives`/`fromPrimitives`: the event is its own JSON; consumers rebuild it in `composition.ts` (C-REG).                                                                                                |
+| Id     | Rule                                                                                                                                                                                                                       |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D-EVT1 | `event/<Aggregate><PastAction>DomainEvent.ts`, `extends EventBase`. Creation event: `<Aggregate>CreatedDomainEvent`.                                                                                                       |
+| D-EVT2 | `static readonly eventName = '<aggregate>.<past_action>'`, snake_case (`'order.line_quantity_changed'`), unique in the shop.                                                                                               |
+| D-EVT3 | Fields `readonly`, primitive data only: `string`, `number`, `boolean`, plain objects/arrays of them. Money → `{ amount: number; currency: string }`; dates → ISO `string`. Never value objects, `Date` or class instances. |
+| D-EVT4 | The aggregate id is a named field (`orderId`, `paymentId`, `shipmentId`); references to other aggregates too (`orderId` in payment events). No `aggregateId`, no version.                                                  |
+| D-EVT5 | No interfaces or type aliases: field types inline; constructor param typed inline as `{ …fields } & EventMetadata`, destructuring `eventId, occurredOn`; `super({ eventId, occurredOn })`; assign each field.              |
+| D-EVT6 | Created only by its aggregate: `this.record(new …DomainEvent({ …primitives }))`, values from `.value` / `.toPrimitives()`; never sets `occurredOn` (the event bus sets it when it sends the event).                        |
+| D-EVT7 | No union type of an aggregate's events (no `<Aggregate>Event`): `AggregateRoot<<Aggregate>Id>`, `EventBus`, `DomainEventBus` and `EventRegistry` take no event type and work with `EventBase`.                             |
+| D-EVT8 | No methods, no `toPrimitives`/`fromPrimitives`: the event is its own JSON; consumers rebuild it in `composition.ts` (C-REG).                                                                                               |
 
 ```ts
 import { EventBase } from '../../../../ddd/domain';
@@ -422,9 +415,8 @@ export class ShipmentDeliveredDomainEvent extends EventBase {
     orderId,
     eventId,
     occurredOn,
-    clock,
   }: { shipmentId: string; orderId: string } & EventMetadata) {
-    super({ eventId, occurredOn, clock });
+    super({ eventId, occurredOn });
     this.shipmentId = shipmentId;
     this.orderId = orderId;
   }
@@ -521,16 +513,16 @@ A use case = one business action. Two kinds; the only difference is where the in
 
 ### 3.2 User use cases (A-USR)
 
-| Id     | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A-USR1 | Same file exports `interface <Action>Input` (primitives and data types; `actorId` or `actorRole` when an actor matters) and `interface <Action>Command` (value objects, composites, `New<Child>[]`).                                                                                                                                                                                                                                                                                                                        |
-| A-USR2 | `Output` = `void`, or the new id as `string` (`PlaceOrder`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| A-USR3 | Constructor params, `private readonly`, only what `handle` uses, in this order: the aggregate's repository (`private readonly orders: OrderRepository`, the abstract class of D-REPO, never `AggregateFinder<X> & AggregateSaver<X>`), domain services, `EventBus`, `Clock`, `Logger`. Body `super();`.                                                                                                                                                                                                                     |
-| A-USR4 | `protected toCommand(input)`: exactly `return ValueObjectBuilder.build({ <field>: () => new <VO>(input.<x>), … })`. Enums: `new <Enum>Type(input.x as <Enum>)`. Composites: `X.fromPrimitives(input.x)`; money: `Money.fromPrimitives(input.x as { amount: number; currency: Currency })`. Lists of shapes: `ValueObjectBuilder.buildList(input.items, (item) => ValueObjectBuilder.build({ … }))` (errors reported as `lines.1.quantity`).                                                                                 |
-| A-USR5 | `protected async handle(command)` steps in order: (1) authorization → `throw new NotAllowedException('<English message>')`; (2) new id `<Aggregate>Id.generate()`; (3) `<Aggregate>.create(...)`, or `findById` and when `null` `throw new AggregateNotFoundException('<Aggregate>', id.value)`; (4) business method(s) with `this.clock`; (5) `await repo.save(x)` once (or `await repo.remove(x)`), then `await this.events.publish(x.pullDomainEvents())`; (6) log if the business wants a trace; (7) return the output. |
-| A-USR6 | A rule that depends only on the actor → `NotAllowedException` here. A rule that depends on aggregate state (only the buyer cancels) → business error in the aggregate (D-AGG10).                                                                                                                                                                                                                                                                                                                                            |
-| A-USR7 | Concurrency: by default let `ConcurrencyException` reach the controller (409). A use case whose change is safe to repeat MAY retry the whole load→change→save with `private static readonly ATTEMPTS = 3` (`ChangeShippingAddress`).                                                                                                                                                                                                                                                                                        |
-| A-USR8 | Logging: `this.logger.info('<snake_case_key>', { <primitives> })` after publish.                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Id     | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A-USR1 | Same file exports `interface <Action>Input` (primitives and data types; `actorId` or `actorRole` when an actor matters) and `interface <Action>Command` (value objects, composites, `New<Child>[]`).                                                                                                                                                                                                                                                                                                      |
+| A-USR2 | `Output` = `void`, or the new id as `string` (`PlaceOrder`).                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| A-USR3 | Constructor params, `private readonly`, only what `handle` uses, in this order: the aggregate's repository (`private readonly orders: OrderRepository`, the abstract class of D-REPO, never `AggregateFinder<X> & AggregateSaver<X>`), domain services, `EventBus`, `Logger`. Body `super();`.                                                                                                                                                                                                            |
+| A-USR4 | `protected toCommand(input)`: exactly `return ValueObjectBuilder.build({ <field>: () => new <VO>(input.<x>), … })`. Enums: `new <Enum>Type(input.x as <Enum>)`. Composites: `X.fromPrimitives(input.x)`; money: `Money.fromPrimitives(input.x as { amount: number; currency: Currency })`. Lists of shapes: `ValueObjectBuilder.buildList(input.items, (item) => ValueObjectBuilder.build({ … }))` (errors reported as `lines.1.quantity`).                                                               |
+| A-USR5 | `protected async handle(command)` steps in order: (1) authorization → `throw new NotAllowedException('<English message>')`; (2) new id `<Aggregate>Id.generate()`; (3) `<Aggregate>.create(...)`, or `findById` and when `null` `throw new AggregateNotFoundException('<Aggregate>', id.value)`; (4) business method(s); (5) `await repo.save(x)` once (or `await repo.remove(x)`), then `await this.events.publish(x.pullDomainEvents())`; (6) log if the business wants a trace; (7) return the output. |
+| A-USR6 | A rule that depends only on the actor → `NotAllowedException` here. A rule that depends on aggregate state (only the buyer cancels) → business error in the aggregate (D-AGG10).                                                                                                                                                                                                                                                                                                                          |
+| A-USR7 | Concurrency: by default let `ConcurrencyException` reach the controller (409). A use case whose change is safe to repeat MAY retry the whole load→change→save with `private static readonly ATTEMPTS = 3` (`ChangeShippingAddress`).                                                                                                                                                                                                                                                                      |
+| A-USR8 | Logging: `this.logger.info('<snake_case_key>', { <primitives> })` after publish.                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 Template, `payments/application/confirm-transfer-received/confirm-transfer-received.ts`:
 
@@ -541,7 +533,7 @@ import {
   UseCase,
   ValueObjectBuilder,
 } from '../../../../ddd/application';
-import type { Clock, EventBus } from '../../../../ddd/application';
+import type { EventBus } from '../../../../ddd/application';
 import { Money } from '../../../shared-kernel/money/Money';
 import type { Currency } from '../../../shared-kernel/money/MoneyCurrency';
 import type { PaymentRepository } from '../../domain/repository/PaymentRepository';
@@ -570,7 +562,6 @@ export class ConfirmTransferReceived extends UseCase<
   constructor(
     private readonly payments: PaymentRepository,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }
@@ -594,7 +585,7 @@ export class ConfirmTransferReceived extends UseCase<
     if (payment === null) {
       throw new AggregateNotFoundException('Payment', command.paymentId.value);
     }
-    payment.confirmTransfer(command.received, this.clock);
+    payment.confirmTransfer(command.received);
     await this.payments.save(payment);
     await this.events.publish(payment.pullDomainEvents());
   }
@@ -612,7 +603,7 @@ The listener IS the use case: one class, one file, no `UseCase` class behind it.
 | A-RUC1 | File `application/<action>/<action>-on-<event>.ts` (read model: `application/<read-model>/<action>/<action>-on-<event>.ts`); class `<Action>On<Event>`, `<Event>` = event class name without `DomainEvent`.                                                                                                                                                                                                                                                                                                                                           |
 | A-RUC2 | `extends EventListener<<Event>DomainEvent>`, decorated `@ListensTo(<Event>DomainEvent, { consumer: '<context>.<action>-on-<event>' })`: context + `.` + file name without `.ts`; unique in the shop. One event per class.                                                                                                                                                                                                                                                                                                                             |
 | A-RUC3 | Event class: the local copy `./<event>-domain-event` (A-EVC) when the event comes from another context; the context's own `domain/event/<Event>DomainEvent` when it is its own event (read models).                                                                                                                                                                                                                                                                                                                                                   |
-| A-RUC4 | Constructor: same order as A-USR3 (the aggregate's repository, services, `EventBus`, `Clock`, `Logger`); a read-model reaction receives only its projection. Body `super();`.                                                                                                                                                                                                                                                                                                                                                                         |
+| A-RUC4 | Constructor: same order as A-USR3 (the aggregate's repository, services, `EventBus`, `Logger`); a read-model reaction receives only its projection. Body `super();`.                                                                                                                                                                                                                                                                                                                                                                                  |
 | A-RUC5 | `async handle(event: <Event>DomainEvent): Promise<void>` steps: (1) `const { a, b } = ValueObjectBuilder.build({ a: () => new A(event.a), … })` (A-USR4 conversion rules, reading `event.*`); (2) derived id (`PaymentId.forOrder(orderReference)`); (3a) to create: `if ((await repo.findById(id)) !== null) { return; }` then `<Aggregate>.create(...)`; (3b) to change: `const x = await repo.findById(id); if (x === null) { return; }`; (4) the reaction method (D-AGG11); (5) `save` once + `publish(x.pullDomainEvents())`; (6) log if needed. |
 | A-RUC6 | MUST NOT: authorization, `AggregateNotFoundException`, throwing business errors, calling a use case or another listener, HTTP, try/catch.                                                                                                                                                                                                                                                                                                                                                                                                             |
 | A-RUC7 | No `UseCase` wrapper: unknown errors are not wrapped in `UnexpectedErrorException`; `DomainEventBus` logs them (`warn` for Domain/Application exceptions, `error` otherwise) and rethrows to the channel.                                                                                                                                                                                                                                                                                                                                             |
@@ -622,7 +613,7 @@ Template (create), `payments/application/request-payment/request-payment-on-orde
 
 ```ts
 import { EventListener, ListensTo, ValueObjectBuilder } from '../../../../ddd/application';
-import type { Clock, EventBus } from '../../../../ddd/application';
+import type { EventBus } from '../../../../ddd/application';
 import { Money } from '../../../shared-kernel/money/Money';
 import type { Currency } from '../../../shared-kernel/money/MoneyCurrency';
 import { Payment } from '../../domain/aggregate/Payment';
@@ -638,7 +629,6 @@ export class RequestPaymentOnOrderCreated extends EventListener<OrderCreatedDoma
   constructor(
     private readonly payments: PaymentRepository,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }
@@ -653,8 +643,8 @@ export class RequestPaymentOnOrderCreated extends EventListener<OrderCreatedDoma
     if ((await this.payments.findById(paymentId)) !== null) {
       return;
     }
-    const payment = Payment.create(paymentId, orderReference, amount, method, this.clock);
-    payment.process(this.clock);
+    const payment = Payment.create(paymentId, orderReference, amount, method);
+    payment.process();
     await this.payments.save(payment);
     await this.events.publish(payment.pullDomainEvents());
   }
@@ -673,7 +663,7 @@ Template (change), `handle` of `sales/application/mark-order-shipped/mark-order-
     if (order === null) {
       return;
     }
-    order.markShipped(trackingNumber, this.clock);
+    order.markShipped(trackingNumber);
     await this.orders.save(order);
     await this.events.publish(order.pullDomainEvents());
   }
@@ -706,13 +696,13 @@ export interface MoneyData {
 
 ### 3.6 Read models (A-RM)
 
-| Id    | Rule                                                                                                                                                                                                                                                                                                                                                                                |
-| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A-RM1 | Folder `application/<read-model>/` (`order-summaries/`) with: `<row>.ts` (row interface of primitives + `<Row>Changes = Partial<Pick<<Row>, …>>`), `<row>-store.ts` (write port: `find(id)`, `hasApplied(eventId)`, `save(row, eventId)`), `<rows>.ts` (query port: `byId`, `ofCustomer`), `<row>-projection.ts`, and one subfolder per reaction.                                   |
-| A-RM2 | `<Row>Projection` (`OrderSummaryProjection`) is not a use case and hears no event: constructor receives the store port; `apply({ eventId, orderId, occurredOn, changes })` returns when `eventId` was applied, merges `changes` into the stored row or a default row, sets `lastEventAt`, saves with the `eventId`. Its input interface (`OrderSummaryChange`) holds value objects. |
-| A-RM3 | Each event that changes the row has its own reaction use case (A-RUC) in `<read-model>/<action>/<action>-on-<event>.ts`: builds `eventId: new UuidType(event.eventId)`, `orderId: new OrderId(event.orderId)`, `occurredOn: new CreatedAt(event.occurredOn)` plus the fields it needs, decides the change (status constant, sums) and calls `await this.projection.apply(...)`.     |
-| A-RM4 | Queries have no use case: the controller receives the query port and calls it.                                                                                                                                                                                                                                                                                                      |
-| A-RM5 | One infrastructure class implements both ports and returns `structuredClone` copies (`InMemoryOrderSummaryStore`).                                                                                                                                                                                                                                                                  |
+| Id    | Rule                                                                                                                                                                                                                                                                                                                                                                                      |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A-RM1 | Folder `application/<read-model>/` (`order-summaries/`) with: `<row>.ts` (row interface of primitives + `<Row>Changes = Partial<Pick<<Row>, …>>`), `<row>-store.ts` (write port: `find(id)`, `hasApplied(eventId)`, `save(row, eventId)`), `<rows>.ts` (query port: `byId`, `ofCustomer`), `<row>-projection.ts`, and one subfolder per reaction.                                         |
+| A-RM2 | `<Row>Projection` (`OrderSummaryProjection`) is not a use case and hears no event: constructor receives the store port; `apply({ eventId, orderId, occurredOn, changes })` returns when `eventId` was applied, merges `changes` into the stored row or a default row, sets `lastEventAt`, saves with the `eventId`. Its input interface (`OrderSummaryChange`) holds value objects.       |
+| A-RM3 | Each event that changes the row has its own reaction use case (A-RUC) in `<read-model>/<action>/<action>-on-<event>.ts`: builds `eventId: new UuidType(event.eventId)`, `orderId: new OrderId(event.orderId)`, `occurredOn: new CreatedAt(event.occurredOn as string)` plus the fields it needs, decides the change (status constant, sums) and calls `await this.projection.apply(...)`. |
+| A-RM4 | Queries have no use case: the controller receives the query port and calls it.                                                                                                                                                                                                                                                                                                            |
+| A-RM5 | One infrastructure class implements both ports and returns `structuredClone` copies (`InMemoryOrderSummaryStore`).                                                                                                                                                                                                                                                                        |
 
 Reference reaction: `sales/application/order-summaries/mark-order-summary-paid/mark-order-summary-paid-on-order-paid.ts`.
 
@@ -777,13 +767,13 @@ Error body: `{ code, message, errors }` (`errors` only for `ValidationException`
 
 ### 6.1 `composition.ts` (C-CMP)
 
-| Id     | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| C-CMP1 | One class `<Context>Context` plus `export interface <Context>Settings { channel: EventChannel; clock: Clock; logger: Logger; …own data }`. Only place that instantiates classes of the context.                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| C-CMP2 | `private constructor(readonly <repositories/stores>, readonly controller, private readonly subscriptions: Subscription[])`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| C-CMP3 | `static async start(settings)`: (1) `const bus = new DomainEventBus(channel, <Context>Context.registry(), logger);` (2) repositories, stores, adapters, domain services (`new OrderPricing(new InMemoryCouponCatalog(campaigns))`), projections; (3) every reaction use case with its dependencies (`new RequestPaymentOnOrderCreated(payments, bus, clock)`), each subscribed with `await bus.subscribe(listener)` and its `Subscription` kept; (4) the controller with the user use cases (`new ConfirmTransferReceived(payments, bus, clock)`), query ports and `logger`; (5) `return new <Context>Context(...)`. |
-| C-CMP4 | `async stop()`: `for (const subscription of this.subscriptions.splice(0)) { await subscription.unsubscribe(); }`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| C-CMP5 | `private static registry(): EventRegistry` (C-REG).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Id     | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| C-CMP1 | One class `<Context>Context` plus `export interface <Context>Settings { channel: EventChannel; logger: Logger; …own data }`. Only place that instantiates classes of the context.                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| C-CMP2 | `private constructor(readonly <repositories/stores>, readonly controller, private readonly subscriptions: Subscription[])`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| C-CMP3 | `static async start(settings)`: (1) `const bus = new DomainEventBus(channel, <Context>Context.registry(), logger);` (2) repositories, stores, adapters, domain services (`new OrderPricing(new InMemoryCouponCatalog(campaigns))`), projections; (3) every reaction use case with its dependencies (`new RequestPaymentOnOrderCreated(payments, bus)`), each subscribed with `await bus.subscribe(listener)` and its `Subscription` kept; (4) the controller with the user use cases (`new ConfirmTransferReceived(payments, bus)`), query ports and `logger`; (5) `return new <Context>Context(...)`. |
+| C-CMP4 | `async stop()`: `for (const subscription of this.subscriptions.splice(0)) { await subscription.unsubscribe(); }`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| C-CMP5 | `private static registry(): EventRegistry` (C-REG).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
 ### 6.2 Event registry (C-REG)
 
@@ -806,7 +796,7 @@ Error body: `{ code, message, errors }` (`errors` only for `ValidationException`
 
 ### 6.3 `shop.ts` (C-SHOP)
 
-`Shop.open({ clock, logger, campaigns = [] })`: one `new InMemoryEventChannel({ delivery: 'serial' })`, then `SalesContext.start`, `PaymentsContext.start`, `ShippingContext.start` with the same channel, clock and logger. `close()` stops them in reverse order. A new context is added here.
+`Shop.open({ logger, campaigns = [] })`: one `new InMemoryEventChannel({ delivery: 'serial' })`, then `SalesContext.start`, `PaymentsContext.start`, `ShippingContext.start` with the same channel and logger. `close()` stops them in reverse order. A new context is added here.
 
 ## 7. Recipes (R)
 
@@ -815,7 +805,7 @@ Error body: `{ code, message, errors }` (`errors` only for `ValidationException`
 1. Domain: business error(s) in `exception/` (next code, 8.4); `<Aggregate><PastAction>DomainEvent` in `event/`; business method on the aggregate (D-AGG9, D-AGG10).
 2. Application: `application/<action>/<action>.ts` (A-USR template).
 3. Interfaces: endpoint method in the controller (H-CTL4).
-4. Composition: pass `new <Action>(repo, …, bus, clock)` to the controller.
+4. Composition: pass `new <Action>(repo, …, bus)` to the controller.
 5. If another context or a read model reacts: R2 in that context.
 
 ### R2 New reaction to an event

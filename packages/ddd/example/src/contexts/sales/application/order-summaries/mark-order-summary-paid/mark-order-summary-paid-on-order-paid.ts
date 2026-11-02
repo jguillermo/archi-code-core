@@ -16,7 +16,7 @@ export class MarkOrderSummaryPaidOnOrderPaid extends EventListener<OrderPaidDoma
     const { eventId, orderId, occurredOn, quantities } = ValueObjectBuilder.build({
       eventId: () => new UuidType(event.eventId),
       orderId: () => new OrderId(event.orderId),
-      occurredOn: () => new CreatedAt(event.occurredOn),
+      occurredOn: () => new CreatedAt(event.occurredOn as string),
       quantities: () =>
         ValueObjectBuilder.buildList(event.items, (item) => new Quantity(item.quantity)),
     });

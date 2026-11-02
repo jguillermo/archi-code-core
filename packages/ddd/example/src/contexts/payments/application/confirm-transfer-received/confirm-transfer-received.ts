@@ -4,7 +4,7 @@ import {
   UseCase,
   ValueObjectBuilder,
 } from '../../../../ddd/application';
-import type { Clock, EventBus } from '../../../../ddd/application';
+import type { EventBus } from '../../../../ddd/application';
 import { Money } from '../../../shared-kernel/money/Money';
 import type { Currency } from '../../../shared-kernel/money/MoneyCurrency';
 import type { PaymentRepository } from '../../domain/repository/PaymentRepository';
@@ -33,7 +33,6 @@ export class ConfirmTransferReceived extends UseCase<
   constructor(
     private readonly payments: PaymentRepository,
     private readonly events: EventBus,
-    private readonly clock: Clock,
   ) {
     super();
   }
@@ -57,7 +56,7 @@ export class ConfirmTransferReceived extends UseCase<
     if (payment === null) {
       throw new AggregateNotFoundException('Payment', command.paymentId.value);
     }
-    payment.confirmTransfer(command.received, this.clock);
+    payment.confirmTransfer(command.received);
     await this.payments.save(payment);
     await this.events.publish(payment.pullDomainEvents());
   }

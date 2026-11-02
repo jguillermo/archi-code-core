@@ -35,10 +35,6 @@ import type { RejectionReason } from '../value-object/RejectionReason';
 import { ShippingAddress } from '../value-object/ShippingAddress';
 import { Sku } from '../value-object/Sku';
 
-interface Clock {
-  now(): Date;
-}
-
 export class Order extends AggregateRoot<OrderId> {
   private static readonly MAX_LINES = 20;
   private static readonly MAX_TOTAL_CENTS = 1_000_000;
@@ -92,7 +88,6 @@ export class Order extends AggregateRoot<OrderId> {
     giftWrap: GiftWrap,
     paymentMethod: PaymentMethodType,
     discount: DiscountPercent,
-    clock: Clock,
   ): Order {
     if (lines.length < 1 || lines.length > Order.MAX_LINES) {
       throw new OrderLineCountOutOfRange(lines.length);
@@ -111,8 +106,8 @@ export class Order extends AggregateRoot<OrderId> {
       paymentMethod,
       discount,
       new PaymentReference(null),
-      CreatedAt.now(clock),
-      UpdatedAt.now(clock),
+      CreatedAt.now(),
+      UpdatedAt.now(),
     );
     order.assertDistinctSkus();
     order.assertTotal();
@@ -129,7 +124,6 @@ export class Order extends AggregateRoot<OrderId> {
         total: order.total().toPrimitives(),
         paymentMethod: order.paymentMethod.value,
         freeShipping: new FreeShippingEligible().isSatisfiedBy(order),
-        clock,
       }),
     );
 
@@ -193,7 +187,7 @@ export class Order extends AggregateRoot<OrderId> {
     return this._status.value === status;
   }
 
-  changeLineQuantity(lineNumber: LineNumber, quantity: Quantity, clock: Clock): void {
+  changeLineQuantity(lineNumber: LineNumber, quantity: Quantity): void {
     this.assertPendingPayment();
     const line = this._lines.find((candidate) => candidate.id.equals(lineNumber));
     if (line === undefined) {
@@ -207,35 +201,33 @@ export class Order extends AggregateRoot<OrderId> {
       line.changeQuantity(previous);
       throw error;
     }
-    this.touch(clock);
+    this.touch();
     this.record(
       new OrderLineQuantityChangedDomainEvent({
         orderId: this.id.value,
         lineNumber: lineNumber.value,
         quantity: quantity.value,
         total: this.total().toPrimitives(),
-        clock,
       }),
     );
   }
 
-  changeShippingAddress(address: ShippingAddress, clock: Clock): void {
+  changeShippingAddress(address: ShippingAddress): void {
     this.assertPendingPayment();
     if (address.equals(this._shippingAddress)) {
       return;
     }
     this._shippingAddress = address;
-    this.touch(clock);
+    this.touch();
     this.record(
       new OrderShippingAddressChangedDomainEvent({
         orderId: this.id.value,
         address: address.toPrimitives(),
-        clock,
       }),
     );
   }
 
-  cancel(requester: CustomerId, clock: Clock): void {
+  cancel(requester: CustomerId): void {
     if (!requester.equals(this.customerId)) {
       throw new OrderOwnedByAnotherCustomer(this.id.value);
     }
@@ -243,23 +235,22 @@ export class Order extends AggregateRoot<OrderId> {
       throw new OrderNotCancellable(this.id.value, this._status.value);
     }
     const wasPaid = this.isIn(OrderStatus.PAID);
-    this.moveTo(OrderStatus.CANCELLED, clock);
+    this.moveTo(OrderStatus.CANCELLED);
     this.record(
       new OrderCancelledDomainEvent({
         orderId: this.id.value,
         reason: 'cancelled_by_customer',
         wasPaid,
-        clock,
       }),
     );
   }
 
-  markPaid(payment: PaymentReference, clock: Clock): void {
+  markPaid(payment: PaymentReference): void {
     if (!this.isIn(OrderStatus.PENDING_PAYMENT)) {
       return;
     }
     this._paymentReference = payment;
-    this.moveTo(OrderStatus.PAID, clock);
+    this.moveTo(OrderStatus.PAID);
     this.record(
       new OrderPaidDomainEvent({
         orderId: this.id.value,
@@ -267,46 +258,43 @@ export class Order extends AggregateRoot<OrderId> {
         address: this._shippingAddress.toPrimitives(),
         items: this._lines.map((line) => ({ sku: line.sku.value, quantity: line.quantity.value })),
         giftWrap: this.giftWrap.value,
-        clock,
       }),
     );
   }
 
-  cancelForRejectedPayment(reason: RejectionReason, clock: Clock): void {
+  cancelForRejectedPayment(reason: RejectionReason): void {
     if (!this.isIn(OrderStatus.PENDING_PAYMENT)) {
       return;
     }
-    this.moveTo(OrderStatus.CANCELLED, clock);
+    this.moveTo(OrderStatus.CANCELLED);
     this.record(
       new OrderCancelledDomainEvent({
         orderId: this.id.value,
         reason: `payment_rejected:${reason.value}`,
         wasPaid: false,
-        clock,
       }),
     );
   }
 
-  markShipped(trackingNumber: CarrierTrackingNumber, clock: Clock): void {
+  markShipped(trackingNumber: CarrierTrackingNumber): void {
     if (!this.isIn(OrderStatus.PAID)) {
       return;
     }
-    this.moveTo(OrderStatus.SHIPPED, clock);
+    this.moveTo(OrderStatus.SHIPPED);
     this.record(
       new OrderShippedDomainEvent({
         orderId: this.id.value,
         trackingNumber: trackingNumber.value,
-        clock,
       }),
     );
   }
 
-  markDelivered(clock: Clock): void {
+  markDelivered(): void {
     if (!this.isIn(OrderStatus.SHIPPED)) {
       return;
     }
-    this.moveTo(OrderStatus.DELIVERED, clock);
-    this.record(new OrderDeliveredDomainEvent({ orderId: this.id.value, clock }));
+    this.moveTo(OrderStatus.DELIVERED);
+    this.record(new OrderDeliveredDomainEvent({ orderId: this.id.value }));
   }
 
   assertDiscardable(): void {
@@ -360,12 +348,12 @@ export class Order extends AggregateRoot<OrderId> {
     }
   }
 
-  private moveTo(status: OrderStatus, clock: Clock): void {
+  private moveTo(status: OrderStatus): void {
     this._status = new OrderStatusType(status);
-    this.touch(clock);
+    this.touch();
   }
 
-  private touch(clock: Clock): void {
-    this._updatedAt = UpdatedAt.now(clock);
+  private touch(): void {
+    this._updatedAt = UpdatedAt.now();
   }
 }
