@@ -11,7 +11,7 @@ const ALLOWED_MODULE_DEPENDENCIES: Record<string, readonly string[]> = {
   indexeddb: ['memory'],
 };
 
-const ALLOWED_PACKAGES = ['@archi-code/criteria'];
+const ALLOWED_PACKAGES = ['@archi-code/ddd/domain'];
 
 function listTs(dir: string): string[] {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -129,7 +129,7 @@ describe('module boundaries', () => {
     expect(deep).toEqual([]);
   });
 
-  it('imports no package but @archi-code/criteria, and never itself by name', () => {
+  it('imports no package but @archi-code/ddd/domain, and never itself by name', () => {
     const packages = Array.from(imports.entries()).flatMap(([file, { packages: names }]) =>
       names.filter((name) => !ALLOWED_PACKAGES.includes(name)).map((name) => `${file} -> ${name}`),
     );

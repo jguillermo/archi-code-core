@@ -1,8 +1,13 @@
 import { toString as convertToString } from '@archi-code/validation';
 import { AbstractType } from './abstract-type';
 import { TypePrimitiveException } from '../exceptions/type-primitive.exception';
+import { ValueObjectBrand } from '../../shared/index';
 
 export class StringType extends AbstractType<string> {
+  static {
+    ValueObjectBrand.brandKind(this, 'string');
+  }
+
   protected filter(value: unknown): string {
     const converted = convertToString(value);
     if (!converted.ok) {

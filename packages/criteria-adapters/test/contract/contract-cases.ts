@@ -1,22 +1,45 @@
-import { Criteria, CriteriaInput } from '@archi-code/criteria';
-import { ContractDocument, contractDay } from './contract-documents';
+import { Criteria, CriteriaInput } from '@archi-code/ddd/domain';
+import { CreatedAt } from '@archi-code/ddd/domain';
+import {
+  ContractActive,
+  ContractAge,
+  ContractCity,
+  contractDay,
+  ContractRecord,
+  ContractStatus,
+  ContractStatusOption,
+  ContractTag,
+  ContractTitle,
+  ContractZip,
+} from './contract-documents';
+
+const ACTIVE = new ContractStatus(ContractStatusOption.ACTIVE);
+const PENDING = new ContractStatus(ContractStatusOption.PENDING);
+const BLOCKED = new ContractStatus(ContractStatusOption.BLOCKED);
+const age = (value: number): ContractAge => new ContractAge(value);
+const active = (value: boolean): ContractActive => new ContractActive(value);
+const day = (isoDate: string): CreatedAt => new CreatedAt(contractDay(isoDate));
+const tag = (value: string): ContractTag => new ContractTag(value);
+const city = (value: string): ContractCity => new ContractCity(value);
+const zip = (value: string): ContractZip => new ContractZip(value);
+const title = (value: string): ContractTitle => new ContractTitle(value);
 
 export interface CriteriaContractCase {
   readonly name: string;
-  readonly criteria: Criteria<ContractDocument>;
+  readonly criteria: Criteria<ContractRecord>;
   readonly expectedIds: readonly string[];
   readonly expectedTotal?: number;
 }
 
 function scenario(
   name: string,
-  input: CriteriaInput<ContractDocument>,
+  input: CriteriaInput<ContractRecord>,
   expectedIds: readonly string[],
   expectedTotal?: number,
 ): CriteriaContractCase {
   return Object.freeze({
     name,
-    criteria: Criteria.create<ContractDocument>(input),
+    criteria: Criteria.create<ContractRecord>(input),
     expectedIds: Object.freeze([...expectedIds]),
     ...(expectedTotal === undefined ? {} : { expectedTotal }),
   });
@@ -29,7 +52,7 @@ function rawScenario(
 ): CriteriaContractCase {
   return Object.freeze({
     name,
-    criteria: Criteria.fromJSON<ContractDocument>({ v: 1, f: filter }),
+    criteria: Criteria.fromJSON<ContractRecord>({ v: 1, f: filter }),
     expectedIds: Object.freeze([...expectedIds]),
   });
 }
@@ -38,17 +61,17 @@ const ALL = ['d01', 'd02', 'd03', 'd04', 'd05', 'd06', 'd07', 'd08', 'd09'];
 
 export const CRITERIA_CONTRACT_CASES: readonly CriteriaContractCase[] = Object.freeze([
   scenario('no filter returns every document', {}, ALL),
-  scenario('eq on a string', { where: { status: { eq: 'active' } } }, ['d01', 'd04', 'd05', 'd08']),
-  scenario('a plain value means eq', { where: { status: 'pending' } }, ['d02', 'd06', 'd09']),
-  scenario('ne also matches missing and null', { where: { status: { ne: 'active' } } }, [
+  scenario('eq on a string', { where: { status: { eq: ACTIVE } } }, ['d01', 'd04', 'd05', 'd08']),
+  scenario('a plain value means eq', { where: { status: PENDING } }, ['d02', 'd06', 'd09']),
+  scenario('ne also matches missing and null', { where: { status: { ne: ACTIVE } } }, [
     'd02',
     'd03',
     'd06',
     'd07',
     'd09',
   ]),
-  scenario('eq on a number', { where: { age: 30 } }, ['d01', 'd08']),
-  scenario('ne on a number matches missing and null', { where: { age: { ne: 30 } } }, [
+  scenario('eq on a number', { where: { age: age(30) } }, ['d01', 'd08']),
+  scenario('ne on a number matches missing and null', { where: { age: { ne: age(30) } } }, [
     'd02',
     'd03',
     'd04',
@@ -57,15 +80,15 @@ export const CRITERIA_CONTRACT_CASES: readonly CriteriaContractCase[] = Object.f
     'd07',
     'd09',
   ]),
-  scenario('gt never matches missing or null', { where: { age: { gt: 30 } } }, [
+  scenario('gt never matches missing or null', { where: { age: { gt: age(30) } } }, [
     'd05',
     'd07',
     'd09',
   ]),
-  scenario('gte', { where: { age: { gte: 30 } } }, ['d01', 'd05', 'd07', 'd08', 'd09']),
-  scenario('lt', { where: { age: { lt: 25 } } }, ['d06']),
-  scenario('lte', { where: { age: { lte: 25 } } }, ['d02', 'd06']),
-  scenario('between includes both ends', { where: { age: { between: [25, 41] } } }, [
+  scenario('gte', { where: { age: { gte: age(30) } } }, ['d01', 'd05', 'd07', 'd08', 'd09']),
+  scenario('lt', { where: { age: { lt: age(25) } } }, ['d06']),
+  scenario('lte', { where: { age: { lte: age(25) } } }, ['d02', 'd06']),
+  scenario('between includes both ends', { where: { age: { between: [age(25), age(41)] } } }, [
     'd01',
     'd02',
     'd05',
@@ -73,18 +96,18 @@ export const CRITERIA_CONTRACT_CASES: readonly CriteriaContractCase[] = Object.f
   ]),
   scenario(
     'two operators on one field are joined with AND',
-    { where: { age: { gt: 18, lt: 41 } } },
+    { where: { age: { gt: age(18), lt: age(41) } } },
     ['d01', 'd02', 'd08'],
   ),
-  scenario('in', { where: { status: { in: ['blocked', 'pending'] } } }, [
+  scenario('in', { where: { status: { in: [BLOCKED, PENDING] } } }, [
     'd02',
     'd03',
     'd06',
     'd07',
     'd09',
   ]),
-  scenario('nin', { where: { status: { nin: ['active', 'pending'] } } }, ['d03', 'd07']),
-  scenario('nin matches missing and null', { where: { age: { nin: [30] } } }, [
+  scenario('nin', { where: { status: { nin: [ACTIVE, PENDING] } } }, ['d03', 'd07']),
+  scenario('nin matches missing and null', { where: { age: { nin: [age(30)] } } }, [
     'd02',
     'd03',
     'd04',
@@ -136,7 +159,7 @@ export const CRITERIA_CONTRACT_CASES: readonly CriteriaContractCase[] = Object.f
     'd06',
   ]),
   scenario('text is literal, not a pattern', { where: { name: { contains: '.b*' } } }, ['d08']),
-  scenario('eq on a boolean', { where: { active: true } }, [
+  scenario('eq on a boolean', { where: { active: active(true) } }, [
     'd01',
     'd03',
     'd05',
@@ -144,13 +167,13 @@ export const CRITERIA_CONTRACT_CASES: readonly CriteriaContractCase[] = Object.f
     'd08',
     'd09',
   ]),
-  scenario('false is a value, not a missing filter', { where: { active: false } }, [
+  scenario('false is a value, not a missing filter', { where: { active: active(false) } }, [
     'd02',
     'd04',
     'd07',
   ]),
-  scenario('eq on a date', { where: { createdAt: contractDay('2024-01-10') } }, ['d01', 'd06']),
-  scenario('gt on a date', { where: { createdAt: { gt: contractDay('2024-03-01') } } }, [
+  scenario('eq on a date', { where: { createdAt: day('2024-01-10') } }, ['d01', 'd06']),
+  scenario('gt on a date', { where: { createdAt: { gt: day('2024-03-01') } } }, [
     'd03',
     'd05',
     'd08',
@@ -158,21 +181,22 @@ export const CRITERIA_CONTRACT_CASES: readonly CriteriaContractCase[] = Object.f
   ]),
   scenario(
     'between dates',
-    { where: { createdAt: { between: [contractDay('2024-01-01'), contractDay('2024-02-28')] } } },
+    { where: { createdAt: { between: [day('2024-01-01'), day('2024-02-28')] } } },
     ['d01', 'd02', 'd06'],
   ),
-  scenario('lt on a date', { where: { createdAt: { lt: contractDay('2024-01-01') } } }, [
-    'd04',
-    'd07',
-  ]),
+  scenario('lt on a date', { where: { createdAt: { lt: day('2024-01-01') } } }, ['d04', 'd07']),
   scenario(
     'in with dates',
-    { where: { createdAt: { in: [contractDay('2024-01-10'), contractDay('2022-06-01')] } } },
+    { where: { createdAt: { in: [day('2024-01-10'), day('2022-06-01')] } } },
     ['d01', 'd06', 'd07'],
   ),
-  scenario('has', { where: { tags: { has: 'vip' } } }, ['d01', 'd04', 'd05', 'd09']),
-  scenario('hasSome', { where: { tags: { hasSome: ['pro', 'x'] } } }, ['d05', 'd06', 'd08']),
-  scenario('hasEvery', { where: { tags: { hasEvery: ['vip', 'new'] } } }, ['d01']),
+  scenario('has', { where: { tags: { has: tag('vip') } } }, ['d01', 'd04', 'd05', 'd09']),
+  scenario('hasSome', { where: { tags: { hasSome: [tag('pro'), tag('x')] } } }, [
+    'd05',
+    'd06',
+    'd08',
+  ]),
+  scenario('hasEvery', { where: { tags: { hasEvery: [tag('vip'), tag('new')] } } }, ['d01']),
   scenario('isEmpty true does not match a missing list', { where: { tags: { isEmpty: true } } }, [
     'd03',
   ]),
@@ -185,31 +209,31 @@ export const CRITERIA_CONTRACT_CASES: readonly CriteriaContractCase[] = Object.f
     'd08',
     'd09',
   ]),
-  scenario('nested field', { where: { 'address.city': 'Huelva' } }, ['d01', 'd03', 'd08']),
+  scenario('nested field', { where: { 'address.city': city('Huelva') } }, ['d01', 'd03', 'd08']),
   scenario(
     'nested field insensitive',
     { where: { 'address.city': { startsWith: 'h', mode: 'insensitive' } } },
     ['d01', 'd03', 'd06', 'd08'],
   ),
-  scenario('strings compare by code point', { where: { 'address.zip': { gte: '41000' } } }, [
+  scenario('strings compare by code point', { where: { 'address.zip': { gte: zip('41000') } } }, [
     'd02',
     'd07',
   ]),
   scenario('a missing parent is null', { where: { 'address.city': { isNull: true } } }, ['d04']),
-  scenario('fields are joined with AND', { where: { status: 'active', age: { gte: 30 } } }, [
+  scenario('fields are joined with AND', { where: { status: ACTIVE, age: { gte: age(30) } } }, [
     'd01',
     'd05',
     'd08',
   ]),
-  scenario('OR', { where: { OR: [{ status: 'blocked' }, { age: { lt: 20 } }] } }, [
+  scenario('OR', { where: { OR: [{ status: BLOCKED }, { age: { lt: age(20) } }] } }, [
     'd03',
     'd06',
     'd07',
   ]),
-  scenario('NOT', { where: { NOT: { status: 'active' } } }, ['d02', 'd03', 'd06', 'd07', 'd09']),
+  scenario('NOT', { where: { NOT: { status: ACTIVE } } }, ['d02', 'd03', 'd06', 'd07', 'd09']),
   scenario(
     'NOT of a comparison matches missing and null',
-    { where: { NOT: { age: { gt: 30 } } } },
+    { where: { NOT: { age: { gt: age(30) } } } },
     ['d01', 'd02', 'd03', 'd04', 'd06', 'd08'],
   ),
   scenario(
@@ -217,8 +241,8 @@ export const CRITERIA_CONTRACT_CASES: readonly CriteriaContractCase[] = Object.f
     {
       where: {
         AND: [
-          { OR: [{ status: 'active' }, { status: 'pending' }] },
-          { NOT: { tags: { has: 'vip' } } },
+          { OR: [{ status: ACTIVE }, { status: PENDING }] },
+          { NOT: { tags: { has: tag('vip') } } },
         ],
       },
     },
@@ -281,7 +305,7 @@ export const CRITERIA_CONTRACT_CASES: readonly CriteriaContractCase[] = Object.f
   ),
   scenario(
     'total counts every match before paginating',
-    { where: { status: 'active' }, orderBy: { id: 'asc' }, limit: 2, offset: 1 },
+    { where: { status: ACTIVE }, orderBy: { id: 'asc' }, limit: 2, offset: 1 },
     ['d04', 'd05'],
     4,
   ),
@@ -294,17 +318,17 @@ export const CRITERIA_CONTRACT_CASES: readonly CriteriaContractCase[] = Object.f
   ),
   scenario(
     'a range above U+FF00 includes astral characters',
-    { where: { title: { gt: '\uFF00' } } },
+    { where: { title: { gt: title('\uFF00') } } },
     ['d01', 'd02'],
   ),
   scenario(
     'a range below an astral character includes U+FF00 and above',
-    { where: { title: { lt: '\u{1F600}' } } },
+    { where: { title: { lt: title('\u{1F600}') } } },
     ['d01', 'd03', 'd04', 'd05', 'd06', 'd07', 'd08'],
   ),
   scenario(
     'a sorted page puts astral characters after U+FF00 and above',
-    { where: { title: { gte: 'A' } }, orderBy: { title: 'desc' }, limit: 1 },
+    { where: { title: { gte: title('A') } }, orderBy: { title: 'desc' }, limit: 1 },
     ['d02'],
   ),
   scenario(

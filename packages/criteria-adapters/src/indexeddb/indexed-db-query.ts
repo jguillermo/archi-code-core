@@ -1,4 +1,4 @@
-import type { Criteria } from '@archi-code/criteria';
+import type { Criteria, CriteriaAggregate, CriteriaDocument } from '@archi-code/ddd/domain';
 import { compareBy, matchesFilter } from '../memory/index';
 import { IndexedDbKey, IndexInfo, KeyBounds, planIndexedDbQuery } from './plan-query';
 
@@ -22,18 +22,18 @@ function keyRange(bounds: KeyBounds): IDBKeyRange {
   return IDBKeyRange.upperBound(bounds.upper as IndexedDbKey, bounds.upperOpen);
 }
 
-export function toIndexedDbQuery<T>(
-  criteria: Criteria<T>,
+export function toIndexedDbQuery<A extends CriteriaAggregate>(
+  criteria: Criteria<A>,
   indexes: readonly IndexInfo[],
-): IndexedDbQuery<T> {
-  const plan = planIndexedDbQuery(criteria as Criteria<unknown>, indexes);
+): IndexedDbQuery<CriteriaDocument<A>> {
+  const plan = planIndexedDbQuery(criteria, indexes);
   const filter = criteria.filter;
   return {
     index: plan.index,
     range: plan.bounds === null ? null : keyRange(plan.bounds),
     direction: plan.direction,
     filter: (record) => matchesFilter(record, filter),
-    compare: plan.presorted ? null : compareBy<T>(criteria.order),
+    compare: plan.presorted ? null : compareBy<CriteriaDocument<A>>(criteria.order),
     offset: criteria.pagination?.offset ?? 0,
     limit: criteria.pagination?.limit ?? null,
   };

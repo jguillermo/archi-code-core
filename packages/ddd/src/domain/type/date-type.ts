@@ -2,6 +2,7 @@ import { toDate } from '@archi-code/validation';
 import { AbstractType } from './abstract-type';
 import { Required } from './required/required-type';
 import { TypePrimitiveException } from '../exceptions/type-primitive.exception';
+import { ValueObjectBrand } from '../../shared/index';
 
 class ImmutableDate extends Date {
   private static readonly setters = [
@@ -42,6 +43,10 @@ class ImmutableDate extends Date {
 const TIME_WITHOUT_ZONE = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?$/;
 
 export class DateType extends AbstractType<Date, Date | string> {
+  static {
+    ValueObjectBrand.brandKind(this, 'date');
+  }
+
   protected filter(value: unknown): Date {
     const converted = toDate(value, { iso: true });
     if (!converted.ok || (typeof value === 'string' && TIME_WITHOUT_ZONE.test(value))) {

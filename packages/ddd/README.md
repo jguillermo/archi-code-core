@@ -1092,8 +1092,8 @@ instance to every use case of that aggregate.
 
 Reading for a screen or a list does not go through aggregates nor repositories. A read query is an
 interface of the application, implemented in infrastructure, that returns DTOs or ids straight
-from the database (filter and paginate it with
-[`@archi-code/criteria`](https://www.npmjs.com/package/@archi-code/criteria)):
+from the database (when it reads the collection of an aggregate, filter and paginate it with a
+`Criteria<Order>`, see "Criteria: searching aggregates"):
 
 ```ts
 interface OrderSummary {
@@ -2183,6 +2183,453 @@ class PinoLogger implements Logger {
   }
 }
 ```
+
+## Criteria: searching aggregates
+
+`@archi-code/ddd/domain` also holds the Criteria pattern, independent of any database (it lives in
+the internal `src/shared/criteria` and the domain publishes it). You describe a search (filters,
+order and pagination) over an aggregate with a typed object: the editor autocompletes the value
+objects of the aggregate, offers only the operators that fit each one and takes value objects as
+values (`status: new OrderStatus('paid')`). The result is an immutable `Criteria<Order>` holding a
+plain tree of filter nodes, with the primitive values of those value objects, that every adapter
+of [`@archi-code/criteria-adapters`](https://www.npmjs.com/package/@archi-code/criteria-adapters)
+translates or runs: in memory (`/memory`, the reference semantics), on MongoDB (`/mongodb`) and on
+IndexedDB (`/indexeddb`), all checked against one shared contract. A criteria also turns into a
+URL-safe text and back, and a schema that declares the value object class of each field validates
+untrusted input (allowed fields, operators and limits).
+
+Criteria recognizes value objects and their kind by marks every base type of this package sets
+(`Symbol.for` keys), so a value object of the CommonJS build works with a criteria of the ES module
+build and the other way round.
+
+### Which type to search on
+
+`T` is an aggregate of this package (`CriteriaAggregate`: an `AggregateRoot` with
+`toPrimitives()`). Its state is value objects, composites and child entities:
+
+```ts
+import {
+  AggregateRoot,
+  ArrayType,
+  Composite,
+  CreatedAt,
+  Criteria,
+  defineCriteriaSchema,
+  EnumType,
+  IdType,
+  NumberType,
+  Required,
+  StringType,
+} from '@archi-code/ddd/domain';
+
+class UserId extends IdType<'UserId'> {}
+class UserName extends StringType {}
+class UserAge extends NumberType {}
+enum UserStatusOption {
+  ACTIVE = 'active',
+  PENDING = 'pending',
+  BLOCKED = 'blocked',
+}
+class UserStatusEnum extends EnumType<UserStatusOption> {
+  protected getEnum() {
+    return UserStatusOption;
+  }
+}
+class UserStatus extends Required(UserStatusEnum) {}
+class UserTag extends Required(StringType) {}
+class UserTags extends ArrayType<UserTag> {
+  protected createItem(value: unknown): UserTag {
+    return new UserTag(value as string);
+  }
+}
+class City extends Required(StringType) {}
+class Zip extends Required(StringType) {}
+class Address extends Composite({ city: City, zip: Zip }) {}
+
+class User extends AggregateRoot<UserId> {
+  constructor(
+    id: UserId,
+    readonly name: UserName,
+    private _age: UserAge,
+    readonly status: UserStatus,
+    readonly createdAt: CreatedAt,
+    readonly tags: UserTags,
+    readonly address: Address | null,
+  ) {
+    super(id);
+  }
+
+  get age(): UserAge {
+    return this._age;
+  }
+
+  toPrimitives() {
+    /* … */
+  }
+}
+```
+
+Fields are the paths to its public value objects (getters included), nested ones through
+composites and child entities with dots (`'address.city'`), up to four levels. A value object is a
+field when it holds a `string`, `number`, `boolean` or `Date` (`StringType`, `IdType`, `EnumType`,
+`NumberType`, `BooleanType`, `DateType`…) or a list of them (`ArrayType`). Methods, private fields,
+`JsonType` and lists of entities or composites are not fields.
+
+### `Criteria.create`
+
+```ts
+const criteria = Criteria.create<User>({
+  where: { status: new UserStatus(UserStatusOption.ACTIVE), age: { gte: new UserAge(18) } },
+  orderBy: { createdAt: 'desc' },
+  limit: 20,
+});
+
+criteria.filter;
+// { kind: 'and', filters: [
+//   { kind: 'compare', field: 'status', operator: 'eq', value: 'active' },
+//   { kind: 'compare', field: 'age', operator: 'gte', value: 18 } ] }
+criteria.order; // [{ field: 'createdAt', direction: 'desc' }]
+criteria.pagination; // { kind: 'offset', limit: 20, offset: 0 }
+```
+
+The nodes hold the values of the value objects (`vo.value`), already converted and checked by their
+constructors: an id arrives in lowercase, a date as a `Date`. Every part is optional:
+`Criteria.create()` matches everything, in no particular order, without limit. The criteria and its
+nodes are frozen; lists and dates are copied. The dates it holds are still `Date` objects but
+read-only: their setters (`setTime`, `setFullYear`…) throw `TypeError`.
+
+#### `where`
+
+Each key is a field; its value is either a value object (equality), `null` (the field is null or
+missing) or an object with operators. A value object that holds no value (`new UserName(null)`)
+means `null` too. Several keys, or several operators on one field, are joined
+with AND. `AND`, `OR` (lists) and `NOT` combine conditions and can be nested.
+
+```ts
+Criteria.create<User>({
+  where: {
+    status: {
+      in: [new UserStatus(UserStatusOption.ACTIVE), new UserStatus(UserStatusOption.PENDING)],
+    },
+    age: { gte: new UserAge(18), lt: new UserAge(65) },
+    'address.city': new City('Huelva'),
+    name: { contains: 'an', mode: 'insensitive' },
+    OR: [
+      { tags: { has: new UserTag('vip') } },
+      { createdAt: { gt: new CreatedAt('2024-01-01T00:00:00Z') } },
+    ],
+    NOT: { tags: { isEmpty: true } },
+  },
+});
+```
+
+| Value object holds         | Operators                                                                                               |
+| -------------------------- | ------------------------------------------------------------------------------------------------------- |
+| a string                   | `eq` `ne` `gt` `gte` `lt` `lte` `between` `in` `nin` `contains` `startsWith` `endsWith` `mode` `isNull` |
+| a number or a `Date`       | `eq` `ne` `gt` `gte` `lt` `lte` `between` `in` `nin` `isNull`                                           |
+| a boolean                  | `eq` `ne` `isNull`                                                                                      |
+| a list (`ArrayType<Item>`) | `has` (one item) `hasSome` (any of) `hasEvery` (all of) `isEmpty` `isNull`                              |
+
+Every value is a value object of the field's class (the items of an `ArrayType` for `has`,
+`hasSome` and `hasEvery`), except the text of `contains`, `startsWith` and `endsWith`, which is a
+plain `string`: a fragment such as `'gmail'` is not a valid `UserEmail`. `isNull`, `isEmpty` and
+`mode` take their plain values. A primitive where a value object belongs, an operator that does not
+fit the field or an unknown field is a compile error; at run time a primitive throws
+`INVALID_VALUE` (`Field "age" needs a value object`).
+
+Optional input: keys and operators whose value is `undefined` are ignored, so
+`{ age: { gte: minAge } }` filters only when `minAge` is set. A condition left without
+operators adds nothing; an `OR` with an empty branch matches everything.
+
+#### Semantics
+
+These rules are the same in every adapter (the contract checks them):
+
+- A missing field is `null`. `isNull: true` (or `field: null`, or `eq: null`) matches null and
+  missing; `ne`, `nin` and `NOT` also match null and missing.
+- `gt`, `gte`, `lt`, `lte` and `between` only match values of the same type, never null. `between`
+  includes both ends.
+- Strings compare by Unicode code point, which is the binary order of UTF-8 (`'B' < 'a' < 'Á'`,
+  and `'\uFF71' < '😀'` even though JavaScript's `<` says otherwise); dates by time.
+  `compareText(a, b)` implements it.
+- `contains`, `startsWith` and `endsWith` search literal text, not a pattern, and need at least one
+  character (an empty text would match every string). `mode: 'insensitive'` compares with
+  Unicode simple case folding, like a regular expression with the `iu` flags (`'Ω'` matches `'ω'`,
+  the Kelvin sign matches `'k'`, but `'ß'` does not match `'ss'`); it only applies to these three
+  operators.
+- The values of one `in`, `nin`, `hasSome` or `hasEvery` share one type.
+- `isEmpty: true` matches an empty list, not a missing one.
+- Scalar operators (`eq`, `ne`, ranges, `in`, `nin`, text) never match a field that holds a list,
+  neither positive nor negated (`eq: 'vip'` and `ne: 'vip'` both skip `['vip']`; use `has` or
+  `NOT`), and a dotted path reads a list element only by its index (`lines.0.sku`): `lines.sku`
+  reads as missing.
+- Only own properties are read, never inherited ones.
+- Ordering puts null and missing first in `asc` and last in `desc`; booleans sort `false` first. Add
+  a unique field (such as `id`) last when the order of ties matters (a schema does it for you with
+  `tiebreaker`).
+
+#### `orderBy`
+
+One object or a list of objects; the order of the keys and of the list is the priority. Only
+value objects that hold a single value can be sorted (never an `ArrayType`).
+
+```ts
+Criteria.create<User>({ orderBy: [{ status: 'asc' }, { createdAt: 'desc' }] });
+```
+
+#### `limit` and `offset`
+
+`limit` is an integer from 1 and `offset` an integer from 0, both safe integers
+(`Number.isSafeInteger`). Without `limit` the search returns every match. `page(page, perPage)`
+also throws when `(page - 1) * perPage` is not a safe integer.
+
+### Changing a criteria
+
+Every method returns a new `Criteria`:
+
+```ts
+const base = Criteria.create<User>({ where: { status: new UserStatus(UserStatusOption.ACTIVE) } });
+
+base.and({ age: { lt: new UserAge(65) } }).filter;
+// { kind: 'and', filters: [
+//   { kind: 'compare', field: 'status', operator: 'eq', value: 'active' },
+//   { kind: 'compare', field: 'age', operator: 'lt', value: 65 } ] }
+
+base.orderBy({ name: 'asc' }); // replaces the order
+base.paginate({ limit: 10, offset: 30 }); // replaces the pagination
+base.page(3, 25).pagination; // { kind: 'offset', limit: 25, offset: 50 }
+```
+
+`criteria.equals(other)` compares two criteria by meaning: the order of `AND`/`OR` conditions, the
+order of the values of a list and repeated conditions or values do not matter; the order of
+`orderBy` does.
+
+### URL text: `toUrl` / `fromUrl`
+
+`toUrl()` turns a criteria into text that only uses `A-Z a-z 0-9 - _`, so it goes into a URL as
+is, with no escaping. `Criteria.fromUrl(text)` rebuilds it and validates it again. The text keeps
+the order in which the conditions were written, so two equal criteria (`equals`) written in another
+order give different texts.
+
+```ts
+const text = criteria.toUrl();
+// 'eyJ2IjoxLCJmIjpbImFuZCIsW1siZXEiLCJzdGF0dXMiLCJhY3RpdmUiXSxbImd0ZSIsImFnZSIsMThdXV0sIm8iOltbImNyZWF0ZWRBdCIsLTFdXSwibCI6MjB9'
+
+fetch(`/users?q=${text}`);
+
+Criteria.fromUrl<User>(text).equals(criteria); // true
+```
+
+Text from outside must be checked against a schema: `Criteria.fromUrl(text, userSchema)` or
+`userSchema.fromUrl(text)` (see below). Without one, `fromUrl` and `fromJSON` only check that the
+criteria is well formed and within `DEFAULT_CRITERIA_LIMITS` (see "Limits"); any field can still be
+filtered, and no value object checks the values.
+
+`toJSON()` / `Criteria.fromJSON(json, schema?)` do the same with the compact JSON form behind the
+text:
+
+```ts
+criteria.toJSON();
+// { v: 1, f: ['and', [['eq', 'status', 'active'], ['gte', 'age', 18]]], o: [['createdAt', -1]], l: 20 }
+```
+
+### Input from outside: `defineCriteriaSchema`
+
+A schema lists the fields a search may use with the value object class of each one, the allowed
+operators and the limits. `parse` takes the input of a request (JSON body or parsed query) with the
+same shape as `Criteria.create` but with primitive values, converts each value through the class of
+its field and applies the limits:
+
+```ts
+const userSchema = defineCriteriaSchema<User>({
+  fields: {
+    id: UserId,
+    status: UserStatus,
+    age: UserAge,
+    createdAt: CreatedAt,
+    tags: UserTags,
+    name: { type: UserName, operators: ['contains', 'startsWith'] },
+    'address.city': { type: City, sortable: false },
+  },
+  defaultLimit: 20,
+  maxLimit: 100,
+  tiebreaker: 'id',
+});
+
+const criteria = userSchema.parse({
+  where: { age: { gte: '18' } },
+  orderBy: { createdAt: 'desc' },
+});
+criteria.filter; // { kind: 'compare', field: 'age', operator: 'gte', value: 18 }
+criteria.pagination; // { kind: 'offset', limit: 20, offset: 0 }
+
+userSchema.parse({ where: { status: 'deleted' } });
+// CriteriaError INVALID_VALUE: Field "status" needs a valid UserStatus value
+userSchema.parse({ where: { password: 'x' } });
+// CriteriaError UNKNOWN_FIELD: Field "password" cannot be used in a search
+userSchema.parse({ limit: 500 });
+// CriteriaError LIMIT_EXCEEDED: "limit" cannot be greater than 100
+```
+
+- Each field takes the value object class of that path of the aggregate (`UserAge` for `age`, a
+  compile error otherwise), or `{ type, operators?, sortable? }`. The class must extend
+  `StringType`, `UuidType` (`IdType`), `NumberType`, `BooleanType`, `DateType`, `EnumType` or
+  `ArrayType`; any other class (`JsonType`, a composite) throws `INVALID_SCHEMA`.
+- The kind of the class decides the operators: the table of `where`, except an `EnumType`, which
+  takes only `eq`, `ne`, `in`, `nin` and `isNull`. `operators` narrows them; `sortable: false`
+  forbids ordering by the field (lists are never sortable).
+- `maxLimit` is required: every criteria a schema returns has a `limit`. `defaultLimit` applies
+  when the input has no `limit` (`maxLimit` when there is no default); a `limit` above `maxLimit`
+  throws.
+- `maxOffset` (default `10000`) caps `offset`: deep offsets make the database read and skip every
+  previous row.
+- `limits` overrides the complexity limits of the schema (see "Limits"); `schema.limits` holds the
+  resolved values.
+- `tiebreaker` names a unique sortable field of the schema (usually `'id'`). The schema adds it last
+  to every order, ascending, unless the input already orders by it, so offset pages never repeat or
+  skip rows that tie. Without `orderBy` the result is ordered by it alone.
+- `schema.check(criteria)` applies the same rules (and the same conversion) to a criteria you
+  already have and `schema.fromUrl(text)` reads and checks a URL text.
+
+#### Value conversion
+
+Text and numbers from a query string are first read strictly, the same in every JavaScript engine,
+and then given to the constructor of the field's value object, which converts them and runs its
+rules (`Required`, `@Validations`, the options of an enum):
+
+| Value object holds | Accepted before the value object                                                         |
+| ------------------ | ---------------------------------------------------------------------------------------- |
+| a string           | text                                                                                     |
+| a number           | a finite number, or decimal text such as `'18'`, `'-0.5'` (no `'0x10'`, `'1e3'`, `' 1'`) |
+| a boolean          | `true`, `false`, `'true'`, `'false'`                                                     |
+| a `Date`           | a valid `Date`; integer milliseconds as a number (`1700000000000`); ISO text             |
+| an enum, a list    | anything: the value object alone decides                                                 |
+
+ISO text is either a date, read as UTC midnight (`'2024-01-01'`), or a date and time with a zone
+(`'2024-01-01T10:00Z'`, `'2024-01-01T10:00:30.5+02:00'`). A time without a zone
+(`'2024-01-01T10:00'`), dates that do not exist (`'2024-02-30'`) and any other text
+(`'March 7'`) throw `INVALID_VALUE`. Text with only digits is refused too (`'2024'`,
+`'1700000000000'`): it could be a year or milliseconds, so a query string sends dates as ISO text.
+
+A value the value object refuses throws `INVALID_VALUE` (`Field "email" needs a valid UserEmail
+value`) whose `cause` is the error of the value object (`ValidationException`,
+`TypePrimitiveException`, `RequiredValueException`). The text of `contains`, `startsWith` and
+`endsWith` is never given to the value object.
+
+#### Limits
+
+A criteria that comes from outside is checked against limits, so a request cannot make the parser
+or the database do unbounded work. `DEFAULT_CRITERIA_LIMITS` applies to `Criteria.fromUrl` and
+`Criteria.fromJSON` without a schema and to every schema that does not override it:
+
+| Limit            | Default | Checks                                                   |
+| ---------------- | ------- | -------------------------------------------------------- |
+| `maxDepth`       | `16`    | levels of `AND`/`OR`/`NOT` nesting (at most `64`)        |
+| `maxNodes`       | `256`   | nodes of the filter tree, logical ones included          |
+| `maxListSize`    | `1000`  | values of one `in`, `nin`, `hasSome` or `hasEvery`       |
+| `maxTextLength`  | `1024`  | characters of a field name or a text value               |
+| `maxOrderFields` | `8`     | fields in `orderBy`                                      |
+| `maxUrlLength`   | `8192`  | characters of the text `fromUrl` receives, checked first |
+
+```ts
+const searchSchema = defineCriteriaSchema<User>({
+  fields: { status: UserStatus, tags: UserTags },
+  maxLimit: 50,
+  limits: { maxListSize: 20, maxDepth: 4 },
+});
+
+searchSchema.parse({ where: { tags: { hasSome: manyTags } } });
+// CriteriaError LIMIT_EXCEEDED: Field "tags" has more than 20 values
+```
+
+`Criteria.create` and the methods of a criteria built in code only refuse filters nested deeper than
+64 levels, so a large `in` built by the application (for example, a batch of ids) still works.
+Every limit throws `CriteriaError` with code `LIMIT_EXCEEDED`; input from outside never makes the
+package throw anything else.
+
+### Errors: `CriteriaError`
+
+Every validation throws a `CriteriaError` (`name` `'CriteriaError'`) with a `code`. Messages
+quote at most 64 characters of the input. `error instanceof CriteriaError` also works when an
+application loads two copies of the package (its CommonJS and its ES module build, or two
+versions): the class recognizes the errors of every copy.
+
+`new CriteriaError(code, message, { cause })` keeps `cause` like a native `Error` (a non-enumerable
+property, present only when given). `fromUrl` sets it on `INVALID_TEXT` to the error the text gave
+while decoding:
+
+```ts
+try {
+  Criteria.fromUrl('eyJ2Ijox');
+} catch (error) {
+  if (error instanceof CriteriaError) {
+    error.code; // 'INVALID_TEXT'
+    error.cause; // SyntaxError from JSON.parse
+  }
+}
+```
+
+| Code                   | When                                                                                                                                                                          |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `INVALID_FORMAT`       | the input, a `where`, a filter or the JSON has the wrong shape                                                                                                                |
+| `INVALID_FIELD`        | empty field, empty segment, a segment starting with `$`, `__proto__`…, a control character                                                                                    |
+| `INVALID_OPERATOR`     | unknown operator, or `mode` without a text operator                                                                                                                           |
+| `INVALID_VALUE`        | a primitive where a value object belongs, a value its value object refuses (schema), a value of the wrong type, `NaN`, `NOT` with nothing, an empty text, a list mixing types |
+| `EMPTY_LIST`           | `in`, `nin`, `hasSome`, `hasEvery`, `AND` or `OR` with an empty list                                                                                                          |
+| `INVALID_RANGE`        | `between` with mixed types or `min` greater than `max`                                                                                                                        |
+| `INVALID_ORDER`        | a direction other than `asc`/`desc`, or a field ordered twice                                                                                                                 |
+| `INVALID_PAGINATION`   | `limit` below 1, `offset` below 0, not safe integers                                                                                                                          |
+| `UNKNOWN_FIELD`        | (schema) the field is not in the schema                                                                                                                                       |
+| `OPERATOR_NOT_ALLOWED` | (schema) the operator is not allowed on the field                                                                                                                             |
+| `NOT_SORTABLE`         | (schema) the field cannot be sorted                                                                                                                                           |
+| `LIMIT_EXCEEDED`       | a limit of "Limits" passed, or (schema) `limit`/`offset` above the max                                                                                                        |
+| `INVALID_SCHEMA`       | (schema) a wrong schema definition                                                                                                                                            |
+| `INVALID_TEXT`         | `fromUrl` got text that is not a criteria                                                                                                                                     |
+| `UNSUPPORTED_VERSION`  | the JSON or text comes from an unknown format version                                                                                                                         |
+
+### Writing an adapter
+
+`criteria.filter` is a tree of plain nodes told apart by `kind` (never by class):
+`compare` (`eq` `ne` `gt` `gte` `lt` `lte`), `between`, `in`, `notIn`, `text`, `isNull`,
+`arrayContains` (`match: 'some' | 'every'`), `arrayEmpty`, `and`, `or` and `not`. `visitFilter`
+calls one method per kind; a visitor that misses a kind does not compile:
+
+```ts
+import { visitFilter } from '@archi-code/ddd/domain';
+import type { FilterNode } from '@archi-code/ddd/domain';
+
+const toText = (node: FilterNode): string =>
+  visitFilter(node, {
+    compare: (n) => `${n.field} ${n.operator} ${String(n.value)}`,
+    and: (n) => n.filters.map(toText).join(' AND '),
+    // ...one method per kind
+  });
+
+toText(criteria.filter); // 'status eq active AND age gte 18'
+```
+
+- The nodes hold primitives (`string`, `number`, `boolean`, `Date`), never value objects, so an
+  adapter knows nothing about `@archi-code/ddd`. The document it reads is the persisted shape of
+  the aggregate (`CriteriaDocument<User>`, what `toPrimitives()` returns), whose keys are the
+  field names.
+- `mapField(fields, field)` renames a field with a `FieldMap<T>` (`{ id: '_id' }`) and leaves the
+  rest as they are: `mapField({ id: '_id' }, 'id')` → `'_id'`.
+- `compareValues(a, b)` and `valuesEqual(a, b)` implement the ordering and the equality of the
+  semantics above.
+- `isDate(value)` tells a `Date` apart even when it comes from another realm (an iframe, `vm`, a
+  structured clone made outside a test sandbox), where `instanceof Date` is `false`. Adapters use it
+  instead of `instanceof Date` for the values they read from their engine.
+- `Criteria.fromNodes({ filter, order, pagination })` builds a criteria from nodes and validates
+  them.
+- An adapter returns a `SearchResult<T>`: `{ items, total? }`, with `total` (every match before
+  paginating) only when it receives `{ withTotal: true }` (`SearchOptions`).
+
+#### The contract
+
+Every adapter must return the same results as `@archi-code/criteria-adapters/memory`, which
+implements the semantics above. `@archi-code/criteria-adapters` keeps one internal contract
+(documents, cases and expected results) that each of its adapters runs in its tests; a new engine
+joins that package and passes the same contract.
 
 ## IndexedDB: `IndexedDbTable` and `IndexedDbInspector`
 
@@ -3329,25 +3776,34 @@ in the repository, not in the npm package:
 
 `@archi-code/ddd/domain`:
 
-| Export                                                                                                                          | Kind                 |
-| ------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
-| `AbstractType`                                                                                                                  | abstract class       |
-| `StringType`, `NumberType`, `BooleanType`, `DateType`, `UuidType`, `JsonType`                                                   | classes              |
-| `EnumType`, `ArrayType`                                                                                                         | abstract classes     |
-| `CreatedAt`, `UpdatedAt`, `IdType`                                                                                              | classes (required)   |
-| `Required`, `Composite`                                                                                                         | functions            |
-| `Specification`                                                                                                                 | abstract class       |
-| `CompositeSchema`, `CompositeProps`, `CompositePrimitives`, `CompositeInput`, `CompositeType`, `CompositeValue`                 | types                |
-| `Entity`, `AggregateRoot`, `EventBase`                                                                                          | abstract classes     |
-| `AggregateRepository`                                                                                                           | abstract class       |
-| `AggregateFinder`, `AggregateSaver`, `AggregateRemover`                                                                         | types (roles)        |
-| `RequiredType`, `JsonTypeValue`, `PrimitiveType`, `PrimitiveTypes`, `DataTypes`                                                 | types                |
-| `EventMetadata`, `SerializedEvent`, `EventClass`                                                                                | types                |
-| `EntityId`, `SatisfiedBy`                                                                                                       | types                |
-| `Properties`, `PropertiesData`, `MutablePropertiesData`, `Methods`, `MethodsAndProperties`                                      | types                |
-| `DomainException`, `ValidationException`, `TypePrimitiveException`, `RequiredValueException`, `InvalidEventDefinitionException` | classes (exceptions) |
-| `DomainExceptionCode`                                                                                                           | enum                 |
-| `ValidationIssue` (`{ field: string \| null; code: string; message: string }`), `ValidationIssueInput` (`code` optional)        | types                |
+| Export                                                                                                                                                                      | Kind                 |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| `AbstractType`                                                                                                                                                              | abstract class       |
+| `StringType`, `NumberType`, `BooleanType`, `DateType`, `UuidType`, `JsonType`                                                                                               | classes              |
+| `EnumType`, `ArrayType`                                                                                                                                                     | abstract classes     |
+| `CreatedAt`, `UpdatedAt`, `IdType`                                                                                                                                          | classes (required)   |
+| `Required`, `Composite`                                                                                                                                                     | functions            |
+| `Specification`                                                                                                                                                             | abstract class       |
+| `CompositeSchema`, `CompositeProps`, `CompositePrimitives`, `CompositeInput`, `CompositeType`, `CompositeValue`                                                             | types                |
+| `Entity`, `AggregateRoot`, `EventBase`                                                                                                                                      | abstract classes     |
+| `AggregateRepository`                                                                                                                                                       | abstract class       |
+| `AggregateFinder`, `AggregateSaver`, `AggregateRemover`                                                                                                                     | types (roles)        |
+| `RequiredType`, `JsonTypeValue`, `PrimitiveType`, `PrimitiveTypes`, `DataTypes`                                                                                             | types                |
+| `EventMetadata`, `SerializedEvent`, `EventClass`                                                                                                                            | types                |
+| `EntityId`, `SatisfiedBy`                                                                                                                                                   | types                |
+| `Properties`, `PropertiesData`, `MutablePropertiesData`, `Methods`, `MethodsAndProperties`                                                                                  | types                |
+| `DomainException`, `ValidationException`, `TypePrimitiveException`, `RequiredValueException`, `InvalidEventDefinitionException`                                             | classes (exceptions) |
+| `DomainExceptionCode`                                                                                                                                                       | enum                 |
+| `ValidationIssue` (`{ field: string \| null; code: string; message: string }`), `ValidationIssueInput` (`code` optional)                                                    | types                |
+| `Criteria`, `CriteriaError`                                                                                                                                                 | classes (criteria)   |
+| `defineCriteriaSchema`, `visitFilter`, `mapField`, `compareValues`, `compareText`, `valuesEqual`, `isDate`                                                                  | functions (criteria) |
+| `DEFAULT_CRITERIA_LIMITS`                                                                                                                                                   | constant (criteria)  |
+| `CriteriaAggregate`, `CriteriaDocument`, `CriteriaValueObject`, `ValueOfObject`, `Path`, `PathValue`, `SortablePath`                                                        | types (criteria)     |
+| `Where`, `FieldFilter`, `StringCondition`, `RangeCondition`, `BooleanCondition`, `ArrayCondition`, `TextMode`                                                               | types (criteria)     |
+| `OrderBy`, `OrderItem`, `OrderNode`, `SortDirection`, `Pagination`, `OffsetPagination`, `CriteriaInput`, `CriteriaNodes`                                                    | types (criteria)     |
+| `FilterNode` and its node types, `FilterVisitor`, `FieldMap`, `CriteriaJson`, `EncodedScalar`, `CriteriaScalar`, `CriteriaValue`, `RangeValue`                              | types (criteria)     |
+| `CriteriaSchema`, `CriteriaSchemaDefinition`, `CriteriaSchemaFields`, `CriteriaFieldSpec`, `CriteriaFieldKind`, `ValueObjectClass`, `FilterOperatorName`, `CriteriaChecker` | types (criteria)     |
+| `CriteriaLimits`, `CriteriaErrorCode`, `CriteriaErrorOptions`, `SearchResult`, `SearchOptions`                                                                              | types (criteria)     |
 
 `@archi-code/ddd/application`:
 

@@ -87,9 +87,13 @@ function dependencyMounts(root, manifest, mounts = new Map()) {
     const file = require.resolve(`${name}/package.json`, { paths: [root] });
     const dir = fs.realpathSync(path.dirname(file));
     const dependency = JSON.parse(fs.readFileSync(file, 'utf8'));
-    const entry = esmEntry(dependency, '.');
-    if (!entry) fail(`dependency ${name} has no browser or import entry for "."`);
-    mounts.set(name, { dir, entry });
+    const entries = new Map();
+    for (const subpath of Object.keys(dependency.exports ?? { '.': null })) {
+      const entry = esmEntry(dependency, subpath);
+      if (entry) entries.set(subpath === '.' ? name : `${name}/${subpath.slice(2)}`, entry);
+    }
+    if (entries.size === 0) fail(`dependency ${name} has no browser or import entry`);
+    mounts.set(name, { dir, entries });
     dependencyMounts(dir, dependency, mounts);
   }
   return mounts;
@@ -98,8 +102,10 @@ function dependencyMounts(root, manifest, mounts = new Map()) {
 function importMapOf(mounts) {
   if (mounts.size === 0) return null;
   const imports = {};
-  for (const [name, { entry }] of mounts) {
-    imports[name] = `/node_modules/${name}/${entry.replace(/^\.\//, '')}`;
+  for (const [name, { entries }] of mounts) {
+    for (const [specifier, entry] of entries) {
+      imports[specifier] = `/node_modules/${name}/${entry.replace(/^\.\//, '')}`;
+    }
   }
   return JSON.stringify({ imports });
 }

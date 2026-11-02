@@ -1,11 +1,11 @@
-import { Criteria, SearchOptions, SearchResult } from '@archi-code/criteria';
+import { Criteria, SearchOptions, SearchResult } from '@archi-code/ddd/domain';
 import { CRITERIA_CONTRACT_CASES } from './contract-cases';
-import { ContractDocument, createContractDocuments } from './contract-documents';
+import { ContractDocument, ContractRecord, createContractDocuments } from './contract-documents';
 
 export interface CriteriaContractAdapter {
   setup(documents: ContractDocument[]): Promise<void> | void;
   search(
-    criteria: Criteria<ContractDocument>,
+    criteria: Criteria<ContractRecord>,
     options: SearchOptions,
   ): Promise<SearchResult<ContractDocument>> | SearchResult<ContractDocument>;
 }

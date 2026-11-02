@@ -1,4 +1,4 @@
-import type { SearchOptions, SearchResult } from '@archi-code/criteria';
+import type { SearchOptions, SearchResult } from '@archi-code/ddd/domain';
 import type { IndexedDbQuery } from '../../src/indexeddb/indexed-db-query';
 
 export async function runIndexedDbQuery<T>(

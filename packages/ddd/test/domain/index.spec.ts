@@ -28,6 +28,9 @@ const PUBLIC_API = [
   'BooleanType',
   'Composite',
   'CreatedAt',
+  'Criteria',
+  'CriteriaError',
+  'DEFAULT_CRITERIA_LIMITS',
   'DateType',
   'DomainException',
   'DomainExceptionCode',
@@ -46,6 +49,13 @@ const PUBLIC_API = [
   'UpdatedAt',
   'UuidType',
   'ValidationException',
+  'compareText',
+  'compareValues',
+  'defineCriteriaSchema',
+  'isDate',
+  'mapField',
+  'valuesEqual',
+  'visitFilter',
 ];
 
 describe('@archi-code/ddd/domain', () => {
@@ -70,7 +80,9 @@ describe('@archi-code/ddd/domain', () => {
 
   it('exports every value as a class or function, and the codes as an enum', () => {
     expect(domain.DomainExceptionCode.ValidationFailed).toBe('DOM001');
-    for (const name of PUBLIC_API.filter((name) => name !== 'DomainExceptionCode')) {
+    expect(domain.DEFAULT_CRITERIA_LIMITS.maxDepth).toBe(16);
+    const constants = ['DomainExceptionCode', 'DEFAULT_CRITERIA_LIMITS'];
+    for (const name of PUBLIC_API.filter((name) => !constants.includes(name))) {
       expect(typeof domain[name as keyof typeof domain]).toBe('function');
     }
   });

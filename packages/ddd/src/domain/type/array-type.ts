@@ -3,12 +3,17 @@ import type { ValidationError, ValidationResult } from '@archi-code/validation';
 import { AbstractType } from './abstract-type';
 import type { ValueOf } from './abstract-type';
 import { TypePrimitiveException } from '../exceptions/type-primitive.exception';
+import { ValueObjectBrand } from '../../shared/index';
 
 type ItemValue<Item extends AbstractType<any>> = Item['value'];
 
 export abstract class ArrayType<Item extends AbstractType<any>> extends AbstractType<
   ItemValue<Item>[]
 > {
+  static {
+    ValueObjectBrand.brandKind(this, 'array');
+  }
+
   protected abstract createItem(value: unknown): Item;
 
   get items(): Item[] {

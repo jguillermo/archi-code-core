@@ -1,5 +1,5 @@
-import { isDate } from '@archi-code/criteria';
-import type { Criteria, FilterNode } from '@archi-code/criteria';
+import { isDate } from '@archi-code/ddd/domain';
+import type { Criteria, FilterNode } from '@archi-code/ddd/domain';
 import { ordersLikeCriteria } from './key-order';
 
 export type IndexedDbKey = string | number | Date;
@@ -111,7 +111,7 @@ function requiredNodes(filter: FilterNode | null): FilterNode[] {
 }
 
 export function planIndexedDbQuery(
-  criteria: Criteria<unknown>,
+  criteria: Criteria,
   indexes: readonly IndexInfo[],
 ): IndexedDbPlan {
   const byField = new Map<string, IndexInfo>();

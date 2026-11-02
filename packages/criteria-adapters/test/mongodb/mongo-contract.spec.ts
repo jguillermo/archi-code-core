@@ -1,8 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { Criteria } from '@archi-code/criteria';
-import type { SearchResult } from '@archi-code/criteria';
+import { Criteria } from '@archi-code/ddd/domain';
+import type { CriteriaAggregate, SearchResult } from '@archi-code/ddd/domain';
+import { AggregateRoot, NumberType, Required, StringType } from '@archi-code/ddd/domain';
 import { runCriteriaContract } from '../contract/run-criteria-contract';
-import type { ContractDocument } from '../contract/contract-documents';
+import type { ContractDocument, ContractRecord } from '../contract/contract-documents';
 import { MongoClient, ObjectId } from 'mongodb';
 import { MongoClient as MongoClientV6 } from 'mongodb-v6';
 import { MongoMemoryServer } from 'mongodb-memory-server';
@@ -15,18 +16,52 @@ interface NativeCollection<D> {
   countDocuments(filter: object): Promise<number>;
 }
 
-async function runMongoQuery<T, D>(
+async function runMongoQuery<A extends CriteriaAggregate, D, R>(
   collection: NativeCollection<D>,
-  criteria: Criteria<T>,
-  options: MongoTranslatorOptions<T> & { withTotal?: boolean; map?: (document: D) => T } = {},
-): Promise<SearchResult<T>> {
-  const { filter, sort, skip, limit } = new MongoCriteriaTranslator<T>(options).translate(criteria);
+  criteria: Criteria<A>,
+  options: MongoTranslatorOptions<A> & { withTotal?: boolean; map: (document: D) => R },
+): Promise<SearchResult<R>> {
+  const { filter, sort, skip, limit } = new MongoCriteriaTranslator<A>(options).translate(criteria);
   const [documents, total] = await Promise.all([
     collection.find(filter, { sort, skip, limit }).toArray(),
     options.withTotal === true ? collection.countDocuments(filter) : undefined,
   ]);
-  const items = documents.map(options.map ?? ((document) => document as unknown as T));
+  const items = documents.map(options.map);
   return total === undefined ? { items } : { items, total };
+}
+
+class AccountId extends Required(StringType) {}
+
+class AccountAge extends Required(NumberType) {}
+
+class Account extends AggregateRoot<AccountId> {
+  constructor(
+    id: AccountId,
+    readonly age: AccountAge,
+  ) {
+    super(id);
+  }
+
+  toPrimitives(): { id: string; age: number } {
+    return { id: this.id.value, age: this.age.value };
+  }
+}
+
+class OrderId extends Required(StringType) {}
+
+class OrderTotal extends Required(NumberType) {}
+
+class Order extends AggregateRoot<OrderId> {
+  constructor(
+    id: OrderId,
+    readonly total: OrderTotal,
+  ) {
+    super(id);
+  }
+
+  toPrimitives(): { id: string; total: number } {
+    return { id: this.id.value, total: this.total.value };
+  }
 }
 
 describe('MongoCriteriaTranslator on a real MongoDB', () => {
@@ -58,34 +93,37 @@ describe('MongoCriteriaTranslator on a real MongoDB', () => {
         await collection.insertMany(documents);
       },
       search: (criteria, options) =>
-        runMongoQuery<ContractDocument, ContractDocument>(collection, criteria, options),
+        runMongoQuery<ContractRecord, ContractDocument, ContractDocument>(collection, criteria, {
+          ...options,
+          map: (document) => document,
+        }),
     });
     expect(failures).toEqual([]);
   });
 
   it('stores the id in _id through a field map', async () => {
-    interface User {
-      id: string;
-      age: number;
-    }
     const collection = client.db('criteria').collection<{ _id: string; age: number }>('users');
     await collection.insertMany([
       { _id: 'a', age: 30 },
       { _id: 'b', age: 15 },
     ]);
-    const result = await runMongoQuery<User, { _id: string; age: number }>(
+    const result = await runMongoQuery<Account, { _id: string; age: number }, Account>(
       collection,
-      Criteria.create<User>({ where: { age: { gte: 18 } }, orderBy: { id: 'asc' } }),
-      { fields: { id: '_id' }, map: ({ _id, age }) => ({ id: _id, age }), withTotal: true },
+      Criteria.create<Account>({
+        where: { age: { gte: new AccountAge(18) } },
+        orderBy: { id: 'asc' },
+      }),
+      {
+        fields: { id: '_id' },
+        map: ({ _id, age }) => new Account(new AccountId(_id), new AccountAge(age)),
+        withTotal: true,
+      },
     );
-    expect(result).toEqual({ items: [{ id: 'a', age: 30 }], total: 1 });
+    expect(result.items.map((account) => account.toPrimitives())).toEqual([{ id: 'a', age: 30 }]);
+    expect(result.total).toBe(1);
   });
 
   it('searches an ObjectId _id by its text through convert', async () => {
-    interface Order {
-      id: string;
-      total: number;
-    }
     const collection = client.db('criteria').collection<{ _id: ObjectId; total: number }>('orders');
     const first = new ObjectId();
     const second = new ObjectId();
@@ -96,24 +134,25 @@ describe('MongoCriteriaTranslator on a real MongoDB', () => {
     const options = {
       fields: { id: '_id' },
       convert: { id: (value: unknown) => new ObjectId(String(value)) },
-      map: ({ _id, total }: { _id: ObjectId; total: number }) => ({ id: _id.toHexString(), total }),
+      map: ({ _id, total }: { _id: ObjectId; total: number }) =>
+        new Order(new OrderId(_id.toHexString()), new OrderTotal(total)).toPrimitives(),
     } as const;
-    const byId = await runMongoQuery<Order, { _id: ObjectId; total: number }>(
+    const byId = await runMongoQuery(
       collection,
-      Criteria.create<Order>({ where: { id: first.toHexString() } }),
+      Criteria.create<Order>({ where: { id: new OrderId(first.toHexString()) } }),
       options,
     );
-    const others = await runMongoQuery<Order, { _id: ObjectId; total: number }>(
+    const others = await runMongoQuery(
       collection,
-      Criteria.create<Order>({ where: { id: { nin: [first.toHexString()] } } }),
+      Criteria.create<Order>({ where: { id: { nin: [new OrderId(first.toHexString())] } } }),
       options,
     );
     expect(byId.items).toEqual([{ id: first.toHexString(), total: 10 }]);
     expect(others.items).toEqual([{ id: second.toHexString(), total: 20 }]);
     await expect(
-      runMongoQuery<Order, { _id: ObjectId; total: number }>(
+      runMongoQuery(
         collection,
-        Criteria.create<Order>({ where: { id: 'not-an-object-id' } }),
+        Criteria.create<Order>({ where: { id: new OrderId('not-an-object-id') } }),
         options,
       ),
     ).rejects.toMatchObject({ name: 'CriteriaError', code: 'INVALID_VALUE' });

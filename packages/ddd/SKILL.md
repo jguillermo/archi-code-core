@@ -1,13 +1,14 @@
 ---
 name: archi-code-ddd
-description: The single entry point for Domain-Driven Design with @archi-code/ddd. It routes every DDD question to the guide suite shipped in the package (contexts, architecture, value objects, aggregates, events, repositories, application services, CQRS, audits) and gives the conventions, patterns and common mistakes of code built on it - context folder layout and names, value objects and Composite, aggregates (public constructor, create, fromPrimitives/toPrimitives), events and business errors, abstract repository per aggregate, user use cases (UseCase) and reaction use cases (an EventListener with @ListensTo that is the use case), event copies between contexts, read models, the composition root, controllers and ExceptionClassifier. Use it whenever someone applies DDD, designs or reviews a domain model, writes or changes value objects, aggregates, events, use cases, reactions, read models, repositories, adapters, controllers or wiring, decides which layer a class belongs to, or the code imports @archi-code/ddd.
+description: The single entry point for Domain-Driven Design with @archi-code/ddd. It routes DDD questions to the guide suite in the package (contexts, architecture, value objects, aggregates, events, repositories, application services, CQRS, audits) and gives the conventions, patterns and common mistakes of code built on it - context folder layout and names, value objects and Composite, aggregates (public constructor, create, fromPrimitives/toPrimitives), events and business errors, abstract repository per aggregate, user use cases (UseCase) and reaction use cases (an EventListener with @ListensTo that is the use case), event copies between contexts, read models, Criteria, the composition root, controllers and ExceptionClassifier. Use it whenever someone applies DDD, designs or reviews a domain model, writes or changes value objects, aggregates, events, use cases, reactions, read models, repositories, adapters, controllers or wiring, decides which layer a class belongs to, or the code imports @archi-code/ddd.
 ---
 
 # archi-code-ddd
 
 `@archi-code/ddd` is archi-code's Domain-Driven Design package for TypeScript, one entry point per
 layer, each with the exceptions of its layer: `@archi-code/ddd/domain` (value objects, `Composite`,
-`Specification`, `Entity`, `AggregateRoot`, `EventBase`, `AggregateRepository`, the base of
+`Specification`, `Entity`, `AggregateRoot`, `EventBase`, `Criteria` and `defineCriteriaSchema`
+to search aggregates, `AggregateRepository`, the base of
 the abstract repository of each aggregate, with the roles of its verbs `AggregateFinder`,
 `AggregateSaver`, `AggregateRemover`, and `DomainException`,
 `ValidationException`…), `@archi-code/ddd/application` (`UseCase`, the event contract to listen,
@@ -96,6 +97,8 @@ How to use it, for every design question or task:
 If they are installed in the project, use them together with this one:
 
 - `archi-code-validation`: available validators, their options and `@Validations` rules.
+- `archi-code-criteria-adapters`: runs a `Criteria` in memory or turns it into a MongoDB or
+  IndexedDB query.
 
 ## Rules and patterns of this package
 
@@ -110,6 +113,7 @@ that matches the task before writing or reviewing code, and every file when unsu
 | `layers.md`                        | The rules of value objects, aggregates, events, errors, user and reaction use cases, read models, repositories, entry points and the composition root |
 | `patterns.md`                      | Code to start from for each of them, and the tests                                                                                                    |
 | `what-not-to-do.md`                | The common mistakes; also the checklist of every audit of code built on this package                                                                  |
+| `criteria.md`                      | Searching aggregates with `Criteria`: value objects as values, schemas for request input, URL text                                                    |
 
 ## The essentials
 

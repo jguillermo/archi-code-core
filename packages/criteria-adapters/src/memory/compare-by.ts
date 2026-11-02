@@ -1,5 +1,5 @@
-import { compareValues } from '@archi-code/criteria';
-import type { OrderNode } from '@archi-code/criteria';
+import { compareValues } from '@archi-code/ddd/domain';
+import type { OrderNode } from '@archi-code/ddd/domain';
 import { readPath } from './read-path';
 
 export function compareBy<T>(order: readonly OrderNode[]): (left: T, right: T) => number {

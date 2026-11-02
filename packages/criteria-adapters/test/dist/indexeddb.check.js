@@ -1,7 +1,12 @@
 'use strict';
 
 require('fake-indexeddb/auto');
-const { Criteria } = require('@archi-code/criteria');
+const ddd = require('@archi-code/ddd/domain');
+
+const { Criteria } = ddd;
+
+class Age extends ddd.NumberType {}
+class Name extends ddd.StringType {}
 
 let databases = 0;
 
@@ -30,7 +35,7 @@ function smoke(m) {
     [
       'planIndexedDbQuery picks the index of an equality',
       () => {
-        const plan = m.planIndexedDbQuery(Criteria.create({ where: { age: 30 } }), [
+        const plan = m.planIndexedDbQuery(Criteria.create({ where: { age: new Age(30) } }), [
           { name: null, keyPath: 'id' },
           { name: 'age', keyPath: 'age' },
         ]);
@@ -66,12 +71,12 @@ function smoke(m) {
           return { items, total: records.length, query };
         };
         const byAge = await search({
-          where: { age: { gte: 18 } },
+          where: { age: { gte: new Age(18) } },
           orderBy: { age: 'desc' },
           limit: 2,
         });
         const byName = await search({
-          where: { name: { gte: 'a' } },
+          where: { name: { gte: new Name('a') } },
           orderBy: { name: 'desc' },
           limit: 1,
         });

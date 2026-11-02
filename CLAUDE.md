@@ -15,7 +15,7 @@ npm run check:format    # EditorConfig, Prettier and ESLint over the whole repo 
 npm run fix:format      # eslint --fix and prettier --write over the whole repo
 npm run clean           # Remove all node_modules
 npm run check:packages  # Full gate (check:all) in every package
-npm run check:<name>    # Full gate in one package: validator, ddd, criteria, criteria-adapters, crypto-tools
+npm run check:<name>    # Full gate in one package: validator, ddd, criteria-adapters, crypto-tools
 npm run check:versions  # Every package version and internal dep is 0.0.0-development
 npm run check:audit     # npm audit of runtime deps + cargo audit of crypto-tools (network; CI audit.yml, weekly)
 npm run version         # Dry-run of the release: current and next version of each package, writes release-plan.json
@@ -113,8 +113,7 @@ npm workspaces monorepo publishing independent npm packages implementing DDD pat
 | Directory           | npm name                        | Purpose                                                                                                                                                                       |
 | ------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `validation`        | `@archi-code/validation`        | Validators (TypeScript port of validator.js), `canBe*`/`to*` conversions, `@Validations` decorator                                                                            |
-| `ddd`               | `@archi-code/ddd`               | DDD by layer as subpaths: `/domain`, `/application`, `/infrastructure`, each with its own exceptions                                                                          |
-| `criteria`          | `@archi-code/criteria`          | Database-independent Criteria: typed `where`/`orderBy`/pagination, URL text, input schema with limits                                                                         |
+| `ddd`               | `@archi-code/ddd`               | DDD by layer as subpaths: `/domain` (also the Criteria over aggregates), `/application`, `/infrastructure`, each with its own exceptions                                      |
 | `criteria-adapters` | `@archi-code/criteria-adapters` | Criteria adapters as separate subpaths: `/memory` (runs it, reference semantics), `/mongodb` and `/indexeddb` (only convert it into a native query); shared internal contract |
 | `crypto-tools`      | `@archi-code/crypto-tools`      | Crypto toolkit in one Rust→wasm module run in workers (web + Node): password, cipher, RSA, signature, hash, token, JWT                                                        |
 
@@ -126,11 +125,9 @@ npm workspaces monorepo publishing independent npm packages implementing DDD pat
     └── @archi-code/ddd      (runtime: @archi-code/validation, uuid;
                               subpaths /domain ← /application ← /infrastructure;
                               internal src/shared below domain)
-
-@archi-code/criteria     (standalone — no runtime deps)
-    ↑
-    └── @archi-code/criteria-adapters (runtime: @archi-code/criteria;
-                                       subpaths /memory, /mongodb, /indexeddb → memory)
+            ↑
+            └── @archi-code/criteria-adapters (runtime: @archi-code/ddd — the Criteria of /domain;
+                                               subpaths /memory, /mongodb, /indexeddb → memory)
 @archi-code/crypto-tools (standalone — no npm deps; Rust crates compiled into one embedded wasm)
 ```
 
@@ -161,15 +158,35 @@ npm workspaces monorepo publishing independent npm packages implementing DDD pat
 - Gate: `npm run check:crypto-tools` needs Rust (`rust/rust-toolchain.toml`), `wasm-pack` and the
   Playwright browsers; `check:audit` needs `cargo-audit`.
 
-### criteria packages internals
+### Criteria internals (`ddd/src/shared/criteria`) and criteria-adapters
 
-- `@archi-code/criteria` holds no engine code. `Criteria.create<T>({ where, orderBy, limit, offset })`
-  takes a typed object (`Where<T>`: per `Path<T>` only the operators of its type) and normalizes it
-  into a frozen tree of plain `FilterNode`s told apart by `kind`; adapters read it with
-  `visitFilter`, never `instanceof`. `T` is the primitive shape of the entity.
+- The criteria core lives in `packages/ddd/src/shared/criteria` (user rule 2026-11-02: the
+  `@archi-code/criteria` package was removed) and holds no engine code; `shared/index.ts` exports
+  it and `domain/index.ts` re-exports exactly those names (the only internal API a public index may
+  publish, pinned by `module-boundaries.spec.ts`). It imports nothing from `domain`: value objects
+  are recognized by the marks of `shared/value-object/value-object-brand.ts` (`ValueObjectBrand`:
+  `Symbol.for` brand on `AbstractType.prototype`, and a kind on each base type —
+  String/Uuid → string, Number, Boolean, Date, Enum, Array — that subclasses inherit), so they work
+  across the CJS/ESM builds; the aggregate and value object types are structural
+  (`CriteriaAggregate`, `CriteriaValueObject`). Specs live in `ddd/test/shared/criteria/`.
+  `Criteria.create<A>({ where, orderBy, limit, offset })`
+  takes a typed object (`Where<A>`: per `Path<A>` only the operators of its kind of value object)
+  and normalizes it into a frozen tree of plain `FilterNode`s told apart by `kind`; adapters read it
+  with `visitFilter`, never `instanceof`. `A` is a ddd aggregate (`CriteriaAggregate` =
+  `{ id, pullDomainEvents(), toPrimitives() }`, user rule 2026-11-02): paths are its public value
+  objects (through composites and child entities; not methods, private fields, `JsonType` nor lists
+  of objects) and every value is a value object instance, except the text of
+  `contains`/`startsWith`/`endsWith` (plain string) and `null`/`isNull`/`isEmpty`/`mode`.
+  `normalizeWhere(where, source)` unwraps them (`value-object-input.ts`: `ValueObjectBrand.isValueObject`; a VO holding null means isNull; a primitive throws `INVALID_VALUE`) with
+  `'value-objects'` for `create`/`and` and `'primitives'` for `schema.parse`; nodes keep primitives,
+  so JSON/URL, limits and adapters do not know about ddd.
 - `toUrl()`/`Criteria.fromUrl()` encode the compact JSON (`toJSON`, versioned `v: 1`) as base64url;
-  `defineCriteriaSchema` whitelists fields/operators, converts text input strictly (ISO dates with a
-  zone or UTC dates, never digit-only text; decimal numbers) and requires `maxLimit` (`maxOffset`
+  `defineCriteriaSchema` declares each field with its value object class (`age: UserAge` or
+  `{ type, operators, sortable }`; the kind is `ValueObjectBrand.kindOf(class)`; a class without
+  one (`JsonType`, a composite, any other) is `INVALID_SCHEMA`; enums only `eq/ne/in/nin/isNull`),
+  converts text input strictly first (ISO dates with a zone or UTC dates, never digit-only text;
+  decimal numbers) and then through the value object constructor (its errors become
+  `INVALID_VALUE` with `cause`; text operators skip it), and requires `maxLimit` (`maxOffset`
   defaults to 10000). Its optional `tiebreaker` (a unique sortable field) is appended last to every
   order so offset pages are stable.
 - Criteria values are checked once in `freezeFilter`: lists share one type, text operators need a
@@ -183,20 +200,28 @@ npm workspaces monorepo publishing independent npm packages implementing DDD pat
   fields, URL length) to `fromUrl`/`fromJSON` (`DEFAULT_CRITERIA_LIMITS`) and to every schema
   (`limits` overrides them). `Criteria.create` from code only has the 64-level ceiling.
   `CriteriaError` carries a `Symbol.for` brand and `Symbol.hasInstance`, so `instanceof` works across
-  the CJS/ESM builds; messages quote at most 64 characters of input. `test/cross/` holds the
-  adversarial and fuzz specs that cover every entry point.
+  the CJS/ESM builds; messages quote at most 64 characters of input. `test/shared/criteria/cross/`
+  holds the adversarial and fuzz specs that cover every entry point.
+- `/memory` takes aggregates: `searchMemory`/`matches` evaluate `aggregate.toPrimitives()` and return
+  the aggregates; `matchesFilter`, `compareBy` and `readPath` work on plain documents (IndexedDB
+  records). `toIndexedDbQuery` returns `IndexedDbQuery<CriteriaDocument<A>>`. The contract
+  (`test/contract/contract-documents.ts`) keeps the stored `ContractDocument`s and adds the
+  `ContractRecord` aggregate the cases are typed with; `/memory` runs it on aggregates, MongoDB and
+  IndexedDB on the documents.
 - `@archi-code/criteria-adapters` has only subpath entry points (`./memory`, `./mongodb`,
   `./indexeddb`; no `"."`, `typesVersions` for `moduleResolution: node`). Each module lives in
   `src/<module>/` with its public `index.ts`; inside a module imports go to the declaring file and
   across modules only through the other module's `index.ts`. `test/cross/module-boundaries.spec.ts`
   fixes the graph (`indexeddb → memory`, nothing else), forbids imports out of `src/` and of any
-  package but `@archi-code/criteria`, and cycles. Build hooks live in `test/dist/<module>.check.js`.
+  package but `@archi-code/ddd/domain`, and cycles. Build hooks live in `test/dist/<module>.check.js`.
 - The semantics (null/missing, code point string order via `compareText`, literal text with Unicode
   simple case folding) are fixed by `/memory` and checked by the internal contract in
   `criteria-adapters/test/contract/` (`createContractDocuments()`, `CRITERIA_CONTRACT_CASES`,
   `runCriteriaContract`), which the spec of every adapter runs. It is never published.
-- `@archi-code/criteria` has the web build extension (`browser` field and condition, `check-browser`
-  in `check:dist`), so its smoke checks use `m.isDate`, never `instanceof Date`.
+- The criteria build checks live in `ddd/test/dist/domain.check.js` (smoke with `m.isDate`, never
+  `instanceof Date`; crossBuild: `CriteriaError` and value object classes of the other build;
+  browser: schema and URL text under a strict CSP and Node↔web URL text). `check-browser` maps
+  every exported subpath of a dependency in the import map (`@archi-code/ddd/domain`).
 - `/mongodb` and `/indexeddb` only convert a criteria into the native query of their engine
   (user rule 2026-11-02): they never open a request, a cursor nor a count; the consumer runs the
   query. `searchMongo`/`searchIndexedDb` were removed; their contract specs run the query with a
@@ -215,13 +240,13 @@ npm workspaces monorepo publishing independent npm packages implementing DDD pat
   no range: a key may mix dates and text). Text bounds with code units from U+D800 are not used as
   key ranges. `test/support/run-indexed-db-query.ts` runs the query in the specs and the browser
   check. The package runs `check-browser`, whose import map serves the bare
-  `@archi-code/criteria` import: `/memory` and `/indexeddb` run the whole contract in Chromium
+  `@archi-code/ddd/domain` import: `/memory` and `/indexeddb` run the whole contract in Chromium
   and WebKit, on each browser's real IndexedDB in three store layouts; vitest uses
   `fake-indexeddb`.
 
 ### ddd package internals
 
-The DDD package, split into three subpath modules (no `"."` entry, `typesVersions` for `moduleResolution: node`): `src/domain/` (imports `shared`), `src/application/` (imports `domain`, `shared`) and `src/infrastructure/` (imports all of them), each crossing into another only through its `index.ts`. `src/shared/` (user rule 2026-10-22) is an internal module, not a subpath (no `exports`, `typesVersions` nor build hook): code every layer shares; it imports nothing and holds the exception base (`exceptions/`: `AbstractException`, `ExceptionOptions`, `ExceptionBrand`, `ReceivedValue`; internal, never exported, user decision 2026-10-22) and `IssueCollector` (`collectFields`/`collectItems` with an `IssueReader`: runs every build, asks the reader for the issues of each error (`null` → rethrow), prefixes each issue with its path and throws its own `IssueCollectionError`; it knows no layer exception, user decision 2026-10-22). The domain (`CompositeIssues`, `type/composite/`) and `ValueObjectBuilder` pass a reader of `ValidationException`/`DomainException` and turn `IssueCollectionError` into one `ValidationException`. `test/cross/module-boundaries.spec.ts` fixes that graph (`INTERNAL_MODULES` are left out of the subpath check and no public `index.ts` may re-export them), the allowed packages (`@archi-code/validation`, `uuid`) and forbids cycles, also type-only ones. Build hooks live in `test/dist/<module>.check.js`. The spec also fixes that `domain/repository/` exports only types and the `AggregateRepository` base (no verb nor code), that `application/ports/` exports types only and that `application/use-case/` imports neither another use case nor a listener. Where each class of a consumer project goes (value object, aggregate, event, business error, specification and domain service in domain, split by kind into `aggregate/`, `entity/`, `value-object/`, `event/`, `exception/`, `repository/`, `service/`, `specification/`; the abstract repository of each aggregate in domain; user and reaction use cases, consumer copies of foreign events, data types and read models in application, one folder per business action; repositories and adapters in infrastructure; controllers in `interfaces/`; one `composition.ts` per context), what it may import and how it is named is the "Architecture rules" table of the README and `ddd-skills/archi-code-ddd/where-each-class-goes.md` (user rules). Key concepts of `domain`:
+The DDD package, split into three subpath modules (no `"."` entry, `typesVersions` for `moduleResolution: node`): `src/domain/` (imports `shared`), `src/application/` (imports `domain`, `shared`) and `src/infrastructure/` (imports all of them), each crossing into another only through its `index.ts`. `src/shared/` (user rule 2026-10-22) is an internal module, not a subpath (no `exports`, `typesVersions` nor build hook): code every layer shares; it imports nothing and holds the criteria (see "Criteria internals"), `ValueObjectBrand`, the exception base (`exceptions/`: `AbstractException`, `ExceptionOptions`, `ExceptionBrand`, `ReceivedValue`; internal, never exported, user decision 2026-10-22) and `IssueCollector` (`collectFields`/`collectItems` with an `IssueReader`: runs every build, asks the reader for the issues of each error (`null` → rethrow), prefixes each issue with its path and throws its own `IssueCollectionError`; it knows no layer exception, user decision 2026-10-22). The domain (`CompositeIssues`, `type/composite/`) and `ValueObjectBuilder` pass a reader of `ValidationException`/`DomainException` and turn `IssueCollectionError` into one `ValidationException`. `test/cross/module-boundaries.spec.ts` fixes that graph (`INTERNAL_MODULES` are left out of the subpath check and no public `index.ts` may re-export them), the allowed packages (`@archi-code/validation`, `uuid`) and forbids cycles, also type-only ones. Build hooks live in `test/dist/<module>.check.js`. The spec also fixes that `domain/repository/` exports only types and the `AggregateRepository` base (no verb nor code), that `application/ports/` exports types only and that `application/use-case/` imports neither another use case nor a listener. Where each class of a consumer project goes (value object, aggregate, event, business error, specification and domain service in domain, split by kind into `aggregate/`, `entity/`, `value-object/`, `event/`, `exception/`, `repository/`, `service/`, `specification/`; the abstract repository of each aggregate in domain; user and reaction use cases, consumer copies of foreign events, data types and read models in application, one folder per business action; repositories and adapters in infrastructure; controllers in `interfaces/`; one `composition.ts` per context), what it may import and how it is named is the "Architecture rules" table of the README and `ddd-skills/archi-code-ddd/where-each-class-goes.md` (user rules). Key concepts of `domain`:
 
 - **`Entity<Id>`** (`entity/entity.ts`, user rule 2026-10-18) — only `readonly id` and `equals` (same class + `id.equals`). `Id extends EntityId` (`AbstractType & RequiredMarked`: `IdType` or a `Required(...)` type) and an id holding no value throws `RequiredValueException` (books: stable, early identity, IDDD ch. 5). Child entities extend it, hold their id and value objects and may have business methods (no setters) that only their root calls (IDDD ch. 5/10, books-first decision 2026-10-18); a part nobody looks up by id is a `Composite`.
 - **`AggregateRoot<Id>`** (`aggregate/aggregate-root.ts`) — extends `Entity<Id>` (`super(id)`), domain events via `record()` (protected, keeps the event as it is: events are not frozen, their fields are `readonly`) / `pullDomainEvents()` (typed `EventBase[]`), pending events are a plain private array. There is no union type of an aggregate's events (user rule 2026-10-25): `AggregateRoot`, `EventBus`, `DomainEventBus` and `EventRegistry` have no event type parameter and work with `EventBase`; only `EventListener<Event>` names the one event class it handles. It carries no version (user decision 2026-10-21, `version`/`restoreVersion`/`markPersisted` removed): optimistic concurrency (IDDD ch. 10) belongs to the repository, which remembers the version of every aggregate object it loaded or saved in a private `WeakMap<X, number>` (unknown object = new, version 0), stores version + 1 next to the primitives and throws `ConcurrencyException('<Aggregate>', id, version)` on a stale save or an existing id for a new aggregate.

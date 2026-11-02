@@ -1,3 +1,15 @@
+import {
+  AggregateRoot,
+  ArrayType,
+  BooleanType,
+  Composite,
+  CreatedAt,
+  EnumType,
+  NumberType,
+  Required,
+  StringType,
+} from '@archi-code/ddd/domain';
+
 export interface ContractAddress {
   readonly city: string;
   readonly zip: string;
@@ -10,11 +22,111 @@ export interface ContractDocument {
   readonly active: boolean;
   readonly status: 'active' | 'pending' | 'blocked';
   readonly createdAt: Date;
-  readonly tags?: readonly string[];
-  readonly address?: ContractAddress;
+  readonly tags?: readonly string[] | null;
+  readonly address?: ContractAddress | null;
   readonly email?: string | null;
-  readonly title?: string;
-  readonly lines?: readonly { readonly sku: string }[];
+  readonly title?: string | null;
+  readonly lines?: readonly { readonly sku: string }[] | null;
+}
+
+export class ContractId extends Required(StringType) {}
+
+export class ContractName extends StringType {}
+
+export class ContractAge extends NumberType {}
+
+export class ContractActive extends Required(BooleanType) {}
+
+export enum ContractStatusOption {
+  ACTIVE = 'active',
+  PENDING = 'pending',
+  BLOCKED = 'blocked',
+}
+
+export class ContractStatusEnum extends EnumType<ContractStatusOption> {
+  protected getEnum(): typeof ContractStatusOption {
+    return ContractStatusOption;
+  }
+}
+
+export class ContractStatus extends Required(ContractStatusEnum) {}
+
+export class ContractTag extends Required(StringType) {}
+
+export class ContractTags extends ArrayType<ContractTag> {
+  protected createItem(value: unknown): ContractTag {
+    return new ContractTag(value as string);
+  }
+}
+
+export class ContractCity extends Required(StringType) {}
+
+export class ContractZip extends Required(StringType) {}
+
+export class ContractRecordAddress extends Composite({ city: ContractCity, zip: ContractZip }) {}
+
+export class ContractEmail extends StringType {}
+
+export class ContractTitle extends StringType {}
+
+export class ContractSku extends Required(StringType) {}
+
+export class ContractLine extends Composite({ sku: ContractSku }) {}
+
+export class ContractRecord extends AggregateRoot<ContractId> {
+  constructor(
+    id: ContractId,
+    readonly name: ContractName,
+    readonly age: ContractAge,
+    readonly active: ContractActive,
+    readonly status: ContractStatus,
+    readonly createdAt: CreatedAt,
+    readonly tags: ContractTags,
+    readonly address: ContractRecordAddress | null,
+    readonly email: ContractEmail,
+    readonly title: ContractTitle,
+    readonly lines: readonly ContractLine[] | null,
+  ) {
+    super(id);
+  }
+
+  static fromPrimitives(document: ContractDocument): ContractRecord {
+    return new ContractRecord(
+      new ContractId(document.id),
+      new ContractName(document.name),
+      new ContractAge(document.age),
+      new ContractActive(document.active),
+      new ContractStatus(document.status as ContractStatusOption),
+      new CreatedAt(document.createdAt),
+      new ContractTags(
+        document.tags === undefined || document.tags === null ? null : [...document.tags],
+      ),
+      document.address === undefined || document.address === null
+        ? null
+        : ContractRecordAddress.fromPrimitives(document.address),
+      new ContractEmail(document.email),
+      new ContractTitle(document.title),
+      document.lines === undefined || document.lines === null
+        ? null
+        : document.lines.map((line) => ContractLine.fromPrimitives(line)),
+    );
+  }
+
+  toPrimitives(): ContractDocument {
+    return {
+      id: this.id.value,
+      name: this.name.value,
+      age: this.age.value,
+      active: this.active.value,
+      status: this.status.value,
+      createdAt: this.createdAt.value,
+      tags: this.tags.value,
+      address: this.address === null ? null : this.address.toPrimitives(),
+      email: this.email.value,
+      title: this.title.value,
+      lines: this.lines === null ? null : this.lines.map((line) => line.toPrimitives()),
+    };
+  }
 }
 
 export function contractDay(isoDate: string): Date {
@@ -129,4 +241,8 @@ export function createContractDocuments(): ContractDocument[] {
       email: 'nameless@example.com',
     },
   ];
+}
+
+export function createContractRecords(): ContractRecord[] {
+  return createContractDocuments().map((document) => ContractRecord.fromPrimitives(document));
 }

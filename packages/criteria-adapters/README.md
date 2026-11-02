@@ -1,6 +1,6 @@
 # @archi-code/criteria-adapters
 
-Turns `@archi-code/criteria` searches into what a storage engine runs. Each adapter is its own entry
+Turns the `Criteria` searches of `@archi-code/ddd/domain` into what a storage engine runs. Each adapter is its own entry
 point, so an application loads only the one it uses and the adapters never depend on each other's
 code:
 
@@ -10,6 +10,9 @@ code:
 | `@archi-code/criteria-adapters/mongodb`   | converts a criteria into a native MongoDB query              | Node.js              |
 | `@archi-code/criteria-adapters/indexeddb` | converts a criteria into the native reads of an object store | browsers             |
 
+A criteria targets an aggregate of `@archi-code/ddd` and holds the primitive values of its value
+objects. `/memory` filters the aggregates themselves, through `toPrimitives()`; `/mongodb` and
+`/indexeddb` read the stored documents, which are those same primitives (`CriteriaDocument<A>`).
 `/mongodb` and `/indexeddb` never touch the database: they only build the query. Your code passes
 it to the driver or to the IndexedDB API, inside the session or transaction it already manages.
 
@@ -19,13 +22,14 @@ import the adapter you need.
 ## Installation
 
 ```bash
-npm install @archi-code/criteria @archi-code/criteria-adapters
+npm install @archi-code/ddd @archi-code/criteria-adapters
 ```
 
-Requires Node.js 24 or later. `@archi-code/criteria` is the only dependency. `/mongodb` does not
+Requires Node.js 24 or later. `@archi-code/ddd` is the only dependency: the adapters import only
+the criteria API of `@archi-code/ddd/domain`. `/mongodb` does not
 need the `mongodb` driver: it only builds the query, which your code passes to the driver it already
 uses (the query is checked with the driver 6 and 7). The
-package has no side effects (`sideEffects: false`). The entry points import `@archi-code/criteria`
+package has no side effects (`sideEffects: false`). The entry points import `@archi-code/ddd/domain`
 by name, so in a browser use a bundler (Vite, webpack, esbuild…) or an import map. `/memory` and
 `/indexeddb` are checked in Chromium and WebKit, `/indexeddb` on each browser's own
 IndexedDB. TypeScript
@@ -48,7 +52,7 @@ const { searchMemory } = require('@archi-code/criteria-adapters/memory');
 ## Same results in every adapter
 
 Every adapter gives exactly what `/memory` returns for the same data and criteria: the rules of
-the "Semantics" section of the `@archi-code/criteria` README (missing fields are null, comparisons
+the "Semantics" part of the "Criteria: searching aggregates" section of the `@archi-code/ddd` README (missing fields are null, comparisons
 only between values of the same type, strings in code point order, literal text with Unicode
 simple case folding, nulls first when ascending…). Four rules matter for stored lists:
 
@@ -72,60 +76,62 @@ translated query on a real MongoDB and with the IndexedDB query on real object s
 
 ## `/memory`
 
-### `searchMemory(items, criteria, options?)`
+### `searchMemory(aggregates, criteria, options?)`
 
-Filters, sorts and paginates `items` and returns a `SearchResult<T>`. With `{ withTotal: true }`
-it adds `total`, the number of matches before paginating. The input list is not changed and the
-returned items are the same objects.
+Filters, sorts and paginates aggregates and returns a `SearchResult<A>`. Each aggregate is read
+through its `toPrimitives()` (once per call), so the fields are the keys of its persisted shape,
+which the ddd rules name like its getters. With `{ withTotal: true }` it adds `total`, the number of
+matches before paginating. The input list is not changed and the returned items are the same
+aggregate objects.
 
 ```ts
-import { Criteria } from '@archi-code/criteria';
+import { Criteria } from '@archi-code/ddd/domain';
 import { searchMemory } from '@archi-code/criteria-adapters/memory';
 
-const users = [
-  { id: '1', status: 'active', age: 30 },
-  { id: '2', status: 'active', age: 15 },
-  { id: '3', status: 'blocked', age: 40 },
-];
+const users = [ana, bruno, carla]; // User aggregates: active 30, active 15, blocked 40
 
-searchMemory(
+const result = searchMemory(
   users,
-  Criteria.create<(typeof users)[number]>({
-    where: { status: 'active' },
+  Criteria.create<User>({
+    where: { status: new UserStatus('active') },
     orderBy: { age: 'desc' },
     limit: 1,
   }),
   { withTotal: true },
 );
-// { items: [{ id: '1', status: 'active', age: 30 }], total: 2 }
+result.items[0] === ana; // true
+result.total; // 2
 ```
 
 An in-memory repository:
 
 ```ts
-class InMemoryUserRepository implements UserRepository {
-  private readonly users: UserPrimitives[] = [];
+class InMemoryUserRepository extends UserRepository {
+  private readonly users = new Map<string, User>();
 
-  async search(criteria: Criteria<UserPrimitives>, options?: SearchOptions) {
-    return searchMemory(this.users, criteria, options);
+  async search(criteria: Criteria<User>, options?: SearchOptions): Promise<SearchResult<User>> {
+    return searchMemory([...this.users.values()], criteria, options);
   }
 }
 ```
 
-### `matches(item, criteria)` and `matchesFilter(item, filter)`
+### `matches(aggregate, criteria)` and `matchesFilter(document, filter)`
 
-Whether one item meets the filter of a criteria (order and pagination are ignored).
-`matchesFilter` takes a `FilterNode` (or `null`, which matches everything); adapters use it to
-check the part of a filter their engine cannot run.
+Whether one aggregate meets the filter of a criteria (order and pagination are ignored).
+`matchesFilter` takes a plain document and a `FilterNode` (or `null`, which matches everything);
+adapters use it to check the part of a filter their engine cannot run on the stored records.
 
 ```ts
-matches(users[0], Criteria.create({ where: { age: { between: [18, 65] } } })); // true
+matches(
+  ana,
+  Criteria.create<User>({ where: { age: { between: [new UserAge(18), new UserAge(65)] } } }),
+); // true
 ```
 
 ### `compareBy(order)` and `readPath(item, field)`
 
-`compareBy(criteria.order)` returns a comparison function for `Array.prototype.sort` with the
-criteria ordering (null and missing first in `asc`, last in `desc`). `readPath(item, 'address.city')`
+`compareBy(criteria.order)` returns a comparison function over plain documents for
+`Array.prototype.sort` with the criteria ordering (null and missing first in `asc`, last in `desc`). `readPath(item, 'address.city')`
 reads a dotted field and gives `undefined` when a parent is missing or is not an object. It reads
 only own properties (never inherited ones or getters of a class), and inside a list only indexes
 (`'tags.0'`).
@@ -133,20 +139,20 @@ only own properties (never inherited ones or getters of a class), and inside a l
 ### Semantics
 
 This module implements the rules described in the "Semantics" section of the
-`@archi-code/criteria` README: missing fields are null, `ne`/`nin`/`NOT` also match null,
+"Criteria: searching aggregates" section of the `@archi-code/ddd` README: missing fields are null, `ne`/`nin`/`NOT` also match null,
 comparisons only between values of the same type, literal and optionally case-insensitive text
 (Unicode simple case folding, a regular expression with the `iu` flags), code point string order,
 `isEmpty` only on lists, and nulls first when ascending.
 
 ### `/memory` exports
 
-| Export          | Use                                                 |
-| --------------- | --------------------------------------------------- |
-| `searchMemory`  | Filter, sort and paginate an array → `SearchResult` |
-| `matches`       | Whether an item meets a criteria                    |
-| `matchesFilter` | Whether an item meets a `FilterNode` (or `null`)    |
-| `compareBy`     | Sort function for a criteria order                  |
-| `readPath`      | Reads a dotted field                                |
+| Export          | Use                                                   |
+| --------------- | ----------------------------------------------------- |
+| `searchMemory`  | Filter, sort and paginate aggregates → `SearchResult` |
+| `matches`       | Whether an aggregate meets a criteria                 |
+| `matchesFilter` | Whether a document meets a `FilterNode` (or `null`)   |
+| `compareBy`     | Sort function for a criteria order                    |
+| `readPath`      | Reads a dotted field                                  |
 
 ## `/mongodb`
 
@@ -161,7 +167,7 @@ The module only translates. It never calls the driver: pass what it returns to `
 ```ts
 new MongoCriteriaTranslator<User>({ fields: { id: '_id' } }).translate(
   Criteria.create<User>({
-    where: { id: 'a', name: { startsWith: 'a.b', mode: 'insensitive' } },
+    where: { id: new UserId('a'), name: { startsWith: 'a.b', mode: 'insensitive' } },
     orderBy: { id: 'desc' },
     limit: 5,
   }),
@@ -182,13 +188,13 @@ new MongoCriteriaTranslator<User>({ fields: { id: '_id' } }).translate(
 Run it with the driver, counting only when the total is shown:
 
 ```ts
-import { Criteria } from '@archi-code/criteria';
+import { Criteria } from '@archi-code/ddd/domain';
 import { MongoCriteriaTranslator } from '@archi-code/criteria-adapters/mongodb';
 
-const users = client.db('app').collection<UserPrimitives>('users');
-const { filter, sort, skip, limit } = new MongoCriteriaTranslator<UserPrimitives>().translate(
-  Criteria.create<UserPrimitives>({
-    where: { status: 'active', age: { gte: 18 } },
+const users = client.db('app').collection<CriteriaDocument<User>>('users');
+const { filter, sort, skip, limit } = new MongoCriteriaTranslator<User>().translate(
+  Criteria.create<User>({
+    where: { status: new UserStatus('active'), age: { gte: new UserAge(18) } },
     orderBy: { createdAt: 'desc' },
     limit: 20,
   }),
@@ -197,6 +203,7 @@ const [items, total] = await Promise.all([
   users.find(filter, { sort, skip, limit, projection: { _id: 0 } }).toArray(),
   users.countDocuments(filter),
 ]);
+const aggregates = items.map((document) => User.fromPrimitives(document));
 ```
 
 Inside a transaction pass the session to `find` and `countDocuments`, or the read happens outside
@@ -207,10 +214,10 @@ use it in an aggregation `$match`.
 
 Options:
 
-| Option    | Default | Use                                        |
-| --------- | ------- | ------------------------------------------ |
-| `fields`  | none    | `FieldMap<T>`: entity field → stored field |
-| `convert` | none    | Per field: criteria value → stored value   |
+| Option    | Default | Use                                           |
+| --------- | ------- | --------------------------------------------- |
+| `fields`  | none    | `FieldMap<A>`: aggregate field → stored field |
+| `convert` | none    | Per field: criteria value → stored value      |
 
 `convert` turns the criteria values of a field (comparisons, ranges, `in`/`nin`, `has`…) into the
 type MongoDB stores, such as an `ObjectId` `_id`; turn the documents back yourself after `find`.
@@ -226,12 +233,11 @@ const translator = new MongoCriteriaTranslator<Order>({
   convert: { id: (id) => new ObjectId(String(id)) },
 });
 const { filter } = translator.translate(
-  Criteria.create<Order>({ where: { id: request.params.id } }),
+  Criteria.create<Order>({ where: { id: new OrderId(request.params.id) } }),
 );
-const items = (await orders.find(filter).toArray()).map(({ _id, total }) => ({
-  id: _id.toHexString(),
-  total,
-}));
+const items = (await orders.find(filter).toArray()).map(({ _id, total }) =>
+  Order.fromPrimitives({ id: _id.toHexString(), total }),
+);
 ```
 
 | Criteria                               | MongoDB                                                                             |
@@ -281,7 +287,8 @@ The translator does not create indexes. Create them for the fields you filter an
 
 Converts a criteria into what the IndexedDB API reads, without opening any request:
 `readIndexes(store)` gives the usable indexes of the store you pass (from a transaction you open)
-and `toIndexedDbQuery` returns an `IndexedDbQuery<T>`:
+and `toIndexedDbQuery` returns an `IndexedDbQuery<CriteriaDocument<A>>`, whose `filter` and
+`compare` work on the stored records:
 
 | Field       | Use                                                                                   |
 | ----------- | ------------------------------------------------------------------------------------- |
@@ -298,22 +305,22 @@ is not `null` and slice `offset`/`limit`. When `compare` is `null` the cursor wa
 order, so you may stop once `offset + limit` records matched (unless you also count the total):
 
 ```ts
-import { Criteria } from '@archi-code/criteria';
-import type { SearchResult } from '@archi-code/criteria';
+import { Criteria } from '@archi-code/ddd/domain';
+import type { CriteriaDocument, SearchResult } from '@archi-code/ddd/domain';
 import { readIndexes, toIndexedDbQuery } from '@archi-code/criteria-adapters/indexeddb';
 
 const store = database.transaction('users', 'readonly').objectStore('users');
 const query = toIndexedDbQuery(
-  Criteria.create<UserPrimitives>({
-    where: { age: { gte: 18 }, status: 'active' },
+  Criteria.create<User>({
+    where: { age: { gte: new UserAge(18) }, status: new UserStatus('active') },
     orderBy: { age: 'desc' },
     limit: 20,
   }),
   readIndexes(store),
 );
 const source = query.index === null ? store : store.index(query.index);
-const matched = await new Promise<UserPrimitives[]>((resolve, reject) => {
-  const found: UserPrimitives[] = [];
+const matched = await new Promise<CriteriaDocument<User>[]>((resolve, reject) => {
+  const found: CriteriaDocument<User>[] = [];
   const request = source.openCursor(query.range, query.direction);
   request.onerror = () => reject(request.error);
   request.onsuccess = () => {
@@ -325,8 +332,8 @@ const matched = await new Promise<UserPrimitives[]>((resolve, reject) => {
 });
 if (query.compare !== null) matched.sort(query.compare);
 const end = query.limit === null ? undefined : query.offset + query.limit;
-const result: SearchResult<UserPrimitives> = {
-  items: matched.slice(query.offset, end),
+const result: SearchResult<User> = {
+  items: matched.slice(query.offset, end).map((document) => User.fromPrimitives(document)),
   total: matched.length,
 };
 ```
@@ -349,7 +356,8 @@ const end = query.limit === null ? undefined : query.offset + query.limit;
 return { items: items.sort(query.compare).slice(query.offset, end), total };
 ```
 
-Store the primitive shape of the entity as is: the criteria fields are the record's properties
+Store the primitives of the aggregate as they are (`toPrimitives()`): the criteria fields are the
+record's properties
 (nested ones with dots, like the index key paths). `toIndexedDbQuery` builds the `IDBKeyRange`
 with the global `IDBKeyRange`, so it runs where IndexedDB exists.
 

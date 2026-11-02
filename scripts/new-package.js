@@ -183,7 +183,7 @@ function templates(folder, description) {
       '.DS_Store',
       '',
     ].join('\n'),
-    LICENSE: fs.readFileSync(path.join(REPO, 'packages', 'criteria', 'LICENSE'), 'utf8'),
+    LICENSE: fs.readFileSync(path.join(REPO, 'packages', 'ddd', 'LICENSE'), 'utf8'),
     'README.md': readme(name, description),
     'SKILL.md': skill(name, description),
     'vitest.config.mts': [

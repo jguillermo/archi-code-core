@@ -1,17 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { Criteria } from '@archi-code/criteria';
+import { Criteria } from '@archi-code/ddd/domain';
 import { Collection, Document, MongoClient } from 'mongodb';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import * as os from 'node:os';
 import { MongoCriteriaTranslator } from '../../src/mongodb/mongo-criteria-translator';
 
-interface Account {
-  id: string;
-  status: string;
-  age: number;
-  deletedAt: Date | null;
-  address: { city: string };
-}
+import { City, User as Account, UserAge, UserStatus } from '../support/user';
 
 const ACCOUNTS = 2000;
 
@@ -54,12 +48,24 @@ describe('MongoCriteriaTranslator keeps indexes usable', () => {
   });
 
   it.each<[string, Criteria<Account>, number]>([
-    ['eq', Criteria.create<Account>({ where: { status: 'blocked' } }), 40],
-    ['ne', Criteria.create<Account>({ where: { status: { ne: 'active' } } }), 40],
-    ['nin', Criteria.create<Account>({ where: { status: { nin: ['active'] } } }), 40],
-    ['a range', Criteria.create<Account>({ where: { age: { gte: 10, lt: 12 } } }), 46],
+    ['eq', Criteria.create<Account>({ where: { status: new UserStatus('blocked') } }), 40],
+    ['ne', Criteria.create<Account>({ where: { status: { ne: new UserStatus('active') } } }), 40],
+    [
+      'nin',
+      Criteria.create<Account>({ where: { status: { nin: [new UserStatus('active')] } } }),
+      40,
+    ],
+    [
+      'a range',
+      Criteria.create<Account>({ where: { age: { gte: new UserAge(10), lt: new UserAge(12) } } }),
+      46,
+    ],
     ['isNull: false', Criteria.create<Account>({ where: { deletedAt: { isNull: false } } }), 20],
-    ['a dotted path', Criteria.create<Account>({ where: { 'address.city': 'Huelva' } }), 1000],
+    [
+      'a dotted path',
+      Criteria.create<Account>({ where: { 'address.city': new City('Huelva') } }),
+      1000,
+    ],
   ])('%s reads only the matching documents through an index', async (_name, criteria, count) => {
     const filter = new MongoCriteriaTranslator<Account>().translateFilter(criteria.filter);
     const explained = await accounts.find(filter).explain('executionStats');

@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { Criteria } from '@archi-code/criteria';
-import type { FilterNode, TextOperator } from '@archi-code/criteria';
+import { Criteria } from '@archi-code/ddd/domain';
+import type { FilterNode, TextOperator } from '@archi-code/ddd/domain';
 import { matches, matchesFilter } from '../../src/memory/matches';
+import {
+  ContractName,
+  ContractRecord,
+  createContractRecords,
+} from '../contract/contract-documents';
 
 interface Item {
   name?: string | number | null;
@@ -11,13 +16,20 @@ interface Item {
 }
 
 function check(item: Item, filter: FilterNode): boolean {
-  return matchesFilter(item, Criteria.fromNodes<Item>({ filter }).filter);
+  return matchesFilter(item, Criteria.fromNodes({ filter }).filter);
 }
 
 describe('matchesFilter', () => {
   it('matches everything without a filter', () => {
     expect(matchesFilter({}, null)).toBe(true);
-    expect(matches({}, Criteria.create())).toBe(true);
+  });
+
+  it('matches an aggregate through the primitives of its value objects', () => {
+    const [ana, maria] = createContractRecords();
+    const criteria = Criteria.create<ContractRecord>({ where: { name: new ContractName('Ana') } });
+    expect(matches(ana, criteria)).toBe(true);
+    expect(matches(maria, criteria)).toBe(false);
+    expect(matches(maria, Criteria.create<ContractRecord>())).toBe(true);
   });
 
   it('compares only values of the same type', () => {

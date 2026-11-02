@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Criteria } from '@archi-code/criteria';
+import { Criteria } from '@archi-code/ddd/domain';
 import { runCriteriaContract } from '../contract/run-criteria-contract';
 import type { ContractDocument } from '../contract/contract-documents';
 import { toIndexedDbQuery } from '../../src/indexeddb/indexed-db-query';
@@ -7,6 +7,8 @@ import { readIndexes } from '../../src/indexeddb/read-indexes';
 import { IndexInfo } from '../../src/indexeddb/plan-query';
 import { openDatabase, readStore, StoreSpec } from '../support/open-store';
 import { runIndexedDbQuery } from '../support/run-indexed-db-query';
+import { Keyed, Row, UserAge, UserName } from '../support/user';
+import type { CriteriaAggregate } from '@archi-code/ddd/domain';
 
 const CONTRACT_STORES: Record<string, StoreSpec> = {
   'without indexes': { keyPath: 'id' },
@@ -26,18 +28,16 @@ const CONTRACT_STORES: Record<string, StoreSpec> = {
   },
 };
 
-interface Row {
-  id: number;
-  age: number;
-  name: string;
-}
-
 const INDEXES: IndexInfo[] = [
   { name: null, keyPath: 'id' },
   { name: 'by-age', keyPath: 'age' },
 ];
 
-function search<T>(database: IDBDatabase, criteria: Criteria<T>, withTotal = false) {
+function search<A extends CriteriaAggregate>(
+  database: IDBDatabase,
+  criteria: Criteria<A>,
+  withTotal = false,
+) {
   const store = readStore(database);
   return runIndexedDbQuery(store, toIndexedDbQuery(criteria, readIndexes(store)), { withTotal });
 }
@@ -66,7 +66,11 @@ describe('toIndexedDbQuery', () => {
 
   it('turns the chosen condition into the index, key range and direction of a cursor', () => {
     const query = toIndexedDbQuery(
-      Criteria.create<Row>({ where: { age: { gte: 18 } }, orderBy: { age: 'desc' }, limit: 3 }),
+      Criteria.create<Row>({
+        where: { age: { gte: new UserAge(18) } },
+        orderBy: { age: 'desc' },
+        limit: 3,
+      }),
       INDEXES,
     );
     expect(query.index).toBe('by-age');
@@ -78,22 +82,26 @@ describe('toIndexedDbQuery', () => {
 
   it('builds closed, upper-only and missing key ranges', () => {
     const range = (where: Criteria<Row>) => toIndexedDbQuery(where, INDEXES).range;
-    expect(range(Criteria.create<Row>({ where: { age: { between: [1, 9] } } }))).toMatchObject({
+    expect(
+      range(
+        Criteria.create<Row>({ where: { age: { between: [new UserAge(1), new UserAge(9)] } } }),
+      ),
+    ).toMatchObject({
       lower: 1,
       upper: 9,
     });
-    expect(range(Criteria.create<Row>({ where: { age: { lt: 9 } } }))).toMatchObject({
+    expect(range(Criteria.create<Row>({ where: { age: { lt: new UserAge(9) } } }))).toMatchObject({
       lower: undefined,
       upper: 9,
       upperOpen: true,
     });
-    expect(range(Criteria.create<Row>({ where: { name: 'Ana' } }))).toBeNull();
+    expect(range(Criteria.create<Row>({ where: { name: new UserName('Ana') } }))).toBeNull();
   });
 
   it('checks a record against the whole filter, also what the key range cannot express', () => {
     const query = toIndexedDbQuery(
       Criteria.create<Row>({
-        where: { age: { gt: 1 }, name: { contains: 'an', mode: 'insensitive' } },
+        where: { age: { gt: new UserAge(1) }, name: { contains: 'an', mode: 'insensitive' } },
       }),
       INDEXES,
     );
@@ -104,14 +112,18 @@ describe('toIndexedDbQuery', () => {
 
   it('gives a criteria comparison when the index does not give the order', () => {
     const query = toIndexedDbQuery(
-      Criteria.create<Row>({ where: { age: { gt: 3 } }, orderBy: { name: 'asc' }, offset: 2 }),
+      Criteria.create<Row>({
+        where: { age: { gt: new UserAge(3) } },
+        orderBy: { name: 'asc' },
+        offset: 2,
+      }),
       INDEXES,
     );
     const rows = [
       { id: 1, age: 5, name: 'b' },
       { id: 2, age: 6, name: 'a' },
     ];
-    expect(rows.sort(query.compare as (left: Row, right: Row) => number)).toEqual([
+    expect(rows.sort(query.compare as (left: object, right: object) => number)).toEqual([
       { id: 2, age: 6, name: 'a' },
       { id: 1, age: 5, name: 'b' },
     ]);
@@ -129,7 +141,7 @@ describe('toIndexedDbQuery', () => {
       rows,
     );
     const criteria = Criteria.create<Row>({
-      where: { age: { gte: 8 } },
+      where: { age: { gte: new UserAge(8) } },
       orderBy: { age: 'desc' },
       limit: 3,
       offset: 1,
@@ -150,8 +162,8 @@ describe('toIndexedDbQuery', () => {
     const page = (direction: 'asc' | 'desc') =>
       search(
         database,
-        Criteria.create<{ id: number; name: string }>({
-          where: { name: { gte: 'a' } },
+        Criteria.create<Row>({
+          where: { name: { gte: new UserName('a') } },
           orderBy: { name: direction },
           limit: 1,
         }),
@@ -167,10 +179,7 @@ describe('toIndexedDbQuery', () => {
       { k: 'a' },
     ]);
     const first = (direction: 'asc' | 'desc') =>
-      search<{ k: string }>(
-        mixed,
-        Criteria.create<{ k: string }>({ orderBy: { k: direction }, limit: 1 }),
-      );
+      search<Keyed>(mixed, Criteria.create<Keyed>({ orderBy: { k: direction }, limit: 1 }));
     expect((await first('asc')).items).toEqual([{ k: 'a' }]);
     expect((await first('desc')).items).toEqual([{ k: new Date(0) }]);
   });

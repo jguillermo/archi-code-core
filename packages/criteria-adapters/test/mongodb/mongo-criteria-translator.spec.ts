@@ -1,15 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { Criteria, CriteriaError } from '@archi-code/criteria';
+import { Criteria, CriteriaError } from '@archi-code/ddd/domain';
 import { MongoCriteriaTranslator } from '../../src/mongodb/mongo-criteria-translator';
 
-interface User {
-  id: string;
-  name: string;
-  age?: number | null;
-  createdAt: Date;
-  tags: string[];
-  address?: { city: string };
-}
+import { City, User, UserAge, UserCreatedAt, UserId, UserName, UserTag } from '../support/user';
 
 const translator = new MongoCriteriaTranslator<User>();
 
@@ -34,10 +27,20 @@ describe('MongoCriteriaTranslator', () => {
       filterOf(
         Criteria.create<User>({
           where: {
-            id: 'x',
-            name: { ne: 'y', gt: 'a', gte: 'b', lt: 'y', lte: 'z' },
-            age: { between: [1, 9], in: [1, 2], nin: [3] },
-            createdAt: date,
+            id: new UserId('x'),
+            name: {
+              ne: new UserName('y'),
+              gt: new UserName('a'),
+              gte: new UserName('b'),
+              lt: new UserName('y'),
+              lte: new UserName('z'),
+            },
+            age: {
+              between: [new UserAge(1), new UserAge(9)],
+              in: [new UserAge(1), new UserAge(2)],
+              nin: [new UserAge(3)],
+            },
+            createdAt: new UserCreatedAt(date),
           },
         }),
       ),
@@ -96,7 +99,11 @@ describe('MongoCriteriaTranslator', () => {
           where: {
             age: null,
             name: { isNull: false },
-            tags: { has: 'a', hasEvery: ['b', 'c'], isEmpty: true },
+            tags: {
+              has: new UserTag('a'),
+              hasEvery: [new UserTag('b'), new UserTag('c')],
+              isEmpty: true,
+            },
             AND: [{ tags: { isEmpty: false } }],
           },
         }),
@@ -120,7 +127,12 @@ describe('MongoCriteriaTranslator', () => {
   it('translates OR and NOT', () => {
     expect(
       filterOf(
-        Criteria.create<User>({ where: { OR: [{ id: '1' }, { id: '2' }], NOT: { id: '3' } } }),
+        Criteria.create<User>({
+          where: {
+            OR: [{ id: new UserId('1') }, { id: new UserId('2') }],
+            NOT: { id: new UserId('3') },
+          },
+        }),
       ),
     ).toEqual({
       $and: [
@@ -154,7 +166,7 @@ describe('MongoCriteriaTranslator', () => {
     expect(
       mapped.translate(
         Criteria.create<User>({
-          where: { id: '1', 'address.city': 'Huelva' },
+          where: { id: new UserId('1'), 'address.city': new City('Huelva') },
           orderBy: { id: 'asc' },
         }),
       ),
@@ -171,7 +183,7 @@ describe('MongoCriteriaTranslator', () => {
   });
 
   it('never reads a field across a list, like the in-memory adapter', () => {
-    const paths = new MongoCriteriaTranslator<unknown>();
+    const paths = new MongoCriteriaTranslator();
     const filter = (f: unknown[]) => paths.translate(Criteria.fromJSON({ v: 1, f })).filter;
     expect(filter(['eq', 'a.b.c', 1])).toEqual({
       $and: [{ a: NOT_A_LIST }, { 'a.b': NOT_A_LIST }, { 'a.b.c': { $eq: 1, ...NOT_A_LIST } }],
@@ -209,9 +221,9 @@ describe('MongoCriteriaTranslator', () => {
       converting.translateFilter(
         Criteria.create<User>({
           where: {
-            id: { in: ['a'], ne: 'b' },
-            age: { between: [1, 2], nin: [3] },
-            tags: { has: 'x' },
+            id: { in: [new UserId('a')], ne: new UserId('b') },
+            age: { between: [new UserAge(1), new UserAge(2)], nin: [new UserAge(3)] },
+            tags: { has: new UserTag('x') },
             name: { contains: 'n' },
           },
         }).filter,
@@ -253,7 +265,7 @@ describe('MongoCriteriaTranslator', () => {
       }
       return null;
     };
-    const error = thrown(Criteria.create<User>({ where: { id: 'x' } }));
+    const error = thrown(Criteria.create<User>({ where: { id: new UserId('x') } }));
     expect(error).toBeInstanceOf(CriteriaError);
     expect(error).toMatchObject({
       code: 'INVALID_VALUE',
@@ -261,7 +273,7 @@ describe('MongoCriteriaTranslator', () => {
       cause: failure,
     });
     const long = 'n'.repeat(70);
-    const longField = new MongoCriteriaTranslator<unknown>({
+    const longField = new MongoCriteriaTranslator({
       convert: {
         [long]: () => {
           throw failure;

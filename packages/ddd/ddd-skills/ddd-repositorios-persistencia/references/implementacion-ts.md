@@ -260,7 +260,7 @@ Al leer `data` de `jsonb`, `paymentAuthorization.expiresAt` llega como texto ISO
 
 ## Consultas de lectura
 
-Las selecciones no pasan por el repositorio: son puertos de consulta de la capa de aplicación que devuelven filas de primitivos o ids, implementados en infraestructura directamente sobre la base de datos [IDDD cap. 12, "use case optimal query"] `[Fuera de los libros: convención de @archi-code/ddd]`. Las lee el controlador sin caso de uso. Cuando la vista necesita una tabla propia, es un read model con proyección y casos de uso por reacción (`ddd-skills/ddd-event-sourcing-cqrs/references/proyecciones-cqrs-ts.md`); aquí, en cambio, la consulta lee la colección de los agregados. Los filtros se escriben con `@archi-code/criteria` sobre la forma persistida (`PrimitiveTypes<Order>`) y `@archi-code/criteria-adapters/mongodb` los ejecuta:
+Las selecciones no pasan por el repositorio: son puertos de consulta de la capa de aplicación que devuelven filas de primitivos o ids, implementados en infraestructura directamente sobre la base de datos [IDDD cap. 12, "use case optimal query"] `[Fuera de los libros: convención de @archi-code/ddd]`. Las lee el controlador sin caso de uso. Cuando la vista necesita una tabla propia, es un read model con proyección y casos de uso por reacción (`ddd-skills/ddd-event-sourcing-cqrs/references/proyecciones-cqrs-ts.md`); aquí, en cambio, la consulta lee la colección de los agregados. Los filtros se escriben con `Criteria` de `@archi-code/ddd/domain` sobre el agregado (`Criteria<Order>`: los campos son sus value objects y los valores, instancias de esos value objects) y `@archi-code/criteria-adapters/mongodb` los traduce a una consulta sobre los documentos persistidos:
 
 En `application/order-summaries/order-summaries.ts` (puertos de consulta) y `application/order-summaries/order-summary.ts` (la fila):
 
@@ -288,18 +288,18 @@ export interface StaleOrders {
 En `infrastructure/read-model/mongo-order-summaries.ts`:
 
 ```ts
-import { Criteria } from '@archi-code/criteria';
+import { Criteria } from '@archi-code/ddd/domain';
 import { MongoCriteriaTranslator } from '@archi-code/criteria-adapters/mongodb';
 import type { Collection } from 'mongodb';
-import type { PrimitiveTypes } from '@archi-code/ddd/domain';
 import type { Order } from '../../domain/aggregate/Order';
 import type { CustomerId } from '../../domain/value-object/CustomerId';
-import { OrderStatus } from '../../domain/value-object/OrderStatusType';
+import { ExpiresAt } from '../../domain/value-object/ExpiresAt';
+import { OrderStatus, OrderStatusType } from '../../domain/value-object/OrderStatusType';
 import type { OrderSummary } from '../../application/order-summaries/order-summary';
 import type { OrderSummaries, StaleOrders } from '../../application/order-summaries/order-summaries';
 import type { OrderDocument } from '../persistence/mongo-order-repository';
 
-const translator = new MongoCriteriaTranslator<PrimitiveTypes<Order>>();
+const translator = new MongoCriteriaTranslator<Order>();
 
 export class MongoOrderSummaries implements OrderSummaries {
   constructor(private readonly collection: Collection<OrderDocument>) {}
@@ -309,8 +309,8 @@ export class MongoOrderSummaries implements OrderSummaries {
     page: { limit: number; offset: number },
   ): Promise<OrderSummary[]> {
     const { filter, sort, skip, limit } = translator.translate(
-      Criteria.create<PrimitiveTypes<Order>>({
-        where: { customerId: customerId.value },
+      Criteria.create<Order>({
+        where: { customerId },
         orderBy: { id: 'asc' },
         limit: page.limit,
         offset: page.offset,
@@ -330,10 +330,10 @@ export class MongoStaleOrders implements StaleOrders {
 
   async ids(expiredBefore: Date, limit: number): Promise<string[]> {
     const query = translator.translate(
-      Criteria.create<PrimitiveTypes<Order>>({
+      Criteria.create<Order>({
         where: {
-          status: OrderStatus.PENDING,
-          'paymentAuthorization.expiresAt': { lt: expiredBefore },
+          status: new OrderStatusType(OrderStatus.PENDING),
+          'paymentAuthorization.expiresAt': { lt: new ExpiresAt(expiredBefore) },
         },
         orderBy: { 'paymentAuthorization.expiresAt': 'asc' },
         limit,

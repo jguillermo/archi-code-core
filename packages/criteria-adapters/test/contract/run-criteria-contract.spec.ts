@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { CRITERIA_CONTRACT_CASES } from './contract-cases';
-import { ContractDocument } from './contract-documents';
+import { ContractDocument, ContractRecord } from './contract-documents';
 import { runCriteriaContract } from './run-criteria-contract';
-import { Criteria, SearchResult } from '@archi-code/criteria';
+import { Criteria, SearchResult } from '@archi-code/ddd/domain';
 
-function expectedResult(criteria: Criteria<ContractDocument>): SearchResult<ContractDocument> {
+function expectedResult(criteria: Criteria<ContractRecord>): SearchResult<ContractDocument> {
   const contractCase = CRITERIA_CONTRACT_CASES.find((candidate) => candidate.criteria === criteria);
   const items = (contractCase?.expectedIds ?? []).map((id) => ({ id }) as ContractDocument);
   return contractCase?.expectedTotal === undefined

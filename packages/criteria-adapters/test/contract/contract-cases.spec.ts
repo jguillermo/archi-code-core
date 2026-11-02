@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { Criteria } from '@archi-code/criteria';
+import { Criteria } from '@archi-code/ddd/domain';
 import { CRITERIA_CONTRACT_CASES } from './contract-cases';
-import { ContractDocument, createContractDocuments } from './contract-documents';
+import { ContractRecord, createContractDocuments } from './contract-documents';
 
 describe('CRITERIA_CONTRACT_CASES', () => {
   it('has unique names and only ids of the contract documents', () => {
@@ -16,7 +16,7 @@ describe('CRITERIA_CONTRACT_CASES', () => {
   it.each(
     CRITERIA_CONTRACT_CASES.map((contractCase) => ({ name: contractCase.name, contractCase })),
   )('survives the URL round trip: $name', ({ contractCase }) => {
-    const restored = Criteria.fromUrl<ContractDocument>(contractCase.criteria.toUrl());
+    const restored = Criteria.fromUrl<ContractRecord>(contractCase.criteria.toUrl());
     expect(restored.filter).toEqual(contractCase.criteria.filter);
     expect(restored.order).toEqual(contractCase.criteria.order);
     expect(restored.pagination).toEqual(contractCase.criteria.pagination);

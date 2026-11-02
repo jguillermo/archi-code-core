@@ -11,8 +11,96 @@ function throwsInstanceOf(create, ExceptionClass) {
   return false;
 }
 
+function criteriaValueObjects(m) {
+  class UserName extends m.StringType {}
+  class UserAge extends m.NumberType {}
+  class UserStatus extends m.StringType {}
+  return { UserName, UserAge, UserStatus };
+}
+
+function criteriaChecks(m) {
+  return [
+    [
+      'Criteria reads value objects and survives the URL round trip',
+      () => {
+        const { UserName, UserStatus } = criteriaValueObjects(m);
+        const criteria = m.Criteria.create({
+          where: {
+            status: new UserStatus('active'),
+            createdAt: { gt: new m.CreatedAt(new Date(0)) },
+            name: new UserName(null),
+          },
+          orderBy: { name: 'asc' },
+          limit: 10,
+        });
+        const restored = m.Criteria.fromUrl(criteria.toUrl());
+        let code = null;
+        try {
+          m.Criteria.create({ where: { status: 'active' } });
+        } catch (error) {
+          code = error instanceof m.CriteriaError ? error.code : 'OTHER';
+        }
+        return (
+          (/^[A-Za-z0-9_-]+$/.test(criteria.toUrl()) &&
+            restored.equals(criteria) &&
+            restored.filter.filters[0].value === 'active' &&
+            m.isDate(restored.filter.filters[1].value) &&
+            restored.filter.filters[2].kind === 'isNull' &&
+            code === 'INVALID_VALUE') ||
+          `unexpected criteria ${JSON.stringify(restored)} ${code}`
+        );
+      },
+    ],
+    [
+      'defineCriteriaSchema converts input through value objects and rejects unknown fields',
+      () => {
+        const { UserAge } = criteriaValueObjects(m);
+        const schema = m.defineCriteriaSchema({ fields: { age: UserAge }, maxLimit: 50 });
+        const criteria = schema.parse({ where: { age: { gte: '18' } } });
+        let code = null;
+        try {
+          schema.parse({ where: { password: 'x' } });
+        } catch (error) {
+          code = error instanceof m.CriteriaError ? error.code : 'OTHER';
+        }
+        return (
+          (criteria.filter.value === 18 &&
+            criteria.pagination.limit === 50 &&
+            code === 'UNKNOWN_FIELD') ||
+          `unexpected schema result ${JSON.stringify(criteria)} ${code}`
+        );
+      },
+    ],
+    [
+      'Criteria.fromUrl rejects deep nesting with a CriteriaError',
+      () => {
+        const levels = 5000;
+        const json = `{"v":1,"f":${'["not",'.repeat(levels)}["eq","id","x"]${']'.repeat(levels)}}`;
+        const text = btoa(json).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        try {
+          m.Criteria.fromJSON(JSON.parse(json));
+          return 'deep JSON was accepted';
+        } catch (error) {
+          if (!(error instanceof m.CriteriaError) || error.code !== 'LIMIT_EXCEEDED') {
+            return `unexpected error ${error}`;
+          }
+        }
+        try {
+          m.Criteria.fromUrl(text);
+          return 'long URL text was accepted';
+        } catch (error) {
+          return (
+            (error instanceof m.CriteriaError && error.code === 'LIMIT_EXCEEDED') || `${error}`
+          );
+        }
+      },
+    ],
+  ];
+}
+
 function smoke(m) {
   return [
+    ...criteriaChecks(m),
     ['StringType converts', () => new m.StringType(12).value === '12'],
     ['StringType keeps blank text as written', () => new m.StringType('  ').value === '  '],
     [
@@ -236,6 +324,27 @@ function smoke(m) {
 function crossBuild(cjs, esm) {
   return [
     [
+      'CriteriaError from one build is an instance of the other',
+      () =>
+        (new esm.CriteriaError('INVALID_FIELD', 'x') instanceof cjs.CriteriaError &&
+          new cjs.CriteriaError('INVALID_FIELD', 'x') instanceof esm.CriteriaError &&
+          !(new Error('x') instanceof cjs.CriteriaError)) ||
+        'CriteriaError is not recognized across builds',
+    ],
+    [
+      'a criteria of one build reads the value objects and schema classes of the other',
+      () => {
+        class UserAge extends cjs.NumberType {}
+        const criteria = esm.Criteria.create({ where: { age: { gte: new UserAge(18) } } });
+        const schema = esm.defineCriteriaSchema({ fields: { age: UserAge }, maxLimit: 5 });
+        return (
+          (criteria.filter.value === 18 &&
+            schema.parse({ where: { age: '20' } }).filter.value === 20) ||
+          `unexpected ${JSON.stringify(criteria.filter)}`
+        );
+      },
+    ],
+    [
       'share the required mark',
       () => {
         class RequiredAcrossBuilds extends esm.Required(cjs.StringType) {}
@@ -362,9 +471,83 @@ async function domainInThePage(entry) {
   return failures.length === 0 || failures.join('; ');
 }
 
+async function criteriaInThePage(entry) {
+  const m = await import(entry);
+  class UserId extends m.IdType {}
+  class UserName extends m.StringType {}
+  const schema = m.defineCriteriaSchema({
+    fields: { id: UserId, name: UserName, createdAt: m.CreatedAt },
+    maxLimit: 20,
+    tiebreaker: 'id',
+  });
+  const criteria = schema.parse({
+    where: { name: { contains: '\u03A9', mode: 'insensitive' }, createdAt: { gte: '2024-01-01' } },
+    orderBy: { name: 'desc' },
+  });
+  const restored = schema.fromUrl(criteria.toUrl());
+  if (!restored.equals(criteria)) return `round trip ${JSON.stringify(restored.toJSON())}`;
+  if (restored.order[1].field !== 'id') return `order ${JSON.stringify(restored.order)}`;
+  const date = restored.filter.filters[1].value;
+  if (!(date instanceof Date) || date.toISOString() !== '2024-01-01T00:00:00.000Z') {
+    return `date ${String(date)}`;
+  }
+  try {
+    date.setTime(0);
+    return 'a criteria date changed';
+  } catch (error) {
+    if (!(error instanceof TypeError)) return `setTime threw ${error}`;
+  }
+  if (m.compareText('\uFF71', '\u{1F600}') !== -1) return 'text is not in code point order';
+  return true;
+}
+
+function nodeCriteriaText(m) {
+  class UserName extends m.StringType {}
+  return m.Criteria.create({
+    where: {
+      name: { startsWith: 'Ana' },
+      createdAt: { gte: new m.CreatedAt(new Date(0)) },
+      age: { in: [new UserName('a'), new UserName('b')] },
+    },
+    orderBy: { name: 'asc' },
+    limit: 5,
+  }).toUrl();
+}
+
 function browser() {
   return [
     ['runs the domain building blocks under a strict CSP', domainInThePage, { csp: STRICT_CSP }],
+    [
+      'builds, sends, reads and checks criteria under a strict CSP',
+      criteriaInThePage,
+      { csp: STRICT_CSP },
+    ],
+    [
+      'builds the same criteria URL text as Node and reads the text Node builds',
+      async ({ entry, input }) => {
+        const m = await import(entry);
+        class UserName extends m.StringType {}
+        const criteria = m.Criteria.create({
+          where: {
+            name: { startsWith: 'Ana' },
+            createdAt: { gte: new m.CreatedAt(new Date(0)) },
+            age: { in: [new UserName('a'), new UserName('b')] },
+          },
+          orderBy: { name: 'asc' },
+          limit: 5,
+        });
+        return {
+          text: criteria.toUrl(),
+          readsNodeText: m.Criteria.fromUrl(input.nodeText).equals(criteria),
+        };
+      },
+      {
+        input: () => ({ nodeText: nodeCriteriaText(require('../../dist/cjs/domain/index.js')) }),
+        verify: (result, input) =>
+          (result.text === input.nodeText && result.readsNodeText) ||
+          `web ${result.text} differs from Node ${input.nodeText}`,
+      },
+    ],
   ];
 }
 

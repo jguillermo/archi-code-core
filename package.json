@@ -4,7 +4,6 @@
   "workspaces": [
     "packages/validation",
     "packages/ddd",
-    "packages/criteria",
     "packages/criteria-adapters",
     "packages/crypto-tools"
   ],
@@ -25,7 +24,6 @@
     "benchmark": "npm run benchmark -w packages/validation",
     "check:validator": "npm run check:all -w @archi-code/validation",
     "check:ddd": "npm run check:all -w @archi-code/ddd",
-    "check:criteria": "npm run check:all -w @archi-code/criteria",
     "check:crypto-tools": "npm run check:all -w @archi-code/crypto-tools",
     "check:criteria-adapters": "npm run check:all -w @archi-code/criteria-adapters",
     "check:packages": "npm run check:all -ws",

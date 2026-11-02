@@ -4,26 +4,22 @@ import { RequiredMark } from './required/required-mark';
 import type { RequiredMarked } from './required/required-mark';
 import { RequiredValueException } from '../exceptions/required-value.exception';
 import { ValidationException } from '../exceptions/validation.exception';
+import { ValueObjectBrand } from '../../shared/index';
 import type { ValidationIssue } from '../exceptions/validation.exception';
 
 export type ValueOf<T, I> = I extends RequiredMarked ? T : T | null;
-
-const VALUE_OBJECT: unique symbol = Symbol.for('@archi-code/ddd/value-object.v1');
 
 export abstract class AbstractType<T, Input = T> implements Validatable<T | null> {
   protected readonly _value: T | null;
 
   static {
-    Object.defineProperty(this.prototype, VALUE_OBJECT, { value: true });
+    ValueObjectBrand.brandClass(this);
   }
 
   static [Symbol.hasInstance](candidate: unknown): boolean {
     return (
       Function.prototype[Symbol.hasInstance].call(this, candidate) ||
-      (this === AbstractType &&
-        typeof candidate === 'object' &&
-        candidate !== null &&
-        (candidate as Record<symbol, unknown>)[VALUE_OBJECT] === true)
+      (this === AbstractType && ValueObjectBrand.isValueObject(candidate))
     );
   }
 

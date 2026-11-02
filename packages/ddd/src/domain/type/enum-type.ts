@@ -1,9 +1,14 @@
 import { AbstractType } from './abstract-type';
 import { TypePrimitiveException } from '../exceptions/type-primitive.exception';
+import { ValueObjectBrand } from '../../shared/index';
 
 const NUMERIC_TEXT = /^-?\d+(?:\.\d+)?$/;
 
 export abstract class EnumType<T extends string | number> extends AbstractType<T> {
+  static {
+    ValueObjectBrand.brandKind(this, 'enum');
+  }
+
   protected abstract getEnum(): Record<string, string | number>;
 
   protected filter(value: unknown): T {

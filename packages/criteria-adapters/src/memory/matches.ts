@@ -1,12 +1,13 @@
-import { compareValues, isDate, valuesEqual, visitFilter } from '@archi-code/criteria';
+import { compareValues, isDate, valuesEqual, visitFilter } from '@archi-code/ddd/domain';
 import type {
   ComparisonOperator,
   CompareNode,
   Criteria,
+  CriteriaAggregate,
   CriteriaScalar,
   FilterNode,
   TextNode,
-} from '@archi-code/criteria';
+} from '@archi-code/ddd/domain';
 import { readPath } from './read-path';
 
 function comparable(value: unknown, target: CriteriaScalar): boolean {
@@ -114,6 +115,6 @@ export function matchesFilter(item: unknown, filter: FilterNode | null): boolean
   });
 }
 
-export function matches<T>(item: T, criteria: Criteria<T>): boolean {
-  return matchesFilter(item, criteria.filter);
+export function matches<A extends CriteriaAggregate>(aggregate: A, criteria: Criteria<A>): boolean {
+  return matchesFilter(aggregate.toPrimitives(), criteria.filter);
 }

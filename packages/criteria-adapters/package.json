@@ -76,7 +76,7 @@
   ],
   "sideEffects": false,
   "dependencies": {
-    "@archi-code/criteria": "0.0.0-development"
+    "@archi-code/ddd": "0.0.0-development"
   },
   "scripts": {
     "prebuild": "rm -rf dist || true",

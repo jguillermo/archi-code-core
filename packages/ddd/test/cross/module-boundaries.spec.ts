@@ -14,6 +14,22 @@ const ALLOWED_MODULE_DEPENDENCIES: Record<string, readonly string[]> = {
 
 const INTERNAL_MODULES = ['shared'];
 
+const PUBLISHED_INTERNAL = {
+  from: 'domain/index.ts',
+  to: 'shared/index.ts',
+  folder: './criteria/',
+};
+
+const EXPORT_RE = /export\s+(?:type\s+)?\{([^}]*)\}\s+from\s+['"]([^'"]+)['"]/g;
+
+function exportedNames(file: string, fromSpecifier: (specifier: string) => boolean): string[] {
+  const source = fs.readFileSync(path.join(SRC, file), 'utf8');
+  return Array.from(source.matchAll(EXPORT_RE))
+    .filter((match) => fromSpecifier(match[2]))
+    .flatMap((match) => match[1].split(',').map((name) => name.trim()))
+    .filter((name) => name.length > 0);
+}
+
 const ALLOWED_PACKAGES = ['@archi-code/validation', 'uuid'];
 
 function listTs(dir: string): string[] {
@@ -118,9 +134,23 @@ describe('layer boundaries: shared ← domain ← application ← infrastructure
       .flatMap(([file, { relative }]) =>
         relative
           .filter((target) => INTERNAL_MODULES.includes(moduleOf(target)))
+          .filter(
+            (target) => !(file === PUBLISHED_INTERNAL.from && target === PUBLISHED_INTERNAL.to),
+          )
           .map((target) => `${file} -> ${target}`),
       );
     expect(leaks).toEqual([]);
+  });
+
+  it('publishes from shared only the criteria, through the domain', () => {
+    const criteria = exportedNames(PUBLISHED_INTERNAL.to, (specifier) =>
+      specifier.startsWith(PUBLISHED_INTERNAL.folder),
+    );
+    const published = exportedNames(PUBLISHED_INTERNAL.from, (specifier) =>
+      specifier.endsWith('/shared/index'),
+    );
+    expect(criteria.length).toBeGreaterThan(0);
+    expect([...published].sort()).toEqual([...criteria].sort());
   });
 
   it('only imports files inside src', () => {

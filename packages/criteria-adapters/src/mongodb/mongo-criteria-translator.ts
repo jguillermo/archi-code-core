@@ -1,12 +1,13 @@
-import { CriteriaError, mapField, visitFilter } from '@archi-code/criteria';
+import { CriteriaError, mapField, visitFilter } from '@archi-code/ddd/domain';
 import type {
   Criteria,
+  CriteriaAggregate,
   CriteriaScalar,
   FieldMap,
   FilterNode,
   Path,
   TextNode,
-} from '@archi-code/criteria';
+} from '@archi-code/ddd/domain';
 import { escapeRegex } from './escape-regex';
 import { MongoFilter, MongoQuery, MongoSort } from './mongo-query';
 
@@ -52,7 +53,7 @@ function textPattern(node: TextNode): string {
   }
 }
 
-export class MongoCriteriaTranslator<T> {
+export class MongoCriteriaTranslator<T extends CriteriaAggregate> {
   constructor(private readonly options: MongoTranslatorOptions<T> = {}) {}
 
   translate(criteria: Criteria<T>): MongoQuery {

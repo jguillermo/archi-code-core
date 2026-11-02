@@ -1,6 +1,11 @@
 'use strict';
 
-const { Criteria } = require('@archi-code/criteria');
+const ddd = require('@archi-code/ddd/domain');
+
+const { Criteria } = ddd;
+
+class ItemId extends ddd.Required(ddd.StringType) {}
+class Age extends ddd.NumberType {}
 
 function smoke(m) {
   return [
@@ -9,7 +14,7 @@ function smoke(m) {
       () => {
         const query = new m.MongoCriteriaTranslator({ fields: { id: '_id' } }).translate(
           Criteria.create({
-            where: { id: 'a', name: { startsWith: 'a.b', mode: 'insensitive' } },
+            where: { id: new ItemId('a'), name: { startsWith: 'a.b', mode: 'insensitive' } },
             orderBy: { id: 'desc' },
             limit: 5,
           }),
@@ -42,10 +47,12 @@ function smoke(m) {
             },
           },
         });
-        const filter = translator.translateFilter(Criteria.create({ where: { age: 7 } }).filter);
+        const filter = translator.translateFilter(
+          Criteria.create({ where: { age: new Age(7) } }).filter,
+        );
         let code = null;
         try {
-          translator.translate(Criteria.create({ where: { age: -1 } }));
+          translator.translate(Criteria.create({ where: { age: new Age(-1) } }));
         } catch (error) {
           code = error.code;
         }
