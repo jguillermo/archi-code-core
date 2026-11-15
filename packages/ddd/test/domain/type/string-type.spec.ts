@@ -308,4 +308,26 @@ describe('StringType', () => {
       expect(`Nickname: ${new Nickname()}.`).toBe('Nickname: .');
     });
   });
+
+  describe('the slug of a product title for its URL', () => {
+    class ProductTitle extends StringType {}
+
+    it('gives the slug of its text', () => {
+      expect(new ProductTitle(' Máscara de Soldar, Año 2026! ').slug()).toBe(
+        'mascara-de-soldar-ano-2026',
+      );
+    });
+
+    it('gives an empty slug when there is no title', () => {
+      expect(new ProductTitle().slug()).toBe('');
+    });
+
+    it('does not change the title it is taken from', () => {
+      const title = new ProductTitle('Máscara Pro');
+
+      title.slug();
+
+      expect(title.value).toBe('Máscara Pro');
+    });
+  });
 });

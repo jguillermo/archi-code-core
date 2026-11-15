@@ -2,6 +2,7 @@ import { anyToString, runValidations } from '@archi-code/validation';
 import type { Validatable, ValidatedClass, ValidationResult } from '@archi-code/validation';
 import { RequiredMark } from './required/required-mark';
 import type { RequiredMarked } from './required/required-mark';
+import { StringSanitizer } from './sanitize/string-sanitizer';
 import { RequiredValueException } from '../exceptions/required-value.exception';
 import { ValidationException } from '../exceptions/validation.exception';
 import { ValueObjectBrand } from '../../shared/index';
@@ -44,6 +45,10 @@ export abstract class AbstractType<T, Input = T> implements Validatable<T | null
 
   toString(): string {
     return this.isNull ? '' : anyToString(this._value);
+  }
+
+  slug(): string {
+    return StringSanitizer.slug(this.toString());
   }
 
   equals<E extends AbstractType<any>>(other: E): boolean {

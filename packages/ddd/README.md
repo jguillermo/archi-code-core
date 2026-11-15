@@ -280,6 +280,7 @@ the browser? of the server?). Send it with `Z` or an offset, or send only the da
 | `toString()`    | `string`              | Text of the value; `''` if it is `null`. `DateType` gives ISO 8601, `JsonType` the JSON |
 | `equals(other)` | `boolean`             | Same class and same value: `===`; dates by instant, JSON by content, lists item by item |
 | `validate()`    | `ValidationResult<T>` | Runs the `@Validations` rules again; never throws (always ok on a built value object)   |
+| `slug()`        | `string`              | The slug of `toString()` for a URL (see below); `''` if it is `null`                    |
 
 ```ts
 class City extends StringType {}
@@ -293,6 +294,36 @@ city.equals(new Country('Huelva')); // false: another concept, even with the sam
 new NumberType().toString(); // ''
 new StringType('   ').value; // '   ' (blank text is a value: only null and undefined are empty)
 new StringType(null).isNull; // true
+```
+
+`slug()` of every value object (and `StringSanitizer.slug(text)`, the same function for any plain
+string) turns the text of `toString()` into a slug that travels in a URL as it is: lowercase, accents
+and other marks removed (`á` → `a`, `ñ` → `n`, `ü` → `u`, `ç` → `c`), invisible characters
+(soft hyphen, zero-width space) and ordinal indicators (`1.º piso` → `1-piso`) removed, letters without a decomposition spelled in Latin (`ß` → `ss`,
+`æ` → `ae`, `ł` → `l`…), every run of other characters (spaces, punctuation, symbols, emoji, other
+scripts) turned into one `-`, and no `-` at the edges. Only `a-z`, `0-9` and `-` remain; the value
+object itself does not change. `JsonType` sorts the keys of its objects first (nested ones too; list items keep
+their order), so two equal JSON values give the same slug.
+
+```ts
+import {
+  DateType,
+  JsonType,
+  NumberType,
+  StringSanitizer,
+  StringType,
+} from '@archi-code/ddd/domain';
+
+class ProductTitle extends StringType {}
+
+new ProductTitle(' Máscara de Soldar, Año 2026! ').slug(); // 'mascara-de-soldar-ano-2026'
+new ProductTitle('Straße & Œuvre').slug(); // 'strasse-oeuvre'
+new ProductTitle('¿¡ !?').slug(); // ''
+new ProductTitle().slug(); // ''
+new NumberType(1250.75).slug(); // '1250-75'
+new DateType('2026-11-15').slug(); // '2026-11-15t00-00-00-000z'
+new JsonType({ street: 'Mayor', city: 'Huelva' }).slug(); // 'city-huelva-street-mayor'
+StringSanitizer.slug('Welding Helmet Pro'); // 'welding-helmet-pro'
 ```
 
 ### Optional by default, required with `Required(...)`
@@ -3835,6 +3866,7 @@ in the repository, not in the npm package:
 | `EnumType`, `ArrayType`                                                                                                                                                     | abstract classes     |
 | `CreatedAt`, `UpdatedAt`, `IdType`                                                                                                                                          | classes (required)   |
 | `Required`, `Composite`                                                                                                                                                     | functions            |
+| `StringSanitizer` (`slug`)                                                                                                                                                  | class (static)       |
 | `Specification`                                                                                                                                                             | abstract class       |
 | `CompositeSchema`, `CompositeProps`, `CompositePrimitives`, `CompositeInput`, `CompositeType`, `CompositeValue`                                                             | types                |
 | `Entity`, `AggregateRoot`, `EventBase`                                                                                                                                      | abstract classes     |

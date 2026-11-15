@@ -83,4 +83,16 @@ describe('IdType', () => {
     const orderId = new OrderId('DF9EF000-21FC-4E06-B8F7-103C3A133D10');
     expect(`Order ${orderId} not paid`).toBe(`Order ${STORED} not paid`);
   });
+
+  describe('the slug of an id for a URL', () => {
+    it('gives a stored id its own text', () => {
+      expect(new OrderId(STORED.toUpperCase()).slug()).toBe(STORED);
+    });
+
+    it('gives a generated id its own text, because a UUID is already a slug', () => {
+      const orderId = OrderId.generate();
+
+      expect(orderId.slug()).toBe(orderId.value);
+    });
+  });
 });

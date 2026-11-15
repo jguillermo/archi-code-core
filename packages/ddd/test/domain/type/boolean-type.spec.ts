@@ -258,4 +258,16 @@ describe('BooleanType', () => {
       expect(`marketing=${new AcceptsMarketing(false)}`).toBe('marketing=false');
     });
   });
+
+  describe('the slug of a flag for a URL', () => {
+    it.each([
+      ['a true flag', new AcceptsMarketing(true), 'true'],
+      ['a false flag', new IsGift(false), 'false'],
+      ['a flag typed as text', new IsGift('TRUE' as unknown as boolean), 'true'],
+      ['a required flag', new EmailVerified(true), 'true'],
+      ['a flag that was not given', new AcceptsMarketing(), ''],
+    ])('%s gives %o', (_, flag, slug) => {
+      expect(flag.slug()).toBe(slug);
+    });
+  });
 });

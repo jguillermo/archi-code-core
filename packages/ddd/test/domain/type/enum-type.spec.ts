@@ -319,4 +319,32 @@ describe('EnumType', () => {
       );
     });
   });
+
+  describe('the slug of an option for a URL', () => {
+    enum CourseLevelOption {
+      BASIC = 'Básico',
+      ADVANCED = 'Avanzado (TIG/MIG)',
+    }
+
+    class CourseLevel extends EnumType<CourseLevelOption> {
+      protected getEnum(): typeof CourseLevelOption {
+        return CourseLevelOption;
+      }
+    }
+
+    it.each([
+      ['a text option', new OrderStatus(OrderStatusOption.SHIPPED), 'shipped'],
+      ['a text option of an optional enum', new PaymentStatus(PaymentStatusOption.PAID), 'paid'],
+      ['a number option', new TicketPriority(PriorityOption.HIGH), '2'],
+      ['an option with an accent', new CourseLevel(CourseLevelOption.BASIC), 'basico'],
+      [
+        'an option with parentheses and a slash',
+        new CourseLevel(CourseLevelOption.ADVANCED),
+        'avanzado-tig-mig',
+      ],
+      ['an option that was not given', new ReturnStatus(), ''],
+    ])('%s gives %o', (_, status, slug) => {
+      expect(status.slug()).toBe(slug);
+    });
+  });
 });

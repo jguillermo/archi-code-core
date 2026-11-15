@@ -104,6 +104,19 @@ function smoke(m) {
     ['StringType converts', () => new m.StringType(12).value === '12'],
     ['StringType keeps blank text as written', () => new m.StringType('  ').value === '  '],
     [
+      'StringSanitizer gives a URL slug',
+      () => m.StringSanitizer.slug('Straße & Œuvre') === 'strasse-oeuvre',
+    ],
+    [
+      'every value object gives a URL slug',
+      () => new m.DateType('2026-11-15').slug() === '2026-11-15t00-00-00-000z',
+    ],
+    [
+      'StringType gives a URL slug',
+      () =>
+        new m.StringType(' Máscara de Soldar, Año 2026! ').slug() === 'mascara-de-soldar-ano-2026',
+    ],
+    [
       'Required throws RequiredValueException',
       () => {
         class Name extends m.Required(m.StringType) {}

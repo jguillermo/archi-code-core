@@ -223,6 +223,37 @@ describe('AbstractType: writing a custom value object', () => {
     });
   });
 
+  describe('the slug of its text, for a URL', () => {
+    it.each([
+      ['a country', new CountryCode('es'), 'es'],
+      ['a country that was not given', new CountryCode(), ''],
+      ['a discount', new Discount(-1.5), '1-5'],
+      ['a discount turned into null by filter', new Discount('none' as unknown as number), ''],
+      ['a required country', new BillingCountry('fr'), 'fr'],
+    ])('%s gives %o', (_, valueObject, slug) => {
+      expect(valueObject.slug()).toBe(slug);
+    });
+
+    it('is the slug of whatever toString() gives, so a custom toString() changes it', () => {
+      class ProductReference extends CountryCode {
+        toString(): string {
+          return `Ref. «${this.value}» nº 1`;
+        }
+      }
+
+      expect(new ProductReference('pt').slug()).toBe('ref-pt-n-1');
+    });
+
+    it('does not change the value object it is taken from', () => {
+      const country = new CountryCode('es');
+
+      country.slug();
+
+      expect(country.value).toBe('ES');
+      expect(country.equals(new CountryCode('ES'))).toBe(true);
+    });
+  });
+
   describe('recognizing value objects built by another copy of the package (CJS and ESM side by side)', () => {
     it('a value object of the other copy is still an AbstractType', async () => {
       vi.resetModules();

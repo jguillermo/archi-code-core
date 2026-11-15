@@ -332,4 +332,82 @@ describe('JsonType', () => {
       );
     });
   });
+
+  describe('the slug of an address for a URL', () => {
+    it.each([
+      [
+        'an address',
+        new BillingAddress({ street: 'Calle Mayor, 5', city: 'Huelva' }),
+        'city-huelva-street-calle-mayor-5',
+      ],
+      [
+        'an address with accents, ñ and quotes',
+        new BillingAddress({ street: 'Avda. «España» nº 12', city: 'Cádiz', zip: '11001' }),
+        'city-cadiz-street-avda-espana-n-12-zip-11001',
+      ],
+      [
+        'an address written as JSON text',
+        new ShippingAddress('{"street":"Plaça Major","city":"Palma"}' as unknown as Address),
+        'city-palma-street-placa-major',
+      ],
+      ['an address that was not given', new PickupAddress(), ''],
+    ])('%s gives %o', (_, address, slug) => {
+      expect(address.slug()).toBe(slug);
+    });
+
+    it('sorts the keys, so the same address in any order gives the same slug', () => {
+      expect(new BillingAddress({ street: 'Mayor', city: 'Huelva' }).slug()).toBe(
+        'city-huelva-street-mayor',
+      );
+      expect(new BillingAddress({ city: 'Huelva', street: 'Mayor' }).slug()).toBe(
+        'city-huelva-street-mayor',
+      );
+    });
+
+    it('gives the same slug to two addresses that are equal', () => {
+      const written = new BillingAddress({ zip: '21001', street: 'Mayor', city: 'Huelva' });
+      const stored = new BillingAddress({ city: 'Huelva', zip: '21001', street: 'Mayor' });
+
+      expect(written.equals(stored)).toBe(true);
+      expect(written.slug()).toBe(stored.slug());
+    });
+
+    it('sorts the keys of nested objects and of objects inside lists', () => {
+      class Shipment extends JsonType {}
+
+      expect(
+        new Shipment({
+          to: { street: 'Mayor', city: 'Huelva' },
+          parcels: [
+            { weight: 2, code: 'B' },
+            { weight: 1, code: 'A' },
+          ],
+        }).slug(),
+      ).toBe('parcels-code-b-weight-2-code-a-weight-1-to-city-huelva-street-mayor');
+    });
+
+    it('keeps the order of the items of a list, because it has a meaning', () => {
+      class Route extends JsonType {}
+
+      expect(new Route({ stops: ['Huelva', 'Sevilla'] }).slug()).toBe('stops-huelva-sevilla');
+      expect(new Route({ stops: ['Sevilla', 'Huelva'] }).slug()).toBe('stops-sevilla-huelva');
+    });
+
+    it('keeps a key named __proto__ as one more key', () => {
+      class Payload extends JsonType {}
+
+      expect(new Payload('{"b":1,"__proto__":{"a":2}}' as unknown as JsonTypeValue).slug()).toBe(
+        'proto-a-2-b-1',
+      );
+    });
+
+    it('does not reorder the keys of the value it is taken from', () => {
+      const address = new BillingAddress({ street: 'Mayor', city: 'Huelva' });
+
+      address.slug();
+
+      expect(Object.keys(address.value as Address)).toEqual(['street', 'city']);
+      expect(address.toString()).toBe('{"street":"Mayor","city":"Huelva"}');
+    });
+  });
 });

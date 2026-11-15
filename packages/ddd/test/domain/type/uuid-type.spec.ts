@@ -211,4 +211,21 @@ describe('UuidType', () => {
       expect(isVersion4).not.toHaveBeenCalled();
     });
   });
+
+  describe('the slug of a UUID for a URL', () => {
+    it.each([
+      ['a UUID in lowercase', new CorrelationId(STORED), STORED],
+      ['a UUID in uppercase, stored in lowercase', new CorrelationId(STORED.toUpperCase()), STORED],
+      ['a required UUID', new RequestId(STORED), STORED],
+      ['a UUID that was not given', new CorrelationId(), ''],
+    ])('%s gives %o', (_, uuid, slug) => {
+      expect(uuid.slug()).toBe(slug);
+    });
+
+    it('gives a generated UUID its own text, because a UUID is already a slug', () => {
+      const correlationId = CorrelationId.generate();
+
+      expect(correlationId.slug()).toBe(correlationId.value);
+    });
+  });
 });

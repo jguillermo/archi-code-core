@@ -431,4 +431,22 @@ describe('ArrayType', () => {
       expect(() => new CheckedTags(['ddd'])).toThrow(outage);
     });
   });
+
+  describe('the slug of a list for a URL', () => {
+    it.each([
+      ['a list of tags', new Tags(['mig', 'Pingüino', 'Façade']), 'mig-pinguino-facade'],
+      ['a required list of tags', new ProductTags(['Soldadura', 'TIG/MIG']), 'soldadura-tig-mig'],
+      ['a list of scores', new Scores([1.5, -2, 0]), '1-5-2-0'],
+      ['a list of dates', new HolidayDates([new Date(CHRISTMAS)]), '2024-12-25t00-00-00-000z'],
+      ['an empty list', new Tags([]), ''],
+      ['a list that was not given', new Tags(), ''],
+    ])('%s gives %o', (_, list, slug) => {
+      expect(list.slug()).toBe(slug);
+    });
+
+    it('gives the slug of the items joined, in the order of the list', () => {
+      expect(new Tags(['tig', 'mig']).slug()).toBe('tig-mig');
+      expect(new Tags(['mig', 'tig']).slug()).toBe('mig-tig');
+    });
+  });
 });

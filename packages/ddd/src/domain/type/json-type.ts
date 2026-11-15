@@ -1,5 +1,6 @@
 import { toJson } from '@archi-code/validation';
 import { AbstractType } from './abstract-type';
+import { StringSanitizer } from './sanitize/string-sanitizer';
 import { TypePrimitiveException } from '../exceptions/type-primitive.exception';
 
 export type JsonTypeValue = Record<string, any>;
@@ -11,6 +12,12 @@ export class JsonType<T extends JsonTypeValue = JsonTypeValue> extends AbstractT
       throw new TypePrimitiveException('Json', value);
     }
     return JsonType.deepFreeze(JSON.parse(JSON.stringify(converted.value)));
+  }
+
+  slug(): string {
+    return this.isNull
+      ? ''
+      : StringSanitizer.slug(JSON.stringify(JsonType.withSortedKeys(this._value)));
   }
 
   protected hasSameValue(other: this): boolean {
@@ -38,6 +45,20 @@ export class JsonType<T extends JsonTypeValue = JsonTypeValue> extends AbstractT
       );
     }
     return left === right;
+  }
+
+  private static withSortedKeys(value: unknown): unknown {
+    if (Array.isArray(value)) {
+      return value.map((item) => JsonType.withSortedKeys(item));
+    }
+    if (JsonType.isObject(value)) {
+      return Object.fromEntries(
+        Object.keys(value)
+          .sort()
+          .map((key) => [key, JsonType.withSortedKeys(value[key])]),
+      );
+    }
+    return value;
   }
 
   private static deepFreeze<V>(value: V): V {

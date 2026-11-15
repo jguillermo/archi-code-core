@@ -259,6 +259,36 @@ describe('DateType', () => {
       expect(isWeekday).not.toHaveBeenCalled();
     });
   });
+
+  describe('the slug of a date for a URL', () => {
+    it.each([
+      ['a date', new ShippedAt('2026-11-15'), '2026-11-15t00-00-00-000z'],
+      ['a date-time in UTC', new ShippedAt('2026-11-15T10:30:00Z'), '2026-11-15t10-30-00-000z'],
+      [
+        'a date-time with a zone, which is the instant in UTC',
+        new PlacedAt('2026-11-15T10:30:00+01:00'),
+        '2026-11-15t09-30-00-000z',
+      ],
+      [
+        'a date object',
+        new PlacedAt(new Date(Date.UTC(2026, 0, 2, 3, 4, 5, 6))),
+        '2026-01-02t03-04-05-006z',
+      ],
+      ['a date that was not given', new ShippedAt(), ''],
+    ])('%s gives %o', (_, date, slug) => {
+      expect(date.slug()).toBe(slug);
+    });
+
+    it('gives the same slug for the same instant written in two zones', () => {
+      expect(new ShippedAt('2026-11-15T10:30:00+01:00').slug()).toBe(
+        new ShippedAt('2026-11-15T04:30:00-05:00').slug(),
+      );
+    });
+
+    it('gives a stamped date a slug of digits, dashes and the letters t and z', () => {
+      expect(CreatedAt.now().slug()).toMatch(/^\d{4}-\d{2}-\d{2}t\d{2}-\d{2}-\d{2}-\d{3}z$/);
+    });
+  });
 });
 
 describe('CreatedAt', () => {

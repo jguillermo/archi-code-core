@@ -19,6 +19,7 @@ import type {
 import { AbstractType } from '../../src/domain/type/abstract-type';
 import { Required } from '../../src/domain/type/required/required-type';
 import { StringType } from '../../src/domain/type/string-type';
+import { StringSanitizer } from '../../src/domain/type/sanitize/string-sanitizer';
 
 const PUBLIC_API = [
   'AbstractType',
@@ -44,6 +45,7 @@ const PUBLIC_API = [
   'Required',
   'RequiredValueException',
   'Specification',
+  'StringSanitizer',
   'StringType',
   'TypePrimitiveException',
   'UpdatedAt',
@@ -67,6 +69,7 @@ describe('@archi-code/ddd/domain', () => {
     expect(domain.AbstractType).toBe(AbstractType);
     expect(domain.Required).toBe(Required);
     expect(domain.StringType).toBe(StringType);
+    expect(domain.StringSanitizer).toBe(StringSanitizer);
   });
 
   it('knows nothing about persistence: mappers and repository adapters live in infrastructure', () => {

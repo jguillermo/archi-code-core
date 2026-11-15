@@ -257,4 +257,25 @@ describe('NumberType', () => {
       expect(`Total: ${new ProductPrice(12.5)} EUR`).toBe('Total: 12.5 EUR');
     });
   });
+
+  describe('the slug of a price for a URL', () => {
+    it.each([
+      ['a decimal price', new ProductPrice(1250.75), '1250-75'],
+      ['a whole price', new ProductPrice(20), '20'],
+      ['a zero discount', new DiscountPercent(0), '0'],
+      ['a negative discount, which loses its sign', new DiscountPercent(-3), '3'],
+      ['a price typed as text', new ProductPrice('19.90' as unknown as number), '19-9'],
+      ['a weight that was not given', new ShippingWeight(), ''],
+    ])('%s gives %o', (_, number, slug) => {
+      expect(number.slug()).toBe(slug);
+    });
+
+    it('does not change the number it is taken from', () => {
+      const price = new ProductPrice(1250.75);
+
+      price.slug();
+
+      expect(price.value).toBe(1250.75);
+    });
+  });
 });
