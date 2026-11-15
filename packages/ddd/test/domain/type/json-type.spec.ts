@@ -333,7 +333,7 @@ describe('JsonType', () => {
     });
   });
 
-  describe('the slug of an address for a URL', () => {
+  describe('the slug of an address, safe to pass in a URL', () => {
     it.each([
       [
         'an address',

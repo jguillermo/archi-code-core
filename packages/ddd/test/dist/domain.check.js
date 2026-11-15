@@ -108,15 +108,15 @@ function smoke(m) {
       () => m.StringSanitizer.singleLine('  Máscara   de\r\n\tsoldar\n') === 'Máscara de soldar',
     ],
     [
-      'StringSanitizer gives a URL slug',
+      'StringSanitizer gives a slug safe to pass in a URL',
       () => m.StringSanitizer.slug('Straße & Œuvre') === 'strasse-oeuvre',
     ],
     [
-      'every value object gives a URL slug',
+      'every value object gives a slug safe to pass in a URL',
       () => new m.DateType('2026-11-15').slug() === '2026-11-15t00-00-00-000z',
     ],
     [
-      'StringType gives a URL slug',
+      'StringType gives a slug safe to pass in a URL',
       () =>
         new m.StringType(' Máscara de Soldar, Año 2026! ').slug() === 'mascara-de-soldar-ano-2026',
     ],

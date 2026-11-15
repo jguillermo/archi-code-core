@@ -223,7 +223,7 @@ describe('AbstractType: writing a custom value object', () => {
     });
   });
 
-  describe('the slug of its text, for a URL', () => {
+  describe('the slug of its text, safe to pass in a URL', () => {
     it.each([
       ['a country', new CountryCode('es'), 'es'],
       ['a country that was not given', new CountryCode(), ''],

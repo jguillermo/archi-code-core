@@ -84,7 +84,7 @@ describe('IdType', () => {
     expect(`Order ${orderId} not paid`).toBe(`Order ${STORED} not paid`);
   });
 
-  describe('the slug of an id for a URL', () => {
+  describe('the slug of an id, safe to pass in a URL', () => {
     it('gives a stored id its own text', () => {
       expect(new OrderId(STORED.toUpperCase()).slug()).toBe(STORED);
     });

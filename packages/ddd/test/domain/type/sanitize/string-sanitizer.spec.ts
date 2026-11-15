@@ -11,7 +11,7 @@ function slugOf(text: string): string {
 }
 
 describe('StringSanitizer', () => {
-  describe('the slug of a Spanish product title for its URL', () => {
+  describe('the slug of a Spanish product title, safe to pass in a URL', () => {
     describe('vowels with an acute accent', () => {
       it.each([
         ['á', 'a'],

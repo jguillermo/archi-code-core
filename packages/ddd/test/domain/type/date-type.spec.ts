@@ -260,7 +260,7 @@ describe('DateType', () => {
     });
   });
 
-  describe('the slug of a date for a URL', () => {
+  describe('the slug of a date, safe to pass in a URL', () => {
     it.each([
       ['a date', new ShippedAt('2026-11-15'), '2026-11-15t00-00-00-000z'],
       ['a date-time in UTC', new ShippedAt('2026-11-15T10:30:00Z'), '2026-11-15t10-30-00-000z'],

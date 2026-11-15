@@ -212,7 +212,7 @@ describe('UuidType', () => {
     });
   });
 
-  describe('the slug of a UUID for a URL', () => {
+  describe('the slug of a UUID, safe to pass in a URL', () => {
     it.each([
       ['a UUID in lowercase', new CorrelationId(STORED), STORED],
       ['a UUID in uppercase, stored in lowercase', new CorrelationId(STORED.toUpperCase()), STORED],

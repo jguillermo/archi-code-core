@@ -258,7 +258,7 @@ describe('NumberType', () => {
     });
   });
 
-  describe('the slug of a price for a URL', () => {
+  describe('the slug of a price, safe to pass in a URL', () => {
     it.each([
       ['a decimal price', new ProductPrice(1250.75), '1250-75'],
       ['a whole price', new ProductPrice(20), '20'],

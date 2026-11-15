@@ -259,7 +259,7 @@ describe('BooleanType', () => {
     });
   });
 
-  describe('the slug of a flag for a URL', () => {
+  describe('the slug of a flag, safe to pass in a URL', () => {
     it.each([
       ['a true flag', new AcceptsMarketing(true), 'true'],
       ['a false flag', new IsGift(false), 'false'],

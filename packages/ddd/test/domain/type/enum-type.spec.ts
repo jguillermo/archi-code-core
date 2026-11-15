@@ -320,7 +320,7 @@ describe('EnumType', () => {
     });
   });
 
-  describe('the slug of an option for a URL', () => {
+  describe('the slug of an option, safe to pass in a URL', () => {
     enum CourseLevelOption {
       BASIC = 'Básico',
       ADVANCED = 'Avanzado (TIG/MIG)',

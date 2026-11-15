@@ -309,7 +309,7 @@ describe('StringType', () => {
     });
   });
 
-  describe('the slug of a product title for its URL', () => {
+  describe('the slug of a product title, safe to pass in a URL', () => {
     class ProductTitle extends StringType {}
 
     it('gives the slug of its text', () => {

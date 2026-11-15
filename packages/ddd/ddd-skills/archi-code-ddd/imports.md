@@ -27,6 +27,7 @@ import {
   Required,
   RequiredValueException,
   Specification,
+  StringSanitizer,
   StringType,
   TypePrimitiveException,
   UpdatedAt,

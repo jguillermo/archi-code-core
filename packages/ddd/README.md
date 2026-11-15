@@ -280,7 +280,7 @@ the browser? of the server?). Send it with `Z` or an offset, or send only the da
 | `toString()`    | `string`              | Text of the value; `''` if it is `null`. `DateType` gives ISO 8601, `JsonType` the JSON |
 | `equals(other)` | `boolean`             | Same class and same value: `===`; dates by instant, JSON by content, lists item by item |
 | `validate()`    | `ValidationResult<T>` | Runs the `@Validations` rules again; never throws (always ok on a built value object)   |
-| `slug()`        | `string`              | The slug of `toString()` for a URL (see below); `''` if it is `null`                    |
+| `slug()`        | `string`              | The slug of `toString()`, safe in a URL (see below); `''` if it is `null`               |
 
 ```ts
 class City extends StringType {}

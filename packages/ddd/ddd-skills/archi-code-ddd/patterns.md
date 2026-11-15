@@ -191,6 +191,38 @@ export class CarrierLabelJson extends JsonType<CarrierLabelData> {}
 export class CarrierLabel extends Required(CarrierLabelJson) {}
 ```
 
+Slugs and one-line text: every value object has `slug()` (the slug of its `toString()`), and a
+value object that must hold one line cleans its own input in `filter` with
+`StringSanitizer.singleLine`, so its rules, `equals` and `slug()` see the clean text:
+
+```ts
+@Validations([
+  { validator: 'isLength', properties: { min: 3, max: 80 }, message: 'From 3 to 80 characters' },
+])
+export class ProductTitle extends Required(StringType) {
+  protected filter(value: unknown): string {
+    return StringSanitizer.singleLine(super.filter(value));
+  }
+}
+
+const title = new ProductTitle('  Máscara   de\r\n\tsoldar  ');
+title.value; // 'Máscara de soldar'
+title.slug(); // 'mascara-de-soldar'
+new ProductTitle('  a \n '); // ValidationException: ProductTitle: From 3 to 80 characters
+new ProductTitle('Casco pro').equals(new ProductTitle(' Casco\npro ')); // true
+
+new CreatedAt('2026-11-15T10:30:00+01:00').slug(); // '2026-11-15t09-30-00-000z'
+new CarrierLabelJson({ country: 'ES', carrier: 'Correos', service: 'gift', units: 2 }).slug();
+// 'carrier-correos-country-es-service-gift-units-2' (keys sorted)
+
+StringSanitizer.slug('1.º piso «Huelva»'); // '1-piso-huelva', for a plain string
+StringSanitizer.singleLine(' Línea uno.\r\n Línea dos. '); // 'Línea uno. Línea dos.'
+```
+
+A slug is not unique: two titles can give the same one (`Casco Pro`, `casco-pro`). Aggregates are
+still looked up by their id; to find one by its slug, store the slug as a value object of its own
+with a unique index in the repository.
+
 ## Events and business errors
 
 `event/PaymentCapturedDomainEvent.ts` and `exception/PaymentNotAwaitingTransfer.ts`:

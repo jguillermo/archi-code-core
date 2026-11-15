@@ -127,7 +127,10 @@ details and the code.
   `shared-kernel/` is shared. Domain files are PascalCase, every other file kebab-case.
 - **Value objects are always valid**: one named class per file, rules in `@Validations`,
   `Required(...)` when mandatory, built with `ValueObjectBuilder.build` so every field is reported.
-  Several fields are a `Composite`; free-form JSON is a `JsonType`, never a composite.
+  Several fields are a `Composite`; free-form JSON is a `JsonType`, never a composite. Every
+  value object has `slug()` (the slug of its `toString()`, safe to pass in a URL as it is); one-line text is cleaned in the value
+  object's own `filter` with `StringSanitizer.singleLine`; plain strings use
+  `StringSanitizer.slug`/`singleLine`, never a regex of your own.
 - **Aggregates**: public constructor that only assigns; `static create(id, ...valueObjects)`
   sets the initial state (`CreatedAt.now()`, `UpdatedAt.now()`), checks the creation invariants and records
   `<Aggregate>CreatedDomainEvent`; `fromPrimitives`/`toPrimitives` cover every field; the id comes

@@ -77,6 +77,15 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
 - A computed getter (`get total()`) on an aggregate, a child entity or a composite:
   `PrimitiveTypes` takes it for a field and `toPrimitives()` stops compiling; write a method.
 - Importing `@Validations` from `@archi-code/ddd/domain`: it comes from `@archi-code/validation`.
+- A slug or whitespace cleanup of your own (regexes, `slugify`-like libraries, `.trim()` and
+  `.replace(/\s+/g, ' ')` in a controller or `toCommand`): use `vo.slug()`,
+  `StringSanitizer.slug(text)` and `StringSanitizer.singleLine(text)`.
+- Cleaning a value object's text in `toCommand` or in the aggregate instead of its `filter`: every
+  other place that builds it (`fromPrimitives`, reactions, tests) gets the dirty text.
+- A slug as the id of an aggregate, or a lookup by slug without a unique index: two titles can give
+  the same slug (`Casco Pro` and `casco-pro`). Keep the id and treat the slug as a field.
+- Expecting `slug()` to keep what it drops: the sign of a number (`-3` → `3`), letters of other
+  scripts (`溶接` → `''`) and ordinals (`1.º` → `1`); a slug identifies nothing on its own.
 
 ## Aggregates and entities
 

@@ -79,6 +79,17 @@ from is in `patterns.md`; the folders and names are in `where-each-class-goes.md
   (`expectedDeliveryOn: shipment.expectedDelivery.toString()` in an event, a date field named
   `…On` like `occurredOn`). Template literals work on VOs; `JSON.stringify` does not unwrap them:
   serialize `value` or the aggregate's `toPrimitives()`.
+- **Every value object has `slug()`**, the slug of its `toString()`, safe to pass in a
+  URL as it is (`StringSanitizer.slug(this.toString())`, declared once in `AbstractType`): lowercase `a-z`,
+  `0-9` and single inner `-`, accents removed (`Máscara Año` → `mascara-ano`), ordinals dropped
+  (`1.º piso` → `1-piso`), `''` when the value object holds null. `JsonType` sorts its keys first,
+  so equal JSON values give the same slug. A subclass that overrides `toString()` changes its slug.
+  For a plain string use `StringSanitizer.slug(text)`; never write a slug regex of your own.
+- **One-line text is `StringSanitizer.singleLine(text)`**: every run of spaces, tabs and line
+  breaks becomes one space and the ends are trimmed; every other character stays. A value object
+  that must hold one line (a title, a name) cleans itself by overriding `filter`
+  (`return StringSanitizer.singleLine(super.filter(value))`), so its `@Validations` rules, `equals`
+  and `slug()` see the clean text; `toCommand` does not clean values by hand.
 - Dates: `DateType` accepts `Date`, ISO dates (`'2024-01-31'`, UTC midnight) and ISO date-times
   **with** a zone (`Z` or offset); a date-time without a zone throws `TypePrimitiveException`.
 - **Concepts of several attributes are composite value objects**, not entities nor loose fields:

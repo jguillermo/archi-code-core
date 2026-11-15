@@ -432,7 +432,7 @@ describe('ArrayType', () => {
     });
   });
 
-  describe('the slug of a list for a URL', () => {
+  describe('the slug of a list, safe to pass in a URL', () => {
     it.each([
       ['a list of tags', new Tags(['mig', 'Pingüino', 'Façade']), 'mig-pinguino-facade'],
       ['a required list of tags', new ProductTags(['Soldadura', 'TIG/MIG']), 'soldadura-tig-mig'],
