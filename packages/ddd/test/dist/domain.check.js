@@ -104,6 +104,10 @@ function smoke(m) {
     ['StringType converts', () => new m.StringType(12).value === '12'],
     ['StringType keeps blank text as written', () => new m.StringType('  ').value === '  '],
     [
+      'StringSanitizer puts a text in one line',
+      () => m.StringSanitizer.singleLine('  Máscara   de\r\n\tsoldar\n') === 'Máscara de soldar',
+    ],
+    [
       'StringSanitizer gives a URL slug',
       () => m.StringSanitizer.slug('Straße & Œuvre') === 'strasse-oeuvre',
     ],

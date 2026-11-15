@@ -613,4 +613,185 @@ describe('StringSanitizer', () => {
       expect(slugOf(slug)).toBe(slug);
     });
   });
+
+  describe('a text in one line, with single spaces', () => {
+    function singleLineOf(text: string): string {
+      const line = StringSanitizer.singleLine(text);
+      expect(line).not.toMatch(/[\s\u0085]{2}|[^\S ]|\u0085|^ | $/);
+      return line;
+    }
+
+    describe('spaces', () => {
+      it.each([
+        ['a text that is already clean', 'Casco de soldar', 'Casco de soldar'],
+        ['a double space', 'Casco  de soldar', 'Casco de soldar'],
+        ['many spaces', 'Casco        de    soldar', 'Casco de soldar'],
+        ['a leading space', ' Casco', 'Casco'],
+        ['a trailing space', 'Casco ', 'Casco'],
+        ['spaces at both ends', '    Casco de soldar    ', 'Casco de soldar'],
+        ['only spaces', '      ', ''],
+        ['an empty text', '', ''],
+        ['one letter between spaces', '  a  ', 'a'],
+      ])('%s', (_, text, line) => {
+        expect(singleLineOf(text)).toBe(line);
+      });
+    });
+
+    describe('line breaks', () => {
+      it.each([
+        ['a line feed', 'Casco\nde soldar', 'Casco de soldar'],
+        ['a carriage return', 'Casco\rde soldar', 'Casco de soldar'],
+        ['a Windows line break', 'Casco\r\nde soldar', 'Casco de soldar'],
+        ['several line breaks', 'Casco\n\n\nde\r\n\r\nsoldar', 'Casco de soldar'],
+        ['a line break next to spaces', 'Casco  \n  de soldar', 'Casco de soldar'],
+        ['a leading and a trailing line break', '\nCasco de soldar\n', 'Casco de soldar'],
+        [
+          'a paragraph pasted from a document',
+          '\r\n  Línea uno.\r\n  Línea dos.\r\n',
+          'Línea uno. Línea dos.',
+        ],
+        ['a line separator', 'Casco\u2028de soldar', 'Casco de soldar'],
+        ['a paragraph separator', 'Casco\u2029de soldar', 'Casco de soldar'],
+        ['a next line character', 'Casco\u0085de soldar', 'Casco de soldar'],
+        ['only line breaks', '\n\r\n\r', ''],
+      ])('%s', (_, text, line) => {
+        expect(singleLineOf(text)).toBe(line);
+      });
+    });
+
+    describe('tabs and other spacing characters', () => {
+      it.each([
+        ['a tab', 'Casco\tde soldar', 'Casco de soldar'],
+        ['several tabs', 'Casco\t\t\tde soldar', 'Casco de soldar'],
+        ['tabs at both ends', '\tCasco de soldar\t', 'Casco de soldar'],
+        ['a vertical tab', 'Casco\u000Bde soldar', 'Casco de soldar'],
+        ['a form feed', 'Casco\u000Cde soldar', 'Casco de soldar'],
+        ['a non-breaking space', 'Casco\u00A0de\u00A0soldar', 'Casco de soldar'],
+        ['a narrow no-break space', '10\u202Fkg', '10 kg'],
+        ['an em space', 'Casco\u2003de soldar', 'Casco de soldar'],
+        ['a thin and a hair space', 'Casco\u2009\u200Ade soldar', 'Casco de soldar'],
+        ['an ideographic space', 'Casco\u3000de soldar', 'Casco de soldar'],
+        ['an Ogham space mark', 'Casco\u1680de soldar', 'Casco de soldar'],
+        ['a medium mathematical space', 'Casco\u205Fde soldar', 'Casco de soldar'],
+        ['a byte order mark at the start', '\uFEFFCasco de soldar', 'Casco de soldar'],
+        [
+          'every kind mixed',
+          ' \t\n\r\u000B\u000C\u00A0\u2003\u3000\u2028\u0085Casco\t \n de \r\n\t soldar \u00A0\n',
+          'Casco de soldar',
+        ],
+      ])('%s', (_, text, line) => {
+        expect(singleLineOf(text)).toBe(line);
+      });
+    });
+
+    describe('every other character is kept as it is', () => {
+      it.each([
+        [
+          'accents, ñ, diaeresis and cedilla',
+          '  Máscara   Año\nPingüino\tFaçade ',
+          'Máscara Año Pingüino Façade',
+        ],
+        ['capitals', '  CASCO  Pro ', 'CASCO Pro'],
+        ['punctuation and inverted marks', '¿Qué   tal?\n¡Bien!', '¿Qué tal? ¡Bien!'],
+        [
+          'quotes, parentheses and backticks',
+          ' «Curso»  (MIG)\n`slug()` ',
+          '«Curso» (MIG) `slug()`',
+        ],
+        ['slashes and backslashes', 'MIG / MAG\n C:\\ruta ', 'MIG / MAG C:\\ruta'],
+        ['ordinals and symbols', '1.º   piso\t50 %  €', '1.º piso 50 % €'],
+        ['emoji', '🔥   casco\n👍🏽', '🔥 casco 👍🏽'],
+        ['other scripts', ' 溶接 \n Αθήνα ', '溶接 Αθήνα'],
+        ['escape sequences written as text', 'casco\\npro\\t', 'casco\\npro\\t'],
+        [
+          'zero-width characters, which are not spaces',
+          'sol\u200Bdadura\u200D',
+          'sol\u200Bdadura\u200D',
+        ],
+        ['combining marks', 'pa\u0301gina', 'pa\u0301gina'],
+        ['dashes', 'casco - pro — mig', 'casco - pro — mig'],
+      ])('%s', (_, text, line) => {
+        expect(singleLineOf(text)).toBe(line);
+      });
+    });
+
+    describe('properties that hold for any text', () => {
+      const POOL = [
+        ...Array.from('abcÁñü¿?«»()/\\`🔥溶'),
+        ' ',
+        '  ',
+        '\t',
+        '\n',
+        '\r',
+        '\r\n',
+        '\u000B',
+        '\u000C',
+        '\u00A0',
+        '\u2003',
+        '\u3000',
+        '\u2028',
+        '\u2029',
+        '\u0085',
+        '\uFEFF',
+        '\u200B',
+      ];
+
+      function randomTexts(count: number): string[] {
+        let seed = 20261116;
+        const next = (limit: number): number => {
+          seed = (seed * 1103515245 + 12345) % 2147483648;
+          return seed % limit;
+        };
+        return Array.from({ length: count }, () =>
+          Array.from({ length: next(40) }, () => POOL[next(POOL.length)]).join(''),
+        );
+      }
+
+      const texts = randomTexts(3000);
+
+      it('always gives one line with single spaces and no space at the ends', () => {
+        for (const text of texts) {
+          singleLineOf(text);
+        }
+      });
+
+      it('keeps every character that is not a space, in the same order', () => {
+        for (const text of texts) {
+          const withoutSpaces = (value: string): string => value.replace(/[\s\u0085]/g, '');
+          expect(withoutSpaces(StringSanitizer.singleLine(text))).toBe(withoutSpaces(text));
+        }
+      });
+
+      it('gives a line that a second pass leaves as it is', () => {
+        for (const text of texts) {
+          const line = StringSanitizer.singleLine(text);
+          expect(StringSanitizer.singleLine(line)).toBe(line);
+        }
+      });
+    });
+
+    describe('very long text', () => {
+      it('joins a thousand lines into one', () => {
+        const lines = Array.from({ length: 1000 }, (_, index) => `  Línea ${index}\t`).join('\r\n');
+
+        const line = singleLineOf(lines);
+
+        expect(line.startsWith('Línea 0 Línea 1 ')).toBe(true);
+        expect(line.endsWith(' Línea 999')).toBe(true);
+        expect(line.split(' ')).toHaveLength(2000);
+      });
+
+      it('collapses a million spaces and line breaks', () => {
+        expect(
+          singleLineOf(`${' \n\t'.repeat(1_000_000)}casco${'\r\n '.repeat(1_000_000)}pro`),
+        ).toBe('casco pro');
+      });
+    });
+
+    it('gives a line whose slug is the slug of the original text', () => {
+      const text = '  ¿Señal\tde   cigüeña?\r\n(nueva)  ';
+
+      expect(StringSanitizer.slug(singleLineOf(text))).toBe(StringSanitizer.slug(text));
+    });
+  });
 });

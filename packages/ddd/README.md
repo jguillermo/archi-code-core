@@ -326,6 +326,15 @@ new JsonType({ street: 'Mayor', city: 'Huelva' }).slug(); // 'city-huelva-street
 StringSanitizer.slug('Welding Helmet Pro'); // 'welding-helmet-pro'
 ```
 
+`StringSanitizer.singleLine(text)` puts a text in one line: every run of spaces, tabs and line
+breaks (`\n`, `\r\n`, `\u2028`…, non-breaking and other Unicode spaces) becomes one space, and
+the ends are trimmed. Every other character stays as it is.
+
+```ts
+StringSanitizer.singleLine('  Máscara   de\r\n\tsoldar\n'); // 'Máscara de soldar'
+StringSanitizer.singleLine(' \n\t '); // ''
+```
+
 ### Optional by default, required with `Required(...)`
 
 A value object is optional: it accepts the value, `null` or nothing, and holds `T | null`. Wrap it
@@ -3866,7 +3875,7 @@ in the repository, not in the npm package:
 | `EnumType`, `ArrayType`                                                                                                                                                     | abstract classes     |
 | `CreatedAt`, `UpdatedAt`, `IdType`                                                                                                                                          | classes (required)   |
 | `Required`, `Composite`                                                                                                                                                     | functions            |
-| `StringSanitizer` (`slug`)                                                                                                                                                  | class (static)       |
+| `StringSanitizer` (`slug`, `singleLine`)                                                                                                                                    | class (static)       |
 | `Specification`                                                                                                                                                             | abstract class       |
 | `CompositeSchema`, `CompositeProps`, `CompositePrimitives`, `CompositeInput`, `CompositeType`, `CompositeValue`                                                             | types                |
 | `Entity`, `AggregateRoot`, `EventBase`                                                                                                                                      | abstract classes     |

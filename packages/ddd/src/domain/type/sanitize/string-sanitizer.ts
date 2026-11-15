@@ -1,4 +1,6 @@
 export class StringSanitizer {
+  private static readonly SPACES_AND_LINE_BREAKS = /[\s\u0085]+/g;
+
   private static readonly MARKS_AND_INVISIBLE_CHARACTERS = new RegExp('[\\p{M}\\p{Cf}]', 'gu');
 
   private static readonly LETTERS_WITHOUT_DECOMPOSITION: Readonly<Record<string, string>> = {
@@ -50,6 +52,10 @@ export class StringSanitizer {
     `[${Object.keys(StringSanitizer.LETTERS_WITHOUT_DECOMPOSITION).join('')}]`,
     'g',
   );
+
+  static singleLine(text: string): string {
+    return text.replace(StringSanitizer.SPACES_AND_LINE_BREAKS, ' ').trim();
+  }
 
   static slug(text: string): string {
     return text
