@@ -2,7 +2,7 @@
 
 ## Fase 0. Red de seguridad
 
-* Tests de caracterización de lo que hace hoy la zona a cambiar `[Fuera de los libros]`; con el paquete, sobre `InMemoryOrderRepository` del proyecto (`ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`) y `InMemoryEventChannel.sent`.
+* Tests de caracterización de lo que hace hoy la zona a cambiar `[Fuera de los libros]`; con el paquete, sobre `InMemoryOrderRepository` del proyecto (`ddd-skills/archi-code-ddd/repositories.md`) y `InMemoryEventChannel.sent`.
 * Reglas de dependencias en modo aviso (`ddd-skills/ddd-arquitectura/GUIA.md`).
 
 ## Fase 1. Proteger lo nuevo

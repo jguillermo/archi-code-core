@@ -8,7 +8,7 @@
 
 [Fuera de los libros: convención de @archi-code/ddd]
 
-* En código con el paquete, aplica además `ddd-skills/archi-code-ddd/layers.md`: las clases base no impiden un agregado anémico, un caso de uso CRUD, dos agregados guardados juntos ni una transacción en el caso de uso.
+* En código con el paquete, aplica además el apartado "What not to do" de `ddd-skills/archi-code-ddd/where-each-class-goes.md` y de la guía de cada tipo de clase auditada: las clases base no impiden un agregado anémico, un caso de uso CRUD, dos agregados guardados juntos ni una transacción en el caso de uso.
 * El dominio importa solo `@archi-code/ddd/domain` y `@archi-code/validation`; importar `/application`, `/infrastructure` o un adaptador desde el dominio es severidad alta (A8).
 * "Ahora" es `CreatedAt.now()`/`UpdatedAt.now()`; nada recibe ni inyecta la hora y los eventos no se fechan al crearlos; `new Date()` en dominio o aplicación es hallazgo (A9).
 * Son hallazgos de forma: un listener con un `UseCase` detrás, un `eventName` que es nombre de clase, un constructor privado del agregado, un error con sufijo `Exception`, un contexto que importa clases de otro (T10, T15, T20, E2), un caso de uso que usa otro caso de uso o un servicio de dominio inyectado (T9).

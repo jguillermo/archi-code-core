@@ -8,16 +8,14 @@
 
 [Fuera de los libros: convención de @archi-code/ddd]
 
-* Un repositorio abstracto por agregado en `domain/repository/<Agregado>Repository.ts`: `abstract class OrderRepository extends AggregateRepository<Order> implements AggregateFinder<Order>, AggregateSaver<Order>`, con solo los verbos que el negocio necesita: `findById`, `save`, `remove` (si el negocio borra) y `search(criteria)` (`AggregateSearcher`, si un caso de uso selecciona agregados para cambiarlos). Nada más: ni consultas de negocio, ni `nextId()` (la identidad la genera su value object, `OrderId.generate()`), ni código. Un doble de test puede añadir ayudas técnicas (`versionOf(id)`, `findAll()`) que ningún caso de uso ve.
-* Todo caso de uso de usuario o por reacción recibe esa clase abstracta (`private readonly orders: OrderRepository`), nunca roles sueltos ni su intersección.
-* Una consulta de negocio (`pendingOlderThan`) es un `Criteria` para `search` si un caso de uso cambia esos agregados, o un read model en `application/` si solo se muestra o lista.
-* Un adaptador por agregado y tecnología en `infrastructure/persistence/<tecnología>-<agregado>-repository.ts` (`MongoOrderRepository extends OrderRepository`); su constructor (`super()` primero) recibe solo su tecnología (`collection`, `pool`), nunca la clase del agregado ni un mapper. La tecnología de la base de datos solo se usa dentro de él.
-* La conversión es del agregado: guarda `order.toPrimitives()` y carga con `Order.fromPrimitives(...)`, sin mapper ni comprobación de forma; el test de ida y vuelta del agregado garantiza que no falta ningún campo.
-* La versión optimista es solo del repositorio (el agregado no la declara ni la mapea y el caso de uso nunca la ve): `WeakMap<Order, number>` privado; al cargar `versions.set(order, row.version)`; al guardar `version = versions.get(order) ?? 0` (0 = nuevo), escribe solo si la guardada es `version`, almacena `version + 1` junto a los primitivos y actualiza el `WeakMap` solo tras escribir. Conflicto o id ocupado: `ConcurrencyException('Order', id, version)` (nombre literal). `remove(order)` comprueba la versión igual.
-* La transacción es del repositorio: no hay puerto de transacciones y la aplicación nunca abre una. Cada `save`/`remove` es atómico; si el agregado ocupa varias tablas, la transacción se abre y cierra dentro del método. Errores del driver → `InternalErrorException` con `{ cause }`.
-* El repositorio no publica eventos (lo hace el caso de uso tras `save`), salvo guardarlos en un outbox en la misma escritura cuando no pueden perderse.
-* IndexedDB: `IndexedDbOrderRepository extends OrderRepository` con `IndexedDbTable` de `@archi-code/ddd/infrastructure` (tabla declarada en un campo `static`, fila `{ ...order.toPrimitives(), version }`, comprobación de versión y escritura en un único `IndexedDbTable.transaction`), nunca `indexedDB` en crudo. Ver `ddd-skills/archi-code-ddd/layers.md` y `ddd-skills/archi-code-ddd/patterns.md`.
-* El paquete no trae repositorio en memoria: el proyecto escribe `InMemoryOrderRepository` con el mismo contrato (copias `structuredClone`, versiones), en `infrastructure/persistence/` o `test/support/`.
+La forma del código (repositorio abstracto, adaptadores en memoria, IndexedDB y MongoDB, versión, contrato, reintento) está en `ddd-skills/archi-code-ddd/repositories.md`, `ddd-skills/archi-code-ddd/tests.md`, `ddd-skills/archi-code-ddd/criteria.md`, `ddd-skills/archi-code-ddd/read-models.md` y `ddd-skills/archi-code-ddd/use-cases.md`. Dónde se aparta de los libros:
+
+* El repositorio es una clase abstracta del dominio, no una interfaz, y solo declara `findById`, `save`, `remove` y `search`; sin `nextId()`: la identidad la genera su value object.
+* La transacción es del repositorio, no de la aplicación: no hay puerto de transacciones ni unidad de trabajo.
+* La versión optimista la guarda solo el repositorio; el agregado no la declara.
+* La conversión es del agregado (`toPrimitives`/`fromPrimitives`), sin mapper ni mapeo de ORM.
+* No se consulta con especificaciones: una consulta de negocio es un `Criteria` para `search` o un read model.
+* Si un evento no puede perderse, el repositorio lo escribe en un outbox en la misma escritura.
 
 ## Reglas
 
@@ -35,9 +33,9 @@
 
 ## Referencias
 
-* Declaración, MongoDB, PostgreSQL, Prisma y read models: `ddd-skills/ddd-repositorios-persistencia/references/implementacion-ts.md`.
-* Transacción en el repositorio, varias tablas, outbox y reintento: `ddd-skills/ddd-repositorios-persistencia/references/transacciones-ts.md`.
-* Repositorio en memoria y suite de contrato: `ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`.
+* Qué se guarda, PostgreSQL, Prisma, consultas de lectura y jerarquías: `ddd-skills/ddd-repositorios-persistencia/references/implementacion-ts.md`.
+* Transacción en el repositorio, varias tablas en PostgreSQL, outbox y reintento: `ddd-skills/ddd-repositorios-persistencia/references/transacciones-ts.md`.
+* Repositorio en memoria y suite de contrato (qué se prueba y dónde): `ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`.
 
 ## Señales de alarma
 

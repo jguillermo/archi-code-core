@@ -49,7 +49,7 @@ class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, void> {
 
 ## Después
 
-* `Order` es el de `ddd-skills/ddd-agregados/references/implementacion-ts.md`: `OrderStatusType`, `OrderLines` (con regla `hasLines`), total calculado, `addLine` en vez de setters. El envío pasa a `Shipment` en Almacén (`ddd-skills/ddd-agregados/references/ejemplo-ecommerce.md`).
+* `Order` es el diseñado en `ddd-skills/ddd-agregados/references/implementacion-ts.md` (código: `ddd-skills/archi-code-ddd/aggregates.md`): `OrderStatusType`, `OrderLines` (con regla `hasLines`), total calculado, `addLine` en vez de setters. El envío pasa a `Shipment` en Almacén (`ddd-skills/ddd-agregados/references/ejemplo-ecommerce.md`).
 * `UpdateOrder` se parte en `AddOrderLine` (`toCommand` con `ValueObjectBuilder.build`, `findById`, `addLine`, `save`, `publish`).
 * `PlaceOrder` genera el id, crea y guarda solo el pedido y devuelve su id; los puntos se conceden por evento, en su propia escritura [IDDD cap. 10]:
 
@@ -79,7 +79,7 @@ export class AwardLoyaltyPointsOnOrderCreated extends EventListener<OrderCreated
 }
 ```
 
-`awardPointsFor` vuelve sin cambios si ya premió ese pedido (entrega al menos una vez). El test usa los repositorios en memoria del proyecto (`ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`) y comprueba que un pedido sin líneas lanza `ValidationException`; la fábrica del registro copia cada campo y conserva `eventId` y `occurredOn`.
+`awardPointsFor` vuelve sin cambios si ya premió ese pedido (entrega al menos una vez). El test usa los repositorios en memoria del proyecto (`ddd-skills/archi-code-ddd/repositories.md`) y comprueba que un pedido sin líneas lanza `ValidationException`; la fábrica del registro copia cada campo y conserva `eventId` y `occurredOn`.
 
 ## Plan
 

@@ -26,4 +26,4 @@ flowchart LR
   SH["Shipment"] -- ShipmentDispatched --> P
 ```
 
-Cada flecha hacia `Order` es una reacción de Ventas con su copia del evento: `RegisterStockReservationOnStockItemReserved` (`ddd-skills/ddd-agregados/references/consistencia-eventual.md`) y `RegisterPaymentAuthorizationOnPaymentAuthorized` (`ddd-skills/ddd-agregados/references/implementacion-ts.md`).
+Cada flecha hacia `Order` es una reacción de Ventas con su copia del evento: `RegisterStockReservationOnStockItemReserved` (`ddd-skills/ddd-agregados/references/consistencia-eventual.md`) y `RegisterPaymentAuthorizationOnPaymentAuthorized` (`ddd-skills/ddd-agregados/references/implementacion-ts.md`); su código, en `ddd-skills/archi-code-ddd/reactions.md`.

@@ -170,7 +170,8 @@ Only when the package needs them, and documented in its README:
   folder, that no file of the suite is left uncited, that it cites no internal document codes, that its examples declare no generic base classes
   (`ValueObject`, `Entity`, `AggregateRoot`, `DomainEvent`) nor `static of()` factories, and
   that the dependency-cruiser asset loads with rules for `@archi-code` and `composition.ts`, and that
-  `SKILL.md` lists every guide of `archi-code-ddd/` and each one exists. It is
+  `SKILL.md` lists every guide of `archi-code-ddd/` and each one exists; `test/cross/skill-api.spec.ts`
+  checks that the API those guides and `SKILL.md` name is exported by the package. It is
   kept as written (excluded from Prettier, ESLint and EditorConfig, see
   `.claude/rules/tooling.md`).
 - Extra folders (`benchmark/`, `docs/`): their own tsconfig type-checked in `check:types` and one

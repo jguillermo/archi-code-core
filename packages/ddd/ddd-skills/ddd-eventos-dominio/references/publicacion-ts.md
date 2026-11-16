@@ -10,27 +10,11 @@ OutboxForwarder (aparte): lee lo no publicado en orden → delivery.send → mar
 
 Guardar agregado y evento juntos y publicar después [Destilado cap. 6]; event store propio + reenviador fuera de banda [IDDD cap. 8]. `[Fuera de los libros: convención de @archi-code/ddd]` La aplicación no abre transacciones: la escritura atómica está dentro de `save`.
 
-| Pieza | Dónde |
-|---|---|
-| `EventBase`, `record()`/`pullDomainEvents()` | `@archi-code/ddd/domain` |
-| `EventBus`, `EventListener`, `@ListensTo` | `@archi-code/ddd/application` |
-| `DomainEventBus`, `EventRegistry`, `EventChannel`, `InMemoryEventChannel` | `@archi-code/ddd/infrastructure` |
-| Repositorio en memoria | `infrastructure/persistence/` o `test/support/` (`ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`) |
-| Outbox, reenviador, deduplicación, lenguaje publicado, canal del broker | el proyecto |
+Qué subpath exporta cada pieza (`EventBase`, `EventBus`, `DomainEventBus`, `EventRegistry`, `EventChannel`, `InMemoryEventChannel`): `ddd-skills/archi-code-ddd/imports.md`. El paquete no trae outbox, reenviador, deduplicación, lenguaje publicado ni canal de broker: los escribe el proyecto `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ## Publicar desde el caso de uso
 
-```ts
-protected async handle(command: AddOrderLineCommand): Promise<void> {
-  const order = await this.orders.findById(command.orderId);
-  if (order === null) {
-    throw new AggregateNotFoundException('Order', command.orderId.value);
-  }
-  order.addLine(command.line);
-  await this.orders.save(order);
-  await this.events.publish(order.pullDomainEvents());
-}
-```
+Código del caso de uso (cargar, comportamiento, `save` y después `publish(pullDomainEvents())`): `ddd-skills/archi-code-ddd/use-cases.md`, apartado Code.
 
 Si `save` falla no se publica nada y los eventos nunca salen dos veces. Si `publish` falla tras `save`, el evento se pierde; cuando no es aceptable, el outbox va en el repositorio (es persistencia, nunca del caso de uso) y el caso de uso no cambia: pasar de memoria a outbox o a un broker cambia solo el repositorio y el `EventChannel` del cableado `[Fuera de los libros: convención de @archi-code/ddd]`. En tests, `InMemoryEventChannel` deja lo publicado en `channel.sent`.
 
@@ -46,7 +30,7 @@ CREATE TABLE stored_events (
 );
 ```
 
-Dentro de `save` de `PostgresOrderRepository` (el resto del repositorio en `ddd-skills/ddd-repositorios-persistencia/references/implementacion-ts.md`):
+Dentro de `save` de `PostgresOrderRepository` (las guías del paquete no muestran un outbox; el resto del adaptador sigue `ddd-skills/archi-code-ddd/repositories.md`: versión en un `WeakMap`, `ConcurrencyException`, errores del driver en `InternalErrorException` con `cause`; el repositorio completo en `ddd-skills/ddd-repositorios-persistencia/references/implementacion-ts.md`):
 
 ```ts
 const version = this.versions.get(order) ?? 0;
@@ -105,25 +89,11 @@ Con MongoDB, un array de eventos pendientes en el mismo documento `[Fuera de los
 
 ## Lenguaje publicado en el adaptador del broker
 
-Los sistemas de fuera reciben un contrato versionado, no el evento interno [IDDD cap. 13]. Un `EventChannel` del proyecto envuelve al canal interno y, en `send`, traduce campo a campo cada `SerializedEvent` que sale del contexto (`'order.created'` → `sales.order.OrderPlaced`) y lo publica con `messageId` = `eventId`; los internos no producen mensaje. El contrato publicado conserva su nombre aunque cambie el interno, y un campo nuevo del evento interno no se filtra. `SerializedEvent` no lleva campo de versión: una v2 incompatible lleva otro nombre (`sales.order.OrderPlacedV2`) y, en la transición, un evento puede producir un mensaje por versión `[Fuera de los libros: convención de @archi-code/ddd]`. El consumidor lo lee con su propia clase (`ddd-skills/ddd-context-mapping/references/anticorrupcion-ts.md`). Canal de broker: el `RabbitMqEventChannel` del README del paquete.
+Los sistemas de fuera reciben un contrato versionado, no el evento interno [IDDD cap. 13]. Un `EventChannel` del proyecto envuelve al canal interno y, en `send`, traduce campo a campo cada `SerializedEvent` que sale del contexto (`'order.created'` → `sales.order.OrderPlaced`) y lo publica con `messageId` = `eventId`; los internos no producen mensaje. El contrato publicado conserva su nombre aunque cambie el interno, y un campo nuevo del evento interno no se filtra. `SerializedEvent` no lleva campo de versión: una v2 incompatible lleva otro nombre (`sales.order.OrderPlacedV2`) y, en la transición, un evento puede producir un mensaje por versión `[Fuera de los libros: convención de @archi-code/ddd]`. El consumidor lo lee con su propia clase (`ddd-skills/ddd-context-mapping/references/anticorrupcion-ts.md`). Canal de broker: `ddd-skills/archi-code-ddd/composition-and-entry-points.md`, apartado "Another event channel".
 
 ## Consumidor idempotente
 
-Entrega al menos una vez: el consumidor anota el `eventId` procesado en la misma transacción que su efecto [IDDD cap. 8]. `[Fuera de los libros: convención de @archi-code/ddd]` Es persistencia: el caso de uso por reacción pasa el `eventId` como value object a su puerto y el adaptador hace ambas cosas en una escritura.
-
-```ts
-async handle(event: OrderLineAddedDomainEvent): Promise<void> {
-  const { eventId, order, sku, quantity } = ValueObjectBuilder.build({
-    eventId: () => new UuidType(event.eventId),
-    order: () => new OrderReference(event.orderId),
-    sku: () => new Sku(event.sku),
-    quantity: () => new Quantity(event.quantity),
-  });
-  await this.preparations.prepare(eventId, order, sku, quantity);
-}
-```
-
-El adaptador hace `INSERT INTO processed_events (consumer, event_id) … ON CONFLICT DO NOTHING` y escribe el efecto solo si insertó, en la misma transacción. Si el efecto ya es idempotente (método de reacción que vuelve sin cambios, id derivado del evento), basta con eso. Si el agregado no existe, la reacción retorna para que el canal no reentregue sin fin.
+Entrega al menos una vez: el consumidor anota el `eventId` procesado en la misma transacción que su efecto [IDDD cap. 8]. `[Fuera de los libros: convención de @archi-code/ddd]` Es persistencia: el caso de uso por reacción construye el `eventId` como value object (como `ChargeKey` en `ddd-skills/archi-code-ddd/reactions.md`, apartado "External side effect"), se lo pasa a su puerto y el adaptador hace ambas cosas en una escritura: `INSERT INTO processed_events (consumer, event_id) … ON CONFLICT DO NOTHING` y el efecto solo si insertó, en la misma transacción. Si el efecto ya es idempotente (método de reacción que vuelve sin cambios, id derivado del evento), basta con eso. Si el agregado no existe, la reacción retorna para que el canal no reentregue sin fin. Forma de la reacción: `ddd-skills/archi-code-ddd/reactions.md`, apartado Code.
 
 ## Orden y causalidad
 

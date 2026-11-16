@@ -13,12 +13,8 @@ Solo valor o entidad; los límites se deciden en `ddd-skills/ddd-agregados/GUIA.
 | `OrderStatusType` | Tipo estándar | Transiciones en un sitio | `OrderStatusType.ts` |
 | `Order` | Entidad | Ciclo de vida e identidad propios | `AggregateRoot<OrderId>` |
 
-Código de los valores en `ddd-skills/ddd-value-objects-entidades/references/value-objects-ts.md`; `Order` en `ddd-skills/ddd-agregados/references/implementacion-ts.md`.
+Diseño de los valores en `ddd-skills/ddd-value-objects-entidades/references/value-objects-ts.md` y su código en `ddd-skills/archi-code-ddd/value-objects.md`; `Order` en `ddd-skills/ddd-agregados/references/implementacion-ts.md`.
 
 * `Order` delega en sus valores (`OrderLines.total`, `withLine`): entidad como contenedor de valores [IDDD cap. 6]. `addLine` reemplaza `OrderLines` entero, nunca cambia una línea por dentro.
 * Referencia al cliente por id (`customerId: CustomerId`), nunca por el objeto.
-* Test de ida y vuelta por agregado `[Fuera de los libros: convención de @archi-code/ddd]`:
-
-```ts
-expect(Order.fromPrimitives(order.toPrimitives()).toPrimitives()).toEqual(order.toPrimitives());
-```
+* Test de ida y vuelta por agregado `[Fuera de los libros: convención de @archi-code/ddd]`; código en `ddd-skills/archi-code-ddd/tests.md`.

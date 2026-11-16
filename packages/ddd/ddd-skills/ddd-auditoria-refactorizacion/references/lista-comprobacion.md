@@ -1,6 +1,6 @@
 # Lista de comprobación DDD
 
-"Script": lo detecta `scan_ddd_smells.py` (sí / parcial / no); lo que dice "no" se revisa leyendo el código. Con el paquete, recorre además `ddd-skills/archi-code-ddd/layers.md`.
+"Script": lo detecta `scan_ddd_smells.py` (sí / parcial / no); lo que dice "no" se revisa leyendo el código. Con el paquete, recorre además el apartado "What not to do" de `ddd-skills/archi-code-ddd/where-each-class-goes.md` y de la guía de cada tipo de clase auditada.
 
 ## Integración entre contextos
 
@@ -51,5 +51,5 @@
 | T16 | Value objects construidos en `handle` o en el controlador en vez de `toCommand`/inicio de la reacción con `ValueObjectBuilder.build`; `Input`/`Command` fuera del fichero | `[Fuera de los libros: convención de @archi-code/ddd]` | no | Media |
 | T17 | Repositorio genérico, o que recibe la clase del agregado o un mapper en vez de solo su tecnología | `[Fuera de los libros: convención de @archi-code/ddd]` | no | Media |
 | T18 | Conversión a primitivos fuera del agregado o sin test de ida y vuelta | `[Fuera de los libros: convención de @archi-code/ddd]` | no | Media |
-| T19 | Repositorio en memoria sin copias ni versiones, o en producción en una aplicación que no corre en memoria; vive en `infrastructure/persistence/` o `test/support/` (`ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`) | `[Fuera de los libros: convención de @archi-code/ddd]` | no | Baja |
+| T19 | Repositorio en memoria sin copias ni versiones, o en producción en una aplicación que no corre en memoria; vive en `infrastructure/persistence/` o `test/support/` (`ddd-skills/archi-code-ddd/repositories.md`) | `[Fuera de los libros: convención de @archi-code/ddd]` | no | Baja |
 | T20 | Agregado sin constructor público que solo asigna y `static create` con `<Agregado>CreatedDomainEvent`; métodos de usuario que no lanzan errores de negocio o de reacción que no vuelven sin cambios | `[Fuera de los libros: convención de @archi-code/ddd]` | no | Baja |

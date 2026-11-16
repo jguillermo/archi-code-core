@@ -6,7 +6,7 @@
 
 * **Fuentes.** Cada regla cita su origen: `[Destilado cap. N]` (DDD Destilado, Vernon), `[IDDD cap. N]` (Implementing DDD, Vernon), `[PHP: capítulo]` (DDD in PHP). Lo ajeno a los libros va `[Fuera de los libros]`; las convenciones del paquete, `[Fuera de los libros: convención de @archi-code/ddd]`.
 * **Precedencia.** Las guías deciden el diseño (límites, invariantes, eventos). La forma del código la fija `ddd-skills/archi-code-ddd/` y manda si un ejemplo difiere. Otra discrepancia de DDD entre guía y paquete es un defecto del paquete: sigue la guía.
-* **Código.** TypeScript con `@archi-code/ddd`, sin inventar API ni clases base propias (`ddd-skills/archi-code-ddd/layers.md`).
+* **Código.** TypeScript con `@archi-code/ddd`, sin inventar API ni clases base propias (`ddd-skills/archi-code-ddd/where-each-class-goes.md`, apartado "What not to do").
 * **Vacíos.** Si las guías no cubren algo o se contradicen, usa DDD estándar y dilo; no inventes conceptos ni prácticas no estándar.
 
 ## Enrutado
@@ -35,4 +35,4 @@ Reglas esenciales con fuente: `ddd-skills/ddd-orquestador/references/chuleta-reg
 
 * Nada de DDD táctico, CQRS, Event Sourcing ni microservicios sin complejidad que lo justifique [IDDD cap. 4].
 * No mezcles contextos en el código sin justificarlo ni diseñes agregados sin pensar en consistencia y límites.
-* Ejemplos en un dominio realista, escritos con `@archi-code/ddd` (`ddd-skills/archi-code-ddd/patterns.md`).
+* Ejemplos en un dominio realista, escritos con `@archi-code/ddd` (apartado "Code" de cada guía de `ddd-skills/archi-code-ddd/`).

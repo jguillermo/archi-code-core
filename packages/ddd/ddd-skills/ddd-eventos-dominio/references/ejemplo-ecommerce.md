@@ -1,6 +1,6 @@
 # Ejemplo: catálogo de eventos de la tienda online
 
-Continúa `ddd-skills/ddd-context-mapping/GUIA.md` y `ddd-skills/ddd-agregados/GUIA.md`. Las clases de `Order` están en `ddd-skills/ddd-agregados/references/implementacion-ts.md`. "Interno": los contextos del sistema que comparten el canal, cada uno con su copia; "publicado": además un contrato versionado con nombre propio para sistemas de fuera.
+Continúa `ddd-skills/ddd-context-mapping/GUIA.md` y `ddd-skills/ddd-agregados/GUIA.md`. El diseño de `Order` y de sus eventos está en `ddd-skills/ddd-agregados/references/implementacion-ts.md`; su código, en `ddd-skills/archi-code-ddd/aggregates.md` y `ddd-skills/archi-code-ddd/events-and-errors.md`. "Interno": los contextos del sistema que comparten el canal, cada uno con su copia; "publicado": además un contrato versionado con nombre propio para sistemas de fuera.
 
 | Evento (`eventName`) | Contexto | Causa | Datos | Ámbito | Consumidores |
 |---|---|---|---|---|---|
@@ -22,17 +22,4 @@ Decisiones:
 * Ventas declara su copia de `StockItemReservedDomainEvent` junto a `RegisterStockReservationOnStockItemReserved`, que registra el hecho sin rechazarlo (`ddd-skills/ddd-agregados/references/consistencia-eventual.md`).
 * El contrato publicado lleva importes enteros en céntimos con moneda ISO, como `Money` en el modelo, para no perder precisión; el contrato conserva su nombre publicado y lleva `messageId` = `eventId` `[Fuera de los libros: convención de @archi-code/ddd]`.
 
-Registro del contexto en su `composition.ts` (cada evento una vez; un contexto que solo escucha registra sus copias; cada fábrica copia los campos y conserva `eventId` y `occurredOn` para deduplicar):
-
-```ts
-export const salesEvents = new EventRegistry().register(
-  StockItemReservedDomainEvent,
-  (json) =>
-    new StockItemReservedDomainEvent({
-      orderId: json.orderId as string,
-      reservationId: json.reservationId as string,
-      eventId: json.eventId,
-      occurredOn: json.occurredOn,
-    }),
-);
-```
+Registro: cada contexto registra una vez cada evento que escucha (un contexto que solo escucha registra sus copias), con una fábrica que conserva `eventId` y `occurredOn` para deduplicar. Código: `ddd-skills/archi-code-ddd/composition-and-entry-points.md`, apartado "Composition root"; la copia del evento ajeno y su reacción, `ddd-skills/archi-code-ddd/reactions.md`, apartado Code.

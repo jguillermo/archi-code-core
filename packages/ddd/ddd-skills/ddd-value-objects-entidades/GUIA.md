@@ -6,15 +6,17 @@
 
 [Fuera de los libros: convención de @archi-code/ddd]
 
-* Un value object es una subclase con nombre de un tipo del paquete (`class Email extends Required(StringType) {}`) con reglas en `@Validations`; se crea con `new` y siempre es válido. Sin `of()` ni `assertValid()`; la normalización va en `filter`.
-* Varios atributos: `Composite({...})` con reglas `custom`. Una línea de pedido es `Composite` si las líneas se reemplazan enteras, y entidad hija (`OrderLine extends Entity<LineNumber>`) si se cambia una por su número. Un estado: un fichero `<Enum>Type.ts` con el enum, `<Enum>Option extends EnumType` y `<Enum>Type extends Required(<Enum>Option)`.
-* Un id es `IdType<'OrderId'>`, generado por el value object (`OrderId.generate()`) o derivado con `UuidType.fromValue` (`PaymentId.forOrder(order)`), nunca por el repositorio; lo calcula el caso de uso. Un agregado de otro contexto se referencia con un `UuidType` propio (`OrderReference`), nunca con la clase de id del otro contexto.
-* Cada clase en su fichero de `domain/value-object/`; cada contexto declara los suyos.
-* `Money` en céntimos enteros (`Cents`), no `bigint`: el paquete no tiene ese tipo.
-* Los errores de una entrada se recogen con `ValueObjectBuilder.build`, no con un manejador de notificación.
-* Un value object es opcional por defecto (`T | null`) y `Required(...)` lo hace obligatorio; los libros modelan lo opcional en el campo (`X | null`). Valen las dos.
-* La identidad es siempre obligatoria: un id vacío lanza `RequiredValueException` [IDDD cap. 5].
-* Todo el estado del agregado son value objects (también un booleano) con getter público sin `_`; derivados como métodos; `create`, `fromPrimitives` y `toPrimitives()` con test de ida y vuelta (los libros usan un mapper).
+La forma del código está en `ddd-skills/archi-code-ddd/value-objects.md` (value objects, ids, estados, listas, `Composite`, `Money`), `ddd-skills/archi-code-ddd/aggregates.md` (entidades hijas, `create`, `fromPrimitives`/`toPrimitives`), `ddd-skills/archi-code-ddd/domain-services.md` (`Specification`), `ddd-skills/archi-code-ddd/events-and-errors.md` (errores de negocio) y `ddd-skills/archi-code-ddd/criteria.md` (selecciones). Diferencias con los libros:
+
+* Todo el estado del agregado son value objects, también un booleano; en los libros envolver un atributo sin reglas es opcional [IDDD cap. 6].
+* Un value object es opcional por defecto y uno obligatorio se declara así; los libros modelan lo opcional en el campo (`X | null`). Valen las dos.
+* El id lo genera su propio value object (o se deriva de otro dato) y lo pasa el caso de uso; nunca el repositorio.
+* Un agregado de otro contexto se referencia con un tipo propio del contexto que lo guarda, nunca con la clase de id del otro.
+* `Money` en céntimos enteros, no `bigint`.
+* Todos los errores de una entrada se recogen a la vez con una utilidad del paquete, no con un manejador de notificación [IDDD cap. 5; PHP: Entities].
+* Constructor público que solo asigna y fábrica `create`, no constructor privado [IDDD cap. 11]; el agregado se convierte a sí mismo a primitivos, sin mapper, con test de ida y vuelta.
+* La versión no está en la entidad: la recuerda el repositorio.
+* Sin consultas de negocio con `Specification` en el repositorio [PHP: Repositories]: una selección es un `Criteria` o un read model.
 
 ## Paso 1. ¿Valor o entidad?
 
@@ -25,9 +27,11 @@
 
 Ante la duda, valor; una entidad es sobre todo un contenedor de valores [IDDD cap. 6].
 
+Una parte del agregado que nadie busca por id es un valor; en cuanto un caso de uso cambia una por su número (una línea de pedido), es entidad hija con identidad local [IDDD cap. 6 y 10].
+
 ## Paso 2. Implementar
 
-Código en `ddd-skills/ddd-value-objects-entidades/references/value-objects-ts.md` y `ddd-skills/ddd-value-objects-entidades/references/entidades-ts.md`.
+Diseño en `ddd-skills/ddd-value-objects-entidades/references/value-objects-ts.md` y `ddd-skills/ddd-value-objects-entidades/references/entidades-ts.md`; el código, en `ddd-skills/archi-code-ddd/value-objects.md` y `ddd-skills/archi-code-ddd/aggregates.md`.
 
 **Value objects**
 * Inmutables; las operaciones devuelven instancias nuevas [IDDD cap. 6].

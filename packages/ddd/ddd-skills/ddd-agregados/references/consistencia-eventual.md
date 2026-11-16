@@ -10,31 +10,17 @@ Un comando registra un evento; un suscriptor carga **otro** agregado y lo cambia
 
 ## Políticas
 
-"Cuando pase X, haz Y" `[Fuera de los libros como término]`. Aquí, un caso de uso por reacción; IDDD pone un suscriptor que delega en un servicio de aplicación [IDDD cap. 8] `[Fuera de los libros: convención de @archi-code/ddd]`. Ventas no importa la clase de Almacén: declara su copia (mismo nombre de clase y `eventName`, solo los campos que lee):
+"Cuando pase X, haz Y" `[Fuera de los libros como término]`. Aquí, un caso de uso por reacción; IDDD pone un suscriptor que delega en un servicio de aplicación [IDDD cap. 8] `[Fuera de los libros: convención de @archi-code/ddd]`.
 
-```ts
-// application/register-stock-reservation/stock-item-reserved-domain-event.ts
-export class StockItemReservedDomainEvent extends EventBase {
-  static readonly eventName = 'stock_item.reserved';
-  readonly orderId: string;
-  readonly reservationId: string;
+En el ejemplo, Almacén reserva stock y emite `'stock_item.reserved'`; Ventas no importa la clase de Almacén: declara su copia `StockItemReservedDomainEvent` con solo los campos que lee (`orderId`, `reservationId`), y la reacción `RegisterStockReservationOnStockItemReserved` (`consumer: 'sales.register-stock-reservation-on-stock-item-reserved'`) construye `OrderId` y `ReservationReference`, vuelve si falta el pedido, llama a `registerStockReservation` (`ddd-skills/ddd-agregados/references/implementacion-ts.md`), guarda y publica.
 
-  constructor({ orderId, reservationId, eventId, occurredOn }: { orderId: string; reservationId: string } & EventMetadata) {
-    super({ eventId, occurredOn });
-    this.orderId = orderId;
-    this.reservationId = reservationId;
-  }
-}
-```
+Código de la copia del evento, de la reacción y de su registro: `ddd-skills/archi-code-ddd/reactions.md` (apartados Rules y Code); tests sobre `InMemoryEventChannel` y el repositorio en memoria: `ddd-skills/archi-code-ddd/tests.md` y `ddd-skills/archi-code-ddd/repositories.md`.
 
-`RegisterStockReservationOnStockItemReserved` (`consumer: 'sales.register-stock-reservation-on-stock-item-reserved'`) es como la reacción de `references/implementacion-ts.md`: construye `OrderId` y `ReservationReference`, vuelve si falta el pedido, llama a `registerStockReservation`, guarda y publica. `composition.ts` registra el evento con una factoría que conserva `eventId` y `occurredOn`; en tests, sobre `InMemoryEventChannel` y el repositorio en memoria (`ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`).
-
-Reglas `[Fuera de los libros: convención de @archi-code/ddd]`:
-* Una política, un agregado modificado.
-* Nombre del negocio `<Acción>On<Evento>` (`<Evento>` = clase del evento sin `DomainEvent`), nunca `StockReservedHandler`; `consumer` `'<contexto>.<fichero sin .ts>'`, estable y único, nunca el nombre de la clase.
-* La regla está en el agregado; la política no autoriza, no lanza `AggregateNotFoundException` ni errores de negocio y no llama a otro caso de uso.
-* Los errores técnicos (`ConcurrencyException`) se propagan para que el canal reintente.
-* Idempotente: el mismo `eventId` dos veces no cambia nada.
+Diseño de una política:
+* Una política, un agregado modificado: una transacción, un agregado [IDDD cap. 10].
+* La regla está en el agregado; la política registra el hecho y no lo rechaza [Destilado cap. 6].
+* Idempotente: el mismo evento dos veces no cambia nada [Destilado cap. 4].
+* Los errores técnicos (`ConcurrencyException`) se propagan para que el canal reintente `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ## Plazos
 

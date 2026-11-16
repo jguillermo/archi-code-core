@@ -111,13 +111,13 @@ El adaptador es un punto de entrada en `interfaces/` (`PaymentGatewayWebhook`): 
 
 El downstream lee con su propia clase `extends EventBase` (nombre publicado, solo los campos que usa) junto a la reacción, nunca la clase del otro contexto `[Fuera de los libros: convención de @archi-code/ddd]`. Si Almacén es un sistema aparte, el `eventName` es el del contrato (`'warehouse.stock.StockReserved'`); si comparte canal, su evento interno (`'stock_item.reserved'`, en `ddd-skills/ddd-agregados/references/consistencia-eventual.md`). La reacción `RegisterStockReservationOnStockReserved` tiene la forma de las de `ddd-skills/ddd-agregados/references/implementacion-ts.md`: `ValueObjectBuilder.build`, `findById` (vuelve si falta), método de reacción, `save`, `publish`.
 
-En `composition.ts`, la factoría de `EventRegistry` es el traductor: copia cada campo y pasa `eventId` y `occurredOn`; el bus va sobre el canal donde Almacén publica (un `RabbitMqEventChannel` como el del README del paquete). Un mensaje fuera de contrato falla en `ValueObjectBuilder.build` y el canal lo aparta (cola de mensajes muertos).
+En `composition.ts`, la factoría de `EventRegistry` es el traductor: copia cada campo y pasa `eventId` y `occurredOn`; el bus va sobre el canal donde Almacén publica (un `RabbitMqEventChannel` como el de `ddd-skills/archi-code-ddd/composition-and-entry-points.md`, apartado "Another event channel"). Un mensaje fuera de contrato falla en `ValueObjectBuilder.build` y el canal lo aparta (cola de mensajes muertos).
 
 ## Tests `[Fuera de los libros]`
 
 * Traductor: unitarios con respuestas reales anonimizadas.
 * Adaptador: tests de contrato contra el esquema o el entorno de pruebas del upstream.
-* Dominio y casos de uso: un `InMemoryProductPricing implements ProductPricing` (en `test/support/` o `infrastructure/catalog/`), con el repositorio en memoria de `ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`; nunca el sistema remoto.
+* Dominio y casos de uso: un `InMemoryProductPricing implements ProductPricing` (en `test/support/` o `infrastructure/catalog/`), con el repositorio en memoria de `ddd-skills/archi-code-ddd/repositories.md`; nunca el sistema remoto.
 
 ## Errores frecuentes
 

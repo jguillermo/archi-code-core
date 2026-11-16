@@ -3946,9 +3946,14 @@ the only skill you install and the only one you call: it classifies each request
 matching skill of the suite from `node_modules/@archi-code/ddd/ddd-skills/`, and turns the
 suite's examples into code that uses this package. For the full API it points to this README
 inside `node_modules/@archi-code/ddd`, so both stay valid when you update the package. Its rules,
-patterns and common mistakes are split into `ddd-skills/archi-code-ddd/` (where each class goes,
-the folders and names, the rules per layer, which double as the audit checklist, and patterns),
-which `SKILL.md` reads from the package too. Do not copy `ddd-skills/` into `.claude/skills/`.
+patterns and common mistakes are split into `ddd-skills/archi-code-ddd/`: one guide that every
+change reads (where each class goes, the folders and names, the mistakes of structure) and one
+guide per kind of class (value objects, aggregates, events, domain services, use cases, reactions,
+read models, repositories, composition and entry points, tests), each with its rules, the code to
+copy and its common mistakes. `SKILL.md` reads from the package only the guides of the classes a
+request touches. When it writes code, the skill asks for the business rules it does not know,
+shows a short design, generates the files layer by layer with their tests, type-checks and formats
+them, and checks them against the mistakes of each guide it used before it finishes. Do not copy `ddd-skills/` into `.claude/skills/`.
 
 To install it in your project, run this from the project root; it links the skill into the Claude
 Code skills folder:
@@ -3984,7 +3989,8 @@ It also works for reviewing code that already uses the package:
 /archi-code-ddd review src/domain and fix whatever breaks the package rules
 ```
 
-With the skill loaded, Claude follows its rules per layer and, before using anything the skill does not show, reads this README in `node_modules`.
+With the skill loaded, Claude follows its rules per layer, avoids the mistakes in its "What not to do"
+guide and, before using anything the skill does not show, reads this README in `node_modules`.
 
 ### Keeping it up to date
 

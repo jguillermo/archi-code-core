@@ -10,6 +10,9 @@ import {
   Required, RequiredValueException, Specification, StringSanitizer, StringType,
   TypePrimitiveException, UpdatedAt, UuidType, ValidationException,
 } from '@archi-code/ddd/domain';
+import {
+  compareText, compareValues, DEFAULT_CRITERIA_LIMITS, isDate, mapField, valuesEqual, visitFilter,
+} from '@archi-code/ddd/domain';
 import type {
   AggregateFinder, AggregateRemover, AggregateSaver, AggregateSearcher, CriteriaAggregate,
   CriteriaDocument, EntityId, EventClass, EventMetadata, JsonTypeValue, PrimitiveTypes,
@@ -24,7 +27,7 @@ import type {
   EventBus, ListenerSubscription, LogContext, Logger, LogLevel,
 } from '@archi-code/ddd/application';
 import {
-  ConsoleLogger, DomainEventBus, EventRegistry, ExceptionClassifier, ExceptionKind,
+  ConsoleLogger, DomainEventBus, EventDeliveryException, EventRegistry, ExceptionClassifier, ExceptionKind,
   IndexedDbInspector, IndexedDbTable, InfrastructureException, InfrastructureExceptionCode,
   InMemoryEventChannel, InMemoryLogger, InternalErrorException, SilentLogger,
   UnknownEventException,
@@ -39,4 +42,6 @@ import { Validations } from '@archi-code/validation';
   base class is internal.
 - `IndexedDbTable`: only IndexedDB repository adapters and read-model stores.
   `IndexedDbInspector`: only diagnostics, never a repository.
+- The second `/domain` statement holds the criteria helpers that criteria adapters use
+  (`@archi-code/criteria-adapters` already wraps them); application code never needs them.
 - CommonJS works too: `const { Required, StringType } = require('@archi-code/ddd/domain');`

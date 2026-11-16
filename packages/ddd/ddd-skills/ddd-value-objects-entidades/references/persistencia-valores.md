@@ -11,23 +11,9 @@ El modelo de datos se subordina al de dominio: claves, integridad referencial e 
 
 ## Con @archi-code/ddd
 
-`[Fuera de los libros: convención de @archi-code/ddd]`
-* Sin mappers ni decoradores de ORM: el repositorio llama a `order.toPrimitives()` y `Order.fromPrimitives(...)`; la versión va junto a los primitivos, nunca dentro, y la recuerda el repositorio en su `WeakMap`.
-* Los primitivos ya dan la forma: valor simple → su valor, `Composite` → objeto, lista → lista, `EnumType` → su opción.
-* Un almacén de documentos guarda los primitivos tal cual; con tablas, el repositorio los reparte en columnas:
+`[Fuera de los libros: convención de @archi-code/ddd]` Sin mappers ni decoradores de ORM: el agregado se convierte a sí mismo y el repositorio guarda sus primitivos con la versión al lado. Código: `ddd-skills/archi-code-ddd/repositories.md` y, para la conversión, `ddd-skills/archi-code-ddd/aggregates.md`.
 
-```ts
-function rowOf(order: Order, version: number): OrderRow {
-  const p = order.toPrimitives();
-  return {
-    id: p.id,
-    ship_city: p.shippingAddress.city,
-    lines: p.lines.items,
-    status: p.status,
-    version: version + 1,
-  };
-}
-```
-
-* Al cargar, `fromPrimitives` valida: un dato corrupto falla al cargar (`ValidationException`), sin repetir reglas de creación ni registrar eventos. Un test de ida y vuelta del agregado prueba que no se pierde ningún campo.
+* Los primitivos ya dan la forma: valor simple → su valor, `Composite` → objeto, lista → lista, estado → su opción del enum.
+* Un almacén de documentos guarda los primitivos tal cual; con tablas, el repositorio los reparte en columnas en infraestructura, partiendo de `toPrimitives()`.
+* Al cargar, cada value object vuelve a validar: un dato corrupto falla al cargar, sin repetir reglas de creación ni registrar eventos. Un test de ida y vuelta del agregado prueba que no se pierde ningún campo.
 * Con `pg`, el parámetro `jsonb` se pasa con `JSON.stringify`. Con Prisma o Drizzle el esquema es de infraestructura. Versión y consulta condicionada: `ddd-skills/ddd-repositorios-persistencia/GUIA.md`.

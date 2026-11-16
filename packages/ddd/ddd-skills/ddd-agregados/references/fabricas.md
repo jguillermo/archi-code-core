@@ -8,7 +8,7 @@ Si un agregado nace de otro, el método vive en el que lo origina (`Product.plan
 
 ```ts
 export class Customer extends AggregateRoot<CustomerId> {
-  // campos, constructor, create, fromPrimitives y toPrimitives como en Order
+  // campos, constructor, create, fromPrimitives y toPrimitives como en ddd-skills/archi-code-ddd/aggregates.md
 
   placeOrder(id: OrderId, lines: OrderLines, address: ShippingAddress): Order {
     if (this._blocked.value) {
@@ -21,18 +21,7 @@ export class Customer extends AggregateRoot<CustomerId> {
 
 `placeOrder` no cambia al cliente: aplica su regla (`BlockedCustomerCannotOrder`, `SAL003`) y llama a `Order.create`, que sigue siendo la única forma de iniciar un pedido. El caso de uso carga el cliente (`CustomerRepository.findById`; si falta, `AggregateNotFoundException`), genera `OrderId.generate()`, llama a `placeOrder`, guarda solo el pedido y publica. El id no sale de un `nextIdentity()` del repositorio como en IDDD `[Fuera de los libros: convención de @archi-code/ddd]`.
 
-```ts
-protected async handle(command: PlaceOrderCommand): Promise<string> {
-  const customer = await this.customers.findById(command.customerId);
-  if (customer === null) {
-    throw new AggregateNotFoundException('Customer', command.customerId.value);
-  }
-  const order = customer.placeOrder(OrderId.generate(), command.lines, command.shippingAddress);
-  await this.orders.save(order);
-  await this.events.publish(order.pullDomainEvents());
-  return order.id.value;
-}
-```
+Forma del caso de uso (cargar, `AggregateNotFoundException`, guardar una vez y publicar): `ddd-skills/archi-code-ddd/use-cases.md`, apartado Code; la de `create`: `ddd-skills/archi-code-ddd/aggregates.md`.
 
 ## Fábrica como servicio
 

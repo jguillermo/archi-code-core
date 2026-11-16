@@ -6,14 +6,17 @@
 
 [Fuera de los libros: convención de @archi-code/ddd]
 
-* La raíz extiende `AggregateRoot<Id>` y llama a `super(id)`. No declara `version`: la recuerda el repositorio en un `WeakMap<Order, number>`, la actualiza solo tras escribir y el caso de uso nunca la ve.
-* Estado en value objects, composites o entidades hijas; constructor **público** que solo asigna; `static create(id, …)` fija el estado inicial, comprueba las invariantes de creación y registra `<Agregado>CreatedDomainEvent`; `fromPrimitives`/`toPrimitives()` con datos planos. Los libros usan constructor privado y fábrica con nombre [IDDD cap. 11].
-* Los ids salen del value object (`OrderId.generate()`, `PaymentId.forOrder(order)`), los calcula el caso de uso y `create` los recibe.
-* La hora sale de `CreatedAt.now()`/`UpdatedAt.now()` (`private touch()`), nunca `new Date()` ni un parámetro; los eventos van sin fecha (`occurredOn` lo pone el bus).
-* El agregado registra con `record()`; el caso de uso guarda y luego publica `pullDomainEvents()`. La transacción es del repositorio; si un evento no puede perderse, outbox en el mismo `save`.
-* Una política es un caso de uso por reacción `<Acción>On<Evento>` (`EventListener` + `@ListensTo`), sin `UseCase` detrás. Los métodos que pide un usuario lanzan errores de negocio; los de reacción vuelven sin cambios si no aplican.
-* Una regla sobre el estado de un agregado (solo el comprador cancela) es un método del agregado, no un servicio de dominio.
-* Errores de negocio sin sufijo `Exception` y con código por contexto (`SAL002`).
+La forma del código (raíz, entidades hijas, `create`, `fromPrimitives`/`toPrimitives`, eventos, errores, reacciones y tests) está en `ddd-skills/archi-code-ddd/aggregates.md`, `ddd-skills/archi-code-ddd/events-and-errors.md`, `ddd-skills/archi-code-ddd/reactions.md` y `ddd-skills/archi-code-ddd/tests.md`. Lo que se aparta de los libros:
+
+* Constructor público que solo asigna y fábrica `static create`; los libros usan constructor privado y fábrica con nombre [IDDD cap. 11].
+* El id lo genera o lo deriva el caso de uso con el value object; no hay `nextIdentity()` en el repositorio como en IDDD.
+* El agregado no lleva versión: la concurrencia optimista y la transacción son del repositorio [IDDD cap. 10, 14].
+* El agregado se convierte a sí mismo a datos planos; no hay mapper en infraestructura [IDDD cap. 6].
+* El agregado registra sus eventos y el caso de uso los publica tras guardar; no hay publicador estático [IDDD cap. 8].
+* La hora actual solo la lee el agregado; los eventos no la llevan al registrarse, la pone el bus.
+* Una política es un caso de uso por reacción, sin servicio de aplicación detrás [IDDD cap. 8].
+* Una regla entre quien pide y el estado (solo el comprador cancela) es del agregado, no autorización del caso de uso.
+* Si el resultado de una acción cambia lo que hace el caso de uso, lo decide y lo devuelve el agregado.
 
 Un agregado es un **límite de consistencia transaccional** con una raíz que lo controla [Destilado cap. 5]; no un grafo cómodo de navegar [IDDD cap. 10].
 
