@@ -1,73 +1,33 @@
 # Entidades en TypeScript
 
-## Qué es una entidad
+## Qué es
 
-Un concepto que se modela como entidad cuando importa su individualidad: hay que distinguirlo de todos los demás y puede cambiar mucho durante mucho tiempo sin dejar de ser el mismo. Identidad única y mutabilidad son lo que la separa de un value object [IDDD cap. 5].
+Lo que importa por su individualidad y cambia sin dejar de ser lo mismo [IDDD cap. 5]. Antes, comprueba si es un valor; si solo se editan datos, CRUD puede bastar [IDDD cap. 5].
 
-Antes de crear una, comprueba si el concepto es en realidad un valor. Y si un sistema solo edita datos, un CRUD puede ser la herramienta adecuada; el problema es aplicar CRUD a sistemas complejos que merecen DDD [IDDD cap. 5].
-
-## Descubrir la entidad
-
-* Empieza solo por los atributos que dan identidad y los que sirven para encontrarla; ignora el resto hasta tener eso claro [IDDD cap. 5].
-* Luego busca el comportamiento esencial en los requisitos y nómbralo con el lenguaje. En IDDD, "los tenants pueden estar activos o desactivados" lleva a `activate()` y `deactivate()`, no a `setActive(boolean)` [IDDD cap. 5].
-* El lenguaje no son solo sustantivos: adjetivos describen y verbos indican lo que las cosas hacen [IDDD cap. 5].
+* Empieza por la identidad y cómo encontrarla; luego el comportamiento esencial con nombres del lenguaje (`activate()`, no `setActive(boolean)`); el lenguaje también son adjetivos y verbos, no solo sustantivos [IDDD cap. 5].
 
 ## Identidad
 
-### Estrategias [IDDD cap. 5; PHP: Entities]
-
-| Estrategia | Cuándo | Cuidado |
+| Estrategia [IDDD cap. 5; PHP: Entities] | Cuándo | Cuidado |
 |---|---|---|
-| La aporta el usuario | El negocio exige un identificador legible (código de campaña) | Puede ser única pero incorrecta. Alternativa: guardar el valor del usuario como atributo para búsquedas y usar otra identidad |
-| La genera la aplicación | Opción por defecto | Generador fiable también en despliegues con varios nodos |
-| La genera la persistencia | Secuencias heredadas | Llega tarde (ver abajo); coste de ir a la base por cada id |
-| La asigna otro contexto | El concepto nace fuera (un cliente del CRM) | Sincronización por eventos; úsala lo menos posible |
+| La aporta el usuario | El negocio exige un código legible | Única pero incorrecta; guárdala como atributo y usa otra identidad |
+| La genera la aplicación | Por defecto | Generador fiable con varios nodos |
+| La genera la persistencia | Secuencias heredadas | Llega tarde; un viaje a la base por id |
+| La asigna otro contexto | El concepto nace fuera (CRM) | Sincronización por eventos; úsala poco |
 
-Con el paquete, la identidad generada por la aplicación es un `IdType` (`class OrderId extends IdType<'OrderId'> {}`); la que aporta el usuario o asigna otro contexto, un `Required(StringType)` con nombre y sus reglas (`CampaignCode`, en `ddd-skills/ddd-value-objects-entidades/references/value-objects-ts.md`, sección 3), usado como `AggregateRoot<CampaignCode>`.
+La del usuario u otro contexto es un `Required(StringType)` con nombre y reglas (`AggregateRoot<CampaignCode>`) `[Fuera de los libros: convención de @archi-code/ddd]`.
 
-### Momento: temprana o tardía
+* **Temprana**: tardía, el evento de creación sale sin id y varios objetos nuevos parecen iguales [IDDD cap. 5]. El caso de uso genera el id (`OrderId.generate()`) y lo pasa a `create`; nunca el repositorio, que solo obtiene y persiste (sin `nextId()`) `[Fuera de los libros: convención de @archi-code/ddd]`.
+* **Sustituta**: si la base exige su clave, otra identidad oculta al modelo [IDDD cap. 5]; aquí vive solo en el repositorio, como la `version`, nunca en `toPrimitives()` `[Fuera de los libros: convención de @archi-code/ddd]`.
+* **Estable**: se pasa a `super(id)` y queda `readonly id`; no se redeclara [IDDD cap. 5].
 
-* **Tardía** (al persistir): el evento de creación se publicaría sin identidad y, si `equals` compara ids, varios objetos nuevos parecerían el mismo en un `Set` [IDDD cap. 5].
-* **Temprana** (al construir): el id se genera antes de crear la entidad y se pasa a `create` [IDDD cap. 5]; con el paquete lo calcula el caso de uso. IDDD prefiere esta opción frente a hacer `equals` por atributos.
-* Lo genera el propio value object de identidad, nunca el repositorio: el repositorio solo obtiene y persiste, sin `nextId()` `[Fuera de los libros: convención de @archi-code/ddd]`.
+## Implementación
 
-```ts
-import { IdType } from '@archi-code/ddd/domain';
+`[Fuera de los libros: convención de @archi-code/ddd]` `Entity<Id>` (de `@archi-code/ddd/domain`) guarda `readonly id` y compara por clase e id; `AggregateRoot<Id>` añade `record()` y `pullDomainEvents()`. La versión no está en el agregado: la recuerda el repositorio en un `WeakMap`.
 
-export class OrderId extends IdType<'OrderId'> {}
-
-const order = Order.create(OrderId.generate(), customerId, lines, shippingAddress);
-```
-
-`XId.generate()` crea un value object de la clase sobre la que se llama (`OrderId.generate()` es un `OrderId`) con un UUID v4. Si conviene orden temporal en índices, `new OrderId(uuidv7())` `[Fuera de los libros]`.
-
-### Identidad sustituta
-
-Si el ORM o la base exige su propia clave (un autoincremental), usa dos identidades: la del dominio y una sustituta para la persistencia, oculta al modelo y a sus clientes [IDDD cap. 5]. Con el paquete, la sustituta vive solo en el repositorio: se guarda junto a los primitivos (como la `version`, que también es solo del repositorio), nunca dentro de `toPrimitives()` ni como campo del agregado.
-
-### Estabilidad
-
-La identidad no cambia durante la vida de la entidad. IDDD la protege con un setter interno que solo permite asignarla una vez [IDDD cap. 5]. Con el paquete, el id se pasa a `super(id)` y queda como `readonly id`; no se redeclara (`_id` + getter). Además es siempre un value object obligatorio (`IdType` o `Required(...)`): un id sin valor lanza `RequiredValueException`, así que dos entidades nuevas nunca son iguales por un id vacío [IDDD cap. 5].
-
-## Patrón de implementación
-
-No se escribe una clase base `Entity`: viene de `@archi-code/ddd/domain`. `Entity<Id>` solo guarda `readonly id` y compara por clase e id; `AggregateRoot<Id>` la extiende y añade solo los eventos (`EventBase`) (`record()`, `pullDomainEvents()`); la versión para concurrencia optimista no está en el agregado, la recuerda cada repositorio en un `WeakMap<Order, number>` `[Fuera de los libros: convención de @archi-code/ddd]`.
-
-Una raíz de agregado extiende `AggregateRoot`. Una entidad hija (una parte con identidad propia dentro del agregado, que se busca por ese id) extiende `Entity`, guarda su id local y value objects, y sus métodos de negocio solo los llama su raíz [IDDD cap. 5 y cap. 10]:
+Una entidad hija (se busca por su id dentro del agregado) extiende `Entity`, y sus métodos solo los llama la raíz [IDDD cap. 5 y 10]:
 
 ```ts
-import { BooleanType, DomainException, Entity, NumberType, Required, StringType } from '@archi-code/ddd/domain';
-
-export class SeatNumber extends Required(NumberType) {}
-export class SeatLabel extends Required(StringType) {}
-export class Sold extends Required(BooleanType) {}
-
-export class SeatAlreadySold extends DomainException {
-  constructor(seatNumber: number) {
-    super(`Seat ${seatNumber} is already sold`, ['VEN001']);
-  }
-}
-
 export class Seat extends Entity<SeatNumber> {
   private _label: SeatLabel;
   readonly sold: Sold;
@@ -89,194 +49,24 @@ export class Seat extends Entity<SeatNumber> {
     this._label = label;
   }
 }
-
-new Seat(new SeatNumber(7), new SeatLabel('A1'), new Sold(false)).equals(
-  new Seat(new SeatNumber(7), new SeatLabel('B7'), new Sold(true)),
-); // true: misma clase y mismo id
 ```
 
-Una entidad hija no tiene eventos, `create` ni `toPrimitives`/`fromPrimitives`: la raíz la construye (asignándole su id local) y la convierte. Si nadie busca la parte por su id (las líneas de un pedido), no es una entidad hija sino un `Composite` (`ddd-skills/ddd-value-objects-entidades/references/value-objects-ts.md`, sección 7).
+No tiene eventos, `create` ni conversión propia: la raíz la construye y la convierte. Si nadie la busca por id, es un `Composite`.
 
-### Creación frente a reconstitución
+## Creación y reconstitución
 
-Separar dos caminos evita que la carga desde base de datos vuelva a disparar reglas de creación o eventos `[Fuera de los libros como patrón explícito; IDDD lo resuelve con acceso por campo del ORM]`. Con el paquete, los dos caminos son `static create(id, …valueObjects)` y `static fromPrimitives(primitives: PrimitiveTypes<X>)`, que llaman al mismo constructor público, con su `toPrimitives()` para guardar `[Fuera de los libros: convención de @archi-code/ddd]`. En `domain/value-object/CustomerStatusType.ts`, el estado:
+Dos caminos para que cargar no repita reglas ni eventos `[Fuera de los libros como patrón explícito; IDDD lo resuelve con acceso por campo del ORM]`. Los libros usan constructor privado y fábrica con nombre [IDDD cap. 11]; aquí `[Fuera de los libros: convención de @archi-code/ddd]`:
 
-```ts
-import { EnumType, Required } from '@archi-code/ddd/domain';
+* Constructor público que solo asigna.
+* `static create(id, …valueObjects)`: estado inicial, invariantes de creación y `<Agregado>CreatedDomainEvent`.
+* `static fromPrimitives(PrimitiveTypes<X>)`: técnico, solo para repositorios; rehace cada value object (que vuelve a validar), sin reglas ni eventos; `toPrimitives()` devuelve datos planos.
+* Cada cambio es un método con nombre que actualiza `_updatedAt` con `UpdatedAt.now()` en `touch()`; nunca `new Date()` ni la hora como parámetro. Eventos sin fecha: `occurredOn` lo pone el bus.
+* Campos: `readonly` público o `private _campo` con getter sin `_`; `createdAt` y `_updatedAt` los últimos. Derivados como métodos (`isBlocked()`).
+* Un método pedido por un usuario lanza un error de negocio; uno que se repite sin efecto (bloquear un cliente ya bloqueado) es idempotente.
 
-export enum CustomerStatus {
-  ACTIVE = 'active',
-  BLOCKED = 'blocked',
-}
+La clase completa (`Order`) está en `ddd-skills/ddd-agregados/references/implementacion-ts.md`.
 
-export class CustomerStatusOption extends EnumType<CustomerStatus> {
-  protected getEnum(): typeof CustomerStatus {
-    return CustomerStatus;
-  }
-}
+## Historial y roles
 
-export class CustomerStatusType extends Required(CustomerStatusOption) {}
-```
-
-El resto de piezas, cada una en su fichero de `domain/`:
-
-```ts
-import { Validations } from '@archi-code/validation';
-import { DomainException, EventBase, Required, StringType } from '@archi-code/ddd/domain';
-import type { EventMetadata } from '@archi-code/ddd/domain';
-
-export class CustomerName extends Required(StringType) {}
-
-@Validations([{ validator: 'isLength', properties: { min: 3, max: 200 } }])
-export class BlockReason extends Required(StringType) {}
-
-export class CustomerBlockedDomainEvent extends EventBase {
-  static readonly eventName = 'customer.blocked';
-
-  readonly customerId: string;
-  readonly reason: string;
-
-  constructor({
-    customerId,
-    reason,
-    eventId,
-    occurredOn,
-  }: { customerId: string; reason: string } & EventMetadata) {
-    super({ eventId, occurredOn });
-    this.customerId = customerId;
-    this.reason = reason;
-  }
-}
-
-export class BlockedCustomerCannotChangeEmail extends DomainException {
-  constructor(customerId: string) {
-    super(`Customer ${customerId} is blocked and cannot change the email`, ['SAL004']);
-  }
-}
-```
-
-`CustomerCreatedDomainEvent` (`'customer.created'`, con `customerId`) se escribe igual. La raíz, en `domain/aggregate/Customer.ts`:
-
-```ts
-import { AggregateRoot, CreatedAt, UpdatedAt } from '@archi-code/ddd/domain';
-import type { PrimitiveTypes } from '@archi-code/ddd/domain';
-
-export class Customer extends AggregateRoot<CustomerId> {
-  private _name: CustomerName;
-  private _email: Email;
-  private _status: CustomerStatusType;
-  readonly createdAt: CreatedAt;
-  private _updatedAt: UpdatedAt;
-
-  constructor(
-    id: CustomerId,
-    name: CustomerName,
-    email: Email,
-    status: CustomerStatusType,
-    createdAt: CreatedAt,
-    updatedAt: UpdatedAt,
-  ) {
-    super(id);
-    this._name = name;
-    this._email = email;
-    this._status = status;
-    this.createdAt = createdAt;
-    this._updatedAt = updatedAt;
-  }
-
-  static create(id: CustomerId, name: CustomerName, email: Email): Customer {
-    const customer = new Customer(
-      id,
-      name,
-      email,
-      new CustomerStatusType(CustomerStatus.ACTIVE),
-      CreatedAt.now(),
-      UpdatedAt.now(),
-    );
-    customer.record(new CustomerCreatedDomainEvent({ customerId: customer.id.value }));
-    return customer;
-  }
-
-  static fromPrimitives(primitives: PrimitiveTypes<Customer>): Customer {
-    return new Customer(
-      new CustomerId(primitives.id),
-      new CustomerName(primitives.name),
-      new Email(primitives.email),
-      new CustomerStatusType(primitives.status),
-      new CreatedAt(primitives.createdAt),
-      new UpdatedAt(primitives.updatedAt),
-    );
-  }
-
-  get name(): CustomerName {
-    return this._name;
-  }
-
-  get email(): Email {
-    return this._email;
-  }
-
-  get status(): CustomerStatusType {
-    return this._status;
-  }
-
-  get updatedAt(): UpdatedAt {
-    return this._updatedAt;
-  }
-
-  isBlocked(): boolean {
-    return this._status.value === CustomerStatus.BLOCKED;
-  }
-
-  changeEmail(email: Email): void {
-    if (this.isBlocked()) {
-      throw new BlockedCustomerCannotChangeEmail(this.id.value);
-    }
-    this._email = email;
-    this.touch();
-  }
-
-  block(reason: BlockReason): void {
-    if (this.isBlocked()) {
-      return;
-    }
-    this._status = new CustomerStatusType(CustomerStatus.BLOCKED);
-    this.touch();
-    this.record(
-      new CustomerBlockedDomainEvent({ customerId: this.id.value, reason: reason.value }),
-    );
-  }
-
-  toPrimitives(): PrimitiveTypes<Customer> {
-    return {
-      id: this.id.value,
-      name: this._name.value,
-      email: this._email.value,
-      status: this._status.value,
-      createdAt: this.createdAt.value,
-      updatedAt: this._updatedAt.value,
-    };
-  }
-
-  private touch(): void {
-    this._updatedAt = UpdatedAt.now();
-  }
-}
-```
-
-`CustomerId` y `Email` son los de `ddd-skills/ddd-value-objects-entidades/references/value-objects-ts.md`.
-
-Fíjate en:
-* Constructor público que solo asigna y dos caminos que lo usan: `create` (fija el estado inicial, comprueba las reglas de creación y registra `CustomerCreatedDomainEvent`) y `fromPrimitives` (técnica, solo para repositorios: rehace cada value object desde su primitivo, que vuelve a validar, y no registra nada). Los libros usan un constructor privado y una fábrica con nombre del negocio [IDDD cap. 11].
-* Ningún setter; cada cambio es un comportamiento con nombre y sus reglas, y actualiza `_updatedAt` con `UpdatedAt.now()` (en `touch()`), nunca con `new Date()`, sin recibir la hora como parámetro `[Fuera de los libros: convención de @archi-code/ddd]`. `changeEmail` lo pide un usuario y lanza un error de negocio; `block` es idempotente y registra `CustomerBlockedDomainEvent` sin fecha (`occurredOn` lo pone el bus al enviarlo).
-* Todos los atributos son value objects; cambiar el correo es reemplazar un `Email`.
-* Getters solo para lo que los clientes necesitan leer, dicen los libros. Con el paquete, cada campo que se guarda es `readonly` público o `private _campo` con un getter público con su nombre sin `_`, porque `toPrimitives()` los lee, y `createdAt`/`_updatedAt` van los últimos `[Fuera de los libros: convención de @archi-code/ddd]`. Los valores derivados son métodos (`isBlocked()`), nunca getters.
-* El agregado no declara `version` ni la incluye en `toPrimitives()`: la versión es solo del repositorio, que la recuerda por agregado en un `WeakMap` y la guarda junto a los primitivos.
-
-## Seguimiento de cambios
-
-Una entidad no tiene por qué guardar su historial. Si ciertos cambios importan al negocio, la forma práctica es un evento de dominio por cada comando relevante y un almacén de eventos [IDDD cap. 5]. Ver `ddd-skills/ddd-eventos-dominio/GUIA.md`.
-
-## Roles
-
-Un mismo objeto puede jugar varios roles; IDDD discute modelarlo con interfaces por rol y advierte de que se puede complicar [IDDD cap. 5]. Antes de hacerlo, revisa si los roles pertenecen a contextos distintos: suele ser el caso (Cliente en Ventas, Destinatario en Almacén).
+* Si los cambios importan al negocio, un evento por comando relevante y un almacén de eventos [IDDD cap. 5]; ver `ddd-skills/ddd-eventos-dominio/GUIA.md`.
+* Varios roles de un objeto suelen ser contextos distintos (Cliente en Ventas, Destinatario en Almacén) [IDDD cap. 5].

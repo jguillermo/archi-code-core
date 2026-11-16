@@ -1,106 +1,57 @@
 # Estilos de integración
 
-## Comparativa
-
-| Estilo | Acoplamiento temporal | Robustez | Cuándo |
-|---|---|---|---|
-| RPC (SOAP, gRPC, HTTP con procedimientos) | Alto: si el otro cae, fallas | Baja. Parece una llamada local y no lo es [Destilado cap. 4] | Consultas rápidas a servicios muy disponibles; siempre con ACL |
-| REST | Alto en peticiones directas | Media. Se apoya en la fiabilidad probada de la web [Destilado cap. 4] | OHS para varios consumidores; consultas de detalle (query-back) |
-| Mensajería con eventos | Bajo | La más robusta: elimina gran parte del acoplamiento temporal y obliga a diseñar contando con latencia [Destilado cap. 4] | Notificar hechos, coordinar procesos entre contextos |
-| Base de datos o ficheros compartidos | Estructural | Pésima. Evitar [Destilado cap. 4; IDDD cap. 13] | Solo heredados sin alternativa, con ACL |
-
-## Principios de la computación distribuida
-
-IDDD los formula como principios, no como falacias, para subrayar que hay que diseñar contando con ellos [IDDD cap. 13]: la red no es fiable; siempre hay latencia; el ancho de banda no es infinito; la red no es segura; la topología cambia; el conocimiento y las políticas están repartidos entre varios administradores; el transporte tiene coste; la red es heterogénea.
+| Estilo | Acoplamiento temporal | Cuándo |
+|---|---|---|
+| RPC | Alto; parece local y no lo es [Destilado cap. 4] | Consultas a servicios muy disponibles, con ACL |
+| REST | Alto en peticiones directas [Destilado cap. 4] | OHS para varios consumidores; query-back |
+| Mensajería | Bajo; la más robusta [Destilado cap. 4] | Notificar hechos, coordinar procesos |
+| BD o ficheros compartidos | Estructural; evitar [Destilado cap. 4; IDDD cap. 13] | Solo heredados, con ACL |
 
 ## REST
 
-* El contexto que ofrece REST debe proporcionar un OHS con Published Language; los recursos son el idioma publicado [Destilado cap. 4].
-* Recursos **sintéticos**: con la forma que necesita el caso de uso del cliente, no la del agregado. Reflejar los agregados fuerza a todos los clientes a ser Conformist ante cualquier cambio del modelo [Destilado cap. 4].
-* Para reducir la dependencia temporal aunque solo haya REST: llama al sistema remoto desde un temporizador o al recibir un mensaje propio, con reintentos y espera creciente, en lugar de hacerlo dentro de la petición del usuario [IDDD cap. 13].
-
-### REST asíncrono (notification log)
-
-Publicar los eventos de dominio como un feed de recursos (al estilo Atom) que los clientes sondean periódicamente. Si el servicio no está disponible, el cliente reintenta más tarde [Destilado cap. 4]. IDDD lo implementa con un log de notificaciones actual y logs archivados navegables; cada cliente es responsable de no consumir duplicados [IDDD cap. 3 y cap. 13].
+* El contexto que ofrece REST da un OHS con Published Language; recursos sintéticos para el caso de uso del cliente [Destilado cap. 4].
+* Para reducir la dependencia temporal, llama al remoto desde un temporizador o al recibir un mensaje propio, con reintentos y espera creciente, no dentro de la petición del usuario [IDDD cap. 13].
+* REST asíncrono: los eventos como feed que los clientes sondean; cada cliente evita duplicados [Destilado cap. 4; IDDD cap. 3 y 13].
 
 ## Mensajería
 
-* El contexto suscrito reacciona a eventos de dominio publicados por otros, y eso suele crear o modificar un agregado propio [Destilado cap. 4].
-* Si el cliente necesita forzar una acción, envía un **mensaje de comando** y recibe el resultado como un evento publicado [Destilado cap. 4].
-* **Entrega al menos una vez** en el mecanismo y **receptor idempotente** en el consumidor: deduplicar o reaplicar con el mismo resultado [Destilado cap. 4].
-* Las peticiones no deben bloquearse esperando respuesta; siempre habrá algo de latencia y hay que planificarla [Destilado cap. 4].
+* El suscriptor reacciona creando o modificando un agregado propio; para forzar una acción se envía un mensaje de comando y el resultado llega como evento [Destilado cap. 4].
+* Al menos una vez + receptor idempotente; nunca bloquear esperando respuesta [Destilado cap. 4].
+* Publicar de forma fiable (outbox) `[Fuera de los libros como nombre; la idea está en IDDD cap. 8]`: el caso de uso publica tras `save` y, si el evento no puede perderse, el repositorio guarda agregado y eventos en la misma escritura atómica y un reenviador los entrega por un `EventChannel` `[Fuera de los libros: convención de @archi-code/ddd]`. Detalle en `ddd-skills/ddd-eventos-dominio/GUIA.md`.
 
-### Publicar de forma fiable
+### Receptor idempotente
 
-`[Fuera de los libros como nombre; la idea de guardar eventos en la misma transacción está en IDDD cap. 8]`. Patrón **outbox transaccional**: en la misma transacción que guarda el agregado, se guardan sus eventos en una tabla; un proceso aparte los lee y los publica en el bus, marcándolos como enviados. Evita perder eventos si el bus falla tras confirmar la transacción, o publicar eventos de cambios que luego se revierten. Se desarrolla en `ddd-skills/ddd-eventos-dominio/GUIA.md`. Con `@archi-code/ddd` la aplicación no abre transacciones: el caso de uso sigue llamando a `EventBus.publish` después de `save`, y el outbox lo escribe el adaptador del repositorio, que guarda el agregado y sus eventos pendientes en la misma escritura atómica de `save` (el mismo documento o la misma transacción de base de datos); un reenviador los entrega después por un `EventChannel` `[Fuera de los libros: convención de @archi-code/ddd]`.
-
-### Receptor idempotente en TypeScript
-
-El evento de Almacén llega por un `EventChannel` a un caso de uso por reacción (`RegisterStockReservationOnStockReserved`, en `ddd-skills/ddd-context-mapping/references/anticorrupcion-ts.md`): una sola clase con `@ListensTo`, sin un `UseCase` detrás, que construye los value objects, carga el pedido, llama al agregado, guarda y publica `[Fuera de los libros: convención de @archi-code/ddd]`. Registra un hecho: no lo rechaza, vuelve sin error si el pedido no existe (un error haría que el canal lo reentregara sin fin) y el método del agregado es idempotente.
-
-El método de `Order` (el de `ddd-skills/ddd-agregados/references/implementacion-ts.md`), que guarda la reserva en `private _stockReservation: ReservationReference` (un `UuidType` opcional, construido con `null` mientras no hay reserva) y confirma el pedido cuando también tiene la autorización de pago:
-
-```ts
-registerStockReservation(reservation: ReservationReference): void {
-  if (!this.isIn(OrderStatus.PENDING)) {
-    return;
-  }
-  this._stockReservation = reservation;
-  this.touch();
-  this.tryToConfirm();
-}
-```
-
-Es un método de reacción: si el hecho no aplica en el estado actual, vuelve sin cambios y nunca lanza un error de negocio.
-
-Aplicar dos veces "reserva registrada" no cambia nada la segunda vez ni graba un segundo evento. Cuando la operación no es idempotente por naturaleza, el `eventId` del mensaje se guarda como procesado en la misma escritura atómica que el cambio, y si ya estaba no se hace nada `[Fuera de los libros]`; con el paquete esa escritura la hace el adaptador que persiste el cambio, no el caso de uso por reacción, que solo le pasa el `eventId` (ver "Consumidor idempotente" en `ddd-skills/ddd-eventos-dominio/references/publicacion-ts.md`) `[Fuera de los libros: convención de @archi-code/ddd]`. Si dos mensajes del mismo pedido llegan a la vez, `save` lanza `ConcurrencyException` en uno de ellos y la reacción falla; lo que pase después lo decide el canal (reintento o cola de mensajes muertos), y en el reintento el caso de uso por reacción vuelve a cargar el pedido y la operación idempotente no cambia nada.
+La reacción (`RegisterStockReservationOnStockReserved`, en `ddd-skills/ddd-context-mapping/references/anticorrupcion-ts.md`) registra un hecho: vuelve sin error si el agregado no existe y llama a un método idempotente que vuelve sin cambios si no aplica (`Order.registerStockReservation`, en `ddd-skills/ddd-agregados/references/implementacion-ts.md`). Si la operación no es idempotente por naturaleza, el `eventId` se guarda como procesado en la misma escritura que el cambio `[Fuera de los libros]`; esa escritura es del adaptador, no de la reacción ("Consumidor idempotente" en `ddd-skills/ddd-eventos-dominio/references/publicacion-ts.md`) `[Fuera de los libros: convención de @archi-code/ddd]`. Un `ConcurrencyException` hace fallar la reacción y el canal reentrega.
 
 ## Contratos y versionado
 
-* Dos opciones para intercambiar estructuras: distribuir clases e interfaces a todos los sistemas (tipado fuerte, pero recompilaciones y riesgo de usar objetos ajenos como propios) o un contrato basado en estándar, un media type propio que es un Published Language [IDDD cap. 13].
-* Con contrato, el consumidor solo lee datos; no tiene acceso a comportamiento del otro modelo, y IDDD lo ve como protección, no como carencia. Los cálculos los hace el productor y los envía como atributos del evento [IDDD cap. 13].
-* Los eventos y notificaciones llevan versión. Si se diseñan con cuidado, muchos consumidores pueden leer cualquier versión como si fuera la 1 y no necesitan cambiar [IDDD cap. 13].
-* Los value objects estables (identificadores) se pueden incluir en el evento; quedan congelados en la estructura [IDDD cap. 13]. Con el paquete, el payload lleva solo primitivos tomados de los value objects (`orderId: string`), también los identificadores `[Fuera de los libros: convención de @archi-code/ddd]`.
-
-La notificación de IDDD envuelve el evento en `{ notificationId, typeName, version, occurredOn, event }` [IDDD cap. 13]. Con el paquete, el mensaje publicado es un `SerializedEvent` plano, con el nombre del Published Language, que también identifica su versión `[Fuera de los libros: convención de @archi-code/ddd]`:
+* Contrato por estándar (Published Language) en vez de distribuir clases: el consumidor solo lee datos y el productor envía los cálculos como atributos [IDDD cap. 13].
+* Eventos versionados, diseñados para que muchos consumidores lean cualquier versión [IDDD cap. 13]. Aquí la versión va en el `eventName` (`sales.order.OrderPlacedV2`) `[Fuera de los libros: convención de @archi-code/ddd]`.
+* Los identificadores pueden viajar en el evento [IDDD cap. 13], aquí como primitivos (`orderId: string`) `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ```json
-{
-  "eventName": "sales.order.OrderPlaced",
-  "eventId": "6f1c2a3b-8d4e-4f5a-9b6c-7d8e9f0a1b2c",
-  "occurredOn": "2026-10-18T10:15:00.000Z",
-  "orderId": "9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c",
-  "customerId": "1c5e7a90-2b3d-4e6f-8a1b-2c3d4e5f6a7b",
-  "lines": [
-    { "sku": "TORCH-01", "quantity": 2, "unitPrice": { "amount": 850, "currency": "EUR" } }
-  ],
-  "total": { "amount": 1700, "currency": "EUR" }
-}
+{ "eventName": "sales.order.OrderPlaced", "eventId": "6f1c2a3b-…", "occurredOn": "2026-10-18T10:15:00.000Z",
+  "orderId": "9b2f6c1e-…", "total": { "amount": 1700, "currency": "EUR" } }
 ```
 
-`eventName` hace de `typeName` y de `version`: el mensaje no lleva campo de versión, y una versión incompatible del contrato se publica con otro nombre (`sales.order.OrderPlacedV2`) mientras los consumidores migran. `eventId` es el identificador con el que el consumidor deduplica. No hay `notificationId` secuencial: si publicas un feed REST de notificaciones, la secuencia la asigna tu canal duradero (la fila del outbox).
+El evento interno no sale tal cual: el adaptador del broker lo traduce a su contrato y un evento sin contrato no sale del contexto; para no perder mensajes, publica al broker el reenviador del outbox tras el commit (`ddd-skills/ddd-eventos-dominio/references/publicacion-ts.md`).
 
-El evento interno no sale tal cual. La traducción al Published Language vive en infraestructura, en el adaptador que habla con el broker: un `EventChannel` del proyecto (`ContractPublishingChannel`) que pasa cada `SerializedEvent` por `SalesContracts` (qué eventos salen y con qué contrato, uno por versión publicada, con `messageId` = `eventId`) y entrega todos al canal interno. El código está en `ddd-skills/ddd-eventos-dominio/references/publicacion-ts.md` ("Lenguaje publicado en el adaptador del broker"); los casos de uso siguen viendo solo `EventBus`, y un evento sin contrato es interno y no sale del contexto. Para no perder mensajes, la publicación al broker la hace el reenviador del outbox después del commit (ver "Publicar de forma fiable").
-
-El consumidor no valida el mensaje con un esquema aparte: lo lee con su propia clase `extends EventBase` (solo los campos que usa) y su caso de uso por reacción construye cada valor como value object con `ValueObjectBuilder.build`, que lanza una `ValidationException` con todos los campos que no cumplen el contrato. El ejemplo completo está en `ddd-skills/ddd-context-mapping/references/anticorrupcion-ts.md`.
+El consumidor no valida con un esquema aparte: su reacción construye los value objects con `ValueObjectBuilder.build`, que lanza una `ValidationException` con cada campo inválido.
 
 ## Evento enriquecido o consulta al origen
 
-| | Evento enriquecido | Evento ligero + query-back |
+| | Enriquecido | Ligero + query-back |
 |---|---|---|
-| Autonomía del consumidor | Alta | Depende de que el origen responda |
-| Previsión de necesidades | Difícil acertar con todo | No hace falta |
-| Seguridad | Riesgo de exponer datos de más | El origen controla el acceso en cada consulta |
+| Autonomía | Alta | Depende del origen |
+| Previsión | Difícil acertar | No hace falta |
+| Seguridad | Riesgo de exponer de más | El origen controla el acceso |
 
-Hay casos que piden una mezcla [Destilado cap. 4]. En el ejemplo del libro, `PolicyIssued` lleva el identificador de la póliza; el consumidor lo guarda como `issuedPolicyId` para trazabilidad y consulta al origen con `GET` si necesita más [Destilado cap. 4].
-
-Pauta `[Fuera de los libros]`: incluye en el evento lo que el consumidor necesita para decidir y que no cambiará (identificadores, importes cerrados, fechas del hecho); deja fuera datos personales que el consumidor no necesite (minimización de datos) y datos que cambian a menudo.
+Se pueden mezclar [Destilado cap. 4]. Pauta `[Fuera de los libros]`: incluye lo que no cambia y sirve para decidir (ids, importes cerrados, fechas); fuera datos personales innecesarios y datos que cambian a menudo.
 
 ## Procesos de larga duración
 
-Cuando un proceso implica a varios contextos, se coordina con eventos y un objeto que guarda el estado del proceso, con un rastreador de tiempos para detectar respuestas que no llegan (estados como no completado, completado normalmente o agotado por tiempo) [IDDD cap. 13]. En la práctica actual se llama a esto process manager o saga `[Fuera de los libros como nombres]`. Reglas:
-
-* El estado del proceso es un concepto del dominio con nombre del lenguaje (`ConfirmaciónDePedido`), no un `SagaState` genérico.
-* Cada paso tiene un resultado esperado y un plazo.
-* Las acciones compensatorias (liberar reserva, anular autorización) son comandos de negocio, no "rollbacks".
-* Cuando un recurso remoto aún no existe, modela esa situación como estado. En IDDD, una discusión remota tiene estados de disponibilidad: complemento no contratado, no solicitada, solicitada y lista [IDDD cap. 3].
+Un objeto con el estado del proceso y un rastreador de plazos (completado, agotado) [IDDD cap. 13] (process manager o saga `[Fuera de los libros como nombres]`):
+* Estado con nombre del lenguaje, no `SagaState`.
+* Cada paso con resultado esperado y plazo.
+* Las compensaciones son comandos de negocio.
+* Lo remoto que aún no existe es un estado [IDDD cap. 3].

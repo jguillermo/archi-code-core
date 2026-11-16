@@ -2,18 +2,11 @@
 
 ## Repositorio en memoria
 
-Un mapa con la identidad como clave y el agregado como valor [IDDD cap. 12]. Dos detalles para que no mienta `[Fuera de los libros]`: guardar copias (para que modificar un objeto sin `save` no "persista") y comprobar versiones.
-
-El paquete no lo da: cada proyecto escribe el suyo, uno por agregado, como cualquier otra implementación de una tecnología, en `infrastructure/persistence/in-memory-order-repository.ts` si la aplicación corre en memoria o en `test/support/` si solo es un doble de test `[Fuera de los libros: convención de @archi-code/ddd]`. Extiende el repositorio abstracto que el dominio declara para su agregado (`OrderRepository`, en `domain/repository/OrderRepository.ts`, que extiende `AggregateRepository<Order>` e implementa `AggregateFinder<Order>`, `AggregateSaver<Order>` y `AggregateRemover<Order>`) e implementa exactamente sus verbos; su constructor no recibe nada (no hay tecnología de la que depender), llama a `order.toPrimitives()` y `Order.fromPrimitives(row.primitives)` y recuerda la versión de cada agregado en un `WeakMap`, igual que un adaptador real.
-
-En `src/contexts/sales/infrastructure/persistence/in-memory-order-repository.ts`:
+Un mapa id → agregado [IDDD cap. 12] que guarda copias y comprueba versiones para no mentir `[Fuera de los libros]`. Lo escribe el proyecto, uno por agregado, en `infrastructure/persistence/` o `test/support/` `[Fuera de los libros: convención de @archi-code/ddd]`:
 
 ```ts
 import type { PrimitiveTypes } from '@archi-code/ddd/domain';
 import { ConcurrencyException } from '@archi-code/ddd/application';
-import { Order } from '../../domain/aggregate/Order';
-import { OrderRepository } from '../../domain/repository/OrderRepository';
-import type { OrderId } from '../../domain/value-object/OrderId';
 
 interface OrderRow {
   version: number;
@@ -26,14 +19,17 @@ export class InMemoryOrderRepository extends OrderRepository {
 
   async findById(id: OrderId): Promise<Order | null> {
     const row = this.rows.get(id.value);
-    return row === undefined ? null : this.load(row);
+    if (row === undefined) {
+      return null;
+    }
+    const order = Order.fromPrimitives(structuredClone(row.primitives));
+    this.versions.set(order, row.version);
+    return order;
   }
 
   async save(order: Order): Promise<void> {
-    const key = order.id.value;
     const version = this.checkedVersion(order);
-    const primitives = structuredClone(order.toPrimitives());
-    this.rows.set(key, { version: version + 1, primitives });
+    this.rows.set(order.id.value, { version: version + 1, primitives: structuredClone(order.toPrimitives()) });
     this.versions.set(order, version + 1);
   }
 
@@ -43,138 +39,36 @@ export class InMemoryOrderRepository extends OrderRepository {
   }
 
   private checkedVersion(order: Order): number {
-    const key = order.id.value;
     const version = this.versions.get(order) ?? 0;
-    if ((this.rows.get(key)?.version ?? 0) !== version) {
-      throw new ConcurrencyException('Order', key, version);
+    if ((this.rows.get(order.id.value)?.version ?? 0) !== version) {
+      throw new ConcurrencyException('Order', order.id.value, version);
     }
     return version;
   }
-
-  private load(row: OrderRow): Order {
-    const order = Order.fromPrimitives(structuredClone(row.primitives));
-    this.versions.set(order, row.version);
-    return order;
-  }
 }
 ```
 
-* Guarda `structuredClone` de `order.toPrimitives()` con su versión al lado (nunca dentro), y cada `findById` reconstruye un objeto nuevo con `Order.fromPrimitives(copy)` y anota en `versions` la versión de la fila: cambiar un agregado sin `save` no persiste nada.
-* Sigue el mismo contrato de concurrencia que un repositorio real: la versión es solo del repositorio, que recuerda la de cada agregado que cargó o guardó en un `WeakMap<Order, number>` (`0` si no lo conoce: es nuevo). `save` y `remove` lanzan `ConcurrencyException` si la versión almacenada no coincide con la recordada (también al dar de alta un id ocupado), y `save` actualiza el `WeakMap` solo después de escribir. El agregado no declara ni mapea ninguna versión `[Fuera de los libros: convención de @archi-code/ddd]`.
-* Las claves son `id.value`; `IdType` y `UuidType` guardan el valor en minúsculas, así que la búsqueda no distingue mayúsculas.
-* Cada `save` y cada `remove` es atómico, como el de un repositorio real: no hay transacción que abrir ni estado que restaurar en los tests (la transacción es del repositorio, `ddd-skills/ddd-repositorios-persistencia/references/transacciones-ts.md`).
-* No tiene `findAll()` salvo que los tests del proyecto lo necesiten; si se añade, es solo comodidad de los tests y un repositorio real no lo tiene `[Fuera de los libros: convención de @archi-code/ddd]`. Como doble de test puede añadir ayudas técnicas (`versionOf(id)`), nunca consultas de negocio: ningún caso de uso las ve, porque los casos de uso reciben `OrderRepository`.
-* Otro agregado tiene el suyo, escrito igual (`InMemoryProductRepository` con `Product.fromPrimitives` y `product.toPrimitives()`).
+* Extiende `OrderRepository` con exactamente sus verbos; su constructor no recibe nada; convierte con `toPrimitives()`/`fromPrimitives()` y recuerda versiones en un `WeakMap`, como uno real. Otro agregado tiene el suyo, escrito igual.
+* Copias `structuredClone` en las dos direcciones: cambiar un agregado sin `save` no persiste nada.
+* Claves `id.value` (`IdType`/`UuidType` guardan en minúsculas).
+* Cada `save`/`remove` es atómico: no hay transacción que abrir ni estado que restaurar en los tests.
+* No comprueba que la conversión esté completa: lo prueba el spec del agregado.
+* `findAll()` solo si los tests lo necesitan (un repositorio real no lo tiene); como doble de test puede añadir ayudas técnicas (`versionOf(id)`), nunca consultas de negocio; ningún caso de uso las ve `[Fuera de los libros: convención de @archi-code/ddd]`.
+* No guarda eventos: los tests los leen de `channel.sent` del `InMemoryEventChannel`.
 
-El repositorio en memoria no comprueba que la conversión esté completa: que `fromPrimitives` deshaga `toPrimitives` sin perder ningún campo lo prueba el spec del agregado (`Order.fromPrimitives(order.toPrimitives()).toPrimitives()` igual a `order.toPrimitives()`) `[Fuera de los libros: convención de @archi-code/ddd]`. La suite de contrato de abajo se ejecuta contra este repositorio y contra el adaptador real, así que el doble no puede apartarse del contrato. El repositorio no guarda los eventos publicados: los publica el caso de uso, y los tests los leen de `channel.sent` del `InMemoryEventChannel` `[Fuera de los libros: convención de @archi-code/ddd]`.
+## Suite de contrato compartida
 
-## Tests de contrato compartidos
+`test/support/order-repository-contract.ts` recibe una fábrica de `OrderRepository` y se ejecuta contra el doble y el adaptador real `[Fuera de los libros]`. Así el doble no puede apartarse del contrato. Casos mínimos:
 
-Un único conjunto de tests, en `test/support/order-repository-contract.ts` del proyecto, recibe una fábrica de `OrderRepository` y se ejecuta contra la referencia en memoria y contra el adaptador real `[Fuera de los libros]`:
-
-```ts
-import { expect, it } from 'vitest';
-import { ConcurrencyException } from '@archi-code/ddd/application';
-import { Order } from '../../src/contexts/sales/domain/aggregate/Order';
-import type { OrderRepository } from '../../src/contexts/sales/domain/repository/OrderRepository';
-import { CustomerId } from '../../src/contexts/sales/domain/value-object/CustomerId';
-import { OrderId } from '../../src/contexts/sales/domain/value-object/OrderId';
-import { OrderLine } from '../../src/contexts/sales/domain/value-object/OrderLine';
-import { OrderLines } from '../../src/contexts/sales/domain/value-object/OrderLines';
-import { ShippingAddress } from '../../src/contexts/sales/domain/value-object/ShippingAddress';
-
-const orderId = '9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c';
-const customerId = '3f1d2c4b-5a6e-4f70-8b9c-0d1e2f3a4b5c';
-
-export function orderRepositoryContract(
-  make: () => Promise<OrderRepository>,
-): void {
-  const line = (sku: string) =>
-    OrderLine.fromPrimitives({ sku, quantity: 1, unitPrice: { amount: 4990, currency: 'EUR' } });
-  const placeOrder = () =>
-    Order.create(
-      new OrderId(orderId),
-      new CustomerId(customerId),
-      new OrderLines({ items: [line('TORCH-01')] }),
-      ShippingAddress.fromPrimitives({ street: 'Calle Mayor 1', city: 'Huelva', country: 'ES' }),
-    );
-
-  it('loads what it saved', async () => {
-    const orders = await make();
-    const order = placeOrder();
-    order.addLine(line('HELMET-02'));
-    await orders.save(order);
-    expect((await orders.findById(order.id))?.toPrimitives()).toEqual(order.toPrimitives());
-  });
-
-  it('saves the same object twice', async () => {
-    const orders = await make();
-    const order = placeOrder();
-    await orders.save(order);
-    order.addLine(line('HELMET-02'));
-    await expect(orders.save(order)).resolves.toBeUndefined();
-  });
-
-  it('refuses a stale save and a new order with a taken id', async () => {
-    const orders = await make();
-    await orders.save(placeOrder());
-    const first = await orders.findById(new OrderId(orderId));
-    const second = await orders.findById(new OrderId(orderId));
-    first!.addLine(line('HELMET-02'));
-    await orders.save(first!);
-    second!.addLine(line('GLOVES-03'));
-    await expect(orders.save(second!)).rejects.toThrow(ConcurrencyException);
-    await expect(orders.save(placeOrder())).rejects.toThrow(ConcurrencyException);
-  });
-
-  it('refuses to remove an order someone changed after it was loaded', async () => {
-    const orders = await make();
-    await orders.save(placeOrder());
-    const first = await orders.findById(new OrderId(orderId));
-    const second = await orders.findById(new OrderId(orderId));
-    await orders.save(first!);
-    await expect(orders.remove(second!)).rejects.toThrow(ConcurrencyException);
-  });
-
-  it('forgets a removed order', async () => {
-    const orders = await make();
-    const order = placeOrder();
-    await orders.save(order);
-    await orders.remove(order);
-    expect(await orders.findById(order.id)).toBeNull();
-  });
-}
-```
-
-El spec del adaptador lo ejecuta contra las dos implementaciones. El de MongoDB necesita un servidor real (Testcontainers, `mongodb-memory-server` o el de CI) `[herramienta fuera de los libros]`; cada fábrica usa una colección nueva para que los tests no compartan datos. En `test/contexts/sales/infrastructure/persistence/mongo-order-repository.spec.ts`, espejo de `src/`:
+* carga lo que guardó (`toPrimitives()` igual);
+* guarda dos veces el mismo objeto sin conflicto;
+* rechaza un `save` obsoleto y un alta con id ocupado (`ConcurrencyException`);
+* rechaza `remove` de un agregado que otro cambió;
+* olvida un agregado borrado.
 
 ```ts
-import { randomUUID } from 'node:crypto';
-import { MongoClient } from 'mongodb';
-import { afterAll, beforeAll, describe } from 'vitest';
-import { MongoOrderRepository } from '../../../../../src/contexts/sales/infrastructure/persistence/mongo-order-repository';
-import type { OrderDocument } from '../../../../../src/contexts/sales/infrastructure/persistence/mongo-order-repository';
-import { InMemoryOrderRepository } from '../../../../../src/contexts/sales/infrastructure/persistence/in-memory-order-repository';
-import { orderRepositoryContract } from '../../../../support/order-repository-contract';
-
-let client: MongoClient;
-
-beforeAll(async () => {
-  client = await MongoClient.connect(process.env.MONGO_TEST_URL!);
-});
-
-afterAll(() => client.close());
-
-const mongoOrders = async () =>
-  new MongoOrderRepository(
-    client.db('sales-test').collection<OrderDocument>(`orders-${randomUUID()}`),
-  );
-
-describe('InMemoryOrderRepository', () =>
-  orderRepositoryContract(async () => new InMemoryOrderRepository()));
+describe('InMemoryOrderRepository', () => orderRepositoryContract(async () => new InMemoryOrderRepository()));
 describe('MongoOrderRepository', () => orderRepositoryContract(mongoOrders));
 ```
 
-Los tests del repositorio real usan la implementación de producción; si no, no sabes si funciona [IDDD cap. 12].
-
-Cada agregado tiene además un test de ida y vuelta de sus primitivos (`Order.fromPrimitives(order.toPrimitives()).toPrimitives()` igual a `order.toPrimitives()`), que no necesita repositorio (ver `ddd-skills/ddd-agregados/GUIA.md`).
+El adaptador real se prueba contra la base de verdad (Testcontainers, `mongodb-memory-server`) `[herramienta fuera de los libros]`, con una colección nueva por fábrica: sin la implementación de producción no sabes si funciona [IDDD cap. 12]. Su atomicidad (varias tablas, outbox) se prueba ahí, no en los tests de la aplicación. El test de ida y vuelta de los primitivos es del agregado (`ddd-skills/ddd-agregados/GUIA.md`).

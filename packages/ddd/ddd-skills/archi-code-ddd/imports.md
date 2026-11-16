@@ -4,103 +4,39 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
 
 ```ts
 import {
-  AbstractType,
-  AggregateRepository,
-  AggregateRoot,
-  ArrayType,
-  BooleanType,
-  Composite,
-  CreatedAt,
-  Criteria,
-  CriteriaError,
-  DateType,
-  defineCriteriaSchema,
-  DomainException,
-  DomainExceptionCode,
-  Entity,
-  EnumType,
-  EventBase,
-  IdType,
-  InvalidEventDefinitionException,
-  JsonType,
-  NumberType,
-  Required,
-  RequiredValueException,
-  Specification,
-  StringSanitizer,
-  StringType,
-  TypePrimitiveException,
-  UpdatedAt,
-  UuidType,
-  ValidationException,
+  AbstractType, AggregateRepository, AggregateRoot, ArrayType, BooleanType, Composite, CreatedAt,
+  Criteria, CriteriaError, DateType, defineCriteriaSchema, DomainException, DomainExceptionCode,
+  Entity, EnumType, EventBase, IdType, InvalidEventDefinitionException, JsonType, NumberType,
+  Required, RequiredValueException, Specification, StringSanitizer, StringType,
+  TypePrimitiveException, UpdatedAt, UuidType, ValidationException,
 } from '@archi-code/ddd/domain';
 import type {
-  AggregateFinder,
-  AggregateRemover,
-  AggregateSaver,
-  AggregateSearcher,
-  CriteriaAggregate,
-  CriteriaDocument,
-  EntityId,
-  EventClass,
-  EventMetadata,
-  JsonTypeValue,
-  PrimitiveTypes,
-  SatisfiedBy,
-  SearchOptions,
-  SearchResult,
-  SerializedEvent,
-  ValidationIssue,
+  AggregateFinder, AggregateRemover, AggregateSaver, AggregateSearcher, CriteriaAggregate,
+  CriteriaDocument, EntityId, EventClass, EventMetadata, JsonTypeValue, PrimitiveTypes,
+  SatisfiedBy, SearchOptions, SearchResult, SerializedEvent, ValidationIssue,
 } from '@archi-code/ddd/domain';
 import {
-  AggregateNotFoundException,
-  ApplicationException,
-  ApplicationExceptionCode,
-  ConcurrencyException,
-  EventListener,
-  ListensTo,
-  NotAllowedException,
-  UnexpectedErrorException,
-  UseCase,
-  ValueObjectBuilder,
+  AggregateNotFoundException, ApplicationException, ApplicationExceptionCode,
+  ConcurrencyException, EventListener, ListensTo, NotAllowedException, UnexpectedErrorException,
+  UseCase, ValueObjectBuilder,
 } from '@archi-code/ddd/application';
 import type {
-  EventBus,
-  ListenerSubscription,
-  LogContext,
-  Logger,
-  LogLevel,
+  EventBus, ListenerSubscription, LogContext, Logger, LogLevel,
 } from '@archi-code/ddd/application';
 import {
-  ConsoleLogger,
-  DomainEventBus,
-  EventRegistry,
-  ExceptionClassifier,
-  ExceptionKind,
-  IndexedDbInspector,
-  IndexedDbTable,
-  InfrastructureException,
-  InfrastructureExceptionCode,
-  InMemoryEventChannel,
-  InMemoryLogger,
-  InternalErrorException,
-  SilentLogger,
+  ConsoleLogger, DomainEventBus, EventRegistry, ExceptionClassifier, ExceptionKind,
+  IndexedDbInspector, IndexedDbTable, InfrastructureException, InfrastructureExceptionCode,
+  InMemoryEventChannel, InMemoryLogger, InternalErrorException, SilentLogger,
   UnknownEventException,
 } from '@archi-code/ddd/infrastructure';
 import type {
-  ChannelHandler,
-  ChannelSubscription,
-  EventChannel,
-  Subscription,
+  ChannelHandler, ChannelSubscription, EventChannel, Subscription,
 } from '@archi-code/ddd/infrastructure';
 import { Validations } from '@archi-code/validation';
 ```
 
-Each layer exports its own exceptions and its own code enum; there is no `/exceptions` subpath
-and the common base class of the exceptions is internal. `IndexedDbTable` is imported only by
-the IndexedDB repository adapters (and IndexedDB read-model stores) of `infrastructure/`;
-`IndexedDbInspector` only by diagnostic tooling, never by a repository.
-
-```js
-const { Required, StringType } = require('@archi-code/ddd/domain');
-```
+- Each layer exports its own exceptions and code enum; no `/exceptions` subpath; the exception
+  base class is internal.
+- `IndexedDbTable`: only IndexedDB repository adapters and read-model stores.
+  `IndexedDbInspector`: only diagnostics, never a repository.
+- CommonJS works too: `const { Required, StringType } = require('@archi-code/ddd/domain');`

@@ -1,85 +1,58 @@
 # Context Mapping
 
-> Parte del skill `archi-code-ddd`: léela solo cuando ese skill te dirija aquí. Los ejemplos están escritos con la API de `@archi-code/ddd` (las clases de su `src`) y se copian tal cual. Las guías deciden el diseño; la forma del código (carpetas y nombres, eventos, constructor y `create` del agregado, casos de uso de usuario y por reacción) la fija `ddd-skills/archi-code-ddd/`, que manda si un ejemplo difiere. El paquete se aparta de los libros donde lo marca `[Fuera de los libros: convención de @archi-code/ddd]`; cualquier otra discrepancia sobre una regla de DDD es un defecto del paquete.
->
-> **Cuándo consultar esta guía.** Context Mapping de DDD para decidir cómo se integran en el código los Bounded Contexts. Cubre los patrones de integración entre modelos (Shared Kernel, Conformist, Anticorruption Layer, Open Host Service, Published Language, Separate Ways, Big Ball of Mud), upstream y downstream, estilos de integración (RPC, REST, mensajería con eventos), contratos e idioma publicado, idempotencia, consistencia eventual entre contextos, procesos de larga duración y cómo implementar una capa anticorrupción en TypeScript. Consúltala siempre que haya que conectar dos sistemas, servicios o módulos, integrar con un ERP, CRM, pasarela o sistema heredado, decidir entre llamada síncrona y eventos, diseñar una API pública entre servicios, o cuando un modelo empiece a copiar conceptos de otro, aunque no se mencione "context map".
+> Parte del skill `archi-code-ddd`: léela solo cuando ese skill te dirija aquí. Cómo se integran en el código los Bounded Contexts: patrones de relación, estilos (RPC, REST, mensajería), contratos, idempotencia y capa anticorrupción. La forma del código la fija `ddd-skills/archi-code-ddd/`.
 
 ## Con @archi-code/ddd
 
 [Fuera de los libros: convención de @archi-code/ddd]
 
-* El paquete no trae capa anticorrupción, Open Host Service ni Published Language: se escriben en el proyecto sobre sus clases y puertos. El puerto hacia otro contexto (`ProductPricing`) es una interfaz en `domain/` que recibe y devuelve value objects (`Sku`, un `Composite` `SellableProduct`); adaptador (`CatalogHttpProductPricing`) y traductor (`CatalogTranslator`) van en `infrastructure/` y lanzan una `InfrastructureException` con código propio (`CAT001`); el puerto va en `domain/service/` y sus value objects en `domain/value-object/`, que el punto de entrada traduce por su código (`CAT001` → 503 en HTTP; sin traducción propia, `ExceptionClassifier.classify` la clasifica como `ExceptionKind.Internal`).
-* Un webhook entrante es un punto de entrada en `interfaces/` que traduce el lenguaje del emisor a la entrada de un caso de uso de usuario (`UseCase`) y responde según el `ExceptionKind` que devuelve `ExceptionClassifier.classify(error)` (de `@archi-code/ddd/infrastructure`).
-* Los mensajes entre contextos viajan como `SerializedEvent` plano (`{ eventName, eventId, occurredOn, ...datos }`, con la identidad del agregado entre los datos, como `orderId`) por un `EventChannel` (tu canal de broker o de outbox), no con el envoltorio de IDDD `{ notificationId, typeName, version, occurredOn, event }`: `eventName` hace de `typeName` (`'sales.order.OrderPlaced'`) y también identifica la versión del contrato (una versión incompatible se publica con otro nombre, como `'sales.order.OrderPlacedV2'`), y `eventId` identifica el mensaje para deduplicar. No hay `notificationId` secuencial: si un feed REST lo necesita, lo asigna tu canal duradero.
-* Lo que sale se traduce al Published Language en infraestructura, con un `EventChannel` propio en el adaptador del broker (`ContractPublishingChannel` + `SalesContracts`, en `ddd-skills/ddd-eventos-dominio/references/publicacion-ts.md`); nunca se publica fuera del contexto un evento interno tal cual (`{ ...event }`).
-* Lo que entra de otro contexto se lee con una copia propia `extends EventBase` (`<Evento>DomainEvent`, en `application/<acción>/<evento>-domain-event.ts`) con el mismo `eventName` que el productor (su evento interno si comparte el canal del sistema, o el nombre del Published Language si es un sistema aparte) y solo los campos que este contexto usa; la factoría de `EventRegistry` es el traductor (copia cada campo y pasa `eventId` y `occurredOn`). Lo ejecuta un **caso de uso por reacción**: una sola clase `<Acción>On<Evento>` con `@ListensTo(Evento, { consumer: '<contexto>.<acción>-on-<evento>' })` que valida cada campo con `ValueObjectBuilder.build`, carga o crea, llama al agregado, guarda y publica, sin un `UseCase` detrás.
-* Dentro de un mismo sistema, los contextos comparten un canal y el JSON del evento interno es el contrato: cada consumidor declara su copia y nadie cambia esos datos de forma incompatible bajo el mismo `eventName`. Lo que sale del sistema se traduce al Published Language.
+* El paquete no trae ACL, Open Host Service ni Published Language: se escriben en el proyecto. El puerto (`ProductPricing`) es una interfaz en `domain/service/` que habla con value objects; adaptador y traductor van en `infrastructure/` y lanzan una `InfrastructureException` con código propio (`CAT001`), que el punto de entrada traduce (sin traducción, `ExceptionKind.Internal`).
+* Un webhook entrante es un punto de entrada en `interfaces/` que traduce al input de un `UseCase` y responde según `ExceptionClassifier.classify(error)`.
+* Los mensajes son `SerializedEvent` planos (`{ eventName, eventId, occurredOn, ...datos }`) por un `EventChannel`, no el envoltorio de IDDD: `eventName` hace de tipo y de versión (una versión incompatible es otro nombre), `eventId` deduplica; no hay `notificationId` (si un feed REST lo necesita, lo asigna tu canal duradero).
+* Lo que sale del sistema se traduce al Published Language en el adaptador del broker (`ContractPublishingChannel`, en `ddd-skills/ddd-eventos-dominio/references/publicacion-ts.md`); nunca `{ ...event }`. Dentro del sistema, el JSON del evento interno es el contrato y no cambia de forma incompatible bajo el mismo `eventName`.
+* Lo que entra se lee con una copia propia `extends EventBase` (mismo `eventName`, solo los campos que se usan) en `application/<acción>/`; la factoría de `EventRegistry` es el traductor y lo ejecuta un caso de uso por reacción `<Acción>On<Evento>` con `@ListensTo`.
 * Los procesos entre contextos se encadenan con eventos y casos de uso por reacción.
-* Un contexto nunca importa otro; solo `shared-kernel/` (el dinero) es compartido, y cada contexto declara sus propios value objects y referencia los agregados de otro con un `UuidType` propio (`OrderReference`).
+* Un contexto nunca importa otro; solo `shared-kernel/` (el dinero). Los agregados ajenos se referencian con un `UuidType` propio (`OrderReference`).
 
-Una línea entre dos Bounded Contexts significa **integración técnica** y **traducción entre dos lenguajes** [Destilado cap. 4]. Esta guía decide el tipo de cada línea y cómo se implementa.
+## Paso 1. Patrón de cada relación
 
-
-## Flujo de trabajo
-
-### Paso 1. Elegir el patrón de integración para cada relación
-
-Para cada par de contextos que se relacionan, anota quién es upstream (U, de quien depende el otro) y quién downstream (D) [Destilado cap. 4]. Resumen [Destilado cap. 4]:
+Anota quién es upstream y quién downstream [Destilado cap. 4].
 
 | Patrón | Esencia |
 |---|---|
-| Shared Kernel | Pequeño modelo común compartido por acuerdo explícito. Difícil de mantener; se evita si es posible [IDDD cap. 2] |
-| Conformist | El downstream adopta el modelo upstream tal cual |
-| Anticorruption Layer | El downstream traduce entre el modelo upstream y el suyo; la opción más defensiva |
-| Open Host Service | El upstream ofrece un protocolo abierto, documentado y cómodo para cualquier integrador |
-| Published Language | Formato de intercambio documentado (JSON Schema, Protobuf, Avro); suele ir con OHS |
-| Separate Ways | No integrar: la integración no aporta lo suficiente |
-| Big Ball of Mud | Sistema sin fronteras; si hay que integrarse, siempre con ACL y sin hablar su lenguaje |
+| Shared Kernel | Modelo común pequeño por acuerdo explícito; difícil de mantener, evitarlo si se puede [IDDD cap. 2] |
+| Conformist | El downstream adopta el modelo upstream |
+| Anticorruption Layer | El downstream traduce; la opción más defensiva |
+| Open Host Service | Protocolo abierto y documentado para cualquier integrador |
+| Published Language | Formato documentado de intercambio; suele ir con OHS |
+| Separate Ways | No integrar |
+| Big Ball of Mud | Si hay que integrarse, siempre con ACL y sin hablar su lenguaje |
 
-Árbol de decisión rápido `[Fuera de los libros: síntesis de las definiciones]`:
+Decisión `[Fuera de los libros: síntesis de las definiciones]`: sin valor → Separate Ways; upstream heredado o externo → ACL siempre; contexto Core → ACL salvo coste desproporcionado; upstream con OHS + Published Language parecido a tu modelo → Conformist aceptable; upstream con varios consumidores → OHS + Published Language; ¿compartir clases o tablas? → casi siempre Published Language.
 
-1. ¿La integración aporta valor real? No → Separate Ways.
-2. ¿Eres downstream? Entonces:
-   * ¿El upstream es un Big Ball of Mud o un producto externo? → ACL, siempre.
-   * ¿Tu contexto es Core? → ACL, salvo coste desproporcionado.
-   * ¿El upstream ofrece OHS con Published Language y su modelo se parece al tuyo? → Conformist puede ser aceptable.
-3. ¿Eres upstream con varios consumidores? → Open Host Service con Published Language.
-4. ¿La tentación es compartir clases o tablas? → Para y revisa: casi siempre se resuelve mejor con Published Language.
+## Paso 2. Estilo de integración
 
-### Paso 2. Elegir el estilo de integración
+De menos a más robusto: RPC, REST, mensajería [Destilado cap. 4]. Detalle en `ddd-skills/ddd-context-mapping/references/estilos-integracion.md`.
 
-Vernon los ordena de menos a más robusto: RPC, REST, mensajería [Destilado cap. 4]. Detalle en `ddd-skills/ddd-context-mapping/references/estilos-integracion.md`.
+* Evitar integrar por base de datos o ficheros; si es inevitable, ACL [Destilado cap. 4].
+* Principios de la computación distribuida: la red falla, hay latencia, el ancho de banda no es infinito, no es segura, la topología cambia, hay varios administradores, el transporte cuesta y es heterogénea [IDDD cap. 13].
+* Nada de cadenas de peticiones bloqueantes entre contextos; usar mensajería [Destilado cap. 4].
+* Recursos REST sintéticos, no espejo de los agregados [Destilado cap. 4; IDDD cap. 13].
+* Los consumidores dependen del esquema, no de las clases del productor [Destilado cap. 4; IDDD cap. 13].
+* Entrega al menos una vez y receptor idempotente [Destilado cap. 4].
+* Estado remoto mínimo, con tus conceptos [IDDD cap. 3].
+* "Todavía no está" es un estado del dominio, no un error [IDDD cap. 3].
 
-Reglas que aplican siempre:
+## Paso 3. Traducción
 
-* **Integración por base de datos o ficheros:** evitarla. Si es inevitable, aislar el modelo con ACL [Destilado cap. 4].
-* **Asume los principios de la computación distribuida:** la red falla, hay latencia, el ancho de banda no es infinito, la red no es segura, la topología cambia, hay varios administradores, el transporte cuesta y la red es heterogénea [IDDD cap. 13].
-* **Evita los choques de trenes de integración:** si C0 hace una petición bloqueante a C1, C1 no debe hacer a su vez una petición bloqueante a S1 para responderla. Usa mensajería [Destilado cap. 4].
-* **Recursos REST sintéticos:** diseñados para los casos de uso del cliente, no como espejo de los agregados. Exponer el modelo tal cual obliga a todos a ser Conformist [Destilado cap. 4; IDDD cap. 13].
-* **Los consumidores dependen del esquema, no de las clases del productor.** Leen el Published Language (por ejemplo JSON) y lo traducen a sus propios tipos [Destilado cap. 4; IDDD cap. 13].
-* **Mensajería:** el mecanismo debe garantizar entrega al menos una vez y el receptor debe ser idempotente [Destilado cap. 4].
-* **Estado remoto mínimo:** copia solo los atributos que tu modelo necesita y modélalos con tus conceptos. Si no, tu `ProductOwner` acaba siendo un `User` disfrazado [IDDD cap. 3].
-* **La indisponibilidad se modela:** "todavía no está" es un estado válido del dominio, no un error. IDDD lo resuelve con un estado explícito en un value object [IDDD cap. 3].
-
-### Paso 3. Diseñar la traducción
-
-Para cada relación con ACL, define puerto, adaptador y traductor. Implementación con `@archi-code/ddd` (puerto con value objects, adaptador HTTP, webhook entrante, eventos de otro contexto y Published Language de salida) en `ddd-skills/ddd-context-mapping/references/anticorrupcion-ts.md`.
-
-Para cada evento que cruza un contexto, decide entre **evento enriquecido** (más autonomía del consumidor, pero difícil prever todo y riesgo de exponer datos sensibles) o **evento ligero con consulta al origen** (query-back), o una mezcla [Destilado cap. 4].
+Para cada ACL: puerto, adaptador y traductor; código en `ddd-skills/ddd-context-mapping/references/anticorrupcion-ts.md`. Para cada evento que cruza: enriquecido (más autonomía, pero difícil prever todo y riesgo de exponer datos sensibles), ligero con consulta al origen, o mezcla [Destilado cap. 4].
 
 ## Señales de alarma
 
-* Un contexto importa tipos (clases, interfaces, enums) del dominio de otro.
-* Tablas compartidas entre contextos.
-* API REST que devuelve el agregado serializado con todos sus campos.
-* Una petición de usuario que atraviesa tres servicios en cadena de forma síncrona.
-* Un consumidor de eventos sin control de duplicados.
-* Un contexto publica hacia fuera sus eventos internos tal cual (`{ ...event }`), o un caso de uso por reacción recibe la clase de evento de otro contexto importada de su código.
-* "Shared Kernel" usado como excusa para compartir una librería de modelos que crece sin acuerdo [IDDD cap. 13].
-* El código copia sin traducir el modelo de un proveedor.
-
-## Siguiente guía
-
-* Estructura interna de cada contexto y dónde vive el ACL → `ddd-skills/ddd-arquitectura/GUIA.md`.
-* Diseño de los eventos que se publican → `ddd-skills/ddd-eventos-dominio/GUIA.md`.
-* Consistencia eventual entre agregados y procesos → `ddd-skills/ddd-agregados/GUIA.md`.
+* Un contexto importa tipos de otro, o comparten tablas.
+* REST que devuelve el agregado serializado.
+* Peticiones síncronas en cadena entre servicios.
+* Consumidor sin control de duplicados.
+* Eventos internos publicados fuera tal cual.
+* Shared Kernel que crece sin acuerdo [IDDD cap. 13].
+* Código que copia sin traducir el modelo de un proveedor.

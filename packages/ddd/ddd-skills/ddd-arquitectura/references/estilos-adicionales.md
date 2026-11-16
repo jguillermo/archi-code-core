@@ -1,51 +1,29 @@
-# Estilos adicionales: cuándo sí y cuándo no
+# Estilos adicionales
 
-Ninguno es obligatorio. Úsalos cuando mitiguen un riesgo con alta probabilidad de causar fallo si se ignora [IDDD cap. 4]. Destilado los presenta como combinables con puertos y adaptadores según las necesidades [Destilado cap. 2].
+Ninguno es obligatorio: solo si mitigan un riesgo probable [IDDD cap. 4]; se combinan con puertos y adaptadores [Destilado cap. 2].
 
 ## CQRS
 
-**Problema que resuelve:** las pantallas cruzan muchos agregados y consultarlas desde repositorios obliga a juntar varios agregados en DTOs, a crear buscadores especiales o a empobrecer la interfaz para que siga los límites de los agregados [IDDD cap. 4].
+* **Problema:** pantallas que cruzan muchos agregados [IDDD cap. 4].
+* **Forma:** modelo de comandos (agregados) y de consultas (vistas) actualizado por suscriptores [IDDD cap. 4]. Aquí: proyección que escribe por un puerto de store y salta `eventId` ya aplicados, un caso de uso por reacción por evento, y el controlador lee por el puerto de consulta, sin caso de uso; reconstruir una vista desde cero necesita un registro de eventos propio, porque un `EventChannel` no guarda historial `[Fuera de los libros: convención de @archi-code/ddd]`.
+* **Cuándo no:** interfaz simple [IDDD cap. 4].
+* **Paso intermedio** `[Fuera de los libros]`: consultas de solo lectura directas a la base, como interfaz en `application/` implementada en `infrastructure/`, nunca con el repositorio del agregado. Suele bastar.
+* Con consistencia eventual, la interfaz asume lo peor: mostrar lo enviado, la antigüedad de los datos, push o aviso [IDDD cap. 4].
 
-**Cómo es:** un modelo de comandos (los agregados, que ejecutan comportamiento) y un modelo de consultas (vistas desnormalizadas) actualizado por suscriptores a eventos [IDDD cap. 4]. Con el paquete, el read model tiene una proyección que escribe la fila a través de un puerto de store y salta un `eventId` que ya aplicó (la entrega es al menos una vez), y un caso de uso por reacción por cada evento que cambia la fila (un `EventListener` con `@ListensTo(OrderPaidDomainEvent, { consumer: 'sales.mark-order-summary-paid-on-order-paid' })` suscrito al `DomainEventBus`); las consultas las lee el controlador por su puerto de consulta, sin caso de uso. Reconstruir una vista desde el principio necesita un registro de eventos propio: un `EventChannel` no guarda historial legible. `[Fuera de los libros: convención de @archi-code/ddd]`
+Detalle en `ddd-skills/ddd-event-sourcing-cqrs/GUIA.md`.
 
-**Cuándo no:** si la interfaz no es compleja ni cruza a menudo varios agregados en una vista, CQRS añade complejidad accidental [IDDD cap. 4].
+## Dirigida por eventos
 
-**Paso intermedio** `[Fuera de los libros]`: consultas de lectura que van directas a la base de datos con SQL o vistas, sin pasar por repositorios ni agregados, en la misma base. Ya separa lectura y escritura sin eventos ni consistencia eventual. Suele bastar. La consulta es una interfaz de `application/` que devuelve DTOs, implementada en `infrastructure/` sobre la base (`MongoOrderSummaries`), nunca con el repositorio de un agregado:
-
-```ts
-export interface OrderSummary {
-  readonly id: string;
-  readonly customerId: string;
-  readonly lines: number;
-}
-
-export interface OrderSummaries {
-  ofCustomer(customerId: CustomerId, page: { limit: number; offset: number }): Promise<OrderSummary[]>;
-}
-```
-
-**Si el modelo de consultas es eventualmente consistente**, la interfaz debe asumir lo peor. Opciones de IDDD: mostrar temporalmente los datos enviados en el comando; mostrar la fecha y hora de los datos para que el usuario sepa su antigüedad; notificaciones push; o simplemente avisar de que la petición se procesará [IDDD cap. 4].
-
-Más detalle en `ddd-skills/ddd-event-sourcing-cqrs/GUIA.md`.
-
-## Arquitectura dirigida por eventos
-
-Contextos que se comunican publicando y consumiendo eventos de dominio. Es la base de la integración robusta descrita en `ddd-skills/ddd-context-mapping/GUIA.md` y del diseño de `ddd-skills/ddd-eventos-dominio/GUIA.md`. Dentro de un contexto, los eventos también desacoplan efectos secundarios del caso de uso: el caso de uso llama a `events.publish(order.pullDomainEvents())` después de `await this.orders.save(order)` y un caso de uso por reacción (`PrepareShipmentOnOrderPaid`, en Envíos) ejecuta la acción siguiente.
-
-Con el paquete, la tecnología es un `EventChannel` del proyecto (`RabbitMqEventChannel`, un relay que entrega el outbox que el repositorio escribió junto al agregado…) bajo el mismo `DomainEventBus`; en tests, `InMemoryEventChannel`. Entre los contextos de un mismo sistema viaja el JSON del evento (`eventName` `'order.created'` y sus campos primitivos), que es el contrato: cada contexto consumidor declara su propia copia del evento junto a la reacción que lo escucha y nunca importa la clase del productor. Cuando los eventos salen del sistema (un broker compartido con otros equipos), el adaptador que habla con el broker los traduce a un contrato publicado y versionado [IDDD cap. 13], algo que el paquete no da y escribe el proyecto. `[Fuera de los libros: convención de @archi-code/ddd]`
+Dentro de un contexto, los eventos desacoplan efectos: el caso de uso publica tras `save` y una reacción ejecuta la acción siguiente. Base de la integración de `ddd-skills/ddd-context-mapping/GUIA.md` y de `ddd-skills/ddd-eventos-dominio/GUIA.md`. La tecnología es un `EventChannel` bajo `DomainEventBus` (`InMemoryEventChannel` en tests); fuera del sistema, el adaptador traduce a un contrato versionado [IDDD cap. 13] `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ## Event Sourcing
 
-El estado de un agregado se guarda como la secuencia de sus eventos y se reconstruye aplicándolos [Destilado cap. 6; IDDD cap. 4]. Aporta historial completo y auditoría, pero cambia por completo la persistencia y las consultas. Ver `ddd-skills/ddd-event-sourcing-cqrs/GUIA.md` antes de decidir.
-
-El paquete no trae event store: cada repositorio guarda el `toPrimitives()` del agregado junto a la versión que él mismo lleva (en su `WeakMap`), que crece 1 por cada `save`, no por evento. Un agregado con Event Sourcing sigue extendiendo `AggregateRoot` y registrando con `record()`, pero su adaptador de persistencia (en `infrastructure/`, sobre el contrato del stream de `ddd-skills/ddd-event-sourcing-cqrs/GUIA.md`) lleva la versión del flujo él mismo y reconstruye el agregado aplicando sus eventos, no con `toPrimitives()`/`fromPrimitives()`. `[Fuera de los libros: convención de @archi-code/ddd]`
-
-## Tabla de decisión
+Estado como secuencia de eventos [Destilado cap. 6; IDDD cap. 4]; cambia toda la persistencia. El paquete no trae event store (cada repositorio guarda `toPrimitives()` con una versión que crece 1 por `save`, no por evento): el agregado sigue con `AggregateRoot` y `record()`, y su adaptador lleva la versión del flujo y lo rehace aplicando eventos, no con `fromPrimitives` `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 | Situación | Recomendación |
 |---|---|
-| Pantallas simples que siguen a un agregado | Solo hexagonal |
-| Listados y búsquedas que cruzan agregados | Consultas SQL directas de solo lectura |
-| Vistas muy distintas del modelo, alto volumen de lectura, otra base para leer | CQRS con read models por eventos |
-| Requisito legal o de negocio de historial completo de cambios del agregado | Valorar Event Sourcing en ese agregado |
-| Integración entre contextos | Eventos de dominio por un `EventChannel` de mensajería, traducidos a un contrato publicado |
+| Pantallas que siguen a un agregado | Solo hexagonal |
+| Listados que cruzan agregados | Consultas de lectura directas |
+| Vistas muy distintas, mucha lectura, otra base para leer | CQRS con read models |
+| Historial completo exigido (legal o de negocio) | Valorar ES en ese agregado |
+| Integración entre contextos | Eventos por un `EventChannel` con contrato publicado |

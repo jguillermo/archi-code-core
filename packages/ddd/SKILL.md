@@ -1,175 +1,115 @@
 ---
 name: archi-code-ddd
-description: The single entry point for Domain-Driven Design with @archi-code/ddd. It routes DDD questions to the guide suite in the package (contexts, architecture, value objects, aggregates, events, repositories, application services, CQRS, audits) and gives the conventions, patterns and common mistakes of code built on it - context folder layout and names, value objects and Composite, aggregates (public constructor, create, fromPrimitives/toPrimitives), events and business errors, abstract repository per aggregate, user use cases (UseCase) and reaction use cases (an EventListener with @ListensTo that is the use case), event copies between contexts, read models, Criteria, the composition root, controllers and ExceptionClassifier. Use it whenever someone applies DDD, designs or reviews a domain model, writes or changes value objects, aggregates, events, use cases, reactions, read models, repositories, adapters (IndexedDB repositories over IndexedDbTable included), controllers or wiring, decides which layer a class belongs to, or the code imports @archi-code/ddd.
+description: The single entry point for Domain-Driven Design with @archi-code/ddd. Routes DDD questions to the guide suite in the package (contexts, architecture, value objects, aggregates, events, repositories, application services, CQRS, audits) and gives the package conventions - context folders and names, value objects and Composite, aggregates (create, fromPrimitives/toPrimitives), events, business errors, abstract repository per aggregate, user use cases (UseCase) and reaction use cases (EventListener with @ListensTo), domain services, read models, Criteria, composition root, controllers and ExceptionClassifier. Use it whenever someone applies DDD, designs or reviews a domain model, writes value objects, aggregates, events, use cases, reactions, read models, repositories, adapters (IndexedDB repositories over IndexedDbTable included), controllers or wiring, decides which layer a class belongs to, or the code imports @archi-code/ddd.
 ---
 
 # archi-code-ddd
 
-`@archi-code/ddd` is archi-code's Domain-Driven Design package for TypeScript, one entry point per
-layer, each with the exceptions of its layer: `@archi-code/ddd/domain` (value objects, `Composite`,
-`Specification`, `Entity`, `AggregateRoot`, `EventBase`, `Criteria` and `defineCriteriaSchema`
-to search aggregates, `AggregateRepository`, the base of
-the abstract repository of each aggregate, with the roles of its verbs `AggregateFinder`,
-`AggregateSaver`, `AggregateRemover`, `AggregateSearcher`, and `DomainException`,
-`ValidationException`…), `@archi-code/ddd/application` (`UseCase`, the event contract to listen,
-`EventListener` and `@ListensTo`, and to publish, `EventBus`, the port `Logger`, and
-`AggregateNotFoundException`, `NotAllowedException`…) and `@archi-code/ddd/infrastructure` (the
-event wiring `DomainEventBus`, `EventRegistry` and the `EventChannel` port, in-memory event
-channel, loggers, the IndexedDB utilities `IndexedDbTable` and `IndexedDbInspector`,
-`InternalErrorException`…). `@archi-code/ddd/infrastructure` also has
-`ExceptionClassifier`, which gives every entry point (HTTP, gRPC, queue, CLI) the `ExceptionKind`
-of an error.
+`@archi-code/ddd`: DDD for TypeScript, one entry point per layer, each with its own exceptions:
+`/domain` (value objects, `Composite`, `Specification`, `Entity`, `AggregateRoot`, `EventBase`,
+`Criteria`, `AggregateRepository` and its roles), `/application` (`UseCase`, `EventListener`,
+`@ListensTo`, `EventBus`, `Logger`, `ValueObjectBuilder`) and `/infrastructure` (`DomainEventBus`,
+`EventRegistry`, `EventChannel`, loggers, `IndexedDbTable`, `IndexedDbInspector`,
+`ExceptionClassifier`).
 
 ## Full API
 
-Before using a class, function, option or type that does not appear in this skill, read
-`node_modules/@archi-code/ddd/README.md`: it matches the installed version. Do not assume
-signatures, options or exports. If the package is not installed: `npm install @archi-code/ddd`
-(and `npm install @archi-code/validation` if validations are declared with `@Validations`).
-
-If that path does not exist (monorepo with workspaces, pnpm…), locate the package with
-`node -p "require.resolve('@archi-code/ddd/package.json')"` and read the `README.md` in that
-folder.
+Before using anything this skill does not show, read `node_modules/@archi-code/ddd/README.md` (the
+installed version); never assume signatures. Elsewhere (workspaces, pnpm):
+`node -p "require.resolve('@archi-code/ddd/package.json')"`. Not installed:
+`npm install @archi-code/ddd` (plus `@archi-code/validation` for `@Validations`).
 
 ## The DDD guide suite
 
-This is the **only skill to load** for Domain-Driven Design with this package. It brings a suite
-of DDD guides (in Spanish, with the source of each rule: Vernon's _Implementing Domain-Driven
-Design_ and _Domain-Driven Design Distilled_, and _DDD in PHP_) inside the package, in
-`ddd-skills/`; never copy the suite into `.claude/skills/`: read it from the package when this
-skill says so. Locate it as the README: `node_modules/@archi-code/ddd/ddd-skills/`, or the
-`ddd-skills/` folder next to the `package.json` that
-`node -p "require.resolve('@archi-code/ddd/package.json')"` prints (in this monorepo,
-`packages/ddd/ddd-skills/`). Each guide is a folder with a `GUIA.md` (no skill frontmatter), its
-`references/` and, when it has them, `assets/` (tool configuration) and `scripts/`: they are never loaded
-on their own, only read when this skill routes to them. Paths inside the guides (`ddd-skills/ddd-agregados/GUIA.md`) are relative to the package
-folder.
+This is the **only skill to load** for DDD with this package. The suite (Spanish, sourced from
+Vernon's IDDD and _Distilled_, and _DDD in PHP_) lives in the package's `ddd-skills/` folder
+(located like the README; in this monorepo `packages/ddd/ddd-skills/`);
+never copy the suite into `.claude/skills/`. Each guide is a folder with `GUIA.md` (no skill frontmatter) and its
+`references/`, `assets/`, `scripts/`, read only when routed here. Paths inside the guides are
+relative to the package folder.
 
-How to use it, for every design question or task:
+1. **Start at `ddd-skills/ddd-orquestador/GUIA.md`** for any task beyond a quick fix; its
+   `references/chuleta-reglas.md` has every essential rule with its source.
+2. **Read the matching `GUIA.md`** and the references it points to:
 
-1. **Start at `ddd-skills/ddd-orquestador/GUIA.md`**: it says which guide covers each coding task
-   (integration between contexts, architecture, classes, aggregates, events, repositories, use
-   cases) and holds the conventions of the suite; read it for every task that is not a quick code
-   fix. Its `references/chuleta-reglas.md` has every essential rule with its source.
-2. **Read the `GUIA.md` of the matching guide** before answering, and the `references/` it points
-   to for the case at hand:
+   | Situation                                                   | Read `ddd-skills/…/GUIA.md`     |
+   | ----------------------------------------------------------- | ------------------------------- |
+   | Unclear request, where to start, essential rules            | `ddd-orquestador`               |
+   | How contexts integrate, ACL                                 | `ddd-context-mapping`           |
+   | Folders, layers, dependencies, composition root             | `ddd-arquitectura`              |
+   | Value object or entity, ids, validation, Specification      | `ddd-value-objects-entidades`   |
+   | Aggregate boundaries, invariants, concurrency, factories    | `ddd-agregados`                 |
+   | Events, messaging, outbox, idempotence                      | `ddd-eventos-dominio`           |
+   | Loading and saving aggregates, repository tests             | `ddd-repositorios-persistencia` |
+   | Domain services, use cases, where logic goes, authorization | `ddd-servicios-capa-aplicacion` |
+   | Read models, CQRS, Event Sourcing                           | `ddd-event-sourcing-cqrs`       |
+   | Review or migrate existing code                             | `ddd-auditoria-refactorizacion` |
 
-   | Situation                                                              | Read `ddd-skills/…/GUIA.md`     |
-   | ---------------------------------------------------------------------- | ------------------------------- |
-   | Unclear request, "where do I start", the essential rules               | `ddd-orquestador`               |
-   | How contexts and external systems relate and integrate, ACL            | `ddd-context-mapping`           |
-   | Folder structure, layers, dependencies, modules, composition root      | `ddd-arquitectura`              |
-   | Value object or entity, ids, primitives, validation, Specification     | `ddd-value-objects-entidades`   |
-   | What goes together, invariants, transactions, concurrency, factories   | `ddd-agregados`                 |
-   | Events, messaging, outbox, idempotence, versions                       | `ddd-eventos-dominio`           |
-   | Loading and saving aggregates, mappers, transactions, repository tests | `ddd-repositorios-persistencia` |
-   | Domain services, use cases, where the logic goes, authorization        | `ddd-servicios-capa-aplicacion` |
-   | Full history, read models, CQRS, Event Sourcing                        | `ddd-event-sourcing-cqrs`       |
-   | Review or migrate existing code                                        | `ddd-auditoria-refactorizacion` |
+   A new project follows the orchestrator's sequence: architecture → aggregates and value objects
+   → events → repositories → use cases.
 
-   A new project follows the orchestrator's sequence (architecture → aggregates and value objects →
-   events → repositories → use cases).
-
-3. **Design with the suite, write the code with this package.** The suite decides the design
-   (boundaries, what goes in one aggregate, invariants, which events exist); the code follows the
-   package conventions of `ddd-skills/archi-code-ddd/`. The guides' examples are written with
-   this package's API (the classes of its `src`): never write generic base classes
-   (`ValueObject`, `Entity`, `AggregateRoot`, `DomainEvent`) of your own. Every guide but the
-   orchestrator opens with a "Con @archi-code/ddd" box that lists where it diverges from the
-   books, marked `[Fuera de los libros: convención de @archi-code/ddd]`. Where the shape of a
-   guide's example differs from `ddd-skills/archi-code-ddd/` (folder layout and file names, event
-   class names and `eventName`, the aggregate's constructor and `create`, a listener that calls a
-   separate use case, business errors named `…Exception`, the in-memory repository only in
-   `test/support/`), the package guides win: they are the convention this package is built and
-   tested with. Any other disagreement on a DDD rule is a defect of the package: follow the guide.
-4. **Audits of code built on this package** (`ddd-auditoria-refactorizacion`): apply its checklist
-   and also every item of `ddd-skills/archi-code-ddd/what-not-to-do.md`. Its scanner needs Python 3:
+3. **Design with the suite, code with the package.** The suite decides boundaries, aggregates,
+   invariants and events; the code follows `ddd-skills/archi-code-ddd/`. Never write your own
+   generic base classes (`ValueObject`, `Entity`, `AggregateRoot`, `DomainEvent`). Every guide but
+   the orchestrator opens with a "Con @archi-code/ddd" box listing its divergences from the books,
+   marked `[Fuera de los libros: convención de @archi-code/ddd]`. Where a guide's example shape
+   differs from `ddd-skills/archi-code-ddd/` (folders and file names, event names, the aggregate
+   constructor and `create`, a listener calling a separate use case, `…Exception` business errors,
+   the in-memory repository only in `test/support/`), the package guides win; any other
+   disagreement on a DDD rule is a package defect: follow the guide.
+4. **Audits** (`ddd-auditoria-refactorizacion`): its checklist plus every item of
+   `ddd-skills/archi-code-ddd/what-not-to-do.md`. Scanner (Python 3; hints to confirm by reading):
    `python3 -I "$(dirname "$(node -p "require.resolve('@archi-code/ddd/package.json')")")/ddd-skills/ddd-auditoria-refactorizacion/scripts/scan_ddd_smells.py" <folder>`.
-   It flags a use case that saves two aggregates (`this.orders.save(…)` and `this.invoices.save(…)`
-   or `remove(…)`), transactions handled in the domain or the application (they belong to the
-   repository), domain code importing `@archi-code/ddd/application` or `/infrastructure`, and
-   `new Date()` in domain or application code; its findings are hints to confirm by reading the
-   code, and a use case that saves through a helper still needs a manual check. Without Python, apply the checklist by hand. For
-   the import direction, use `ddd-skills/ddd-arquitectura/assets/dependency-cruiser.cjs`.
-5. Keep the suite's conventions: say which rule comes from which book and mark what does not come
-   from them.
+   It flags a use case saving two aggregates, transactions in domain or application, domain
+   importing `/application` or `/infrastructure`, and `new Date()` in domain or application; a use
+   case saving through a helper still needs a manual check. Without Python, apply the checklist by
+   hand. Import direction: `ddd-skills/ddd-arquitectura/assets/dependency-cruiser.cjs`.
+5. Say which book each rule comes from and mark what does not.
 
-If they are installed in the project, use them together with this one:
-
-- `archi-code-validation`: available validators, their options and `@Validations` rules.
-- `archi-code-criteria-adapters`: runs a `Criteria` in memory or turns it into a MongoDB or
-  IndexedDB query.
+Related skills, if installed: `archi-code-validation` (validators, `@Validations`) and
+`archi-code-criteria-adapters` (runs a `Criteria` in memory, MongoDB or IndexedDB).
 
 ## Rules and patterns of this package
 
-The rules, patterns and common mistakes of `@archi-code/ddd` live next to the suite, in
-`ddd-skills/archi-code-ddd/` (located like the suite). They are part of this skill: read the file
-that matches the task before writing or reviewing code, and every file when unsure.
+In `ddd-skills/archi-code-ddd/`; read the file matching the task (all of them when unsure).
 
-| Read `ddd-skills/archi-code-ddd/…` | When                                                                                                                                                  |
-| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `imports.md`                       | Which entry point exports each class, function and type                                                                                               |
-| `where-each-class-goes.md`         | The layer of each class, the import matrix, the folder layout of a context and every naming rule                                                      |
-| `layers.md`                        | The rules of value objects, aggregates, events, errors, user and reaction use cases, read models, repositories, entry points and the composition root |
-| `patterns.md`                      | Code to start from for each of them, and the tests                                                                                                    |
-| `what-not-to-do.md`                | The common mistakes; also the checklist of every audit of code built on this package                                                                  |
-| `criteria.md`                      | Searching aggregates with `Criteria`: value objects as values, schemas for request input, URL text                                                    |
+| File                       | When                                                     |
+| -------------------------- | -------------------------------------------------------- |
+| `imports.md`               | Which entry point exports each symbol                    |
+| `where-each-class-goes.md` | Layer of each class, import matrix, folder layout, names |
+| `layers.md`                | The rules of every kind of class                         |
+| `patterns.md`              | Code to start from, and the tests                        |
+| `what-not-to-do.md`        | Common mistakes; the audit checklist                     |
+| `criteria.md`              | Searching aggregates with `Criteria`                     |
 
 ## The essentials
 
-The rules every file of a project built on this package follows; the guides above give the
-details and the code.
-
-- **One folder per bounded context** (`src/contexts/<context>/`) with `domain/` (split by kind:
-  `aggregate/`, `entity/`, `value-object/`, `event/`, `exception/`, `repository/`, `service/`,
-  `specification/`), `application/` (one folder per business action), `infrastructure/`,
-  `interfaces/` and one `composition.ts`. A context never imports another one; only
-  `shared-kernel/` is shared. Domain files are PascalCase, every other file kebab-case.
-- **Value objects are always valid**: one named class per file, rules in `@Validations`,
-  `Required(...)` when mandatory, built with `ValueObjectBuilder.build` so every field is reported.
-  Several fields are a `Composite`; free-form JSON is a `JsonType`, never a composite. Every
-  value object has `slug()` (the slug of its `toString()`, safe to pass in a URL as it is); one-line text is cleaned in the value
-  object's own `filter` with `StringSanitizer.singleLine`; plain strings use
-  `StringSanitizer.slug`/`singleLine`, never a regex of your own.
-- **Aggregates**: public constructor that only assigns; `static create(id, ...valueObjects)`
-  sets the initial state (`CreatedAt.now()`, `UpdatedAt.now()`), checks the creation invariants and records
-  `<Aggregate>CreatedDomainEvent`; `fromPrimitives`/`toPrimitives` cover every field; the id comes
-  from the use case (`OrderId.generate()`, or derived: `PaymentId.forOrder(order)`). Methods a
-  user asks for throw business errors; methods that register a fact (called by reactions) return
-  silently when it does not apply.
-- **Events** are `<Aggregate><PastAction>DomainEvent` with `eventName` `'<aggregate>.<past_action>'`,
-  primitive `readonly` fields, one constructor object `{ …fields } & EventMetadata`, no types of
-  their own, and no union type of an aggregate's events: `AggregateRoot<<Aggregate>Id>` and
-  `EventBus` work with `EventBase`.
-- **Business errors** are `<WhatWentWrong> extends DomainException` with a code per context
-  (`SAL001`), no `Exception` suffix.
-- **Two kinds of use case**: a user use case extends `UseCase` (`Input` and `Command` in its file,
-  authorization, load or create, one business method, save once, publish); a **reaction use case**
-  is one `EventListener` with `@ListensTo(Event, { consumer: '<context>.<action>-on-<event>' })`
-  that builds its value objects, finds or creates, calls the reaction method, saves and publishes,
-  with no `UseCase` behind it, never throwing business errors nor `AggregateNotFoundException`.
-- **A use case never uses another use case** (strict, no exception): it never instantiates,
-  receives, imports nor calls one (`CreateCourse` never uses `FindCourse`). Logic two use cases
-  share goes to the aggregate or to a **domain service** that each use case instantiates inside
-  `handle`, passing it the dependencies it received in its own constructor
-  (`new CourseFinder(this.courses).find(id)`, which throws the business error `CourseNotFound`).
-  Domain services are never injected nor built in `composition.ts`
-  (`ddd-skills/archi-code-ddd/layers.md`, `patterns.md`).
-- **Between contexts** only events travel: the consumer keeps its own copy of each foreign event
-  next to the reaction that hears it, with the producer's class name and `eventName`.
-- **Read models** are a row, a store port, a query port, a projection that skips applied
-  `eventId`s and one reaction per event; queries need no use case. A business query
-  (`pendingOlderThan`) is a read model when it only shows or lists data, and a `Criteria` for the
-  repository's `search` when a use case needs the aggregates to change them.
-- **Repositories**: the domain declares one abstract `<Aggregate>Repository extends
-AggregateRepository<Aggregate>` per aggregate with only the verbs its business needs
-  (`findById`, `search`, `save`, `remove`), each implementing its package role; every use case of the
-  aggregate receives it, never `AggregateFinder<X> & AggregateSaver<X>`. Each adapter extends it,
-  one per technology, checks the version in a `WeakMap` and owns transactions and persistence.
-  Persistence is that one adapter: the database technology is used only inside it. With IndexedDB
-  it is `IndexedDb<Aggregate>Repository`, built on `IndexedDbTable` of
-  `@archi-code/ddd/infrastructure` (never raw `indexedDB`), with the version check and the write in
-  one `IndexedDbTable.transaction` (`ddd-skills/archi-code-ddd/layers.md`, `patterns.md`).
-- **Entry points** check only the actor and the shape, call one use case and let one protocol
-  helper translate every error with `ExceptionClassifier`; `composition.ts` builds and subscribes
-  everything of its context.
+- **One folder per context** (`src/contexts/<context>/`: `domain/` by kind, `application/` by
+  business action, `infrastructure/`, `interfaces/`, `composition.ts`). Contexts never import each
+  other; only `shared-kernel/` is shared; data crosses only as events (each consumer keeps its own
+  event copy).
+- **Value objects are always valid**: named class per file, `@Validations`, `Required(...)`, built
+  with `ValueObjectBuilder.build`; several fields = `Composite`; `slug()` and
+  `StringSanitizer`, never own regexes.
+- **Aggregates**: public assigning constructor; `static create(id, ...)` with
+  `CreatedAt.now()`/`UpdatedAt.now()`, invariants and `<Aggregate>CreatedDomainEvent`; id from the
+  use case; `fromPrimitives`/`toPrimitives`. User commands throw business errors; reaction methods
+  return silently.
+- **Events** `<Aggregate><PastAction>DomainEvent`, `'<aggregate>.<past_action>'`, primitive fields,
+  no union types. **Business errors** `<WhatWentWrong> extends DomainException`, code per context.
+- **Use cases**: `UseCase` (user) or `EventListener` + `@ListensTo` (reaction); one action, one
+  save. **A use case never instantiates, receives, imports, extends nor calls another use case**.
+  It never branches on the aggregate's state (one aggregate method decides), retries a conflict
+  only when the command is repeat-safe (never a relative change like a discount), and records a
+  multi-aggregate exception in a decision record.
+- **Domain service** only when two+ use cases share business logic or a rule needs several
+  aggregates or a domain port; built inside `handle` (`new CourseFinder(this.courses)`), never
+  injected nor built in `composition.ts`; depends on loaded aggregates, the abstract repository
+  (`findById`) or a domain port.
+- **Repositories**: one abstract `<Aggregate>Repository` in the domain with only the needed verbs
+  (`findById`, `search`, `save`, `remove`); one adapter per technology, the only place the database
+  is used (IndexedDB: `IndexedDb<Aggregate>Repository` over `IndexedDbTable`). Business queries: a
+  `Criteria` when the use case changes the aggregates, a read model when it only lists. Read-model
+  rows survive late or repeated events (one flag per fact). A domain port has its own adapter.
+- **Entry points** check actor and shape, call one use case; one protocol helper maps errors with
+  `ExceptionClassifier`. `composition.ts` builds and subscribes everything.

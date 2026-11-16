@@ -2,72 +2,29 @@
 
 ## Fase 0. Red de seguridad
 
-* Tests de caracterización del comportamiento actual en la zona a cambiar: fijan lo que hace hoy, aunque esté mal, para detectar cambios no deseados `[Fuera de los libros]`. Cuando el código ya usa el paquete, se escriben sobre el repositorio en memoria del proyecto (`new InMemoryOrderRepository()`, en `infrastructure/persistence/` o como doble de test en `test/support/`, ver `ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`), y comprueban lo que transportó el canal (`InMemoryEventChannel.sent`).
-* Reglas automáticas de dependencias (`ddd-skills/ddd-arquitectura/GUIA.md`) en modo aviso, para medir sin bloquear.
+* Tests de caracterización de lo que hace hoy la zona a cambiar `[Fuera de los libros]`; con el paquete, sobre `InMemoryOrderRepository` del proyecto (`ddd-skills/ddd-repositorios-persistencia/references/tests-repositorios.md`) y `InMemoryEventChannel.sent`.
+* Reglas de dependencias en modo aviso (`ddd-skills/ddd-arquitectura/GUIA.md`).
 
-## Fase 1. Proteger el código nuevo
+## Fase 1. Proteger lo nuevo
 
-* Crea un contexto nuevo y limpio para la parte que se va a tocar, con su propio lenguaje.
-* Conéctalo con el legado mediante una ACL: el modelo nuevo no habla el lenguaje del legado [Destilado cap. 4]. El dominio declara el puerto con value objects; el adaptador de `infrastructure/` lee el legado y traduce:
-
-```ts
-export interface ProductPricing {
-  priceOf(sku: Sku): Promise<Money>;
-}
-```
-
-```ts
-import { InternalErrorException } from '@archi-code/ddd/infrastructure';
-
-interface LegacyArticleRow {
-  article_code: string;
-  retail_price: string;
-  currency_code: string | null;
-}
-
-interface LegacyArticles {
-  findByCode(code: string): Promise<LegacyArticleRow>;
-}
-
-export class LegacyProductPricing implements ProductPricing {
-  constructor(private readonly articles: LegacyArticles) {}
-
-  async priceOf(sku: Sku): Promise<Money> {
-    let row: LegacyArticleRow;
-    try {
-      row = await this.articles.findByCode(sku.value);
-    } catch (error) {
-      throw new InternalErrorException('reading the legacy price', { cause: error });
-    }
-    return Money.fromPrimitives({
-      amount: Math.round(Number(row.retail_price.replace(',', '.')) * 100),
-      currency: row.currency_code ?? 'EUR',
-    });
-  }
-}
-```
-
-`Money.fromPrimitives` construye el `Composite` con todas sus reglas: un dato del legado que no las cumple lanza `ValidationException` en la frontera, no dentro del modelo.
-
-La idea de Evans de un **contexto burbuja** (bubble context): un pequeño contexto nuevo, protegido por ACL, que convive con el legado y lo usa como fuente de datos `[Fuera de los libros: Evans, "Getting Started with DDD When Surrounded by Legacy Systems", 2013]`.
+* Un contexto nuevo con su lenguaje, conectado al legado por una ACL [Destilado cap. 4]: puerto en el dominio (`ProductPricing.priceOf(sku): Promise<Money>`) y adaptador en `infrastructure/` que lee el legado, envuelve sus errores en `InternalErrorException` y construye `Money.fromPrimitives(...)`, de modo que un dato inválido falla en la frontera.
+* Contexto burbuja de Evans: un contexto nuevo pequeño, protegido por ACL, que convive con el legado y lo usa como fuente de datos `[Fuera de los libros: Evans, "Getting Started with DDD When Surrounded by Legacy Systems", 2013]`.
 
 ## Fase 2. Desplazar funcionalidad
 
-* **Estrangulamiento** (strangler fig): las nuevas funcionalidades y las que se rehacen se sirven desde el contexto nuevo; un enrutador decide qué va a cada lado; el legado se va quedando sin uso `[Fuera de los libros]`.
-* **Rama por abstracción** (branch by abstraction) para sustituir piezas internas: puerto (`ProductPricing`), implementación vieja detrás (`LegacyProductPricing`), implementación nueva detrás, conmutación en la raíz de composición `[Fuera de los libros]`.
-* Si el legado debe seguir viendo los cambios, el contexto nuevo publica sus eventos con `EventBus.publish` y un `EventListener` suscrito con `@ListensTo` ejecuta un caso de uso cuyo puerto escribe en el legado.
+* Estrangulamiento (strangler fig): lo nuevo y lo rehecho se sirve desde el contexto nuevo, un enrutador decide y el legado se queda sin uso; rama por abstracción (puerto, implementación vieja y nueva, conmutación en la composición) `[Fuera de los libros]`.
+* Si el legado debe ver los cambios, el contexto nuevo publica sus eventos y un caso de uso por reacción escribe en él por un puerto.
 
-## Fase 3. Refactorizar el táctico dentro de cada contexto
+## Fase 3. Táctico dentro de cada contexto
 
-Orden recomendado `[Fuera de los libros, basado en dependencias entre reglas]`:
-1. Separar dominio de infraestructura: el agregado expone `static fromPrimitives(PrimitiveTypes<X>)` y `toPrimitives()`, el dominio declara el repositorio abstracto de cada agregado en `domain/repository/` (`OrderRepository extends AggregateRepository<Order>`, con solo los verbos `findById`, `search`, `save` y `remove` que su negocio necesita, cada uno implementando su rol `AggregateFinder`/`AggregateSearcher`/`AggregateSaver`/`AggregateRemover`) y los adaptadores lo extienden, uno por agregado y tecnología, en `infrastructure/`, que llaman directamente a `x.toPrimitives()` y a `X.fromPrimitives(row.primitives)` y recuerdan la versión de cada agregado en un `WeakMap` propio (el agregado no la declara ni la mapea), con un constructor que recibe solo las dependencias de su tecnología (nunca la clase del agregado ni un mapper), sin decoradores del ORM ni imports de `/infrastructure` en el dominio. Un repositorio genérico compartido por varios agregados se parte en uno por agregado; un servicio de dominio o un mapper escrito a mano que convierte a primitivos se sustituye por `toPrimitives()`/`fromPrimitives()` del agregado, con un test de ida y vuelta por agregado; un repositorio en memoria va en `infrastructure/persistence/` (si la aplicación corre en memoria) o en `test/support/` (si solo es un doble de test). El agregado pasa a tener constructor público que solo asigna y `static create` `[Fuera de los libros: convención de @archi-code/ddd]`.
-2. Introducir value objects para los primitivos más usados, cada uno en su fichero de `domain/value-object/`: `Money` como `Composite({ amount: Cents, currency: MoneyCurrency })`, identificadores `class OrderId extends IdType<'OrderId'>` (la marca hace que no se confundan ids de agregados distintos), estados como un único fichero `OrderStatusType.ts` con `enum OrderStatus`, `OrderStatusOption extends EnumType<OrderStatus>` y `OrderStatusType extends Required(OrderStatusOption)`.
-3. Sustituir setters por métodos de negocio con nombres del lenguaje (`ship`, `addLine`) que comprueban la invariante, lanzan errores de negocio con nombre y código y llaman a `record()` con eventos `<Agregado><AcciónEnPasado>DomainEvent`, moviendo la lógica desde los casos de uso; partir los casos de uso CRUD (`UpdateOrder`) en uno por acción (`ShipOrder`, `AddOrderLine`).
-4. Partir agregados grandes con el procedimiento de `ddd-skills/ddd-agregados/GUIA.md` (plazos de consistencia).
-5. Donde hoy un caso de uso guarda varios agregados: guardar uno, publicar su evento y ejecutar el resto con un caso de uso por reacción `<Acción>On<Evento>` (un `EventListener` con `@ListensTo`, sin un `UseCase` detrás); si el evento no puede perderse, el repositorio lo escribe junto al agregado en la misma escritura atómica (outbox) y un relay lo entrega por un `EventChannel`.
-6. Donde un caso de uso o servicio de aplicación abre o maneja transacciones, o recibe un runner de transacciones o una unidad de trabajo: mover la transacción al adaptador del repositorio, que hace atómico cada `save`/`remove` (una escritura de un documento o, si el agregado ocupa varias tablas, una transacción de base de datos dentro de `save`/`remove`), y dejar el caso de uso con solo el repositorio abstracto de su agregado (`OrderRepository`) y `EventBus` `[Fuera de los libros: convención de @archi-code/ddd]`.
-7. Separar las lecturas en read models (fila, store y puerto de consulta en `application/`, implementados en `infrastructure/` sobre la base de datos; proyección y una reacción por evento si la vista tiene tabla propia) si los repositorios han crecido en métodos; el controlador lee el puerto de consulta sin caso de uso.
+`[Fuera de los libros, basado en dependencias entre reglas]`
 
-## Despliegue
+1. Separar dominio e infraestructura: `toPrimitives()`/`static fromPrimitives()` en el agregado con test de ida y vuelta; repositorio abstracto por agregado en `domain/repository/` con solo los verbos necesarios; un adaptador por agregado y tecnología con versión en `WeakMap` y constructor con solo su tecnología; fuera mappers, repositorios genéricos, decoradores del ORM e imports de `/infrastructure` en el dominio; repositorio en memoria en `infrastructure/persistence/` o `test/support/`; constructor público y `static create` `[Fuera de los libros: convención de @archi-code/ddd]`.
+2. Value objects para los primitivos más usados, cada uno en su fichero de `domain/value-object/`: `Money` como `Composite({ amount: Cents, currency: MoneyCurrency })`, `OrderId extends IdType<'OrderId'>` (la marca impide confundir ids de agregados distintos), `OrderStatusType.ts` con `enum OrderStatus`, `OrderStatusOption extends EnumType<OrderStatus>` y `OrderStatusType extends Required(OrderStatusOption)`.
+3. Setters → métodos de negocio con nombres del lenguaje (`ship`, `addLine`) que comprueban la invariante, lanzan errores con nombre y código y llaman a `record()` con `<Agregado><AcciónEnPasado>DomainEvent`, trayendo la lógica desde los casos de uso; casos de uso CRUD (`UpdateOrder`) → uno por acción (`ShipOrder`, `AddOrderLine`).
+4. Partir agregados grandes según sus plazos de consistencia (`ddd-skills/ddd-agregados/GUIA.md`).
+5. Varios agregados en un caso de uso → guardar uno, publicar su evento y el resto en un caso de uso por reacción `<Acción>On<Evento>` (sin `UseCase` detrás); outbox en el repositorio si el evento no puede perderse.
+6. Transacciones o unidad de trabajo en la aplicación → dentro del adaptador del repositorio (un documento, o una transacción dentro de `save`/`remove` si ocupa varias tablas); el caso de uso queda con el repositorio abstracto y `EventBus` `[Fuera de los libros: convención de @archi-code/ddd]`.
+7. Repositorios con muchos métodos de lectura → read models (fila, store y puerto de consulta en `application/`, implementados en `infrastructure/`; proyección y una reacción por evento si la vista tiene tabla propia), leídos por el controlador sin caso de uso.
 
-* Cada paso debe poder desplegarse y revertirse por separado.
+Cada paso se despliega y revierte por separado.

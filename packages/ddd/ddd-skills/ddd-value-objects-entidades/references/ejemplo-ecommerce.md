@@ -1,83 +1,24 @@
 # Ejemplo: Ventas en la tienda online
 
-Objetos del contexto de Ventas, con la decisión razonada. Los límites de agregado se deciden en `ddd-skills/ddd-agregados/GUIA.md`; aquí solo se decide valor o entidad y su comportamiento.
+Solo valor o entidad; los límites se deciden en `ddd-skills/ddd-agregados/GUIA.md`.
 
 | Concepto | Decisión | Razón | Con el paquete |
 |---|---|---|---|
-| `Money` | Value object | Cuantifica; se reemplaza; igualdad por valor | `Composite({ amount: Cents, currency: MoneyCurrency })`, en `shared-kernel/money/` |
-| `Quantity` | Value object | Regla: entero positivo | `Required(NumberType)` + `@Validations` |
-| `Sku` | Value object | Identifica un producto de otro contexto: integración minimalista | `Required(StringType)` |
-| `OrderLine` | Value object | Dentro del pedido se identifica por su `Sku`; nadie la busca por id propio | `Composite` |
-| `OrderLines` | Value object | Reglas de la colección: al menos una línea y un SKU por línea; `total()` no suma monedas distintas | `Composite({ items: [OrderLine] })` |
-| `ShippingAddress` | Value object | Describe a dónde va este pedido; si el cliente cambia de casa, el pedido no cambia | `Composite` |
-| `OrderStatusType` | Tipo estándar con comportamiento | Reglas de transición en un solo sitio | Fichero `OrderStatusType.ts`: `enum OrderStatus`, `OrderStatusOption extends EnumType<OrderStatus>`, `OrderStatusType extends Required(OrderStatusOption)` |
-| `Order` | Entidad | Ciclo de vida largo, identidad propia, cambia de estado | `AggregateRoot<OrderId>` |
+| `Money` | Valor | Cuantifica, se reemplaza | `Composite({ amount: Cents, currency: MoneyCurrency })` en `shared-kernel/money/` |
+| `Quantity` | Valor | Entero positivo | `Required(NumberType)` + `@Validations` |
+| `Sku` | Valor | Producto de otro contexto (integración minimalista) | `Required(StringType)` |
+| `OrderLine` | Valor | Se identifica por su `Sku` dentro del pedido | `Composite` |
+| `OrderLines` | Valor | Al menos una línea, un SKU por línea | `Composite({ items: [OrderLine] })` |
+| `ShippingAddress` | Valor | Describe a dónde va el pedido | `Composite({ street, city, country })` |
+| `OrderStatusType` | Tipo estándar | Transiciones en un sitio | `OrderStatusType.ts` |
+| `Order` | Entidad | Ciclo de vida e identidad propios | `AggregateRoot<OrderId>` |
 
-`Money`, `Quantity`, `Sku`, `OrderLine`, `OrderLines`, `OrderStatusType`, `OrderId` y `CustomerId` están en `ddd-skills/ddd-value-objects-entidades/references/value-objects-ts.md`. Aquí, la dirección:
+Código de los valores en `ddd-skills/ddd-value-objects-entidades/references/value-objects-ts.md`; `Order` en `ddd-skills/ddd-agregados/references/implementacion-ts.md`.
 
-```ts
-import { Validations } from '@archi-code/validation';
-import { Composite, Required, StringType } from '@archi-code/ddd/domain';
-
-export class Street extends Required(StringType) {}
-export class City extends Required(StringType) {}
-
-@Validations([{ validator: 'isISO31661Alpha2' }])
-export class Country extends Required(StringType) {
-  protected filter(value: unknown): string {
-    return super.filter(value).trim().toUpperCase();
-  }
-}
-
-export class ShippingAddress extends Composite({ street: Street, city: City, country: Country }) {}
-```
-
-La entidad es el `Order` de `ddd-skills/ddd-agregados/references/implementacion-ts.md`, donde está la clase completa con sus eventos; no se redefine aquí (constructor, `create`, `fromPrimitives` y el resto de métodos están allí). Lo que importa para decidir valor o entidad:
+* `Order` delega en sus valores (`OrderLines.total`, `withLine`): entidad como contenedor de valores [IDDD cap. 6]. `addLine` reemplaza `OrderLines` entero, nunca cambia una línea por dentro.
+* Referencia al cliente por id (`customerId: CustomerId`), nunca por el objeto.
+* Test de ida y vuelta por agregado `[Fuera de los libros: convención de @archi-code/ddd]`:
 
 ```ts
-export class Order extends AggregateRoot<OrderId> {
-  readonly customerId: CustomerId;
-  private _lines: OrderLines;
-  readonly shippingAddress: ShippingAddress;
-  private _status: OrderStatusType;
-  private _stockReservation: ReservationReference;
-  private _paymentAuthorization: PaymentAuthorization | null;
-  readonly createdAt: CreatedAt;
-  private _updatedAt: UpdatedAt;
-
-  addLine(line: OrderLine): void {
-    if (!this.isIn(OrderStatus.PENDING)) {
-      throw new OrderNotModifiable(this.id.value, this._status.value);
-    }
-    this._lines = this._lines.withLine(line);
-    this.touch();
-    this.record(
-      new OrderLineAddedDomainEvent({
-        orderId: this.id.value,
-        sku: line.sku.value,
-        quantity: line.quantity.value,
-        total: this.total().toPrimitives(),
-      }),
-    );
-  }
-
-  total(): Money {
-    return this._lines.total();
-  }
-}
-```
-
-La entidad apenas tiene lógica propia: delega en sus valores (`OrderLines.total`, `OrderLines.withLine`, el estado de `OrderStatusType`). Es lo que IDDD llama orientar la entidad a contenedor de valores [IDDD cap. 6]. `addLine` reemplaza el `OrderLines` entero por el que devuelve `withLine`; nunca cambia una línea por dentro.
-
-El pedido referencia al cliente por su id (`customerId: CustomerId`), nunca por el objeto. Los eventos que registra (`OrderCreatedDomainEvent`, `OrderLineAddedDomainEvent`…), sin fecha porque `occurredOn` lo pone el bus al enviarlos, se explican en `ddd-skills/ddd-eventos-dominio/GUIA.md`.
-
-Un test de ida y vuelta por agregado comprueba que se puede guardar y rehacer `[Fuera de los libros: convención de @archi-code/ddd]`:
-
-```ts
-import { expect, it } from 'vitest';
-
-it('rebuilds the order it stored', () => {
-  const order = Order.create(OrderId.generate(), CustomerId.generate(), lines, address);
-  expect(Order.fromPrimitives(order.toPrimitives()).toPrimitives()).toEqual(order.toPrimitives());
-});
+expect(Order.fromPrimitives(order.toPrimitives()).toPrimitives()).toEqual(order.toPrimitives());
 ```

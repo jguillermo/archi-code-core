@@ -1,40 +1,38 @@
 # Orquestador de la suite DDD
 
-> Parte del skill `archi-code-ddd`: léela solo cuando ese skill te dirija aquí. Es la guía de entrada de la suite: dice qué guía leer para cada tarea de código y las convenciones que siguen todas las demás guías.
+> Parte del skill `archi-code-ddd`: léela solo cuando ese skill te dirija aquí. Dice qué guía leer para cada tarea y las convenciones de todas.
 
-## Convenciones de la suite
+## Convenciones
 
-* **Trazabilidad.** Cada regla de las guías indica su origen: `[Destilado cap. N]` (Domain-Driven Design Destilado / Distilled, Vernon), `[IDDD cap. N]` (Implementing Domain-Driven Design, Vernon), `[PHP: capítulo]` (Domain-Driven Design in PHP). Lo que no sale de esos libros va marcado `[Fuera de los libros]`; las convenciones del paquete, `[Fuera de los libros: convención de @archi-code/ddd]`. Si una decisión de código se apoya en algo que no es de los libros, dilo.
-* **Precedencia.** Las guías deciden el diseño (límites, qué va en un agregado, invariantes, qué eventos existen). El código se escribe con `@archi-code/ddd`: los ejemplos de las guías ya usan su API (las clases de su `src`), nunca clases base genéricas escritas a mano. La forma del código la fija `ddd-skills/archi-code-ddd/` y manda si un ejemplo difiere: carpetas de un contexto (`domain/` por tipo de clase, `application/` por acción de negocio) y nombres de fichero, eventos `<Agregado><AcciónEnPasado>DomainEvent` con `eventName` `'<agregado>.<acción_en_pasado>'`, agregados con constructor público y `static create`, errores de negocio sin sufijo `Exception`, casos de uso de usuario (`UseCase`) y por reacción (un `EventListener` con `@ListensTo` que es el propio caso de uso), copias locales de los eventos de otros contextos, read models, `composition.ts` por contexto y controladores sobre un ayudante con `ExceptionClassifier`. Estas convenciones van marcadas `[Fuera de los libros: convención de @archi-code/ddd]` (el recuadro "Con @archi-code/ddd" de cada guía y las notas marcadas); cualquier otra discrepancia sobre una regla de DDD entre una guía y el paquete es un defecto del paquete: sigue la guía.
-* **Vacíos.** Si las guías no cubren algo o se contradicen entre sí, usa tu conocimiento de DDD, márcalo como tal y no inventes conceptos ni prácticas no estándar sin decirlo.
-* **API.** El código es TypeScript con `@archi-code/ddd`, sigue las reglas del paquete y no inventa API (`ddd-skills/archi-code-ddd/what-not-to-do.md`).
+* **Fuentes.** Cada regla cita su origen: `[Destilado cap. N]` (DDD Destilado, Vernon), `[IDDD cap. N]` (Implementing DDD, Vernon), `[PHP: capítulo]` (DDD in PHP). Lo ajeno a los libros va `[Fuera de los libros]`; las convenciones del paquete, `[Fuera de los libros: convención de @archi-code/ddd]`.
+* **Precedencia.** Las guías deciden el diseño (límites, invariantes, eventos). La forma del código la fija `ddd-skills/archi-code-ddd/` y manda si un ejemplo difiere. Otra discrepancia de DDD entre guía y paquete es un defecto del paquete: sigue la guía.
+* **Código.** TypeScript con `@archi-code/ddd`, sin inventar API ni clases base propias (`ddd-skills/archi-code-ddd/what-not-to-do.md`).
+* **Vacíos.** Si las guías no cubren algo o se contradicen, usa DDD estándar y dilo; no inventes conceptos ni prácticas no estándar.
 
 ## Enrutado
 
-Lee el `GUIA.md` correspondiente antes de escribir o revisar el código y después solo las `references/` que necesites. Si la tarea toca varias guías, léelas todas y empieza por la de integración o arquitectura.
+Lee el `GUIA.md` y solo las `references/` que necesites. Si la tarea toca varias, empieza por integración o arquitectura.
 
 | Situación | Guía |
 |---|---|
-| Cómo se integran en el código contextos y sistemas externos, ACL | `ddd-skills/ddd-context-mapping/GUIA.md` |
-| Carpetas, capas, dependencias, módulos, composition root, controladores | `ddd-skills/ddd-arquitectura/GUIA.md` |
-| Valor o entidad, ids, primitivos, validación, Specification | `ddd-skills/ddd-value-objects-entidades/GUIA.md` |
-| Qué va junto, invariantes, transacciones, concurrencia, fábricas | `ddd-skills/ddd-agregados/GUIA.md` |
-| Eventos, mensajería, outbox, idempotencia, versiones | `ddd-skills/ddd-eventos-dominio/GUIA.md` |
-| Cargar y guardar agregados, mappers, transacciones (son del repositorio), tests de repositorio | `ddd-skills/ddd-repositorios-persistencia/GUIA.md` |
-| Servicios de dominio, casos de uso de usuario y por reacción, dónde va la lógica, autorización | `ddd-skills/ddd-servicios-capa-aplicacion/GUIA.md` |
-| Historial completo, read models, CQRS, Event Sourcing | `ddd-skills/ddd-event-sourcing-cqrs/GUIA.md` |
+| Integración entre contextos y sistemas externos, ACL | `ddd-skills/ddd-context-mapping/GUIA.md` |
+| Carpetas, capas, dependencias, composition root, controladores | `ddd-skills/ddd-arquitectura/GUIA.md` |
+| Valor o entidad, ids, validación, Specification | `ddd-skills/ddd-value-objects-entidades/GUIA.md` |
+| Límites, invariantes, concurrencia, fábricas | `ddd-skills/ddd-agregados/GUIA.md` |
+| Eventos, mensajería, outbox, idempotencia | `ddd-skills/ddd-eventos-dominio/GUIA.md` |
+| Repositorios, persistencia, transacciones | `ddd-skills/ddd-repositorios-persistencia/GUIA.md` |
+| Servicios de dominio, casos de uso, autorización | `ddd-skills/ddd-servicios-capa-aplicacion/GUIA.md` |
+| Read models, CQRS, Event Sourcing | `ddd-skills/ddd-event-sourcing-cqrs/GUIA.md` |
 | Revisar o migrar código existente | `ddd-skills/ddd-auditoria-refactorizacion/GUIA.md` |
 
-Las reglas esenciales con su fuente están en `ddd-skills/ddd-orquestador/references/chuleta-reglas.md`.
+Reglas esenciales con fuente: `ddd-skills/ddd-orquestador/references/chuleta-reglas.md`.
 
-Secuencias tipo:
-
-* **Contexto nuevo:** arquitectura → agregados con value objects → eventos → repositorios → casos de uso → Event Sourcing o CQRS solo si hay motivo. Para un contexto sin reglas de negocio, basta la arquitectura y un CRUD bien encapsulado [IDDD cap. 1].
-* **Código existente:** auditoría primero (escaneo, hallazgos, plan) y después las guías que indique el resultado.
-* **Duda concreta:** directamente a la guía correspondiente.
+* **Contexto nuevo:** arquitectura → agregados y value objects → eventos → repositorios → casos de uso → CQRS/ES solo con motivo. Sin reglas de negocio, basta un CRUD bien encapsulado [IDDD cap. 1].
+* **Código existente:** auditoría primero (escaneo, hallazgos, plan), luego las guías que indique.
+* **Duda concreta:** directamente a su guía.
 
 ## Restricciones
 
-* No metas DDD táctico, CQRS, Event Sourcing ni microservicios donde no hay complejidad que lo justifique.
+* Nada de DDD táctico, CQRS, Event Sourcing ni microservicios sin complejidad que lo justifique [IDDD cap. 4].
 * No mezcles contextos en el código sin justificarlo ni diseñes agregados sin pensar en consistencia y límites.
-* Los ejemplos van en un dominio realista (pedidos, pagos, usuarios o el del proyecto), escritos con `@archi-code/ddd` (`ddd-skills/archi-code-ddd/patterns.md`).
+* Ejemplos en un dominio realista, escritos con `@archi-code/ddd` (`ddd-skills/archi-code-ddd/patterns.md`).

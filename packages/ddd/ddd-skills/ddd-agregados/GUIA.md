@@ -1,115 +1,68 @@
 # Agregados
 
-> Parte del skill `archi-code-ddd`: léela solo cuando ese skill te dirija aquí. Los ejemplos están escritos con la API de `@archi-code/ddd` (las clases de su `src`) y se copian tal cual. Las guías deciden el diseño; la forma del código (carpetas y nombres, eventos, constructor y `create` del agregado, casos de uso de usuario y por reacción) la fija `ddd-skills/archi-code-ddd/`, que manda si un ejemplo difiere. El paquete se aparta de los libros donde lo marca `[Fuera de los libros: convención de @archi-code/ddd]`; cualquier otra discrepancia sobre una regla de DDD es un defecto del paquete.
->
-> **Cuándo consultar esta guía.** Diseño e implementación de agregados DDD en TypeScript, la guía central del diseño táctico. Cubre las cuatro reglas (proteger invariantes reales dentro del límite, agregados pequeños, referencias por identidad, consistencia eventual fuera del límite), el procedimiento para dimensionar agregados según los plazos de consistencia, la heurística de "¿de quién es el trabajo?", cuándo está justificado romper las reglas, la raíz del agregado, partes como value objects, fábricas, concurrencia optimista, registro de eventos de dominio y tests. Consúltala siempre que haya que decidir qué objetos van juntos, qué se guarda en una transacción, por qué hay conflictos de concurrencia o bloqueos, si un objeto debe contener una colección de otro, cómo coordinar cambios en varias entidades, o cuando aparezca un objeto enorme que carga medio modelo, aunque no se diga "agregado".
+> Parte del skill `archi-code-ddd`: léela solo cuando ese skill te dirija aquí. Qué va junto, invariantes, tamaño, referencias por identidad, consistencia eventual, fábricas, concurrencia y tests. La forma del código la fija `ddd-skills/archi-code-ddd/`.
 
 ## Con @archi-code/ddd
 
 [Fuera de los libros: convención de @archi-code/ddd]
 
-* La raíz no se escribe: extiende `AggregateRoot<Id>` (solo el tipo del id: no hay unión de eventos, que son `EventBase`) y llama a `super(id)`; el agregado no declara ni mapea ninguna `version`: la de la concurrencia optimista es solo del repositorio, que recuerda la de cada agregado cargado o guardado en un `WeakMap<Order, number>` y la actualiza solo tras escribir con éxito; el caso de uso nunca la ve.
-* Todo el estado son value objects, composites o entidades hijas (`readonly` público si no cambia, `private _campo` con getter si cambia; `createdAt` y `_updatedAt` los últimos); constructor **público** que solo asigna, `static create(id, …valueObjects)` que fija el estado inicial, comprueba las invariantes de creación y registra `<Agregado>CreatedDomainEvent`, `fromPrimitives` y `toPrimitives()` con datos planos (las reglas de agregados de `layers.md`). Los libros usan constructor privado y una fábrica con nombre del negocio [IDDD cap. 11].
-* Las identidades nuevas salen del value object (`OrderId.generate()`, o derivadas de otro agregado con `UuidType.fromValue`: `PaymentId.forOrder(order)`), no del repositorio; las calcula el caso de uso y `create` las recibe.
-* El agregado toma la hora actual de los value objects del paquete: `create` usa `CreatedAt.now()` y `UpdatedAt.now()`, y cada método que cambia estado actualiza `_updatedAt` con `UpdatedAt.now()` (en `private touch()`); nunca llama a `new Date()` para "ahora" ni recibe la hora como parámetro. Registra sus eventos sin fecha: `occurredOn` lo pone el bus al enviarlos `[Fuera de los libros: convención de @archi-code/ddd]`.
-* La variante funcional (estado inmutable + funciones que devuelven `[estado, eventos]`) no la da el paquete: necesita clases `AggregateRoot` y `PrimitiveTypes`.
-* El agregado registra sus eventos con `record()` y el caso de uso, tras `await this.orders.save(order)`, los publica con `events.publish(order.pullDomainEvents())`. La aplicación no abre transacciones: la transacción es del repositorio, que hace atómico cada `save`; si un evento no puede perderse, el repositorio lo guarda con el agregado en la misma escritura (outbox) y un proceso aparte lo entrega por un `EventChannel`.
-* Una política es un **caso de uso por reacción**: una sola clase `<Acción>On<Evento>` que extiende `EventListener` con `@ListensTo(Evento, { consumer: '<contexto>.<acción>-on-<evento>' })`, construye los value objects, carga o crea, llama al método de reacción, guarda y publica; no hay un `UseCase` detrás. Los métodos que piden los usuarios lanzan errores de negocio; los de reacción vuelven sin cambios cuando no aplican.
-* Errores de negocio con el nombre de lo que salió mal, sin sufijo `Exception` (`OrderNotCancellable`), y un código por contexto (`SAL002`).
+* La raíz extiende `AggregateRoot<Id>` y llama a `super(id)`. No declara `version`: la recuerda el repositorio en un `WeakMap<Order, number>`, la actualiza solo tras escribir y el caso de uso nunca la ve.
+* Estado en value objects, composites o entidades hijas; constructor **público** que solo asigna; `static create(id, …)` fija el estado inicial, comprueba las invariantes de creación y registra `<Agregado>CreatedDomainEvent`; `fromPrimitives`/`toPrimitives()` con datos planos. Los libros usan constructor privado y fábrica con nombre [IDDD cap. 11].
+* Los ids salen del value object (`OrderId.generate()`, `PaymentId.forOrder(order)`), los calcula el caso de uso y `create` los recibe.
+* La hora sale de `CreatedAt.now()`/`UpdatedAt.now()` (`private touch()`), nunca `new Date()` ni un parámetro; los eventos van sin fecha (`occurredOn` lo pone el bus).
+* El agregado registra con `record()`; el caso de uso guarda y luego publica `pullDomainEvents()`. La transacción es del repositorio; si un evento no puede perderse, outbox en el mismo `save`.
+* Una política es un caso de uso por reacción `<Acción>On<Evento>` (`EventListener` + `@ListensTo`), sin `UseCase` detrás. Los métodos que pide un usuario lanzan errores de negocio; los de reacción vuelven sin cambios si no aplican.
+* Una regla sobre el estado de un agregado (solo el comprador cancela) es un método del agregado, no un servicio de dominio.
+* Errores de negocio sin sufijo `Exception` y con código por contexto (`SAL002`).
 
-Un agregado es un grupo de entidades y value objects con una entidad raíz que lo nombra y lo controla, y que forma un **límite de consistencia transaccional**: al confirmar la transacción, todo lo de dentro cumple las reglas del negocio [Destilado cap. 5]. No es un grafo de objetos cómodo de navegar; es una decisión sobre consistencia [IDDD cap. 10].
-
+Un agregado es un **límite de consistencia transaccional** con una raíz que lo controla [Destilado cap. 5]; no un grafo cómodo de navegar [IDDD cap. 10].
 
 ## Las cuatro reglas
 
 [Destilado cap. 5; IDDD cap. 10]
+1. Protege las **invariantes reales** dentro del límite: reglas que se cumplen siempre, de forma inmediata y atómica (las decide negocio).
+2. Agregados **pequeños**: raíz y lo que debe ser consistente con ella (en un caso real de IDDD, ~70 % solo raíz y value objects).
+3. Referencia a otros agregados **por identidad** (`productId`, nunca `product`).
+4. **Consistencia eventual** fuera del límite: evento y otra transacción.
 
-1. **Protege las invariantes reales dentro del límite.** Una invariante es una regla que debe cumplirse siempre, de forma inmediata y atómica. Es negocio quien decide qué tiene que ser consistente al confirmar.
-2. **Diseña agregados pequeños.** Raíz y los mínimos atributos y value objects necesarios: todos los que deben ser consistentes entre sí, ninguno más. Un caso real que cita IDDD: en torno al 70 % de los agregados de un proyecto tenían solo la raíz con value objects, y el resto dos o tres entidades.
-3. **Referencia a otros agregados solo por su identidad.** `productId: ProductId`, nunca `product: Product`.
-4. **Actualiza otros agregados con consistencia eventual.** Un agregado publica un evento de dominio; un suscriptor modifica el otro en **otra** transacción.
-
-Corolario operativo: **una transacción modifica una sola instancia de agregado** [Destilado cap. 5; IDDD cap. 10]. Eso implica que cada petición de usuario debería ejecutar un comando sobre un agregado [IDDD cap. 10]. Con el paquete, esa transacción es una escritura atómica por agregado que garantiza el repositorio en su `save`; el caso de uso carga un agregado y lo guarda una vez `[Fuera de los libros: convención de @archi-code/ddd]`.
+Corolario: **una transacción, un agregado**; cada petición, un comando sobre un agregado [Destilado cap. 5; IDDD cap. 10]. Aquí, un `save` atómico por caso de uso `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ## Flujo de diseño
 
-### Paso 1. Partir de los candidatos
-
-Lista los agregados candidatos con sus comandos y eventos: sustantivos del negocio con ciclo de vida que reciben comandos.
-
-### Paso 2. Dimensionar con el procedimiento de Vernon
-
-[Destilado cap. 5]
-
-1. Empieza con **un agregado por entidad**, cada uno solo con su raíz. Ponle lo necesario para identificarlo, encontrarlo y dejarlo en un estado inicial válido.
-2. Para cada agregado A1, lista qué otros agregados deben actualizarse cuando A1 cambia.
-3. Para cada reacción, fija **cuánto puede tardar**: inmediatamente, o en N segundos, minutos, horas o días.
-4. Lo que debe ser **inmediato**: considera fusionar ambas entidades en un único agregado.
-5. Lo que admite **plazo**: consistencia eventual con eventos de dominio.
-
-Desconfía de "inmediato" para todo: con usuarios concurrentes, un agregado grande falla en las transacciones y consume mucha memoria [Destilado cap. 5].
-
-### Paso 3. Desempatar con "¿de quién es el trabajo?"
-
-Si no está claro si algo es transaccional o eventual: si es trabajo **del usuario que ejecuta el caso de uso** dejar los datos consistentes, intenta consistencia transaccional (respetando las demás reglas). Si es trabajo de otro usuario o del sistema, eventual [IDDD cap. 10, guía atribuida a Evans].
-
-### Paso 4. Desconfiar de los casos de uso que tocan varios agregados
-
-Un caso de uso que pide modificar varios agregados en una transacción puede indicar una invariante que falta (y un concepto nuevo), o simplemente que el caso de uso debe reescribirse con consistencia eventual y un retraso aceptable. Cuidado con fusionar agregados y acabar en uno gigante [IDDD cap. 10].
-
-### Paso 5. Elegir bien la abstracción
-
-Modela el lenguaje ubicuo explícitamente. Nada de `ScrumElement` con un `typeName` para cubrir "todos los casos futuros": el lenguaje no coincide con el del negocio, aparecen casos especiales, sobra código y nunca se acierta con el futuro [Destilado cap. 5].
-
-### Paso 6. Implementar
-
-Guía completa en `ddd-skills/ddd-agregados/references/implementacion-ts.md`. Lo esencial:
-
-* La raíz tiene identidad global; las entidades internas solo identidad local [IDDD cap. 10].
-* Partes internas como **value objects** siempre que se puedan reemplazar enteras [IDDD cap. 10].
-* Comportamiento con nombres del lenguaje; sin setters públicos. Ley de Demeter y "Tell, Don't Ask": los clientes piden a la raíz que haga algo, no navegan por dentro [IDDD cap. 10].
-* **No inyectes repositorios ni servicios en el agregado.** Busca antes lo que necesite (en el servicio de aplicación) y pásaselo al método [IDDD cap. 10].
-* **Concurrencia optimista** con versión en la raíz [IDDD cap. 10]: con el paquete la guarda el repositorio (un `WeakMap` con la versión de cada agregado que cargó o guardó, almacenada junto a los primitivos, nunca dentro) y la comprueba al guardar y al borrar (`ConcurrencyException`) `[Fuera de los libros: convención de @archi-code/ddd]`.
-* El agregado **registra** sus eventos (`record`); el caso de uso los publica tras guardar con `events.publish(order.pullDomainEvents())` (ver `ddd-skills/ddd-eventos-dominio/GUIA.md`).
-* **Distingue comandos de hechos.** Un comando de usuario puede rechazarse con un error de negocio. Un método que registra un hecho ya ocurrido en otro agregado o contexto es idempotente y no lanza: si no aplica vuelve sin cambios, y si el hecho no encaja registra un evento de negocio para que otra política compense [Destilado cap. 6]. Una excepción en un consumidor de mensajes provoca reintentos sin fin.
-* Creación con **fábricas**: `static create` en la propia raíz; método en la raíz de otro agregado cuando el nuevo nace de él (`customer.placeOrder(...)`, que llama a `Order.create`), o servicio cuando la creación necesita traducir de otro contexto [IDDD cap. 11; PHP: Factories]. Ver `ddd-skills/ddd-agregados/references/fabricas.md`.
-
-### Paso 7. Coordinar agregados
-
-Consistencia eventual dentro y fuera del contexto: casos de uso por reacción (`EventListener` con `@ListensTo`), reintentos, compensaciones y procesos. `ddd-skills/ddd-agregados/references/consistencia-eventual.md`.
+1. Candidatos: sustantivos con ciclo de vida que reciben comandos.
+2. Dimensionar [Destilado cap. 5]: un agregado por entidad, solo con lo necesario para identificarlo, encontrarlo y dejarlo en un estado inicial válido; lista qué otros deben reaccionar a cada cambio y en qué plazo; lo **inmediato** se fusiona, lo que admite **plazo** va por eventos. Desconfía de "inmediato para todo".
+3. Desempate: si dejarlo consistente es trabajo **del usuario** que ejecuta el caso de uso, transaccional; si es de otro o del sistema, eventual [IDDD cap. 10].
+4. Un caso de uso que toca varios agregados indica una invariante que falta o que debe ser eventual; no acabes en un agregado gigante [IDDD cap. 10].
+5. Abstracciones del lenguaje, nada de `ScrumElement` genérico [Destilado cap. 5].
+6. Implementar (`ddd-skills/ddd-agregados/references/implementacion-ts.md`):
+   * Identidad global en la raíz, local en las entidades internas; partes internas como valores si se reemplazan enteras [IDDD cap. 10].
+   * Sin setters; Demeter y "Tell, Don't Ask" [IDDD cap. 10].
+   * **Sin repositorios ni servicios dentro**: el caso de uso busca y pasa lo necesario [IDDD cap. 10].
+   * Concurrencia optimista con versión [IDDD cap. 10], aquí del repositorio (`ConcurrencyException`) `[Fuera de los libros: convención de @archi-code/ddd]`.
+   * **Comandos frente a hechos**: un comando de usuario puede rechazarse; un hecho ajeno se registra sin lanzar (una excepción en un consumidor provoca reintentos sin fin), idempotente, y si no encaja se emite un evento para compensar [Destilado cap. 6].
+   * Fábricas: `static create`, un método en otra raíz (`customer.placeOrder`) o un servicio que traduce de otro contexto [IDDD cap. 11; PHP: Factories]; ver `ddd-skills/ddd-agregados/references/fabricas.md`.
+7. Coordinar: `ddd-skills/ddd-agregados/references/consistencia-eventual.md`.
 
 ## Cuándo romper las reglas
 
-Solo con un buen motivo. IDDD cita cuatro [IDDD cap. 10]:
-
-| Motivo | Condición para que sea aceptable |
+[IDDD cap. 10]
+| Motivo | Condición |
 |---|---|
-| Comodidad de interfaz: crear varios agregados en lote | Crear en lote no cambia nada semánticamente frente a crearlos de uno en uno; cada uno protege sus invariantes |
-| Falta de mecanismos técnicos (sin mensajería, temporizadores ni procesos en segundo plano) | Afinidad usuario-agregado (un solo usuario trabaja sobre ese conjunto) y concurrencia optimista |
-| Transacciones globales impuestas (dos fases) | Aun así, intenta no modificar varios agregados del propio contexto |
-| Rendimiento de consultas | Referencia directa a otro agregado, valorando el coste |
+| Crear varios en lote | No cambia nada frente a crearlos uno a uno; cada uno protege sus invariantes |
+| Sin mensajería ni procesos de fondo | Afinidad usuario-agregado y concurrencia optimista |
+| Transacciones globales impuestas | Aun así, no modificar varios del propio contexto |
+| Rendimiento de consultas | Referencia directa, valorando el coste |
 
 ## Señales de alarma
 
-* Un agregado con colecciones que crecen sin límite (`Product.backlogItems` con miles de elementos) [Destilado cap. 5; IDDD cap. 10].
-* Fallos frecuentes por concurrencia en un agregado concreto.
-* Propiedades que son otro agregado completo (`order.customer.address.city`).
-* Servicios de aplicación que guardan dos o más agregados en el mismo caso de uso "porque sí", o que reciben una dependencia `transactions`/`unitOfWork` para agruparlos.
-* Un agregado que recibe un repositorio por constructor.
-* Setters públicos o un `update(dto)` genérico [Destilado cap. 5].
-* Lógica de negocio en servicios de aplicación o en clases `Helper`/`Utils` [Destilado cap. 5].
-* Relaciones bidireccionales mantenidas solo por comodidad o por la versión de concurrencia [IDDD cap. 10].
+* Colecciones que crecen sin límite [Destilado cap. 5; IDDD cap. 10].
+* Conflictos de concurrencia frecuentes en un agregado.
+* `order.customer.address.city`: otro agregado dentro.
+* Un caso de uso que guarda varios agregados o recibe `unitOfWork`.
+* Un agregado con repositorio en el constructor.
+* Setters o `update(dto)`; lógica en servicios de aplicación o `Utils` [Destilado cap. 5].
+* Relaciones bidireccionales por comodidad o por la versión de concurrencia [IDDD cap. 10].
 
-## Programación funcional
+Con estilo funcional, separar datos y comportamiento no es anemia y parte de esta guía no aplica tal cual [Destilado cap. 5]; el paquete no da esa variante (`ddd-skills/ddd-agregados/references/implementacion-ts.md`) `[Fuera de los libros: convención de @archi-code/ddd]`.
 
-Con un estilo funcional, separar datos y comportamiento no es anemia: el agregado es un tipo inmutable y las funciones devuelven un estado nuevo o un evento. Parte de esta guía orientada a objetos no aplica tal cual [Destilado cap. 5]. `ddd-skills/ddd-agregados/references/implementacion-ts.md` incluye una variante funcional escrita con los value objects y eventos del paquete; el paquete no da su base ni su persistencia `[Fuera de los libros: convención de @archi-code/ddd]`.
-
-## Ejemplo completo
-
-`ddd-skills/ddd-agregados/references/ejemplo-ecommerce.md` aplica el procedimiento de dimensionado a Pedido, Pago y Reserva de stock, con la tabla de reacciones y plazos; el código del agregado `Order` está en `ddd-skills/ddd-agregados/references/implementacion-ts.md` y la política que registra la reserva, en `ddd-skills/ddd-agregados/references/consistencia-eventual.md`.
-
-## Siguiente guía
-
-* Diseño, publicación y consumo de eventos → `ddd-skills/ddd-eventos-dominio/GUIA.md`.
-* Repositorio del agregado → `ddd-skills/ddd-repositorios-persistencia/GUIA.md`.
-* Casos de uso que cargan, invocan y guardan agregados → `ddd-skills/ddd-servicios-capa-aplicacion/GUIA.md`.
+Ejemplo de dimensionado (Pedido, Pago, Reserva): `ddd-skills/ddd-agregados/references/ejemplo-ecommerce.md`.

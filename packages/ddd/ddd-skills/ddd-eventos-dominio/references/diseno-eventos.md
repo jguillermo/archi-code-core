@@ -2,41 +2,27 @@
 
 ## Nombre
 
-* Pasado, con el lenguaje del contexto de origen [Destilado cap. 6; IDDD cap. 8].
-* Normalmente derivado del comando que lo causa: `PlaceOrder` → `OrderPlaced`, `AddOrderLine` → `OrderLineAdded` [Destilado cap. 6].
-* Tan compacto como permita el lenguaje. IDDD prefiere `BacklogItemCommitted` a `BacklogItemCommittedToSprint` porque en Scrum un elemento solo se compromete en un sprint; si el equipo prefiere el nombre largo en algún caso, vale [IDDD cap. 8].
-* La combinación del nombre y sus propiedades cuenta por completo lo que pasó en el modelo [Destilado cap. 6].
-* Con el paquete, la clase se llama `<Agregado><AcciónEnPasado>DomainEvent` (`OrderLineAddedDomainEvent`, la de creación `<Agregado>CreatedDomainEvent`) y su `static readonly eventName` es `'<agregado>.<acción_en_pasado>'` en snake_case (`'order.line_added'`), único en el sistema; el nombre `sales.order.OrderPlaced` queda para el contrato publicado fuera del sistema [IDDD cap. 13] `[Fuera de los libros: convención de @archi-code/ddd]`. Las tablas de abajo usan el nombre corto del hecho, que es lo que decide el diseño.
+* Pasado, lenguaje del contexto de origen, derivado del comando (`PlaceOrder` → `OrderPlaced`) [Destilado cap. 6; IDDD cap. 8].
+* Tan compacto como permita el lenguaje (`BacklogItemCommitted`; el largo también vale si el equipo lo prefiere) [IDDD cap. 8]. Nombre y propiedades cuentan por completo lo que pasó [Destilado cap. 6].
+* Con el paquete: `OrderLineAddedDomainEvent`, `eventName` `'order.line_added'`; `sales.order.OrderPlaced` queda para el contrato publicado [IDDD cap. 13] `[Fuera de los libros: convención de @archi-code/ddd]`.
 
-| Mal | Bien | Por qué |
-|---|---|---|
-| `OrderUpdated` | `OrderLineAdded`, `ShippingAddressChanged` | Dice qué cambió |
-| `PlaceOrder` | `OrderPlaced` | Es un hecho, no una orden |
-| `OrderStatusChangedToConfirmed` | `OrderConfirmed` | El lenguaje ya tiene la palabra |
-| `PaymentWebhookReceived` | `PaymentAuthorized` | Lenguaje del dominio, no del transporte |
-| `TimerElapsed` | `PaymentAuthorizationExpired` | El paso del tiempo con nombre de negocio [Destilado cap. 6] |
+| Mal | Bien |
+|---|---|
+| `OrderUpdated` | `OrderLineAdded`, `ShippingAddressChanged` |
+| `PlaceOrder` | `OrderPlaced` |
+| `OrderStatusChangedToConfirmed` | `OrderConfirmed` |
+| `PaymentWebhookReceived` | `PaymentAuthorized` |
+| `TimerElapsed` | `PaymentAuthorizationExpired` [Destilado cap. 6] |
 
 ## Datos
 
-Pregunta guía: ¿qué estimuló la publicación del evento? Normalmente un comando, y el evento debería llevar las propiedades que llevaba ese comando [Destilado cap. 6]. IDDD añade [IDDD cap. 8]:
+Lo que llevaba el comando que lo causó [Destilado cap. 6], más [IDDD cap. 8]: cuándo ocurrió (`occurredOn`, lo pone `DomainEventBus` `[Fuera de los libros: convención de @archi-code/ddd]`), identidad del agregado y de los implicados, valores útiles del estado resultante y, en multi-tenant, `tenantId`.
 
-* Marca de tiempo de cuándo ocurrió (`occurredOn`; con el paquete la pone `DomainEventBus` al enviar el evento, no el agregado `[Fuera de los libros: convención de @archi-code/ddd]`).
-* Lo necesario para "volver a disparar" el evento: identidad del agregado (un campo del payload que declara el evento, como `orderId`; `EventBase` no la pone) y de los agregados implicados.
-* Parámetros del comando si se demuestran útiles.
-* Valores del estado resultante que ayuden a los suscriptores.
-* En entornos multi-tenant, siempre el `tenantId`, aunque no viniera en el comando.
-
-Ejemplo de IDDD: `BacklogItemCommitted` lleva `tenantId`, `backlogItemId` y `sprintId`. El `sprintId` es imprescindible porque el requisito dice que el sprint debe enterarse [IDDD cap. 8].
-
-Lista de comprobación `[Fuera de los libros]`:
-* ¿Un consumidor puede decidir qué hacer sin consultar al origen? Si no, ¿es aceptable que consulte (query-back)?
-* ¿Hay datos personales? ¿Los necesita cada consumidor?
-* ¿Los importes llevan moneda? ¿Las fechas, zona horaria?
-* ¿Algún valor cambia a menudo y quedará obsoleto enseguida? Mejor fuera.
+`[Fuera de los libros]` ¿Puede el consumidor decidir sin consultar al origen? ¿Hay datos personales que no necesita? ¿Importes con moneda y fechas con zona? ¿Valores que caducan enseguida?
 
 ## Forma en TypeScript
 
-Un evento extiende `EventBase` de `@archi-code/ddd/domain`, declara `static readonly eventName` y recibe sus datos en un único objeto, como primitivos sacados de los value objects (el dinero como `{ amount, currency }` en céntimos, las fechas como texto ISO), nunca value objects ni el `toPrimitives()` del agregado. Los tipos van en línea: el fichero del evento no declara interfaces ni importa tipos de datos `[Fuera de los libros: convención de @archi-code/ddd]`. En `domain/event/OrderConfirmedDomainEvent.ts`:
+`domain/event/OrderConfirmedDomainEvent.ts`, un fichero por evento, tipos en línea, sin interfaces propias, dinero en céntimos `[Fuera de los libros: convención de @archi-code/ddd]`:
 
 ```ts
 import { EventBase } from '@archi-code/ddd/domain';
@@ -61,85 +47,27 @@ export class OrderConfirmedDomainEvent extends EventBase {
 }
 ```
 
-Va en su propio fichero de `domain/event/`, sin unión de eventos que actualizar. El agregado lo registra en el método que causa el hecho, sin fecha: `occurredOn` lo pone `DomainEventBus` al enviarlo. En el `Order` de `ddd-skills/ddd-agregados/references/implementacion-ts.md` el pedido se confirma solo cuando ya tiene reserva y autorización, desde `registerStockReservation` o `registerPaymentAuthorization`:
+El agregado lo registra sin fecha: `this.record(new OrderConfirmedDomainEvent({ orderId: this.id.value, total: this.total().toPrimitives() }))`. No generes id ni fecha de un evento nuevo; pásalos solo al reconstruir uno entregado.
 
-```ts
-private tryToConfirm(): void {
-  if (this._stockReservation.value !== null && this._paymentAuthorization !== null) {
-    this.moveTo(OrderStatus.CONFIRMED);
-    this.record(
-      new OrderConfirmedDomainEvent({
-        orderId: this.id.value,
-        total: this.total().toPrimitives(),
-      }),
-    );
-  }
-}
-```
+## Identidad
 
-`EventBase` pone `eventName` y `eventId` (UUID v4), y `record()` guarda el evento tal cual: sus campos son `readonly` y el constructor está completo [IDDD cap. 8]. Un evento nuevo no tiene `occurredOn`: `DomainEventBus.publish` lo pone con la hora del envío (texto ISO en UTC) en el JSON que envía y conserva el que ya traiga un evento reconstruido `[Fuera de los libros: convención de @archi-code/ddd]`. No generes tú el id ni la fecha de un evento nuevo; pasa `eventId` y `occurredOn` solo al reconstruir uno que entregó un canal. El evento ya es la forma que viaja:
-
-```ts
-const [confirmed] = order.pullDomainEvents();
-({ ...confirmed });
-// { eventName: 'order.confirmed', eventId: '…',
-//   orderId: '9b2f6c1e-…', total: { amount: 7000, currency: 'EUR' } }
-// enviado por DomainEventBus.publish:
-// { eventName: 'order.confirmed', eventId: '…', occurredOn: '2026-03-01T09:30:00.000Z',
-//   orderId: '9b2f6c1e-…', total: { amount: 7000, currency: 'EUR' } }
-```
-
-## Identidad del evento
-
-* Dentro del contexto rara vez hace falta comparar eventos; el tipo, las identidades implicadas y la fecha suelen bastar, como en un value object [IDDD cap. 8].
-* Fuera, con mensajería que puede reenviar, una identidad única permite deduplicar. Algunos buses la ponen en la cabecera; si no, la asigna el publicador [IDDD cap. 8]. Con el paquete es el `eventId` que pone `EventBase`: viaja en el JSON, `EventRegistry` lo conserva al reconstruir el evento (la fábrica pasa `eventId: json.eventId` y `occurredOn: json.occurredOn`) y el adaptador del broker lo usa como `messageId`.
+Dentro del contexto rara vez se comparan eventos; fuera, una identidad única permite deduplicar [IDDD cap. 8]. Algunos buses la ponen en la cabecera; si no, el publicador. Con el paquete es el `eventId` de `EventBase`, que `EventRegistry` conserva y el broker usa como `messageId`.
 
 ## Eventos con características de agregado
 
-A veces un evento no resulta de un comando sobre un agregado sino que un usuario lo origina directamente. Entonces puede modelarse como agregado inmutable en su propio repositorio, que no permite borrarlo, con identidad generada [IDDD cap. 8]. Ejemplo: una `IncidenciaDeEntregaReportada` por el transportista que se archiva y se consulta. Con el paquete sería un `AggregateRoot` cuyo repositorio abstracto declara solo `findById` y `save` (nunca `remove`, ni implementa `AggregateRemover`), con id `XId.generate()`.
+Un hecho que origina directamente un usuario puede ser un agregado inmutable con repositorio sin borrado [IDDD cap. 8]: un `AggregateRoot` con id `XId.generate()` cuyo repositorio declara solo `findById` y `save` (nunca `remove` ni `AggregateRemover`).
 
 ## Versionado
 
-* Los eventos publicados llevan versión. Diseñados con cuidado, muchos consumidores pueden leer cualquier versión como si fuera la 1 [IDDD cap. 13].
-* Cambios compatibles `[Fuera de los libros]`: añadir campos opcionales. Incompatibles: renombrar, quitar o cambiar el significado → nueva versión o nuevo evento, publicando ambas durante la transición.
-* Con el paquete, los eventos no llevan número de versión `[Fuera de los libros: convención de @archi-code/ddd]`. Un cambio incompatible de la forma interna se publica como un evento nuevo con otro `eventName` (`'order.cancelled_with_refund'`), o la fábrica del `EventRegistry`, que recibe cada evento guardado tal como se escribió, reconoce la forma antigua por sus campos:
+* Los eventos publicados llevan versión; bien diseñados, se leen como la v1 [IDDD cap. 13]. Compatible: añadir campos opcionales; incompatible (renombrar, quitar, cambiar significado): versión o evento nuevo, publicando ambos en la transición `[Fuera de los libros]`.
+* Los eventos internos no llevan versión `[Fuera de los libros: convención de @archi-code/ddd]`: otro `eventName` (`'order.cancelled_with_refund'`) o una fábrica que reconoce la forma antigua:
 
 ```ts
-import { EventBase } from '@archi-code/ddd/domain';
-import type { EventMetadata } from '@archi-code/ddd/domain';
-import { EventRegistry } from '@archi-code/ddd/infrastructure';
-
-export class OrderCancelledDomainEvent extends EventBase {
-  static readonly eventName = 'order.cancelled';
-
-  readonly orderId: string;
-  readonly reason: string;
-  readonly refund: { amount: number; currency: string };
-
-  constructor({
-    orderId,
-    reason,
-    refund,
-    eventId,
-    occurredOn,
-  }: {
-    orderId: string;
-    reason: string;
-    refund: { amount: number; currency: string };
-  } & EventMetadata) {
-    super({ eventId, occurredOn });
-    this.orderId = orderId;
-    this.reason = reason;
-    this.refund = refund;
-  }
-}
-
 export const cancellations = new EventRegistry().register(
   OrderCancelledDomainEvent,
   (json) =>
     new OrderCancelledDomainEvent({
       orderId: json.orderId as string,
-      reason: json.reason as string,
       refund:
         typeof json.refundCents === 'number'
           ? { amount: json.refundCents, currency: 'EUR' }
@@ -150,4 +78,4 @@ export const cancellations = new EventRegistry().register(
 );
 ```
 
-La versión del contrato publicado a otros contextos es otra cosa: la decide el adaptador del broker, que puede seguir emitiendo la v1 del contrato aunque cambie la forma del evento interno (ver `ddd-skills/ddd-eventos-dominio/references/publicacion-ts.md`).
+La versión del contrato publicado la decide el adaptador del broker, que puede seguir emitiendo la v1 aunque cambie el evento interno (`ddd-skills/ddd-eventos-dominio/references/publicacion-ts.md`).

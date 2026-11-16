@@ -1,257 +1,134 @@
 # What not to do
 
-Part of the `archi-code-ddd` skill: read it only when that skill routes here.
+Part of the `archi-code-ddd` skill: read it only when that skill routes here. One line per
+mistake; the rule is in `layers.md`. Also the checklist of every audit.
 
 ## Layers and structure
 
-- Putting a class in the wrong layer: a repository implementation, a mapper or a driver in the
-  domain; an event bus implementation in the domain; a use case importing `/infrastructure`;
-  business rules in an adapter or a controller.
-- Importing another context (its value objects, events, data types or use cases): only
-  `shared-kernel/` is shared; data crosses contexts only as events, and each context declares its
-  own value objects and its own copy of every foreign event it hears.
-- Importing `@archi-code/ddd/infrastructure` or `/application` from domain code, or
-  `ExceptionClassifier` anywhere but the protocol helper (and the composition root).
-- Importing through a folder or an `index.ts`, or mixing values and types of one module in one
-  `import` statement: import each symbol from its declaring file and use `import type` for types.
-- Importing an exception from another layer's subpath: each layer exports its own
-  (`ValidationException` from `/domain`, `AggregateNotFoundException` from `/application`,
-  `InternalErrorException` from `/infrastructure`); there is no `/exceptions` subpath and the
-  common base class is not exported.
-- Importing the repository contracts from `@archi-code/ddd/application`: they live in `/domain`.
-- Application folders named after patterns (`use-cases/`, `listeners/`, `commands/`, `dtos/`):
-  one folder per business action, holding its use case, its data types and its event copies.
-- Data types of the input (`MoneyData`) in `domain/`, or shared between contexts.
-- A controller, consumer or CLI importing a repository or an adapter: entry points only call use
-  cases and query ports; the composition root wires everything.
-- Building classes of the context anywhere but `composition.ts`, or importing `composition.ts`
-  from a layer.
-- Do not invent API: there is no root `@archi-code/ddd` import, no `toPrimitives()` in the base
-  classes, no generic `ValueObject` (a value object of several fields is `Composite({...})`), no
-  `setNow()`, `addItem()`, `setItem()` or `removeItem()`, no `findOrFail` nor `saveAndPublish` in
-  `UseCase`. When in doubt, check the installed README.
-- Writing the suite's base classes in the project (`domain/shared/AggregateRoot.ts`,
-  `DomainEvent.ts`, `ValueObject.ts`, an `EventPublisher` port): they come from the package.
+- A class in the wrong layer (repository implementation or bus in the domain, rules in an adapter
+  or controller); domain importing `/application` or `/infrastructure`; a use case importing
+  `/infrastructure`.
+- Importing another context (anything but `shared-kernel/`).
+- `ExceptionClassifier` outside the protocol helper.
+- Importing through a folder or `index.ts`, or mixing values and types in one statement.
+- An exception or repository contract imported from the wrong subpath; a root `@archi-code/ddd`
+  import.
+- Pattern-named folders (`use-cases/`, `listeners/`, `dtos/`) instead of one per business action.
+- Input data types (`MoneyData`) in `domain/` or shared between contexts.
+- Entry points importing repositories or adapters; building classes outside `composition.ts`, or
+  importing `composition.ts`.
+- Invented API (`findOrFail`, `saveAndPublish`, `setNow()`, `addItem()`/`setItem()`/`removeItem()`,
+  `toPrimitives()` in the base classes, generic `ValueObject`) or
+  own base classes (`AggregateRoot.ts`, `DomainEvent.ts`, `EventPublisher`).
 
 ## Value objects
 
-- Using `Required(StringType)` directly as a property type instead of a named subclass, or two
-  value objects in one file.
-- `ensure…()`/`validate…()` methods of your own, or calling `assertValid()` (it does not exist):
-  the constructor already throws `ValidationException`.
-- Building the value objects of an input one after another with `new` in `toCommand` (or at the
-  start of a reaction): the first invalid field hides the rest. Use `ValueObjectBuilder.build`.
-- Building value objects inside `handle` from raw input, or passing raw strings to aggregates.
-- Moving a value object's rule to the request schema or the controller (`isEmail` in a DTO
-  validator instead of the `Email` value object): the controller checks only the shape.
-- Catching the `ValidationException` of a value object to keep an invalid value, or creating
-  `ValidationException` by hand from `validate()` results.
-- An enum split over several files, or named against the convention: one `<Enum>Type.ts` with
-  `enum <Enum>`, `<Enum>Option` and `<Enum>Type`.
-- Using another context's id class for a reference: declare `<Other>Reference extends
-  Required(UuidType)` in the context that holds it.
-- An id class without its brand (`class OrderId extends IdType {}`): a `CustomerId` is then
-  accepted where an `OrderId` is expected. Write `class OrderId extends IdType<'OrderId'> {}`.
-- An optional value object (`class Code extends StringType {}`) as the id of an entity or
-  aggregate: an id is always required.
-- `IdType` with `00000000-0000-0000-0000-000000000000` or `ffffffff-ffff-ffff-ffff-ffffffffffff`:
-  throws `TypePrimitiveException`.
-- Mutating a VO or its value (`vo.value.setFullYear(...)`, pushing to `vo.value`): values are
-  frozen and date setters throw. Build a new VO; for arrays keep what `withItem`/`withoutItem`
-  return.
-- Comparing VOs or entities with `===`: use `equals()`.
-- `vo.toString` without parentheses: it is a method.
-- Sending local date-times without a zone (`'2024-01-31T10:00:00'`) to `DateType`.
-- Passing unconverted values with their static type (`new NumberType('1.5')`): type error;
-  conversion is for `any`/`unknown` input.
-- `JsonType` with `{}` or with an array: throws `TypePrimitiveException` (it must be a non-empty
-  object).
-- Modeling an amount with its currency, a date range or an address as loose fields of the
-  aggregate, as a `JsonType`, or as a child entity with an id nobody looks up: use `Composite`.
-  And never turn a free-form JSON value into a composite, nor the other way round.
-- `ArrayType<OrderLine>` with a composite item: a list of composites is a `Composite` list field
-  (`Composite({ items: [ShipmentItem] })`) or an array of child entities in the aggregate.
-- `Required(Composite(...))`, or `Composite({ amount: Required(NumberType) })` without a named
-  class: every field class is a named subclass; an optional composite is a `Money | null` field.
-- Mutating a composite or adding state to it: it is frozen; return a new instance.
-- A computed getter (`get total()`) on an aggregate, a child entity or a composite:
-  `PrimitiveTypes` takes it for a field and `toPrimitives()` stops compiling; write a method.
-- Importing `@Validations` from `@archi-code/ddd/domain`: it comes from `@archi-code/validation`.
-- A slug or whitespace cleanup of your own (regexes, `slugify`-like libraries, `.trim()` and
-  `.replace(/\s+/g, ' ')` in a controller or `toCommand`): use `vo.slug()`,
-  `StringSanitizer.slug(text)` and `StringSanitizer.singleLine(text)`.
-- Cleaning a value object's text in `toCommand` or in the aggregate instead of its `filter`: every
-  other place that builds it (`fromPrimitives`, reactions, tests) gets the dirty text.
-- A slug as the id of an aggregate, or a lookup by slug without a unique index: two titles can give
-  the same slug (`Casco Pro` and `casco-pro`). Keep the id and treat the slug as a field.
-- Expecting `slug()` to keep what it drops: the sign of a number (`-3` → `3`), letters of other
-  scripts (`溶接` → `''`) and ordinals (`1.º` → `1`); a slug identifies nothing on its own.
+- `Required(StringType)` as a property type, or two VOs in one file.
+- `ensure…()`, `assertValid()`, catching `ValidationException` to keep an invalid value, or
+  building one by hand from `validate()` results.
+- VOs built one by one with `new` in `toCommand`/reactions instead of `ValueObjectBuilder.build`;
+  VOs built from raw input in `handle`; raw strings passed to aggregates.
+- VO rules moved to the controller or request schema.
+- A misnamed or split enum; another context's id class as a reference; an unbranded id
+  (`extends IdType {}`), an optional VO as id, nil/max UUIDs.
+- Mutating a VO; comparing with `===`; `toString` without `()`; zone-less date-times; `JsonType`
+  with `{}` or an array; unconverted values with their static type (`new NumberType('1.5')`).
+- Loose fields, `JsonType` or a child entity where a `Composite` belongs; JSON ↔ composite swaps.
+- `ArrayType` of composites; `Required(Composite(...))`; unnamed field classes; mutating or adding
+  state to a composite.
+- A computed getter on an aggregate, entity or composite; `@Validations` imported from `/domain`.
+- Own slug/whitespace regex; cleaning text outside the VO's `filter`; a slug as id, or a lookup by
+  slug without a unique index; expecting `slug()` to keep the sign, other scripts or ordinals.
 
 ## Aggregates and entities
 
-- A private constructor, or a constructor that checks, defaults or records events: it is public
-  and only assigns; `create` and `fromPrimitives` call it.
-- Generating or computing the id inside `create` (`OrderId.generate()`,
-  `PaymentId.forOrder(...)` in the aggregate): the use case passes the id.
-- A business factory with another name than `create`, or one that records anything but
-  `<Aggregate>CreatedDomainEvent` and skips the creation invariants.
-- Raw state in an aggregate (`private _shipped: boolean`, `private _at: Date`, a `string` field):
-  wrap it in a value object.
-- A private field without its public getter, or left out of `toPrimitives()`: it compiles and is
-  lost when saving; the round-trip test of each aggregate must cover every field.
-- Declaring `private readonly _id` + `get id()`: the id goes to `super(id)`.
-- `toPrimitives()` returning value objects or composites instead of `vo.value` /
-  `composite.toPrimitives()`; `fromPrimitives` that records events or checks invariants.
-- A method a user asks for that silently ignores a state where it does not apply: it throws a
-  business error.
-- A reaction method (called by a reaction use case) that throws a business error when the fact
-  does not apply: it returns without changes; events arrive twice or late.
-- Leaving the aggregate half changed when an invariant breaks after a change: restore the
-  previous state before rethrowing.
-- A domain service or a repository received by the constructor of an aggregate: pass the service
-  or the loaded data as a method argument.
-- Authorization checks in the aggregate (only the actor decides): they are the use case's
-  (`NotAllowedException`); rules over the aggregate's state stay in the aggregate.
-- Declaring a `version` field in an aggregate, or putting it in `toPrimitives()`.
-- Calling `record()` from outside the aggregate (it is `protected`) or forgetting `super(...)`.
-- A child entity as a plain class, with setters, events, `create` or its own
-  `toPrimitives`, or called from outside its aggregate.
-- A specification that loads data through a repository, a generic one without a business name
-  (`FieldEquals`), or one used instead of the aggregate to protect an invariant.
-- Using `new Date()` or `Date.now()` for the current time in domain or application code: use
-  `CreatedAt.now()` / `UpdatedAt.now()`.
-- Logging from the domain: it records events or throws.
+- Private constructor, or one that checks, defaults or records events.
+- Id generated or derived inside `create`.
+- A factory other than `create`, or `create` skipping invariants or recording another event.
+- Raw state (`boolean`, `Date`, `string` fields); `_id` + `get id()` instead of `super(id)`.
+- Private field without getter or missing from `toPrimitives()`; no round-trip test.
+- `toPrimitives` returning VOs; `fromPrimitives` recording events or checking invariants.
+- A user-requested method silently ignoring an invalid state; a reaction method throwing.
+- Half-changed state left after a broken invariant.
+- A service or repository in the aggregate constructor; actor-only authorization or a `version`
+  field in the aggregate.
+- Child entity as plain class, with setters, events, `create`, own conversion, or called from
+  outside its root.
+- Calling `record()` from outside the aggregate, or forgetting `super(...)`.
+- A Specification that loads data, has a generic name, or guards an invariant.
+- `new Date()`/`Date.now()` for the current time in domain or application; logging in the domain.
 
 ## Events
 
-- An event class named without the `DomainEvent` suffix, or an `eventName` that is the class name
-  or not `'<aggregate>.<past_action>'` in snake_case.
-- Events named `OrderUpdated` carrying the whole state, named in present tense, carrying value
-  objects, `Date`s, `undefined`, class instances, `toPrimitives()` or personal data that
-  consumers do not need.
-- Interfaces, type aliases or imported data types in an event file, or positional constructor
-  parameters: the constructor takes one object typed inline as `{ …fields } & EventMetadata`.
-- An `aggregateId` field or a schema version: the id is a named field (`orderId`).
-- Declaring `eventName` as a method or an instance field, or adding methods to an event.
-- Creating an event outside its aggregate, or setting its `occurredOn` when recording it (the
-  event bus sets it when it sends the event).
-- Declaring a union type of an aggregate's events (`type OrderEvent = …`) or passing an event type
-  to `AggregateRoot`, `EventBus`, `DomainEventBus` or `EventRegistry`: they take no event type and
-  work with `EventBase`.
-- Generating `eventId`/`occurredOn` yourself for a new event: the base sets `eventId` and the
-  event bus sets `occurredOn` when it sends the event.
-- A registry factory that does not pass `eventId: json.eventId` and `occurredOn: json.occurredOn`:
-  the event gets a new `eventId`, a reaction cannot skip a redelivery, and `fromJSON` throws.
-- Registering an event twice, or subscribing a reaction to an event the registry does not know
-  (`UnknownEventException`).
-- Importing the producer's event class in a consumer context, or one copy shared by two
-  reactions: each reaction folder keeps its own copy with the same name and `eventName`.
-- Changing the data of a published event incompatibly under the same `eventName` when no factory
-  can read both shapes: publish a new event instead.
-- Writing a second bus for a new technology (a `RabbitMqEventBus`): implement only `EventChannel`
-  and keep `DomainEventBus`.
+- Missing `DomainEvent` suffix or wrong `eventName` format.
+- `OrderUpdated` with the whole state, present tense, VOs, `Date`s, `undefined`, class instances,
+  `toPrimitives()`, unneeded personal data.
+- Interfaces or type aliases in an event file, positional constructor parameters.
+- `aggregateId`, schema version, `eventName` as method or instance field, methods on events;
+  creating an event outside its aggregate; setting `eventId`/`occurredOn` yourself.
+- A union type of an aggregate's events, or an event type parameter on bus/registry/root.
+- A registry factory not passing `eventId` and `occurredOn`; registering an event twice;
+  subscribing to an unregistered event.
+- Importing the producer's event class, or one copy shared by two reactions; incompatible change
+  under the same `eventName`; a second bus instead of an `EventChannel`.
 
 ## Use cases and reactions
 
-- A listener that calls a `UseCase`, or a `UseCase` class next to a listener for the same
-  reaction: the reaction use case is the listener, one class whose `handle` builds the value
-  objects, decides and saves.
-- A use case that instantiates, receives, imports, extends or calls another use case or a
-  reaction (`new FindCourse(this.courses).execute(...)` inside `CreateCourse`, or `FindCourse`
-  received by constructor), or a base use case with shared helpers. It is forbidden with no
-  exception, even to reuse a lookup: move the shared logic to the aggregate or to a domain
-  service that each use case instantiates (`new CourseFinder(this.courses)`), or chain the
-  actions with an event.
-- A domain service injected into a use case or a reaction, or built in `composition.ts`
-  (`new PlaceOrder(orders, new OrderPricing(catalog), bus)`): the use case receives the
-  service's dependencies (`CourseRepository`, `CouponCatalog`) and instantiates the service
-  inside `handle`.
-- A domain service that instantiates its repository or an adapter (`new IndexedDbCourseRepository()`),
-  imports `/infrastructure`, or types its dependency with an adapter instead of the abstract
-  repository of the domain: it receives `CourseRepository` by constructor from the use case.
-- A domain service for a rule that one aggregate or value object can hold, for a named yes/no
-  criterion (a `Specification`), or for coordination (load, save, publish, authorize); or a
-  `…Manager`, `…Helper`, `…Utils` class.
-- A domain service that receives a repository or a port when the use case already holds the
-  loaded aggregates: pass them as arguments.
-- A domain service that throws `AggregateNotFoundException` (it lives in `/application`): it
-  throws a business error of its context (`CourseNotFound extends DomainException`).
-- A use case that does several things (`UpdateOrder` that ships, cancels or renames depending on
-  the input) or saves more than one aggregate outside the IDDD ch. 10 exceptions written down as
-  an explicit decision.
-- Technical or CRUD names (`OrderService`, `UpdateUser`, `SaveOrder`, `ProcessPayment` when the
-  business says `CapturePayment`).
-- `Input`/`Command` interfaces in another file than their use case, or a command class.
-- Constructor dependencies the use case does not use, or a repository typed with the package
-  roles (`AggregateFinder<Order> & AggregateSaver<Order>`): every use case and reaction of an
-  aggregate receives its abstract repository (`OrderRepository`).
-- A reaction without `@ListensTo`, decorated with two events, or with a consumer that is not
-  `'<context>.<file name without .ts>'`: taken from the class (`this.name`), shared by two
-  reactions or renamed casually (it is its queue in a broker).
-- A reaction that checks authorization, throws `AggregateNotFoundException` or a business error,
-  catches errors or retries: it returns when the aggregate is missing or the fact does not apply,
-  and the channel's redelivery is its retry.
-- A reaction that creates without checking that the derived id is free: a redelivery would
-  create a second aggregate or a conflict.
-- Subscribing reactions by a text name or calling them from a use case: the composition root
-  subscribes them with `bus.subscribe(listener)`.
-- Calling `bus.publish` before `repository.save`, or publishing without `pullDomainEvents()`.
-- Catching errors inside `handle` just to rethrow them as `ApplicationException`: let them
-  propagate; `execute` keeps package exceptions and wraps the rest.
-- Retrying a `ConcurrencyException` with the same loaded aggregate, without a limit, or for a
-  command that is not safe to repeat.
-- Opening, joining or closing transactions in a use case, a reaction or the domain, or passing a
-  transaction runner, unit of work, session or connection to them.
-- Changing the use case so events are not lost between `save` and `publish`: the repository
-  stores them in the same atomic write (an outbox) and a relay delivers them.
-- Returning an aggregate from a use case: return an id, a DTO or nothing.
-- A query use case: queries go from the entry point to the read model's query port.
-- A projection that does not skip an `eventId` it already applied, or a read model that loads
-  aggregates through a repository.
+- A use case that instantiates, receives, imports, extends or calls another use case or reaction;
+  a base use case with helpers.
+- A listener calling a `UseCase`, or a `UseCase` next to a listener for the same reaction.
+- A domain service injected into a use case or reaction, or built in `composition.ts`.
+- A domain service that instantiates or types its dependency as a repository implementation or
+  adapter, or imports `/infrastructure`.
+- A domain service where an aggregate method, VO method, `Specification` or the use case belongs;
+  `…Manager`/`…Helper`/`…Utils`.
+- A domain service receiving a repository when the use case already holds the aggregates, or
+  throwing `AggregateNotFoundException`.
+- A use case that branches on the aggregate's state to choose an action (`if (course.isDraft())`
+  → remove, else archive): one aggregate method decides.
+- A multi-aggregate decision written only as a code comment instead of a decision record.
+- A use case doing several things or saving several aggregates without a written decision; CRUD
+  or technical names; `Input`/`Command` in another file, or a command class.
+- Unused dependencies, or a repository typed with role intersections.
+- A reaction without `@ListensTo`, with two events, or a consumer not
+  `'<context>.<file name>'` (from `this.name`, shared, renamed).
+- A reaction that authorizes, throws `AggregateNotFoundException`/business errors, catches or
+  retries; creates without checking the derived id.
+- Subscribing reactions by name or calling them from a use case; publishing before saving or
+  without `pullDomainEvents()`; catching to rethrow as `ApplicationException`.
+- Retrying `ConcurrencyException` with the same aggregate, without limit, or when not repeat-safe
+  (a relative change such as a 10% discount never retries: it may apply twice).
+- Transactions, units of work or connections in use cases, reactions or the domain; changing the
+  use case to avoid losing events (that is the repository's outbox).
+- Returning an aggregate; a query use case; a projection not skipping applied `eventId`s; a read
+  model loading aggregates.
+- A read-model row with one overwritten `status` that a late or repeated event can turn back (a
+  late `course.published` reopening an archived course); a creation reaction resetting a status.
+- A read-model reaction storing raw event fields without building value objects.
+- A domain port implemented by a repository or a read-model store instead of its own adapter.
 
 ## Repositories and adapters
 
-- A repository without its abstract class in the domain, an `interface OrderRepository`, or an
-  abstract repository that does not extend `AggregateRepository<Order>` and implement the role
-  of each verb it declares.
-- Verbs the business of the aggregate does not need (`remove` on invoices that are never
-  deleted), verbs other than `findById`, `search`, `save` and `remove`, or code in the abstract
-  repository: it only declares them.
-- Repository methods with business names or rules (`pendingOlderThan`), `nextId()`, events, or
-  methods that return DTOs: a business query (`pendingOlderThan`) is a `Criteria` for `search` when a use case needs the aggregates to change them, and a read model (row, store, query port, projection) when it only shows or lists data.
-- Throwing `AggregateNotFoundException` from the domain or a repository: the user use case throws
-  it when `findById` returns `null`.
-- A repository that reads aggregate fields or builds rows by hand, or whose constructor receives
-  an aggregate class, a mapper or `{ toPrimitives, fromPrimitives }`.
-- A generic repository shared by several aggregates: write one per aggregate.
-- Database code outside the repository adapter (a use case, a reaction, a controller,
-  `composition.ts` or a second class, a DAO or a "storage service", that reads or writes the
-  aggregate's data), or more than one adapter for the same aggregate and technology.
-- An IndexedDB repository that opens `indexedDB` itself, works on `IDBDatabase`/`IDBObjectStore`,
-  uses another IndexedDB library, handles the database version or the upgrade, or uses
-  `withStore` for plain reads and writes: it is `IndexedDb<Aggregate>Repository` over
-  `IndexedDbTable` of `@archi-code/ddd/infrastructure`, declared once in a `static` field.
-- An IndexedDB repository that checks the version and writes in separate transactions (two
-  table calls instead of one `IndexedDbTable.transaction`), or that awaits anything but `tx`
-  calls inside the transaction.
-- A repository (also the in-memory one) that saves with no version condition or "last save
-  wins", forgets to remember `version + 1` after a write or the stored version on load, removes
-  by id without the loaded aggregate, or exposes the version to domain or application code.
-- An in-memory repository that stores or returns the same objects it received: store and return
-  `structuredClone` copies.
-- A port adapter that throws a business error for bad external data: wrap it in
-  `InternalErrorException` with `{ cause }`.
-- Wrapping or translating an error without `{ cause: error }`.
+- No abstract class in the domain, an `interface` repository, or one not extending
+  `AggregateRepository` and implementing each verb's role.
+- Verbs the business does not need, verbs other than `findById`/`search`/`save`/`remove`, code in
+  the abstract repository.
+- Business-named methods (`pendingOlderThan`), `nextId()`, events, DTO returns.
+- `AggregateNotFoundException` from the domain or a repository; rows built by hand; a constructor
+  receiving an aggregate class or mapper; a generic repository for several aggregates.
+- Database code outside the repository adapter, or two adapters per aggregate and technology.
+- An IndexedDB repository using raw `indexedDB`/`IDBDatabase`, another library, version/upgrade
+  handling, or `withStore` for CRUD.
+- IndexedDB version check and write in separate transactions, or non-`tx` awaits inside one.
+- No version check, missing `version + 1`, remove by id, or version exposed to domain/application.
+- In-memory repository not cloning with `structuredClone`.
+- A port adapter throwing a business error; wrapping without `{ cause }`.
 
 ## Entry points and logging
 
-- A controller that catches errors, maps statuses by hand, checks values instead of shape, or
-  holds business rules: the protocol helper translates every error with `ExceptionClassifier`
-  (and, only there, a table of business codes that must be another status, such as a 404).
-- Classifying exceptions with hand-written `instanceof` chains.
-- Sending the message of an `Internal` failure to the client.
-- Importing a logging library (pino, winston, `console`) in a use case: inject the `Logger` port.
-- Logging an error and rethrowing it in every layer: the edge that handles it logs it once
-  (`DomainEventBus` with a logger already does; the protocol helper logs an `Internal` failure).
-- Interpolating data into the message (`` `order ${id} failed` ``) or logging passwords, tokens or
-  personal data the entry does not need.
+- A controller that catches errors, maps statuses, checks values or holds rules.
+- `instanceof` chains to classify; choosing a status from `error.code` anywhere but the helper's
+  code table;
+  sending an `Internal` message to the client.
+- A logging library in a use case instead of the `Logger` port; logging and rethrowing in every
+  layer; data interpolated into messages; secrets or unneeded personal data logged.
