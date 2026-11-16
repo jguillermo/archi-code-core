@@ -1054,6 +1054,69 @@ class MongoOrderRepository extends OrderRepository {
 }
 ```
 
+When the database is IndexedDB, the adapter is the one repository of the aggregate for that
+technology and uses `IndexedDbTable` of `@archi-code/ddd/infrastructure`, never raw `indexedDB`.
+`infrastructure/persistence/indexeddb-order-repository.ts`:
+
+```ts
+import type { PrimitiveTypes } from '@archi-code/ddd/domain';
+import { ConcurrencyException } from '@archi-code/ddd/application';
+import { IndexedDbTable } from '@archi-code/ddd/infrastructure';
+
+type OrderRow = PrimitiveTypes<Order> & { version: number };
+
+export class IndexedDbOrderRepository extends OrderRepository {
+  private static readonly orders = IndexedDbTable.of<OrderRow, 'byCustomer'>('orders', {
+    database: 'shop',
+    indexes: { byCustomer: { keyPath: 'customerId' } },
+  });
+  private readonly versions = new WeakMap<Order, number>();
+
+  async findById(id: OrderId): Promise<Order | null> {
+    const row = await IndexedDbOrderRepository.orders.get(id.value);
+    if (row === null) {
+      return null;
+    }
+    const { version, ...primitives } = row;
+    const order = Order.fromPrimitives(primitives);
+    this.versions.set(order, version);
+    return order;
+  }
+
+  async save(order: Order): Promise<void> {
+    const key = order.id.value;
+    const version = this.versions.get(order) ?? 0;
+    const table = IndexedDbOrderRepository.orders;
+    await IndexedDbTable.transaction([table], 'readwrite', async (tx) => {
+      if (((await tx.get(table, key))?.version ?? 0) !== version) {
+        throw new ConcurrencyException('Order', key, version);
+      }
+      await tx.put(table, { ...order.toPrimitives(), version: version + 1 });
+    });
+    this.versions.set(order, version + 1);
+  }
+
+  async remove(order: Order): Promise<void> {
+    const key = order.id.value;
+    const version = this.versions.get(order) ?? 0;
+    const table = IndexedDbOrderRepository.orders;
+    await IndexedDbTable.transaction([table], 'readwrite', async (tx) => {
+      if (((await tx.get(table, key))?.version ?? 0) !== version) {
+        throw new ConcurrencyException('Order', key, version);
+      }
+      await tx.delete(table, key);
+    });
+  }
+}
+```
+
+The table owns the database version, the upgrade, the migrations and the connection; the adapter
+only declares it and reads and writes rows. The version check and the write share one
+transaction, and a stale version thrown inside the work rolls it back. `search`, when
+`OrderRepository` declares it, passes `toIndexedDbQuery(criteria, …)` of
+`@archi-code/criteria-adapters/indexeddb` to `IndexedDbOrderRepository.orders.find` and calls
+`Order.fromPrimitives` on every row.
+
 A port adapter, `infrastructure/coupon/in-memory-coupon-catalog.ts`: raw data in, value objects
 out, bad external data as an internal error:
 
@@ -1354,7 +1417,13 @@ export function orderRepositoryContract(
 describe('InMemoryOrderRepository', () =>
   orderRepositoryContract(async () => new InMemoryOrderRepository()));
 describe('MongoOrderRepository', () => orderRepositoryContract(async () => mongoOrders()));
+describe('IndexedDbOrderRepository', () =>
+  orderRepositoryContract(async () => new IndexedDbOrderRepository()));
 ```
+
+The IndexedDB adapter runs the same contract on a real browser IndexedDB (Vitest browser mode),
+never on a double of it, emptying its table before each test
+(`await IndexedDbTable.of('orders').clear()`).
 
 ## Another event channel
 

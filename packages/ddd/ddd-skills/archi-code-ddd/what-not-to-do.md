@@ -207,6 +207,16 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
 - A repository that reads aggregate fields or builds rows by hand, or whose constructor receives
   an aggregate class, a mapper or `{ toPrimitives, fromPrimitives }`.
 - A generic repository shared by several aggregates: write one per aggregate.
+- Database code outside the repository adapter (a use case, a reaction, a controller,
+  `composition.ts` or a second class, a DAO or a "storage service", that reads or writes the
+  aggregate's data), or more than one adapter for the same aggregate and technology.
+- An IndexedDB repository that opens `indexedDB` itself, works on `IDBDatabase`/`IDBObjectStore`,
+  uses another IndexedDB library, handles the database version or the upgrade, or uses
+  `withStore` for plain reads and writes: it is `IndexedDb<Aggregate>Repository` over
+  `IndexedDbTable` of `@archi-code/ddd/infrastructure`, declared once in a `static` field.
+- An IndexedDB repository that checks the version and writes in separate transactions (two
+  table calls instead of one `IndexedDbTable.transaction`), or that awaits anything but `tx`
+  calls inside the transaction.
 - A repository (also the in-memory one) that saves with no version condition or "last save
   wins", forgets to remember `version + 1` after a write or the stored version on load, removes
   by id without the loaded aggregate, or exposes the version to domain or application code.

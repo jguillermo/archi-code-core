@@ -77,6 +77,8 @@ import {
   EventRegistry,
   ExceptionClassifier,
   ExceptionKind,
+  IndexedDbInspector,
+  IndexedDbTable,
   InfrastructureException,
   InfrastructureExceptionCode,
   InMemoryEventChannel,
@@ -95,7 +97,9 @@ import { Validations } from '@archi-code/validation';
 ```
 
 Each layer exports its own exceptions and its own code enum; there is no `/exceptions` subpath
-and the common base class of the exceptions is internal.
+and the common base class of the exceptions is internal. `IndexedDbTable` is imported only by
+the IndexedDB repository adapters (and IndexedDB read-model stores) of `infrastructure/`;
+`IndexedDbInspector` only by diagnostic tooling, never by a repository.
 
 ```js
 const { Required, StringType } = require('@archi-code/ddd/domain');

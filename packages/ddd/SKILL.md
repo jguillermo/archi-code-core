@@ -1,6 +1,6 @@
 ---
 name: archi-code-ddd
-description: The single entry point for Domain-Driven Design with @archi-code/ddd. It routes DDD questions to the guide suite in the package (contexts, architecture, value objects, aggregates, events, repositories, application services, CQRS, audits) and gives the conventions, patterns and common mistakes of code built on it - context folder layout and names, value objects and Composite, aggregates (public constructor, create, fromPrimitives/toPrimitives), events and business errors, abstract repository per aggregate, user use cases (UseCase) and reaction use cases (an EventListener with @ListensTo that is the use case), event copies between contexts, read models, Criteria, the composition root, controllers and ExceptionClassifier. Use it whenever someone applies DDD, designs or reviews a domain model, writes or changes value objects, aggregates, events, use cases, reactions, read models, repositories, adapters, controllers or wiring, decides which layer a class belongs to, or the code imports @archi-code/ddd.
+description: The single entry point for Domain-Driven Design with @archi-code/ddd. It routes DDD questions to the guide suite in the package (contexts, architecture, value objects, aggregates, events, repositories, application services, CQRS, audits) and gives the conventions, patterns and common mistakes of code built on it - context folder layout and names, value objects and Composite, aggregates (public constructor, create, fromPrimitives/toPrimitives), events and business errors, abstract repository per aggregate, user use cases (UseCase) and reaction use cases (an EventListener with @ListensTo that is the use case), event copies between contexts, read models, Criteria, the composition root, controllers and ExceptionClassifier. Use it whenever someone applies DDD, designs or reviews a domain model, writes or changes value objects, aggregates, events, use cases, reactions, read models, repositories, adapters (IndexedDB repositories over IndexedDbTable included), controllers or wiring, decides which layer a class belongs to, or the code imports @archi-code/ddd.
 ---
 
 # archi-code-ddd
@@ -157,6 +157,10 @@ AggregateRepository<Aggregate>` per aggregate with only the verbs its business n
   (`findById`, `save`, `remove`), each implementing its package role; every use case of the
   aggregate receives it, never `AggregateFinder<X> & AggregateSaver<X>`. Each adapter extends it,
   one per technology, checks the version in a `WeakMap` and owns transactions and persistence.
+  Persistence is that one adapter: the database technology is used only inside it. With IndexedDB
+  it is `IndexedDb<Aggregate>Repository`, built on `IndexedDbTable` of
+  `@archi-code/ddd/infrastructure` (never raw `indexedDB`), with the version check and the write in
+  one `IndexedDbTable.transaction` (`ddd-skills/archi-code-ddd/layers.md`, `patterns.md`).
 - **Entry points** check only the actor and the shape, call one use case and let one protocol
   helper translate every error with `ExceptionClassifier`; `composition.ts` builds and subscribes
   everything of its context.

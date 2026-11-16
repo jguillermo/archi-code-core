@@ -18,7 +18,7 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
 | Copy of another context's event (`payment-captured-domain-event.ts`)  | application, next to its reaction | nothing                                                                                         | importing the producer's class                                                 |
 | Data type of the input (`MoneyData`, `AddressData`)                   | application, next to its use case | other data types                                                                                | living in `domain/`, being shared between contexts                             |
 | Read model (row, store and query ports, projection)                   | application (ports), infrastructure | data types, value objects                                                                     | loading aggregates, repositories, business rules                               |
-| Adapter (repository, store, port adapter, event channel)              | infrastructure                    | domain, application, `@archi-code/ddd/infrastructure`, drivers; a repository extends the abstract one of its aggregate | business rules                                                                 |
+| Adapter (repository, store, port adapter, event channel)              | infrastructure                    | domain, application, `@archi-code/ddd/infrastructure`, drivers (IndexedDB only through `IndexedDbTable`); a repository extends the abstract one of its aggregate and is the only class that uses its database | business rules                                                                 |
 | Entry point (controller, consumer, scheduler, CLI)                    | interfaces                        | `/application`, its use cases and query ports, a protocol helper over `ExceptionClassifier`     | business rules, repositories, catching errors one by one                       |
 | Composition root (`composition.ts`, one per context)                  | context root                      | everything of its context and `@archi-code/ddd/*`                                               | being imported by any layer                                                    |
 
@@ -76,7 +76,7 @@ src/
         order-summaries/               order-summary.ts, order-summary-store.ts, order-summaries.ts,
                                        order-summary-projection.ts, mark-order-summary-paid/…-on-order-paid.ts
       infrastructure/
-        persistence/     in-memory-order-repository.ts
+        persistence/     in-memory-order-repository.ts (or indexeddb-order-repository.ts, mongo-…)
         coupon/          in-memory-coupon-catalog.ts
         read-model/      in-memory-order-summary-store.ts
       interfaces/http/   orders-controller.ts
@@ -99,7 +99,7 @@ src/
 | Reaction use case            | `<Action>On<Event>` (`MarkOrderPaidOnPaymentCaptured`), file `<action>-on-<event>.ts`      |
 | Consumer name                | `'<context>.<action>-on-<event>'`: the context and the file name without `.ts`             |
 | Repository (domain)          | `<Aggregate>Repository`, abstract, in `domain/repository/` (`OrderRepository`)             |
-| Repository adapter           | `<Technology><Aggregate>Repository extends <Aggregate>Repository` (`InMemoryOrderRepository`, `MongoOrderRepository`) |
+| Repository adapter           | `<Technology><Aggregate>Repository extends <Aggregate>Repository` (`InMemoryOrderRepository`, `MongoOrderRepository`, `IndexedDbOrderRepository` over `IndexedDbTable`), one per aggregate and technology |
 | Port adapter                 | `<Technology><Port>` (`InMemoryCouponCatalog`)                                             |
 | Controller                   | `<Aggregates>Controller` (`OrdersController`)                                              |
 | Composition root             | `<Context>Context` with `<Context>Settings`                                                |

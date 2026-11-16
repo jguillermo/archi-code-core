@@ -400,6 +400,36 @@ use case, one class, with no `UseCase` behind it.
   (`versionOf(id)`), which no use case sees. Its constructor (`super()` first) receives only its
   technology (a collection, a pool; nothing in memory), never an aggregate class nor a mapper. It
   calls `X.fromPrimitives(row)` on load and `x.toPrimitives()` on save.
+- **Persistence is the repository implementation and nothing else**: the persistence of an
+  aggregate is its one repository adapter, and the database technology (driver, collection, pool,
+  IndexedDB table, SQL) is used only inside it. Use cases, reactions, domain services, entry
+  points and `composition.ts` (which only builds it) never touch the database; there is no second
+  class (a DAO, a "storage service", a helper) that reads or writes the aggregate's data.
+- **IndexedDB**: when the database is IndexedDB, the adapter is
+  `IndexedDb<Aggregate>Repository extends <Aggregate>Repository`, in
+  `infrastructure/persistence/indexeddb-<aggregate>-repository.ts`, and it stores through
+  `IndexedDbTable` of `@archi-code/ddd/infrastructure` (`packages/ddd/src/infrastructure/indexeddb`),
+  never through raw `indexedDB`/`IDBDatabase`/`IDBObjectStore` nor another IndexedDB library:
+  - the table is declared once, in a `private static readonly` field of the adapter, with
+    `IndexedDbTable.of<Row, Index>(name, { database, indexes, version, migrations })`; the
+    database version, the upgrade and the connection are the table's job, never the adapter's;
+  - the row is `{ ...x.toPrimitives(), version }` (`type OrderRow = PrimitiveTypes<Order> & {
+    version: number }`): its key is the aggregate's `id`, already a UUID; on load the adapter
+    splits `version` off and calls `X.fromPrimitives(primitives)`;
+  - `save` and `remove` read the stored version and write in one
+    `IndexedDbTable.transaction([table], 'readwrite', async (tx) => …)`, so the version check and
+    the write are atomic; a stale version throws `ConcurrencyException` inside the work (the
+    transaction rolls back). Inside the work only `tx` calls are awaited;
+  - an aggregate stored in several tables (or with an outbox table of the same database) writes
+    them all in that same `IndexedDbTable.transaction`;
+  - `search` turns the criteria into a query with `toIndexedDbQuery` of
+    `@archi-code/criteria-adapters/indexeddb` and passes it to `find`, then calls
+    `X.fromPrimitives` on every row;
+  - `withStore` is only for what the table does not wrap, never for plain CRUD;
+    `IndexedDbInspector` is for diagnostics, never inside a repository. The errors of the table are
+    already `InfrastructureException`s: let them pass (or wrap them in `InternalErrorException` with
+    `{ cause }`).
+  A read-model store kept in IndexedDB follows the same rules with its own `IndexedDbTable`.
 - The in-memory repository is an implementation like any other [IDDD ch. 12]. It lives in
   `infrastructure/persistence/in-memory-<aggregate>-repository.ts` when the application runs in
   memory, or in `test/support/` when it is only a test double; the package ships none.
