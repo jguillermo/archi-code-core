@@ -11,7 +11,7 @@ Ejemplo de IDDD: autenticar a un usuario solo si su tenant está activo. Ponerlo
 
 ## Forma
 
-El paquete no trae una clase base para servicios de dominio: son clases normales en `domain/service/` (un fichero PascalCase por clase), con el nombre de la operación de negocio. Reciben agregados ya cargados y value objects, devuelven un value object y lanzan errores de negocio; los puertos de dominio que necesiten llegan por constructor. Solo el composition root los construye, y los recibe un caso de uso de usuario.
+El paquete no trae una clase base para servicios de dominio: son clases normales en `domain/service/` (un fichero PascalCase por clase), con el nombre de la operación de negocio. Reciben agregados ya cargados y value objects, devuelven un value object y lanzan errores de negocio; sus dependencias (puertos de dominio, el repositorio del agregado) llegan por su constructor. Nunca se inyectan ni los construye el composition root: el caso de uso recibe esas dependencias por su propio constructor e instancia el servicio dentro de `handle` (`new OrderPricing(this.coupons)`), y ningún caso de uso usa otro caso de uso para reutilizar lógica `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ```ts
 // domain/value-object/ShippingZone.ts, ShippingRate.ts, ShippingRates.ts;

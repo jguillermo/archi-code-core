@@ -21,7 +21,6 @@ import { OpenOrderSummaryOnOrderCreated } from './application/order-summaries/op
 import { OrderSummaryProjection } from './application/order-summaries/order-summary-projection';
 import { UpdateOrderSummaryTotalOnOrderLineQuantityChanged } from './application/order-summaries/update-order-summary-total/update-order-summary-total-on-order-line-quantity-changed';
 import { PlaceOrder } from './application/place-order/place-order';
-import { OrderPricing } from './domain/service/OrderPricing';
 import { OrderCancelledDomainEvent } from './domain/event/OrderCancelledDomainEvent';
 import { OrderDeliveredDomainEvent } from './domain/event/OrderDeliveredDomainEvent';
 import { OrderLineQuantityChangedDomainEvent } from './domain/event/OrderLineQuantityChangedDomainEvent';
@@ -55,7 +54,7 @@ export class SalesContext {
     const bus = new DomainEventBus(channel, SalesContext.registry(), logger);
     const orders = new InMemoryOrderRepository();
     const summaries = new InMemoryOrderSummaryStore();
-    const pricing = new OrderPricing(new InMemoryCouponCatalog(campaigns));
+    const coupons = new InMemoryCouponCatalog(campaigns);
     const projection = new OrderSummaryProjection(summaries);
 
     const listeners = [
@@ -77,7 +76,7 @@ export class SalesContext {
 
     const controller = new OrdersController(
       {
-        placeOrder: new PlaceOrder(orders, pricing, bus),
+        placeOrder: new PlaceOrder(orders, coupons, bus),
         changeOrderLineQuantity: new ChangeOrderLineQuantity(orders, bus),
         changeShippingAddress: new ChangeShippingAddress(orders, bus),
         cancelOrder: new CancelOrder(orders, bus),

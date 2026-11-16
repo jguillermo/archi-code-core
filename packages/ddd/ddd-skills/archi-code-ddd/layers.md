@@ -236,14 +236,45 @@ name the event class and its type after the fact alone (`OrderPlaced`) [IDDD ch.
   `this.rule.isSatisfiedBy(x)`; `and`/`or` accept any `SatisfiedBy<T>` [IDDD ch. 5]. It receives
   loaded data only, never a repository, and answers a question; it never guards an invariant (its
   answer is data, such as `freeShipping` in `OrderCreatedDomainEvent`).
-- **Domain services** (`service/<Service>.ts`) are plain classes holding a business rule that
-  does not belong to one aggregate, named after the business operation (`OrderPricing`); they
-  receive domain ports by constructor, work with value objects and throw business errors; they
-  never save, open transactions nor publish [IDDD ch. 7]. One that reads aggregates receives the
-  aggregate's repository and only calls `findById`. A **domain port**
-  (`service/<Port>.ts`, `CouponCatalog`) is an interface whose methods speak value objects
-  (`discountOf(code: CouponCode): Promise<DiscountPercent | null>`), implemented in
-  infrastructure. Only the composition root builds them; they are injected into user use cases.
+- **Domain services: when** (user rule; `[Fuera de los libros: convención de @archi-code/ddd]`,
+  IDDD ch. 7 is broader). A domain service (`service/<Service>.ts`) exists only when:
+  - two or more use cases (user or reaction) share business logic (`FindCourse` and
+    `CreateCourse` both look the course up: `CourseFinder`); never one use case calling another;
+  - or a business rule that one use case needs does not fit in one aggregate nor value object,
+    because it needs several aggregates or a domain port (`OrderPricing` with `CouponCatalog`,
+    used only by `PlaceOrder`). A use case holds no business rule, so the rule never stays in
+    its `handle`.
+  Anything else is not a domain service: a rule of one aggregate is a method of the aggregate, a
+  calculation over values is a method of the value object, a named yes/no criterion is a
+  `Specification`, and loading, authorizing, saving and publishing is the use case.
+- **Domain services: how.** A plain class (no base class, no state) named after the business
+  operation (`OrderPricing`, `CourseFinder`; never `…Manager`, `…Helper`, `…Utils`); it works
+  with value objects and aggregates, throws business errors of its context and never saves,
+  removes, opens transactions, publishes, logs nor checks authorization [IDDD ch. 7]. Three
+  forms, in this order of preference:
+  1. **Loaded aggregates as arguments, no dependencies**: the use case already holds what the
+     rule needs and passes it to the method
+     (`new ShippingCostCalculator().costFor(order, zone)`).
+  2. **The abstract repository of an aggregate** by constructor, only to read with `findById`
+     (`constructor(private readonly courses: CourseRepository) {}`): never the repository
+     implementation (`IndexedDbCourseRepository`), as a type nor instantiated.
+  3. **A domain port** by constructor (`constructor(private readonly catalog: CouponCatalog) {}`):
+     an interface in `service/<Port>.ts` whose methods speak value objects
+     (`discountOf(code: CouponCode): Promise<DiscountPercent | null>`), implemented in
+     infrastructure.
+- **A domain service is instantiated inside the use case, never injected** (user rule): the
+  domain never instantiates a repository nor an adapter and never imports `/infrastructure`; the
+  concrete adapter (`IndexedDbCourseRepository`, `InMemoryCouponCatalog`) is built only in
+  `composition.ts` and injected into the use case, which has dependency injection. The use case
+  (user or reaction) receives those dependencies in its own constructor, typed with the abstract
+  repository or the port, and builds the service inside `handle`, passing them
+  (`await new CourseFinder(this.courses).find(command.courseId)`,
+  `await new OrderPricing(this.coupons).discountFor(command.couponCodes)`). No constructor of a
+  use case or a reaction receives a domain service and `composition.ts` never builds one. A
+  reaction keeps its own rules: it calls only methods whose business errors it does not let out.
+- **Testing a domain service**: a unit spec with real domain objects; its dependencies (the
+  abstract repository, a port) are stubs with `vi.fn()` (`findById` resolving the aggregate or
+  `null`). Code in `patterns.md`, "Logic two use cases share".
 - **The domain declares the repository of each aggregate and nothing else about persistence**:
   `repository/<Aggregate>Repository.ts` (below); no mapper, repository adapter, command, logger
   nor `Date.now()`.
@@ -280,8 +311,48 @@ comes from.
   transaction, handles no HTTP, checks no raw input shape and holds no business rule.
 - Constructor parameters, `private readonly` and only what `handle` uses, in this order: the
   repository of the aggregate (`private readonly orders: OrderRepository`, the abstract class of
-  the domain, never `AggregateFinder<X> & AggregateSaver<X>`), domain services, `EventBus`,
-  `Logger`; the body is `super();`.
+  the domain, never `AggregateFinder<X> & AggregateSaver<X>`), the dependencies of the domain
+  services it instantiates (domain ports such as `CouponCatalog`; never the service itself),
+  `EventBus`, `Logger`; the body is `super();`.
+
+### A use case never uses another use case (strict rule)
+
+This rule has no exception (user rule): **a use case never instantiates, receives, imports,
+extends nor calls another use case** (nor a reaction use case), not even to reuse a few lines.
+`new FindCourse(...)` or `this.findCourse.execute(...)` inside another use case is always wrong,
+and so is a base use case with shared helpers. A use case is the entry to one business action;
+calling one from another mixes two actions, two authorizations and two error translations.
+
+When two use cases share logic, that logic moves to the domain:
+
+- a rule of one aggregate → a method of the aggregate;
+- logic that reads aggregates or spans several (look one up and fail when it is missing, check
+  that one does not exist yet, compute over several) → a **domain service** in
+  `domain/service/<Service>.ts`;
+- a technical step → a port.
+
+Each use case then instantiates the domain service inside `handle` and passes it the
+dependencies it received in its own constructor. Example: `FindCourse` loads a course and fails
+with a not found error when it is missing; `CreateCourse` must check that the course does not
+exist yet. Both need "look the course up in its repository". The wrong answer is that
+`CreateCourse` uses `FindCourse`. The right one:
+
+1. `domain/service/CourseFinder.ts`: `class CourseFinder` with
+   `constructor(private readonly courses: CourseRepository) {}`, `find(id): Promise<Course>`
+   (`findById`, and `throw new CourseNotFound(id.value)` when it is `null`) and
+   `assertDoesNotExist(id): Promise<void>` (`throw new CourseAlreadyExists(id.value)` when
+   `findById` finds it).
+2. `domain/exception/CourseNotFound.ts` and `CourseAlreadyExists.ts`: business errors
+   (`extends DomainException`, codes of the context). The domain cannot throw
+   `AggregateNotFoundException`: it lives in `/application` and the domain never imports it.
+   `ExceptionClassifier` gives these errors `ExceptionKind.Invalid`.
+3. `FindCourse` and `CreateCourse` each receive `CourseRepository` by constructor and do
+   `new CourseFinder(this.courses)` inside `handle`: `FindCourse` calls `find`, `CreateCourse`
+   calls `assertDoesNotExist` and then `Course.create(...)`, `save` and `publish`.
+
+A use case whose lookup nobody else shares may still call `findById` and throw
+`AggregateNotFoundException` itself (step 3 below). Code in `patterns.md`, "Logic two use cases
+share".
 
 ### User use cases
 
@@ -296,7 +367,9 @@ comes from.
 - `protected async handle(command)`, in this order: (1) authorization → `throw new
   NotAllowedException('<English message>')`; (2) a new id, `<Aggregate>Id.generate()`; (3)
   `<Aggregate>.create(...)`, or `findById` and, when it is `null`, `throw new
-  AggregateNotFoundException('<Aggregate>', id.value)`; (4) the business method(s); (5) `await repo.save(x)` once (or `await repo.remove(x)`), then
+  AggregateNotFoundException('<Aggregate>', id.value)` (when another use case needs the same
+  lookup, a domain service instantiated here does it instead: `await new
+  CourseFinder(this.courses).find(command.courseId)`); (4) the business method(s); (5) `await repo.save(x)` once (or `await repo.remove(x)`), then
   `await this.events.publish(x.pullDomainEvents())`; (6) log if the business wants a trace; (7)
   return the output. `UseCase` has no helpers. `execute` keeps package exceptions and wraps any
   other error of either step in `UnexpectedErrorException` with `cause`: let errors propagate.

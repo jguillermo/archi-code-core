@@ -653,8 +653,9 @@ export interface MoneyData {
 }
 ```
 
-Creating: the use case generates the id and passes a domain service's answer; lists of shapes use
-`buildList`; it returns the new id:
+Creating: the use case generates the id and passes the answer of a domain service it
+instantiates itself (`PlaceOrder` receives `CouponCatalog` by constructor, never `OrderPricing`);
+lists of shapes use `buildList`; it returns the new id:
 
 ```ts
   protected toCommand(input: PlaceOrderInput): PlaceOrderCommand {
@@ -682,7 +683,7 @@ Creating: the use case generates the id and passes a domain service's answer; li
         `Customer ${command.actorId.value} may not place orders for ${command.customerId.value}`,
       );
     }
-    const discount = await this.pricing.discountFor(command.couponCodes);
+    const discount = await new OrderPricing(this.coupons).discountFor(command.couponCodes);
     const order = Order.create(OrderId.generate(), command.customerId, command.lines, /* … */ discount);
     await this.orders.save(order);
     await this.events.publish(order.pullDomainEvents());
@@ -723,6 +724,134 @@ Removing: the aggregate answers whether it may go, the repository removes the lo
     }
     order.assertDiscardable();
     await this.orders.remove(order);
+```
+
+## Logic two use cases share: a domain service, never another use case
+
+`FindCourse` returns a course or fails when it does not exist; `CreateCourse` must check that the
+course does not exist yet. Both look the course up in its repository. `CreateCourse` never uses
+`FindCourse` (no `new FindCourse(...)`, no `FindCourse` in its constructor, no `execute` of
+another use case): the lookup moves to a domain service and each use case instantiates it.
+
+`domain/exception/CourseNotFound.ts` and `domain/exception/CourseAlreadyExists.ts`:
+
+```ts
+import { DomainException } from '@archi-code/ddd/domain';
+
+export class CourseNotFound extends DomainException {
+  constructor(courseId: string) {
+    super(`Course ${courseId} does not exist`, ['CRS001']);
+  }
+}
+
+export class CourseAlreadyExists extends DomainException {
+  constructor(courseId: string) {
+    super(`Course ${courseId} already exists`, ['CRS002']);
+  }
+}
+```
+
+`domain/service/CourseFinder.ts`: its dependency, the repository, goes in its constructor:
+
+```ts
+export class CourseFinder {
+  constructor(private readonly courses: CourseRepository) {}
+
+  async find(id: CourseId): Promise<Course> {
+    const course = await this.courses.findById(id);
+    if (course === null) {
+      throw new CourseNotFound(id.value);
+    }
+    return course;
+  }
+
+  async assertDoesNotExist(id: CourseId): Promise<void> {
+    if ((await this.courses.findById(id)) !== null) {
+      throw new CourseAlreadyExists(id.value);
+    }
+  }
+}
+```
+
+Each use case receives the repository by constructor and builds the service inside `handle`:
+
+```ts
+export class FindCourse extends UseCase<FindCourseInput, FindCourseCommand, CourseData> {
+  constructor(private readonly courses: CourseRepository) {
+    super();
+  }
+
+  protected toCommand(input: FindCourseInput): FindCourseCommand {
+    return ValueObjectBuilder.build({ courseId: () => new CourseId(input.courseId) });
+  }
+
+  protected async handle(command: FindCourseCommand): Promise<CourseData> {
+    const course = await new CourseFinder(this.courses).find(command.courseId);
+    return course.toPrimitives();
+  }
+}
+
+export class CreateCourse extends UseCase<CreateCourseInput, CreateCourseCommand, string> {
+  constructor(
+    private readonly courses: CourseRepository,
+    private readonly events: EventBus,
+  ) {
+    super();
+  }
+
+  protected toCommand(input: CreateCourseInput): CreateCourseCommand {
+    return ValueObjectBuilder.build({
+      courseId: () => new CourseId(input.courseId),
+      title: () => new CourseTitle(input.title),
+    });
+  }
+
+  protected async handle(command: CreateCourseCommand): Promise<string> {
+    await new CourseFinder(this.courses).assertDoesNotExist(command.courseId);
+    const course = Course.create(command.courseId, command.title);
+    await this.courses.save(course);
+    await this.events.publish(course.pullDomainEvents());
+    return course.id.value;
+  }
+}
+```
+
+`composition.ts` builds `new FindCourse(courses)` and `new CreateCourse(courses, bus)`: it never
+builds `CourseFinder`, and no use case receives another one. `CourseNotFound` and
+`CourseAlreadyExists` are business errors, so `ExceptionClassifier` gives them
+`ExceptionKind.Invalid`.
+
+The domain service has its own unit spec: real domain objects, and its dependency, the abstract
+repository, stubbed with `vi.fn()`:
+
+```ts
+import { describe, expect, it, vi } from 'vitest';
+
+function coursesFinding(course: Course | null): CourseRepository {
+  return { findById: vi.fn().mockResolvedValue(course) } as unknown as CourseRepository;
+}
+
+describe('CourseFinder', () => {
+  const courseId = new CourseId('3f0c9a52-6f7e-4d4b-9a51-0d2f1c3e8b7a');
+
+  it('returns the course of the catalog', async () => {
+    const course = Course.create(courseId, new CourseTitle('Domain-Driven Design'));
+    await expect(new CourseFinder(coursesFinding(course)).find(courseId)).resolves.toBe(course);
+  });
+
+  it('a course that is not in the catalog cannot be found', async () => {
+    await expect(new CourseFinder(coursesFinding(null)).find(courseId)).rejects.toBeInstanceOf(
+      CourseNotFound,
+    );
+  });
+
+  it('a course already in the catalog cannot be created again', async () => {
+    const course = Course.create(courseId, new CourseTitle('Domain-Driven Design'));
+    await expect(
+      new CourseFinder(coursesFinding(course)).assertDoesNotExist(courseId),
+    ).rejects.toBeInstanceOf(CourseAlreadyExists);
+  });
+});
 ```
 
 ## Reaction use case

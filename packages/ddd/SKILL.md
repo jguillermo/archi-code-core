@@ -148,6 +148,13 @@ details and the code.
   is one `EventListener` with `@ListensTo(Event, { consumer: '<context>.<action>-on-<event>' })`
   that builds its value objects, finds or creates, calls the reaction method, saves and publishes,
   with no `UseCase` behind it, never throwing business errors nor `AggregateNotFoundException`.
+- **A use case never uses another use case** (strict, no exception): it never instantiates,
+  receives, imports nor calls one (`CreateCourse` never uses `FindCourse`). Logic two use cases
+  share goes to the aggregate or to a **domain service** that each use case instantiates inside
+  `handle`, passing it the dependencies it received in its own constructor
+  (`new CourseFinder(this.courses).find(id)`, which throws the business error `CourseNotFound`).
+  Domain services are never injected nor built in `composition.ts`
+  (`ddd-skills/archi-code-ddd/layers.md`, `patterns.md`).
 - **Between contexts** only events travel: the consumer keeps its own copy of each foreign event
   next to the reaction that hears it, with the producer's class name and `eventName`.
 - **Read models** are a row, a store port, a query port, a projection that skips applied

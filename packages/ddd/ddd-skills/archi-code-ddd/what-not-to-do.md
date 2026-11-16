@@ -156,9 +156,26 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
 - A listener that calls a `UseCase`, or a `UseCase` class next to a listener for the same
   reaction: the reaction use case is the listener, one class whose `handle` builds the value
   objects, decides and saves.
-- A use case that imports, extends or calls another use case or a reaction, or a base use case
-  with shared helpers: move the rule to the aggregate or a domain service, or chain them with an
-  event.
+- A use case that instantiates, receives, imports, extends or calls another use case or a
+  reaction (`new FindCourse(this.courses).execute(...)` inside `CreateCourse`, or `FindCourse`
+  received by constructor), or a base use case with shared helpers. It is forbidden with no
+  exception, even to reuse a lookup: move the shared logic to the aggregate or to a domain
+  service that each use case instantiates (`new CourseFinder(this.courses)`), or chain the
+  actions with an event.
+- A domain service injected into a use case or a reaction, or built in `composition.ts`
+  (`new PlaceOrder(orders, new OrderPricing(catalog), bus)`): the use case receives the
+  service's dependencies (`CourseRepository`, `CouponCatalog`) and instantiates the service
+  inside `handle`.
+- A domain service that instantiates its repository or an adapter (`new IndexedDbCourseRepository()`),
+  imports `/infrastructure`, or types its dependency with an adapter instead of the abstract
+  repository of the domain: it receives `CourseRepository` by constructor from the use case.
+- A domain service for a rule that one aggregate or value object can hold, for a named yes/no
+  criterion (a `Specification`), or for coordination (load, save, publish, authorize); or a
+  `…Manager`, `…Helper`, `…Utils` class.
+- A domain service that receives a repository or a port when the use case already holds the
+  loaded aggregates: pass them as arguments.
+- A domain service that throws `AggregateNotFoundException` (it lives in `/application`): it
+  throws a business error of its context (`CourseNotFound extends DomainException`).
 - A use case that does several things (`UpdateOrder` that ships, cancels or renames depending on
   the input) or saves more than one aggregate outside the IDDD ch. 10 exceptions written down as
   an explicit decision.

@@ -3,7 +3,8 @@ import type { EventBus } from '../../../../ddd/application';
 import { Money } from '../../../shared-kernel/money/Money';
 import type { Currency } from '../../../shared-kernel/money/MoneyCurrency';
 import { CustomerId } from '../../domain/value-object/CustomerId';
-import type { OrderPricing } from '../../domain/service/OrderPricing';
+import { OrderPricing } from '../../domain/service/OrderPricing';
+import type { CouponCatalog } from '../../domain/service/CouponCatalog';
 import { CouponCodes } from '../../domain/value-object/CouponCodes';
 import { GiftWrap } from '../../domain/value-object/GiftWrap';
 import { Order } from '../../domain/aggregate/Order';
@@ -41,7 +42,7 @@ export interface PlaceOrderCommand {
 export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, string> {
   constructor(
     private readonly orders: OrderRepository,
-    private readonly pricing: OrderPricing,
+    private readonly coupons: CouponCatalog,
     private readonly events: EventBus,
   ) {
     super();
@@ -73,7 +74,7 @@ export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, stri
         `Customer ${command.actorId.value} may not place orders for ${command.customerId.value}`,
       );
     }
-    const discount = await this.pricing.discountFor(command.couponCodes);
+    const discount = await new OrderPricing(this.coupons).discountFor(command.couponCodes);
     const order = Order.create(
       OrderId.generate(),
       command.customerId,

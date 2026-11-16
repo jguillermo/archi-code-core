@@ -205,8 +205,9 @@ test/                         mirrors src/
   (`OrderNotCancellable extends DomainException`), with a code prefix per context (`SAL001`).
 
 Logic that two use cases share never goes in a use case: a business rule becomes a method of the
-aggregate or a domain service, and a technical step becomes a port. Use cases never call each
-other: when an action must follow another, the first records an event and a reaction use case runs
+aggregate or a domain service (each use case instantiates it inside `handle` and passes it the
+dependencies it received by constructor), and a technical step becomes a port. Use cases never
+instantiate, receive nor call each other: when an action must follow another, the first records an event and a reaction use case runs
 the second.
 
 Naming: use cases are a verb and a noun of the business (`PlaceOrder`, `ConfirmTransferReceived`),
@@ -1468,8 +1469,10 @@ export class ShipOrder extends UseCase<ShipOrderInput, ShipOrderCommand, void> {
 
 Save before publishing, and publish what `pullDomainEvents()` returns, so a failed save publishes
 nothing and events are never sent twice. The constructor receives, in this order and only what
-`handle` uses, the abstract repository of its aggregate (`OrderRepository`), domain services, `EventBus`
-and `Logger`. A use case never imports another use case.
+`handle` uses, the abstract repository of its aggregate (`OrderRepository`), the dependencies of the
+domain services it instantiates inside `handle` (`new OrderPricing(this.coupons)`; a domain service
+is never injected), `EventBus` and `Logger`. A use case never instantiates, receives, imports nor
+calls another use case.
 
 ### Building every value object of an input at once: `ValueObjectBuilder.build`
 
@@ -3485,7 +3488,7 @@ Each context has one `composition.ts`, the only place that builds its classes an
 configuration: a class `<Context>Context` with `interface <Context>Settings` (the shared
 `channel`, the `logger` and the context's own data). `static async start(settings)`
 builds one `DomainEventBus` over the shared channel with the context's registry, the
-repositories, adapters, domain services and projections, every reaction use case (each
+repositories, adapters and projections (never a domain service: use cases build them), every reaction use case (each
 subscribed, its `Subscription` kept) and the controllers with the user use cases; `stop()`
 unsubscribes them; `registry()` registers every event the context hears exactly once. The
 application's entry file opens one channel and starts every context on it, and stops them in
