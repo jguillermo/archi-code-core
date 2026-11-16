@@ -246,7 +246,8 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
 ## Entry points and logging
 
 - A controller that catches errors, maps statuses by hand, checks values instead of shape, or
-  holds business rules: the protocol helper translates every error with `ExceptionClassifier`.
+  holds business rules: the protocol helper translates every error with `ExceptionClassifier`
+  (and, only there, a table of business codes that must be another status, such as a 404).
 - Classifying exceptions with hand-written `instanceof` chains.
 - Sending the message of an `Internal` failure to the client.
 - Importing a logging library (pino, winston, `console`) in a use case: inject the `Logger` port.

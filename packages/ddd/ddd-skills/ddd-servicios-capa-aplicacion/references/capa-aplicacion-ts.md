@@ -36,7 +36,6 @@ export interface CancelOrderCommand {
 export class CancelOrder extends UseCase<CancelOrderInput, CancelOrderCommand, void> {
   constructor(
     private readonly orders: OrderRepository,
-    private readonly cancellation: OrderCancellation,
     private readonly events: EventBus,
   ) {
     super();
@@ -55,7 +54,7 @@ export class CancelOrder extends UseCase<CancelOrderInput, CancelOrderCommand, v
     if (order === null) {
       throw new AggregateNotFoundException('Order', command.orderId.value);
     }
-    this.cancellation.cancel(order, command.actorId, command.reason);
+    new OrderCancellation().cancel(order, command.actorId, command.reason);
     await this.orders.save(order);
     await this.events.publish(order.pullDomainEvents());
   }
@@ -66,7 +65,7 @@ Cargar, invocar el dominio, guardar y publicar, y ninguna regla de negocio: que 
 
 Orden de `handle` `[Fuera de los libros: convención de @archi-code/ddd]`: (1) autorización → `NotAllowedException`; (2) id nuevo (`OrderId.generate()`); (3) `Order.create(...)`, o `findById` y `AggregateNotFoundException` si es `null`; (4) método o métodos de negocio; (5) `save` una vez (o `remove`) y después `publish(x.pullDomainEvents())`; (6) log si el negocio quiere traza; (7) devolver la salida.
 
-* El constructor recibe, `private readonly` y en este orden, solo lo que usa `handle`: el repositorio abstracto del agregado (`OrderRepository`, de `domain/repository/`, el mismo para crear, cambiar o borrar; nunca `AggregateFinder<Order> & AggregateSaver<Order>` ni un rol suelto `[Fuera de los libros: convención de @archi-code/ddd]`), servicios de dominio, `EventBus` y `Logger`. Nunca una dependencia de transacciones (un runner de transacciones o una unidad de trabajo): no existe puerto de transacciones `[Fuera de los libros: convención de @archi-code/ddd]`.
+* El constructor recibe, `private readonly` y en este orden, solo lo que usa `handle`: el repositorio abstracto del agregado (`OrderRepository`, de `domain/repository/`, el mismo para crear, cambiar o borrar; nunca `AggregateFinder<Order> & AggregateSaver<Order>` ni un rol suelto `[Fuera de los libros: convención de @archi-code/ddd]`), las dependencias de los servicios de dominio que instancia dentro de `handle` (puertos de dominio; nunca el servicio, que no se inyecta: `new OrderCancellation()`), `EventBus` y `Logger`. Nunca una dependencia de transacciones (un runner de transacciones o una unidad de trabajo): no existe puerto de transacciones `[Fuera de los libros: convención de @archi-code/ddd]`.
 * `UseCase` no trae ayudas (`findOrFail`, `saveAndPublish`): todos los pasos se escriben en `handle` `[Fuera de los libros: convención de @archi-code/ddd]`.
 * Se guarda antes de publicar, y se publica lo que devuelve `pullDomainEvents()`.
 * La aplicación nunca abre, une ni cierra transacciones. IDDD pone el control de la transacción en el servicio de aplicación [IDDD cap. 14]; con el paquete esa responsabilidad pasa al adaptador del repositorio, que hace atómico cada `save` y `remove`, comprueba la versión y envuelve los errores del driver en `InternalErrorException` con `{ cause }` `[Fuera de los libros: convención de @archi-code/ddd]`. Ver `ddd-skills/ddd-repositorios-persistencia/references/transacciones-ts.md`.
@@ -284,7 +283,7 @@ function sales() {
   return {
     orders,
     channel,
-    cancelOrder: new CancelOrder(orders, new OrderCancellation(), events),
+    cancelOrder: new CancelOrder(orders, events),
   };
 }
 

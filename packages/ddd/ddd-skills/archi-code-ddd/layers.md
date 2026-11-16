@@ -243,7 +243,9 @@ name the event class and its type after the fact alone (`OrderPlaced`) [IDDD ch.
   - or a business rule that one use case needs does not fit in one aggregate nor value object,
     because it needs several aggregates or a domain port (`OrderPricing` with `CouponCatalog`,
     used only by `PlaceOrder`). A use case holds no business rule, so the rule never stays in
-    its `handle`.
+    its `handle`;
+  - or a business rule between who asks and the aggregate (`OrderCancellation`: only the
+    customer who placed the order cancels it, `NotTheCustomerOfOrder`), with no dependencies.
   Anything else is not a domain service: a rule of one aggregate is a method of the aggregate, a
   calculation over values is a method of the value object, a named yes/no criterion is a
   `Specification`, and loading, authorizing, saving and publishing is the use case.
@@ -345,7 +347,8 @@ exist yet. Both need "look the course up in its repository". The wrong answer is
 2. `domain/exception/CourseNotFound.ts` and `CourseAlreadyExists.ts`: business errors
    (`extends DomainException`, codes of the context). The domain cannot throw
    `AggregateNotFoundException`: it lives in `/application` and the domain never imports it.
-   `ExceptionClassifier` gives these errors `ExceptionKind.Invalid`.
+   `ExceptionClassifier` gives these errors `ExceptionKind.Invalid` (422); for a 404 see the
+   protocol helper in "Entry points and composition".
 3. `FindCourse` and `CreateCourse` each receive `CourseRepository` by constructor and do
    `new CourseFinder(this.courses)` inside `handle`: `FindCourse` calls `find`, `CreateCourse`
    calls `assertDoesNotExist` and then `Course.create(...)`, `save` and `publish`.
@@ -548,6 +551,12 @@ use case, one class, with no `UseCase` behind it.
   anything else) 500, logged once as `logger.error('http_request_failed', …)` with the message
   hidden. The error body is `{ code, message, errors }` (`errors` only for `ValidationException`).
   Never classify with hand-written `instanceof` chains.
+- A "not found" thrown by a domain service (`CourseNotFound`, a `DomainException`) is `Invalid`
+  (422), while `AggregateNotFoundException` thrown by a use case is `NotFound` (404). When the
+  business wants a 404 for such a business error, the protocol helper keeps one table of business
+  codes per status (`private static readonly NOT_FOUND_CODES = new Set(['CRS001'])`) and checks
+  `error.code` after `ExceptionClassifier`; it is the only place that looks at a code, and
+  controllers still never catch errors.
 - A controller (`interfaces/http/<aggregates>-controller.ts`) receives the user use cases (or one
   `<Aggregates>UseCases` interface when there are many), the query ports and `logger` last, and
   builds its `Http` helper. One method per endpoint returns `this.http.respond(async () => { … })`:
