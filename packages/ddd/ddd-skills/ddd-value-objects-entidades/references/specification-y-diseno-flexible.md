@@ -97,15 +97,17 @@ freeExpress.isSatisfiedBy(order);
 
 ## 3. Specification para consultar
 
-*DDD in PHP* propone sustituir los métodos `find...` que crecen sin fin en los repositorios por un método `query(specification)` [PHP: Repositories; PHP: Factories]. Aquí no se hace: el repositorio solo obtiene y persiste, sin lógica ni consultas de negocio `[Fuera de los libros: convención de @archi-code/ddd]`. Una selección con nombre del negocio ("pedidos pendientes desde hace más de un día") es una consulta de lectura: una interfaz en `application/`, implementada en infraestructura directamente sobre la base de datos, que devuelve ids o DTOs.
+*DDD in PHP* propone sustituir los métodos `find...` que crecen sin fin en los repositorios por un método `query(specification)` [PHP: Repositories; PHP: Factories]. Con el paquete no hay métodos de consulta de negocio ni `query(specification)` `[Fuera de los libros: convención de @archi-code/ddd]`: una selección con nombre del negocio ("pedidos pendientes desde hace más de un día") es un `Criteria` del agregado para el verbo `search` del repositorio cuando un caso de uso necesita esos agregados para cambiarlos, y un read model (consulta de lectura en `application/`) cuando solo se muestra o lista:
 
 ```ts
-export interface StaleOrders {
-  ids(pendingSince: Date, limit: number): Promise<OrderId[]>;
-}
+const criteria = Criteria.create<Order>({
+  where: { status: new OrderStatusType(OrderStatus.PENDING), createdAt: { lt: command.pendingSince } },
+  limit: 100,
+});
+const { items } = await this.orders.search(criteria);
 ```
 
-La interfaz vive en `application/` y su implementación (`PgStaleOrders`, una consulta SQL; los filtros pueden escribirse con `Criteria` de `@archi-code/ddd/domain`) en infraestructura. Quien la usa (un programador de tareas, por ejemplo) ejecuta un caso de uso por cada id, y ese caso de uso carga el pedido con `OrderRepository` (`findById`).
+`Criteria` viene de `@archi-code/ddd/domain` (ver `ddd-skills/archi-code-ddd/criteria.md`) y el adaptador del repositorio lo ejecuta con `@archi-code/criteria-adapters`.
 
 La Specification se queda para validar, seleccionar sobre datos ya cargados o construir.
 

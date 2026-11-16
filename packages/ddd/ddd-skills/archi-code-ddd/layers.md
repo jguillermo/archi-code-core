@@ -243,10 +243,10 @@ name the event class and its type after the fact alone (`OrderPlaced`) [IDDD ch.
   - or a business rule that one use case needs does not fit in one aggregate nor value object,
     because it needs several aggregates or a domain port (`OrderPricing` with `CouponCatalog`,
     used only by `PlaceOrder`). A use case holds no business rule, so the rule never stays in
-    its `handle`;
-  - or a business rule between who asks and the aggregate (`OrderCancellation`: only the
-    customer who placed the order cancels it, `NotTheCustomerOfOrder`), with no dependencies.
-  Anything else is not a domain service: a rule of one aggregate is a method of the aggregate, a
+    its `handle`.
+  Anything else is not a domain service: a rule of one aggregate is a method of the aggregate
+  (also a rule between who asks and the aggregate's state: `order.cancel(requester)` throws
+  when the requester is not its customer), a
   calculation over values is a method of the value object, a named yes/no criterion is a
   `Specification`, and loading, authorizing, saving and publishing is the use case.
 - **Domain services: how.** A plain class (no base class, no state) named after the business
@@ -468,8 +468,9 @@ use case, one class, with no `UseCase` behind it.
 ## Infrastructure
 
 - **Repositories only get, search and persist** (`findById`, `search` with a `Criteria`, `save`,
-  `remove`): no business logic, no business query methods (`pendingOlderThan`; write it as a
-  `Criteria` for `search`), no `nextId()`, no events. **One adapter per aggregate
+  `remove`): no business logic, no business query methods (`pendingOlderThan`: a `Criteria`
+  for `search` when a use case needs the aggregates to change them, a read model when it only
+  shows or lists data), no `nextId()`, no events. **One adapter per aggregate
   and technology** (`infrastructure/persistence/<technology>-<aggregate>-repository.ts`):
   `InMemoryOrderRepository extends OrderRepository`, implementing exactly the verbs the abstract
   repository of the domain declares; a test double may add technical read helpers for its tests

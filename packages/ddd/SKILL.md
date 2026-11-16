@@ -158,10 +158,12 @@ details and the code.
 - **Between contexts** only events travel: the consumer keeps its own copy of each foreign event
   next to the reaction that hears it, with the producer's class name and `eventName`.
 - **Read models** are a row, a store port, a query port, a projection that skips applied
-  `eventId`s and one reaction per event; queries need no use case.
+  `eventId`s and one reaction per event; queries need no use case. A business query
+  (`pendingOlderThan`) is a read model when it only shows or lists data, and a `Criteria` for the
+  repository's `search` when a use case needs the aggregates to change them.
 - **Repositories**: the domain declares one abstract `<Aggregate>Repository extends
 AggregateRepository<Aggregate>` per aggregate with only the verbs its business needs
-  (`findById`, `save`, `remove`), each implementing its package role; every use case of the
+  (`findById`, `search`, `save`, `remove`), each implementing its package role; every use case of the
   aggregate receives it, never `AggregateFinder<X> & AggregateSaver<X>`. Each adapter extends it,
   one per technology, checks the version in a `WeakMap` and owns transactions and persistence.
   Persistence is that one adapter: the database technology is used only inside it. With IndexedDB

@@ -215,10 +215,10 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
   abstract repository that does not extend `AggregateRepository<Order>` and implement the role
   of each verb it declares.
 - Verbs the business of the aggregate does not need (`remove` on invoices that are never
-  deleted), verbs other than `findById`, `save` and `remove`, or code in the abstract
+  deleted), verbs other than `findById`, `search`, `save` and `remove`, or code in the abstract
   repository: it only declares them.
 - Repository methods with business names or rules (`pendingOlderThan`), `nextId()`, events, or
-  methods that return DTOs.
+  methods that return DTOs: a business query (`pendingOlderThan`) is a `Criteria` for `search` when a use case needs the aggregates to change them, and a read model (row, store, query port, projection) when it only shows or lists data.
 - Throwing `AggregateNotFoundException` from the domain or a repository: the user use case throws
   it when `findById` returns `null`.
 - A repository that reads aggregate fields or builds rows by hand, or whose constructor receives

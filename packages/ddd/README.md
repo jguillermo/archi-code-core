@@ -86,7 +86,7 @@ what it may import and what it must never do; the package itself is organized th
 | Specification (`extends Specification`)                               | domain         | A named business rule that validates, selects or builds; combinable                                | value objects, aggregates, data already loaded                                            | read a repository, protect an aggregate invariant                            |
 | Domain event (`extends EventBase`)                                    | domain         | A fact that happened (`OrderPaidDomainEvent`, `'order.paid'`), with primitive data                 | nothing: primitive fields typed inline                                                    | carry behavior or value objects, reference infrastructure                    |
 | Business error (`extends DomainException`)                            | domain         | A broken business rule, named after what went wrong (`OrderNotCancellable`), with its own code     | `DomainException`                                                                         | hold anything but a constructor                                              |
-| Repository (`OrderRepository extends AggregateRepository`)            | domain         | Abstract class per aggregate: only the verbs it needs to get and persist it, each from its role    | the aggregate, `AggregateFinder`/`AggregateSaver`/`AggregateRemover`                      | hold code, rules, business queries, `nextId()` or events                     |
+| Repository (`OrderRepository extends AggregateRepository`)            | domain         | Abstract class per aggregate: only the verbs it needs to get and persist it, each from its role    | the aggregate, `AggregateFinder`/`AggregateSearcher`/`AggregateSaver`/`AggregateRemover`  | hold code, rules, business queries, `nextId()` or events                     |
 | Domain service                                                        | domain         | A business rule that spans several aggregates or fits none                                         | aggregates, value objects, the aggregate's repository (only `findById`), domain ports     | I/O, saving, transactions, publishing                                        |
 | Domain port (`ProductPricing`)                                        | domain         | What the model needs from another context or an external service, in its own words                 | value objects of this context                                                             | contain code, expose the other system's model                                |
 | User use case (`extends UseCase`)                                     | application    | One business action a user asks for: input → command of value objects → change one aggregate       | domain, the aggregate's repository, domain services, application ports and exceptions     | import another use case or a reaction, persist or call the network by itself |
@@ -1127,7 +1127,8 @@ business query, and returns aggregates (`total` only with `{ withTotal: true }`)
 it with `@archi-code/criteria-adapters` (`searchMemory` in memory, `MongoCriteriaTranslator` or
 `toIndexedDbQuery` and `fromPrimitives` on what it reads). `AggregateSearcher` fits only an
 aggregate with `toPrimitives()`. The class holds nothing else: no business queries
-(`pendingOlderThan`), no `nextId()` (ids come from `OrderId.generate()`), no events and no code.
+(`pendingOlderThan`: a `Criteria` for `search` when a use case needs the aggregates to change
+them, a read model when it only shows or lists data), no `nextId()` (ids come from `OrderId.generate()`), no events and no code.
 
 ```ts
 import { AggregateRepository, Criteria } from '@archi-code/ddd/domain';

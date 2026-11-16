@@ -6,7 +6,7 @@
 | Un pedido confirmado no admite líneas nuevas | `Order` (agregado), error `OrderNotModifiable` | Regla sobre su estado |
 | Gastos de envío según zona y promociones | `ShippingCostCalculator` (servicio de dominio) | Necesita el pedido, la zona, las tarifas y la promoción; forzado en cualquiera de ellos |
 | Envío gratis a partir de un importe | `TotalAtLeast` (`Specification<Order>`) | Regla con nombre que decide si un pedido cumple un criterio |
-| Solo el cliente que hizo el pedido puede cancelarlo | `OrderCancellation` (servicio de dominio), con el concepto `CustomerId`, sobre `Order.cancel`; error `NotTheCustomerOfOrder` | Regla de negocio [IDDD cap. 2] |
+| Solo el cliente que hizo el pedido puede cancelarlo | `Order.cancel(requester, reason)` (agregado), con el concepto `CustomerId`; error `NotTheCustomerOfOrder` | Regla de negocio que depende del estado del agregado (su cliente) [IDDD cap. 2] |
 | Solo la persona que inicia sesión puede pedir en su nombre | `PlaceOrder`, que lanza `NotAllowedException` | Autorización del caso de uso: la decide solo el actor [IDDD cap. 14] |
 | Cargar pedido, cancelar, guardar, publicar | `CancelOrder` (caso de uso de usuario) | Coordinación |
 | Cuando Almacén reserva, registrarlo en el pedido | `RegisterStockReservationOnStockItemReserved` (caso de uso por reacción) `[Fuera de los libros: convención de @archi-code/ddd]` | Reacción a un evento; invoca al agregado |
@@ -118,20 +118,29 @@ export class NotTheCustomerOfOrder extends DomainException {
   }
 }
 
-// domain/service/OrderCancellation.ts
-export class OrderCancellation {
-  cancel(order: Order, requester: CustomerId, reason: CancellationReason): void {
-    if (!order.customerId.equals(requester)) {
-      throw new NotTheCustomerOfOrder(order.id.value);
+// domain/aggregate/Order.ts: Ventas añade a cancel quién lo pide
+  cancel(requester: CustomerId, reason: CancellationReason): void {
+    if (!this.customerId.equals(requester)) {
+      throw new NotTheCustomerOfOrder(this.id.value);
     }
-    order.cancel(reason);
+    if (this.isIn(OrderStatus.CANCELLED)) {
+      throw new OrderNotCancellable(this.id.value, this._status.value);
+    }
+    this.moveTo(OrderStatus.CANCELLED);
+    this.record(
+      new OrderCancelledDomainEvent({
+        orderId: this.id.value,
+        reason: reason.value,
+        reservationId: this._stockReservation.value,
+        paymentId: this._paymentAuthorization?.paymentId.value ?? null,
+      }),
+    );
   }
-}
 ```
 
 * `TotalAtLeast` usa `Money.covers` (misma moneda e importe mayor o igual).
 * `Customer` se muestra solo con lo que usa este ejemplo (su `create` y sus eventos siguen la plantilla de `ddd-skills/ddd-agregados/references/implementacion-ts.md`). `placeOrder` es un método fábrica [IDDD cap. 11]: comprueba una regla del cliente y delega en `Order.create`, que recibe el id ya calculado.
-* `OrderCancellation` es un servicio de dominio: la regla relaciona a quien pide con el pedido (`CustomerId`), y el estado lo sigue protegiendo `Order.cancel`, que lanza `OrderNotCancellable` si el pedido ya está cancelado.
+* Que solo su cliente cancele el pedido depende del estado del agregado (su `customerId`), así que es un método del agregado y no un servicio de dominio `[Fuera de los libros: convención de @archi-code/ddd]`: `Order.cancel(requester, reason)` lanza `NotTheCustomerOfOrder` si quien pide no es su cliente y `OrderNotCancellable` si ya está cancelado. Una regla que depende solo del actor (su rol) es autorización del caso de uso (`NotAllowedException`).
 
 ## `PlaceOrder`
 

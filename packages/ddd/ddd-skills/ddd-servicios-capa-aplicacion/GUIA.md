@@ -37,7 +37,7 @@ Ninguno es un servicio SOA remoto ni tiene por qué ser pesado [IDDD cap. 7].
 
 1. ¿Es una regla sobre el estado de **un** agregado? → método del agregado.
 2. ¿Es un cálculo o comportamiento sobre unos valores? → método del value object.
-3. ¿Es un proceso de negocio relevante, una transformación de una composición a otra, o un cálculo que necesita **varios** objetos de dominio y queda forzado en cualquiera de ellos? → **servicio de dominio** [IDDD cap. 7]. Con el paquete, solo en estos casos `[Fuera de los libros: convención de @archi-code/ddd]`: lógica que comparten dos casos de uso, una regla que necesita varios agregados o un puerto de dominio, o una regla entre quien pide y el agregado (`OrderCancellation`); ver el Paso 2.
+3. ¿Es un proceso de negocio relevante, una transformación de una composición a otra, o un cálculo que necesita **varios** objetos de dominio y queda forzado en cualquiera de ellos? → **servicio de dominio** [IDDD cap. 7]. Con el paquete, solo en estos casos `[Fuera de los libros: convención de @archi-code/ddd]`: lógica que comparten dos casos de uso o una regla que necesita varios agregados o un puerto de dominio; una regla que depende del estado de un agregado (solo su cliente cancela el pedido) es un método del agregado; ver el Paso 2.
 4. ¿Es coordinación: cargar, decidir qué invocar, guardar, publicar, autorizar? → **servicio de aplicación** [IDDD cap. 14].
 5. ¿Es formato, protocolo o traducción de otro sistema? → adaptador o ACL.
 
@@ -96,7 +96,7 @@ Plantilla, variantes y errores frecuentes en `ddd-skills/ddd-servicios-capa-apli
 
 ## Ejemplo
 
-`ddd-skills/ddd-servicios-capa-aplicacion/references/ejemplo-ecommerce.md`: lo que Ventas añade al `Order` de `ddd-skills/ddd-agregados/references/implementacion-ts.md` (`TotalAtLeast`, `Customer`, `OrderCancellation`), caso de uso `PlaceOrder`, caso de uso por reacción `RegisterStockReservationOnStockItemReserved` con su copia del evento de Almacén y su test. El servicio de dominio `ShippingCostCalculator` está en `ddd-skills/ddd-servicios-capa-aplicacion/references/servicios-dominio-ts.md`, y `CancelOrder`, `AddOrderLine` y la plantilla de caso de uso por reacción en `ddd-skills/ddd-servicios-capa-aplicacion/references/capa-aplicacion-ts.md`.
+`ddd-skills/ddd-servicios-capa-aplicacion/references/ejemplo-ecommerce.md`: lo que Ventas añade al `Order` de `ddd-skills/ddd-agregados/references/implementacion-ts.md` (`TotalAtLeast`, `Customer`, `cancel` con quien lo pide), caso de uso `PlaceOrder`, caso de uso por reacción `RegisterStockReservationOnStockItemReserved` con su copia del evento de Almacén y su test. El servicio de dominio `ShippingCostCalculator` está en `ddd-skills/ddd-servicios-capa-aplicacion/references/servicios-dominio-ts.md`, y `CancelOrder`, `AddOrderLine` y la plantilla de caso de uso por reacción en `ddd-skills/ddd-servicios-capa-aplicacion/references/capa-aplicacion-ts.md`.
 
 ## Siguiente guía
 
