@@ -1,18 +1,14 @@
 # Recommended patterns
 
 Part of the `archi-code-ddd` skill: read it only when that skill routes here. Each block is a
-file of a context (see `where-each-class-goes.md`); replace the names and keep the shape.
+file of a context (see `where-each-class-goes.md`); replace the names and keep the shape. Longer
+examples (IndexedDB repository, broker channel) are in the package README. Format with the
+project's Prettier.
 
 ## Value objects
 
 ```ts
-export class Nickname extends StringType {}
 export class OrderId extends IdType<'OrderId'> {}
-
-@Validations([
-  { validator: 'isInt', properties: { min: 1, max: 99 }, message: 'From 1 to 99 units' },
-])
-export class Quantity extends Required(NumberType) {}
 
 @Validations([
   { validator: 'isLength', properties: { min: 3, max: 80 }, message: 'From 3 to 80 characters' },
@@ -35,11 +31,7 @@ export class PaymentStatusOption extends EnumType<PaymentStatus> {
   }
 }
 export class PaymentStatusType extends Required(PaymentStatusOption) {}
-```
 
-A composite with behavior:
-
-```ts
 export class Money extends Composite({ amount: Cents, currency: MoneyCurrency }) {
   add(other: Money): Money {
     if (!this.currency.equals(other.currency)) {
@@ -51,21 +43,6 @@ export class Money extends Composite({ amount: Cents, currency: MoneyCurrency })
     });
   }
 }
-
-Money.fromPrimitives({ amount: 1250, currency: 'EUR' }).toPrimitives();
-```
-
-A composite with a list field and a rule over the whole value:
-
-```ts
-@Validations([
-  {
-    custom: 'atLeastOneItem',
-    fn: (contents) => (contents as ShipmentContents).items.length > 0,
-    message: 'A shipment carries at least one item',
-  },
-])
-export class ShipmentContents extends Composite({ items: [ShipmentItem] }) {}
 ```
 
 ## Events and business errors
@@ -155,7 +132,10 @@ export class Payment extends AggregateRoot<PaymentId> {
     if (this._status.value !== PaymentStatus.AWAITING_TRANSFER) {
       throw new PaymentNotAwaitingTransfer(this.id.value, this._status.value);
     }
-    this.capture();
+    this.moveTo(PaymentStatus.CAPTURED);
+    this.record(
+      new PaymentCapturedDomainEvent({ paymentId: this.id.value, amount: this.amount.toPrimitives() }),
+    );
   }
 
   voidForCancelledOrder(): void {
@@ -175,16 +155,6 @@ export class Payment extends AggregateRoot<PaymentId> {
     };
   }
 
-  private capture(): void {
-    this.moveTo(PaymentStatus.CAPTURED);
-    this.record(
-      new PaymentCapturedDomainEvent({
-        paymentId: this.id.value,
-        amount: this.amount.toPrimitives(),
-      }),
-    );
-  }
-
   private moveTo(status: PaymentStatus): void {
     this._status = new PaymentStatusType(status);
     this._updatedAt = UpdatedAt.now();
@@ -192,45 +162,16 @@ export class Payment extends AggregateRoot<PaymentId> {
 }
 ```
 
-A child entity, changed only through its root:
+A child entity is the same shape without dates nor `create`: `class OrderLine extends
+Entity<LineNumber>` with `super(id)`, VO fields and methods only its root calls.
+
+## Domain service
+
+`PlaceOrder` receives `CouponCatalog` (a domain port) and does `new OrderPricing(this.coupons)` in
+`handle`; a service two use cases share (`CourseFinder`) receives the abstract repository the
+same way.
 
 ```ts
-export class OrderLine extends Entity<LineNumber> {
-  readonly sku: Sku;
-  private _quantity: Quantity;
-  readonly unitPrice: Money;
-
-  constructor(id: LineNumber, sku: Sku, quantity: Quantity, unitPrice: Money) {
-    super(id);
-    this.sku = sku;
-    this._quantity = quantity;
-    this.unitPrice = unitPrice;
-  }
-
-  get quantity(): Quantity {
-    return this._quantity;
-  }
-
-  changeQuantity(quantity: Quantity): void {
-    this._quantity = quantity;
-  }
-}
-```
-
-A specification, and a domain service with its domain port (`PlaceOrder` receives `CouponCatalog`
-and does `new OrderPricing(this.coupons)` in `handle`):
-
-```ts
-export class SubtotalAtLeast extends Specification<Order> {
-  constructor(private readonly cents: number) {
-    super();
-  }
-
-  isSatisfiedBy(order: Order): boolean {
-    return order.subtotal().isAtLeast(this.cents);
-  }
-}
-
 export interface CouponCatalog {
   discountOf(code: CouponCode): Promise<DiscountPercent | null>;
 }
@@ -304,85 +245,8 @@ export class ConfirmTransferReceived extends UseCase<
 }
 ```
 
-Creating with a domain service built inside `handle` (`PlaceOrder` receives `CouponCatalog`):
-
-```ts
-  protected async handle(command: PlaceOrderCommand): Promise<string> {
-    const discount = await new OrderPricing(this.coupons).discountFor(command.couponCodes);
-    const order = Order.create(OrderId.generate(), command.customerId, command.lines, discount);
-    await this.orders.save(order);
-    await this.events.publish(order.pullDomainEvents());
-    return order.id.value;
-  }
-```
-
-Removing: `order.assertDiscardable(); await this.orders.remove(order);`.
-
-## Logic two use cases share: a domain service, never another use case
-
-```ts
-export class CourseFinder {
-  constructor(private readonly courses: CourseRepository) {}
-
-  async find(id: CourseId): Promise<Course> {
-    const course = await this.courses.findById(id);
-    if (course === null) {
-      throw new CourseNotFound(id.value);
-    }
-    return course;
-  }
-
-  async assertDoesNotExist(id: CourseId): Promise<void> {
-    if ((await this.courses.findById(id)) !== null) {
-      throw new CourseAlreadyExists(id.value);
-    }
-  }
-}
-
-export class PublishCourse extends UseCase<PublishCourseInput, PublishCourseCommand, void> {
-  constructor(
-    private readonly courses: CourseRepository,
-    private readonly events: EventBus,
-  ) {
-    super();
-  }
-
-  protected toCommand(input: PublishCourseInput): PublishCourseCommand {
-    return ValueObjectBuilder.build({
-      actorRole: () => new ActorRoleType(input.actorRole as ActorRole),
-      courseId: () => new CourseId(input.courseId),
-    });
-  }
-
-  protected async handle(command: PublishCourseCommand): Promise<void> {
-    if (command.actorRole.value !== ActorRole.EDITOR) {
-      throw new NotAllowedException(`The role ${command.actorRole.value} may not publish courses`);
-    }
-    const course = await new CourseFinder(this.courses).find(command.courseId);
-    course.publish();
-    await this.courses.save(course);
-    await this.events.publish(course.pullDomainEvents());
-  }
-}
-```
-
-`CreateCourse` (same constructor) does in `handle`:
-`await new CourseFinder(this.courses).assertDoesNotExist(command.courseId)` → `Course.create` →
-`save` → `publish` → return the id.
-
-Its spec stubs the abstract repository with `vi.fn()`:
-
-```ts
-function coursesFinding(course: Course | null): CourseRepository {
-  return { findById: vi.fn().mockResolvedValue(course) } as unknown as CourseRepository;
-}
-
-it('a course that is not in the catalog cannot be found', async () => {
-  await expect(new CourseFinder(coursesFinding(null)).find(courseId)).rejects.toBeInstanceOf(
-    CourseNotFound,
-  );
-});
-```
+Creating: `const order = Order.create(OrderId.generate(), …)` → `save` → `publish` → `return
+order.id.value`. Removing: `order.assertDiscardable(); await this.orders.remove(order);`.
 
 ## Reaction use case
 
@@ -412,14 +276,9 @@ export class RequestPaymentOnOrderCreated extends EventListener<OrderCreatedDoma
 }
 ```
 
-## Read model
+## Read model projection
 
 ```ts
-export interface OrderSummaries {
-  byId(orderId: string): Promise<OrderSummary | null>;
-  ofCustomer(customerId: string): Promise<OrderSummary[]>;
-}
-
 export class OrderSummaryProjection {
   constructor(private readonly store: OrderSummaryStore) {}
 
@@ -427,14 +286,15 @@ export class OrderSummaryProjection {
     if (await this.store.hasApplied(eventId.value)) {
       return;
     }
-    const lastEventAt = occurredOn.toString();
-    const current = (await this.store.find(orderId.value)) ?? emptySummary(orderId.value);
+    const occurred = occurredOn.toString();
+    const current = (await this.store.find(orderId.value)) ?? emptySummary(orderId.value, occurred);
+    const lastEventAt = occurred > current.lastEventAt ? occurred : current.lastEventAt;
     await this.store.save({ ...current, ...changes, lastEventAt }, eventId.value);
   }
 }
 ```
 
-## Repositories and adapters
+## Repository
 
 ```ts
 export abstract class OrderRepository
@@ -484,44 +344,10 @@ export class InMemoryOrderRepository extends OrderRepository {
 }
 ```
 
-IndexedDB: a static `IndexedDbTable`, version check and write in one transaction (`remove`: the
-same transaction with `tx.delete(table, key)`):
-
-```ts
-type OrderRow = PrimitiveTypes<Order> & { version: number };
-
-export class IndexedDbOrderRepository extends OrderRepository {
-  private static readonly orders = IndexedDbTable.of<OrderRow, 'byCustomer'>('orders', {
-    database: 'shop',
-    indexes: { byCustomer: { keyPath: 'customerId' } },
-  });
-  private readonly versions = new WeakMap<Order, number>();
-
-  async findById(id: OrderId): Promise<Order | null> {
-    const row = await IndexedDbOrderRepository.orders.get(id.value);
-    if (row === null) {
-      return null;
-    }
-    const { version, ...primitives } = row;
-    const order = Order.fromPrimitives(primitives);
-    this.versions.set(order, version);
-    return order;
-  }
-
-  async save(order: Order): Promise<void> {
-    const key = order.id.value;
-    const version = this.versions.get(order) ?? 0;
-    const table = IndexedDbOrderRepository.orders;
-    await IndexedDbTable.transaction([table], 'readwrite', async (tx) => {
-      if (((await tx.get(table, key))?.version ?? 0) !== version) {
-        throw new ConcurrencyException('Order', key, version);
-      }
-      await tx.put(table, { ...order.toPrimitives(), version: version + 1 });
-    });
-    this.versions.set(order, version + 1);
-  }
-}
-```
+IndexedDB keeps the same shape over a `private static readonly` `IndexedDbTable.of(...)`: inside
+one `IndexedDbTable.transaction([table], 'readwrite', async (tx) => …)` it reads the stored
+version with `tx.get`, throws `ConcurrencyException` when it differs and writes `{
+...order.toPrimitives(), version: version + 1 }` with `tx.put` (`tx.delete` to remove).
 
 ## Composition root
 
@@ -559,14 +385,27 @@ export class PaymentsContext {
     );
   }
 }
-
-const channel = new InMemoryEventChannel({ delivery: 'serial' });
-const payments = await PaymentsContext.start({ channel, logger });
 ```
 
 ## Entry points
 
+One shared helper, `platform/http/http.ts` (the requests and responses are the project's own
+types):
+
 ```ts
+export interface HttpRequest {
+  auth?: { userId?: string; role?: string };
+  params?: Record<string, string>;
+  body?: unknown;
+}
+
+export interface HttpResponse {
+  status: number;
+  body?: unknown;
+}
+
+export type JsonBody = Record<string, unknown>;
+
 export class Http {
   private static readonly STATUS: Record<ExceptionKind, number> = {
     [ExceptionKind.NotFound]: 404,
@@ -577,6 +416,7 @@ export class Http {
     [ExceptionKind.Rejected]: 400,
     [ExceptionKind.Internal]: 500,
   };
+  private static readonly NOT_FOUND_CODES = new Set(['SCH001']);
 
   constructor(private readonly logger: Logger) {}
 
@@ -586,6 +426,21 @@ export class Http {
     } catch (error) {
       return this.failure(error);
     }
+  }
+
+  jsonBody(request: HttpRequest): JsonBody | null {
+    const { body } = request;
+    return typeof body === 'object' && body !== null && !Array.isArray(body)
+      ? (body as JsonBody)
+      : null;
+  }
+
+  badRequest(message: string): HttpResponse {
+    return { status: 400, body: { code: 'BAD_REQUEST', message } };
+  }
+
+  unauthenticated(): HttpResponse {
+    return { status: 401, body: { code: 'UNAUTHENTICATED', message: 'Sign in first' } };
   }
 
   private failure(error: unknown): HttpResponse {
@@ -599,50 +454,43 @@ export class Http {
       this.logger.error('http_request_failed', { code, error });
       return { status: 500, body: { code, message: 'Internal server error' } };
     }
+    const status = Http.NOT_FOUND_CODES.has(code) ? 404 : Http.STATUS[kind];
     const errors = error instanceof ValidationException ? error.errors : undefined;
-    return { status: Http.STATUS[kind], body: { code, message: (error as Error).message, errors } };
+    return { status, body: { code, message: (error as Error).message, errors } };
   }
 }
+```
 
-export class PaymentsController {
-  private readonly http: Http;
+A controller method checks the actor, then the shape of each field it passes (`typeof
+body.reason === 'string'`, never its value), and calls one use case:
 
-  constructor(
-    private readonly confirmTransferReceived: ConfirmTransferReceived,
-    logger: Logger,
-  ) {
-    this.http = new Http(logger);
-  }
-
-  confirmTransfer(request: HttpRequest): Promise<HttpResponse> {
-    return this.http.respond(async () => {
-      const role = request.auth?.role;
-      if (role === undefined) {
-        return this.http.unauthenticated();
-      }
-      const body = this.http.jsonBody(request);
-      if (body === null) {
-        return this.http.badRequest('Send the received amount as a JSON object');
-      }
-      await this.confirmTransferReceived.execute({
-        actorRole: role,
-        paymentId: request.params?.paymentId as string,
-        received: body as unknown as MoneyData,
-      });
-      return { status: 204 };
+```ts
+confirmTransfer(request: HttpRequest): Promise<HttpResponse> {
+  return this.http.respond(async () => {
+    const role = request.auth?.role;
+    if (role === undefined) {
+      return this.http.unauthenticated();
+    }
+    const body = this.http.jsonBody(request);
+    if (body === null) {
+      return this.http.badRequest('Send the received amount as a JSON object');
+    }
+    await this.confirmTransferReceived.execute({
+      actorRole: role,
+      paymentId: request.params?.paymentId as string,
+      received: body as unknown as MoneyData,
     });
-  }
+    return { status: 204 };
+  });
 }
 ```
 
 ## Tests
 
-Real situations, fixture factories in `test/support/`, native matchers. Compare VO dates with
-`toEqual` or `.toISOString()`; never fix the time. An event-flow test asserts on what the reaction
-caused and what the channel carried (never on the reaction being called) and delivers the same
-event twice. One repository contract runs against every adapter; the IndexedDB one on a real
-browser IndexedDB (Vitest browser mode), never a double, emptying its table before each test
-(`await IndexedDbTable.of('orders').clear()`).
+Real situations, fixture factories in `test/support/`, native matchers; never fix the time. An
+event-flow test asserts on what the reaction caused and delivers the same event twice. One
+repository contract runs against every adapter (IndexedDB on a real browser, emptying its table
+before each test).
 
 ```ts
 it('a transfer that arrives is captured and survives the round trip', () => {
@@ -657,13 +505,6 @@ it('a transfer that arrives is captured and survives the round trip', () => {
 });
 
 export function orderRepositoryContract(make: () => Promise<OrderRepository>): void {
-  it('loads what it saved', async () => {
-    const orders = await make();
-    const order = aPendingOrder();
-    await orders.save(order);
-    expect((await orders.findById(order.id))?.toPrimitives()).toEqual(order.toPrimitives());
-  });
-
   it('refuses a stale save', async () => {
     const orders = await make();
     await orders.save(aPendingOrder());
@@ -672,56 +513,5 @@ export function orderRepositoryContract(make: () => Promise<OrderRepository>): v
     await orders.save(first!);
     await expect(orders.save(second!)).rejects.toThrow(ConcurrencyException);
   });
-}
-
-describe('InMemoryOrderRepository', () =>
-  orderRepositoryContract(async () => new InMemoryOrderRepository()));
-describe('IndexedDbOrderRepository', () =>
-  orderRepositoryContract(async () => new IndexedDbOrderRepository()));
-```
-
-## Another event channel
-
-One `EventChannel` class in `infrastructure/messaging/`; use cases, reactions and `DomainEventBus`
-stay the same. RabbitMQ: one durable topic exchange, the event name as routing key, one durable
-queue per consumer and event, `ack` when the reaction finished, `nack` without requeue when it
-failed (a dead-letter exchange keeps them). `publish` resolves when the broker took the messages:
-an integration test waits for the effect instead of reading it right after `execute`.
-
-```ts
-class RabbitMqEventChannel implements EventChannel {
-  constructor(
-    private readonly amqp: AmqpChannel,
-    private readonly exchange = 'shop.events',
-  ) {}
-
-  async send(events: readonly SerializedEvent[]): Promise<void> {
-    await this.amqp.assertExchange(this.exchange, 'topic', { durable: true });
-    for (const event of events) {
-      this.amqp.publish(this.exchange, event.eventName, Buffer.from(JSON.stringify(event)), {
-        persistent: true,
-        messageId: event.eventId,
-      });
-    }
-  }
-
-  async receive(
-    eventName: string,
-    consumer: string,
-    handler: ChannelHandler,
-  ): Promise<ChannelSubscription> {
-    const queue = `${consumer}.${eventName}`;
-    await this.amqp.assertQueue(queue, { durable: true });
-    await this.amqp.bindQueue(queue, this.exchange, eventName);
-    const { consumerTag } = await this.amqp.consume(queue, (message) => {
-      if (message === null) {
-        return;
-      }
-      handler(JSON.parse(message.content.toString()))
-        .then(() => this.amqp.ack(message))
-        .catch(() => this.amqp.nack(message, false, false));
-    });
-    return { close: async () => void (await this.amqp.cancel(consumerTag)) };
-  }
 }
 ```

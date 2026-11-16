@@ -18,7 +18,7 @@ export class OrderSummaryProjection {
     if (await this.store.hasApplied(appliedEventId)) {
       return;
     }
-    const lastEventAt = occurredOn.toString();
+    const occurred = occurredOn.toString();
     const current = (await this.store.find(orderId.value)) ?? {
       orderId: orderId.value,
       customerId: null,
@@ -26,8 +26,9 @@ export class OrderSummaryProjection {
       total: null,
       items: 0,
       trackingNumber: null,
-      lastEventAt,
+      lastEventAt: occurred,
     };
+    const lastEventAt = occurred > current.lastEventAt ? occurred : current.lastEventAt;
     await this.store.save({ ...current, ...changes, lastEventAt }, appliedEventId);
   }
 }

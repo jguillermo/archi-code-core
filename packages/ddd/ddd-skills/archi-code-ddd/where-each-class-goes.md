@@ -4,27 +4,29 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here.
 
 ## Layers and dependencies
 
-| Class                                                      | Layer                               | May depend on                                                                    | Never                                                                     |
-| ---------------------------------------------------------- | ----------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| Value object, composite                                    | domain                              | VOs, `@archi-code/validation`, domain exceptions                                 | mutate, storage, transport                                                |
-| Aggregate root                                             | domain                              | VOs, child entities, its events, specifications; loaded data as argument         | repository, publish, log, `new Date()`, services by constructor           |
-| Child entity                                               | domain                              | its local id, VOs                                                                | setters, events, callers outside the root                                 |
-| Domain event                                               | domain                              | nothing (inline primitive fields)                                                | behavior, VOs, own types                                                  |
-| Business error                                             | domain                              | `DomainException`                                                                | anything but a constructor                                                |
-| Specification, domain service, domain port                 | domain                              | aggregates, VOs; services only: domain ports, the abstract repository (by ctor)  | I/O, transactions, publishing, `/application`, `/infrastructure`, adapters |
-| Repository (abstract)                                      | domain                              | `AggregateRepository`, its roles, the aggregate and id                           | interface, code, unneeded verbs, business queries                         |
-| User use case                                              | application                         | domain, its repository, `EventBus`, `Logger`; domain services built in `handle`  | other use cases or listeners, injected services, returning an aggregate   |
-| Reaction use case                                          | application                         | same as user use case, plus its event                                            | authorization, `AggregateNotFoundException`, business errors, use cases   |
-| Copy of a foreign event                                    | application, next to its reaction   | nothing                                                                          | importing the producer's class                                            |
-| Input data type (`MoneyData`)                              | application, next to its use case   | other data types                                                                 | `domain/`, sharing between contexts                                       |
-| Read model (row, ports, projection)                        | application (ports), infrastructure | data types, VOs                                                                  | aggregates, repositories, business rules                                  |
-| Adapter (repository, store, port adapter, channel)         | infrastructure                      | domain, application, `@archi-code/ddd/infrastructure`, drivers (IndexedDB only via `IndexedDbTable`) | business rules; database code in any other class                          |
-| Entry point (controller, consumer, scheduler, CLI)         | interfaces                          | `/application`, use cases, query ports, protocol helper                          | rules, repositories, catching errors                                      |
-| Composition root (`composition.ts`)                        | context root                        | everything of its context, `@archi-code/ddd/*`                                   | being imported by a layer                                                 |
+What each class must never do is in `layers.md`.
+
+| Class                                              | Layer                               | May depend on                                                                                        |
+| -------------------------------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Value object, composite                            | domain                              | VOs, `@archi-code/validation`, domain exceptions                                                     |
+| Aggregate root                                     | domain                              | VOs, child entities, its events, specifications; loaded data as argument                             |
+| Child entity                                       | domain                              | its local id, VOs                                                                                    |
+| Domain event                                       | domain                              | nothing (inline primitive fields)                                                                    |
+| Business error                                     | domain                              | `DomainException`                                                                                    |
+| Specification, domain service, domain port         | domain                              | aggregates, VOs; services only: domain ports, the abstract repository (by ctor)                      |
+| Repository (abstract)                              | domain                              | `AggregateRepository`, its roles, the aggregate and id                                               |
+| User use case                                      | application                         | domain, its repository, `EventBus`, `Logger`; domain services built in `handle`                      |
+| Reaction use case                                  | application                         | same as user use case, plus its event                                                                |
+| Copy of a foreign event                            | application, next to its reaction   | nothing                                                                                              |
+| Input data type (`MoneyData`)                      | application, next to its use case   | other data types                                                                                     |
+| Read model (row, ports, projection)                | application (ports), infrastructure | data types, VOs                                                                                      |
+| Adapter (repository, store, port adapter, channel) | infrastructure                      | domain, application, `@archi-code/ddd/infrastructure`, drivers (IndexedDB only via `IndexedDbTable`) |
+| Entry point (controller, consumer, scheduler, CLI) | interfaces                          | `/application`, use cases, query ports, protocol helper                                              |
+| Composition root (`composition.ts`)                | context root                        | everything of its context, `@archi-code/ddd/*`                                                       |
 
 - Import matrix: `domain` → `/domain`, `@archi-code/validation`, own `domain`, `shared-kernel`.
   `application` → adds `/application`, own `application`. `infrastructure` → `@archi-code/ddd/*`,
-  own `domain` and `application`. `interfaces` → `/application`, own `application`, the protocol
+  `@archi-code/criteria-adapters/*`, own `domain` and `application`. `interfaces` → `/application`, own `application`, the protocol
   helper (only file importing `ExceptionClassifier`). `composition.ts` → anything of its context.
 - A context never imports another; only `shared-kernel/` (money) is shared; data crosses only as
   events; each context declares its own VOs even when another has a similar one (`Phone`).
@@ -66,23 +68,13 @@ src/
 
 ## Names
 
+Class names (ids, enums, events, errors, use cases, repositories, services) are in `layers.md`.
+
 | What                                 | Name                                                                                  |
 | ------------------------------------ | ------------------------------------------------------------------------------------- |
 | Files in `domain/`, `shared-kernel/` | PascalCase class name                                                                 |
 | Every other file                     | kebab-case of the main export                                                         |
-| Aggregate id                         | `<Aggregate>Id extends IdType<'<Aggregate>Id'>`                                       |
-| Foreign reference                    | `<Other>Reference extends Required(UuidType)`                                         |
-| Enum                                 | `<Enum>Type.ts`: `<Enum>`, `<Enum>Option`, `<Enum>Type` (money: `MoneyCurrency.ts` holds `Currency`, `CurrencyOption`, `MoneyCurrency`)   |
 | `create` input shape                 | `New<Child>` (interface of VOs)                                                       |
-| Domain event                         | `<Aggregate><PastAction>DomainEvent`, `'<aggregate>.<past_action>'`                   |
-| Business error                       | what went wrong, no `Exception` suffix, code `<CTX><NNN>`                             |
-| User use case                        | the business action (`PlaceOrder`), never CRUD nor technical                          |
-| Reaction use case                    | `<Action>On<Event>`, file `<action>-on-<event>.ts`                                    |
-| Consumer                             | `'<context>.<action>-on-<event>'`                                                     |
-| Repository (domain)                  | `<Aggregate>Repository`, abstract                                                     |
-| Repository adapter                   | `<Technology><Aggregate>Repository extends <Aggregate>Repository`, one per technology |
 | Port adapter                         | `<Technology><Port>`                                                                  |
-| Domain service                       | the business operation (`CourseFinder`), never `…Manager`/`…Helper`/`…Utils`          |
 | Controller                           | `<Aggregates>Controller`                                                              |
 | Composition root                     | `<Context>Context` with `<Context>Settings`                                           |
-| Log message                          | stable snake_case                                                                     |

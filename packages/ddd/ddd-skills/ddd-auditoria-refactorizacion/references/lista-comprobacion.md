@@ -1,6 +1,6 @@
 # Lista de comprobación DDD
 
-"Script": lo detecta `scan_ddd_smells.py` (sí / parcial / no); lo que dice "no" se revisa leyendo el código. Con el paquete, recorre además `ddd-skills/archi-code-ddd/what-not-to-do.md`.
+"Script": lo detecta `scan_ddd_smells.py` (sí / parcial / no); lo que dice "no" se revisa leyendo el código. Con el paquete, recorre además `ddd-skills/archi-code-ddd/layers.md`.
 
 ## Integración entre contextos
 

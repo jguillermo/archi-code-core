@@ -2146,13 +2146,14 @@ export class OrderSummaryProjection {
     if (await this.store.hasApplied(appliedEventId)) {
       return;
     }
-    const lastEventAt = occurredOn.toString();
+    const occurred = occurredOn.toString();
     const current = (await this.store.find(orderId.value)) ?? {
       orderId: orderId.value,
       customer: null,
       status: 'unknown',
-      lastEventAt,
+      lastEventAt: occurred,
     };
+    const lastEventAt = occurred > current.lastEventAt ? occurred : current.lastEventAt;
     await this.store.save({ ...current, ...changes, lastEventAt }, appliedEventId);
   }
 }
@@ -2777,8 +2778,9 @@ const orders = IndexedDbTable.of<OrderRow>('orders'); // the same object, anywhe
   other options, or the same name in another database, throw `schema_mismatch`. `of(name)` (or
   `of(name, { factory })`) returns the declared table and throws `schema_mismatch` when nobody
   declared it yet. Declare it in a `static` field of the class that owns it, so it exists as soon
-  as the class is loaded. When it is declared again, the migrations of the first declaration are
-  the ones used.
+  as the class is loaded. `of` throws `unavailable` where there is no `indexedDB` (Node): code
+  that also runs there loads the IndexedDB adapter with `await import()` only when it uses it.
+  When it is declared again, the migrations of the first declaration are the ones used.
 - **Typed index names.** The second type parameter lists the indexes, so a query on an index the
   table does not declare fails to compile, and the declaration must hold exactly those indexes:
   `IndexedDbTable.of<OrderRow, 'byCustomer' | 'byTag'>('orders', { database, indexes: { … } })`.
@@ -3172,7 +3174,7 @@ class Order extends AggregateRoot<OrderId> {
   }
 }
 
-const order = Order.create(OrderId.generate(), new CustomerName('Ana'), { now: () => new Date() });
+const order = Order.create(OrderId.generate(), new CustomerName('Ana'));
 const stored = order.toPrimitives(); // plain data the repository writes next to its version
 Order.fromPrimitives(stored).toPrimitives(); // equal to stored: what the repository returns on load
 ```
@@ -3945,8 +3947,8 @@ matching skill of the suite from `node_modules/@archi-code/ddd/ddd-skills/`, and
 suite's examples into code that uses this package. For the full API it points to this README
 inside `node_modules/@archi-code/ddd`, so both stay valid when you update the package. Its rules,
 patterns and common mistakes are split into `ddd-skills/archi-code-ddd/` (where each class goes,
-the folders and names, the rules per layer, patterns, what not to do), which `SKILL.md`
-reads from the package too. Do not copy `ddd-skills/` into `.claude/skills/`.
+the folders and names, the rules per layer, which double as the audit checklist, and patterns),
+which `SKILL.md` reads from the package too. Do not copy `ddd-skills/` into `.claude/skills/`.
 
 To install it in your project, run this from the project root; it links the skill into the Claude
 Code skills folder:
@@ -3982,8 +3984,7 @@ It also works for reviewing code that already uses the package:
 /archi-code-ddd review src/domain and fix whatever breaks the package rules
 ```
 
-With the skill loaded, Claude follows its rules, avoids the mistakes in its "What not to do" list
-and, before using anything the skill does not show, reads this README in `node_modules`.
+With the skill loaded, Claude follows its rules per layer and, before using anything the skill does not show, reads this README in `node_modules`.
 
 ### Keeping it up to date
 
