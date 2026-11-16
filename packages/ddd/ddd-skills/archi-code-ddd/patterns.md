@@ -364,31 +364,11 @@ export class PublishCourse extends UseCase<PublishCourseInput, PublishCourseComm
     await this.events.publish(course.pullDomainEvents());
   }
 }
-
-export class CreateCourse extends UseCase<CreateCourseInput, CreateCourseCommand, string> {
-  constructor(
-    private readonly courses: CourseRepository,
-    private readonly events: EventBus,
-  ) {
-    super();
-  }
-
-  protected toCommand(input: CreateCourseInput): CreateCourseCommand {
-    return ValueObjectBuilder.build({
-      courseId: () => new CourseId(input.courseId),
-      title: () => new CourseTitle(input.title),
-    });
-  }
-
-  protected async handle(command: CreateCourseCommand): Promise<string> {
-    await new CourseFinder(this.courses).assertDoesNotExist(command.courseId);
-    const course = Course.create(command.courseId, command.title);
-    await this.courses.save(course);
-    await this.events.publish(course.pullDomainEvents());
-    return course.id.value;
-  }
-}
 ```
+
+`CreateCourse` (same constructor) does in `handle`:
+`await new CourseFinder(this.courses).assertDoesNotExist(command.courseId)` → `Course.create` →
+`save` → `publish` → return the id.
 
 Its spec stubs the abstract repository with `vi.fn()`:
 
@@ -504,7 +484,8 @@ export class InMemoryOrderRepository extends OrderRepository {
 }
 ```
 
-IndexedDB: a static `IndexedDbTable`, version check and write in one transaction:
+IndexedDB: a static `IndexedDbTable`, version check and write in one transaction (`remove`: the
+same transaction with `tx.delete(table, key)`):
 
 ```ts
 type OrderRow = PrimitiveTypes<Order> & { version: number };
@@ -538,18 +519,6 @@ export class IndexedDbOrderRepository extends OrderRepository {
       await tx.put(table, { ...order.toPrimitives(), version: version + 1 });
     });
     this.versions.set(order, version + 1);
-  }
-
-  async remove(order: Order): Promise<void> {
-    const key = order.id.value;
-    const version = this.versions.get(order) ?? 0;
-    const table = IndexedDbOrderRepository.orders;
-    await IndexedDbTable.transaction([table], 'readwrite', async (tx) => {
-      if (((await tx.get(table, key))?.version ?? 0) !== version) {
-        throw new ConcurrencyException('Order', key, version);
-      }
-      await tx.delete(table, key);
-    });
   }
 }
 ```
