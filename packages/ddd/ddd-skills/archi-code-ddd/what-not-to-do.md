@@ -44,7 +44,9 @@ mistake; the rule is in `layers.md`. Also the checklist of every audit.
 
 - Private constructor, or one that checks, defaults or records events.
 - Id generated or derived inside `create`.
-- A factory other than `create`, or `create` skipping invariants or recording another event.
+- A factory other than `create` (except `create<ClosedState>`, such as `Invoice.createVoided`, for a
+  closing fact that arrives before the creating one), or `create` skipping invariants or recording
+  another event.
 - Raw state (`boolean`, `Date`, `string` fields); `_id` + `get id()` instead of `super(id)`.
 - Private field without getter or missing from `toPrimitives()`; no round-trip test.
 - `toPrimitives` returning VOs; `fromPrimitives` recording events or checking invariants.
@@ -69,7 +71,8 @@ mistake; the rule is in `layers.md`. Also the checklist of every audit.
 - A union type of an aggregate's events, or an event type parameter on bus/registry/root.
 - A registry factory not passing `eventId` and `occurredOn`; registering an event twice;
   subscribing to an unregistered event.
-- Importing the producer's event class, or one copy shared by two reactions; incompatible change
+- Importing the producer's event class, or two copies of the same foreign event in one context
+  (one copy per event and context, registered once); incompatible change
   under the same `eventName`; a second bus instead of an `EventChannel`.
 
 ## Use cases and reactions
@@ -100,12 +103,24 @@ mistake; the rule is in `layers.md`. Also the checklist of every audit.
   (a relative change such as a 10% discount never retries: it may apply twice).
 - Transactions, units of work or connections in use cases, reactions or the domain; changing the
   use case to avoid losing events (that is the repository's outbox).
-- Returning an aggregate; a query use case; a projection not skipping applied `eventId`s; a read
+- Returning an aggregate; a query use case (`FindCourse` included: reading by id is a read-model
+  query port); a projection not skipping applied `eventId`s; a read
   model loading aggregates.
 - A read-model row with one overwritten `status` that a late or repeated event can turn back (a
   late `course.published` reopening an archived course); a creation reaction resetting a status.
 - A read-model reaction storing raw event fields without building value objects.
 - A domain port implemented by a repository or a read-model store instead of its own adapter.
+- An external side effect (gateway charge, email) before `save` in a user use case: record the
+  intent, and a reaction runs the effect with an idempotency key and records the outcome.
+- An idempotency key that is the aggregate id for a repeatable effect (a retried declined charge
+  replays the decline) or shared by two effects (charge and refund): one key per attempt and effect.
+- A domain service that only wraps a port call: the use case or reaction calls the port.
+- Uniqueness across aggregates checked with `search` before `create`: make it the derived id.
+- A controller converting or checking query values (`Number(params.x)`): the query port does it.
+- A reaction to a closing fact (cancelled) that returns when the aggregate does not exist yet:
+  it creates it already closed under the derived id.
+- A bulk `search` without `limit` (page through it) or an adapter without the repository contract.
+- `MoneyCurrency` as a validated text instead of the `Currency` enum value object.
 
 ## Repositories and adapters
 

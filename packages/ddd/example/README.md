@@ -673,12 +673,12 @@ With logging: `sales/application/cancel-unpaid-order/cancel-unpaid-order-on-paym
 
 ### 3.4 Consumed event copies (A-EVC)
 
-| Id     | Rule                                                                                                                                                           |
-| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A-EVC1 | For each event of another context it reacts to, the consumer declares a copy in the reaction folder: `application/<action>/<event>-domain-event.ts`.           |
-| A-EVC2 | Same class name (`<Event>DomainEvent`) and same `eventName` as the producer; fields = a subset of the producer's fields (SHOULD be only those `handle` reads). |
-| A-EVC3 | Written exactly like a domain event (D-EVT3, D-EVT5): inline types, no interfaces, `EventMetadata`.                                                            |
-| A-EVC4 | Two reactions of one context to the same foreign event each keep their own copy in their own folder.                                                           |
+| Id     | Rule                                                                                                                                                                |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A-EVC1 | For each event of another context it reacts to, the consumer declares one copy in the folder of the first reaction: `application/<action>/<event>-domain-event.ts`. |
+| A-EVC2 | Same class name (`<Event>DomainEvent`) and same `eventName` as the producer; fields = a subset of the producer's fields (SHOULD be only those its reactions read).  |
+| A-EVC3 | Written exactly like a domain event (D-EVT3, D-EVT5): inline types, no interfaces, `EventMetadata`.                                                                 |
+| A-EVC4 | Two reactions of one context to the same foreign event share that one copy; `registry()` registers it once.                                                         |
 
 ### 3.5 Data types (A-DT)
 

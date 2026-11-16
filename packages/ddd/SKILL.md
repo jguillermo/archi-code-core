@@ -86,8 +86,8 @@ In `ddd-skills/archi-code-ddd/`; read the file matching the task (all of them wh
 
 - **One folder per context** (`src/contexts/<context>/`: `domain/` by kind, `application/` by
   business action, `infrastructure/`, `interfaces/`, `composition.ts`). Contexts never import each
-  other; only `shared-kernel/` is shared; data crosses only as events (each consumer keeps its own
-  event copy).
+  other; only `shared-kernel/` is shared; data crosses only as events (one copy of each foreign
+  event per consumer context, registered once).
 - **Value objects are always valid**: named class per file, `@Validations`, `Required(...)`, built
   with `ValueObjectBuilder.build`; several fields = `Composite`; `slug()` and
   `StringSanitizer`, never own regexes.
@@ -103,7 +103,7 @@ In `ddd-skills/archi-code-ddd/`; read the file matching the task (all of them wh
   only when the command is repeat-safe (never a relative change like a discount), and records a
   multi-aggregate exception in a decision record.
 - **Domain service** only when two+ use cases share business logic or a rule needs several
-  aggregates or a domain port; built inside `handle` (`new CourseFinder(this.courses)`), never
+  aggregates or a domain port (a bare port call is not one: call the port); built inside `handle` (`new CourseFinder(this.courses)`), never
   injected nor built in `composition.ts`; depends on loaded aggregates, the abstract repository
   (`findById`) or a domain port.
 - **Repositories**: one abstract `<Aggregate>Repository` in the domain with only the needed verbs

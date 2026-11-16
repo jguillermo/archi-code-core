@@ -51,7 +51,7 @@ src/
     shared-kernel/money/
     <context>/
       domain/
-        aggregate/ (+ New<Child>) entity/ value-object/ event/ exception/
+        aggregate/ (+ New<Child>, outcome enums an aggregate method returns: `CourseRetirement.ts`) entity/ value-object/ event/ exception/
         repository/ (abstract) service/ (services, ports) specification/
       application/
         place-order/          place-order.ts, money-data.ts
@@ -72,7 +72,7 @@ src/
 | Every other file                     | kebab-case of the main export                                                         |
 | Aggregate id                         | `<Aggregate>Id extends IdType<'<Aggregate>Id'>`                                       |
 | Foreign reference                    | `<Other>Reference extends Required(UuidType)`                                         |
-| Enum                                 | `<Enum>Type.ts`: `<Enum>`, `<Enum>Option`, `<Enum>Type` (money: `MoneyCurrency.ts`)   |
+| Enum                                 | `<Enum>Type.ts`: `<Enum>`, `<Enum>Option`, `<Enum>Type` (money: `MoneyCurrency.ts` holds `Currency`, `CurrencyOption`, `MoneyCurrency`)   |
 | `create` input shape                 | `New<Child>` (interface of VOs)                                                       |
 | Domain event                         | `<Aggregate><PastAction>DomainEvent`, `'<aggregate>.<past_action>'`                   |
 | Business error                       | what went wrong, no `Exception` suffix, code `<CTX><NNN>`                             |

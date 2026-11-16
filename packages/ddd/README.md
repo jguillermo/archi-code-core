@@ -1674,10 +1674,11 @@ bus.
 ### Events between contexts
 
 A context never imports another context, nor its event classes. For each foreign event it reacts
-to, the consumer declares its own copy next to the reaction that hears it
+to, the consumer declares one copy per context next to the first reaction that hears it
 (`payments/application/request-payment/order-created-domain-event.ts`), with the producer's class
-name and `eventName` and only the fields its `handle` reads, written like any domain event. Two
-reactions of one context to the same foreign event keep one copy each. Plain data shapes the
+name and `eventName` and only the fields its reactions read, written like any domain event. Two
+reactions of one context to the same foreign event share that one copy, which `registry()`
+registers once. Plain data shapes the
 application receives (`MoneyData`, `AddressData`) are interfaces in the folder of the use case
 that first needs them, never in `domain/` and never shared between contexts. The event's JSON is
 the contract: never change its data incompatibly under the same `eventName`; when the events

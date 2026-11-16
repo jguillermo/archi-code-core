@@ -10,7 +10,7 @@
 * Un webhook entrante es un punto de entrada en `interfaces/` que traduce al input de un `UseCase` y responde según `ExceptionClassifier.classify(error)`.
 * Los mensajes son `SerializedEvent` planos (`{ eventName, eventId, occurredOn, ...datos }`) por un `EventChannel`, no el envoltorio de IDDD: `eventName` hace de tipo y de versión (una versión incompatible es otro nombre), `eventId` deduplica; no hay `notificationId` (si un feed REST lo necesita, lo asigna tu canal duradero).
 * Lo que sale del sistema se traduce al Published Language en el adaptador del broker (`ContractPublishingChannel`, en `ddd-skills/ddd-eventos-dominio/references/publicacion-ts.md`); nunca `{ ...event }`. Dentro del sistema, el JSON del evento interno es el contrato y no cambia de forma incompatible bajo el mismo `eventName`.
-* Lo que entra se lee con una copia propia `extends EventBase` (mismo `eventName`, solo los campos que se usan) en `application/<acción>/`; la factoría de `EventRegistry` es el traductor y lo ejecuta un caso de uso por reacción `<Acción>On<Evento>` con `@ListensTo`.
+* Lo que entra se lee con una copia propia `extends EventBase` por evento y contexto (mismo `eventName`, los campos que leen sus reacciones) en `application/<acción>/` de la primera reacción, registrada una vez; la factoría de `EventRegistry` es el traductor y lo ejecuta un caso de uso por reacción `<Acción>On<Evento>` con `@ListensTo`.
 * Los procesos entre contextos se encadenan con eventos y casos de uso por reacción.
 * Un contexto nunca importa otro; solo `shared-kernel/` (el dinero). Los agregados ajenos se referencian con un `UuidType` propio (`OrderReference`).
 

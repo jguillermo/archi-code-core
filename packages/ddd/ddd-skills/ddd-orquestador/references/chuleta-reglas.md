@@ -6,7 +6,7 @@ Las marcadas `[Fuera de los libros: convención de @archi-code/ddd]` son del paq
 * Un Bounded Context es una frontera lingüística con su lenguaje ubicuo, implementado en el código [IDDD cap. 1 y 2; Destilado cap. 2].
 * No partir contextos por tecnología ni por equipos; usar módulos [IDDD cap. 2 y 9].
 * ACL frente a sistemas heredados y externos [Destilado cap. 4].
-* Los consumidores dependen del esquema publicado, no de clases del productor [Destilado cap. 4; IDDD cap. 13]. Un contexto nunca importa otro: declara su copia de cada evento ajeno junto a la reacción que lo escucha `[Fuera de los libros: convención de @archi-code/ddd]`.
+* Los consumidores dependen del esquema publicado, no de clases del productor [Destilado cap. 4; IDDD cap. 13]. Un contexto nunca importa otro: declara una copia de cada evento ajeno por contexto (unión de los campos que leen sus reacciones, junto a la primera reacción que lo escucha, registrada una vez); si un hecho de cierre llega antes que el de creación, la reacción crea el agregado ya cerrado con el id derivado `[Fuera de los libros: convención de @archi-code/ddd]`.
 * Mensajería al menos una vez + receptor idempotente; nada de cadenas síncronas bloqueantes [Destilado cap. 4].
 
 ## Arquitectura
@@ -32,3 +32,4 @@ Las marcadas `[Fuera de los libros: convención de @archi-code/ddd]` son del paq
 * Un hecho de otro contexto no se rechaza: se registra y, si no encaja, se emite un evento para compensar [Destilado cap. 6]. El método de reacción vuelve sin cambios si no aplica y la reacción vuelve si falta el agregado; nunca lanzan errores de negocio `[Fuera de los libros: convención de @archi-code/ddd]`.
 * Caso de uso: una acción de negocio, un agregado guardado una vez, nunca usa otro caso de uso, nunca decide según el estado del agregado (lo decide un método del agregado) y solo reintenta un conflicto si el comando es seguro de repetir (nunca un cambio relativo como un descuento). De usuario: `UseCase`. Por reacción: `EventListener` con `@ListensTo(Evento, { consumer: '<contexto>.<acción>-on-<evento>' })`, sin `UseCase` detrás `[Fuera de los libros: convención de @archi-code/ddd]`.
 * Errores de negocio sin sufijo `Exception` y con código por contexto (`SAL001`) `[Fuera de los libros: convención de @archi-code/ddd]`.
+* Efecto externo (cobro, email): el caso de uso guarda la intención y una reacción llama al puerto directamente con una clave de idempotencia por intento y por efecto (el `eventId` que lo pide); una unicidad entre agregados es un id derivado, nunca un `search` previo; los parámetros de una consulta los valida el puerto de consulta, no el controlador `[Fuera de los libros: convención de @archi-code/ddd]`.

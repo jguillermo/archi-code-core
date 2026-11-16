@@ -65,7 +65,9 @@ Part of the `archi-code-ddd` skill: read it only when that skill routes here. Co
   cross-field rules are `custom` validations receiving the composite. A collection with rules is a
   composite with a list field. A field may hold an optional VO with `null`; only a missing instance
   is refused. An optional composite is an `X | null` field, never `Required(Composite(...))`.
-- **Money** = composite of whole minor units (`Cents` ≥ 0, never a decimal), exact up to `Number.MAX_SAFE_INTEGER`
+- **Money** = `Composite({ amount: Cents, currency: MoneyCurrency })`; `MoneyCurrency` is an enum
+  value object (`enum Currency`, `CurrencyOption`, `MoneyCurrency extends EnumType` in
+  `MoneyCurrency.ts`), never a validated text. Whole minor units (`Cents` ≥ 0, never a decimal), exact up to `Number.MAX_SAFE_INTEGER`
   cents, explicit rounding (discounts round down), `CurrencyMismatch`
   business error, in `shared-kernel/money/` `[Fuera de los libros: convención de @archi-code/ddd]`.
 - **Derived values are methods, never getters** (`total()`): getters break `PrimitiveTypes`.
@@ -151,10 +153,11 @@ constructor.
   `freeShipping` in an event).
 - **Domain service — when** (user rule, `[Fuera de los libros: convención de @archi-code/ddd]`).
   Only when:
-  - two or more use cases (user or reaction) share business logic (`FindCourse` and
-    `CreateCourse` both look the course up → `CourseFinder`); or
-  - a rule one use case needs does not fit one aggregate or VO (needs several aggregates or a
-    domain port: `OrderPricing` with `CouponCatalog`).
+  - two or more use cases (user or reaction) share business logic (`CreateCourse` and
+    `PublishCourse` both look the course up → `CourseFinder`); or
+  - a business rule one use case needs does not fit one aggregate or VO (needs several aggregates
+    or a domain port: `OrderPricing` with `CouponCatalog`). A port call with no rule around it is
+    not a domain service: the use case or reaction calls the port directly.
 
   Otherwise: rule over one aggregate's state → aggregate method (also "only the buyer cancels":
   `order.cancel(requester)`); calculation over values → VO method; yes/no criterion →
@@ -204,7 +207,7 @@ constructor.
 - **Never uses another use case** (user rule, no exception): never instantiates, receives, imports,
   extends nor calls another use case or reaction; no base use case with helpers. Shared logic →
   aggregate method or domain service; a shared technical step → a port; an action that must follow
-  another → the first records an event and a reaction runs the second. Example: `FindCourse`/`CreateCourse` both get
+  another → the first records an event and a reaction runs the second. Example: `CreateCourse`/`PublishCourse` both get
   `CourseRepository` and use `new CourseFinder(this.courses)`: `find` throws `CourseNotFound`,
   `assertDoesNotExist` throws `CourseAlreadyExists` (both `DomainException`; the domain cannot
   throw `AggregateNotFoundException`, which is `/application`). A lookup nobody shares may stay
@@ -250,6 +253,24 @@ constructor.
 - Constructor as a user use case; a read-model reaction receives only its projection.
 - `handle`: `ValueObjectBuilder.build` → derived id → create (`return` if the id exists) or load
   (`return` if missing) → reaction method (silent if not applicable) → save once → publish → log.
+- **Facts may arrive in any order between aggregates**: the reaction to a closing fact
+  (cancelled, voided) that finds no aggregate under the derived id creates it already closed
+  (`Invoice.createVoided(id, …)`), so the creating reaction that arrives later finds the id taken
+  and returns. A fact is never lost because of its order.
+- **External side effects** (charge a gateway, send an email, call another system) never run
+  before `save` in a user use case: a conflict on `save` would leave the effect done and
+  unrecorded. The use case only records the intent (`invoice.requestPayment(...)` →
+  `InvoicePaymentRequestedDomainEvent`) and saves; a reaction to that event receives the domain
+  port by constructor and calls it directly with an idempotency key, then records the outcome on
+  the aggregate (`markPaid(chargeId)` / `markPaymentFailed(reason)`) and saves. The key is one per
+  attempt and per effect: the `eventId` of the event that asked for it (a declined charge retried
+  is a new request, a new key; the refund has its own key). The aggregate id is a key only for an
+  effect that happens once in the aggregate's life.
+- **Uniqueness across aggregates** ("one active enrollment per student and course") is never a
+  `search` before `create`: two concurrent requests both pass it. Make the unique key the
+  derived id (UUID v5 of student + course + attempt number, or a `Seat` aggregate per student and
+  course), so the repository refuses the second insert with `ConcurrencyException`. A `search`
+  check is acceptable only as an accepted eventual-consistency decision record.
 - Never authorizes, throws `AggregateNotFoundException` or business errors (redelivered forever),
   calls use cases, handles HTTP, catches errors. `DomainEventBus` logs failures (`warn` for domain
   and application exceptions, `error` otherwise) and rethrows; channel redelivery is the retry.
@@ -258,9 +279,11 @@ constructor.
 
 ### Events between contexts
 
-- Never import another context's event: the consumer keeps its own copy next to the reaction
-  (`<event>-domain-event.ts`, same class name and `eventName`, only the fields it reads, written
-  like a domain event: inline types, `EventMetadata`). One copy per reaction.
+- Never import another context's event: the consumer keeps **one copy per foreign event and
+  context** (`<event>-domain-event.ts`, same class name and `eventName`, the union of the fields its
+  reactions read, written like a domain event: inline types, `EventMetadata`), in the folder of
+  the first reaction that hears it; every other reaction of the context imports that copy, and
+  `registry()` registers it once (`EventRegistry` refuses an `eventName` twice).
 - Input data types (`MoneyData`) are `export interface`s in kebab-case files in the folder of the
   first use case needing them (the context imports them from there); never in `domain/`, never
   shared between contexts. Nested foreign-event objects get data types
@@ -284,8 +307,13 @@ constructor.
   default) row, sets `lastEventAt` and saves with the `eventId`.
 - Each reaction builds `eventId: new UuidType(event.eventId)`, `occurredOn: new
   CreatedAt(event.occurredOn as string)` and the id, then calls `projection.apply(...)`.
-- One reaction per event that changes the row. Queries have no use case: the entry point calls the
-  query port. One infrastructure class implements both ports and returns `structuredClone` copies.
+- One reaction per event that changes the row. Queries have no use case, not even reading one
+  aggregate by id (no `FindCourse`): the entry point calls the query port of a read model.
+  Query parameters arrive as text: the controller checks only that they are present, the query
+  port takes primitives and its implementation converts and validates them (invalid → empty
+  result or `ValidationException`); a controller never does `Number(...)` nor checks values.
+  A query that shows non-public data (drafts) requires the actor like any endpoint.
+  Only use cases that change state load aggregates. One infrastructure class implements both ports and returns `structuredClone` copies.
   Never loads aggregates nor uses a repository. Event Sourcing/CQRS beyond this only for a concrete
   need.
 - A business query (`pendingOlderThan`) is a read model when it only shows/lists, and a `Criteria`
