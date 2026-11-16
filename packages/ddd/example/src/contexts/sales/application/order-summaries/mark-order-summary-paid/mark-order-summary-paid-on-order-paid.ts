@@ -2,7 +2,6 @@ import { CreatedAt, UuidType } from '../../../../../ddd/domain';
 import { EventListener, ListensTo, ValueObjectBuilder } from '../../../../../ddd/application';
 import { OrderPaidDomainEvent } from '../../../domain/event/OrderPaidDomainEvent';
 import { OrderId } from '../../../domain/value-object/OrderId';
-import { OrderStatus } from '../../../domain/value-object/OrderStatusType';
 import { Quantity } from '../../../domain/value-object/Quantity';
 import type { OrderSummaryProjection } from '../order-summary-projection';
 
@@ -25,7 +24,7 @@ export class MarkOrderSummaryPaidOnOrderPaid extends EventListener<OrderPaidDoma
       orderId,
       occurredOn,
       changes: {
-        status: OrderStatus.PAID,
+        paid: true,
         items: quantities.reduce((items, quantity) => items + quantity.value, 0),
       },
     });

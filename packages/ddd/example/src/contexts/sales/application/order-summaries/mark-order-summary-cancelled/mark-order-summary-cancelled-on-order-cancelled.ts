@@ -2,7 +2,6 @@ import { CreatedAt, UuidType } from '../../../../../ddd/domain';
 import { EventListener, ListensTo, ValueObjectBuilder } from '../../../../../ddd/application';
 import { OrderCancelledDomainEvent } from '../../../domain/event/OrderCancelledDomainEvent';
 import { OrderId } from '../../../domain/value-object/OrderId';
-import { OrderStatus } from '../../../domain/value-object/OrderStatusType';
 import type { OrderSummaryProjection } from '../order-summary-projection';
 
 @ListensTo(OrderCancelledDomainEvent, {
@@ -23,7 +22,7 @@ export class MarkOrderSummaryCancelledOnOrderCancelled extends EventListener<Ord
       eventId,
       orderId,
       occurredOn,
-      changes: { status: OrderStatus.CANCELLED },
+      changes: { cancelled: true },
     });
   }
 }

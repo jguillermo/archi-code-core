@@ -3,7 +3,6 @@ import { EventListener, ListensTo, ValueObjectBuilder } from '../../../../../ddd
 import { OrderShippedDomainEvent } from '../../../domain/event/OrderShippedDomainEvent';
 import { CarrierTrackingNumber } from '../../../domain/value-object/CarrierTrackingNumber';
 import { OrderId } from '../../../domain/value-object/OrderId';
-import { OrderStatus } from '../../../domain/value-object/OrderStatusType';
 import type { OrderSummaryProjection } from '../order-summary-projection';
 
 @ListensTo(OrderShippedDomainEvent, {
@@ -25,7 +24,7 @@ export class MarkOrderSummaryShippedOnOrderShipped extends EventListener<OrderSh
       eventId,
       orderId,
       occurredOn,
-      changes: { status: OrderStatus.SHIPPED, trackingNumber: trackingNumber.value },
+      changes: { shipped: true, trackingNumber: trackingNumber.value },
     });
   }
 }

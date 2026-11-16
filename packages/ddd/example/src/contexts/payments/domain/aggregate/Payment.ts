@@ -81,6 +81,33 @@ export class Payment extends AggregateRoot<PaymentId> {
     return payment;
   }
 
+  static createVoided(
+    id: PaymentId,
+    orderReference: OrderReference,
+    amount: Money,
+    method: PaymentMethodType,
+  ): Payment {
+    const payment = new Payment(
+      id,
+      orderReference,
+      amount,
+      method,
+      new PaymentStatusType(PaymentStatus.VOIDED),
+      new RejectionCodeType(null),
+      CreatedAt.now(),
+      UpdatedAt.now(),
+    );
+
+    payment.record(
+      new PaymentVoidedDomainEvent({
+        paymentId: payment.id.value,
+        orderId: payment.orderReference.value,
+      }),
+    );
+
+    return payment;
+  }
+
   static fromPrimitives(primitives: PrimitiveTypes<Payment>): Payment {
     return new Payment(
       new PaymentId(primitives.id),

@@ -1,7 +1,9 @@
 import { EventListener, ListensTo, ValueObjectBuilder } from '../../../../ddd/application';
 import type { EventBus } from '../../../../ddd/application';
+import { Shipment } from '../../domain/aggregate/Shipment';
 import type { ShipmentRepository } from '../../domain/repository/ShipmentRepository';
 import { OrderReference } from '../../domain/value-object/OrderReference';
+import { OrderWasPaid } from '../../domain/value-object/OrderWasPaid';
 import { ShipmentId } from '../../domain/value-object/ShipmentId';
 import { OrderCancelledDomainEvent } from './order-cancelled-domain-event';
 
@@ -15,13 +17,16 @@ export class CancelShipmentOnOrderCancelled extends EventListener<OrderCancelled
   }
 
   async handle(event: OrderCancelledDomainEvent): Promise<void> {
-    const { orderReference } = ValueObjectBuilder.build({
+    const { orderReference, wasPaid } = ValueObjectBuilder.build({
       orderReference: () => new OrderReference(event.orderId),
+      wasPaid: () => new OrderWasPaid(event.wasPaid),
     });
-    const shipment = await this.shipments.findById(ShipmentId.forOrder(orderReference));
-    if (shipment === null) {
+    const shipmentId = ShipmentId.forOrder(orderReference);
+    const found = await this.shipments.findById(shipmentId);
+    if (found === null && !wasPaid.value) {
       return;
     }
+    const shipment = found ?? Shipment.createCancelled(shipmentId, orderReference);
     shipment.cancelForCancelledOrder();
     await this.shipments.save(shipment);
     await this.events.publish(shipment.pullDomainEvents());

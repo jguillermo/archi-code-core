@@ -1,18 +1,14 @@
 import { EventBase } from '../../../../ddd/domain';
 import type { EventMetadata } from '../../../../ddd/domain';
+import type { PaidOrderAddress } from './paid-order-address';
+import type { PaidOrderItem } from './paid-order-item';
 
 export class OrderPaidDomainEvent extends EventBase {
   static readonly eventName = 'order.paid';
 
   readonly orderId: string;
-  readonly address: {
-    recipient: { name: string; phone: string };
-    street: string;
-    city: string;
-    postalCode: string;
-    country: string;
-  };
-  readonly items: { sku: string; quantity: number }[];
+  readonly address: PaidOrderAddress;
+  readonly items: PaidOrderItem[];
   readonly giftWrap: boolean;
 
   constructor({
@@ -24,14 +20,8 @@ export class OrderPaidDomainEvent extends EventBase {
     occurredOn,
   }: {
     orderId: string;
-    address: {
-      recipient: { name: string; phone: string };
-      street: string;
-      city: string;
-      postalCode: string;
-      country: string;
-    };
-    items: { sku: string; quantity: number }[];
+    address: PaidOrderAddress;
+    items: PaidOrderItem[];
     giftWrap: boolean;
   } & EventMetadata) {
     super({ eventId, occurredOn });

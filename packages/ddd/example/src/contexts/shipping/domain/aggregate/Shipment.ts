@@ -25,8 +25,8 @@ export class Shipment extends AggregateRoot<ShipmentId> {
   private static readonly HOME_COUNTRY = 'ES';
 
   readonly orderReference: OrderReference;
-  readonly address: ShipmentAddress;
-  readonly contents: ShipmentContents;
+  readonly address: ShipmentAddress | null;
+  readonly contents: ShipmentContents | null;
   readonly carrier: CarrierType;
   readonly carrierLabel: CarrierLabel;
   readonly expectedDelivery: ExpectedDelivery;
@@ -38,8 +38,8 @@ export class Shipment extends AggregateRoot<ShipmentId> {
   constructor(
     id: ShipmentId,
     orderReference: OrderReference,
-    address: ShipmentAddress,
-    contents: ShipmentContents,
+    address: ShipmentAddress | null,
+    contents: ShipmentContents | null,
     carrier: CarrierType,
     carrierLabel: CarrierLabel,
     expectedDelivery: ExpectedDelivery,
@@ -69,7 +69,8 @@ export class Shipment extends AggregateRoot<ShipmentId> {
     giftWrap: GiftWrapRequested,
   ): Shipment {
     const domestic = address.country.value === Shipment.HOME_COUNTRY;
-    const carrier = new CarrierType(domestic ? Carrier.SEUR : Carrier.DHL);
+    const carrierCode = domestic ? Carrier.SEUR : Carrier.DHL;
+    const carrier = new CarrierType(carrierCode);
     const createdAt = CreatedAt.now();
     const shipment = new Shipment(
       id,
@@ -78,7 +79,7 @@ export class Shipment extends AggregateRoot<ShipmentId> {
       contents,
       carrier,
       new CarrierLabel({
-        carrier: carrier.value,
+        carrier: carrierCode,
         service: giftWrap.value ? 'gift' : 'standard',
         country: address.country.value,
         units: contents.units(),
@@ -96,8 +97,33 @@ export class Shipment extends AggregateRoot<ShipmentId> {
       new ShipmentCreatedDomainEvent({
         shipmentId: shipment.id.value,
         orderId: shipment.orderReference.value,
-        carrier: carrier.value,
+        carrier: carrierCode,
         expectedDeliveryOn: shipment.expectedDelivery.toString(),
+      }),
+    );
+
+    return shipment;
+  }
+
+  static createCancelled(id: ShipmentId, orderReference: OrderReference): Shipment {
+    const shipment = new Shipment(
+      id,
+      orderReference,
+      null,
+      null,
+      new CarrierType(null),
+      new CarrierLabel(null),
+      new ExpectedDelivery(null),
+      new ShipmentStatusType(ShipmentStatus.CANCELLED),
+      new TrackingNumber(null),
+      CreatedAt.now(),
+      UpdatedAt.now(),
+    );
+
+    shipment.record(
+      new ShipmentCancelledDomainEvent({
+        shipmentId: shipment.id.value,
+        orderId: shipment.orderReference.value,
       }),
     );
 
@@ -108,8 +134,8 @@ export class Shipment extends AggregateRoot<ShipmentId> {
     return new Shipment(
       new ShipmentId(primitives.id),
       new OrderReference(primitives.orderReference),
-      ShipmentAddress.fromPrimitives(primitives.address),
-      ShipmentContents.fromPrimitives(primitives.contents),
+      primitives.address === null ? null : ShipmentAddress.fromPrimitives(primitives.address),
+      primitives.contents === null ? null : ShipmentContents.fromPrimitives(primitives.contents),
       new CarrierType(primitives.carrier),
       new CarrierLabel(primitives.carrierLabel),
       new ExpectedDelivery(primitives.expectedDelivery),
@@ -146,7 +172,7 @@ export class Shipment extends AggregateRoot<ShipmentId> {
         shipmentId: this.id.value,
         orderId: this.orderReference.value,
         trackingNumber: trackingNumber.toString(),
-        carrier: this.carrier.value,
+        carrier: this.carrier.toString(),
       }),
     );
   }
@@ -181,8 +207,8 @@ export class Shipment extends AggregateRoot<ShipmentId> {
     return {
       id: this.id.value,
       orderReference: this.orderReference.value,
-      address: this.address.toPrimitives(),
-      contents: this.contents.toPrimitives(),
+      address: this.address === null ? null : this.address.toPrimitives(),
+      contents: this.contents === null ? null : this.contents.toPrimitives(),
       carrier: this.carrier.value,
       carrierLabel: this.carrierLabel.value,
       expectedDelivery: this.expectedDelivery.value,

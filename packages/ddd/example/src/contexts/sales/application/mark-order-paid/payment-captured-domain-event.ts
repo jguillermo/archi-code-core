@@ -6,22 +6,15 @@ export class PaymentCapturedDomainEvent extends EventBase {
 
   readonly paymentId: string;
   readonly orderId: string;
-  readonly amount: { amount: number; currency: string };
 
   constructor({
     paymentId,
     orderId,
-    amount,
     eventId,
     occurredOn,
-  }: {
-    paymentId: string;
-    orderId: string;
-    amount: { amount: number; currency: string };
-  } & EventMetadata) {
+  }: { paymentId: string; orderId: string } & EventMetadata) {
     super({ eventId, occurredOn });
     this.paymentId = paymentId;
     this.orderId = orderId;
-    this.amount = amount;
   }
 }

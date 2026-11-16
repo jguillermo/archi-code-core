@@ -3,7 +3,10 @@ import type { MoneyData } from '../place-order/money-data';
 export interface OrderSummary {
   orderId: string;
   customerId: string | null;
-  status: string;
+  paid: boolean;
+  shipped: boolean;
+  delivered: boolean;
+  cancelled: boolean;
   total: MoneyData | null;
   items: number;
   trackingNumber: string | null;
@@ -11,5 +14,15 @@ export interface OrderSummary {
 }
 
 export type OrderSummaryChanges = Partial<
-  Pick<OrderSummary, 'customerId' | 'status' | 'total' | 'items' | 'trackingNumber'>
+  Pick<
+    OrderSummary,
+    | 'customerId'
+    | 'total'
+    | 'items'
+    | 'paid'
+    | 'shipped'
+    | 'delivered'
+    | 'cancelled'
+    | 'trackingNumber'
+  >
 >;

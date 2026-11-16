@@ -53,11 +53,16 @@ export class OrdersController {
 
   changeLineQuantity(request: HttpRequest): Promise<HttpResponse> {
     return this.http.respond(async () => {
+      const userId = request.auth?.userId;
+      if (userId === undefined) {
+        return this.http.unauthenticated();
+      }
       const body = this.http.jsonBody(request);
       if (body === null) {
         return this.http.badRequest('Send a JSON object with the quantity');
       }
       await this.useCases.changeOrderLineQuantity.execute({
+        actorId: userId,
         orderId: request.params?.orderId as string,
         lineNumber: Number(request.params?.lineNumber),
         quantity: body.quantity as number,
@@ -68,11 +73,16 @@ export class OrdersController {
 
   changeShippingAddress(request: HttpRequest): Promise<HttpResponse> {
     return this.http.respond(async () => {
+      const userId = request.auth?.userId;
+      if (userId === undefined) {
+        return this.http.unauthenticated();
+      }
       const body = this.http.jsonBody(request);
       if (body === null) {
         return this.http.badRequest('Send the new address as a JSON object');
       }
       await this.useCases.changeShippingAddress.execute({
+        actorId: userId,
         orderId: request.params?.orderId as string,
         shippingAddress: body as unknown as AddressData,
       });
@@ -110,7 +120,14 @@ export class OrdersController {
 
   getOrder(request: HttpRequest): Promise<HttpResponse> {
     return this.http.respond(async () => {
-      const summary = await this.summaries.byId(request.params?.orderId as string);
+      const userId = request.auth?.userId;
+      if (userId === undefined) {
+        return this.http.unauthenticated();
+      }
+      const summary = await this.summaries.byIdOfCustomer(
+        request.params?.orderId as string,
+        userId,
+      );
       return summary === null
         ? { status: 404, body: { code: 'NOT_FOUND', message: 'Order not found' } }
         : { status: 200, body: summary };

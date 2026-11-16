@@ -1,3 +1,3 @@
-import { DateType, Required } from '../../../../ddd/domain';
+import { DateType } from '../../../../ddd/domain';
 
-export class ExpectedDelivery extends Required(DateType) {}
+export class ExpectedDelivery extends DateType {}

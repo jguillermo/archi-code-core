@@ -22,7 +22,10 @@ export class OrderSummaryProjection {
     const current = (await this.store.find(orderId.value)) ?? {
       orderId: orderId.value,
       customerId: null,
-      status: 'unknown',
+      paid: false,
+      shipped: false,
+      delivered: false,
+      cancelled: false,
       total: null,
       items: 0,
       trackingNumber: null,

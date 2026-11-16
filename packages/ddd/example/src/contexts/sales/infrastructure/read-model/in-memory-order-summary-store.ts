@@ -19,8 +19,9 @@ export class InMemoryOrderSummaryStore implements OrderSummaryStore, OrderSummar
     this.appliedEvents.add(eventId);
   }
 
-  async byId(orderId: string): Promise<OrderSummary | null> {
-    return this.copy(this.summaries.get(orderId));
+  async byIdOfCustomer(orderId: string, customerId: string): Promise<OrderSummary | null> {
+    const summary = this.summaries.get(orderId);
+    return summary?.customerId === customerId ? this.copy(summary) : null;
   }
 
   async ofCustomer(customerId: string): Promise<OrderSummary[]> {

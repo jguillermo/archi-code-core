@@ -5,7 +5,6 @@ import type { Currency } from '../../../../shared-kernel/money/MoneyCurrency';
 import { OrderCreatedDomainEvent } from '../../../domain/event/OrderCreatedDomainEvent';
 import { CustomerId } from '../../../domain/value-object/CustomerId';
 import { OrderId } from '../../../domain/value-object/OrderId';
-import { OrderStatus } from '../../../domain/value-object/OrderStatusType';
 import { Quantity } from '../../../domain/value-object/Quantity';
 import type { OrderSummaryProjection } from '../order-summary-projection';
 
@@ -32,7 +31,6 @@ export class OpenOrderSummaryOnOrderCreated extends EventListener<OrderCreatedDo
       occurredOn,
       changes: {
         customerId: customerId.value,
-        status: OrderStatus.PENDING_PAYMENT,
         total: total.toPrimitives(),
         items: quantities.reduce((items, quantity) => items + quantity.value, 0),
       },

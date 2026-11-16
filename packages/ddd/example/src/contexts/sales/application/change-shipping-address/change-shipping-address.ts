@@ -5,17 +5,20 @@ import {
   ValueObjectBuilder,
 } from '../../../../ddd/application';
 import type { EventBus } from '../../../../ddd/application';
+import { CustomerId } from '../../domain/value-object/CustomerId';
 import type { OrderRepository } from '../../domain/repository/OrderRepository';
 import type { AddressData } from '../place-order/address-data';
 import { OrderId } from '../../domain/value-object/OrderId';
 import { ShippingAddress } from '../../domain/value-object/ShippingAddress';
 
 export interface ChangeShippingAddressInput {
+  actorId: string;
   orderId: string;
   shippingAddress: AddressData;
 }
 
 export interface ChangeShippingAddressCommand {
+  requester: CustomerId;
   orderId: OrderId;
   shippingAddress: ShippingAddress;
 }
@@ -36,6 +39,7 @@ export class ChangeShippingAddress extends UseCase<
 
   protected toCommand(input: ChangeShippingAddressInput): ChangeShippingAddressCommand {
     return ValueObjectBuilder.build({
+      requester: () => new CustomerId(input.actorId),
       orderId: () => new OrderId(input.orderId),
       shippingAddress: () => ShippingAddress.fromPrimitives(input.shippingAddress),
     });
@@ -48,7 +52,7 @@ export class ChangeShippingAddress extends UseCase<
         if (order === null) {
           throw new AggregateNotFoundException('Order', command.orderId.value);
         }
-        order.changeShippingAddress(command.shippingAddress);
+        order.changeShippingAddress(command.requester, command.shippingAddress);
         await this.orders.save(order);
         return await this.events.publish(order.pullDomainEvents());
       } catch (error) {

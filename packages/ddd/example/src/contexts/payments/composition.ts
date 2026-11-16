@@ -74,6 +74,8 @@ export class PaymentsContext {
         (json) =>
           new OrderCancelledDomainEvent({
             orderId: json.orderId as string,
+            total: json.total as MoneyData,
+            paymentMethod: json.paymentMethod as string,
             eventId: json.eventId,
             occurredOn: json.occurredOn,
           }),

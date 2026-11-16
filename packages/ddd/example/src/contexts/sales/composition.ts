@@ -156,6 +156,8 @@ export class SalesContext {
             orderId: json.orderId as string,
             reason: json.reason as string,
             wasPaid: json.wasPaid as boolean,
+            total: json.total as MoneyData,
+            paymentMethod: json.paymentMethod as string,
             eventId: json.eventId,
             occurredOn: json.occurredOn,
           }),
@@ -185,7 +187,6 @@ export class SalesContext {
           new PaymentCapturedDomainEvent({
             paymentId: json.paymentId as string,
             orderId: json.orderId as string,
-            amount: json.amount as MoneyData,
             eventId: json.eventId,
             occurredOn: json.occurredOn,
           }),
@@ -194,9 +195,7 @@ export class SalesContext {
         PaymentRejectedDomainEvent,
         (json) =>
           new PaymentRejectedDomainEvent({
-            paymentId: json.paymentId as string,
             orderId: json.orderId as string,
-            amount: json.amount as MoneyData,
             reason: json.reason as string,
             eventId: json.eventId,
             occurredOn: json.occurredOn,
@@ -206,10 +205,8 @@ export class SalesContext {
         ShipmentDispatchedDomainEvent,
         (json) =>
           new ShipmentDispatchedDomainEvent({
-            shipmentId: json.shipmentId as string,
             orderId: json.orderId as string,
             trackingNumber: json.trackingNumber as string,
-            carrier: json.carrier as string,
             eventId: json.eventId,
             occurredOn: json.occurredOn,
           }),
@@ -218,7 +215,6 @@ export class SalesContext {
         ShipmentDeliveredDomainEvent,
         (json) =>
           new ShipmentDeliveredDomainEvent({
-            shipmentId: json.shipmentId as string,
             orderId: json.orderId as string,
             eventId: json.eventId,
             occurredOn: json.occurredOn,

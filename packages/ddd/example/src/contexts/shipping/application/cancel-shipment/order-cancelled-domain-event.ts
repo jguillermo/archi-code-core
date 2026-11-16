@@ -5,9 +5,16 @@ export class OrderCancelledDomainEvent extends EventBase {
   static readonly eventName = 'order.cancelled';
 
   readonly orderId: string;
+  readonly wasPaid: boolean;
 
-  constructor({ orderId, eventId, occurredOn }: { orderId: string } & EventMetadata) {
+  constructor({
+    orderId,
+    wasPaid,
+    eventId,
+    occurredOn,
+  }: { orderId: string; wasPaid: boolean } & EventMetadata) {
     super({ eventId, occurredOn });
     this.orderId = orderId;
+    this.wasPaid = wasPaid;
   }
 }

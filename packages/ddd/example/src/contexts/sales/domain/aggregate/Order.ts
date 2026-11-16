@@ -187,7 +187,8 @@ export class Order extends AggregateRoot<OrderId> {
     return this._status.value === status;
   }
 
-  changeLineQuantity(lineNumber: LineNumber, quantity: Quantity): void {
+  changeLineQuantity(requester: CustomerId, lineNumber: LineNumber, quantity: Quantity): void {
+    this.assertOwnedBy(requester);
     this.assertPendingPayment();
     const line = this._lines.find((candidate) => candidate.id.equals(lineNumber));
     if (line === undefined) {
@@ -212,7 +213,8 @@ export class Order extends AggregateRoot<OrderId> {
     );
   }
 
-  changeShippingAddress(address: ShippingAddress): void {
+  changeShippingAddress(requester: CustomerId, address: ShippingAddress): void {
+    this.assertOwnedBy(requester);
     this.assertPendingPayment();
     if (address.equals(this._shippingAddress)) {
       return;
@@ -228,9 +230,7 @@ export class Order extends AggregateRoot<OrderId> {
   }
 
   cancel(requester: CustomerId): void {
-    if (!requester.equals(this.customerId)) {
-      throw new OrderOwnedByAnotherCustomer(this.id.value);
-    }
+    this.assertOwnedBy(requester);
     if (!this.isIn(OrderStatus.PENDING_PAYMENT) && !this.isIn(OrderStatus.PAID)) {
       throw new OrderNotCancellable(this.id.value, this._status.value);
     }
@@ -241,6 +241,8 @@ export class Order extends AggregateRoot<OrderId> {
         orderId: this.id.value,
         reason: 'cancelled_by_customer',
         wasPaid,
+        total: this.total().toPrimitives(),
+        paymentMethod: this.paymentMethod.value,
       }),
     );
   }
@@ -272,6 +274,8 @@ export class Order extends AggregateRoot<OrderId> {
         orderId: this.id.value,
         reason: `payment_rejected:${reason.value}`,
         wasPaid: false,
+        total: this.total().toPrimitives(),
+        paymentMethod: this.paymentMethod.value,
       }),
     );
   }
@@ -323,6 +327,12 @@ export class Order extends AggregateRoot<OrderId> {
       createdAt: this.createdAt.value,
       updatedAt: this._updatedAt.value,
     };
+  }
+
+  private assertOwnedBy(requester: CustomerId): void {
+    if (!requester.equals(this.customerId)) {
+      throw new OrderOwnedByAnotherCustomer(this.id.value);
+    }
   }
 
   private assertDistinctSkus(): void {

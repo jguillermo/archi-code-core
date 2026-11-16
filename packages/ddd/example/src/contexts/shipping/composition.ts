@@ -64,6 +64,7 @@ export class ShippingContext {
         (json) =>
           new OrderCancelledDomainEvent({
             orderId: json.orderId as string,
+            wasPaid: json.wasPaid as boolean,
             eventId: json.eventId,
             occurredOn: json.occurredOn,
           }),
