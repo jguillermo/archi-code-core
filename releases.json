@@ -22,7 +22,7 @@
       "main": "4.0.0-alpha.4"
     },
     "@archi-code/ddd": {
-      "main": "4.0.0-alpha.4"
+      "main": "4.0.0-alpha.5"
     }
   },
   "deploys": [
@@ -178,6 +178,25 @@
           ],
           "dependencies": {
             "@archi-code/ddd": "4.0.0-alpha.4"
+          }
+        }
+      ]
+    },
+    {
+      "date": "2026-11-16T16:36:02.516Z",
+      "commit": "ca20b84573158565649d2acf3eab004bb24f5b5f",
+      "channel": "main",
+      "packages": [
+        {
+          "name": "@archi-code/ddd",
+          "previous": "4.0.0-alpha.4",
+          "version": "4.0.0-alpha.5",
+          "bump": "patch",
+          "reasons": [
+            "commits (patch)"
+          ],
+          "dependencies": {
+            "@archi-code/validation": "4.0.0-alpha.1"
           }
         }
       ]
