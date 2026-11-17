@@ -110,11 +110,10 @@ adapters. To declare the abstract repository (before the use cases) read the `Ru
     `removeMany` (batches) never check;
   - `search` is `table.find(toIndexedDbQuery(criteria, table.indexes))` with `toIndexedDbQuery` of
     `@archi-code/criteria-adapters/indexeddb`, then `X.fromPrimitives` on every row;
-  - the table names its conflicts after the table (`orders with ID …`): `save` and `remove` catch
-    its `ConcurrencyException` and throw `ConcurrencyException('<Aggregate>', id, rowVersion,
-    { cause: error })`, so the message names the aggregate. Every other error, an
-    `IndexedDbException` with a `reason` such as `quota_exceeded`, `blocked`, `schema_mismatch`
-    or `unavailable`, passes to the use case as it is;
+  - the adapter catches nothing: every error of the table passes to the use case as it is,
+    `ConcurrencyException` (named after the table, `orders with ID … was changed by someone
+    else`) or an `IndexedDbException` with a `reason` such as `quota_exceeded`, `blocked`,
+    `schema_mismatch` or `unavailable`;
   - declaring the database, a schema and a repository works where there is no `indexedDB`; only
     using a table fails there (`unavailable`).
 
@@ -403,7 +402,6 @@ export class OrderSchema extends IndexedDbSchema<OrderRow> {
 `infrastructure/persistence/indexeddb/orders/indexeddb-order-repository.ts`:
 
 ```ts
-import { ConcurrencyException } from '@archi-code/ddd/application';
 import type { Criteria, SearchOptions, SearchResult } from '@archi-code/ddd/domain';
 import type { IndexedDbStored, IndexedDbTable } from '@archi-code/ddd/infrastructure';
 import { toIndexedDbQuery } from '@archi-code/criteria-adapters/indexeddb';
@@ -430,9 +428,7 @@ export class IndexedDbOrderRepository extends OrderRepository {
 
   async save(order: Order): Promise<void> {
     const rowVersion = this.rowVersions.get(order) ?? 0;
-    await this.guarded(order, rowVersion, () =>
-      this.table.persist({ ...order.toPrimitives(), rowVersion }),
-    );
+    await this.table.persist({ ...order.toPrimitives(), rowVersion });
     this.rowVersions.set(order, rowVersion + 1);
   }
 
@@ -441,23 +437,8 @@ export class IndexedDbOrderRepository extends OrderRepository {
     if (rowVersion === undefined) {
       return;
     }
-    await this.guarded(order, rowVersion, () => this.table.remove(order.id.value, rowVersion));
+    await this.table.remove(order.id.value, rowVersion);
     this.rowVersions.delete(order);
-  }
-
-  private async guarded(
-    order: Order,
-    rowVersion: number,
-    write: () => Promise<void>,
-  ): Promise<void> {
-    try {
-      await write();
-    } catch (error) {
-      if (error instanceof ConcurrencyException) {
-        throw new ConcurrencyException('Order', order.id.value, rowVersion, { cause: error });
-      }
-      throw error;
-    }
   }
 
   private load(row: IndexedDbStored<OrderRow>): Order {
@@ -474,8 +455,7 @@ the row up by its id and throws `ConcurrencyException` if the `rowVersion` the a
 not the stored one, a missing row counting as 0 (a new aggregate sends 0, so a taken id is
 refused, and saving an aggregate someone removed is refused instead of bringing it back); a new
 row is created at `rowVersion` 1, all in one transaction; `remove` checks it the same way. The
-adapter only remembers each aggregate's `rowVersion`, renames the conflict after its aggregate
-and lets every other error through. `search` turns the criteria into a query with
+adapter only remembers each aggregate's `rowVersion` and lets every error of the table through. `search` turns the criteria into a query with
 `toIndexedDbQuery` and the table runs it, sorting in memory only when the query has a `compare`.
 
 A port adapter, `infrastructure/coupon/in-memory-coupon-catalog.ts`: raw data in, value objects
@@ -547,8 +527,8 @@ export class InMemoryCouponCatalog implements CouponCatalog {
 - An IndexedDB adapter that converts dates to text, casts the stored row or declares a row type of
   its own instead of `PrimitiveTypes<X>`, or an `audit` field that repeats a date the aggregate
   already stamps.
-- Letting the table's conflict reach the use case under the table's name: catch its
-  `ConcurrencyException` and throw one named after the aggregate, with `{ cause }`.
+- An IndexedDB adapter that catches the errors of the table to rename, wrap or swallow them:
+  `ConcurrencyException` and `IndexedDbException` reach the use case as they are.
 - Changing the shape of stored rows without raising the database `version` and adding a
   migration; editing or removing a migration already released; a migration that is
   asynchronous, reads another table, the clock or the network, changes the `id` or the

@@ -111,7 +111,7 @@ describe('IndexedDbOrderRepository: the orders of a shop stored in the IndexedDB
       const duplicate = Order.place(new OrderId(anaOrderId), new CustomerId('cus-luis'));
 
       await expect(repository.save(duplicate)).rejects.toThrow(
-        `Order with ID ${anaOrderId} was changed by someone else: expected version 0.`,
+        `orders with ID ${anaOrderId} was changed by someone else: expected version 0.`,
       );
       await expect(repository.save(duplicate)).rejects.toThrow(ConcurrencyException);
       expect((await loaded()).customerId.value).toBe('cus-ana');
@@ -152,24 +152,25 @@ describe('IndexedDbOrderRepository: the orders of a shop stored in the IndexedDB
 
       await expect(conflict).rejects.toThrow(ConcurrencyException);
       await expect(repository.save(byLuis)).rejects.toThrow(
-        `Order with ID ${anaOrderId} was changed by someone else: expected version 1.`,
+        `orders with ID ${anaOrderId} was changed by someone else: expected version 1.`,
       );
       const stored = await loaded();
       expect(stored.status.value).toBe(OrderStatus.SHIPPED);
       expect(skusOf(stored)).toStrictEqual(['TORCH-01']);
     });
 
-    it('keeps the conflict of the table as the cause of the conflict of the order', async () => {
+    it('lets the conflict of the table through as it is, named after the table', async () => {
       const byAna = await loaded();
       const byLuis = await loaded();
       await repository.save(byAna);
 
       const error = await repository.save(byLuis).catch((caught: unknown) => caught);
 
-      expect((error as ConcurrencyException).cause).toBeInstanceOf(ConcurrencyException);
-      expect(((error as ConcurrencyException).cause as Error).message).toBe(
+      expect(error).toBeInstanceOf(ConcurrencyException);
+      expect((error as ConcurrencyException).message).toBe(
         `orders with ID ${anaOrderId} was changed by someone else: expected version 1.`,
       );
+      expect((error as ConcurrencyException).cause).toBeUndefined();
     });
 
     it('after a conflict, reloading the order shows the business rule that now applies', async () => {
@@ -269,7 +270,7 @@ describe('IndexedDbOrderRepository: the orders of a shop stored in the IndexedDB
       await repository.save(byAna);
 
       await expect(repository.remove(byLuis)).rejects.toThrow(
-        `Order with ID ${anaOrderId} was changed by someone else: expected version 1.`,
+        `orders with ID ${anaOrderId} was changed by someone else: expected version 1.`,
       );
       expect((await loaded()).status.value).toBe(OrderStatus.SHIPPED);
     });

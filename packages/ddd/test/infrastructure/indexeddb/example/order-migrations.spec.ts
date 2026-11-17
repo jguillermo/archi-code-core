@@ -200,7 +200,7 @@ describe('IndexedDbOrderRepository: orders stored by an older release of the sho
       await repository.save(byAna);
 
       await expect(repository.save(byLuis)).rejects.toThrow(
-        `Order with ID ${placedOrderId} was changed by someone else: expected version 4.`,
+        `orders with ID ${placedOrderId} was changed by someone else: expected version 4.`,
       );
       expect((await loaded(placedOrderId, repository))?.status.value).toBe(OrderStatus.SHIPPED);
     });

@@ -199,7 +199,7 @@ describe('IndexedDbOrderRepository: what fails, and how, when orders are stored 
       byLuis.ship();
 
       await expect(repository.save(byLuis)).rejects.toThrow(
-        `Order with ID ${anaOrderId} was changed by someone else: expected version 1.`,
+        `orders with ID ${anaOrderId} was changed by someone else: expected version 1.`,
       );
       expect(await repository.findById(new OrderId(anaOrderId))).toBeNull();
     });

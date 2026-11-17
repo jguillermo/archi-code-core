@@ -1,4 +1,3 @@
-import { ConcurrencyException } from '../../../../src/application/index';
 import type { IndexedDbStored, IndexedDbTable } from '../../../../src/infrastructure/index';
 import { Order } from './order';
 import type { OrderId } from './order';
@@ -23,9 +22,7 @@ export class IndexedDbOrderRepository extends OrderRepository {
 
   async save(order: Order): Promise<void> {
     const rowVersion = this.rowVersions.get(order) ?? 0;
-    await this.guarded(order, rowVersion, () =>
-      this.table.persist({ ...order.toPrimitives(), rowVersion }),
-    );
+    await this.table.persist({ ...order.toPrimitives(), rowVersion });
     this.rowVersions.set(order, rowVersion + 1);
   }
 
@@ -34,23 +31,8 @@ export class IndexedDbOrderRepository extends OrderRepository {
     if (rowVersion === undefined) {
       return;
     }
-    await this.guarded(order, rowVersion, () => this.table.remove(order.id.value, rowVersion));
+    await this.table.remove(order.id.value, rowVersion);
     this.rowVersions.delete(order);
-  }
-
-  private async guarded(
-    order: Order,
-    rowVersion: number,
-    write: () => Promise<void>,
-  ): Promise<void> {
-    try {
-      await write();
-    } catch (error) {
-      if (error instanceof ConcurrencyException) {
-        throw new ConcurrencyException('Order', order.id.value, rowVersion, { cause: error });
-      }
-      throw error;
-    }
   }
 
   private load(row: IndexedDbStored<OrderRow>): Order {
