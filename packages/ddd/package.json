@@ -1,6 +1,7 @@
 {
   "name": "@archi-code/ddd",
   "version": "0.0.0-development",
+  "description": "Domain-Driven Design building blocks for TypeScript, one entry point per layer: domain, application and infrastructure",
   "keywords": [
     "DDD",
     "domain-driven design",

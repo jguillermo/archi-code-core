@@ -1,6 +1,7 @@
 {
   "name": "@archi-code/crypto-tools",
   "version": "0.0.0-development",
+  "description": "Cryptography toolkit for browsers and Node.js in one Rust wasm module run in workers: passwords, encryption, RSA, signatures, hashes, tokens and JWT",
   "keywords": [
     "crypto",
     "wasm",

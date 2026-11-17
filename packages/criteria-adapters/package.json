@@ -1,6 +1,7 @@
 {
   "name": "@archi-code/criteria-adapters",
   "version": "0.0.0-development",
+  "description": "Runs the @archi-code/ddd criteria in memory or turns them into MongoDB and IndexedDB queries",
   "keywords": [
     "DDD",
     "node",

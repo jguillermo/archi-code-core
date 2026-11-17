@@ -29,6 +29,13 @@ describe('root workspaces', () => {
     expect(withDevDependencies).toStrictEqual([]);
   });
 
+  test('declare the description npm shows for the package', () => {
+    const withoutDescription = readWorkspacePackages(ROOT)
+      .filter((pkg) => !pkg.packageJson.description?.trim())
+      .map((pkg) => pkg.name);
+    expect(withoutDescription).toStrictEqual([]);
+  });
+
   test('come in dependency order, so npm run build -ws builds each package after its deps', () => {
     const byDir = new Map(readWorkspacePackages(ROOT).map((pkg) => [pkg.dir, pkg]));
     const built = new Set();

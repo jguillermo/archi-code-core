@@ -19,12 +19,13 @@ function json(value) {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
-function packageJson(folder) {
+function packageJson(folder, description) {
   const esm = { types: './dist/esm/index.d.ts', default: './dist/esm/index.js' };
   const cjs = { types: './dist/cjs/index.d.ts', default: './dist/cjs/index.js' };
   return {
     name: `${SCOPE}/${folder}`,
     version: '0.0.0-development',
+    description,
     keywords: ['DDD', 'node'],
     author: AUTHOR,
     license: 'MIT',
@@ -154,7 +155,7 @@ function templates(folder, description) {
   const name = `${SCOPE}/${folder}`;
   const exclude = ['../../node_modules', 'node_modules', 'dist', 'coverage'];
   return {
-    'package.json': json(packageJson(folder)),
+    'package.json': json(packageJson(folder, description)),
     'tsconfig.json': json({
       extends: '../../tsconfig.base.json',
       include: ['src/**/*', 'test/**/*'],

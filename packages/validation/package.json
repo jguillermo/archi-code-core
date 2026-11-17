@@ -1,6 +1,7 @@
 {
   "name": "@archi-code/validation",
   "version": "0.0.0-development",
+  "description": "String validators, type converters and the @Validations decorator for TypeScript, with no runtime dependencies",
   "keywords": [
     "validation",
     "validator"
