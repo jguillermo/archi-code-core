@@ -24,7 +24,7 @@ Creates a package that follows `.claude/rules/packages.md`. Read that rule first
 5. If the user described the package's code, replace the placeholder `PACKAGE_NAME` export with it
    and keep `test/index.spec.ts` (public API list), the specs mirroring `src/`, and
    `test/dist/dist.check.js` (real API calls on both builds) in sync. Coverage must stay at 100%.
-6. Add the package to the tables and the dependency graph in `CLAUDE.md` and the root `README.md`,
+6. Add the package to the package table of `CLAUDE.md`, the dependency graph in `.claude/rules/architecture.md` and the root `README.md`,
    and document the real API in its `README.md` and the rules, patterns and common mistakes in its
-   light `SKILL.md` (Documentation section of the rule).
+   light `SKILL.md` (see `scripts/new-package.js` for the expected sections).
 7. Run `npm run check:<folder>` again and report the result. Do not commit.

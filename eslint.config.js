@@ -32,7 +32,7 @@ const entryPointsOf = (root) => {
 
 const moduleOf = (src, file) => path.relative(src, file).split(path.sep)[0];
 
-// Enforces the "Imports" rule of .claude/rules/packages.md: import from the declaring file
+// Enforces the import rule of .claude/rules/packages.md: import from the declaring file
 const noBarrelImport = {
   meta: {
     type: 'problem',
