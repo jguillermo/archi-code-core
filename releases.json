@@ -4,7 +4,7 @@
       "main": "4.0.0-alpha.1"
     },
     "@archi-code/crypto-tools": {
-      "main": "4.0.0-alpha.1"
+      "main": "4.0.0-alpha.2"
     },
     "@archi-code/domain": {
       "main": "3.0.0-alpha.4"
@@ -253,6 +253,16 @@
           "dependencies": {
             "@archi-code/ddd": "4.0.0-alpha.6"
           }
+        },
+        {
+          "name": "@archi-code/crypto-tools",
+          "previous": "4.0.0-alpha.1",
+          "version": "4.0.0-alpha.2",
+          "bump": "patch",
+          "reasons": [
+            "commits (patch)"
+          ],
+          "dependencies": {}
         }
       ]
     }
