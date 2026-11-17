@@ -10,10 +10,31 @@ export type { ConsoleLoggerOptions } from './logging/console-logger';
 export { InMemoryLogger } from './logging/in-memory-logger';
 export type { LogEntry } from './logging/in-memory-logger';
 export { SilentLogger } from './logging/silent-logger';
-export { IndexedDbTable } from './indexeddb/indexed-db-table';
-export { IndexedDbInspector } from './indexeddb/indexed-db-inspector';
+export { IndexedDbDatabase } from './indexeddb/indexed-db-database';
+export type { IndexedDbDatabaseOptions } from './indexeddb/indexed-db-database';
+export type { IndexedDbMigration } from './indexeddb/connection/indexed-db-upgrade-plan';
+export { IndexedDbSchema } from './indexeddb/indexed-db-schema';
+export type {
+  IndexedDbAudit,
+  IndexedDbAuditField,
+  IndexedDbDefaults,
+  IndexedDbIndex,
+  IndexedDbIndexOptions,
+  IndexedDbInput,
+  IndexedDbRow,
+  IndexedDbSchemaOptions,
+  IndexedDbStored,
+} from './indexeddb/indexed-db-schema';
+export type {
+  IndexedDbIterateOptions,
+  IndexedDbTable,
+  IndexedDbTableIndex,
+} from './indexeddb/indexed-db-table';
+export type { IndexedDbPage, IndexedDbQuery } from './indexeddb/query/indexed-db-query';
 export { InfrastructureException } from './exceptions/infrastructure.exception';
 export { InternalErrorException } from './exceptions/internal-error.exception';
+export { IndexedDbException } from './exceptions/indexed-db.exception';
+export type { IndexedDbExceptionReason } from './exceptions/indexed-db.exception';
 export { UnknownEventException } from './exceptions/unknown-event.exception';
 export { EventDeliveryException } from './exceptions/event-delivery.exception';
 export { InfrastructureExceptionCode } from './exceptions/infrastructure-exception-code';

@@ -2189,7 +2189,7 @@ Ready adapters for tests, prototypes and the edges of an API:
 | `InMemoryEventChannel({ delivery }?)`  | `EventChannel` inside the process, built on emittery's techniques; `sent` lists what was sent               |
 | `ConsoleLogger({ level? }?)`           | `Logger` that writes one JSON line per entry from `level` up (`info` by default)                            |
 | `InMemoryLogger`, `SilentLogger`       | `Logger` that keeps `entries` for tests, and one that writes nothing (the default of every piece that logs) |
-| `IndexedDbTable`, `IndexedDbInspector` | One IndexedDB object store with plain rows (write, read, query, iterate), and what a database holds         |
+| `IndexedDbDatabase`, `IndexedDbSchema` | One IndexedDB database and the declaration of each of its tables; `database.table(schema)` gives the table  |
 
 The package ships no repository: each project writes one per aggregate and technology (see
 [Writing a repository](#writing-a-repository)), including the in-memory one.
@@ -2732,246 +2732,228 @@ implements the semantics above. `@archi-code/criteria-adapters` keeps one intern
 (documents, cases and expected results) that each of its adapters runs in its tests; a new engine
 joins that package and passes the same contract.
 
-## IndexedDB: `IndexedDbTable` and `IndexedDbInspector`
+## IndexedDB: `IndexedDbDatabase`, `IndexedDbSchema` and the table
 
-Two utilities for IndexedDB that know nothing about the business: rows go in and out as plain
-data (primitives, plain objects, arrays, `Date`s; anything the structured clone algorithm copies).
-A repository adapter of your project uses them to store the primitives of its aggregate
-(`order.toPrimitives()` in, `Order.fromPrimitives(row)` out). They run in browsers only: where
-there is no `indexedDB` they throw `unavailable`.
+Three pieces for IndexedDB that know nothing about the business. Rows go in and out as plain,
+already validated data (primitives, plain objects, arrays; anything the structured clone algorithm
+copies), never aggregates: a repository adapter stores `order.toPrimitives()` and reads back
+`Order.fromPrimitives(row)`.
 
-### `IndexedDbTable<Row>`: one table, one object store
+- **`IndexedDbDatabase`**: one database. It owns the name, the version of the data, the
+  migrations and the connection. A project subclasses it once per database.
+- **`IndexedDbSchema<Row, Stored>`**: the declaration of one table: its name, its indexes, the
+  default values and the audit values stored next to the data. A project subclasses it once per
+  table, in the folder of that table.
+- **The table** (`IndexedDbTable<Row, Stored>`, exported as a type): what a repository works
+  with. Only `database.table(schema)` creates it.
 
-A table is declared once, by name, and the same object is returned everywhere. The class that
-owns the table declares it with its options; any other code gets it by name:
-
-```ts
-import { IndexedDbTable } from '@archi-code/ddd/infrastructure';
-
-interface OrderRow {
-  id: string; // the key of every table: a UUID
-  customerId: string;
-  status: string;
-  placedOn: string;
-  tags: string[];
-}
-
-class IndexedDbOrderRepository extends OrderRepository {
-  private static readonly orders = IndexedDbTable.of<OrderRow>('orders', {
-    database: 'shop', // required
-    indexes: {
-      byCustomer: { keyPath: 'customerId' },
-      byStatusDate: { keyPath: ['status', 'placedOn'] },
-      byTag: { keyPath: 'tags', multiEntry: true },
-    }, // default none; each index takes keyPath, unique (default false) and multiEntry (default false)
-    version: 3, // default 1: the version of the data of this table, only for migrations
-    migrations: {
-      2: (row) => ({ ...row, status: row.state.toLowerCase() }),
-      3: (row) => (row.status === 'test' ? null : row), // null deletes the row
-    }, // one per version, from 2 to `version`
-    durability: 'default', // 'default' | 'strict' | 'relaxed'
-    factory: indexedDB, // default globalThis.indexedDB
-  });
-}
-
-const orders = IndexedDbTable.of<OrderRow>('orders'); // the same object, anywhere else
+```
+infrastructure/persistence/indexeddb/
+├── shop.db.ts                          ShopDb
+├── orders/
+│   ├── order.schema.ts                 OrderSchema and its row types
+│   ├── order.migrations.ts             the migration functions of this table (ShopDb numbers them)
+│   └── indexeddb-order-repository.ts
+└── customers/ …
 ```
 
-- **One name, one table.** `of(name, options)` with the same options returns the same object;
-  other options, or the same name in another database, throw `schema_mismatch`. `of(name)` (or
-  `of(name, { factory })`) returns the declared table and throws `schema_mismatch` when nobody
-  declared it yet. Declare it in a `static` field of the class that owns it, so it exists as soon
-  as the class is loaded. `of` throws `unavailable` where there is no `indexedDB` (Node): code
-  that also runs there loads the IndexedDB adapter with `await import()` only when it uses it.
-  When it is declared again, the migrations of the first declaration are the ones used.
-- **Typed index names.** The second type parameter lists the indexes, so a query on an index the
-  table does not declare fails to compile, and the declaration must hold exactly those indexes:
-  `IndexedDbTable.of<OrderRow, 'byCustomer' | 'byTag'>('orders', { database, indexes: { … } })`.
-  Without it any index name is accepted and checked at run time (`unknown_index`).
-- **The key is always `id`.** Every row carries its id, a UUID text, in `id`: there are no
-  generated keys nor keys outside the row. `@archi-code/ddd` ids (`IdType`) already are UUIDs.
-- **One connection per database.** All the tables of a database share one connection, opened by
-  the first call and reopened on demand after it closes: when the page is hidden (`pagehide`), when
-  another tab installs a newer version, or with `IndexedDbTable.close(database, { factory? })`.
-- **The database version is automatic.** On open, the tables compare what the browser holds with
-  their declarations. If a store or an index is missing, or a table has data of an older version,
-  the database version rises by one and the upgrade creates what is missing and migrates the data;
-  otherwise nothing changes. A table declared after the connection was opened gets its store the
-  same way, on its first call. Another tab that holds the database closes its connection and
-  reopens it by itself; a connection elsewhere that does not close makes the call reject with
-  `blocked`.
-- **Changing a table.** A new index is created at any time. To change or remove an index, raise the
-  `version` of the table (with its migration): the upgrade then makes its indexes match the
-  declaration exactly. Changing an index without raising the version is a `schema_mismatch`; an
-  index no longer declared stays until the version rises. Code with an older `version` than the
-  stored data (an old tab) never changes that table.
-- **Migrations, one version after another.** Every version from 2 to `version` declares its
-  migration (a missing one throws when the table is declared), a function of a stored row that
-  returns the new row or `null` to delete it. Each table records the version of its data. On open,
-  the migrations after that version run in order, each over every row of the table before the next
-  one starts, so data of any older version reaches the last one step by step. Everything happens in
-  the upgrade transaction: if a migration throws, changes the `id` of a row, breaks a unique index
-  or anything else fails, nothing is applied and the data stays at its old version. A table created
-  new starts at its `version` without migrations; a store found without a recorded version counts
-  as version 1.
-- **Removing.** A table no longer declared is never deleted by itself.
-  `IndexedDbTable.drop(database, table, { factory? })` deletes its store (`true`, or `false` when
-  it is not there; a declared table cannot be dropped) and
-  `IndexedDbTable.deleteDatabase(database, { factory? })` deletes the database.
-
-| Method                                              | Result                           | What it does                                                                                            |
-| --------------------------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `insert(row)`                                       | `Promise<string>`                | Adds a row and returns its id; `duplicate_key` when the id (or a unique index value) exists             |
-| `insertMany(rows)`                                  | `Promise<string[]>`              | Adds every row in one transaction: all of them or none                                                  |
-| `put(row)` / `putMany(rows)`                        | id / ids                         | Creates or replaces, `putMany` in one transaction                                                       |
-| `update(row)`                                       | `Promise<void>`                  | Replaces a row that exists; `not_found` otherwise                                                       |
-| `patch(id, changes)`                                | `Promise<Row>`                   | Merges `changes` into the stored row and returns it; `not_found`, or `invalid_key` if it changes the id |
-| `get(id)` / `getMany(ids)` / `exists(id)`           | row or `null` / rows / `boolean` | Reads by id; `getMany` keeps the order of the ids, `null` where missing                                 |
-| `delete(id)` / `deleteMany(ids)` / `clear()`        | `Promise<void>`                  | Deletes by id (a missing id is not an error), many ids in one transaction, or every row                 |
-| `deleteWhere(query)`                                | `Promise<number>`                | Deletes the rows a query selects (offset and limit included) and returns how many                       |
-| `find(query?)`                                      | `{ items, total, next }`         | A page of rows, the total of the whole selection, and the token of the next page (`null` on the last)   |
-| `findOne(query?)`                                   | row or `null`                    | The first row of the selection                                                                          |
-| `count(query?)`                                     | `Promise<number>`                | How many rows the selection holds (offset and limit ignored)                                            |
-| `ids(query?)`                                       | `Promise<string[]>`              | The ids of the page                                                                                     |
-| `iterate(query?, { batchSize = 100 }?)`             | `AsyncGenerator<Row>`            | Walks the selection with `for await`, reading `batchSize` rows per transaction                          |
-| `withStore(mode, (store, transaction) => request?)` | the request's result             | Raw access to the `IDBObjectStore` in one transaction, for anything the table does not wrap             |
-| `IndexedDbTable.transaction(tables, mode, work)`    | what `work` returns              | One transaction over several tables of a database (see below)                                           |
-
-A query selects rows through the primary key or an index:
-
 ```ts
-await orders.find({
-  index: 'byCustomer', // default (or null): the id
-  range: { equals: 'cus-1' }, // or { startsWith: 'cus-' }, any of gt, gte, lt, lte, an IDBKeyRange or null
-  direction: 'prev', // 'next' (default) | 'prev' | 'nextunique' | 'prevunique'
-  offset: 20, // default 0
-  limit: 10, // default (or null): no limit
-  filter: (row) => row.tags.includes('gift'), // optional, for fields no index covers
-  after: undefined, // the next token of the previous page
-});
-// { items: [ …10 rows ], total: 57, next: 'eyJ2IjoxLC…' }
+// shop.db.ts
+import { IndexedDbDatabase } from '@archi-code/ddd/infrastructure';
 
-let page = await orders.find({ index: 'byCustomer', limit: 50 });
-while (page.next !== null) {
-  page = await orders.find({ index: 'byCustomer', limit: 50, after: page.next });
-}
-
-await orders.count({
-  index: 'byStatusDate',
-  range: { gte: ['paid', '2026-03-01'], lte: ['paid', '2026-03-31'] },
-});
-
-for await (const row of orders.iterate(
-  { index: 'byTag', range: { equals: 'gift' } },
-  { batchSize: 200 },
-)) {
-  // each batch runs in its own transaction, so awaiting other work here is safe
-}
-```
-
-- The range is resolved by IndexedDB on the index: it is the fast part. A `filter` runs on each
-  row of the range, so `offset`, `limit` and `total` then count only the rows it keeps; without a
-  filter, `total` is a single `count`, and a query in key order without offset, filter nor `after`
-  reads its rows with one `getAll(range, limit)` instead of a cursor (an index query that also
-  needs a `next` token walks a cursor).
-- **Pages by token.** `next` is an opaque text that holds the position of the last row of the page
-  (its index key and primary key) with the index and direction of the query; pass it as `after`
-  with the same query to read the following page. Unlike `offset`, which walks every skipped row,
-  `after` starts right after that position, so every page costs the same; the page continues
-  correctly even if that row was deleted. A token used with another index or direction, or a text
-  `find` did not return, is an `invalid_query`. `total`, `count` and `ids` ignore the position for
-  the total; `deleteWhere` and `ids` accept `after` too.
-- `nextunique` and `prevunique` give one row per distinct index value (the first in key order).
-- `iterate` resumes after the last row it read, so rows with the same index value are neither lost
-  nor repeated between batches; rows written by others between two batches may or may not appear.
-- `range` also takes a native `IDBKeyRange` as it is, and `index: null` / `range: null` mean the
-  id and every row, so the query `toIndexedDbQuery` of `@archi-code/criteria-adapters/indexeddb`
-  builds goes to `find` as it is (on a table whose index names are a typed union, its `index` text
-  must be narrowed). The table does not sort: when that
-  query has a `compare`, find without `offset`/`limit`, sort the items and slice them.
-- A query that is not valid (two lower bounds, a negative offset, a range that is not a key range,
-  an unknown direction…) is an `invalid_query`; an index the store does not have is an
-  `unknown_index` that names the indexes it has.
-- On a `multiEntry` index a row appears once per matching value: a range covering two of its tags
-  returns it twice, and `count` counts entries, as IndexedDB does. `patch` merges only the first
-  level of the row.
-
-#### Several tables in one transaction
-
-```ts
-const outbox = IndexedDbTable.of<{ id: string; eventName: string }>('outbox', {
-  database: 'shop',
-});
-
-await IndexedDbTable.transaction([orders, outbox], 'readwrite', async (tx) => {
-  const order = await tx.get(orders, orderId);
-  if (order === null) {
-    throw new OrderNotFound(orderId); // the transaction is rolled back and this error rejects it
+export class ShopDb extends IndexedDbDatabase {
+  constructor() {
+    super({
+      name: 'shop',
+      version: 2,
+      migrations: { 2: { orders: addCurrencyToOrders } },
+    });
   }
-  await tx.update(orders, { ...order, status: 'paid' });
-  await tx.insert(outbox, { id: crypto.randomUUID(), eventName: 'order.paid' });
-});
+}
+
+// orders/order.schema.ts
+import type { PrimitiveTypes } from '@archi-code/ddd/domain';
+import { IndexedDbSchema } from '@archi-code/ddd/infrastructure';
+
+export type OrderRow = PrimitiveTypes<Order>;
+export type OrderStored = OrderRow & { status: string; createdAt: string; updatedAt: string };
+
+export class OrderSchema extends IndexedDbSchema<OrderRow, OrderStored> {
+  constructor() {
+    super({
+      name: 'orders',
+      indexes: { byCustomer: 'customerId' },
+      defaults: { status: 'pending' },
+      audit: {
+        createdAt: { onInsert: () => new Date().toISOString() },
+        updatedAt: {
+          onInsert: () => new Date().toISOString(),
+          onUpdate: () => new Date().toISOString(),
+        },
+      },
+    });
+  }
+}
+
+// orders/indexeddb-order-repository.ts
+export class IndexedDbOrderRepository extends OrderRepository {
+  private readonly table: IndexedDbTable<OrderRow, OrderStored>;
+  private readonly rowVersions = new WeakMap<Order, number>();
+
+  constructor(database: ShopDb) {
+    super();
+    this.table = database.table(new OrderSchema());
+  }
+
+  async findById(id: OrderId): Promise<Order | null> {
+    const row = await this.table.get(id.value);
+    if (row === null) {
+      return null;
+    }
+    const order = Order.fromPrimitives(row);
+    this.rowVersions.set(order, row.rowVersion);
+    return order;
+  }
+
+  async save(order: Order): Promise<void> {
+    const rowVersion = this.rowVersions.get(order) ?? 0;
+    await this.table.persist({ ...order.toPrimitives(), rowVersion });
+    this.rowVersions.set(order, rowVersion + 1);
+  }
+}
 ```
 
-`tx` offers every read and write of a table (`insert`, `insertMany`, `put`, `putMany`, `update`,
-`patch`, `get`, `getMany`, `exists`, `delete`, `deleteMany`, `deleteWhere`, `clear`, `count`,
-`find`, `findOne`, `ids`), with the table as first argument. Everything commits together or not
-at all: a failed request or an error the work throws rolls every table back, and the promise
-rejects with that error. Inside `work`, await only `tx` calls: IndexedDB commits a transaction
-as soon as it has no pending request, so awaiting anything else (a `fetch`, a timer) makes the
-next call fail. The tables must belong to the same database; the transaction uses the strongest
-durability among them.
+### `IndexedDbDatabase`: the database
 
-### `IndexedDbInspector`: what a database holds
+`new IndexedDbDatabase({ name, version?, migrations?, idleTimeout?, openTimeout?, factory? })`:
 
-```ts
-import { IndexedDbInspector } from '@archi-code/ddd/infrastructure';
+| Option        | Default  | What it is                                                                                             |
+| ------------- | -------- | ------------------------------------------------------------------------------------------------------ |
+| `name`        | required | The name of the IndexedDB database                                                                     |
+| `version`     | `1`      | The version of the **data**: raise it by hand, only when a migration is added                          |
+| `migrations`  | `{}`     | `{ <version>: { <table>: (row) => row \| null } }`, for the versions from 2 to `version`               |
+| `idleTimeout` | `30000`  | Milliseconds without use after which the connection closes; `null` keeps it open                       |
+| `openTimeout` | `10000`  | Milliseconds an upgrade waits for other pages to close their connection before it rejects as `blocked` |
+| `factory`     | the page | Another `IDBFactory`                                                                                   |
 
-const inspector = new IndexedDbInspector({ database: 'shop' }); // factory optional
+- `database.table(schema)` registers the table and returns it. Every repository that declares the
+  same schema class gets the same table object; another schema for a table the database already
+  has is a `schema_mismatch`.
+- **Nothing lists the tables.** The database learns them as repositories ask for them, and
+  nothing is opened until the first call on a table. On that call it compares the declared tables
+  with what the browser holds and, when a store or an index is missing, or the data version is
+  older, it upgrades the database by itself. The native IndexedDB version is an internal detail
+  that rises alone; the `version` option is only the version of the data. A table declared after
+  the database was opened triggers the same upgrade on its first call, so build every repository
+  in `composition.ts` before the first read and they share one upgrade.
+- The indexes of a declared table always match its schema: missing ones are created, changed ones
+  rebuilt and the ones the schema dropped removed. Stores are never deleted. When you change the
+  definition of an index, raise `version` too, so pages that still run the older code stop with
+  `schema_mismatch` instead of rebuilding the index back.
+- **Migrations** change stored rows when `version` rises. Each one receives a row without its
+  `rowVersion` and returns the new row, or `null` to delete it. The migrations newer than the
+  recorded data version run in order, inside the upgrade transaction, on the stores that exist; a
+  failure rolls the whole upgrade back. A new database runs none. They are synchronous. Code with
+  a `version` lower than the one recorded in the browser is refused (`schema_mismatch`): it never
+  touches newer data.
+- **One connection**, shared by every table and opened on demand. It closes when another page
+  upgrades the database, after `idleTimeout` without use and on `database.close()`, and the next
+  call opens it again. Calls in flight finish first. Nothing is kept in memory per row, and no
+  listener is registered on the page.
+- Where there is no `indexedDB` (Node), declaring the database and its tables works; the first
+  call rejects with `unavailable`.
 
-await inspector.structure();
-// { name: 'shop', version: 4, stores: [{ name: 'orders', keyPath: 'id', autoIncrement: false, tableVersion: 3,
-//   indexes: [{ name: 'byCustomer', keyPath: 'customerId', unique: false, multiEntry: false }, …] }] }
-await inspector.statistics();
-// { name: 'shop', version: 4, stores: [{ name: 'orders', records: 57, firstKey: '0b7e…', lastKey: 'f91c…',
-//   indexes: [{ name: 'byCustomer', entries: 57, distinctKeys: 12, firstKey: 'cus-01', lastKey: 'cus-12' }, …] }] }
-await inspector.compare();
-// [{ store: 'orders', kind: 'extra_index', index: 'byState', expected: null, actual: {…} }, …]
-```
+### `IndexedDbSchema<Row, Stored>`: one table
 
-| Member                                   | Result                                                                                                                                  |
-| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `structure()`                            | Version, stores, `keyPath`, `autoIncrement`, `tableVersion` (`null` if no table recorded it) and every index, sorted by name            |
-| `store(name)`                            | The structure of one store, or `null`                                                                                                   |
-| `exists()`                               | Whether the database exists                                                                                                             |
-| `statistics()`                           | Records, first and last key of every store; entries, distinct keys, first and last key of every index                                   |
-| `sample(store, limit = 10)`              | The first rows of a store                                                                                                               |
-| `compare()`                              | Differences with the declared tables: `missing_store`, `key_path`, `auto_increment`, `missing_index`, `extra_index`, `index_definition` |
-| `IndexedDbInspector.databases(factory?)` | `{ name, version }` of every database of the origin, sorted by name                                                                     |
-| `IndexedDbInspector.storage()`           | `{ usage, quota, persisted }` of the origin (`null` where the browser does not say)                                                     |
-| `IndexedDbInspector.persist()`           | Asks the browser to keep the origin's storage persistent                                                                                |
+`Row` is what a repository persists and `Stored` what the table gives back: the row plus the
+fields the schema fills. Both have a text `id`, the key of the row.
 
-The inspector never creates nor upgrades a database: on one that does not exist, `structure()` and
-`statistics()` answer `null`, `sample()` an empty list. Its connection closes after each call. It
-leaves out the internal store `@archi-code/tables`, where the tables record their versions.
+`new IndexedDbSchema({ name, indexes?, defaults?, audit? })`:
+
+- `indexes`: `{ byCustomer: 'customerId' }`, `{ byCustomerAndDate: ['customerId', 'placedAt'] }` or
+  `{ byTag: { keyPath: 'tags', multiEntry: true } }` / `{ byEmail: { keyPath: 'email', unique: true } }`.
+- `defaults`: per field, a value or a function that returns it. It is applied on every persist,
+  only when the row brings `undefined` for that field.
+- `audit`: per field, `{ onInsert(row), onUpdate?(row, stored) }`. The schema owns these fields: a
+  value sent by the caller is ignored. `onInsert` runs when the row is new, `onUpdate` when it is
+  already stored; a field without `onUpdate` (`createdAt`) keeps its stored value.
+- Nothing is filled by the package: every default and audit value is declared by hand. The
+  functions are synchronous (a promise is refused as `invalid_schema`), and `id` and `rowVersion`
+  take neither.
+
+### The table
+
+| Method                            | Returns                  | What it does                                                                        |
+| --------------------------------- | ------------------------ | ----------------------------------------------------------------------------------- |
+| `get(id)`                         | the stored row or `null` | Reads one row                                                                       |
+| `getMany(ids)`                    | stored rows              | Reads several rows in one transaction, in the order asked, without the missing ones |
+| `exists(id)`                      | `boolean`                | Tells whether the id is stored                                                      |
+| `count(query?)`                   | `number`                 | Counts the rows of a query (its `index`, `range` and `filter`)                      |
+| `find(query?)`                    | `{ items, total, next }` | Reads one page of a query                                                           |
+| `iterate(query?, { batchSize? })` | an async iterator        | Reads a query in batches (100 rows by default), one short transaction each          |
+| `persist(row)`                    | nothing                  | Creates or updates one row by its `id`, checking its `rowVersion`                   |
+| `remove(id, rowVersion?)`         | nothing                  | Deletes one row, checking the `rowVersion` when one is sent                         |
+| `persistMany(rows)`               | nothing                  | Creates or updates every row in one transaction, without checking                   |
+| `removeMany(ids)`                 | nothing                  | Deletes every id in one transaction, without checking                               |
+| `clear()`                         | nothing                  | Empties the table                                                                   |
+
+`table.name` is the name of the schema and `table.indexes` lists the id and the single-field
+indexes (`{ name, keyPath }`), the shape `toIndexedDbQuery` of
+`@archi-code/criteria-adapters/indexeddb` plans a criteria on.
+
+**`rowVersion`.** Every stored row carries a `rowVersion` the table owns: 1 when the row is
+created, one more on every persist. Reads return it. `persist(row)` works in one transaction:
+
+1. it looks the row up by `row.id`;
+2. when it is not stored, it creates it at `rowVersion` 1, whatever the row brings;
+3. when it is stored, `row.rowVersion` must equal the stored one: otherwise `persist` throws
+   `ConcurrencyException(<table>, id, rowVersion)` of `/application` and writes nothing. A row
+   that brings no valid `rowVersion` (missing, `null`, 0, not an integer) is a new row, so a stored
+   row with its id means the id is taken and it is refused the same way (expected version 0);
+4. it stores the row, completed by the schema, at the stored `rowVersion` plus 1.
+
+The table keeps nothing in memory: the repository remembers the `rowVersion` of each aggregate in
+a `WeakMap<Aggregate, number>` (the stored one on load, one more after each save) and sends it
+back in `persist`, as in the example above. `persistMany` runs the same steps without the check
+of step 3: a batch always saves. `remove(id, rowVersion)` deletes in one transaction and throws
+`ConcurrencyException` when the row is stored with another `rowVersion`; without a valid
+`rowVersion` it checks nothing, and an id that is not stored is never an error. `removeMany`
+checks nothing.
+
+**Queries.** `find`, `count` and `iterate` take `{ index, range, direction, filter, compare,
+offset, limit, after }`, every field optional; it is the shape `toIndexedDbQuery` returns, so
+`table.find(toIndexedDbQuery(criteria, table.indexes))` runs a criteria.
+
+- `index` (`null`: the id) and `range` (an `IDBKeyRange`) are resolved by IndexedDB: the fast
+  part. `direction` is `'next'` or `'prev'`.
+- `filter(row)` runs on each row of the range. `total` counts every row of the query before
+  `offset` and `limit`; with a `filter` that means reading the whole range on every page.
+- `compare(left, right)` sorts in memory: the whole range is loaded, so `next` is `null` and
+  `after` is refused. `iterate` refuses it.
+- `next` is an opaque token of the last row of the page, or `null` when nothing is left. Pass it
+  as `after`, with the same `index` and `direction`, to continue from there without an `offset`.
+- `iterate` holds no transaction between batches: other writes can happen while it runs, and
+  leaving the loop early leaves nothing open.
 
 ### Errors
 
-Both classes throw an exception that extends `InfrastructureException` with the code `INF004`
+The three pieces throw `IndexedDbException`, an `InfrastructureException` with the code `INF004`
 (`InfrastructureExceptionCode.PersistenceError`), a `reason` and the browser error in `cause`
-(`ExceptionClassifier` classifies it as `internal`):
+(`ExceptionClassifier` classifies it as `internal`). `persist` also throws `ConcurrencyException`,
+and an error thrown by a `default`, `audit` or migration function of the project comes out as it
+is (in `cause` for a migration or a `filter`).
 
-| `reason`          | When                                                                                                                                                                          |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `unavailable`     | No `indexedDB` or `IDBKeyRange` in the environment, or a browser API the call needs                                                                                           |
-| `blocked`         | Another connection keeps an older version open                                                                                                                                |
-| `schema_mismatch` | Options that cannot be applied: a table declared twice differently, an undeclared table, a missing migration, a changed index without a new version, a store with another key |
-| `duplicate_key`   | An insert of an existing key, or a value a unique index already holds                                                                                                         |
-| `not_found`       | `update` or `patch` of an id that is not stored                                                                                                                               |
-| `unknown_index`   | A query on an index the store does not have                                                                                                                                   |
-| `invalid_key`     | A row without `id`, a value that is not a valid key, or a patch or migration that changes an id                                                                               |
-| `invalid_query`   | A query, range, offset, limit or batch size that is not valid                                                                                                                 |
-| `request_failed`  | Anything else IndexedDB refuses (quota, a value it cannot clone, an aborted transaction)                                                                                      |
+| `reason`          | When                                                                                                             |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `unavailable`     | No `indexedDB` in the environment                                                                                |
+| `blocked`         | Another page kept the database open longer than `openTimeout`, or the database kept changing while it was opened |
+| `invalid_schema`  | A database or schema declared with options that cannot work, or a default or audit value that is a promise       |
+| `schema_mismatch` | Two schemas for one table, code older than the stored data, or a store that exists with another key              |
+| `duplicate_key`   | A value a unique index already holds                                                                             |
+| `invalid_key`     | A row without a text `id`, an id that is not a valid key, or a migration that changes an id                      |
+| `invalid_query`   | An unknown index, a direction, offset, limit, batch size or `after` token that is not valid                      |
+| `quota_exceeded`  | The browser has no room left for the write                                                                       |
+| `request_failed`  | Anything else IndexedDB refuses (a value it cannot clone, an aborted transaction)                                |
 
 ## Persisting aggregates
 
@@ -3310,23 +3292,23 @@ not export) and has:
 | `print()`     | `'[<description>]: <message>, <ISO timestamp>'`                                               |
 | `toJSON()`    | `{ name, message, code, description, timestamp }` (`timestamp` in ISO 8601)                   |
 
-| Class                             | Subpath           | Extends                   | Constructor                                                          | Codes              | Message                                                                           |
-| --------------------------------- | ----------------- | ------------------------- | -------------------------------------------------------------------- | ------------------ | --------------------------------------------------------------------------------- |
-| `DomainException`                 | `/domain`         | `Error`                   | `(message, exceptionCodes = [], options?)`                           | `DOM000` + yours   | `message`                                                                         |
-| `ValidationException`             | `/domain`         | `DomainException`         | `(errors: ValidationIssueInput[])`, keeps them as `ValidationIssue`s | `DOM000`, `DOM001` | `Validation failed, <field: message, joined with ", ">`                           |
-| `TypePrimitiveException`          | `/domain`         | `DomainException`         | `(expectedType, receivedValue, template?)`                           | `DOM000`, `DOM003` | `Validation Error: Expected a valid <expectedType>, but received <value>.`        |
-| `RequiredValueException`          | `/domain`         | `DomainException`         | `(typeName, receivedValue)`                                          | `DOM000`, `DOM004` | `Validation Error: <typeName> is required, but received <value>.`                 |
-| `InvalidEventDefinitionException` | `/domain`         | `DomainException`         | `(eventClassName)`                                                   | `DOM000`, `DOM005` | `<eventClassName> must declare a static eventName`                                |
-| `ApplicationException`            | `/application`    | `Error`                   | `(message, exceptionCodes = [], options?)`                           | `APP000` + yours   | `message`                                                                         |
-| `ConcurrencyException`            | `/application`    | `ApplicationException`    | `(aggregateName, id, expectedVersion, options?)`                     | `APP000`, `APP001` | `<aggregateName> with ID <id> was changed by someone else: expected version <n>.` |
-| `AggregateNotFoundException`      | `/application`    | `ApplicationException`    | `(entity: string, id: string, options?)`                             | `APP000`, `APP002` | `<entity> with ID <id> not found.`                                                |
-| `NotAllowedException`             | `/application`    | `ApplicationException`    | `(message, options?)`                                                | `APP000`, `APP003` | `message`                                                                         |
-| `UnexpectedErrorException`        | `/application`    | `ApplicationException`    | `(message, options?)`                                                | `APP000`, `APP004` | `Failed, unexpected error: <message>`                                             |
-| `InfrastructureException`         | `/infrastructure` | `Error`                   | `(message, exceptionCodes = [], options?)`                           | `INF000` + yours   | `message`                                                                         |
-| `InternalErrorException`          | `/infrastructure` | `InfrastructureException` | `(message, options?)`                                                | `INF000`, `INF001` | `Failed, internal error: <message>`                                               |
-| `UnknownEventException`           | `/infrastructure` | `InfrastructureException` | `(eventName)`                                                        | `INF000`, `INF002` | `Unknown event "<eventName>": register it before reading it.`                     |
-| `EventDeliveryException`          | `/infrastructure` | `InfrastructureException` | `(eventName, errors, consumers)`                                     | `INF000`, `INF003` | `<n> of <consumers> consumers of "<eventName>" failed.` (`errors`: each failure)  |
-| (internal, not exported)          | `/infrastructure` | `InfrastructureException` | thrown by `IndexedDbTable` and `IndexedDbInspector`, with a `reason` | `INF000`, `INF004` | `IndexedDB <reason>: <detail>`                                                    |
+| Class                             | Subpath           | Extends                   | Constructor                                                                      | Codes              | Message                                                                           |
+| --------------------------------- | ----------------- | ------------------------- | -------------------------------------------------------------------------------- | ------------------ | --------------------------------------------------------------------------------- |
+| `DomainException`                 | `/domain`         | `Error`                   | `(message, exceptionCodes = [], options?)`                                       | `DOM000` + yours   | `message`                                                                         |
+| `ValidationException`             | `/domain`         | `DomainException`         | `(errors: ValidationIssueInput[])`, keeps them as `ValidationIssue`s             | `DOM000`, `DOM001` | `Validation failed, <field: message, joined with ", ">`                           |
+| `TypePrimitiveException`          | `/domain`         | `DomainException`         | `(expectedType, receivedValue, template?)`                                       | `DOM000`, `DOM003` | `Validation Error: Expected a valid <expectedType>, but received <value>.`        |
+| `RequiredValueException`          | `/domain`         | `DomainException`         | `(typeName, receivedValue)`                                                      | `DOM000`, `DOM004` | `Validation Error: <typeName> is required, but received <value>.`                 |
+| `InvalidEventDefinitionException` | `/domain`         | `DomainException`         | `(eventClassName)`                                                               | `DOM000`, `DOM005` | `<eventClassName> must declare a static eventName`                                |
+| `ApplicationException`            | `/application`    | `Error`                   | `(message, exceptionCodes = [], options?)`                                       | `APP000` + yours   | `message`                                                                         |
+| `ConcurrencyException`            | `/application`    | `ApplicationException`    | `(aggregateName, id, expectedVersion, options?)`                                 | `APP000`, `APP001` | `<aggregateName> with ID <id> was changed by someone else: expected version <n>.` |
+| `AggregateNotFoundException`      | `/application`    | `ApplicationException`    | `(entity: string, id: string, options?)`                                         | `APP000`, `APP002` | `<entity> with ID <id> not found.`                                                |
+| `NotAllowedException`             | `/application`    | `ApplicationException`    | `(message, options?)`                                                            | `APP000`, `APP003` | `message`                                                                         |
+| `UnexpectedErrorException`        | `/application`    | `ApplicationException`    | `(message, options?)`                                                            | `APP000`, `APP004` | `Failed, unexpected error: <message>`                                             |
+| `InfrastructureException`         | `/infrastructure` | `Error`                   | `(message, exceptionCodes = [], options?)`                                       | `INF000` + yours   | `message`                                                                         |
+| `InternalErrorException`          | `/infrastructure` | `InfrastructureException` | `(message, options?)`                                                            | `INF000`, `INF001` | `Failed, internal error: <message>`                                               |
+| `UnknownEventException`           | `/infrastructure` | `InfrastructureException` | `(eventName)`                                                                    | `INF000`, `INF002` | `Unknown event "<eventName>": register it before reading it.`                     |
+| `EventDeliveryException`          | `/infrastructure` | `InfrastructureException` | `(eventName, errors, consumers)`                                                 | `INF000`, `INF003` | `<n> of <consumers> consumers of "<eventName>" failed.` (`errors`: each failure)  |
+| `IndexedDbException`              | `/infrastructure` | `InfrastructureException` | `(reason, message, { cause }?)`, thrown by the IndexedDB database and its tables | `INF000`, `INF004` | `IndexedDB <reason>: <detail>`                                                    |
 
 `options` is `{ cause }`: keep the original error when you wrap it. A `ValidationIssueInput` is a
 `ValidationIssue` (`{ field: string | null; code: string; message: string }`) whose `code` is
@@ -3925,18 +3907,19 @@ in the repository, not in the npm package:
 
 `@archi-code/ddd/infrastructure`:
 
-| Export                                                                                                 | Kind                   |
-| ------------------------------------------------------------------------------------------------------ | ---------------------- |
-| `InMemoryEventChannel`                                                                                 | class                  |
-| `IndexedDbTable`, `IndexedDbInspector`                                                                 | classes (IndexedDB)    |
-| `ConsoleLogger`, `InMemoryLogger`, `SilentLogger`                                                      | classes (loggers)      |
-| `DomainEventBus`, `EventRegistry`                                                                      | classes (event wiring) |
-| `EventChannel`, `ChannelHandler`, `ChannelSubscription`                                                | types (channel port)   |
-| `Subscription`, `EventFactory`                                                                         | types                  |
-| `InMemoryEventChannelOptions`, `ConsoleLoggerOptions`, `LogEntry`                                      | types                  |
-| `InfrastructureException`, `InternalErrorException`, `UnknownEventException`, `EventDeliveryException` | classes (exceptions)   |
-| `InfrastructureExceptionCode`, `ExceptionKind`                                                         | enums                  |
-| `ExceptionClassifier` (`classify`)                                                                     | class                  |
+| Export                                                                                                                                                                                                                                                                                                                                                                      | Kind                   |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| `InMemoryEventChannel`                                                                                                                                                                                                                                                                                                                                                      | class                  |
+| `IndexedDbDatabase`, `IndexedDbSchema`                                                                                                                                                                                                                                                                                                                                      | classes (IndexedDB)    |
+| `ConsoleLogger`, `InMemoryLogger`, `SilentLogger`                                                                                                                                                                                                                                                                                                                           | classes (loggers)      |
+| `DomainEventBus`, `EventRegistry`                                                                                                                                                                                                                                                                                                                                           | classes (event wiring) |
+| `EventChannel`, `ChannelHandler`, `ChannelSubscription`                                                                                                                                                                                                                                                                                                                     | types (channel port)   |
+| `Subscription`, `EventFactory`                                                                                                                                                                                                                                                                                                                                              | types                  |
+| `InMemoryEventChannelOptions`, `ConsoleLoggerOptions`, `LogEntry`                                                                                                                                                                                                                                                                                                           | types                  |
+| `IndexedDbTable`, `IndexedDbRow`, `IndexedDbStored`, `IndexedDbInput`, `IndexedDbQuery`, `IndexedDbPage`, `IndexedDbTableIndex`, `IndexedDbIterateOptions`, `IndexedDbDatabaseOptions`, `IndexedDbSchemaOptions`, `IndexedDbIndex`, `IndexedDbIndexOptions`, `IndexedDbDefaults`, `IndexedDbAudit`, `IndexedDbAuditField`, `IndexedDbMigration`, `IndexedDbExceptionReason` | types (IndexedDB)      |
+| `InfrastructureException`, `InternalErrorException`, `IndexedDbException`, `UnknownEventException`, `EventDeliveryException`                                                                                                                                                                                                                                                | classes (exceptions)   |
+| `InfrastructureExceptionCode`, `ExceptionKind`                                                                                                                                                                                                                                                                                                                              | enums                  |
+| `ExceptionClassifier` (`classify`)                                                                                                                                                                                                                                                                                                                                          | class                  |
 
 ## AI assistant skill
 

@@ -28,20 +28,22 @@ import type {
 } from '@archi-code/ddd/application';
 import {
   ConsoleLogger, DomainEventBus, EventDeliveryException, EventRegistry, ExceptionClassifier, ExceptionKind,
-  IndexedDbInspector, IndexedDbTable, InfrastructureException, InfrastructureExceptionCode,
+  IndexedDbDatabase, IndexedDbException, IndexedDbSchema, InfrastructureException, InfrastructureExceptionCode,
   InMemoryEventChannel, InMemoryLogger, InternalErrorException, SilentLogger,
   UnknownEventException,
 } from '@archi-code/ddd/infrastructure';
 import type {
-  ChannelHandler, ChannelSubscription, EventChannel, Subscription,
+  ChannelHandler, ChannelSubscription, EventChannel, IndexedDbTable, Subscription,
 } from '@archi-code/ddd/infrastructure';
 import { Validations } from '@archi-code/validation';
 ```
 
 - Each layer exports its own exceptions and code enum; no `/exceptions` subpath; the exception
   base class is internal.
-- `IndexedDbTable`: only IndexedDB repository adapters and read-model stores.
-  `IndexedDbInspector`: only diagnostics, never a repository.
+- `IndexedDbDatabase` (one subclass per database), `IndexedDbSchema` (one subclass per table) and
+  the `IndexedDbTable` type: only IndexedDB repository adapters and read-model stores.
+  `IndexedDbException`: where an entry point or adapter tells an IndexedDB failure apart by its
+  `reason`.
 - The second `/domain` statement holds the criteria helpers that criteria adapters use
   (`@archi-code/criteria-adapters` already wraps them); application code never needs them.
 - CommonJS works too: `const { Required, StringType } = require('@archi-code/ddd/domain');`

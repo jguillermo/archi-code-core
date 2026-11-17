@@ -6,12 +6,12 @@ import { InfrastructureException } from './infrastructure.exception';
 export type IndexedDbExceptionReason =
   | 'unavailable'
   | 'blocked'
+  | 'invalid_schema'
   | 'schema_mismatch'
   | 'duplicate_key'
-  | 'not_found'
-  | 'unknown_index'
   | 'invalid_key'
   | 'invalid_query'
+  | 'quota_exceeded'
   | 'request_failed';
 
 export class IndexedDbException extends InfrastructureException {

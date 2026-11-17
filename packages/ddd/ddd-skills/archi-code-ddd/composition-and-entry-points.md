@@ -138,8 +138,10 @@ export class PaymentsContext {
 }
 ```
 
-A context whose repository is IndexedDB and that also starts in Node loads the adapter only when
-it uses it: `const { IndexedDbCourseRepository } = await import('./infrastructure/persistence/indexeddb-course-repository');`.
+A context whose repository is IndexedDB builds its database once and hands it to every repository
+of that database, before the first read: `const database = new SchoolDb();` then
+`new IndexedDbCourseRepository(database)`. Nothing is opened until a repository is used, so the
+same composition also loads in Node.
 
 The top level opens one channel and starts every context on it:
 

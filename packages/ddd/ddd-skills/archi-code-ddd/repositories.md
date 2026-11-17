@@ -37,7 +37,8 @@ adapters. To declare the abstract repository (before the use cases) read the `Ru
   IndexedDB table, SQL) is used only inside it. Use cases, reactions, domain services, entry
   points and `composition.ts` (which only builds it) never touch the database; there is no second
   class (a DAO, a "storage service", a helper) that reads or writes the aggregate's data.
-- **Every repository checks the version** [IDDD ch. 10]: it remembers the version of each
+- **Every repository checks the version** [IDDD ch. 10] (the IndexedDB adapter does it through
+  the `rowVersion` of its table, see IndexedDB below): it remembers the version of each
   aggregate object it loaded or saved in a private `WeakMap<X, number>` (`versions`); on load,
   `versions.set(x, row.version)`; on save, `version = versions.get(x) ?? 0`, a stored version
   (`?? 0`) different from it throws `ConcurrencyException('<Aggregate>', id, version)` (so an
@@ -53,34 +54,44 @@ adapters. To declare the abstract repository (before the use cases) read the `Ru
   transaction opened and committed inside `save`); when events must not be lost between `save`
   and `publish` [Destilado ch. 6; IDDD ch. 8], it stores them in the same write (an outbox) and a
   relay delivers them through an `EventChannel`.
-- **IndexedDB**: when the database is IndexedDB, the adapter is
-  `IndexedDb<Aggregate>Repository extends <Aggregate>Repository`, in
-  `infrastructure/persistence/indexeddb-<aggregate>-repository.ts`, and it stores through
-  `IndexedDbTable` of `@archi-code/ddd/infrastructure`, never through raw
+- **IndexedDB**: when the database is IndexedDB, everything of it lives in
+  `infrastructure/persistence/indexeddb/` and goes through `IndexedDbDatabase` and
+  `IndexedDbSchema` of `@archi-code/ddd/infrastructure`, never through raw
   `indexedDB`/`IDBDatabase`/`IDBObjectStore` nor another IndexedDB library:
-  - the table is declared once, in a `private static readonly` field of the adapter, with
-    `IndexedDbTable.of<Row, Index>(name, { database, indexes, version, migrations })`; the
-    database version, the upgrade and the connection are the table's job, never the adapter's;
-  - the row is `{ ...x.toPrimitives(), version }` (`type OrderRow = PrimitiveTypes<Order> & {
-    version: number }`): its key is the aggregate's `id`, already a UUID; on load the adapter
-    splits `version` off and calls `X.fromPrimitives(primitives)`;
-  - `save` and `remove` read the stored version and write in one
-    `IndexedDbTable.transaction([table], 'readwrite', async (tx) => …)`, so the version check and
-    the write are atomic; a stale version throws `ConcurrencyException` inside the work (the
-    transaction rolls back). Inside the work only `tx` calls are awaited;
-  - an aggregate stored in several tables (or with an outbox table of the same database) writes
-    them all in that same `IndexedDbTable.transaction`;
-  - `search` turns the criteria into a query with `toIndexedDbQuery` of
-    `@archi-code/criteria-adapters/indexeddb` and passes it to `find`, then calls
-    `X.fromPrimitives` on every row;
-  - `withStore` is only for what the table does not wrap, never for plain CRUD;
-    `IndexedDbInspector` is for diagnostics, never inside a repository. The errors of the table are
-    already `InfrastructureException`s: let them pass (or wrap them in `InternalErrorException` with
-    `{ cause }`);
-  - `IndexedDbTable.of` throws where there is no `indexedDB`: a composition that also runs in Node
-    (tests, a server) loads the IndexedDB adapter with `await import()` only when it uses it.
+  - one class per database, `<Name>Db extends IndexedDbDatabase`, in `indexeddb/<name>.db.ts`: its
+    constructor takes no argument and passes `super({ name, version, migrations })`. It owns the
+    version of the data, the migrations, the upgrade and the connection, never the adapter;
+  - one folder per table, `indexeddb/<table>/`, with its schema
+    `<Aggregate>Schema extends IndexedDbSchema<Row, Stored>` in `<aggregate>.schema.ts` (name,
+    indexes, `defaults` and `audit`, all declared by hand, and the row types), its migration
+    functions in `<aggregate>.migrations.ts` and its adapter;
+  - the adapter is `IndexedDb<Aggregate>Repository extends <Aggregate>Repository`, in
+    `indexeddb/<table>/indexeddb-<aggregate>-repository.ts`. Its constructor receives the database
+    (`constructor(database: ShopDb)`) and gets its table from it:
+    `this.table = database.table(new OrderSchema())`. `composition.ts` builds the database once
+    and every repository of it before the first read;
+  - rows are plain, already validated data: `x.toPrimitives()` goes in and `X.fromPrimitives(row)`
+    comes out, never an aggregate. The key is the aggregate's `id`, already a UUID;
+  - the table owns `rowVersion` (`[Fuera de los libros: convención de @archi-code/ddd]`): 1 when a
+    row is created, one more on every persist, returned by every read. The adapter remembers it
+    per aggregate in a private `WeakMap<X, number>` on load
+    (`rowVersions.set(x, row.rowVersion)`), sends it back on save
+    (`rowVersion = rowVersions.get(x) ?? 0`, `table.persist({ ...x.toPrimitives(), rowVersion })`)
+    and then remembers `rowVersion + 1`. `persist` is the one that checks, in one transaction: a
+    row that is not stored is created; a stored row whose `rowVersion` differs from the one sent
+    throws `ConcurrencyException`, also when none is sent (a new aggregate whose id is taken). The
+    adapter never writes the check nor a version of its own;
+  - the adapter's `remove(x)` is `table.remove(x.id.value, rowVersions.get(x))`: the table deletes
+    in one transaction and throws `ConcurrencyException` when the stored `rowVersion` is another
+    one. `persistMany` and `removeMany` (batches) never check;
+  - `search` is `table.find(toIndexedDbQuery(criteria, table.indexes))` with `toIndexedDbQuery` of
+    `@archi-code/criteria-adapters/indexeddb`, then `X.fromPrimitives` on every row;
+  - the errors of the table are `ConcurrencyException` or `IndexedDbException` (with a `reason`
+    such as `quota_exceeded` or `blocked`): let them pass to the use case;
+  - declaring the database, a schema and a repository works where there is no `indexedDB`; only
+    using a table fails there (`unavailable`).
 
-  A read-model store kept in IndexedDB follows the same rules with its own `IndexedDbTable`.
+  A read-model store kept in IndexedDB follows the same rules with its own schema and folder.
 - The in-memory repository is an implementation like any other [IDDD ch. 12]. It lives in
   `infrastructure/persistence/in-memory-<aggregate>-repository.ts` when the application runs in
   memory, or in `test/support/` when it is only a test double; the package ships none.
@@ -292,88 +303,96 @@ export class MongoOrderRepository extends OrderRepository {
 }
 ```
 
-When the database is IndexedDB, the adapter is the one repository of the aggregate for that
-technology and uses `IndexedDbTable` of `@archi-code/ddd/infrastructure`, never raw `indexedDB`.
-`infrastructure/persistence/indexeddb-order-repository.ts`:
+When the database is IndexedDB, the database, each schema and each adapter are their own class.
+`infrastructure/persistence/indexeddb/shop.db.ts`:
 
 ```ts
-import type { Criteria, PrimitiveTypes, SearchOptions, SearchResult } from '@archi-code/ddd/domain';
-import { ConcurrencyException } from '@archi-code/ddd/application';
-import { IndexedDbTable } from '@archi-code/ddd/infrastructure';
-import { readIndexes, toIndexedDbQuery } from '@archi-code/criteria-adapters/indexeddb';
+import { IndexedDbDatabase } from '@archi-code/ddd/infrastructure';
 
-type OrderRow = PrimitiveTypes<Order> & { version: number };
+export class ShopDb extends IndexedDbDatabase {
+  constructor() {
+    super({ name: 'shop' });
+  }
+}
+```
+
+`infrastructure/persistence/indexeddb/orders/order.schema.ts`:
+
+```ts
+import type { PrimitiveTypes } from '@archi-code/ddd/domain';
+import { IndexedDbSchema } from '@archi-code/ddd/infrastructure';
+
+export type OrderRow = PrimitiveTypes<Order>;
+export type OrderStored = OrderRow & { createdAt: string; updatedAt: string };
+
+export class OrderSchema extends IndexedDbSchema<OrderRow, OrderStored> {
+  constructor() {
+    super({
+      name: 'orders',
+      indexes: { byCustomer: 'customerId' },
+      audit: {
+        createdAt: { onInsert: () => new Date().toISOString() },
+        updatedAt: {
+          onInsert: () => new Date().toISOString(),
+          onUpdate: () => new Date().toISOString(),
+        },
+      },
+    });
+  }
+}
+```
+
+`infrastructure/persistence/indexeddb/orders/indexeddb-order-repository.ts`:
+
+```ts
+import type { Criteria, SearchOptions, SearchResult } from '@archi-code/ddd/domain';
+import type { IndexedDbStored, IndexedDbTable } from '@archi-code/ddd/infrastructure';
+import { toIndexedDbQuery } from '@archi-code/criteria-adapters/indexeddb';
 
 export class IndexedDbOrderRepository extends OrderRepository {
-  private static readonly orders = IndexedDbTable.of<OrderRow, 'byCustomer'>('orders', {
-    database: 'shop',
-    indexes: { byCustomer: { keyPath: 'customerId' } },
-  });
-  private readonly versions = new WeakMap<Order, number>();
+  private readonly table: IndexedDbTable<OrderRow, OrderStored>;
+  private readonly rowVersions = new WeakMap<Order, number>();
+
+  constructor(database: ShopDb) {
+    super();
+    this.table = database.table(new OrderSchema());
+  }
 
   async findById(id: OrderId): Promise<Order | null> {
-    const row = await IndexedDbOrderRepository.orders.get(id.value);
-    return row === null ? null : this.load(row);
+    const row = await this.table.get(id.value);
+    return row && this.load(row);
   }
 
   async search(criteria: Criteria<Order>, options?: SearchOptions): Promise<SearchResult<Order>> {
-    const table = IndexedDbOrderRepository.orders;
-    let indexes: ReturnType<typeof readIndexes> = [];
-    await table.withStore('readonly', (store) => {
-      indexes = readIndexes(store);
-      return undefined;
-    });
-    const query = toIndexedDbQuery(criteria, indexes);
-    const index = query.index as 'byCustomer' | null;
-    if (query.compare === null) {
-      const page = await table.find({ ...query, index });
-      return { items: page.items.map((row) => this.load(row)), total: page.total };
-    }
-    const { items, total } = await table.find({ ...query, index, offset: undefined, limit: undefined });
-    const end = query.limit === null ? undefined : query.offset + query.limit;
-    const sorted = items.sort(query.compare).slice(query.offset, end);
-    return { items: sorted.map((row) => this.load(row)), total };
+    const page = await this.table.find(toIndexedDbQuery(criteria, this.table.indexes));
+    const items = page.items.map((row) => this.load(row));
+    return options?.withTotal ? { items, total: page.total } : { items };
   }
 
   async save(order: Order): Promise<void> {
-    const key = order.id.value;
-    const version = this.versions.get(order) ?? 0;
-    const table = IndexedDbOrderRepository.orders;
-    await IndexedDbTable.transaction([table], 'readwrite', async (tx) => {
-      if (((await tx.get(table, key))?.version ?? 0) !== version) {
-        throw new ConcurrencyException('Order', key, version);
-      }
-      await tx.put(table, { ...order.toPrimitives(), version: version + 1 });
-    });
-    this.versions.set(order, version + 1);
+    const rowVersion = this.rowVersions.get(order) ?? 0;
+    await this.table.persist({ ...order.toPrimitives(), rowVersion });
+    this.rowVersions.set(order, rowVersion + 1);
   }
 
   async remove(order: Order): Promise<void> {
-    const key = order.id.value;
-    const version = this.versions.get(order) ?? 0;
-    const table = IndexedDbOrderRepository.orders;
-    await IndexedDbTable.transaction([table], 'readwrite', async (tx) => {
-      if (((await tx.get(table, key))?.version ?? 0) !== version) {
-        throw new ConcurrencyException('Order', key, version);
-      }
-      await tx.delete(table, key);
-    });
+    await this.table.remove(order.id.value, this.rowVersions.get(order));
   }
 
-  private load(row: OrderRow): Order {
-    const { version, ...primitives } = row;
-    const order = Order.fromPrimitives(primitives);
-    this.versions.set(order, version);
+  private load(row: IndexedDbStored<OrderStored>): Order {
+    const order = Order.fromPrimitives(row);
+    this.rowVersions.set(order, row.rowVersion);
     return order;
   }
 }
 ```
 
-The table owns the database version, the upgrade, the migrations and the connection; the adapter
-only declares it and reads and writes rows. The version check and the write share one
-transaction, and a stale version thrown inside the work rolls it back. `search` reads the indexes with
-`withStore`, turns the criteria into a query with `toIndexedDbQuery` and sorts only when the query
-has a `compare`.
+The database owns the version of the data, the upgrade, the migrations and the connection, the
+schema declares what is stored next to the data, and the table owns `rowVersion`: `persist` looks
+the row up by its id, creates it at `rowVersion` 1 when it is not stored and, when it is, throws
+`ConcurrencyException` if the `rowVersion` the adapter sends is not the stored one (0 for a new
+aggregate, so a taken id is refused), all in one transaction; `remove` checks it the same way. `search` turns the criteria into a query with `toIndexedDbQuery` and the table runs
+it, sorting in memory only when the query has a `compare`.
 
 A port adapter, `infrastructure/coupon/in-memory-coupon-catalog.ts`: raw data in, value objects
 out, bad external data as an internal error:
@@ -431,15 +450,17 @@ export class InMemoryCouponCatalog implements CouponCatalog {
   `composition.ts` or a second class, a DAO or a "storage service", that reads or writes the
   aggregate's data), or more than one adapter for the same aggregate and technology.
 - An IndexedDB repository that opens `indexedDB` itself, works on `IDBDatabase`/`IDBObjectStore`,
-  uses another IndexedDB library, handles the database version or the upgrade, or uses
-  `withStore` for plain reads and writes: it is `IndexedDb<Aggregate>Repository` over
-  `IndexedDbTable` of `@archi-code/ddd/infrastructure`, declared once in a `static` field.
-- An IndexedDB repository that checks the version and writes in separate transactions (two
-  table calls instead of one `IndexedDbTable.transaction`), or that awaits anything but `tx`
-  calls inside the transaction.
-- Importing an IndexedDB adapter statically in a composition that also runs in Node:
-  `IndexedDbTable.of` throws there; load it with `await import()`.
-- A repository (also the in-memory one) that saves with no version condition or "last save
+  uses another IndexedDB library, or handles the database version or the upgrade: it is
+  `IndexedDb<Aggregate>Repository` over the table `database.table(new <Aggregate>Schema())` gives.
+- A database, a schema and an adapter declared in one file, a table declared inside the database
+  class, a schema shared by two tables, or an adapter that builds its own `IndexedDbDatabase`
+  instead of receiving it.
+- An IndexedDB repository that reads the row and compares the `rowVersion` itself, writes a
+  version field of its own into the row, keeps the `rowVersion` in a `Map` by id instead of a
+  `WeakMap` by aggregate, or passes an aggregate (not its primitives) to the table.
+- A default or audit value computed asynchronously, or expected from the package: every one is a
+  synchronous function or value declared in the schema.
+- A repository (also the in-memory one; the IndexedDB one delegates it to `persist`) that saves with no version condition or "last save
   wins", forgets to remember `version + 1` after a write or the stored version on load, removes
   by id without the loaded aggregate, or exposes the version to domain or application code.
 - An in-memory repository that stores or returns the same objects it received: store and return

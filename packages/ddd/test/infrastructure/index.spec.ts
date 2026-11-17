@@ -6,6 +6,15 @@ import type {
   ConsoleLoggerOptions,
   EventChannel,
   EventFactory,
+  IndexedDbDatabaseOptions,
+  IndexedDbExceptionReason,
+  IndexedDbInput,
+  IndexedDbMigration,
+  IndexedDbPage,
+  IndexedDbQuery,
+  IndexedDbStored,
+  IndexedDbTable,
+  IndexedDbTableIndex,
   InMemoryEventChannelOptions,
   LogEntry,
   Subscription,
@@ -24,8 +33,9 @@ const PUBLIC_API = [
   'ExceptionKind',
   'InMemoryEventChannel',
   'InMemoryLogger',
-  'IndexedDbInspector',
-  'IndexedDbTable',
+  'IndexedDbDatabase',
+  'IndexedDbException',
+  'IndexedDbSchema',
   'InfrastructureException',
   'InfrastructureExceptionCode',
   'InternalErrorException',
@@ -68,12 +78,54 @@ describe('@archi-code/ddd/infrastructure', () => {
     expect(Object.keys(infrastructure).filter((name) => name.endsWith('Exception'))).toEqual([
       'InfrastructureException',
       'InternalErrorException',
+      'IndexedDbException',
       'UnknownEventException',
       'EventDeliveryException',
     ]);
     expect(infrastructure.InfrastructureExceptionCode.InternalError).toBe('INF001');
     expect(infrastructure.ExceptionKind.NotFound).toBe('not_found');
     expect(Object.keys(infrastructure)).not.toContain('AbstractException');
+  });
+
+  it('exports the IndexedDB database and schema a project subclasses, and the table only as a type', () => {
+    class ShopDb extends infrastructure.IndexedDbDatabase {
+      constructor() {
+        super({ name: 'shop' });
+      }
+    }
+    class OrderSchema extends infrastructure.IndexedDbSchema<
+      { id: string; total: number },
+      { id: string; total: number; createdAt: string }
+    > {
+      constructor() {
+        super({ name: 'orders', audit: { createdAt: { onInsert: () => 'now' } } });
+      }
+    }
+    const table = new ShopDb().table(new OrderSchema());
+
+    expect(Object.keys(infrastructure)).not.toContain('IndexedDbTable');
+    expectTypeOf(table).toEqualTypeOf<
+      IndexedDbTable<
+        { id: string; total: number },
+        { id: string; total: number; createdAt: string }
+      >
+    >();
+    expectTypeOf(table.persist)
+      .parameter(0)
+      .toEqualTypeOf<IndexedDbInput<{ id: string; total: number }>>();
+    expectTypeOf(table.find).returns.resolves.toEqualTypeOf<
+      IndexedDbPage<IndexedDbStored<{ id: string; total: number; createdAt: string }>>
+    >();
+    expectTypeOf(table.remove).parameters.toEqualTypeOf<[id: string, rowVersion?: number | null]>();
+    expectTypeOf(table.indexes).toEqualTypeOf<readonly IndexedDbTableIndex[]>();
+    expectTypeOf<IndexedDbQuery<{ id: string }>['after']>().toEqualTypeOf<
+      string | null | undefined
+    >();
+    expectTypeOf<IndexedDbMigration>().toEqualTypeOf<(row: any) => object | null>();
+    expectTypeOf<IndexedDbDatabaseOptions['idleTimeout']>().toEqualTypeOf<
+      number | null | undefined
+    >();
+    expectTypeOf<'quota_exceeded'>().toMatchTypeOf<IndexedDbExceptionReason>();
   });
 
   it('exports every value as a class, except the enums', () => {

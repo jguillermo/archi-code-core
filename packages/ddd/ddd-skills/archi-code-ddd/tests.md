@@ -155,12 +155,12 @@ describe('InMemoryOrderRepository', () =>
   orderRepositoryContract(async () => new InMemoryOrderRepository()));
 describe('MongoOrderRepository', () => orderRepositoryContract(async () => mongoOrders()));
 describe('IndexedDbOrderRepository', () =>
-  orderRepositoryContract(async () => new IndexedDbOrderRepository()));
+  orderRepositoryContract(async () => new IndexedDbOrderRepository(new ShopDb())));
 ```
 
 The IndexedDB adapter runs the same contract on a real browser IndexedDB (Vitest browser mode),
 never on a double of it, emptying its table before each test
-(`await IndexedDbTable.of('orders').clear()`).
+(`await new ShopDb().table(new OrderSchema()).clear()`).
 
 ## What not to do
 

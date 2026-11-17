@@ -69,7 +69,7 @@ APPLICATION_API_RE = re.compile(
     r"NotAllowedException|ConcurrencyException|UnexpectedErrorException|ApplicationException)\b"
 )
 INFRASTRUCTURE_API_RE = re.compile(
-    r"(?<![\w.])(DomainEventBus|EventRegistry|InMemoryEventChannel|IndexedDbTable|IndexedDbInspector|"
+    r"(?<![\w.])(DomainEventBus|EventRegistry|InMemoryEventChannel|IndexedDbDatabase|IndexedDbSchema|IndexedDbException|"
     r"ExceptionClassifier|ExceptionKind|ConsoleLogger|InMemoryLogger|SilentLogger|InternalErrorException|"
     r"InfrastructureException)\b"
 )
@@ -303,7 +303,7 @@ def package_rules(add, path, text, zone, ctx, domain_dir, imports, use_case_file
     if in_context and RAW_INDEXEDDB_RE.search(text):
         m = RAW_INDEXEDDB_RE.search(text)
         add("indexeddb-sin-indexed-db-table", "media", path, line_of(text, m.start()),
-            f"{m.group(0)}; IndexedDB solo a través de IndexedDbTable")
+            f"{m.group(0)}; IndexedDB solo a través de IndexedDbDatabase e IndexedDbSchema")
 
     if zone == "interfaces":
         for m in CATCH_RE.finditer(text):

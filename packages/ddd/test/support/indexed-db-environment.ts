@@ -24,3 +24,21 @@ export async function freshIndexedDb(): Promise<IDBFactory> {
   }
   return anotherPage();
 }
+
+export function openDatabase(
+  factory: IDBFactory,
+  name: string,
+  version?: number,
+  upgrade: (database: IDBDatabase, transaction: IDBTransaction) => void = () => undefined,
+): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = factory.open(name, version);
+    request.onupgradeneeded = () => upgrade(request.result, request.transaction as IDBTransaction);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export function pause(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}

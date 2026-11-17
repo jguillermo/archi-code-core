@@ -311,19 +311,37 @@ function smoke(m) {
       },
     ],
     [
-      'IndexedDbTable refuses to work where there is no IndexedDB',
-      () => {
-        try {
-          m.IndexedDbTable.of('orders', { database: 'shop' });
-          return 'IndexedDbTable.of worked without IndexedDB';
-        } catch (error) {
-          return (
-            (error instanceof m.InfrastructureException &&
-              error.reason === 'unavailable' &&
-              error.code === m.InfrastructureExceptionCode.PersistenceError) ||
-            `unexpected error ${error}`
-          );
+      'an IndexedDB database is declared anywhere and only fails when used without IndexedDB',
+      async () => {
+        class OrderSchema extends m.IndexedDbSchema {
+          constructor() {
+            super({
+              name: 'orders',
+              indexes: { byCustomer: 'customerId' },
+              defaults: { status: 'pending' },
+              audit: { createdAt: { onInsert: () => '2026-11-17T10:00:00.000Z' } },
+            });
+          }
         }
+        const schema = new OrderSchema();
+        const orders = new m.IndexedDbDatabase({ name: 'shop' }).table(schema);
+        const completed = schema.complete(
+          { id: ORDER_ID, customerId: 'cus-1', rowVersion: 3 },
+          null,
+        );
+        const error = await orders.get(ORDER_ID).catch((refused) => refused);
+        return (
+          (orders.name === 'orders' &&
+            orders.indexes.length === 2 &&
+            completed.status === 'pending' &&
+            completed.createdAt === '2026-11-17T10:00:00.000Z' &&
+            !('rowVersion' in completed) &&
+            error instanceof m.IndexedDbException &&
+            error instanceof m.InfrastructureException &&
+            error.reason === 'unavailable' &&
+            error.code === m.InfrastructureExceptionCode.PersistenceError) ||
+          `unexpected IndexedDB declaration: ${error}`
+        );
       },
     ],
   ];
@@ -454,7 +472,8 @@ async function infrastructureInThePage(entry) {
 
 async function indexedDbInThePage(entry) {
   const m = await import(entry);
-  const database = `browser-check-${Date.now()}-${Math.random()}`;
+  const { ConcurrencyException } = await import(new URL('../application/index.js', entry).href);
+  const name = `browser-check-${Date.now()}-${Math.random()}`;
   const uuid = (number) => `00000000-0000-4000-8000-${String(number).padStart(12, '0')}`;
   const page = () => ({
     open: indexedDB.open.bind(indexedDB),
@@ -462,104 +481,116 @@ async function indexedDbInThePage(entry) {
     cmp: indexedDB.cmp.bind(indexedDB),
     databases: indexedDB.databases.bind(indexedDB),
   });
-  const orders = m.IndexedDbTable.of('orders', {
-    database,
-    indexes: {
-      byCustomer: { keyPath: 'customerId' },
-      byTag: { keyPath: 'tags', multiEntry: true },
-    },
-  });
-  await orders.putMany(
+  let now = '2026-11-17T10:00:00.000Z';
+  class ShopDb extends m.IndexedDbDatabase {
+    constructor(options = {}) {
+      super({ name, ...options });
+    }
+  }
+  class OrderSchema extends m.IndexedDbSchema {
+    constructor() {
+      super({
+        name: 'orders',
+        indexes: { byCustomer: 'customerId', byTag: { keyPath: 'tags', multiEntry: true } },
+        defaults: { status: 'pending' },
+        audit: {
+          createdAt: { onInsert: () => now },
+          updatedAt: { onInsert: () => now, onUpdate: () => now },
+        },
+      });
+    }
+  }
+  const shop = new ShopDb();
+  const orders = shop.table(new OrderSchema());
+  await orders.persistMany(
     Array.from({ length: 30 }, (_, at) => ({
       id: uuid(at),
       customerId: `cus-${at % 3}`,
       tags: at % 2 === 0 ? ['gift'] : ['express'],
     })),
   );
-  const outbox = m.IndexedDbTable.of('outbox', { database });
-  const sameOrders = m.IndexedDbTable.of('orders');
+  const outbox = shop.table(new m.IndexedDbSchema({ name: 'outbox' }));
+  await outbox.persist({ id: uuid(100) });
   const walked = [];
-  for await (const row of orders.iterate(
+  for await (const batch of orders.iterate(
     { index: 'byCustomer', direction: 'prev' },
     { batchSize: 4 },
   )) {
-    walked.push(row.id);
+    walked.push(...batch.map((row) => row.id));
   }
   const tagged = await orders.find({
     index: 'byTag',
-    range: { equals: 'gift' },
+    range: IDBKeyRange.only('gift'),
     offset: 2,
     limit: 3,
   });
-  const missing = await orders.update({ id: uuid(99), customerId: 'x', tags: [] }).catch((e) => e);
   const firstPage = await orders.find({ index: 'byCustomer', limit: 4 });
   const secondPage = await orders.find({ index: 'byCustomer', limit: 4, after: firstPage.next });
-  const rolledBack = await m.IndexedDbTable.transaction(
-    [orders, outbox],
-    'readwrite',
-    async (tx) => {
-      await tx.patch(orders, uuid(1), { customerId: 'cus-9' });
-      await tx.insert(outbox, { id: uuid(101) });
-      throw new Error('payment refused');
-    },
-  ).catch((error) => error.message);
-  const committed = await m.IndexedDbTable.transaction(
-    [orders, outbox],
-    'readwrite',
-    async (tx) => {
-      await tx.patch(orders, uuid(2), { tags: ['express', 'paid'] });
-      await tx.insert(outbox, { id: uuid(102) });
-      return tx.count(outbox);
-    },
-  );
-  const firstEventSaved = await outbox.exists(uuid(101));
-  const deleted = await orders.deleteWhere({ filter: (row) => row.customerId === 'cus-0' });
-  const migrated = m.IndexedDbTable.of('orders', {
-    database,
+  const loaded = await orders.get(uuid(1));
+  now = '2026-11-18T08:30:00.000Z';
+  await orders.persist({ ...loaded, status: 'paid' });
+  const stale = await orders.persist({ ...loaded, status: 'cancelled' }).catch((error) => error);
+  const saved = await orders.get(uuid(1));
+  const takenId = await orders
+    .persist({ id: uuid(1), customerId: 'cus-0', tags: [] })
+    .catch((e) => e);
+  const staleRemove = await orders.remove(uuid(1), loaded.rowVersion).catch((error) => error);
+  const rolledBack = await orders
+    .persistMany([{ id: uuid(200), customerId: 'cus-9', tags: [] }, { id: '' }])
+    .catch((error) => error.reason);
+  shop.close();
+  const upgraded = new ShopDb({
     factory: page(),
-    version: 3,
+    version: 2,
     migrations: {
-      2: (row) => ({ ...row, customer: row.customerId }),
-      3: (row) =>
-        row.customer === 'cus-2' ? null : { id: row.id, tags: row.tags, customer: row.customer },
+      2: {
+        orders: (row) => (row.customerId === 'cus-2' ? null : { ...row, customer: row.customerId }),
+      },
     },
-    indexes: { byCustomer: { keyPath: 'customer' } },
   });
+  const migrated = upgraded.table(
+    new m.IndexedDbSchema({ name: 'orders', indexes: { byCustomer: 'customer' } }),
+  );
   const afterMigration = await migrated.find({ index: 'byCustomer', limit: 1 });
-  const inspector = new m.IndexedDbInspector({ database });
-  const structure = await inspector.structure();
-  const listed = await m.IndexedDbInspector.databases();
-  await m.IndexedDbTable.deleteDatabase(database);
+  const olderCode = await new ShopDb({ factory: page() })
+    .table(new OrderSchema())
+    .count()
+    .catch((error) => error.reason);
+  upgraded.close();
+  await new Promise((resolve, reject) => {
+    const request = indexedDB.deleteDatabase(name);
+    request.onsuccess = resolve;
+    request.onerror = reject;
+  });
   return (
     (walked.length === 30 &&
       new Set(walked).size === 30 &&
       walked[0] === uuid(29) &&
-      sameOrders === orders &&
       tagged.total === 15 &&
       tagged.items.map((row) => row.id).join() === [4, 6, 8].map(uuid).join() &&
-      missing instanceof m.InfrastructureException &&
-      missing.reason === 'not_found' &&
-      deleted === 10 &&
       firstPage.items.length === 4 &&
       secondPage.items[0].id === uuid(12) &&
-      rolledBack === 'payment refused' &&
-      committed === 1 &&
-      firstEventSaved === false &&
-      afterMigration.total === 10 &&
-      afterMigration.items[0].customer === 'cus-1' &&
-      !('customerId' in afterMigration.items[0]) &&
-      (await inspector.exists()) === false &&
-      structure.stores.map((store) => `${store.name}@${store.tableVersion}`).join() ===
-        'orders@3,outbox@1' &&
-      listed.some((info) => info.name === database)) ||
-    `unexpected IndexedDB in the page: ${JSON.stringify({ first: firstPage.items.map((row) => row.id), second: secondPage.items.map((row) => row.id), rolledBack, committed, deleted, afterMigration, structure })}`
+      loaded.rowVersion === 1 &&
+      stale instanceof ConcurrencyException &&
+      takenId instanceof ConcurrencyException &&
+      staleRemove instanceof ConcurrencyException &&
+      saved.status === 'paid' &&
+      saved.rowVersion === 2 &&
+      saved.createdAt === '2026-11-17T10:00:00.000Z' &&
+      saved.updatedAt === '2026-11-18T08:30:00.000Z' &&
+      rolledBack === 'invalid_key' &&
+      afterMigration.total === 20 &&
+      afterMigration.items[0].customer === 'cus-0' &&
+      afterMigration.items[0].rowVersion === 1 &&
+      olderCode === 'schema_mismatch') ||
+    `unexpected IndexedDB in the page: ${JSON.stringify({ walked: walked.length, tagged, first: firstPage.items.map((row) => row.id), second: secondPage.items.map((row) => row.id), stale: String(stale), saved, rolledBack, afterMigration, olderCode })}`
   );
 }
 
 function browser() {
   return [
     ['runs the event bus, the in-memory channel and the loggers', infrastructureInThePage],
-    ['persists, queries, iterates and inspects IndexedDB', indexedDbInThePage],
+    ['declares, persists, queries, iterates and migrates IndexedDB', indexedDbInThePage],
   ];
 }
 
