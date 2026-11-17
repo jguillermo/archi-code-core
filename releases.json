@@ -16,7 +16,7 @@
       "main": "3.0.0-alpha.4"
     },
     "@archi-code/validation": {
-      "main": "4.0.0-alpha.1"
+      "main": "4.0.0-alpha.2"
     },
     "@archi-code/criteria-adapters": {
       "main": "4.0.0-alpha.5"
@@ -210,6 +210,23 @@
           "dependencies": {
             "@archi-code/ddd": "4.0.0-alpha.5"
           }
+        }
+      ]
+    },
+    {
+      "date": "2026-11-17T03:02:08.997Z",
+      "commit": "cb10952360540d2a9fd2ef1c17bedc449d10f3ab",
+      "channel": "main",
+      "packages": [
+        {
+          "name": "@archi-code/validation",
+          "previous": "4.0.0-alpha.1",
+          "version": "4.0.0-alpha.2",
+          "bump": "patch",
+          "reasons": [
+            "commits (patch)"
+          ],
+          "dependencies": {}
         }
       ]
     }
