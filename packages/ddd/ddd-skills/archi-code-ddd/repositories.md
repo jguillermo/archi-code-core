@@ -389,9 +389,10 @@ export class IndexedDbOrderRepository extends OrderRepository {
 
 The database owns the version of the data, the upgrade, the migrations and the connection, the
 schema declares what is stored next to the data, and the table owns `rowVersion`: `persist` looks
-the row up by its id, creates it at `rowVersion` 1 when it is not stored and, when it is, throws
-`ConcurrencyException` if the `rowVersion` the adapter sends is not the stored one (0 for a new
-aggregate, so a taken id is refused), all in one transaction; `remove` checks it the same way. `search` turns the criteria into a query with `toIndexedDbQuery` and the table runs
+the row up by its id and throws `ConcurrencyException` if the `rowVersion` the adapter sends is
+not the stored one, a missing row counting as 0 (a new aggregate sends 0, so a taken id is
+refused, and saving an aggregate someone removed is refused instead of bringing it back); a new
+row is created at `rowVersion` 1, all in one transaction; `remove` checks it the same way. `search` turns the criteria into a query with `toIndexedDbQuery` and the table runs
 it, sorting in memory only when the query has a `compare`.
 
 A port adapter, `infrastructure/coupon/in-memory-coupon-catalog.ts`: raw data in, value objects

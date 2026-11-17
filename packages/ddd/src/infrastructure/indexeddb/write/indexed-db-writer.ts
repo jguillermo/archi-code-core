@@ -19,11 +19,11 @@ export class IndexedDbWriter {
       );
     }
     const stored = await IndexedDbRequest.result<any>(() => store.get(id), this.context);
-    if (checked && stored !== undefined) {
+    if (checked) {
       this.assertRowVersion(
         id,
         IndexedDbWriter.isRowVersion(row.rowVersion) ? row.rowVersion : 0,
-        stored,
+        stored?.rowVersion ?? 0,
       );
     }
     const completed = this.schema.complete(row, stored ?? null);
@@ -35,14 +35,14 @@ export class IndexedDbWriter {
     if (IndexedDbWriter.isRowVersion(rowVersion)) {
       const stored = await IndexedDbRequest.result<any>(() => store.get(id), this.context);
       if (stored !== undefined) {
-        this.assertRowVersion(id, rowVersion, stored);
+        this.assertRowVersion(id, rowVersion, stored.rowVersion);
       }
     }
     await IndexedDbRequest.result(() => store.delete(id), this.context);
   }
 
-  private assertRowVersion(id: string, expected: number, stored: { rowVersion: number }): void {
-    if (expected !== stored.rowVersion) {
+  private assertRowVersion(id: string, expected: number, stored: number): void {
+    if (expected !== stored) {
       throw new ConcurrencyException(this.schema.name, id, expected);
     }
   }

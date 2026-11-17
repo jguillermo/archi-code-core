@@ -74,6 +74,26 @@ describe('IndexedDbDatabase: one database and the tables declared on it', () => 
     });
   });
 
+  it('fails with unavailable, keeping the cause, where the browser forbids opening IndexedDB', async () => {
+    const forbidden = new DOMException(
+      'The user denied permission to access the database.',
+      'SecurityError',
+    );
+    const orders = new ShopDb({
+      factory: {
+        open: () => {
+          throw forbidden;
+        },
+      } as unknown as IDBFactory,
+    }).table(new OrderSchema());
+
+    await expect(orders.get('ord-1')).rejects.toMatchObject({
+      reason: 'unavailable',
+      message: 'IndexedDB unavailable: this environment refuses to open database "shop"',
+      cause: forbidden,
+    });
+  });
+
   it('uses the IndexedDB of the page when no factory is given', async () => {
     await openShop();
     const shop = new ShopDb();

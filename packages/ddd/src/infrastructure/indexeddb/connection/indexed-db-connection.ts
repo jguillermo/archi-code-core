@@ -133,7 +133,19 @@ export class IndexedDbConnection {
       let failure: unknown = null;
       let expired = false;
       let waiting: ReturnType<typeof setTimeout> | undefined;
-      const request = factory.open(name, version);
+      let request: IDBOpenDBRequest;
+      try {
+        request = factory.open(name, version);
+      } catch (error) {
+        reject(
+          new IndexedDbException(
+            'unavailable',
+            `this environment refuses to open database "${name}"`,
+            { cause: error },
+          ),
+        );
+        return;
+      }
       request.onupgradeneeded = () => {
         const transaction = request.transaction as IDBTransaction;
         IndexedDbUpgrade.apply(request.result, transaction, target).catch((error: unknown) => {

@@ -2905,11 +2905,15 @@ indexes (`{ name, keyPath }`), the shape `toIndexedDbQuery` of
 created, one more on every persist. Reads return it. `persist(row)` works in one transaction:
 
 1. it looks the row up by `row.id`;
-2. when it is not stored, it creates it at `rowVersion` 1, whatever the row brings;
-3. when it is stored, `row.rowVersion` must equal the stored one: otherwise `persist` throws
-   `ConcurrencyException(<table>, id, rowVersion)` of `/application` and writes nothing. A row
-   that brings no valid `rowVersion` (missing, `null`, 0, not an integer) is a new row, so a stored
-   row with its id means the id is taken and it is refused the same way (expected version 0);
+2. when it is not stored, it creates it at `rowVersion` 1 if the row brings no valid
+   `rowVersion` (missing, `null`, 0, not an integer). A row that brings one was loaded before
+   and someone removed it since, so `persist` throws
+   `ConcurrencyException(<table>, id, rowVersion)` of `/application` and writes nothing: a removed
+   row is never brought back;
+3. when it is stored, `row.rowVersion` must equal the stored one: otherwise `persist` throws the
+   same `ConcurrencyException` and writes nothing. A row that brings no valid `rowVersion` is a
+   new row, so a stored row with its id means the id is taken and it is refused the same way
+   (expected version 0);
 4. it stores the row, completed by the schema, at the stored `rowVersion` plus 1.
 
 The table keeps nothing in memory: the repository remembers the `rowVersion` of each aggregate in
@@ -2918,7 +2922,9 @@ back in `persist`, as in the example above. `persistMany` runs the same steps wi
 of step 3: a batch always saves. `remove(id, rowVersion)` deletes in one transaction and throws
 `ConcurrencyException` when the row is stored with another `rowVersion`; without a valid
 `rowVersion` it checks nothing, and an id that is not stored is never an error. `removeMany`
-checks nothing.
+checks nothing. A browser that refuses to open IndexedDB (storage forbidden by its settings or the
+page's sandbox) makes the first call fail with `IndexedDbException` `unavailable`, with the
+browser's error as `cause`.
 
 **Queries.** `find`, `count` and `iterate` take `{ index, range, direction, filter, compare,
 offset, limit, after }`, every field optional; it is the shape `toIndexedDbQuery` returns, so

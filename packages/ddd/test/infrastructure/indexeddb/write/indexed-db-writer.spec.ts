@@ -41,8 +41,24 @@ describe('IndexedDbWriter: writing the rows of a table', () => {
       });
     });
 
-    it('creates it at rowVersion 1 whatever rowVersion the row brings', async () => {
-      await orders.persist({ ...order(1), rowVersion: 7 });
+    it('creates it at rowVersion 1 when the row brings no valid rowVersion', async () => {
+      await orders.persist({ ...order(1), rowVersion: 0 });
+      await orders.persist({ ...order(2), rowVersion: null });
+
+      expect((await orders.get('ord-1'))?.rowVersion).toBe(1);
+      expect((await orders.get('ord-2'))?.rowVersion).toBe(1);
+    });
+
+    it('refuses a row that brings a rowVersion, because someone removed it, and writes nothing', async () => {
+      await expect(orders.persist({ ...order(1), rowVersion: 7 })).rejects.toThrow(
+        'orders with ID ord-1 was changed by someone else: expected version 7.',
+      );
+
+      expect(await orders.get('ord-1')).toBeNull();
+    });
+
+    it('creates it in a batch whatever rowVersion the row brings, because a batch never checks', async () => {
+      await orders.persistMany([{ ...order(1), rowVersion: 7 }]);
 
       expect((await orders.get('ord-1'))?.rowVersion).toBe(1);
     });
