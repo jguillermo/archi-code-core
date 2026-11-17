@@ -6,12 +6,12 @@ Modules build.
 
 ## Packages
 
-| Package                                             | What it is for                                                                              | Documentation                                                                          |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| [`@archi-code/validation`](packages/validation)     | `is*` validators, `to*`/`canBe*` conversions and the `@Validations` decorator               | [README](packages/validation/README.md) · [SKILL.md](packages/validation/SKILL.md)     |
-| [`@archi-code/ddd`](packages/ddd)                   | DDD by layer: value objects, aggregates, events, use cases, ports and in-memory adapters    | [README](packages/ddd/README.md) · [SKILL.md](packages/ddd/SKILL.md)                   |
-| [`@archi-code/criteria`](packages/criteria)         | Search criteria: filters, ordering, pagination and MongoDB conversion                       | [README](packages/criteria/README.md) · [SKILL.md](packages/criteria/SKILL.md)         |
-| [`@archi-code/crypto-tools`](packages/crypto-tools) | Passwords, encryption, RSA, signatures, hash/HMAC, tokens and JWT in workers (web and Node) | [README](packages/crypto-tools/README.md) · [SKILL.md](packages/crypto-tools/SKILL.md) |
+| Package                                                       | What it is for                                                                                              | Documentation                                                                                    |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| [`@archi-code/validation`](packages/validation)               | `is*` validators, `to*`/`canBe*` conversions and the `@Validations` decorator                               | [README](packages/validation/README.md) · [SKILL.md](packages/validation/SKILL.md)               |
+| [`@archi-code/ddd`](packages/ddd)                             | DDD by layer: value objects, aggregates, events, use cases, search criteria, event bus and IndexedDB tables | [README](packages/ddd/README.md) · [SKILL.md](packages/ddd/SKILL.md)                             |
+| [`@archi-code/criteria-adapters`](packages/criteria-adapters) | Runs the `@archi-code/ddd` criteria in memory or turns them into MongoDB and IndexedDB queries              | [README](packages/criteria-adapters/README.md) · [SKILL.md](packages/criteria-adapters/SKILL.md) |
+| [`@archi-code/crypto-tools`](packages/crypto-tools)           | Passwords, encryption, RSA, signatures, hash/HMAC, tokens and JWT in workers (web and Node)                 | [README](packages/crypto-tools/README.md) · [SKILL.md](packages/crypto-tools/SKILL.md)           |
 
 ```bash
 npm install @archi-code/ddd
@@ -26,7 +26,7 @@ skill of a package in your project, run this from the project root on your machi
 skill into the Claude Code skills folder:
 
 ```bash
-mkdir -p .claude/skills/archi-code-ddd && ln -sf "./node_modules/@archi-code/ddd/SKILL.md" .claude/skills/archi-code-ddd/SKILL.md
+mkdir -p .claude/skills/archi-code-ddd && ln -sf "../../../node_modules/@archi-code/ddd/SKILL.md" .claude/skills/archi-code-ddd/SKILL.md
 ```
 
 Replace `ddd` with the package you use. The skill is invoked with `/archi-code-<package>` or
