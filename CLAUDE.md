@@ -241,8 +241,19 @@ npm workspaces monorepo publishing independent npm packages implementing DDD pat
   key ranges. `test/support/run-indexed-db-query.ts` runs the query in the specs and the browser
   check. The package runs `check-browser`, whose import map serves the bare
   `@archi-code/ddd/domain` import: `/memory` and `/indexeddb` run the whole contract in Chromium
-  and WebKit, on each browser's real IndexedDB in three store layouts; vitest uses
-  `fake-indexeddb`.
+  and WebKit, on each browser's real IndexedDB in three store layouts; the `node` Vitest project
+  uses `fake-indexeddb`, and the `chromium` project (`test/indexeddb/browser/`, Vitest browser
+  mode, like ddd) runs on `IndexedDbDatabase`/`IndexedDbSchema` of `@archi-code/ddd/infrastructure`
+  (its build): the whole contract on a table without indexes and one with an index per field
+  (`table.find(toIndexedDbQuery(criteria, table.indexes))`), and an `Order` aggregate with its
+  abstract `OrderRepository` (`AggregateFinder`, `AggregateSaver`, `AggregateSearcher`) and an
+  `IndexedDbOrderRepository` whose `search` does that same call, as the ddd example and skill
+  write it (customer index, unindexed status, date range, paging with total, URL criteria, and
+  saving a searched order with its version). User rule 2026-11-17: mocks are forbidden in
+  `test/indexeddb/browser/`; those specs run only in a real web browser (Chromium through
+  Playwright) on its native IndexedDB: no `fake-indexeddb`, no `test/support` doubles, no `vi`
+  mocks, spies nor stubs. `real-browser.spec.ts` fails outside a real Chromium page with native
+  IndexedDB, and `test/cross/browser-specs.spec.ts` fails if any file there uses a mock.
 
 ### ddd package internals
 

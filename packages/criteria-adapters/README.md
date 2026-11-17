@@ -338,22 +338,13 @@ const result: SearchResult<User> = {
 };
 ```
 
-With `IndexedDbTable` of `@archi-code/ddd/infrastructure`, which takes the `IDBKeyRange`, a `null`
-index and a `null` limit as they are, read the indexes with `withStore` and pass the query to `find`:
+With the table of `@archi-code/ddd/infrastructure` (`database.table(new UserSchema())`), pass
+the query to `find`: the table takes the `IDBKeyRange`, the index, the `compare` and the paging
+as they are, and `table.indexes` lists the indexes the planner can use:
 
 ```ts
-let indexes: IndexInfo[] = [];
-await users.withStore('readonly', (store) => {
-  indexes = readIndexes(store);
-  return undefined;
-});
-const query = toIndexedDbQuery(criteria, indexes);
-if (query.compare === null) {
-  return users.find(query);
-}
-const { items, total } = await users.find({ ...query, offset: undefined, limit: undefined });
-const end = query.limit === null ? undefined : query.offset + query.limit;
-return { items: items.sort(query.compare).slice(query.offset, end), total };
+const page = await users.find(toIndexedDbQuery(criteria, users.indexes));
+return { items: page.items.map((row) => User.fromPrimitives(row)), total: page.total };
 ```
 
 Store the primitives of the aggregate as they are (`toPrimitives()`): the criteria fields are the

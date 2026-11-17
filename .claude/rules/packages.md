@@ -236,14 +236,19 @@ Only when the package needs them, and documented in its README:
   `index.ts` and specs but no `exports`, `typesVersions` nor build hook; `module-boundaries.spec.ts`
   lists it in `INTERNAL_MODULES` and checks that no public `index.ts` re-exports it.
 - Extra keys in `vitest.config.mts` (e.g. `coverage.exclude` for generated files).
-- A browser test project (only `ddd` today, for its IndexedDB utilities): `vitest.config.mts`
+- A browser test project (`ddd`, for its IndexedDB utilities, and `criteria-adapters`, for
+  `/indexeddb` searches on the table of `@archi-code/ddd/infrastructure`): `vitest.config.mts`
   keeps the common keys at the top level and declares `projects`: `node` (the usual
   `environment`/`include`, with `exclude` for the specs that need a browser) and `chromium`, which
   runs those specs through Vitest browser mode (`@vitest/browser-playwright`, root devDependency,
   headless Chromium of Playwright) on the real browser API, never on a double of it.
   `test`/`test:coverage` run both projects and merge their coverage, so the scripts and the gate
-  do not change. Browser specs get their environment from a `test/support/` helper
-  (`freshIndexedDb()`).
+  do not change. Browser specs get their environment from a helper next to them
+  (`freshIndexedDb()` in `ddd/test/support/`, `emptyIndexedDb()` in
+  `criteria-adapters/test/indexeddb/browser/empty-indexed-db.ts`). Mocks are forbidden in those
+  specs (user rule): they run only in a real browser, never with `fake-indexeddb`, test doubles
+  nor `vi` mocks, spies or stubs; `criteria-adapters` guards it with
+  `test/indexeddb/browser/real-browser.spec.ts` and `test/cross/browser-specs.spec.ts`.
 
 ## When adding a package
 
