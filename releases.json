@@ -22,7 +22,7 @@
       "main": "4.0.0-alpha.5"
     },
     "@archi-code/ddd": {
-      "main": "4.0.0-alpha.5"
+      "main": "4.0.0-alpha.6"
     }
   },
   "deploys": [
@@ -227,6 +227,19 @@
             "commits (patch)"
           ],
           "dependencies": {}
+        },
+        {
+          "name": "@archi-code/ddd",
+          "previous": "4.0.0-alpha.5",
+          "version": "4.0.0-alpha.6",
+          "bump": "patch",
+          "reasons": [
+            "commits (patch)",
+            "cascade: @archi-code/validation → 4.0.0-alpha.2"
+          ],
+          "dependencies": {
+            "@archi-code/validation": "4.0.0-alpha.2"
+          }
         }
       ]
     }
