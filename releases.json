@@ -4,7 +4,7 @@
       "main": "4.0.0-alpha.1"
     },
     "@archi-code/crypto-tools": {
-      "main": "4.0.0-alpha.1"
+      "main": "4.0.0-alpha.2"
     },
     "@archi-code/domain": {
       "main": "3.0.0-alpha.4"
@@ -16,13 +16,13 @@
       "main": "3.0.0-alpha.4"
     },
     "@archi-code/validation": {
-      "main": "4.0.0-alpha.1"
+      "main": "4.0.0-alpha.2"
     },
     "@archi-code/criteria-adapters": {
-      "main": "4.0.0-alpha.5"
+      "main": "4.0.0-alpha.6"
     },
     "@archi-code/ddd": {
-      "main": "4.0.0-alpha.5"
+      "main": "4.0.0-alpha.6"
     }
   },
   "deploys": [
@@ -210,6 +210,59 @@
           "dependencies": {
             "@archi-code/ddd": "4.0.0-alpha.5"
           }
+        }
+      ]
+    },
+    {
+      "date": "2026-11-17T03:02:08.997Z",
+      "commit": "cb10952360540d2a9fd2ef1c17bedc449d10f3ab",
+      "channel": "main",
+      "packages": [
+        {
+          "name": "@archi-code/validation",
+          "previous": "4.0.0-alpha.1",
+          "version": "4.0.0-alpha.2",
+          "bump": "patch",
+          "reasons": [
+            "commits (patch)"
+          ],
+          "dependencies": {}
+        },
+        {
+          "name": "@archi-code/ddd",
+          "previous": "4.0.0-alpha.5",
+          "version": "4.0.0-alpha.6",
+          "bump": "patch",
+          "reasons": [
+            "commits (patch)",
+            "cascade: @archi-code/validation → 4.0.0-alpha.2"
+          ],
+          "dependencies": {
+            "@archi-code/validation": "4.0.0-alpha.2"
+          }
+        },
+        {
+          "name": "@archi-code/criteria-adapters",
+          "previous": "4.0.0-alpha.5",
+          "version": "4.0.0-alpha.6",
+          "bump": "patch",
+          "reasons": [
+            "commits (patch)",
+            "cascade: @archi-code/ddd → 4.0.0-alpha.6"
+          ],
+          "dependencies": {
+            "@archi-code/ddd": "4.0.0-alpha.6"
+          }
+        },
+        {
+          "name": "@archi-code/crypto-tools",
+          "previous": "4.0.0-alpha.1",
+          "version": "4.0.0-alpha.2",
+          "bump": "patch",
+          "reasons": [
+            "commits (patch)"
+          ],
+          "dependencies": {}
         }
       ]
     }
