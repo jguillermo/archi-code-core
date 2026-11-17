@@ -45,7 +45,7 @@ aggregate and value objects of your own domain.
   Its adapter runs the criteria with `@archi-code/criteria-adapters`; the domain and the
   application never import a database adapter.
 
-## Recommended patterns
+## Code
 
 A query port of the application and its HTTP handler:
 

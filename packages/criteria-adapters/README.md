@@ -416,7 +416,7 @@ To install it in your project, run this from the project root; it links the skil
 Code skills folder:
 
 ```bash
-mkdir -p .claude/skills/archi-code-criteria-adapters && ln -sf "./node_modules/@archi-code/criteria-adapters/SKILL.md" .claude/skills/archi-code-criteria-adapters/SKILL.md
+mkdir -p .claude/skills/archi-code-criteria-adapters && ln -sf "../../../node_modules/@archi-code/criteria-adapters/SKILL.md" .claude/skills/archi-code-criteria-adapters/SKILL.md
 ```
 
 ### How to use

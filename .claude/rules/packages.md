@@ -93,7 +93,7 @@ people (and the AI assistants) that consume the package:
   in comments are the real ones): `## Installation`, `## Import`, one section per concept, errors, a
   table of every export, `## AI assistant skill` and `## License`. The skill section shows the
   one-line command that links the skill (user rule 2026-10-25: a symbolic link, never a copy:
-  `mkdir -p .claude/skills/archi-code-<name> && ln -sf "./node_modules/@archi-code/<name>/SKILL.md" …`,
+  `mkdir -p .claude/skills/archi-code-<name> && ln -sf "../../../node_modules/@archi-code/<name>/SKILL.md" …`,
   run from the project root on each user's machine),
   a `### How to use` subsection with three example prompts for that package (explicit
   `/archi-code-<name> <task>`, a task that loads it on its own, a review of existing code) and a

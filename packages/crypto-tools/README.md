@@ -566,7 +566,7 @@ To install it in your project, run this from the project root; it links the skil
 Code skills folder:
 
 ```bash
-mkdir -p .claude/skills/archi-code-crypto-tools && ln -sf "./node_modules/@archi-code/crypto-tools/SKILL.md" .claude/skills/archi-code-crypto-tools/SKILL.md
+mkdir -p .claude/skills/archi-code-crypto-tools && ln -sf "../../../node_modules/@archi-code/crypto-tools/SKILL.md" .claude/skills/archi-code-crypto-tools/SKILL.md
 ```
 
 ### How to use

@@ -34,7 +34,8 @@ If the package is not installed, stop and ask the user to install `@archi-code/d
 ## Generating code
 
 Follow these steps for every request that creates or changes code (a context, an aggregate, a use
-case, a reaction, an adapter, an endpoint). A one-line fix may skip step 1 and step 3.
+case, a reaction, an adapter, an endpoint). A one-line fix may skip step 1 and step 3, but still
+adds or updates the tests of the behavior it changes (row 10 of "Package guides").
 
 **Load only what the request needs, when you need it.** Never read every guide up front: read
 `where-each-class-goes.md` once, then the guide of each kind of class just before you write that
@@ -60,28 +61,10 @@ them.
    names or permissions, **stop and wait for the answers** before step 4; otherwise continue. A
    use case that must save more than one aggregate needs a decision record in
    `docs/decisions/NNNN-<title>.md` before the code.
-4. **Generate in this order**, one class per file, at the path and with the name
-   `where-each-class-goes.md` gives, copying the shape of the "Code" of the guide named in each
-   step. Skip the steps the request does not touch, and open each guide only when you reach its
-   step:
-   1. shared kernel types (money in `shared-kernel/money/`) when they appear and do not exist yet,
-      and value objects, ids and references → `value-objects.md`;
-   2. domain events and business errors → `events-and-errors.md`;
-   3. child entities, `New<Child>` shapes, outcome enums and the aggregate → `aggregates.md`;
-   4. the abstract repository → `repositories.md`; domain ports, domain services and
-      specifications → `domain-services.md`;
-   5. user use cases with their `Input`, `Command` and data types → `use-cases.md`;
-   6. copies of foreign events and reaction use cases → `reactions.md` (with `use-cases.md`);
-   7. read models: row, store, query port, projection, one reaction per event → `read-models.md`;
-   8. adapters: one repository per technology, port adapters, read-model stores →
-      `repositories.md`; `search` with a `Criteria` → `criteria.md`;
-   9. `composition.ts`, the top-level start file, the protocol helper and the controllers →
-      `composition-and-entry-points.md`;
-   10. tests mirroring `src/`: the round trip and behavior of every aggregate, every use case with
-       its refusals, every reaction delivered twice, the domain services with stubs, and one
-       repository contract that every adapter runs → `tests.md`.
-
-   Read `imports.md` when you write the import lines and are unsure which subpath exports a name.
+4. **Generate in the order of the table "Package guides"** (below), row by row, one class per
+   file, at the path and with the name `where-each-class-goes.md` gives, copying the shape of the
+   "Code" of the guide of each row. Skip the rows the request does not touch, and open each guide
+   only when you reach its row. Tests (row 10) mirror `src/`.
 
 5. **Check before finishing.**
    1. Type-check and format the files with the project's own tools: `npx tsc --noEmit` (with the
@@ -93,8 +76,9 @@ them.
       names, the package tool used for each need (table below), no own base classes nor invented
       API.
    3. Running the tests is not part of this step unless the user asks for it.
-6. **Report**: the files written, the design decisions, the assumptions you made, the result of
-   step 5 and the questions still open.
+6. **Report**: the files written, the design decisions (with the path of every decision record
+   written in `docs/decisions/`), the assumptions you made, the result of step 5 and the questions
+   still open.
 
 ### Package tools for each need
 
@@ -148,30 +132,30 @@ Generated code always uses these tools of the package; never a hand-written repl
 
 ### Package rules
 
-Marked `[Fuera de los libros: convención de @archi-code/ddd]` where they leave the books. Each
-one is developed, with its code and its mistakes, in the guide named after the arrow.
+Marked `[Fuera de los libros: convención de @archi-code/ddd]` where they leave the books (the mark
+is the literal Spanish text of the suite on purpose, so one search finds every divergence in both).
+This is the summary; each rule is developed, with its code and its mistakes, in the guide of its
+kind of class (table "Package guides").
 
 - **Contexts**: `src/contexts/<context>/` with `domain/` split by kind (`aggregate/`, `entity/`,
   `value-object/`, `event/`, `exception/`, `repository/`, `service/`, `specification/`),
   `application/` one folder per business action, `infrastructure/`, `interfaces/` and one
   `composition.ts`. Contexts never import each other (only `shared-kernel/`); data crosses only as
   events, with one local copy of each foreign event per context. Domain files PascalCase, the rest
-  kebab-case. → `where-each-class-goes.md`
+  kebab-case.
 - **Value objects are always valid**: one named class per file, rules in `@Validations`,
   `Required(...)` when mandatory, built with `ValueObjectBuilder.build` so every field is reported;
   several fields = `Composite`, free-form JSON = `JsonType`; derived values are methods; one-line
-  text cleaned in the VO's `filter` with `StringSanitizer.singleLine`, slugs with `slug()`. →
-  `value-objects.md`
+  text cleaned in the VO's `filter` with `StringSanitizer.singleLine`, slugs with `slug()`.
 - **Aggregates**: public constructor that only assigns; `static create(id, ...)` sets the initial
   state, stamps `CreatedAt.now()`/`UpdatedAt.now()`, checks the creation invariants and records
   `<Aggregate>CreatedDomainEvent`; the use case passes the id (`XId.generate()` or derived);
   `fromPrimitives`/`toPrimitives` cover every field, with a round-trip test. Methods a user asks for
   check the requester and throw business errors; methods reactions call return silently. The
-  aggregate decides: an outcome that changes what the use case does is returned as an enum. →
-  `aggregates.md`
+  aggregate decides: an outcome that changes what the use case does is returned as an enum.
 - **Events** `<Aggregate><PastAction>DomainEvent`, `'<aggregate>.<past_action>'`, `readonly`
   primitive fields, one constructor object `{ …fields } & EventMetadata`, no union types. **Business
-  errors** `<WhatWentWrong> extends DomainException`, code `<CTX><NNN>`. → `events-and-errors.md`
+  errors** `<WhatWentWrong> extends DomainException`, code `<CTX><NNN>`.
 - **Use cases**: a user use case extends `UseCase` (authorize the role, create or load, one business
   method, save once, publish); a reaction use case is one `EventListener` with `@ListensTo(Event, {
 consumer: '<context>.<action>-on-<event>' })` (build VOs, derived id, find or create, reaction
@@ -180,46 +164,47 @@ consumer: '<context>.<action>-on-<event>' })` (build VOs, derived id, find or cr
   retries a conflict only when repeat-safe; external effects only from a reaction after `save`, with
   the asking `eventId` as idempotency key; uniqueness is a derived id; a closing fact that arrives
   first creates the aggregate already closed. Queries go to read-model query ports, never a use
-  case. → `use-cases.md`, `reactions.md`
+  case.
 - **Domain service** only when two or more use cases share business logic or a rule needs several
   aggregates or a domain port (a bare port call is not one); built inside `handle`, never injected.
-  → `domain-services.md`
 - **Repositories**: abstract `<Aggregate>Repository extends AggregateRepository<X>` with only the
   needed verbs (`findById`, `search`, `save`, `remove`); one adapter per technology, the only code
   touching the database, owning the transaction and the version check (`ConcurrencyException`);
-  IndexedDB only through `IndexedDbTable`; outbox when events must not be lost. → `repositories.md`
+  IndexedDB only through `IndexedDbTable`; outbox when events must not be lost.
 - **Read models**: row with one flag per fact, store port, query port, a projection that skips
-  applied `eventId`s, one reaction per event. → `read-models.md`
+  applied `eventId`s, one reaction per event.
 - **Entry points** check only actor and shape, call one use case or query port, never catch; one
   protocol helper maps errors with `ExceptionClassifier`. `composition.ts` alone builds and
-  subscribes everything and never builds a domain service. → `composition-and-entry-points.md`
+  subscribes everything and never builds a domain service.
 - **Time** only via `CreatedAt.now()`/`UpdatedAt.now()` inside aggregates; logging only through the
   `Logger` port, never in the domain. Never write your own base classes (`ValueObject`, `Entity`,
-  `AggregateRoot`, `DomainEvent`) nor invent API. → `aggregates.md`,
-  `composition-and-entry-points.md`
+  `AggregateRoot`, `DomainEvent`) nor invent API.
 
 ## Package guides
 
 In `ddd-skills/archi-code-ddd/` (located as above). They are part of this skill. Each guide of a
-kind of class has three parts: `Rules` (with the reason and the book), `Code` (the shape to copy)
-and `What not to do` (the mistakes to check before finishing and in audits). Read a guide only
-when the request writes, changes or reviews that kind of class.
+kind of class (rows 1 to 10) has the same three sections: `Rules` (with the reason and the book),
+`Code` (the shape to copy) and `What not to do` (the mistakes to check before finishing and in
+audits). `where-each-class-goes.md` holds the rules every change shares and its own
+`What not to do`; `imports.md` is only a lookup of which entry point exports each name. Read a
+guide only when the request writes, changes or reviews that kind of class.
 
-| You write or review                                                            | Read                              |
-| ------------------------------------------------------------------------------ | --------------------------------- |
-| Anything (once per request): layers, imports, folders, names, exceptions       | `where-each-class-goes.md`        |
-| Value objects, ids, references, enums, lists, JSON, `Composite`, money         | `value-objects.md`                |
-| Aggregates, child entities, `fromPrimitives`/`toPrimitives`, time              | `aggregates.md`                   |
-| Domain events, business errors                                                 | `events-and-errors.md`            |
-| Domain services, domain ports, specifications, logic two use cases share       | `domain-services.md`              |
-| User use cases (and the rules every use case follows)                          | `use-cases.md`                    |
-| Reaction use cases, copies of foreign events, external side effects            | `reactions.md`                    |
-| Read models: rows, stores, query ports, projections                            | `read-models.md`                  |
-| Abstract repository, repository adapters (memory, IndexedDB, …), port adapters | `repositories.md`                 |
-| Composition root, event bus and channels, controllers, protocol helper, logs   | `composition-and-entry-points.md` |
-| Tests of all of the above                                                      | `tests.md`                        |
-| Searching aggregates with `Criteria`: schemas for request input, URL text      | `criteria.md`                     |
-| Which entry point exports each class, function and type                        | `imports.md`                      |
+The numbered rows are also the order in which step 4 generates code.
+
+| #   | You write or review                                                                                                                                                                         | Read                                    |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| —   | Anything (once per request): layers, imports, folders, names, where each exception is thrown                                                                                                | `where-each-class-goes.md`              |
+| 1   | Shared kernel types (money in `shared-kernel/money/`), value objects, ids, references, enums, lists, JSON, `Composite`                                                                      | `value-objects.md`                      |
+| 2   | Domain events, business errors                                                                                                                                                              | `events-and-errors.md`                  |
+| 3   | Child entities, `New<Child>` shapes, outcome enums, the aggregate, `fromPrimitives`/`toPrimitives`, time                                                                                    | `aggregates.md`                         |
+| 4   | The abstract repository; domain ports, domain services, specifications, logic two use cases share                                                                                           | `repositories.md`, `domain-services.md` |
+| 5   | User use cases with their `Input`, `Command` and data types (and the rules every use case follows)                                                                                          | `use-cases.md`                          |
+| 6   | Copies of foreign events, reaction use cases, external side effects                                                                                                                         | `reactions.md` (with `use-cases.md`)    |
+| 7   | Read models: row, store, query port, projection, one reaction per event                                                                                                                     | `read-models.md`                        |
+| 8   | Adapters: one repository per technology (memory, IndexedDB, …), port adapters, read-model stores; `search` with a `Criteria`, schemas for request input, URL text                           | `repositories.md`, `criteria.md`        |
+| 9   | `composition.ts`, the top-level start file, event bus and channels, the protocol helper, controllers, logs                                                                                  | `composition-and-entry-points.md`       |
+| 10  | Tests: round trip and behavior of every aggregate, every use case with its refusals, every reaction delivered twice, domain services with stubs, one repository contract every adapter runs | `tests.md`                              |
+| —   | Which entry point exports each class, function and type (when writing imports and unsure)                                                                                                   | `imports.md`                            |
 
 ## The DDD guide suite
 

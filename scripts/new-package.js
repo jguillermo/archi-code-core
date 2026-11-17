@@ -79,7 +79,7 @@ function readme(name, description) {
     'The package ships `SKILL.md`, a Claude Code skill with the rules, recommended patterns and common mistakes. For the full API it points to this README inside `node_modules`, so it stays valid when the package is updated. To install it in your project, run this from the project root; it links the skill into the Claude Code skills folder:',
     '',
     '```bash',
-    `mkdir -p ${skillDir} && ln -sf "./node_modules/${name}/SKILL.md" ${skillDir}/SKILL.md`,
+    `mkdir -p ${skillDir} && ln -sf "../../../node_modules/${name}/SKILL.md" ${skillDir}/SKILL.md`,
     '```',
     '',
     '### How to use',

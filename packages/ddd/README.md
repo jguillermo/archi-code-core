@@ -3959,7 +3959,7 @@ To install it in your project, run this from the project root; it links the skil
 Code skills folder:
 
 ```bash
-mkdir -p .claude/skills/archi-code-ddd && ln -sf "./node_modules/@archi-code/ddd/SKILL.md" .claude/skills/archi-code-ddd/SKILL.md
+mkdir -p .claude/skills/archi-code-ddd && ln -sf "../../../node_modules/@archi-code/ddd/SKILL.md" .claude/skills/archi-code-ddd/SKILL.md
 ```
 
 ### How to use

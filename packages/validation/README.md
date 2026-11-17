@@ -1077,7 +1077,7 @@ To install it in your project, run this from the project root; it links the skil
 Code skills folder:
 
 ```bash
-mkdir -p .claude/skills/archi-code-validation && ln -sf "./node_modules/@archi-code/validation/SKILL.md" .claude/skills/archi-code-validation/SKILL.md
+mkdir -p .claude/skills/archi-code-validation && ln -sf "../../../node_modules/@archi-code/validation/SKILL.md" .claude/skills/archi-code-validation/SKILL.md
 ```
 
 ### How to use
