@@ -16,7 +16,7 @@
       "main": "3.0.0-alpha.4"
     },
     "@archi-code/validation": {
-      "main": "4.0.0-alpha.2"
+      "main": "4.0.0-alpha.3"
     },
     "@archi-code/criteria-adapters": {
       "main": "4.0.0-alpha.6"
@@ -258,6 +258,23 @@
           "name": "@archi-code/crypto-tools",
           "previous": "4.0.0-alpha.1",
           "version": "4.0.0-alpha.2",
+          "bump": "patch",
+          "reasons": [
+            "commits (patch)"
+          ],
+          "dependencies": {}
+        }
+      ]
+    },
+    {
+      "date": "2026-11-17T23:45:13.864Z",
+      "commit": "f1a6eabd600827517cf3774e334b90501fda4ff7",
+      "channel": "main",
+      "packages": [
+        {
+          "name": "@archi-code/validation",
+          "previous": "4.0.0-alpha.2",
+          "version": "4.0.0-alpha.3",
           "bump": "patch",
           "reasons": [
             "commits (patch)"
