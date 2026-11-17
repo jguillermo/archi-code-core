@@ -27,11 +27,19 @@ in that folder.
 ## Import
 
 ```ts
-import { Criteria } from '@archi-code/ddd/domain';
-import type { CriteriaDocument, SearchOptions, SearchResult } from '@archi-code/ddd/domain';
+import { AggregateRepository, Criteria } from '@archi-code/ddd/domain';
+import type {
+  AggregateSearcher,
+  CriteriaDocument,
+  PrimitiveTypes,
+  SearchOptions,
+  SearchResult,
+} from '@archi-code/ddd/domain';
 import { searchMemory } from '@archi-code/criteria-adapters/memory';
 import { MongoCriteriaTranslator } from '@archi-code/criteria-adapters/mongodb';
-import { readIndexes, toIndexedDbQuery } from '@archi-code/criteria-adapters/indexeddb';
+import { toIndexedDbQuery } from '@archi-code/criteria-adapters/indexeddb';
+import { IndexedDbDatabase, IndexedDbSchema } from '@archi-code/ddd/infrastructure';
+import type { IndexedDbStored, IndexedDbTable } from '@archi-code/ddd/infrastructure';
 ```
 
 ## Rules
@@ -61,13 +69,29 @@ import { readIndexes, toIndexedDbQuery } from '@archi-code/criteria-adapters/ind
   `convert` for `id` (`(id) => new ObjectId(String(id))`) and map the documents back. A converter
   that throws makes `translate` throw `CriteriaError` `INVALID_VALUE` (map it to 400; the original
   error is its `cause`).
-- `/indexeddb`: open a `readonly` transaction per search, build the query with
-  `toIndexedDbQuery(criteria, readIndexes(store))`, open the cursor on `query.index`/`query.range`/
-  `query.direction`, keep only the records `query.filter` accepts, sort with `query.compare` when it
-  is not `null` and slice `offset`/`limit`. Create single-key-path indexes on fields filtered by
-  equality or ranges.
+- `/indexeddb`: the repository is `IndexedDb<Aggregate>Repository extends <Aggregate>Repository`
+  (the abstract repository of the domain, with `AggregateSearcher<Aggregate>` among its roles) and
+  works on the table of `@archi-code/ddd/infrastructure`: its constructor receives the database
+  (`<Name>Db extends IndexedDbDatabase`) and gets its table with
+  `database.table(new <Aggregate>Schema())`, whose row is `PrimitiveTypes<Aggregate>`. `search` is
+  one call, `this.table.find(toIndexedDbQuery(criteria, this.table.indexes))`: the table runs the
+  index, key range, direction, `filter`, `compare`, `offset` and `limit` in one short transaction
+  and returns `{ items, total }`. The repository only rebuilds every row with
+  `<Aggregate>.fromPrimitives`, remembers its `rowVersion` (so a found aggregate can be saved) and
+  returns `total` only with `{ withTotal: true }`. Declare in the schema single-field indexes on
+  the fields searched by equality or ranges (`table.indexes` lists them for the planner).
+  `readIndexes(store)` is only for a raw object store the project did not create with
+  `IndexedDbDatabase`.
 
 ## Recommended patterns
+
+Every engine implements the abstract repository the domain declares for the aggregate:
+
+```ts
+abstract class UserRepository extends AggregateRepository<User> implements AggregateSearcher<User> {
+  abstract search(criteria: Criteria<User>, options?: SearchOptions): Promise<SearchResult<User>>;
+}
+```
 
 ```ts
 class InMemoryUserRepository extends UserRepository {
@@ -98,30 +122,39 @@ class MongoUserRepository extends UserRepository {
   }
 }
 
+type UserRow = PrimitiveTypes<User>;
+
+class UserSchema extends IndexedDbSchema<UserRow> {
+  constructor() {
+    super({ name: 'users', indexes: { byEmail: 'email', byCreatedAt: 'createdAt' } });
+  }
+}
+
+class ShopDb extends IndexedDbDatabase {
+  constructor() {
+    super({ name: 'shop' });
+  }
+}
+
 class IndexedDbUserRepository extends UserRepository {
-  constructor(private readonly database: IDBDatabase) {
+  private readonly table: IndexedDbTable<UserRow>;
+  private readonly rowVersions = new WeakMap<User, number>();
+
+  constructor(database: ShopDb) {
     super();
+    this.table = database.table(new UserSchema());
   }
 
   async search(criteria: Criteria<User>, options?: SearchOptions): Promise<SearchResult<User>> {
-    const store = this.database.transaction('users', 'readonly').objectStore('users');
-    const query = toIndexedDbQuery(criteria, readIndexes(store));
-    const source = query.index === null ? store : store.index(query.index);
-    const matched = await new Promise<CriteriaDocument<User>[]>((resolve, reject) => {
-      const found: CriteriaDocument<User>[] = [];
-      const request = source.openCursor(query.range, query.direction);
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => {
-        const cursor = request.result;
-        if (cursor === null) return resolve(found);
-        if (query.filter(cursor.value)) found.push(cursor.value);
-        cursor.continue();
-      };
-    });
-    if (query.compare !== null) matched.sort(query.compare);
-    const end = query.limit === null ? undefined : query.offset + query.limit;
-    const items = matched.slice(query.offset, end).map((document) => User.fromPrimitives(document));
-    return options?.withTotal ? { items, total: matched.length } : { items };
+    const page = await this.table.find(toIndexedDbQuery(criteria, this.table.indexes));
+    const items = page.items.map((row) => this.load(row));
+    return options?.withTotal ? { items, total: page.total } : { items };
+  }
+
+  private load(row: IndexedDbStored<UserRow>): User {
+    const user = User.fromPrimitives(row);
+    this.rowVersions.set(user, row.rowVersion);
+    return user;
   }
 }
 ```
@@ -139,8 +172,12 @@ class IndexedDbUserRepository extends UserRepository {
 - Do not pass `limit: 0` to mean "no limit": leave `limit` out of the criteria.
 - Do not call `find` without `session` inside `withTransaction`: it reads outside the
   transaction.
-- Do not pass only `query.range` to IndexedDB and skip `query.filter` or `query.compare`: the key
-  range covers one condition and the cursor order is not always the criteria order.
+- Do not open `indexedDB`, an `IDBDatabase` or a cursor in an IndexedDB repository, nor sort,
+  filter or slice the rows after `table.find`: pass the whole `toIndexedDbQuery` result to
+  `table.find`, which applies `filter`, `compare`, `offset` and `limit` itself. Do not build the
+  query with `readIndexes` on a table of `IndexedDbDatabase`: use `this.table.indexes`.
+- Do not return the stored rows (they carry `rowVersion`) nor forget their `rowVersion` on load:
+  return aggregates rebuilt with `fromPrimitives`, which the repository can then save.
 - Do not hand `searchMemory` plain documents nor DTOs: it takes aggregates and reads their
   `toPrimitives()`.
 - Do not expect `eq` to match a list field (`tags: ['vip']`), `ne` to match it either, or
