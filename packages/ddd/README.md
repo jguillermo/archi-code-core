@@ -166,7 +166,10 @@ test/                         mirrors src/
   `interfaces` into the domain, none from `infrastructure` or `interfaces` into the application, no
   `@archi-code/ddd/infrastructure` in the domain or the application, none from `interfaces` into
   your `infrastructure` nor `@archi-code/ddd/infrastructure`, isolated contexts, no cycles,
-  and `tsPreCompilationDeps: true` so type imports count too). Adapt its paths to your layout.
+  and `tsPreCompilationDeps: true` so type imports count too). It reads `src/contexts/` and `src/app/contexts/`; for another contexts
+  root pass it in `DDD_CONTEXTS_ROOT` (a path relative to the project root, also the folder
+  `depcruise` reads), and `DDD_TSCONFIG` names a tsconfig other than `tsconfig.json`. Spec files
+  next to the code are left out of the layer rules.
 - Environment variables are read only in the composition root and reach the adapters as typed
   configuration; the domain never logs nor reads `process.env`.
 
@@ -3951,9 +3954,15 @@ change reads (where each class goes, the folders and names, the mistakes of stru
 guide per kind of class (value objects, aggregates, events, domain services, use cases, reactions,
 read models, repositories, composition and entry points, tests), each with its rules, the code to
 copy and its common mistakes. `SKILL.md` reads from the package only the guides of the classes a
-request touches. When it writes code, the skill asks for the business rules it does not know,
-shows a short design, generates the files layer by layer with their tests, type-checks and formats
-them, and checks them against the mistakes of each guide it used before it finishes. Do not copy `ddd-skills/` into `.claude/skills/`.
+request touches. When it writes code, the skill asks for the business rules, names and permissions
+it does not know (it never assumes them), shows a short design, generates the files layer by layer
+with their tests and passes every gate before it finishes: type-check, format, lint, the tests it
+wrote or touched, the suite's scanner, the dependency rules and the mistakes of each guide it used. It
+reports the result of each gate as it happened and never installs anything. It keeps the tooling
+and the contexts root your project already has, applies the standard to everything inside a
+context, and reports existing code that breaks the standard instead of rewriting it. For a review
+it lists the findings by severity with the rule each one breaks. Do not copy `ddd-skills/` into
+`.claude/skills/`.
 
 To install it in your project, run this from the project root; it links the skill into the Claude
 Code skills folder:

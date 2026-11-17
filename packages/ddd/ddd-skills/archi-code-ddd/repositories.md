@@ -2,7 +2,8 @@
 
 Part of the `archi-code-ddd` skill: read it only when that skill routes here. The abstract
 repository of each aggregate, its adapters (in memory, IndexedDB, other databases) and port
-adapters.
+adapters. To declare the abstract repository (before the use cases) read the `Rules` and
+`Abstract repository`; read `Adapters` when you write an adapter.
 
 ## Rules
 
@@ -91,7 +92,7 @@ adapters.
 
 ## Code
 
-### Repositories and adapters
+### Abstract repository
 
 The domain declares one abstract repository per aggregate, `domain/repository/PaymentRepository.ts`:
 only the verbs the business of payments needs, each the method of the package role it implements
@@ -140,7 +141,11 @@ export abstract class OrderRepository
 }
 ```
 
-Every use case and reaction of orders receives `OrderRepository`. The adapter in memory,
+Every use case and reaction of orders receives `OrderRepository`.
+
+### Adapters
+
+The adapter in memory,
 `infrastructure/persistence/in-memory-order-repository.ts` (also the test double of
 `test/support/`), extends it with copies both ways and the version check; `search` runs the
 criteria with `searchMemory` of `@archi-code/criteria-adapters/memory`:

@@ -23,11 +23,11 @@
 | A3 | Controladores con lógica, repositorios, base de datos o `catch` para elegir estado (un punto de entrada solo comprueba actor y forma, llama a un caso de uso o a un puerto de consulta y traduce con `ExceptionClassifier`) | [IDDD cap. 4] | parcial | Alta |
 | A4 | Transacciones o unidad de trabajo en caso de uso, servicio o dominio; van en el repositorio [IDDD cap. 12; IDDD cap. 14] | `[Fuera de los libros: convención de @archi-code/ddd]` | sí | Media |
 | A5 | Caso de uso que devuelve el agregado o API que expone `toPrimitives()` | [IDDD cap. 4; Destilado cap. 4] | no | Media |
-| A6 | Contexto con otra estructura: `domain/` sin dividir por tipo, `application/` por patrón (`listeners/`, `use-cases/`) y no por acción, ficheros que no se llaman como su clase [PHP: Modules] | `[Fuera de los libros: convención de @archi-code/ddd]` | no | Baja |
-| A7 | Dominio que lee `process.env` (solo la raíz de composición lee el entorno) o usa el logger | `[Fuera de los libros]` | parcial (solo `process.env`) | Media |
+| A6 | Contexto con otra estructura: `domain/` sin dividir por tipo, `application/` por patrón (`listeners/`, `use-cases/`) y no por acción, ficheros que no se llaman como su clase [PHP: Modules] | `[Fuera de los libros: convención de @archi-code/ddd]` | parcial | Baja |
+| A7 | Dominio que lee `process.env` (solo la raíz de composición lee el entorno) o usa el logger | `[Fuera de los libros]` | sí | Media |
 | A8 | Dominio que importa `/application`, `/infrastructure` o un adaptador | `[Fuera de los libros: convención de @archi-code/ddd]` | sí | Alta |
 | A9 | `new Date()` como "ahora" en dominio o aplicación | `[Fuera de los libros: convención de @archi-code/ddd]` | sí | Media |
-| A10 | `Error` o `ApplicationException` genéricos en vez de error de negocio con nombre, sin sufijo `Exception` y con código (`SAL001`), o traducción sin `{ cause }` | `[Fuera de los libros: convención de @archi-code/ddd]` | no | Media |
+| A10 | `Error` o `ApplicationException` genéricos en vez de error de negocio con nombre, sin sufijo `Exception` y con código (`SAL001`), o traducción sin `{ cause }` | `[Fuera de los libros: convención de @archi-code/ddd]` | parcial | Media |
 
 ## Táctico
 
@@ -42,14 +42,14 @@
 | T7 | Versión optimista fuera del repositorio (el agregado la declara o mapea), sin `WeakMap`, condición de versión ni `ConcurrencyException`, dentro de `toPrimitives()` en vez de al lado, o actualizada antes de escribir | [IDDD cap. 10]; `[Fuera de los libros: convención de @archi-code/ddd]` | no | Alta |
 | T8 | Repositorio de partes, sin clase abstracta en `domain/repository/`, con verbos distintos de `findById`/`search`/`save`/`remove` o consultas de negocio; casos de uso tipados con roles; lecturas que cargan agregados | [IDDD cap. 12]; `[Fuera de los libros: convención de @archi-code/ddd]` | parcial | Media |
 | T9 | Casos de uso CRUD (`UpdateOrder`), multifunción, que usan otro caso de uso, o `Manager`/`Helper`; servicios de dominio inyectados | [IDDD cap. 14; Destilado cap. 5]; `[Fuera de los libros: convención de @archi-code/ddd]` | parcial | Media |
-| T10 | Eventos sin pasado, `OrderUpdated`, value objects en el payload, o sin la forma `<Agregado><Acción>DomainEvent` / `'agregado.accion'` | [Destilado cap. 6]; `[Fuera de los libros: convención de @archi-code/ddd]` | no | Media |
+| T10 | Eventos sin pasado, `OrderUpdated`, value objects en el payload, o sin la forma `<Agregado><Acción>DomainEvent` / `'agregado.accion'` | [Destilado cap. 6]; `[Fuera de los libros: convención de @archi-code/ddd]` | parcial | Media |
 | T11 | Publicar antes de `save`; eventos que no pueden perderse sin outbox en el repositorio | [Destilado cap. 6; IDDD cap. 8] | no | Crítica si se pierden |
 | T12 | Reacciones no idempotentes (sin id derivado al crear, método de reacción que no vuelve sin cambios, proyección que no salta un `eventId` aplicado) o que lanzan si falta el agregado | [Destilado cap. 4] | no | Alta |
 | T13 | Id no generado por el caso de uso (`OrderId.generate()`, `PaymentId.forOrder(order)`) o calculado dentro de `create`; ids opcionales (sin `Required`) | [IDDD cap. 5] | no | Media |
 | T14 | Tests sin lenguaje del negocio ni datos realistas (`InMemoryOrderRepository` del proyecto, `channel.sent`) | [Destilado cap. 2; IDDD cap. 1] | no | Media |
-| T15 | Reacción con un `UseCase` detrás, autorización o errores de negocio | `[Fuera de los libros: convención de @archi-code/ddd]` | no | Media |
+| T15 | Reacción con un `UseCase` detrás, autorización o errores de negocio | `[Fuera de los libros: convención de @archi-code/ddd]` | parcial | Media |
 | T16 | Value objects construidos en `handle` o en el controlador en vez de `toCommand`/inicio de la reacción con `ValueObjectBuilder.build`; `Input`/`Command` fuera del fichero | `[Fuera de los libros: convención de @archi-code/ddd]` | no | Media |
 | T17 | Repositorio genérico, o que recibe la clase del agregado o un mapper en vez de solo su tecnología | `[Fuera de los libros: convención de @archi-code/ddd]` | no | Media |
-| T18 | Conversión a primitivos fuera del agregado o sin test de ida y vuelta | `[Fuera de los libros: convención de @archi-code/ddd]` | no | Media |
+| T18 | Conversión a primitivos fuera del agregado o sin test de ida y vuelta | `[Fuera de los libros: convención de @archi-code/ddd]` | parcial | Media |
 | T19 | Repositorio en memoria sin copias ni versiones, o en producción en una aplicación que no corre en memoria; vive en `infrastructure/persistence/` o `test/support/` (`ddd-skills/archi-code-ddd/repositories.md`) | `[Fuera de los libros: convención de @archi-code/ddd]` | no | Baja |
-| T20 | Agregado sin constructor público que solo asigna y `static create` con `<Agregado>CreatedDomainEvent`; métodos de usuario que no lanzan errores de negocio o de reacción que no vuelven sin cambios | `[Fuera de los libros: convención de @archi-code/ddd]` | no | Baja |
+| T20 | Agregado sin constructor público que solo asigna y `static create` con `<Agregado>CreatedDomainEvent`; métodos de usuario que no lanzan errores de negocio o de reacción que no vuelven sin cambios | `[Fuera de los libros: convención de @archi-code/ddd]` | parcial | Baja |

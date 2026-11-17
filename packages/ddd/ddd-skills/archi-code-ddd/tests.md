@@ -5,8 +5,15 @@ code ships with: aggregates, use cases, reactions, domain services and repositor
 
 ## Rules
 
-- Tests with Vitest describe real situations, use plain fixture factories in the project's
-  `test/support/` and the native matchers.
+- Tests run with the test runner the project already has (the code below is written for Vitest;
+  with another runner keep the cases and change only the imports and matchers), describe real
+  situations, use plain fixture factories in the project's `test/support/` and the native
+  matchers. A project without a test runner gets the Vitest specs and the report says they could
+  not be run; never install one.
+- Specs live where the project's test runner already collects them: next to the code as
+  `<file>.spec.ts`, or in a `test/` root that mirrors `src/`; a project with no specs yet gets
+  `test/`. Fixtures, test doubles and repository contracts go in `test/support/` in both cases,
+  never in a layer folder of a context.
 - Dates held by VOs are immutable `Date` subclasses: compare them with `toEqual` or
   `.toISOString()`.
 - Nothing fixes the time: a date stamped with `CreatedAt.now()` / `UpdatedAt.now()` or an

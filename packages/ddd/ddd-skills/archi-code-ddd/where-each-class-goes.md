@@ -44,8 +44,8 @@ only the ones of the classes you write.
   `import { ShipmentStatusType } from '../value-object/ShipmentStatusType';`); several names in
   one statement only for the package layers (`import { AggregateRoot, CreatedAt } from …`) and for
   types.
-- Every file is formatted with the project's Prettier (`npm run fix:format`), never by hand: long
-  generic parameters, decorator options and inline object types wrap as Prettier decides.
+- Every file is formatted with the project's own formatter (its format script), never by hand: long
+  generic parameters, decorator options and inline object types wrap as the formatter decides.
 - Import from the layer, never from the package root (there is none): each exception comes from
   the subpath of its layer (`DomainException` from `/domain`, `AggregateNotFoundException` from
   `/application`, `InternalErrorException` from `/infrastructure`); there is no `/exceptions`.
@@ -65,11 +65,12 @@ PHP: Modules]); the application is split by business action, which is the langua
 
 ```
 src/
-  shop.ts                                   opens one event channel and starts every context
-  platform/http/http.ts                     HttpRequest, HttpResponse, Http (error → status)
+  <app>.ts                                  the start file: opens one event channel and starts every context
+  platform/<protocol>/<protocol>.ts         one helper per protocol the project speaks (error → status);
+                                            for HTTP, platform/http/http.ts: HttpRequest, HttpResponse, Http
   contexts/
     shared-kernel/money/                    Money, Cents, CentsAmount, MoneyCurrency, CurrencyMismatch
-    <context>/                              sales | payments | shipping
+    <context>/                              one folder per bounded context, named in its language
       domain/
         aggregate/       Order.ts, NewOrderLine.ts, outcome enums a method returns (CourseRetirement.ts)
         entity/          OrderLine.ts
@@ -91,9 +92,16 @@ src/
         messaging/       rabbitmq-event-channel.ts (when the channel is not in memory)
       interfaces/http/   orders-controller.ts
       composition.ts
-test/                    mirrors src/; support/ holds fixtures, test doubles and repository contracts
+test/                    specs mirroring src/ (or next to the code, where the project keeps its specs);
+                         support/ holds fixtures, test doubles and repository contracts
 docs/decisions/          decision records (NNNN-<title>.md) of the multi-aggregate use cases
+                         (or the decision records folder the project already has)
 ```
+
+The names inside the tree (orders, coupons, summaries) are an example: only the folders and the
+shape of the file names are the standard. The contexts root is `src/contexts/`, or
+`src/app/contexts/` in a project that keeps its code in `src/app/`; a project that already has a
+contexts root keeps it. Everything from `<context>/` down is the same in every project.
 
 ## Names
 
@@ -119,7 +127,7 @@ docs/decisions/          decision records (NNNN-<title>.md) of the multi-aggrega
 | Read model                               | folder `<rows>/` (`order-summaries/`): `<Row>`, `<Row>Store`, `<Rows>` (query port), `<Row>Projection`                                                                                                     |
 | Controller                               | `<Aggregates>Controller` (`OrdersController`), with `<Aggregates>UseCases` when it takes many                                                                                                              |
 | Composition root                         | `<Context>Context` with `<Context>Settings`                                                                                                                                                                |
-| Business error code                      | one prefix per context (`SAL`, `PAY`, `SHP`, `MNY` for money) and the next free number                                                                                                                     |
+| Business error code                      | one prefix of three letters per context, taken from its name (`SAL` for sales; `MNY` for money), and the next free number                                                                                                                     |
 | Log message                              | stable snake_case (`order_cancelled_for_rejected_payment`)                                                                                                                                                 |
 
 ## Using the code of the guides
@@ -127,7 +135,7 @@ docs/decisions/          decision records (NNNN-<title>.md) of the multi-aggrega
 Each code block of a guide is a file of a context (`src/contexts/<context>/…`, see the folder
 layout above); replace the names and keep the shape. The blocks show the imports from the package;
 the imports of project files are left out: write each one relative, to the declaring file, one
-statement per value and `import type` for types. Format with the project's Prettier.
+statement per value and `import type` for types. Format with the project's formatter.
 
 ## Where to throw each exception
 
@@ -173,4 +181,7 @@ statement per value and `import type` for types. Format with the project's Prett
   `UseCase`. When in doubt, read the installed README.
 - Writing the package's base classes in the project (`domain/shared/AggregateRoot.ts`,
   `DomainEvent.ts`, `ValueObject.ts`, an `EventPublisher` port): they come from the package.
-- Formatting by hand instead of running the project's Prettier.
+- Formatting by hand instead of running the project's formatter, or adding a second formatter,
+  linter or test runner next to the one the project has.
+- A spec where the project's test runner does not collect it, or a fixture, test double or
+  repository contract inside a layer folder of a context instead of `test/support/`.

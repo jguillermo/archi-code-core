@@ -6,6 +6,12 @@ Uso:
     python3 scan_ddd_smells.py <ruta> [--json salida.json] [--domain-dir domain]
 
 Solo lee ficheros. Los hallazgos son indicios que hay que confirmar leyendo el código.
+
+Además de los síntomas generales de DDD, aplica las convenciones de @archi-code/ddd (función package_rules):
+clases base propias, imports del paquete sin capa, API de una capa exterior usada en una interior, estado
+primitivo o sin conversión en un agregado, forma y nombre de eventos y errores de negocio, repositorios
+(abstracto, verbos, adaptadores), casos de uso que usan otro, reacciones sin @ListensTo o que lanzan, puntos
+de entrada, carpetas y nombres de fichero. Las reconoce por nombre de clase, no por la ruta del import.
 """
 import argparse
 import json
@@ -29,7 +35,8 @@ SHARED_KERNEL = "shared-kernel"
 LISTENER_CLASS_RE = re.compile(r"class\s+(\w+)[^{]*\bextends\s+EventListener\b")
 EXECUTE_CALL_RE = re.compile(r"\.execute\s*\(")
 # eventName '<agregado>.<acción_en_pasado>' en snake_case; un nombre de clase como 'OrderPlaced' no sigue la convención
-CLASS_EVENT_NAME_RE = re.compile(r"static\s+readonly\s+eventName\s*=\s*['\"]([A-Z]\w*)['\"]")
+CLASS_EVENT_NAME_RE = re.compile(r"static\s+readonly\s+eventName\s*=\s*['\"]([^'\"]*)['\"]")
+EVENT_NAME_FORMAT_RE = re.compile(r"^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$")
 PUBLIC_MUTABLE_FIELD_RE = re.compile(r"^\s*public\s+(?!readonly)(?!static)\w+\??\s*:", re.M)
 CLASS_RE = re.compile(r"\bclass\s+(\w+)")
 ORM_DECORATOR_RE = re.compile(r"@(Entity|Column|PrimaryGeneratedColumn|OneToMany|ManyToOne|Table|Prop|Schema)\b")
@@ -41,13 +48,69 @@ REPO_CLASS_RE = re.compile(r"\b(?:class|interface)\s+(\w+)Repository\b")
 SAVE_CALL_RE = re.compile(r"(?:this\.)?(\w+)\s*\.\s*(?:save|add|persist|remove)\s*\(")
 NOT_A_REPOSITORY = {"events", "eventbus", "bus", "outbox", "inbox", "list", "set", "map", "array", "items", "tags"}
 ARCHI_OUTER_LAYER_RE = re.compile(r"""['"]@archi-code/ddd/(application|infrastructure)['"]""")
-NEW_DATE_RE = re.compile(r"\bnew\s+Date\s*\(\s*\)")
+NEW_DATE_RE = re.compile(r"\bnew\s+Date\s*\(\s*\)|\bDate\.now\s*\(\s*\)")
 TRANSACTION_START_RE = re.compile(r"(\$transaction|\.transaction|\btx\.run|\.run|runInTransaction|withTransaction)\s*\(")
 # La transacción es del adaptador del repositorio: dominio y aplicación no abren, reciben ni manejan transacciones
 TRANSACTION_HANDLING_RE = re.compile(
     r"\b(TransactionRunner|TransactionManager|UnitOfWork|unitOfWork|startSession|startTransaction|commitTransaction|"
     r"abortTransaction|withTransaction|runInTransaction|inTransaction)\b|\$transaction\b|['\"`]\s*(BEGIN|COMMIT|ROLLBACK)\b"
 )
+
+
+# --- Reglas propias de @archi-code/ddd (convenciones del paquete, por nombre: valen con cualquier ruta de import) ---
+EXTENDS_RE = re.compile(r"\bclass\s+(\w+)(?:<[^{]*?>)?\s+extends\s+([\w.]+)")
+OWN_BASE_CLASS_RE = re.compile(
+    r"\b(?:abstract\s+)?class\s+(ValueObject|Entity|AggregateRoot|DomainEvent|EventBase|UseCase|EventListener|"
+    r"DomainException|ApplicationException|InfrastructureException|AggregateRepository|Specification|EventPublisher)\b"
+)
+PACKAGE_BAD_IMPORT_RE = re.compile(r"""['"]@archi-code/ddd(?:/(exceptions|dist|src)[^'"]*)?['"]""")
+APPLICATION_API_RE = re.compile(
+    r"(?<![\w.])(ValueObjectBuilder|UseCase|EventListener|ListensTo|EventBus|AggregateNotFoundException|"
+    r"NotAllowedException|ConcurrencyException|UnexpectedErrorException|ApplicationException)\b"
+)
+INFRASTRUCTURE_API_RE = re.compile(
+    r"(?<![\w.])(DomainEventBus|EventRegistry|InMemoryEventChannel|IndexedDbTable|IndexedDbInspector|"
+    r"ExceptionClassifier|ExceptionKind|ConsoleLogger|InMemoryLogger|SilentLogger|InternalErrorException|"
+    r"InfrastructureException)\b"
+)
+LOGGING_RE = re.compile(r"(?<![\w.])(Logger\b|console\.(?:log|debug|info|warn|error)\s*\()")
+PRIMITIVE_FIELD_RE = re.compile(
+    r"(?:(?<![\w.])(?:(?:private|protected|public)\s+(?:readonly\s+)?|readonly\s+)(_?\w+)\??\s*:\s*"
+    r"(string|number|boolean|Date)(?:\[\])?(?:\s*\|\s*null)?\s*[;=,)]"
+    r"|^[ \t]*(_\w+)\??\s*:\s*(string|number|boolean|Date)(?:\[\])?(?:\s*\|\s*null)?\s*[;=])",
+    re.M,
+)
+EVENT_FIELD_RE = re.compile(r"^[ \t]*(?:public\s+)?readonly\s+(\w+)\??\s*:\s*(?:readonly\s+)?([A-Z]\w*)", re.M)
+EVENT_FIELD_ALLOWED_TYPES = {"Array", "ReadonlyArray", "Record", "Readonly"}
+EVENT_UNION_RE = re.compile(r"\btype\s+(\w+)\s*=\s*\|?\s*\w+DomainEvent\s*\|")
+LISTENS_TO_RE = re.compile(r"@ListensTo\s*\(\s*(\w+)\s*(?:,\s*\{([^}]*)\})?\s*,?\s*\)")
+CONSUMER_RE = re.compile(r"consumer\s*:\s*['\"]([^'\"]*)['\"]")
+REACTION_ERROR_RE = re.compile(r"\b(AggregateNotFoundException|NotAllowedException)\b")
+ABSTRACT_REPOSITORY_RE = re.compile(r"\babstract\s+class\s+\w+Repository\s+extends\s+AggregateRepository\b")
+ABSTRACT_METHOD_RE = re.compile(r"^[ \t]*abstract\s+(\w+)\s*[(<]", re.M)
+REPOSITORY_VERBS = {"findById", "search", "save", "remove"}
+ADAPTER_REPOSITORY_RE = re.compile(r"\bclass\s+(\w+Repository)\b(?!\s+extends\s+\w+Repository\b)")
+NEXT_ID_RE = re.compile(r"\bnextId\s*\(|\bnextIdentity\s*\(")
+CRUD_USE_CASE_RE = re.compile(r"^(?:(?:Update|Delete|Get|Set|Save|Upsert|Crud)[A-Z]\w*|\w+(?:Service|UseCase|Handler|Manager))$")
+PATTERN_FOLDERS = {"use-cases", "usecases", "use_cases", "listeners", "commands", "dtos", "handlers", "subscribers"}
+DOMAIN_KIND_FOLDERS = {"aggregate", "entity", "value-object", "event", "exception", "repository", "service", "specification"}
+PASCAL_FILE_RE = re.compile(r"^[A-Z][A-Za-z0-9]*$")
+KEBAB_FILE_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+TYPE_SILENCING_RE = re.compile(r"@ts-ignore|@ts-expect-error|@ts-nocheck|\bas\s+any\b|\bas\s+unknown\s+as\b|:\s*any\b")
+RAW_INDEXEDDB_RE = re.compile(r"\bindexedDB\s*\.\s*open\b|\bIDB(?:Database|ObjectStore|Transaction|OpenDBRequest)\b")
+CATCH_RE = re.compile(r"\bcatch\s*[({]")
+COMPOSITION_FILE = "composition"
+
+
+def import_target(path: Path, mod: str):
+    """Fichero .ts al que apunta un import relativo, o None."""
+    if not mod.startswith("."):
+        return None
+    base = (path.parent / mod)
+    for candidate in (base.with_name(base.name + ".ts"), base / "index.ts"):
+        if candidate.is_file():
+            return candidate
+    return None
 
 
 def iter_ts_files(root: Path):
@@ -107,10 +170,169 @@ def line_of(text: str, idx: int) -> int:
     return text.count("\n", 0, idx) + 1
 
 
+def package_rules(add, path, text, zone, ctx, domain_dir, imports, use_case_files):
+    """Convenciones de @archi-code/ddd que no vienen de los libros: clases base, capas, formas y nombres."""
+    classes = [(m.group(1), m.group(2).split(".")[-1], m.start()) for m in EXTENDS_RE.finditer(text)]
+    extends = {base for _, base, _ in classes}
+    folders = {part.lower() for part in path.parts[:-1]}
+    in_context = ctx is not None
+    is_composition = path.stem == COMPOSITION_FILE
+
+    for m in OWN_BASE_CLASS_RE.finditer(text):
+        add("clase-base-propia", "alta", path, line_of(text, m.start()),
+            f"declara {m.group(1)}; las clases base vienen de @archi-code/ddd")
+    for m in PACKAGE_BAD_IMPORT_RE.finditer(text):
+        add("import-del-paquete-sin-capa", "alta", path, line_of(text, m.start()),
+            f"{m.group(0)}; solo existen /domain, /application e /infrastructure")
+    for m in TYPE_SILENCING_RE.finditer(text):
+        entry_point_cast = zone == "interfaces" and "unknown" in m.group(0)   # el cuerpo recibido: lo valida toCommand
+        if in_context and not entry_point_cast:
+            add("tipos-silenciados", "media", path, line_of(text, m.start()), m.group(0).strip())
+
+    if in_context and path.stem != COMPOSITION_FILE:
+        for mod, idx in imports:
+            if re.search(r"(^|/)composition(\.ts)?$", mod):
+                add("capa-importa-composition", "alta", path, line_of(text, idx), f"importa '{mod}'")
+        expected = PASCAL_FILE_RE if (zone == domain_dir or ctx == SHARED_KERNEL) else KEBAB_FILE_RE
+        if not expected.match(path.stem):
+            case = "PascalCase (el nombre de la clase)" if expected is PASCAL_FILE_RE else "kebab-case"
+            add("nombre-de-fichero-fuera-de-convencion", "baja", path, 1, f"{path.name}: aquí los ficheros van en {case}")
+
+    if zone == domain_dir:
+        for m in APPLICATION_API_RE.finditer(text):
+            add("dominio-usa-api-de-aplicacion", "alta", path, line_of(text, m.start()), m.group(1))
+            break
+        for m in LOGGING_RE.finditer(text):
+            add("dominio-usa-logger", "media", path, line_of(text, m.start()), m.group(1).strip())
+            break
+        if in_context and not (folders & DOMAIN_KIND_FOLDERS):
+            add("dominio-sin-carpeta-por-tipo", "baja", path, 1,
+                "va en aggregate/, entity/, value-object/, event/, exception/, repository/, service/ o specification/")
+
+        if extends & {"AggregateRoot", "Entity"}:
+            for m in PRIMITIVE_FIELD_RE.finditer(text):
+                add("estado-primitivo-en-agregado", "media", path, line_of(text, m.start()),
+                    f"{m.group(1) or m.group(3)}: {m.group(2) or m.group(4)}; el estado son value objects")
+            for m in re.finditer(r"(?<![\w.])(\w+Repository|EventBus)\b", text):
+                add("agregado-usa-repositorio-o-bus", "alta", path, line_of(text, m.start()), m.group(1))
+                break
+        if "AggregateRoot" in extends:
+            if not re.search(r"\bstatic\s+fromPrimitives\s*\(", text) or not re.search(r"^\s*toPrimitives\s*\(", text, re.M):
+                add("agregado-sin-conversion", "media", path, 1, "faltan static fromPrimitives() y/o toPrimitives()")
+            if not re.search(r"\bstatic\s+create\s*\(", text):
+                add("agregado-sin-create", "baja", path, 1, "falta static create(id, ...)")
+
+        for name, base, start in classes:
+            if base == "EventBase" and not name.endswith("DomainEvent"):
+                add("evento-fuera-de-convencion", "baja", path, line_of(text, start),
+                    f"{name}; usa <Agregado><AcciónEnPasado>DomainEvent")
+            if base == "DomainException" and re.search(r"(Exception|Error)$", name):
+                add("error-de-negocio-con-sufijo", "baja", path, line_of(text, start),
+                    f"{name}; nombra lo que falló, sin sufijo Exception/Error")
+        if "EventBase" in extends:
+            for m in EVENT_FIELD_RE.finditer(text):
+                if m.group(1) != "eventName" and m.group(2) not in EVENT_FIELD_ALLOWED_TYPES:
+                    add("evento-con-campo-no-primitivo", "media", path, line_of(text, m.start()),
+                        f"{m.group(1)}: {m.group(2)}; un evento solo lleva primitivos")
+
+        if re.search(r"\b(?:class|interface)\s+\w+Repository\b", text):
+            if not ABSTRACT_REPOSITORY_RE.search(text):
+                add("repositorio-de-dominio-no-abstracto", "media", path, 1,
+                    "debe ser 'abstract class <Agregado>Repository extends AggregateRepository<...>'")
+            for m in ABSTRACT_METHOD_RE.finditer(text):
+                if m.group(1) not in REPOSITORY_VERBS:
+                    add("repositorio-con-verbo-no-estandar", "media", path, line_of(text, m.start()),
+                        f"{m.group(1)}(); solo findById, search, save y remove")
+
+    for m in EVENT_UNION_RE.finditer(text):
+        add("union-de-eventos", "baja", path, line_of(text, m.start()), f"type {m.group(1)}; no hay tipos unión de eventos")
+    for m in NEXT_ID_RE.finditer(text):
+        add("repositorio-genera-ids", "media", path, line_of(text, m.start()), "nextId(); el id sale de <Agregado>Id.generate()")
+
+    if zone in (domain_dir, "application"):
+        for m in INFRASTRUCTURE_API_RE.finditer(text):
+            add("capa-interior-usa-api-de-infraestructura", "alta", path, line_of(text, m.start()), m.group(1))
+            break
+
+    if zone == "application":
+        for mod, idx in imports:
+            if ARCHI_OUTER_LAYER_RE.search(f"'{mod}'") and mod.endswith("/infrastructure"):
+                add("aplicacion-importa-infraestructura-del-paquete", "alta", path, line_of(text, idx), f"importa '{mod}'")
+            elif mod.startswith(".") and re.search(r"/(infrastructure|interfaces)(/|$)", mod):
+                add("aplicacion-importa-capa-exterior", "alta", path, line_of(text, idx), f"importa '{mod}'")
+        pattern_folders = sorted(folders & PATTERN_FOLDERS)
+        if pattern_folders:
+            add("carpeta-de-aplicacion-por-patron", "baja", path, 1,
+                f"{pattern_folders[0]}/; una carpeta por acción de negocio")
+
+        is_use_case = bool(extends & {"UseCase", "EventListener"})
+        if is_use_case:
+            for mod, idx in imports:
+                target = import_target(path, mod)
+                if target is not None and target.resolve() in use_case_files and target.resolve() != path.resolve():
+                    add("caso-de-uso-usa-otro-caso-de-uso", "alta", path, line_of(text, idx), f"importa '{mod}'")
+        for name, base, start in classes:
+            if base == "UseCase":
+                if CRUD_USE_CASE_RE.match(name):
+                    add("caso-de-uso-con-nombre-tecnico", "baja", path, line_of(text, start),
+                        f"{name}; nómbralo con la acción de negocio")
+                if EXECUTE_CALL_RE.search(text, start):
+                    add("caso-de-uso-usa-otro-caso-de-uso", "alta", path, line_of(text, start),
+                        f"{name} llama a execute()")
+            if base == "EventListener":
+                previous = max((other for _, _, other in classes if other < start), default=0)
+                decorator = None
+                for d in LISTENS_TO_RE.finditer(text, previous, start):
+                    decorator = d
+                consumer = CONSUMER_RE.search(decorator.group(2) or "") if decorator else None
+                if decorator is None or consumer is None:
+                    add("reaccion-sin-listens-to", "media", path, line_of(text, start),
+                        f"{name}; falta @ListensTo(Evento, {{ consumer }})")
+                elif in_context and consumer.group(1) != f"{ctx}.{path.stem}":
+                    add("consumer-fuera-de-convencion", "baja", path, line_of(text, decorator.start()),
+                        f"'{consumer.group(1)}'; usa '{ctx}.{path.stem}'")
+                m = REACTION_ERROR_RE.search(text, start)
+                if m:
+                    add("reaccion-lanza-error-de-usuario", "media", path, line_of(text, m.start()),
+                        f"{m.group(1)}; una reacción vuelve en silencio")
+
+    if zone == "infrastructure":
+        for m in ADAPTER_REPOSITORY_RE.finditer(text):
+            add("adaptador-no-extiende-repositorio", "media", path, line_of(text, m.start()),
+                f"{m.group(1)}; extiende el repositorio abstracto de su agregado")
+    if in_context and RAW_INDEXEDDB_RE.search(text):
+        m = RAW_INDEXEDDB_RE.search(text)
+        add("indexeddb-sin-indexed-db-table", "media", path, line_of(text, m.start()),
+            f"{m.group(0)}; IndexedDB solo a través de IndexedDbTable")
+
+    if zone == "interfaces":
+        for m in CATCH_RE.finditer(text):
+            add("punto-de-entrada-captura-errores", "baja", path, line_of(text, m.start()),
+                "catch; los errores los traduce el helper de protocolo")
+            break
+        for mod, idx in imports:
+            if mod.startswith(".") and re.search(r"/(infrastructure|domain)(/|$)", mod):
+                add("punto-de-entrada-importa-capa-interior", "media", path, line_of(text, idx), f"importa '{mod}'")
+    if in_context and not is_composition and re.search(r"(?<![\w.])ExceptionClassifier\b", text):
+        m = re.search(r"(?<![\w.])ExceptionClassifier\b", text)
+        add("exception-classifier-fuera-del-helper", "media", path, line_of(text, m.start()),
+            "solo el helper de protocolo (platform/<protocolo>/) usa ExceptionClassifier")
+
+
 def scan(root: Path, domain_dir: str):
     findings = []
     stats = defaultdict(int)
     repos = []
+    use_case_files = set()
+    for path in iter_ts_files(root):
+        if zone_of(path, domain_dir) != "application":
+            continue
+        try:
+            head = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        if any(m.group(2).split(".")[-1] in ("UseCase", "EventListener") for m in EXTENDS_RE.finditer(head)):
+            use_case_files.add(path.resolve())
 
     def add(rule, severity, path, line, detail):
         findings.append({"rule": rule, "severity": severity, "file": str(path.relative_to(root)), "line": line, "detail": detail})
@@ -187,8 +409,12 @@ def scan(root: Path, domain_dir: str):
 
         if not is_test:
             for m in CLASS_EVENT_NAME_RE.finditer(text):
-                add("event-name-fuera-de-convencion", "baja", path, line_of(text, m.start()),
-                    f"eventName '{m.group(1)}'; usa '<agregado>.<acción_en_pasado>'")
+                if not EVENT_NAME_FORMAT_RE.match(m.group(1)):
+                    add("event-name-fuera-de-convencion", "baja", path, line_of(text, m.start()),
+                        f"eventName '{m.group(1)}'; usa '<agregado>.<acción_en_pasado>' en snake_case")
+
+        if not is_test:
+            package_rules(add, path, text, zone, ctx, domain_dir, imports, use_case_files)
 
         for m in SMELLY_NAME_RE.finditer(text):
             add("clase-con-nombre-generico", "baja", path, line_of(text, m.start()), m.group(0))

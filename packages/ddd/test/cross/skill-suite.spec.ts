@@ -215,6 +215,19 @@ describe('the rules and patterns of the package are part of SKILL.md, split in d
     expect(linked.filter((guide) => !packageGuides.includes(guide))).toEqual([]);
   });
 
+  it('every code name of the rules summary of SKILL.md is written in a guide', () => {
+    const start = SKILL.indexOf('\n## Rules');
+    const summary = SKILL.slice(start, SKILL.indexOf('\n## ', start + 1));
+    const guides = packageGuides
+      .map((guide) => fs.readFileSync(path.join(PACKAGE_GUIDES_DIR, guide), 'utf8'))
+      .join('\n');
+    const names = Array.from(summary.matchAll(/`([^`\n]+)`/g), (m) => m[1]).filter(
+      (name) => !name.startsWith('ddd-skills/'),
+    );
+    expect(names.length).toBeGreaterThan(0);
+    expect(names.filter((name) => !guides.includes(name))).toEqual([]);
+  });
+
   it('no guide can be loaded as a skill of its own and each one points to archi-code-ddd', () => {
     for (const guide of packageGuides) {
       const text = fs.readFileSync(path.join(PACKAGE_GUIDES_DIR, guide), 'utf8');

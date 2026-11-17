@@ -17,7 +17,8 @@ comes from.
   [Destilado ch. 5; IDDD ch. 10]; a flow of several actions is several use cases chained by events,
   never one use case with flags or a `type` field that switch behaviors. The exceptions IDDD ch. 10
   accepts (a bulk change over many aggregates of one kind, such as `DiscountCheapCourses`) are
-  written down as a decision record in `docs/decisions/NNNN-<title>.md` (context, decision,
+  written down as a decision record in `docs/decisions/NNNN-<title>.md`, or in the decision
+  records folder the project already has (context, decision,
   consequences) before the code. It is **named after the business action**, a verb and a noun a
   domain expert would say (`PlaceOrder`, `ConfirmTransferReceived`, `MarkOrderPaid`), never
   technical or CRUD names (`UpdateOrder`, `OrderService`, `ProcessOrder`). It never imports nor

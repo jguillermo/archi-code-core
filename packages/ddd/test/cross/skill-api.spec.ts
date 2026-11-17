@@ -67,7 +67,7 @@ function importedNames(text: string): { layer: Layer; name: string }[] {
 }
 
 function packageToolsTable(): string[] {
-  const start = SKILL.indexOf('### Package tools for each need');
+  const start = SKILL.indexOf('## Package tools for each need');
   const end = SKILL.indexOf('\n## ', start);
   return SKILL.slice(start, end)
     .split('\n')
