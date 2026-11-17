@@ -245,11 +245,12 @@ function versionsLabel(entries) {
 }
 
 // Points every dist-tag of the channel (main: latest and main) at the version releases.json records,
-// for the packages published in this run and for any earlier one whose tags fell behind. It only
-// warns: the versions are already published, a tag can be fixed by the next run.
+// for the workspace packages published in this run and for any earlier one whose tags fell behind.
+// Packages that are no longer in the workspace keep their history in releases.json but are skipped.
+// It only warns: the versions are already published, a tag can be fixed by the next run.
 function syncDistTags(plan, state) {
-  for (const [name, channels] of Object.entries(state.packages)) {
-    const version = channels[plan.branch];
+  for (const { name } of plan.packages) {
+    const version = state.packages[name]?.[plan.branch];
     if (!version) continue;
     const view = quiet('npm', ['view', name, 'dist-tags', '--json']);
     let tags = {};
