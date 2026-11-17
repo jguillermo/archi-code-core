@@ -23,7 +23,7 @@ export class IndexedDbOrderRepository extends OrderRepository {
   async save(order: Order): Promise<void> {
     const rowVersion = this.rowVersions.get(order) ?? 0;
     await this.table.persist({ ...order.toPrimitives(), rowVersion });
-    this.rowVersions.set(order, rowVersion + 1);
+    this.rowVersions.delete(order);
   }
 
   async remove(order: Order): Promise<void> {

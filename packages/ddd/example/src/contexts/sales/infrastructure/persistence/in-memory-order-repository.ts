@@ -29,12 +29,13 @@ export class InMemoryOrderRepository extends OrderRepository {
       version: version + 1,
       primitives: structuredClone(order.toPrimitives()),
     });
-    this.versions.set(order, version + 1);
+    this.versions.delete(order);
   }
 
   async remove(order: Order): Promise<void> {
     this.checkedVersion(order);
     this.rows.delete(order.id.value);
+    this.versions.delete(order);
   }
 
   versionOf(id: OrderId): number {

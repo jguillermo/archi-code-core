@@ -129,12 +129,13 @@ class InMemoryOrderRepository extends OrderRepository {
     const version = this.checkedVersion(order);
     const primitives = structuredClone(order.toPrimitives());
     this.rows.set(key, { version: version + 1, primitives });
-    this.versions.set(order, version + 1);
+    this.versions.delete(order);
   }
 
   async remove(order: Order): Promise<void> {
     this.checkedVersion(order);
     this.rows.delete(order.id.value);
+    this.versions.delete(order);
   }
 
   private checkedVersion(order: Order): number {
@@ -237,15 +238,20 @@ describe('InMemoryOrderRepository: a repository a project writes in its tests, o
       await expect(repository.save(reloaded)).resolves.toBeUndefined();
     });
 
-    it('the same order can be saved twice in a row: the repository follows its version', async () => {
+    it('forgets a saved order: saving the same object again is refused, reloading it works', async () => {
       const repository = orders();
       const order = Order.place(orderId, 'Ana');
       await repository.save(order);
       order.addLine('TORCH-01');
-      await repository.save(order);
+      await expect(repository.save(order)).rejects.toThrow(
+        `Order with ID ${orderId} was changed by someone else: expected version 0.`,
+      );
       const loaded = (await repository.findById(new OrderId(orderId))) as Order;
-      expect(loaded.lines.map((line) => line.value)).toEqual(['TORCH-01']);
+      expect(loaded.lines).toEqual([]);
+      loaded.addLine('TORCH-01');
       await expect(repository.save(loaded)).resolves.toBeUndefined();
+      const reloaded = (await repository.findById(new OrderId(orderId))) as Order;
+      expect(reloaded.lines.map((line) => line.value)).toEqual(['TORCH-01']);
     });
 
     it('a new order with an id already stored is rejected, it does not replace the stored one', async () => {
@@ -326,8 +332,8 @@ describe('InMemoryOrderRepository: a repository a project writes in its tests, o
 
     it('lists every order with the version it was stored with, so each one can be saved', async () => {
       const repository = await storedOrder();
-      const second = Order.place(otherOrderId, 'Luis');
-      await repository.save(second);
+      await repository.save(Order.place(otherOrderId, 'Luis'));
+      const second = (await repository.findById(new OrderId(otherOrderId))) as Order;
       await repository.save(second);
       for (const order of await repository.findAll()) {
         await expect(repository.save(order)).resolves.toBeUndefined();

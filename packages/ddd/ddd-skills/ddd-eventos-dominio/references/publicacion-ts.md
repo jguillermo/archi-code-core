@@ -69,10 +69,10 @@ try {
 } finally {
   client.release();
 }
-this.versions.set(order, version + 1);
+this.versions.delete(order);
 ```
 
-* Pedido y eventos se confirman o deshacen juntos [IDDD cap. 10]; la versión recordada se actualiza solo tras el `COMMIT`. Si falla, el caso de uso termina con el error y el agregado se descarta con sus eventos.
+* Pedido y eventos se confirman o deshacen juntos [IDDD cap. 10]; la versión recordada se olvida solo tras el `COMMIT`. Si falla, el caso de uso termina con el error y el agregado se descarta con sus eventos.
 * `body` es el `SerializedEvent` (`{ ...event }`) con el `occurredOn` que pone `save`, porque un evento nuevo aún no lo tiene (sin outbox lo pone `DomainEventBus` al enviar).
 * El `publish` del caso de uso recibe una lista vacía. `remove` no escribe eventos.
 

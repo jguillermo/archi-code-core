@@ -39,12 +39,16 @@ adapters. To declare the abstract repository (before the use cases) read the `Ru
   class (a DAO, a "storage service", a helper) that reads or writes the aggregate's data.
 - **Every repository checks the version** [IDDD ch. 10] (the IndexedDB adapter does it through
   the `rowVersion` of its table, see IndexedDB below): it remembers the version of each
-  aggregate object it loaded or saved in a private `WeakMap<X, number>` (`versions`); on load,
+  aggregate object it loaded in a private `WeakMap<X, number>` (`versions`); on load,
   `versions.set(x, row.version)`; on save, `version = versions.get(x) ?? 0`, a stored version
   (`?? 0`) different from it throws `ConcurrencyException('<Aggregate>', id, version)` (so an
   existing id for a new aggregate is a conflict too), it stores `version + 1` next to (never
-  inside) the primitives and remembers `version + 1`. `remove(aggregate)` receives the loaded
-  aggregate and does the same check before deleting. The version is never visible to the domain
+  inside) the primitives and, once the write succeeds, forgets the aggregate
+  (`versions.delete(x)`): a saved aggregate is never used again, so a use case that needs to
+  change it again reloads it (saving the same object twice is refused as a conflict, expected
+  version 0). A failed write keeps the version, so retrying the same object conflicts again.
+  `remove(aggregate)` receives the loaded aggregate, does the same check before deleting and
+  forgets it too. The version is never visible to the domain
   or the application. In memory it stores `structuredClone` copies both ways in a
   `Map<string, { version, primitives }>`. A real one wraps driver errors in
   `InternalErrorException` with `{ cause }`.
@@ -98,7 +102,8 @@ adapters. To declare the abstract repository (before the use cases) read the `Ru
     per aggregate in a private `WeakMap<X, number>` on load
     (`rowVersions.set(x, row.rowVersion)`), sends it back on save
     (`rowVersion = rowVersions.get(x) ?? 0`, `table.persist({ ...x.toPrimitives(), rowVersion })`)
-    and then remembers `rowVersion + 1`. `persist` is the one that checks, in one transaction: a
+    and, once `persist` succeeds, forgets it (`rowVersions.delete(x)`): a saved aggregate is never
+    used again. `persist` is the one that checks, in one transaction: a
     row that is not stored is created; a stored row whose `rowVersion` differs from the one sent
     throws `ConcurrencyException`, also when none is sent (a new aggregate whose id is taken). The
     adapter never writes the check nor a version of its own;
@@ -216,12 +221,13 @@ export class InMemoryOrderRepository extends OrderRepository {
       version: version + 1,
       primitives: structuredClone(order.toPrimitives()),
     });
-    this.versions.set(order, version + 1);
+    this.versions.delete(order);
   }
 
   async remove(order: Order): Promise<void> {
     this.checkedVersion(order);
     this.rows.delete(order.id.value);
+    this.versions.delete(order);
   }
 
   private load(row: OrderRow): Order {
@@ -288,7 +294,7 @@ export class MongoOrderRepository extends OrderRepository {
     if (!written) {
       throw new ConcurrencyException('Order', order.id.value, version);
     }
-    this.versions.set(order, version + 1);
+    this.versions.delete(order);
   }
 
   async remove(order: Order): Promise<void> {
@@ -305,6 +311,7 @@ export class MongoOrderRepository extends OrderRepository {
     if (!removed) {
       throw new ConcurrencyException('Order', _id, version);
     }
+    this.versions.delete(order);
   }
 
   private async insertUnlessTaken(document: OrderDocument): Promise<boolean> {
@@ -429,7 +436,7 @@ export class IndexedDbOrderRepository extends OrderRepository {
   async save(order: Order): Promise<void> {
     const rowVersion = this.rowVersions.get(order) ?? 0;
     await this.table.persist({ ...order.toPrimitives(), rowVersion });
-    this.rowVersions.set(order, rowVersion + 1);
+    this.rowVersions.delete(order);
   }
 
   async remove(order: Order): Promise<void> {
@@ -538,7 +545,8 @@ export class InMemoryCouponCatalog implements CouponCatalog {
 - A default or audit value computed asynchronously, or expected from the package: every one is a
   synchronous function or value declared in the schema.
 - A repository (also the in-memory one; the IndexedDB one delegates it to `persist`) that saves with no version condition or "last save
-  wins", forgets to remember `version + 1` after a write or the stored version on load, removes
+  wins", keeps remembering the version after a save (or reuses a saved aggregate instead of reloading
+  it), forgets the stored version on load, removes
   by id without the loaded aggregate, or exposes the version to domain or application code.
 - An in-memory repository that stores or returns the same objects it received: store and return
   `structuredClone` copies.

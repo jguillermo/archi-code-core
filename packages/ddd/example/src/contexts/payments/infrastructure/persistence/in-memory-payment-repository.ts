@@ -33,6 +33,6 @@ export class InMemoryPaymentRepository extends PaymentRepository {
       version: version + 1,
       primitives: structuredClone(payment.toPrimitives()),
     });
-    this.versions.set(payment, version + 1);
+    this.versions.delete(payment);
   }
 }

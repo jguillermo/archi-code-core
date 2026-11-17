@@ -33,6 +33,6 @@ export class InMemoryShipmentRepository extends ShipmentRepository {
       version: version + 1,
       primitives: structuredClone(shipment.toPrimitives()),
     });
-    this.versions.set(shipment, version + 1);
+    this.versions.delete(shipment);
   }
 }

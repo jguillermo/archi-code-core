@@ -68,12 +68,13 @@ function smoke(m) {
             const version = this.checkedVersion(order);
             const primitives = structuredClone(order.toPrimitives());
             this.rows.set(order.id.value, { version: version + 1, primitives });
-            this.versions.set(order, version + 1);
+            this.versions.delete(order);
           }
 
           async remove(order) {
             this.checkedVersion(order);
             this.rows.delete(order.id.value);
+            this.versions.delete(order);
           }
 
           checkedVersion(order) {
@@ -98,13 +99,15 @@ function smoke(m) {
           conflict = error;
         }
         const stored = await repository.findById(id);
+        const storedVersion = repository.versions.get(stored);
         await repository.remove(stored);
         const removed = await repository.findById(id);
         return (
           (first.customer.value === 'Ana' &&
             first !== second &&
-            repository.versions.get(first) === 2 &&
-            repository.versions.get(stored) === 2 &&
+            !repository.versions.has(first) &&
+            storedVersion === 2 &&
+            !repository.versions.has(stored) &&
             conflict instanceof application.ConcurrencyException &&
             removed === null) ||
           'unexpected in-memory repository behavior'

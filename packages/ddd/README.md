@@ -857,7 +857,7 @@ repository. It does not protect the invariants of an aggregate: those stay in th
   the list. Pending events are a plain private array: repositories store `toPrimitives()`, never
   the aggregate itself.
 - The aggregate carries no version: optimistic concurrency belongs to the repository, which
-  remembers the version of every aggregate it loaded or saved (see
+  remembers the version of every aggregate it loaded until it is saved (see
   [Optimistic concurrency](#optimistic-concurrency)). The aggregate only calls `super(id)`.
 - Parts of an aggregate are composite value objects when nobody looks them up by an id of their
   own (the lines of an order). A part that does need its own identity inside the aggregate (a seat
@@ -1208,8 +1208,8 @@ interface OrderSummaries {
 
 Two users load the same order, both change it and both save: without a check, the second save
 silently erases the first. The repository prevents it with a version it keeps itself: the
-aggregate knows nothing about it. It remembers the version of each aggregate object it loaded or
-saved in a `WeakMap<Order, number>` (an object it never saw is new, version `0`), and every
+aggregate knows nothing about it. It remembers the version of each aggregate object it loaded in
+a `WeakMap<Order, number>` (an object it never saw is new, version `0`), and every
 repository follows the same contract:
 
 | Moment                       | The repository                                                                              |
@@ -1218,8 +1218,9 @@ repository follows the same contract:
 | Save a new aggregate         | Version `0`: inserts with version `1`; if the id already exists, it is a conflict           |
 | Save an existing aggregate   | Writes only where the stored version still equals the remembered one, and stores one more   |
 | Nothing written (stale data) | Throws `ConcurrencyException('Order', id, version)` (HTTP 409) with the version it expected |
-| Written                      | Remembers the new version, so the same object can be changed and saved again                |
+| Written                      | Forgets the object: a saved aggregate is not used again; to change it again, reload it      |
 | Remove                       | Deletes only where the stored version still equals the remembered one; otherwise a conflict |
+| Failed write                 | Keeps the remembered version, so saving the same object again conflicts again               |
 
 The version lives next to the primitives (a `version` column or field), never inside them. After a
 `ConcurrencyException`, either tell the user that someone else changed it, or run the command
@@ -1310,7 +1311,7 @@ class MongoOrderRepository extends OrderRepository {
     if (!written) {
       throw new ConcurrencyException('Order', order.id.value, version);
     }
-    this.versions.set(order, version + 1);
+    this.versions.delete(order);
   }
 
   private async insert(data: OrderDocument): Promise<boolean> {
@@ -2071,7 +2072,7 @@ The repository is responsible for the transaction and for everything else about 
   with its own connection.
 - **Concurrency**: it checks the stored version and throws `ConcurrencyException` (see
   [Optimistic concurrency](#optimistic-concurrency)) and remembers the version of every aggregate
-  it loaded or saved, outside the aggregate.
+  it loaded, outside the aggregate, until it is saved or removed.
 - **Connections and errors**: pools, sessions and driver retries stay inside the adapter, and driver
   errors are wrapped in `InternalErrorException` with `{ cause }`.
 - **Events that must not be lost**: `publish` runs after `save`, so a failure in between loses the
@@ -2818,7 +2819,7 @@ export class IndexedDbOrderRepository extends OrderRepository {
   async save(order: Order): Promise<void> {
     const rowVersion = this.rowVersions.get(order) ?? 0;
     await this.table.persist({ ...order.toPrimitives(), rowVersion });
-    this.rowVersions.set(order, rowVersion + 1);
+    this.rowVersions.delete(order);
   }
 }
 ```
@@ -2917,8 +2918,8 @@ created, one more on every persist. Reads return it. `persist(row)` works in one
 4. it stores the row, completed by the schema, at the stored `rowVersion` plus 1.
 
 The table keeps nothing in memory: the repository remembers the `rowVersion` of each aggregate in
-a `WeakMap<Aggregate, number>` (the stored one on load, one more after each save) and sends it
-back in `persist`, as in the example above. `persistMany` runs the same steps without the check
+a `WeakMap<Aggregate, number>` (the stored one on load), sends it back in `persist` and forgets
+it once the save succeeds, as in the example above: a saved aggregate is not used again. `persistMany` runs the same steps without the check
 of step 3: a batch always saves. `remove(id, rowVersion)` deletes in one transaction and throws
 `ConcurrencyException` when the row is stored with another `rowVersion`; without a valid
 `rowVersion` it checks nothing, and an id that is not stored is never an error. `removeMany`
@@ -3224,12 +3225,13 @@ export class InMemoryOrderRepository extends OrderRepository {
     const version = this.checkedVersion(order);
     const primitives = structuredClone(order.toPrimitives());
     this.rows.set(order.id.value, { version: version + 1, primitives });
-    this.versions.set(order, version + 1);
+    this.versions.delete(order);
   }
 
   async remove(order: Order): Promise<void> {
     this.checkedVersion(order);
     this.rows.delete(order.id.value);
+    this.versions.delete(order);
   }
 
   private checkedVersion(order: Order): number {
@@ -3274,7 +3276,7 @@ class MongoOrderRepository extends OrderRepository {
   }
 
   // save: version = versions.get(order) ?? 0; updateOne({ _id, version }, { $set: { data, version: version + 1 } }),
-  // or insertOne when version is 0; no match → ConcurrencyException; then versions.set(order, version + 1)
+  // or insertOne when version is 0; no match → ConcurrencyException; then versions.delete(order)
 }
 ```
 

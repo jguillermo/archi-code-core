@@ -48,13 +48,13 @@ async save(order: Order): Promise<void> {
   } finally {
     client.release(broken);
   }
-  this.versions.set(order, version + 1);
+  this.versions.delete(order);
 }
 ```
 
 * La transacción empieza y termina dentro de `save`: el caso de uso ve una escritura entera o ninguna.
 * El `UPDATE ... AND version = $2` bloquea la fila hasta el `COMMIT`; otro `save` del mismo pedido espera, no casa ninguna fila y recibe `ConcurrencyException`. Un id ya ocupado al dar de alta, igual.
-* El `WeakMap` se actualiza solo tras el `COMMIT`: si se revierte, recuerda la versión anterior y el caso de uso puede recargar. Al cargar, `fromPrimitives` y luego `versions.set(order, row.version)`.
+* El `WeakMap` olvida el pedido solo tras el `COMMIT` (`versions.delete(order)`): un agregado guardado no se vuelve a usar y, para cambiarlo otra vez, se recarga. Si se revierte, conserva la versión anterior y el caso de uso puede recargar. Al cargar, `fromPrimitives` y luego `versions.set(order, row.version)`.
 * Si el `ROLLBACK` falla, se relanza el error del trabajo y `release(true)` destruye la conexión.
 * `findById` lee pedido y líneas en una sola sentencia (mismo instante); `remove` sigue el mismo patrón (`DELETE ... WHERE id = $1 AND version = $2`, las líneas caen por `ON DELETE CASCADE`).
 * Con MongoDB no hace falta: un documento por agregado, `replaceOne` atómico (`ddd-skills/ddd-repositorios-persistencia/references/implementacion-ts.md`).

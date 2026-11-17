@@ -130,15 +130,31 @@ describe('IndexedDbOrderRepository: the orders of a shop stored in the IndexedDB
       expect(await readStoredRow(anaOrderId)).toMatchObject({ rowVersion: 2 });
     });
 
-    it('follows the version of an order saved twice in a row', async () => {
+    it('forgets a saved order: saving the same object again is refused, so it is reloaded to change it again', async () => {
       const order = await loaded();
       order.addLine(new Sku('HELMET-02'));
       await repository.save(order);
       order.addLine(new Sku('GLOVES-03'));
-      await repository.save(order);
+
+      await expect(repository.save(order)).rejects.toThrow(
+        `orders with ID ${anaOrderId} was changed by someone else: expected version 0.`,
+      );
+      const reloaded = await loaded();
+      reloaded.addLine(new Sku('GLOVES-03'));
+      await repository.save(reloaded);
 
       expect(skusOf(await loaded())).toStrictEqual(['TORCH-01', 'HELMET-02', 'GLOVES-03']);
       expect(await readStoredRow(anaOrderId)).toMatchObject({ rowVersion: 3 });
+    });
+
+    it('removing an order right after saving it does nothing: the saved object is forgotten', async () => {
+      const order = await loaded();
+      order.ship();
+      await repository.save(order);
+
+      await repository.remove(order);
+
+      expect((await loaded()).status.value).toBe(OrderStatus.SHIPPED);
     });
 
     it('rejects the second of two users editing the same order instead of overwriting the first', async () => {

@@ -163,7 +163,6 @@ describe('IndexedDbOrderRepository: what fails, and how, when orders are stored 
       expect(() => order.addLine(new Sku('HELMET-02'))).toThrow(
         `Order ${anaOrderId} is already shipped and can no longer change`,
       );
-      await repository.save(order);
       const stored = await loaded();
       expect(stored.status.value).toBe(OrderStatus.SHIPPED);
       expect(stored.lines.map((line) => line.value)).toStrictEqual(['TORCH-01']);
