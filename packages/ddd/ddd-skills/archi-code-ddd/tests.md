@@ -162,6 +162,15 @@ The IndexedDB adapter runs the same contract on a real browser IndexedDB (Vitest
 never on a double of it, emptying its table before each test
 (`await new ShopDb().table(new OrderSchema()).clear()`).
 
+Each migration has its own spec on the same real browser IndexedDB: the migration functions as
+plain functions (every branch, `null` included), then rows written by an older release (the
+database opened at that `version` with no migrations and a schema of that release's row,
+`persistMany`) loaded through the current repository as valid aggregates; that only the
+migrations newer than the recorded version run; that `rowVersion` survives, so a stale save
+still conflicts; that a failing migration rolls everything back (`request_failed`, rows and
+recorded version untouched); and that a tab still on the older release is refused
+(`schema_mismatch`) instead of blocking the upgrade.
+
 ## What not to do
 
 - No round-trip test for an aggregate, or one that does not cover every field.
@@ -171,4 +180,6 @@ never on a double of it, emptying its table before each test
   event twice.
 - A repository spec per adapter instead of one contract every adapter runs; an IndexedDB adapter
   tested on a double instead of a real browser IndexedDB.
+- A migration released without a spec that loads the rows of the older release through the
+  current repository.
 - Abstract fixtures (`foo`, `test1`) instead of real situations of the domain.

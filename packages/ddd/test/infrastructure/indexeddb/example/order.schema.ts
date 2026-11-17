@@ -1,13 +1,8 @@
+import type { PrimitiveTypes } from '../../../../src/domain/index';
 import { IndexedDbSchema } from '../../../../src/infrastructure/index';
+import type { Order } from './order';
 
-export interface OrderRow {
-  readonly id: string;
-  readonly customerId: string;
-  readonly lines: string[];
-  readonly status: string;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-}
+export type OrderRow = PrimitiveTypes<Order>;
 
 export class OrderSchema extends IndexedDbSchema<OrderRow> {
   constructor() {

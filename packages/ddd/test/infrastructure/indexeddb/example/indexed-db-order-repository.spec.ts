@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it } from 'vitest';
 import { ConcurrencyException } from '../../../../src/application/index';
 import { anotherPage, freshIndexedDb, openDatabase } from '../../../support/indexed-db-environment';
-import { IndexedDbOrderRepository } from './indexed-db-order-repository';
+import { IndexedDbOrderRepository } from './indexeddb-order-repository';
 import {
   CustomerId,
   Order,
@@ -12,7 +12,7 @@ import {
   Sku,
 } from './order';
 import { OrderRepository } from './order-repository';
-import { SalesDatabase } from './sales-database';
+import { SalesDb } from './sales.db';
 
 const anaOrderId = '9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c';
 const luisOrderId = '3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f';
@@ -36,11 +36,11 @@ function skusOf(order: Order | null): string[] {
 }
 
 describe('IndexedDbOrderRepository: the orders of a shop stored in the IndexedDB of a real browser', () => {
-  const databases: SalesDatabase[] = [];
+  const databases: SalesDb[] = [];
   let repository: IndexedDbOrderRepository;
 
   function openSales(factory: IDBFactory = anotherPage()): IndexedDbOrderRepository {
-    const database = new SalesDatabase({ factory });
+    const database = new SalesDb({ factory });
     databases.push(database);
     return new IndexedDbOrderRepository(database);
   }
@@ -65,7 +65,7 @@ describe('IndexedDbOrderRepository: the orders of a shop stored in the IndexedDB
   it('extends the repository of orders the domain declares and only receives its database', () => {
     expect(repository).toBeInstanceOf(OrderRepository);
     expectTypeOf<ConstructorParameters<typeof IndexedDbOrderRepository>>().toEqualTypeOf<
-      [SalesDatabase]
+      [SalesDb]
     >();
   });
 
@@ -85,14 +85,14 @@ describe('IndexedDbOrderRepository: the orders of a shop stored in the IndexedDB
       expect(Number.isNaN(order.createdAt.value.getTime())).toBe(false);
     });
 
-    it('writes one row of primitives with dates as ISO text and row version 1 in the browser', async () => {
+    it('writes the primitives of the order as they are, dates included, at row version 1', async () => {
       expect(await readStoredRow(anaOrderId)).toStrictEqual({
         id: anaOrderId,
         customerId: 'cus-ana',
         lines: ['TORCH-01'],
         status: 'placed',
-        createdAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T.+Z$/),
-        updatedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T.+Z$/),
+        createdAt: expect.any(Date),
+        updatedAt: expect.any(Date),
         rowVersion: 1,
       });
     });

@@ -64,14 +64,35 @@ adapters. To declare the abstract repository (before the use cases) read the `Ru
   - one folder per table, `indexeddb/<table>/`, with its schema
     `<Aggregate>Schema extends IndexedDbSchema<Row, Stored>` in `<aggregate>.schema.ts` (name,
     indexes, `defaults` and `audit`, all declared by hand, and the row types), its migration
-    functions in `<aggregate>.migrations.ts` and its adapter;
+    functions in `<aggregate>.migrations.ts` and its adapter. The row of an aggregate is
+    `PrimitiveTypes<X>` (`export type OrderRow = PrimitiveTypes<Order>`): `audit` and `defaults`
+    are only for fields the aggregate does not have, never for its own dates;
+  - migrations (`[Fuera de los libros: convención de @archi-code/ddd]`): when a release changes
+    the shape of the stored rows (a renamed field or status, a new required field, a value the
+    business no longer has), it raises the database `version` by one and adds one migration for
+    it, `{ <version>: { <table>: fn } }`, the only way to change rows already in the browsers of
+    the users. Each table declares in `<aggregate>.migrations.ts` the row type of every older
+    release (`OrderRowV1`, `OrderRowV2`, the current one is `PrimitiveTypes<X>`) and one pure,
+    synchronous function per release named after what it does
+    (`renameNewStatusAndDropCancelled(row: OrderRowV1): OrderRowV2 | null`). A migration
+    receives a row without its `rowVersion` (the table keeps it) and returns the row of the next
+    release, or `null` to delete it; it never reads other tables, the clock nor the network, and
+    never changes the `id`. The database exports the version and the migrations
+    (`SHOP_DATA_VERSION`, `SHOP_MIGRATIONS`) and numbers them. The table runs, in order and
+    inside the upgrade, only the migrations newer than the version recorded in the browser; a new
+    browser runs none; any error rolls the whole upgrade back and comes out as `IndexedDbException`
+    `request_failed` with the error as `cause`; a page still running an older release closes its
+    connection and is refused afterwards (`schema_mismatch`). A migration is never edited nor
+    removed once released: a fix is a new version;
   - the adapter is `IndexedDb<Aggregate>Repository extends <Aggregate>Repository`, in
     `indexeddb/<table>/indexeddb-<aggregate>-repository.ts`. Its constructor receives the database
     (`constructor(database: ShopDb)`) and gets its table from it:
     `this.table = database.table(new OrderSchema())`. `composition.ts` builds the database once
     and every repository of it before the first read;
-  - rows are plain, already validated data: `x.toPrimitives()` goes in and `X.fromPrimitives(row)`
-    comes out, never an aggregate. The key is the aggregate's `id`, already a UUID;
+  - rows are plain, already validated data: `x.toPrimitives()` goes in as it is and
+    `X.fromPrimitives(row)` comes out, never an aggregate. IndexedDB stores `Date`s and every
+    structured-clone value, so the adapter converts nothing and casts nothing. The key is the
+    aggregate's `id`, already a UUID;
   - the table owns `rowVersion` (`[Fuera de los libros: convención de @archi-code/ddd]`): 1 when a
     row is created, one more on every persist, returned by every read. The adapter remembers it
     per aggregate in a private `WeakMap<X, number>` on load
@@ -81,13 +102,19 @@ adapters. To declare the abstract repository (before the use cases) read the `Ru
     row that is not stored is created; a stored row whose `rowVersion` differs from the one sent
     throws `ConcurrencyException`, also when none is sent (a new aggregate whose id is taken). The
     adapter never writes the check nor a version of its own;
-  - the adapter's `remove(x)` is `table.remove(x.id.value, rowVersions.get(x))`: the table deletes
-    in one transaction and throws `ConcurrencyException` when the stored `rowVersion` is another
-    one. `persistMany` and `removeMany` (batches) never check;
+  - the adapter's `remove(x)` does nothing for an aggregate it never loaded nor saved (no
+    `rowVersion` remembered); otherwise it is `table.remove(x.id.value, rowVersion)`, which
+    deletes in one transaction and throws `ConcurrencyException` when the stored `rowVersion` is
+    another one, and then it forgets the aggregate (`rowVersions.delete(x)`). Calling
+    `table.remove` without a `rowVersion` deletes without any check. `persistMany` and
+    `removeMany` (batches) never check;
   - `search` is `table.find(toIndexedDbQuery(criteria, table.indexes))` with `toIndexedDbQuery` of
     `@archi-code/criteria-adapters/indexeddb`, then `X.fromPrimitives` on every row;
-  - the errors of the table are `ConcurrencyException` or `IndexedDbException` (with a `reason`
-    such as `quota_exceeded` or `blocked`): let them pass to the use case;
+  - the table names its conflicts after the table (`orders with ID …`): `save` and `remove` catch
+    its `ConcurrencyException` and throw `ConcurrencyException('<Aggregate>', id, rowVersion,
+    { cause: error })`, so the message names the aggregate. Every other error, an
+    `IndexedDbException` with a `reason` such as `quota_exceeded`, `blocked`, `schema_mismatch`
+    or `unavailable`, passes to the use case as it is;
   - declaring the database, a schema and a repository works where there is no `indexedDB`; only
     using a table fails there (`unavailable`).
 
@@ -308,11 +335,53 @@ When the database is IndexedDB, the database, each schema and each adapter are t
 
 ```ts
 import { IndexedDbDatabase } from '@archi-code/ddd/infrastructure';
+import type { IndexedDbDatabaseOptions } from '@archi-code/ddd/infrastructure';
+
+export const SHOP_DATA_VERSION = 3;
+
+export const SHOP_MIGRATIONS: NonNullable<IndexedDbDatabaseOptions['migrations']> = {
+  2: { orders: renameNewStatusAndDropCancelled },
+  3: { orders: stampMissingUpdatedAt },
+};
 
 export class ShopDb extends IndexedDbDatabase {
   constructor() {
-    super({ name: 'shop' });
+    super({ name: 'shop', version: SHOP_DATA_VERSION, migrations: SHOP_MIGRATIONS });
   }
+}
+```
+
+`infrastructure/persistence/indexeddb/orders/order.migrations.ts`, the rows earlier releases
+stored (release 1 had a `new` and a `cancelled` status and no `updatedAt`) and how each release
+turns them into the next one:
+
+```ts
+export interface OrderRowV1 {
+  readonly id: string;
+  readonly customerId: string;
+  readonly lines: string[];
+  readonly status: 'new' | 'shipped' | 'cancelled';
+  readonly createdAt: Date;
+}
+
+export interface OrderRowV2 {
+  readonly id: string;
+  readonly customerId: string;
+  readonly lines: string[];
+  readonly status: OrderStatus;
+  readonly createdAt: Date;
+  readonly updatedAt?: Date;
+}
+
+export function renameNewStatusAndDropCancelled(row: OrderRowV1): OrderRowV2 | null {
+  if (row.status === 'cancelled') {
+    return null;
+  }
+  return { ...row, status: row.status === 'new' ? OrderStatus.PLACED : OrderStatus.SHIPPED };
+}
+
+export function stampMissingUpdatedAt(row: OrderRowV2): OrderRow {
+  return { ...row, updatedAt: row.updatedAt ?? row.createdAt };
 }
 ```
 
@@ -323,21 +392,10 @@ import type { PrimitiveTypes } from '@archi-code/ddd/domain';
 import { IndexedDbSchema } from '@archi-code/ddd/infrastructure';
 
 export type OrderRow = PrimitiveTypes<Order>;
-export type OrderStored = OrderRow & { createdAt: string; updatedAt: string };
 
-export class OrderSchema extends IndexedDbSchema<OrderRow, OrderStored> {
+export class OrderSchema extends IndexedDbSchema<OrderRow> {
   constructor() {
-    super({
-      name: 'orders',
-      indexes: { byCustomer: 'customerId' },
-      audit: {
-        createdAt: { onInsert: () => new Date().toISOString() },
-        updatedAt: {
-          onInsert: () => new Date().toISOString(),
-          onUpdate: () => new Date().toISOString(),
-        },
-      },
-    });
+    super({ name: 'orders', indexes: { byCustomer: 'customerId' } });
   }
 }
 ```
@@ -345,12 +403,13 @@ export class OrderSchema extends IndexedDbSchema<OrderRow, OrderStored> {
 `infrastructure/persistence/indexeddb/orders/indexeddb-order-repository.ts`:
 
 ```ts
+import { ConcurrencyException } from '@archi-code/ddd/application';
 import type { Criteria, SearchOptions, SearchResult } from '@archi-code/ddd/domain';
 import type { IndexedDbStored, IndexedDbTable } from '@archi-code/ddd/infrastructure';
 import { toIndexedDbQuery } from '@archi-code/criteria-adapters/indexeddb';
 
 export class IndexedDbOrderRepository extends OrderRepository {
-  private readonly table: IndexedDbTable<OrderRow, OrderStored>;
+  private readonly table: IndexedDbTable<OrderRow>;
   private readonly rowVersions = new WeakMap<Order, number>();
 
   constructor(database: ShopDb) {
@@ -360,7 +419,7 @@ export class IndexedDbOrderRepository extends OrderRepository {
 
   async findById(id: OrderId): Promise<Order | null> {
     const row = await this.table.get(id.value);
-    return row && this.load(row);
+    return row === null ? null : this.load(row);
   }
 
   async search(criteria: Criteria<Order>, options?: SearchOptions): Promise<SearchResult<Order>> {
@@ -371,15 +430,37 @@ export class IndexedDbOrderRepository extends OrderRepository {
 
   async save(order: Order): Promise<void> {
     const rowVersion = this.rowVersions.get(order) ?? 0;
-    await this.table.persist({ ...order.toPrimitives(), rowVersion });
+    await this.guarded(order, rowVersion, () =>
+      this.table.persist({ ...order.toPrimitives(), rowVersion }),
+    );
     this.rowVersions.set(order, rowVersion + 1);
   }
 
   async remove(order: Order): Promise<void> {
-    await this.table.remove(order.id.value, this.rowVersions.get(order));
+    const rowVersion = this.rowVersions.get(order);
+    if (rowVersion === undefined) {
+      return;
+    }
+    await this.guarded(order, rowVersion, () => this.table.remove(order.id.value, rowVersion));
+    this.rowVersions.delete(order);
   }
 
-  private load(row: IndexedDbStored<OrderStored>): Order {
+  private async guarded(
+    order: Order,
+    rowVersion: number,
+    write: () => Promise<void>,
+  ): Promise<void> {
+    try {
+      await write();
+    } catch (error) {
+      if (error instanceof ConcurrencyException) {
+        throw new ConcurrencyException('Order', order.id.value, rowVersion, { cause: error });
+      }
+      throw error;
+    }
+  }
+
+  private load(row: IndexedDbStored<OrderRow>): Order {
     const order = Order.fromPrimitives(row);
     this.rowVersions.set(order, row.rowVersion);
     return order;
@@ -392,8 +473,10 @@ schema declares what is stored next to the data, and the table owns `rowVersion`
 the row up by its id and throws `ConcurrencyException` if the `rowVersion` the adapter sends is
 not the stored one, a missing row counting as 0 (a new aggregate sends 0, so a taken id is
 refused, and saving an aggregate someone removed is refused instead of bringing it back); a new
-row is created at `rowVersion` 1, all in one transaction; `remove` checks it the same way. `search` turns the criteria into a query with `toIndexedDbQuery` and the table runs
-it, sorting in memory only when the query has a `compare`.
+row is created at `rowVersion` 1, all in one transaction; `remove` checks it the same way. The
+adapter only remembers each aggregate's `rowVersion`, renames the conflict after its aggregate
+and lets every other error through. `search` turns the criteria into a query with
+`toIndexedDbQuery` and the table runs it, sorting in memory only when the query has a `compare`.
 
 A port adapter, `infrastructure/coupon/in-memory-coupon-catalog.ts`: raw data in, value objects
 out, bad external data as an internal error:
@@ -459,6 +542,19 @@ export class InMemoryCouponCatalog implements CouponCatalog {
 - An IndexedDB repository that reads the row and compares the `rowVersion` itself, writes a
   version field of its own into the row, keeps the `rowVersion` in a `Map` by id instead of a
   `WeakMap` by aggregate, or passes an aggregate (not its primitives) to the table.
+- An IndexedDB `remove` that calls `table.remove` for an aggregate it never loaded nor saved, or
+  without its `rowVersion`: it deletes the stored row without any check.
+- An IndexedDB adapter that converts dates to text, casts the stored row or declares a row type of
+  its own instead of `PrimitiveTypes<X>`, or an `audit` field that repeats a date the aggregate
+  already stamps.
+- Letting the table's conflict reach the use case under the table's name: catch its
+  `ConcurrencyException` and throw one named after the aggregate, with `{ cause }`.
+- Changing the shape of stored rows without raising the database `version` and adding a
+  migration; editing or removing a migration already released; a migration that is
+  asynchronous, reads another table, the clock or the network, changes the `id` or the
+  `rowVersion`, or works on aggregates instead of rows; old row shapes typed as `any` instead
+  of one `OrderRowV<n>` per release; a repository that converts old rows on load instead of
+  leaving it to the migrations.
 - A default or audit value computed asynchronously, or expected from the package: every one is a
   synchronous function or value declared in the schema.
 - A repository (also the in-memory one; the IndexedDB one delegates it to `persist`) that saves with no version condition or "last save

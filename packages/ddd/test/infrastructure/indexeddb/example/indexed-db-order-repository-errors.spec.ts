@@ -18,10 +18,10 @@ import {
   openDatabase,
   pause,
 } from '../../../support/indexed-db-environment';
-import { IndexedDbOrderRepository } from './indexed-db-order-repository';
+import { IndexedDbOrderRepository } from './indexeddb-order-repository';
 import { CustomerId, Order, OrderAlreadyShipped, OrderId, OrderStatus, Sku } from './order';
-import type { OrderRow } from './order-schema';
-import { SalesDatabase } from './sales-database';
+import type { OrderRow } from './order.schema';
+import { SALES_DATA_VERSION, SalesDb } from './sales.db';
 
 const anaOrderId = '9b2f6c1e-4d3a-4f8b-a1c2-3e4d5f6a7b8c';
 const luisOrderId = '3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f';
@@ -49,8 +49,8 @@ function storedRow(row: Partial<Record<keyof OrderRow, unknown>>): Record<string
     customerId: 'cus-ana',
     lines: ['TORCH-01'],
     status: 'placed',
-    createdAt: '2026-11-17T10:00:00.000Z',
-    updatedAt: '2026-11-17T10:00:00.000Z',
+    createdAt: new Date('2026-11-17T10:00:00.000Z'),
+    updatedAt: new Date('2026-11-17T10:00:00.000Z'),
     rowVersion: 1,
     ...row,
   };
@@ -64,14 +64,14 @@ function failureOf(promise: Promise<unknown>): Promise<unknown> {
 }
 
 describe('IndexedDbOrderRepository: what fails, and how, when orders are stored in a real browser', () => {
-  const databases: SalesDatabase[] = [];
-  let database: SalesDatabase;
+  const databases: SalesDb[] = [];
+  let database: SalesDb;
   let repository: IndexedDbOrderRepository;
 
   function openSales(
     options: Omit<IndexedDbDatabaseOptions, 'name'> = {},
-  ): [SalesDatabase, IndexedDbOrderRepository] {
-    const opened = new SalesDatabase({ factory: anotherPage(), ...options });
+  ): [SalesDb, IndexedDbOrderRepository] {
+    const opened = new SalesDb({ factory: anotherPage(), ...options });
     databases.push(opened);
     return [opened, new IndexedDbOrderRepository(opened)];
   }
@@ -218,7 +218,7 @@ describe('IndexedDbOrderRepository: what fails, and how, when orders are stored 
 
   describe('the database of the browser refuses the repository', () => {
     it('code older than the data in the browser cannot read nor write, and the data is kept', async () => {
-      const [, newerRelease] = openSales({ version: 2 });
+      const [, newerRelease] = openSales({ version: SALES_DATA_VERSION + 1 });
       await newerRelease.save(placed(luisOrderId, 'cus-luis'));
 
       const [, olderRelease] = openSales();
@@ -230,8 +230,7 @@ describe('IndexedDbOrderRepository: what fails, and how, when orders are stored 
         expect(error).not.toBeInstanceOf(ConcurrencyException);
         expect(error).toMatchObject({
           reason: 'schema_mismatch',
-          message:
-            'IndexedDB schema_mismatch: database "sales" holds data at version 2, newer than version 1 of this code',
+          message: `IndexedDB schema_mismatch: database "sales" holds data at version ${SALES_DATA_VERSION + 1}, newer than version ${SALES_DATA_VERSION} of this code`,
         });
         expect(ExceptionClassifier.classify(error)).toBe(ExceptionKind.Internal);
       }
@@ -256,7 +255,7 @@ describe('IndexedDbOrderRepository: what fails, and how, when orders are stored 
     });
 
     it('a second schema for the orders table of the same database is refused', () => {
-      const shared = new SalesDatabase({ factory: anotherPage() });
+      const shared = new SalesDb({ factory: anotherPage() });
       databases.push(shared);
       shared.table(new LegacyOrderSchema());
 
