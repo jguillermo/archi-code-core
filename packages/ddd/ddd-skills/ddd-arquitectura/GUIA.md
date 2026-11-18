@@ -17,11 +17,11 @@ El modelo debe estar libre de tecnología; los libros ponen las transacciones en
 
 ## Hexagonal por defecto
 
-Puertos y adaptadores con inversión de dependencias: la infraestructura implementa interfaces de las capas interiores y todos los clientes entran por la misma API de aplicación [IDDD cap. 4; PHP: Appendix Hexagonal].
+Puertos y adaptadores con inversión de dependencias: la infraestructura implementa interfaces de las capas interiores y todos los clientes entran por la misma API de aplicación [IDDD cap. 4; PHP: Appendix Hexagonal]. Con el paquete, del dominio solo se implementan los repositorios abstractos; cualquier otra interfaz que implemente la infraestructura es un puerto de aplicación: no existen puertos de dominio `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 | Zona | Contiene | Depende de | Nunca |
 |---|---|---|---|
-| `domain` | Agregados, entidades, value objects, eventos, errores, especificaciones, servicios y puertos de dominio, repositorios abstractos | `@archi-code/ddd/domain`, `@archi-code/validation` | Framework, ORM, HTTP, `process.env`, logger |
+| `domain` | Agregados, entidades, value objects, eventos, errores, especificaciones, servicios de dominio (clases concretas; no existen puertos de dominio), repositorios abstractos (lo único del dominio que implementa la infraestructura) | `@archi-code/ddd/domain`, `@archi-code/validation` | Framework, ORM, HTTP, `process.env`, logger |
 | `application` | Casos de uso de usuario y por reacción (con las copias de eventos ajenos), tipos de entrada, read models | `domain`, `@archi-code/ddd/application` | Framework web, SQL, mensajería |
 | `infrastructure` | Repositorios concretos, ACL, canales, clientes | `domain`, `application`, `@archi-code/ddd/infrastructure` | Lógica de negocio |
 | `interfaces` | Controladores, consumidores, CLI | `application`, ayudante por protocolo con `ExceptionClassifier` | Lógica de negocio, repositorios, capturar errores uno a uno |

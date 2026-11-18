@@ -14,7 +14,7 @@ comes from.
 | reaction use case | an event     | `<Action>On<Event> extends EventListener<<Event>DomainEvent>`      | the event bus  |
 
 - A use case does **one thing**: one business action, one class, one aggregate saved once
-  [Destilado ch. 5; IDDD ch. 10]; a flow of several actions is several use cases chained by events,
+  [Distilled ch. 5; IDDD ch. 10]; a flow of several actions is several use cases chained by events,
   never one use case with flags or a `type` field that switch behaviors. The exceptions IDDD ch. 10
   accepts (a bulk change over many aggregates of one kind, such as `DiscountCheapCourses`) are
   written down as a decision record in `docs/decisions/NNNN-<title>.md`, or in the decision
@@ -27,8 +27,8 @@ comes from.
 - Constructor parameters, `private readonly` and only what `handle` uses, in this order: the
   repository of the aggregate (`private readonly orders: OrderRepository`, the abstract class of
   the domain, never `AggregateFinder<X> & AggregateSaver<X>`), the dependencies of the domain
-  services it instantiates and the ports it calls (domain ports such as `CouponCatalog`; never the
-  service itself), `EventBus`, `Logger`; the body is `super();`.
+  services it instantiates (the abstract repository each one needs, such as `CouponRepository`;
+  never the service itself), the application ports it calls, `EventBus`, `Logger`; the body is `super();`.
 
 ### A use case never uses another use case (strict rule)
 
@@ -41,32 +41,30 @@ action; calling one from another mixes two actions, two authorizations and two e
 When two use cases share logic, that logic moves to the domain:
 
 - a rule of one aggregate → a method of the aggregate;
-- logic that reads aggregates or spans several (look one up and fail when it is missing, check
-  that one does not exist yet, compute over several) → a **domain service** in
-  `domain/service/<Service>.ts`;
+- a business rule that reads aggregates or spans several (register one only when it does not
+  exist yet, compute over several) → a **domain service** in `domain/service/<Service>.ts`; a
+  lookup alone is not one: each use case keeps its own `findById` with
+  `AggregateNotFoundException`;
 - a technical step → a port;
 - an action that must follow another → the first records an event and a reaction runs the second.
 
 Each use case then instantiates the domain service inside `handle` and passes it the
-dependencies it received in its own constructor. Example: `PublishCourse` loads a course and fails
-with a not found error when it is missing; `CreateCourse` must check that the course does not
-exist yet. Both need "look the course up in its repository". The wrong answer is that one uses
-the other. The right one:
+dependencies it received in its own constructor. Example: `CreateCourse` and `ImportCourse` both
+register a course: check that it does not exist yet, create it and save it. The wrong answer is
+that one uses the other. The right one:
 
-1. `domain/service/CourseFinder.ts`: `class CourseFinder` with
-   `constructor(private readonly courses: CourseRepository) {}`, `find(id): Promise<Course>`
-   (`findById`, and `throw new CourseNotFound(id.value)` when it is `null`) and
-   `assertDoesNotExist(id): Promise<void>` (`throw new CourseAlreadyExists(id.value)` when
-   `findById` finds it).
-2. `domain/exception/CourseNotFound.ts` and `CourseAlreadyExists.ts`: business errors
-   (`extends DomainException`, codes of the context). The domain cannot throw
-   `AggregateNotFoundException`: it lives in `/application` and the domain never imports it.
-   `ExceptionClassifier` gives these errors `ExceptionKind.Invalid` (422); the protocol helper
-   lists `CourseNotFound`'s code in `NOT_FOUND_CODES` to answer 404.
-3. `PublishCourse` and `CreateCourse` each receive `CourseRepository` by constructor and do
-   `new CourseFinder(this.courses)` inside `handle`: `PublishCourse` calls `find` and then
-   `course.publish()`, `CreateCourse` calls `assertDoesNotExist` and then `Course.create(...)`;
-   both `save` and `publish`.
+1. `domain/service/CourseRegistration.ts`: `class CourseRegistration` with
+   `constructor(private readonly courses: CourseRepository) {}` and
+   `register(id, title): Promise<Course>` (`throw new CourseAlreadyExists(id.value)` when
+   `findById` finds it; otherwise `Course.create(id, title)`, `await this.courses.save(course)`
+   and return the course).
+2. `domain/exception/CourseAlreadyExists.ts`: a business error (`extends DomainException`, a code
+   of the context). The domain cannot throw `AggregateNotFoundException`: it lives in
+   `/application` and the domain never imports it. `ExceptionClassifier` gives the error
+   `ExceptionKind.Invalid` (422).
+3. `CreateCourse` and `ImportCourse` each receive `CourseRepository` by constructor and do
+   `new CourseRegistration(this.courses).register(...)` inside `handle`; the service already
+   saved the course, so each use case only publishes `course.pullDomainEvents()`.
 
 Reading one aggregate to show it is never a use case (no `FindCourse`): it is the query port of a
 read model.
@@ -75,8 +73,9 @@ read model.
 
 - The file `application/<action>/<action>.ts` exports `interface <Action>Input` (primitives and
   data types; `actorId` or `actorRole` when an actor matters), `interface <Action>Command` (value
-  objects, composites, `New<Child>[]`) and the class. `Output` is `void`, or the new id as
-  `string`; never an aggregate.
+  objects, composites, `New<Child>[]`) and the class. `Output` is `void`, the new id as
+  `string`, or a DTO of primitives when the client needs the result of the action; never an
+  aggregate.
 - `protected toCommand(input)` is exactly `return ValueObjectBuilder.build({ … })`: enums
   `new <Enum>Type(input.x as <Enum>)`, composites `X.fromPrimitives(input.x)`, money
   `Money.fromPrimitives(input.x as { amount: number; currency: Currency })`, lists of shapes
@@ -85,11 +84,12 @@ read model.
 - `protected async handle(command)`, in this order: (1) authorization by role → `throw new
   NotAllowedException('<English message>')`; (2) a new id, `<Aggregate>Id.generate()`, or a
   derived one; (3) `<Aggregate>.create(...)`, or `findById` and, when it is `null`, `throw new
-  AggregateNotFoundException('<Aggregate>', id.value)` (when another use case needs the same
-  lookup with a business rule, a domain service instantiated here does it instead: `await new
-  CourseFinder(this.courses).find(command.courseId)`); (4) the business method, passing the
+  AggregateNotFoundException('<Aggregate>', id.value)` (a lookup another use case also needs stays in
+  each one: a bare shared `findById` is not a domain service); (4) the business method, passing the
   requester when the aggregate checks it; (5) `await repo.save(x)` once (or `await
-  repo.remove(x)`), then `await this.events.publish(x.pullDomainEvents())`; (6) log if the
+  repo.remove(x)`; when the domain service the use case executed already saved the aggregate, the
+  use case does not save it again), then `await this.events.publish(x.pullDomainEvents())`; (6)
+  log if the
   business wants a trace; (7) return the output. `UseCase` has no helpers. `execute` keeps package
   exceptions and wraps any other error of either step in `UnexpectedErrorException` with `cause`:
   let errors propagate, never catch.
@@ -107,9 +107,9 @@ read model.
   before `save` in a user use case: a conflict on `save` would leave the effect done and
   unrecorded. The use case only records the intent (`invoice.requestPayment(requester, amount)` →
   `InvoicePaymentRequestedDomainEvent`, status `PAYMENT_REQUESTED`) and saves. A reaction to that
-  event receives the domain port by constructor and calls it directly (no domain service around a
+  event receives the application port by constructor and calls it directly (no domain service around a
   bare port call) with an **idempotency key**, then records the outcome on the aggregate
-  (`markPaid(key, chargeId)` / `markPaymentDeclined(key, reason)`) and saves. The key is one per
+  (`invoice.settleCharge(key, outcome)`, code in `reactions.md`) and saves. The key is one per
   attempt and per effect: the `eventId` of the event that asked for it (a declined charge retried
   is a new request with a new key; the refund has its own key). The aggregate stores the key of the
   attempt in progress and answers whether it still awaits that outcome (`invoice.awaitsCharge(key)`):
@@ -249,7 +249,7 @@ export class CancelOrder extends UseCase<CancelOrderInput, CancelOrderCommand, v
 ```
 
 Creating: the use case generates the id and passes the answer of a domain service it
-instantiates itself (`PlaceOrder` receives `CouponCatalog` by constructor, never `OrderPricing`);
+instantiates itself (`PlaceOrder` receives `CouponRepository` by constructor, never `OrderPricing`);
 lists of shapes use `buildList`; it returns the new id:
 
 ```ts
@@ -329,7 +329,10 @@ Acting on the outcome the aggregate returns, never on its state:
     if (command.actorRole.value !== ActorRole.EDITOR) {
       throw new NotAllowedException(`The role ${command.actorRole.value} may not retire courses`);
     }
-    const course = await new CourseFinder(this.courses).find(command.courseId);
+    const course = await this.courses.findById(command.courseId);
+    if (course === null) {
+      throw new AggregateNotFoundException('Course', command.courseId.value);
+    }
     if (course.retire() === CourseRetirement.DISCARDED) {
       await this.courses.remove(course);
     } else {
@@ -358,11 +361,12 @@ export class EnrollmentId extends IdType<'EnrollmentId'> {
   reaction (`new PublishCourse(this.courses, bus).execute(...)` inside `CreateCourse`, or a use case
   received by constructor), or a base use case with shared helpers. It is forbidden with no
   exception, even to reuse a lookup: move the shared logic to the aggregate or to a domain
-  service that each use case instantiates (`new CourseFinder(this.courses)`), or chain the
+  service that each use case instantiates (`new CourseRegistration(this.courses)`), or chain the
   actions with an event.
 - A use case that does several things (`UpdateOrder` that ships, cancels or renames depending on
   the input) or saves more than one aggregate outside the IDDD ch. 10 exceptions written down as
-  a decision record in `docs/decisions/`.
+  a decision record in the project's decision records folder (`docs/decisions/` when it has
+  none).
 - Technical or CRUD names (`OrderService`, `UpdateUser`, `SaveOrder`, `ProcessPayment` when the
   business says `CapturePayment`).
 - `Input`/`Command` interfaces in another file than their use case, or a command class.

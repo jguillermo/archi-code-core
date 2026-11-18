@@ -43,7 +43,7 @@ Corolario: **una transacción, un agregado**; cada petición, un comando sobre u
    * **Sin repositorios ni servicios dentro**: el caso de uso busca y pasa lo necesario [IDDD cap. 10].
    * Concurrencia optimista con versión [IDDD cap. 10], aquí del repositorio (`ConcurrencyException`) `[Fuera de los libros: convención de @archi-code/ddd]`.
    * **Comandos frente a hechos**: un comando de usuario puede rechazarse; un hecho ajeno se registra sin lanzar (una excepción en un consumidor provoca reintentos sin fin), idempotente, y si no encaja se emite un evento para compensar [Destilado cap. 6].
-   * Fábricas: `static create`, un método en otra raíz (`customer.placeOrder`) o un servicio que traduce de otro contexto [IDDD cap. 11; PHP: Factories]; ver `ddd-skills/ddd-agregados/references/fabricas.md`.
+   * Fábricas: `static create`, un método en otra raíz (`customer.placeOrder`) o un servicio que traduce de otro contexto [IDDD cap. 11; PHP: Factories] (con el paquete, ese servicio no vive en el dominio: es un puerto de aplicación que llama el caso de uso `[Fuera de los libros: convención de @archi-code/ddd]`); ver `ddd-skills/ddd-agregados/references/fabricas.md`.
 7. Coordinar: `ddd-skills/ddd-agregados/references/consistencia-eventual.md`.
 
 ## Cuándo romper las reglas

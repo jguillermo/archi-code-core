@@ -11,7 +11,8 @@ Además de los síntomas generales de DDD, aplica las convenciones de @archi-cod
 clases base propias, imports del paquete sin capa, API de una capa exterior usada en una interior, estado
 primitivo o sin conversión en un agregado, forma y nombre de eventos y errores de negocio, repositorios
 (abstracto, verbos, adaptadores), casos de uso que usan otro, reacciones sin @ListensTo o que lanzan, puntos
-de entrada, carpetas y nombres de fichero. Las reconoce por nombre de clase, no por la ruta del import.
+de entrada, carpetas y nombres de fichero, y puertos de dominio (interfaces o clases abstractas del dominio fuera de
+repository/, y capas exteriores que implementan algo del dominio que no es un repositorio). Las reconoce por nombre de clase, no por la ruta del import.
 """
 import argparse
 import json
@@ -100,6 +101,13 @@ TYPE_SILENCING_RE = re.compile(r"@ts-ignore|@ts-expect-error|@ts-nocheck|\bas\s+
 RAW_INDEXEDDB_RE = re.compile(r"\bindexedDB\s*\.\s*open\b|\bIDB(?:Database|ObjectStore|Transaction|OpenDBRequest)\b")
 CATCH_RE = re.compile(r"\bcatch\s*[({]")
 COMPOSITION_FILE = "composition"
+# Regla más importante del paquete: del dominio solo se implementa el repositorio abstracto; no existen puertos de dominio
+DOMAIN_CONTRACT_RE = re.compile(r"^[ \t]*(?:export\s+)?(?:declare\s+)?(abstract\s+class|interface)\s+(\w+)", re.M)
+NAMED_IMPORT_RE = re.compile(r"import\s+(?:type\s+)?\{([^}]*)\}\s*from\s*['\"]([^'\"]+)['\"]")
+CLASS_HERITAGE_RE = re.compile(
+    r"\bclass\s+(\w+)(?:<[^{]*?>)?((?:\s+extends\s+[\w.]+(?:<[^{]*?>)?)?(?:\s+implements\s+[^{]+)?)\s*\{"
+)
+HERITAGE_NAME_RE = re.compile(r"(?:extends|implements|,)\s*([\w.]+)")
 
 
 def import_target(path: Path, mod: str):
@@ -243,6 +251,38 @@ def package_rules(add, path, text, zone, ctx, domain_dir, imports, use_case_file
                 if m.group(1) not in REPOSITORY_VERBS:
                     add("repositorio-con-verbo-no-estandar", "media", path, line_of(text, m.start()),
                         f"{m.group(1)}(); solo findById, search, save y remove")
+
+    if zone == domain_dir and "repository" not in folders:
+        in_service = "service" in folders
+        for m in DOMAIN_CONTRACT_RE.finditer(text):
+            kind = "interface" if m.group(1) == "interface" else "abstract class"
+            if in_service:
+                add("puerto-de-dominio", "alta", path, line_of(text, m.start()),
+                    f"{kind} {m.group(2)} en domain/service/: no existen puertos de dominio; un servicio de dominio es "
+                    "una clase concreta y del dominio solo se implementa el repositorio abstracto")
+            elif kind == "abstract class":
+                add("dominio-con-clase-abstracta", "alta", path, line_of(text, m.start()),
+                    f"abstract class {m.group(2)}: en el dominio solo es abstracto el repositorio de un agregado")
+
+    if zone in ("application", "infrastructure", "interfaces"):
+        domain_names = {}
+        for m in NAMED_IMPORT_RE.finditer(text):
+            mod = m.group(2)
+            if not mod.startswith(".") or not re.search(rf"/{re.escape(domain_dir)}/", mod):
+                continue
+            if re.search(rf"/{re.escape(domain_dir)}/repository/", mod):
+                continue
+            for name in m.group(1).split(","):
+                name = name.strip().removeprefix("type ").split(" as ")[-1].strip()
+                if name:
+                    domain_names[name] = mod
+        for m in CLASS_HERITAGE_RE.finditer(text):
+            for h in HERITAGE_NAME_RE.finditer(m.group(2) or ""):
+                base = h.group(1).split(".")[-1]
+                if base in domain_names:
+                    add("capa-exterior-implementa-dominio", "alta", path, line_of(text, m.start()),
+                        f"{m.group(1)} implementa o extiende {base} ('{domain_names[base]}'): del dominio solo se "
+                        "implementa el repositorio abstracto de un agregado; no existen puertos de dominio")
 
     for m in EVENT_UNION_RE.finditer(text):
         add("union-de-eventos", "baja", path, line_of(text, m.start()), f"type {m.group(1)}; no hay tipos unión de eventos")

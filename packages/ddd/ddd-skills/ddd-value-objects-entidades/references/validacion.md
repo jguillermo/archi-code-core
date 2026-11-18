@@ -7,7 +7,7 @@ Atributos válidos no hacen válido al objeto, ni objetos válidos su composici�
 | Nivel | Dónde |
 |---|---|
 | Atributo | Constructor del value object; reglas sobre varios campos de un `Composite` |
-| Objeto completo | La entidad, o un validador aparte en el mismo módulo (servicio de dominio, `Specification`), con validación diferida |
+| Objeto completo | La entidad (un método del agregado), o una `Specification` aparte en el mismo módulo, con validación diferida; nunca un servicio de dominio: la regla de un solo agregado es del agregado `[Fuera de los libros: convención de @archi-code/ddd]` |
 | Composición | Servicio de dominio con lo cargado, o que lee con el repositorio abstracto (`findById`) recibido por constructor |
 
 El primer nivel son aserciones que protegen el estado [IDDD cap. 5]. La autorización no es validación: la comprueba el caso de uso (`NotAllowedException`) `[Fuera de los libros: convención de @archi-code/ddd]`. Código de cada nivel: `ddd-skills/archi-code-ddd/value-objects.md`, `ddd-skills/archi-code-ddd/aggregates.md` y `ddd-skills/archi-code-ddd/domain-services.md`.

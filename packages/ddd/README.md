@@ -77,28 +77,27 @@ library built on this package): the exceptions of one build are `instanceof` the
 Every class of a project built on this package goes in exactly one layer. The table says where,
 what it may import and what it must never do; the package itself is organized the same way.
 
-| Class                                                                 | Layer          | Responsibility                                                                                     | May depend on                                                                             | Never                                                                        |
-| --------------------------------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| Value object (`extends StringType`…)                                  | domain         | One concept of the business; converts and validates its own value                                  | other value objects, `@archi-code/validation`, domain exceptions                          | mutate, know about storage or transport                                      |
-| Aggregate (`extends AggregateRoot`)                                   | domain         | Business rules and invariants; records an event for every fact                                     | its value objects, child entities, events, domain services, domain ports                  | read a repository, publish events, use `new Date()`                          |
-| Composite value object (`Composite({...})`)                           | domain         | Several values that only make sense together (money, a date range, an order line)                  | value objects, other composites                                                           | change, hold an id, be loaded or saved on its own                            |
-| Child entity (`extends Entity`)                                       | domain         | A part of an aggregate with its own id; value objects and business methods only the root calls     | value objects                                                                             | setters, be called from outside its aggregate, be loaded or saved on its own |
-| Specification (`extends Specification`)                               | domain         | A named business rule that validates, selects or builds; combinable                                | value objects, aggregates, data already loaded                                            | read a repository, protect an aggregate invariant                            |
-| Domain event (`extends EventBase`)                                    | domain         | A fact that happened (`OrderPaidDomainEvent`, `'order.paid'`), with primitive data                 | nothing: primitive fields typed inline                                                    | carry behavior or value objects, reference infrastructure                    |
-| Business error (`extends DomainException`)                            | domain         | A broken business rule, named after what went wrong (`OrderNotCancellable`), with its own code     | `DomainException`                                                                         | hold anything but a constructor                                              |
-| Repository (`OrderRepository extends AggregateRepository`)            | domain         | Abstract class per aggregate: only the verbs it needs to get and persist it, each from its role    | the aggregate, `AggregateFinder`/`AggregateSearcher`/`AggregateSaver`/`AggregateRemover`  | hold code, rules, business queries, `nextId()` or events                     |
-| Domain service                                                        | domain         | A business rule that spans several aggregates or fits none                                         | aggregates, value objects, the aggregate's repository (only `findById`), domain ports     | I/O, saving, transactions, publishing                                        |
-| Domain port (`ProductPricing`)                                        | domain         | What the model needs from another context or an external service, in its own words                 | value objects of this context                                                             | contain code, expose the other system's model                                |
-| User use case (`extends UseCase`)                                     | application    | One business action a user asks for: input → command of value objects → change one aggregate       | domain, the aggregate's repository, domain services, application ports and exceptions     | import another use case or a reaction, persist or call the network by itself |
-| Reaction use case (`extends EventListener`)                           | application    | One business action run by an event: builds its value objects, finds or creates, changes, saves    | the same as a user use case, and the event it listens to                                  | authorization, `AggregateNotFoundException`, business errors, call use cases |
-| Copy of another context's event                                       | application    | The consumer's own class for a foreign event, next to the reaction that hears it                   | nothing                                                                                   | import the producer's class                                                  |
-| Application port (`EventBus`, `Logger`, your own such as `Warehouse`) | application    | A technical capability the application needs, as a type                                            | domain types                                                                              | contain code                                                                 |
-| Read query (`OrderSummaries`)                                         | application    | An interface that answers a screen or a list with DTOs or ids, outside the aggregates              | domain types, DTOs                                                                        | load aggregates, go through a repository, change data                        |
-| Projection (`OrderSummaryProjection`)                                 | application    | Applies the changes of each event to a read model row once, through a store port                   | the store port, value objects                                                             | hear events itself, load aggregates, hold business rules                     |
-| Adapter (repository, outbox, read query…)                             | infrastructure | Implements a contract with a database, a queue, a broker, HTTP or memory                           | domain, application, exceptions, drivers                                                  | contain business rules                                                       |
-| Anti-corruption layer (adapter + translator)                          | infrastructure | Implements a domain port by calling another context or service and translating its model into ours | domain, application, exceptions, clients                                                  | leak the other model into the domain, hold business rules                    |
-| Entry point (controller, message consumer, CLI)                       | interfaces     | Turns HTTP, a message or a command line into the input of a use case, and back                     | application, `ExceptionClassifier` and `ExceptionKind` (domain types only if unavoidable) | hold business rules, use a repository or another adapter directly            |
-| Composition root (`composition.ts`)                                   | (per context)  | Reads the configuration, builds adapters, use cases and entry points, subscribes every reaction    | everything                                                                                | be imported by the domain, the application or the interfaces                 |
+| Class                                                                                                 | Layer          | Responsibility                                                                                           | May depend on                                                                                                        | Never                                                                                                                                                                                                      |
+| ----------------------------------------------------------------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Value object (`extends StringType`…)                                                                  | domain         | One concept of the business; converts and validates its own value                                        | other value objects, `@archi-code/validation`, domain exceptions                                                     | mutate, know about storage or transport                                                                                                                                                                    |
+| Aggregate (`extends AggregateRoot`)                                                                   | domain         | Business rules and invariants; records an event for every fact                                           | its value objects, child entities, events                                                                            | read a repository, publish events, use `new Date()`, call or receive a domain service                                                                                                                      |
+| Composite value object (`Composite({...})`)                                                           | domain         | Several values that only make sense together (money, a date range, an order line)                        | value objects, other composites                                                                                      | change, hold an id, be loaded or saved on its own                                                                                                                                                          |
+| Child entity (`extends Entity`)                                                                       | domain         | A part of an aggregate with its own id; value objects and business methods only the root calls           | value objects                                                                                                        | setters, be called from outside its aggregate, be loaded or saved on its own                                                                                                                               |
+| Specification (`extends Specification`)                                                               | domain         | A named business rule that validates, selects or builds; combinable                                      | value objects, aggregates, data already loaded                                                                       | read a repository, protect an aggregate invariant                                                                                                                                                          |
+| Domain event (`extends EventBase`)                                                                    | domain         | A fact that happened (`OrderPaidDomainEvent`, `'order.paid'`), with primitive data                       | nothing: primitive fields typed inline                                                                               | carry behavior or value objects, reference infrastructure                                                                                                                                                  |
+| Business error (`extends DomainException`)                                                            | domain         | A broken business rule, named after what went wrong (`OrderNotCancellable`), with its own code           | `DomainException`                                                                                                    | hold anything but a constructor                                                                                                                                                                            |
+| Repository (`OrderRepository extends AggregateRepository`)                                            | domain         | Abstract class per aggregate: only the verbs it needs to get and persist it, each from its role          | the aggregate, `AggregateFinder`/`AggregateSearcher`/`AggregateSaver`/`AggregateRemover`                             | hold code, rules, business queries, `nextId()` or events                                                                                                                                                   |
+| Domain service                                                                                        | domain         | Business logic two or more use cases share, or a rule that needs several aggregates                      | aggregates, value objects, the aggregate's repository (`findById`, `save`); creates, changes and may save aggregates | I/O outside the abstract repository it received, removing, transactions, publishing, be abstract or an interface, be implemented in infrastructure, be executed by anything but a use case, receive a port |
+| User use case (`extends UseCase`)                                                                     | application    | One business action a user asks for: input → command of value objects → change one aggregate             | domain, the aggregate's repository, domain services, application ports and exceptions                                | import another use case or a reaction, persist or call the network by itself, receive a domain service by constructor                                                                                      |
+| Reaction use case (`extends EventListener`)                                                           | application    | One business action run by an event: builds its value objects, finds or creates, changes, saves          | the same as a user use case, and the event it listens to                                                             | authorization, `AggregateNotFoundException`, business errors, call use cases                                                                                                                               |
+| Copy of another context's event                                                                       | application    | The consumer's own class for a foreign event, next to the reaction that hears it                         | nothing                                                                                                              | import the producer's class                                                                                                                                                                                |
+| Application port (`EventBus`, `Logger`, your own such as `Warehouse` or `ProductPricing`): every port | application    | A technical capability or another system the application needs, as a type; there are no domain ports     | domain types                                                                                                         | contain code, live in the domain                                                                                                                                                                           |
+| Read query (`OrderSummaries`)                                                                         | application    | An interface that answers a screen or a list with DTOs or ids, outside the aggregates                    | domain types, DTOs                                                                                                   | load aggregates, go through a repository, change data                                                                                                                                                      |
+| Projection (`OrderSummaryProjection`)                                                                 | application    | Applies the changes of each event to a read model row once, through a store port                         | the store port, value objects                                                                                        | hear events itself, load aggregates, hold business rules                                                                                                                                                   |
+| Adapter (repository, outbox, read query…)                                                             | infrastructure | Implements a contract with a database, a queue, a broker, HTTP or memory                                 | domain, application, exceptions, drivers                                                                             | contain business rules, implement or extend a domain service, implement anything of the domain except the abstract repository                                                                              |
+| Anti-corruption layer (adapter + translator)                                                          | infrastructure | Implements an application port by calling another context or service and translating its model into ours | domain, application, exceptions, clients                                                                             | leak the other model into the domain, hold business rules                                                                                                                                                  |
+| Entry point (controller, message consumer, CLI)                                                       | interfaces     | Turns HTTP, a message or a command line into the input of a use case, and back                           | application, `ExceptionClassifier` and `ExceptionKind` (domain types only if unavoidable)                            | hold business rules, use a repository or another adapter directly                                                                                                                                          |
+| Composition root (`composition.ts`)                                                                   | (per context)  | Reads the configuration, builds adapters, use cases and entry points, subscribes every reaction          | everything                                                                                                           | be imported by the domain, the application or the interfaces, build a domain service                                                                                                                       |
 
 Dependencies only point inwards. Your domain imports only `@archi-code/ddd/domain` and
 `@archi-code/validation`; the application adds
@@ -107,10 +106,11 @@ Dependencies only point inwards. Your domain imports only `@archi-code/ddd/domai
 infrastructure, the domain never imports the application, and an entry point never reaches a
 repository or an adapter: only the composition root knows every piece [IDDD ch. 4]. An entry
 point imports nothing from infrastructure but `ExceptionClassifier` and `ExceptionKind` of
-`@archi-code/ddd/infrastructure`, which hold no adapter. A controller validates only the shape of the request,
-maps the use case result (an id, a DTO or nothing) to the response and the errors with
-`ExceptionClassifier` (see [Translating errors at an entry point](#translating-errors-at-an-entry-point));
-it never returns an aggregate.
+`@archi-code/ddd/infrastructure`, which hold no adapter. A controller validates only the shape of the request
+and maps the use case result (an id, a DTO or nothing) to the response; it never catches an
+error nor maps a status: the protocol helper translates every error with `ExceptionClassifier`
+(see [Translating errors at an entry point](#translating-errors-at-an-entry-point)). It never
+returns an aggregate.
 
 ### Folder structure
 
@@ -134,8 +134,8 @@ src/
         value-object/         OrderId.ts, Sku.ts, OrderStatusType.ts, ShippingAddress.ts
         event/                OrderCreatedDomainEvent.ts, OrderPaidDomainEvent.ts
         exception/            OrderNotCancellable.ts
-        repository/           OrderRepository.ts
-        service/              OrderPricing.ts, CouponCatalog.ts (domain port)
+        repository/           OrderRepository.ts, CouponRepository.ts
+        service/              OrderPricing.ts (concrete classes only)
         specification/        FreeShippingEligible.ts
       application/
         place-order/          place-order.ts, money-data.ts, address-data.ts
@@ -143,9 +143,9 @@ src/
         order-summaries/      order-summary.ts, order-summary-store.ts, order-summaries.ts,
                               order-summary-projection.ts, mark-order-summary-paid/…
       infrastructure/
-        persistence/          in-memory-order-repository.ts, mongo-order-repository.ts
+        persistence/          in-memory-order-repository.ts, in-memory-coupon-repository.ts,
+                              mongo-order-repository.ts
         messaging/            rabbit-mq-event-channel.ts
-        coupon/               in-memory-coupon-catalog.ts
       interfaces/
         http/                 orders-controller.ts
       composition.ts          composition root of the context
@@ -165,7 +165,8 @@ test/                         mirrors src/
   without npm packages but the allowed ones, no imports from `application`, `infrastructure` or
   `interfaces` into the domain, none from `infrastructure` or `interfaces` into the application, no
   `@archi-code/ddd/infrastructure` in the domain or the application, none from `interfaces` into
-  your `infrastructure` nor `@archi-code/ddd/infrastructure`, isolated contexts, no cycles,
+  your `infrastructure` (from `@archi-code/ddd/infrastructure` the entry points use only
+  `ExceptionClassifier` and `ExceptionKind`), isolated contexts, no cycles,
   and `tsPreCompilationDeps: true` so type imports count too). It reads `src/contexts/` and `src/app/contexts/`; for another contexts
   root pass it in `DDD_CONTEXTS_ROOT` (a path relative to the project root, also the folder
   `depcruise` reads), and `DDD_TSCONFIG` names a tsconfig other than `tsconfig.json`. Spec files
@@ -180,7 +181,7 @@ test/                         mirrors src/
   model, not repositories.
 - **Another aggregate is referenced by its id** (`customerId: CustomerId`), never by the object;
   copy into a value object only the little data the aggregate needs [IDDD ch. 10].
-- **A command can be refused, a fact cannot** [Destilado ch. 6]: a method a user asks for
+- **A command can be refused, a fact cannot** [Distilled ch. 6]: a method a user asks for
   (`order.cancel(...)`) throws a business error when it does not apply; a method that registers
   something that already happened in another aggregate or context (`order.markPaid(...)`, called by
   a reaction use case) is idempotent: it returns without changes when it does not apply and never
@@ -209,7 +210,13 @@ test/                         mirrors src/
 
 Logic that two use cases share never goes in a use case: a business rule becomes a method of the
 aggregate or a domain service (each use case instantiates it inside `handle` and passes it the
-dependencies it received by constructor), and a technical step becomes a port. Use cases never
+dependencies it received by constructor), and a technical step becomes an application port. A domain service is
+always a concrete class that holds business logic: it is never abstract nor an interface, and
+infrastructure never implements one. There are no domain ports: of the domain, infrastructure
+implements only the abstract repositories, and every port is an application port. Only use cases execute
+domain services: an aggregate never calls nor receives one, while a domain service may create
+aggregates, call their business methods and save them with the abstract repository the use case
+passed to it (an aggregate is saved once per use case, by the service or by the use case). Use cases never
 instantiate, receive nor call each other: when an action must follow another, the first records an event and a reaction use case runs
 the second.
 
@@ -441,7 +448,7 @@ The input that reaches a use case is not validated yet, and that is on purpose: 
 | The shape of the request (it parses, a field is a string) | The input adapter (controller, consumer); no business rule                        |
 | One value: required, convertible, its rules               | The value object's constructor, through `ValueObjectBuilder.build` in `toCommand` |
 | Rules over several values of one aggregate (invariants)   | The aggregate's methods, with a `DomainException`                                 |
-| Rules over several aggregates                             | A domain service                                                                  |
+| Rules over several aggregates, logic two use cases share  | A domain service                                                                  |
 | Whether the caller may run the action                     | The use case (application)                                                        |
 
 Do not repeat a value object's rule in the request schema: the adapter checks that the email is a
@@ -1398,7 +1405,7 @@ describe('MongoOrderRepository', () => {
 Two rules shape every use case:
 
 - **It does one thing.** One business action per class and one `handle`: it changes one aggregate
-  and saves it once [Destilado ch. 5; IDDD ch. 10], except the cases IDDD ch. 10 accepts (such as
+  and saves it once [Distilled ch. 5; IDDD ch. 10], except the cases IDDD ch. 10 accepts (such as
   creating several aggregates in one batch), written down as an explicit decision. A flow with several actions is several use cases, chained by domain events or
   called in order by whoever orchestrates them, never one use case whose input switches between
   behaviors.
@@ -1476,7 +1483,7 @@ Save before publishing, and publish what `pullDomainEvents()` returns, so a fail
 nothing and events are never sent twice. The constructor receives, in this order and only what
 `handle` uses, the abstract repository of its aggregate (`OrderRepository`), the dependencies of the
 domain services it instantiates inside `handle` (`new OrderPricing(this.coupons)`; a domain service
-is never injected), `EventBus` and `Logger`. A use case never instantiates, receives, imports nor
+is never injected), the application ports it calls, `EventBus` and `Logger`. A use case never instantiates, receives, imports nor
 calls another use case.
 
 ### Building every value object of an input at once: `ValueObjectBuilder.build`
@@ -1552,7 +1559,7 @@ objects with `ValueObjectBuilder.build`, finds or creates the aggregate, calls o
 method, saves once and publishes. This is a convention of the package: the books put an event
 subscriber that calls an application service [IDDD ch. 8].
 
-It registers a fact that already happened elsewhere, so it does not refuse it [Destilado ch. 6]:
+It registers a fact that already happened elsewhere, so it does not refuse it [Distilled ch. 6]:
 
 - To create, it derives the id from the event and returns when that id is taken, so a redelivery
   creates nothing twice (`PaymentId.forOrder(order)` is a static method of the id class over
@@ -2078,7 +2085,7 @@ The repository is responsible for the transaction and for everything else about 
 - **Events that must not be lost**: `publish` runs after `save`, so a failure in between loses the
   events. When that matters, the repository writes the pending events in the same atomic write as
   the aggregate (an outbox in the same document or in the same database transaction of `save`) and
-  a relay delivers them through an `EventChannel` [Destilado ch. 6; IDDD ch. 8]; use cases do not
+  a relay delivers them through an `EventChannel` [Distilled ch. 6; IDDD ch. 8]; use cases do not
   change.
 
 An in-memory repository (see [Writing a repository](#writing-a-repository))
@@ -3858,9 +3865,9 @@ await new RegisterUser(users, bus)
 
 A larger example, an online shop with three bounded contexts (Sales, Payments and Shipping) that
 only integrate through domain events, shows the whole package at work: composites, child
-entities, specifications, a domain service with a domain port, use cases with authorization,
+entities, specifications, a domain service that reads another aggregate through its repository, use cases with authorization,
 optimistic concurrency with retry, compensation when a payment is rejected, a read model fed by
-reaction use cases and simulated HTTP controllers that translate errors with `ExceptionClassifier`. It lives
+reaction use cases and simulated HTTP controllers whose protocol helper translates errors with `ExceptionClassifier`. It lives
 in the repository, not in the npm package:
 [`packages/ddd/example`](https://github.com/jguillermo/archi-code-core/tree/main/packages/ddd/example).
 

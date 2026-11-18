@@ -33,7 +33,8 @@ import {
   UnknownEventException,
 } from '@archi-code/ddd/infrastructure';
 import type {
-  ChannelHandler, ChannelSubscription, EventChannel, IndexedDbTable, Subscription,
+  ChannelHandler, ChannelSubscription, EventChannel, IndexedDbDatabaseOptions, IndexedDbStored,
+  IndexedDbTable, Subscription,
 } from '@archi-code/ddd/infrastructure';
 import { Validations } from '@archi-code/validation';
 ```

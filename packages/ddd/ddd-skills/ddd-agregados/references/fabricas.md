@@ -25,7 +25,7 @@ Forma del caso de uso (cargar, `AggregateNotFoundException`, guardar una vez y p
 
 ## Fábrica como servicio
 
-Si crear exige consultar y traducir otro contexto, un servicio (a menudo de la ACL) hace de fábrica [IDDD cap. 11; PHP: Factories]: puerto en `domain/` con value objects, adaptador y traductor en `infrastructure/` (`ddd-skills/ddd-context-mapping/GUIA.md`).
+Si crear exige consultar y traducir otro contexto, un servicio (a menudo de la ACL) hace de fábrica [IDDD cap. 11; PHP: Factories]: puerto de aplicación en `application/` con value objects (no existen puertos de dominio `[Fuera de los libros: convención de @archi-code/ddd]`), adaptador y traductor en `infrastructure/`; el caso de uso llama al puerto y pasa lo cargado a la fábrica del agregado (`ddd-skills/ddd-context-mapping/GUIA.md`).
 
 ## Tests
 

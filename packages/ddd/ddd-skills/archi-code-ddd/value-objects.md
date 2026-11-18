@@ -15,7 +15,9 @@ enums, lists, JSON and `Composite` (money, addresses, ranges).
   `TypePrimitiveException`. `Required(...)` also declares the `isRequired` validation. An id is
   always required. A missing simple value is an optional value object holding `null`; only a
   missing composite or child entity is an `X | null` field.
-- A domain VO is always a named subclass (`class Email extends ...`), one per file: the name
+- A domain VO is always a named subclass (`class Email extends ...`), one per file (the only
+  exception is an enum, whose file `<Enum>Type.ts` holds the enum, `<Enum>Option` and
+  `<Enum>Type` together): the name
   appears in the error messages, and `equals` compares the class too (`BillingCountry('ES')` is
   not a `ShippingCountry('ES')`). Never use a base type (`Required(StringType)`) as a property
   type. Each context declares its own, even when another context has a similar one.
@@ -56,10 +58,12 @@ enums, lists, JSON and `Composite` (money, addresses, ranges).
     refuse the nil and max UUIDs.
   - Reference to an aggregate of another context: `<Other>Reference extends Required(UuidType)`
     (`OrderReference` in payments), never the other context's id class.
-  - Enum: one file `<Enum>Type.ts` with `export enum <Enum>` (snake_case string values),
+  - Enum: one file `<Enum>Type.ts` with `export enum <Enum>` (snake_case string values, except
+    a code of an external standard such as an ISO currency or country, written as the standard
+    writes it: `EUR = 'EUR'`),
     `<Enum>Option extends EnumType<<Enum>>` (`protected getEnum()`) and
-    `<Enum>Type extends Required(<Enum>Option)`; an optional enum is only
-    `<Enum>Type extends EnumType<<Enum>>`. Its primitive is the enum option, so
+    `<Enum>Type extends Required(<Enum>Option)`; an optional enum is one class,
+    `<Enum>Type extends EnumType<<Enum>>` with its `getEnum()`, without `<Enum>Option`. Its primitive is the enum option, so
     `new OrderStatusType(primitives.status)` needs no cast; from text input cast it
     (`new PaymentMethodType(input.paymentMethod as PaymentMethod)`).
   - List of simple values: `<Item>List extends ArrayType<<Item>>` (`createItem`, list rules as
@@ -189,7 +193,8 @@ export class PaymentId extends IdType<'PaymentId'> {
 ```
 
 An enum, `value-object/PaymentStatusType.ts` (the primitive is the enum option, so the round trip
-needs no cast; an optional enum is only `class RejectionCodeType extends EnumType<RejectionCode>`):
+needs no cast; an optional enum is one class, `class RejectionCodeType extends EnumType<RejectionCode>` with
+its `getEnum()`):
 
 ```ts
 import { EnumType, Required } from '@archi-code/ddd/domain';
@@ -388,7 +393,7 @@ with a unique index in the repository.
 ## What not to do
 
 - Using `Required(StringType)` directly as a property type instead of a named subclass, or two
-  value objects in one file.
+  value objects in one file (except the two classes of an enum in its `<Enum>Type.ts`).
 - `ensure…()`/`validate…()` methods of your own, or calling `assertValid()` (it does not exist):
   the constructor already throws `ValidationException`.
 - Building the value objects of an input one after another with `new` in `toCommand` (or at the

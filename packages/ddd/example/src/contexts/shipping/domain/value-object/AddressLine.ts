@@ -1,3 +1,7 @@
-import { Required, StringType } from '../../../../ddd/domain';
+import { Required, StringSanitizer, StringType } from '../../../../ddd/domain';
 
-export class AddressLine extends Required(StringType) {}
+export class AddressLine extends Required(StringType) {
+  protected filter(value: unknown): string {
+    return StringSanitizer.singleLine(super.filter(value));
+  }
+}

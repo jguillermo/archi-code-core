@@ -20,7 +20,7 @@ La forma del código (repositorio abstracto, adaptadores en memoria, IndexedDB y
 ## Reglas
 
 1. Solo los agregados tienen repositorio, uno por tipo, con ilusión de colección [IDDD cap. 12].
-2. Interfaz en el dominio con su lenguaje; implementación en infraestructura [IDDD cap. 4 y cap. 12; PHP: Repositories].
+2. Contrato en el dominio con su lenguaje; implementación en infraestructura [IDDD cap. 4 y cap. 12; PHP: Repositories]. Los libros lo declaran como interfaz; con el paquete es una clase abstracta, nunca una `interface` `[Fuera de los libros: convención de @archi-code/ddd]`.
 3. Devuelve agregados completos, nunca filas ni modelos del ORM [IDDD cap. 12].
 4. No es un DAO: nada de CRUD de grano fino sobre partes del agregado [IDDD cap. 12; PHP: Repositories].
 5. El dominio no gestiona transacciones [IDDD cap. 12; Destilado cap. 2]. Los libros las ponen en la aplicación; aquí, en el repositorio `[Fuera de los libros: convención de @archi-code/ddd]`.
@@ -41,7 +41,7 @@ La forma del código (repositorio abstracto, adaptadores en memoria, IndexedDB y
 
 * Repositorios de partes internas (`OrderLineRepository`) o genéricos para varios agregados.
 * Un agregado sin repositorio abstracto en `domain/repository/`; `interface OrderRepository`, o clase que no extiende `AggregateRepository<Order>`; casos de uso tipados con roles.
-* Verbos que el negocio no usa, o métodos distintos de `findById`, `search`, `save`, `remove`; `findAll()`, `findBy(field)`, `updateStatus(id, status)`, docenas de `findByXAndY`.
+* Verbos que el negocio no usa, o métodos distintos de `findById`, `search`, `save`, `remove`; `findAll()`, `findBy(field)`, `updateStatus(id, status)`, docenas de `findByXAndY`. La única excepción es el doble de test en memoria, que puede añadir ayudas técnicas de lectura (`findAll()`, `versionOf(id)`) que no están en el repositorio abstracto y que ningún caso de uso ve.
 * Tipos del ORM o filas fuera del repositorio; `@Entity` del ORM en el dominio.
 * El caso de uso recibe `transactions`/`unitOfWork` o abre `BEGIN`.
 * El repositorio lee getters del agregado, recibe la clase o un mapper.

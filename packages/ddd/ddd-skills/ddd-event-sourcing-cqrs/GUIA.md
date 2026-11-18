@@ -10,7 +10,7 @@
 
 * El paquete no trae event store, repositorios con Event Sourcing, snapshots ni proyecciones con checkpoint: se escriben en el proyecto, solo si la decisión de abajo lo justifica.
 * `AggregateRoot` no lleva versión: la de los repositorios de instantáneas la recuerda cada repositorio en un `WeakMap` y crece 1 por guardado, no por evento. Un agregado con Event Sourcing lleva su versión de stream (`streamVersion()`), se reconstruye con `fromHistory` desde los eventos que reconstruye `EventRegistry` y no usa `toPrimitives()`/`fromPrimitives()`.
-* El dominio declara el contrato del stream (`load`/`append`), que no es un `AggregateRepository`. Su adaptador anexa los eventos de un `append` en una escritura atómica con la versión esperada y lanza `ConcurrencyException` si otro escribió antes. La aplicación no abre transacciones. El reintento va en `handle` del caso de uso, con límite, recargando el stream y volviendo a anexar; una reacción no reintenta (reentrega el canal).
+* El dominio no declara ningún contrato de stream (`load`/`append`): sería un puerto de dominio, y no existen. La guía no fija cómo se guarda el stream; quien lo guarde anexa los eventos en una escritura atómica con la versión esperada y lanza `ConcurrencyException` si otro escribió antes. La aplicación no abre transacciones. El reintento va en `handle` del caso de uso, con límite, recargando y volviendo a guardar; una reacción no reintenta (reentrega el canal).
 * Un read model es un módulo de `application/` (`order-summaries/`): fila de primitivos, puerto de store (`find`, `hasApplied(eventId)`, `save(row, eventId)`), puerto de consulta (`byId`, `ofCustomer`), una proyección idempotente por `eventId` (no es caso de uso ni escucha) y un caso de uso por reacción por cada evento que cambia la fila. Una clase de infraestructura implementa ambos puertos.
 * Las consultas no tienen caso de uso: el controlador lee el puerto de consulta.
 * Un `EventChannel` no guarda historial: reconstruir o auditar exige un log de eventos propio (con Event Sourcing, el event store).
@@ -32,12 +32,12 @@ Detalle en `ddd-skills/ddd-event-sourcing-cqrs/references/event-sourcing-ts.md`.
 1. El agregado separa decidir (comandos que validan y emiten) de aplicar (`apply` privado que cambia estado); IDDD llega a proponer dos clases, estado y comportamiento [IDDD apéndice A].
 2. Cargar: leer el stream y aplicar en orden. Ejecutar: nuevos eventos pendientes.
 3. Guardar con la versión esperada; conflicto → reintentar recargando o propagar [IDDD apéndice A].
-4. Publicar después [IDDD apéndice A]: el caso de uso publica con `EventBus` tras `append`; si no puede perderse, el event store hace de bandeja para un reenviador por un `EventChannel`.
+4. Publicar después [IDDD apéndice A]: el caso de uso publica con `EventBus` tras guardar; si no puede perderse, el event store hace de bandeja para un reenviador por un `EventChannel`.
 5. Snapshots y caché para streams largos [IDDD apéndice A; Destilado cap. 6].
 
 ## Proyecciones
 
-Suscriptores que mantienen modelos de lectura, reconstruibles reproduciendo los eventos, lo que permite cambiar una vista sin tocar el agregado; también dan a un agregado datos de otro mediante un servicio de dominio que consulta la proyección [IDDD apéndice A]. Con el paquete, `EventListener` suscritos al `DomainEventBus` e idempotentes por `eventId`. Detalle en `ddd-skills/ddd-event-sourcing-cqrs/references/proyecciones-cqrs-ts.md`.
+Suscriptores que mantienen modelos de lectura, reconstruibles reproduciendo los eventos, lo que permite cambiar una vista sin tocar el agregado; también dan a un agregado datos de otro [IDDD apéndice A, con un servicio de dominio que consulta la proyección]: aquí el caso de uso lee la proyección por un puerto de aplicación y pasa los datos ya cargados al método del agregado; no existen puertos de dominio y el agregado nunca llama a un servicio `[Fuera de los libros: convención de @archi-code/ddd]`. Con el paquete, `EventListener` suscritos al `DomainEventBus` e idempotentes por `eventId`. Detalle en `ddd-skills/ddd-event-sourcing-cqrs/references/proyecciones-cqrs-ts.md`.
 
 ## Interfaz eventual
 

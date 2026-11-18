@@ -17,8 +17,8 @@ src/
         value-object/OrderId.ts, OrderStatusType.ts, Sku.ts, ShippingAddress.ts
         event/OrderCreatedDomainEvent.ts
         exception/OrderNotModifiable.ts
-        repository/OrderRepository.ts          (abstract, extends AggregateRepository<Order>)
-        service/OrderPricing.ts, CouponCatalog.ts
+        repository/OrderRepository.ts, CouponRepository.ts   (abstract, extends AggregateRepository<…>)
+        service/OrderPricing.ts                (solo clases concretas, nunca interfaces)
         specification/FreeShippingEligible.ts
       application/
         place-order/place-order.ts, address-data.ts
@@ -124,6 +124,6 @@ export class Http {
 
 ## TypeScript `[Fuera de los libros]`
 
-* `strict: true`; `experimentalDecorators: true` (`@Validations`, `@ListensTo`).
+* `strict: true`. `@Validations` y `@ListensTo` funcionan con decoradores estándar (TypeScript 5+ sin `experimentalDecorators`) y con los antiguos (`experimentalDecorators: true`); no necesitan `emitDecoratorMetadata` ni `reflect-metadata`.
 * `moduleResolution` `node16`, `nodenext` o `bundler` para los subpaths (`node` usa `typesVersions`).
 * `exactOptionalPropertyTypes` y `noUncheckedIndexedAccess` ayudan.

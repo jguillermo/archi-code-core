@@ -2,6 +2,7 @@ import { AggregateRoot, CreatedAt, UpdatedAt } from '../../../../ddd/domain';
 import type { PrimitiveTypes } from '../../../../ddd/domain';
 import { Carrier } from '../value-object/CarrierType';
 import { CarrierLabel } from '../value-object/CarrierLabel';
+import { CarrierLabelJson } from '../value-object/CarrierLabelJson';
 import { CarrierType } from '../value-object/CarrierType';
 import { ExpectedDelivery } from '../value-object/ExpectedDelivery';
 import type { GiftWrapRequested } from '../value-object/GiftWrapRequested';
@@ -28,7 +29,7 @@ export class Shipment extends AggregateRoot<ShipmentId> {
   readonly address: ShipmentAddress | null;
   readonly contents: ShipmentContents | null;
   readonly carrier: CarrierType;
-  readonly carrierLabel: CarrierLabel;
+  readonly carrierLabel: CarrierLabelJson;
   readonly expectedDelivery: ExpectedDelivery;
   private _status: ShipmentStatusType;
   private _trackingNumber: TrackingNumber;
@@ -41,7 +42,7 @@ export class Shipment extends AggregateRoot<ShipmentId> {
     address: ShipmentAddress | null,
     contents: ShipmentContents | null,
     carrier: CarrierType,
-    carrierLabel: CarrierLabel,
+    carrierLabel: CarrierLabelJson,
     expectedDelivery: ExpectedDelivery,
     status: ShipmentStatusType,
     trackingNumber: TrackingNumber,
@@ -90,7 +91,7 @@ export class Shipment extends AggregateRoot<ShipmentId> {
       new ShipmentStatusType(ShipmentStatus.PREPARING),
       new TrackingNumber(null),
       createdAt,
-      new UpdatedAt(createdAt.value),
+      UpdatedAt.now(),
     );
 
     shipment.record(
@@ -112,7 +113,7 @@ export class Shipment extends AggregateRoot<ShipmentId> {
       null,
       null,
       new CarrierType(null),
-      new CarrierLabel(null),
+      new CarrierLabelJson(null),
       new ExpectedDelivery(null),
       new ShipmentStatusType(ShipmentStatus.CANCELLED),
       new TrackingNumber(null),
@@ -137,7 +138,7 @@ export class Shipment extends AggregateRoot<ShipmentId> {
       primitives.address === null ? null : ShipmentAddress.fromPrimitives(primitives.address),
       primitives.contents === null ? null : ShipmentContents.fromPrimitives(primitives.contents),
       new CarrierType(primitives.carrier),
-      new CarrierLabel(primitives.carrierLabel),
+      new CarrierLabelJson(primitives.carrierLabel),
       new ExpectedDelivery(primitives.expectedDelivery),
       new ShipmentStatusType(primitives.status),
       new TrackingNumber(primitives.trackingNumber),

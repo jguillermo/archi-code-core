@@ -166,7 +166,7 @@ export class Payment extends AggregateRoot<PaymentId> {
       return;
     }
     this._amount = amount;
-    this._updatedAt = UpdatedAt.now();
+    this.touch();
     this.record(
       new PaymentAmountAdjustedDomainEvent({
         paymentId: this.id.value,
@@ -251,6 +251,10 @@ export class Payment extends AggregateRoot<PaymentId> {
 
   private moveTo(status: PaymentStatus): void {
     this._status = new PaymentStatusType(status);
+    this.touch();
+  }
+
+  private touch(): void {
     this._updatedAt = UpdatedAt.now();
   }
 }

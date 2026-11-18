@@ -30,8 +30,10 @@ aggregate and value objects of your own domain.
   ignored, so optional input can be passed directly.
 - A schema declares each field with its value object class (`age: UserAge`), so request input is
   converted and validated by the same value objects as the domain. Input from a request (body,
-  query, URL text) always goes through it: `schema.parse(input)` or `schema.fromUrl(text)`. Map
-  `CriteriaError` to HTTP 400: input from outside only ever throws `CriteriaError`.
+  query, URL text) always goes through it: `schema.parse(input)` or `schema.fromUrl(text)`. Input
+  from outside only ever throws `CriteriaError`, which the protocol helper answers with HTTP 400
+  (`composition-and-entry-points.md`): the entry point parses inside `this.http.respond(…)` and
+  never catches it.
 - Every schema sets `maxLimit` (required). Tighten `maxOffset` and `limits` to what the endpoint
   really needs instead of raising them.
 - Dates from a request are ISO text with a zone (`'2024-01-01T10:00Z'`) or a plain ISO date (UTC
@@ -47,14 +49,11 @@ aggregate and value objects of your own domain.
 
 ## Code
 
-A query port of the application and its HTTP handler:
+A use case that changes the aggregates a criteria selects. The schema lives in the application,
+next to the use case (`application/suspend-users/user-search-schema.ts`):
 
 ```ts
-interface UserSearch {
-  search(criteria: Criteria<User>, options?: { withTotal?: boolean }): Promise<SearchResult<User>>;
-}
-
-const userSchema = defineCriteriaSchema<User>({
+export const userSchema = defineCriteriaSchema<User>({
   fields: {
     id: UserId,
     status: UserStatus,
@@ -66,16 +65,36 @@ const userSchema = defineCriteriaSchema<User>({
   maxLimit: 100,
   tiebreaker: 'id',
 });
+```
 
-async function searchUsers(query: { q?: string }) {
-  try {
-    const criteria = query.q ? userSchema.fromUrl(query.q) : userSchema.parse({});
-    return await users.search(criteria, { withTotal: true });
-  } catch (error) {
-    if (error instanceof CriteriaError) throw new BadRequest(error.code, error.message);
-    throw error;
+The controller parses the request text with the schema inside `this.http.respond(…)` and passes
+the criteria to the use case. It never catches: a `CriteriaError` reaches the protocol helper,
+which answers 400:
+
+```ts
+  suspend(request: HttpRequest): Promise<HttpResponse> {
+    return this.http.respond(async () => {
+      const criteria = userSchema.fromUrl(request.params?.q as string);
+      await this.suspendUsers.execute({ criteria });
+      return { status: 204 };
+    });
   }
-}
+```
+
+The use case searches with the `search` of the abstract repository (`UserRepository implements
+AggregateSearcher<User>`), changes each aggregate and saves it; it never returns the aggregates. It is a bulk change, the
+exception to "one aggregate saved once" that `use-cases.md` ("Bulk changes") describes, written
+down as a decision record and paged with `limit`:
+
+```ts
+  protected async handle(command: SuspendUsersCommand): Promise<void> {
+    const { items } = await this.users.search(command.criteria);
+    for (const user of items) {
+      user.suspend();
+      await this.users.save(user);
+      await this.events.publish(user.pullDomainEvents());
+    }
+  }
 ```
 
 Client side, sending a search through the URL:

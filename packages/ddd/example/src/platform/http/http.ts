@@ -1,4 +1,4 @@
-import { DomainException, ValidationException } from '../../ddd/domain';
+import { CriteriaError, DomainException, ValidationException } from '../../ddd/domain';
 import { ApplicationException } from '../../ddd/application';
 import type { Logger } from '../../ddd/application';
 import {
@@ -30,6 +30,7 @@ export class Http {
     [ExceptionKind.Rejected]: 400,
     [ExceptionKind.Internal]: 500,
   };
+  private static readonly NOT_FOUND_CODES = new Set(['SAL009']);
 
   constructor(private readonly logger: Logger) {}
 
@@ -57,6 +58,9 @@ export class Http {
   }
 
   private failure(error: unknown): HttpResponse {
+    if (error instanceof CriteriaError) {
+      return { status: 400, body: { code: error.code, message: error.message } };
+    }
     const kind = ExceptionClassifier.classify(error);
     const known =
       error instanceof DomainException ||
@@ -67,8 +71,8 @@ export class Http {
       this.logger.error('http_request_failed', { code, error });
       return { status: 500, body: { code, message: 'Internal server error' } };
     }
-    const message = (error as Error).message;
+    const status = Http.NOT_FOUND_CODES.has(code) ? 404 : Http.STATUS[kind];
     const errors = error instanceof ValidationException ? error.errors : undefined;
-    return { status: Http.STATUS[kind], body: { code, message, errors } };
+    return { status, body: { code, message: (error as Error).message, errors } };
   }
 }

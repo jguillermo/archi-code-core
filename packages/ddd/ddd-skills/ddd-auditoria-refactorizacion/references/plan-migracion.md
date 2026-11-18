@@ -7,7 +7,7 @@
 
 ## Fase 1. Proteger lo nuevo
 
-* Un contexto nuevo con su lenguaje, conectado al legado por una ACL [Destilado cap. 4]: puerto en el dominio (`ProductPricing.priceOf(sku): Promise<Money>`) y adaptador en `infrastructure/` que lee el legado, envuelve sus errores en `InternalErrorException` y construye `Money.fromPrimitives(...)`, de modo que un dato inválido falla en la frontera.
+* Un contexto nuevo con su lenguaje, conectado al legado por una ACL [Destilado cap. 4]: puerto de aplicación (`ProductPricing.priceOf(sku): Promise<Money | null>`, en `application/`; no existen puertos de dominio) y adaptador en `infrastructure/` que lee el legado, envuelve sus errores en `InternalErrorException` y construye `Money.fromPrimitives(...)`, de modo que un dato inválido falla en la frontera.
 * Contexto burbuja de Evans: un contexto nuevo pequeño, protegido por ACL, que convive con el legado y lo usa como fuente de datos `[Fuera de los libros: Evans, "Getting Started with DDD When Surrounded by Legacy Systems", 2013]`.
 
 ## Fase 2. Desplazar funcionalidad
