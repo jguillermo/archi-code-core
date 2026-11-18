@@ -22,8 +22,8 @@ use case, one class, with no `UseCase` behind it.
   `.ts`, a stable literal unique in the system, never derived from the class name, which minifiers
   change. The event class is the local copy of another context's event, or the context's own event
   (read models, reactions inside the context).
-- Constructor as a user use case (the aggregate's repository, the ports and service dependencies,
-  `EventBus`, `Logger`); a read-model reaction receives only its projection.
+- Constructor as a user use case, with the same parameters in the same order (the constructor
+  rule of `use-cases.md`); a read-model reaction receives only its projection.
 - `async handle(event)`, in this order: (1) `const { a, b } = ValueObjectBuilder.build({ a: () =>
   new A(event.a), … })`; (2) a derived id (`PaymentId.forOrder(orderReference)`); (3a) to create:
   `if ((await repo.findById(id)) !== null) { return; }` then `<Aggregate>.create(...)`; (3b) to
@@ -67,9 +67,12 @@ use case, one class, with no `UseCase` behind it.
   (`total: json.total as MoneyData`, `address: json.address as AddressData`) and with an inline
   shape for the rest (`items: json.items as { sku: string; quantity: number }[]`): no new data
   type is created only for the registry.
-- An application port (data only the use case needs, such as `PetOwnerships` for authorization) is
-  an interface next to its first use case; a port with business meaning is a domain port in
-  `domain/service/`.
+- Every port is an application port: an interface next to its first use case
+  (`application/<action>/<port>.ts`), implemented in `infrastructure`, whether it gives data only
+  the use case needs (`PetOwnerships` for authorization) or reaches another system
+  (`PaymentGateway`). There are no domain ports: the domain never declares an interface for
+  another layer to implement, only the abstract repository of each aggregate
+  (`domain-services.md`).
 - An event whose data no value object accepts makes `ValueObjectBuilder.build` throw a
   `ValidationException` in the reaction: it is not caught; `DomainEventBus` logs it and the
   channel keeps it as an undeliverable message (a dead-letter queue in a broker).
@@ -227,7 +230,7 @@ export class SettleCancelledOrderPaymentOnOrderCancelled extends EventListener<O
 
 ### External side effect
 
-The user use case only records the intent and saves; a reaction to that event calls the domain
+The user use case only records the intent and saves; a reaction to that event calls the application
 port directly with the `eventId` that asked as idempotency key and records the outcome. The
 aggregate keeps the key of the attempt in progress (`ChargeKey extends UuidType`, optional):
 
@@ -269,7 +272,7 @@ aggregate keeps the key of the attempt in progress (`ChargeKey extends UuidType`
   }
 ```
 
-The domain port, `domain/service/PaymentGateway.ts` (the card token stays behind it, never in the
+The application port, `application/charge-invoice/payment-gateway.ts` (the card token stays behind it, never in the
 aggregate nor the event):
 
 ```ts

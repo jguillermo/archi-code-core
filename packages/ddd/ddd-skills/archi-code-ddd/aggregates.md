@@ -8,7 +8,7 @@ entities, their conversion to primitives and the current time.
 `[Fuera de los libros: convención de @archi-code/ddd]`: the public constructor, `create`, the
 getters named like the fields and `fromPrimitives`/`toPrimitives` are package
 conventions; the books allow a private constructor with a factory [IDDD ch. 11], getters only
-where needed [Destilado ch. 5] and a mapper in infrastructure [IDDD ch. 6].
+where needed [Distilled ch. 5] and a mapper in infrastructure [IDDD ch. 6].
 
 - Aggregates extend `AggregateRoot<<Aggregate>Id>` and call `super(id)`; the id
   is exposed as `readonly id` (no `_id` + getter), `equals` compares class and id, and an id that
@@ -75,8 +75,8 @@ where needed [Destilado ch. 5] and a mapper in infrastructure [IDDD ch. 6].
 - **Time-based rules** ("expired", "in the future") are decided by an aggregate method, the only
   code that reads the current time (`CreatedAt.now()`/`UpdatedAt.now()`); a search filters by
   state and pages.
-- An aggregate never holds a repository, the event bus, a logger, HTTP, a version, setters nor
-  ids derived from other data. Another aggregate is referenced by its id (`customerId:
+- An aggregate never holds a repository, the event bus, a logger, HTTP, a version nor setters.
+  Another aggregate is referenced by its id (`customerId:
   CustomerId`), never by the object. An aggregate never calls, instantiates,
   imports nor receives a domain service, by constructor or as a method argument: only use cases
   execute domain services, and the aggregate receives loaded data or the answer of the service as
@@ -386,6 +386,7 @@ export class OrderLine extends Entity<LineNumber> {
           new OrderLine(new LineNumber(index + 1), line.sku, line.quantity, line.unitPrice),
       ),
       new OrderStatusType(OrderStatus.PENDING_PAYMENT),
+      /* … the other fields: shipping address, payment method, payment reference */
       CreatedAt.now(),
       UpdatedAt.now(),
     );
@@ -459,6 +460,7 @@ export class OrderLine extends Entity<LineNumber> {
         unitPrice: line.unitPrice.toPrimitives(),
       })),
       status: this._status.value,
+      /* … every other field, none left out: paymentMethod, paymentReference */
       createdAt: this.createdAt.value,
       updatedAt: this._updatedAt.value,
     };

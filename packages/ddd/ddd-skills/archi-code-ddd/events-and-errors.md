@@ -101,7 +101,7 @@ export class PaymentNotAwaitingTransfer extends DomainException {
 - An event class named without the `DomainEvent` suffix, or an `eventName` that is the class name
   or not `'<aggregate>.<past_action>'` in snake_case.
 - Events named `OrderUpdated` carrying the whole state, named in present tense, carrying value
-  objects, `Date`s, `undefined`, class instances, `toPrimitives()` or personal data that
+  objects, `Date`s, `undefined`, class instances, the `toPrimitives()` of an aggregate or personal data that
   consumers do not need.
 - Interfaces, type aliases or imported data types in an event file, or positional constructor
   parameters: the constructor takes one object typed inline as `{ …fields } & EventMetadata`.

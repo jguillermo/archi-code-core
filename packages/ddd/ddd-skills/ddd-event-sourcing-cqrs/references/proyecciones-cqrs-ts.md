@@ -79,4 +79,4 @@ Las proyecciones se alimentan de los eventos que los casos de uso publican tras 
 
 ## Proyecciones para otros agregados
 
-Un servicio de dominio con un puerto en `domain/service/` puede leer una proyección (`CustomerBillingView`) para dar datos de referencia a un agregado sin acoplarlo a otro [IDDD apéndice A]: la infraestructura implementa el puerto sobre la tabla y el caso de uso pasa los datos ya cargados al método del agregado; nunca para invariantes que exijan consistencia inmediata.
+Un caso de uso puede leer una proyección (`CustomerBillingView`) por un puerto de aplicación para dar datos de referencia a un agregado sin acoplarlo a otro [IDDD apéndice A; allí lo hace un servicio de dominio con su interfaz, aquí no existen puertos de dominio `[Fuera de los libros: convención de @archi-code/ddd]`]: la infraestructura implementa el puerto sobre la tabla y el caso de uso pasa los datos ya cargados al método del agregado o al servicio de dominio; nunca para invariantes que exijan consistencia inmediata.

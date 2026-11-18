@@ -1,6 +1,6 @@
 ---
 name: archi-code-ddd
-description: Use it whenever someone applies Domain-Driven Design with @archi-code/ddd - designs or reviews a domain model, writes or changes any class built on the package, decides which layer a class belongs to, or the code imports @archi-code/ddd. It is the single entry point - it generates, reviews and explains bounded contexts and folders, value objects and Composite, aggregates (public constructor, create, fromPrimitives/toPrimitives), child entities, events and business errors, the abstract repository per aggregate and its adapters (in memory, IndexedDB over IndexedDbDatabase and IndexedDbSchema, MongoDB), user use cases (UseCase) and reaction use cases (EventListener with @ListensTo), domain services and ports, read models, Criteria, the composition root, controllers and ExceptionClassifier - and routes design questions to the DDD guide suite shipped in the package.
+description: Use it whenever someone applies Domain-Driven Design with @archi-code/ddd - designs or reviews a domain model, writes or changes any class built on the package, decides which layer a class belongs to, or the code imports @archi-code/ddd. It is the single entry point - it generates, reviews and explains bounded contexts and folders, value objects and Composite, aggregates (public constructor, create, fromPrimitives/toPrimitives), child entities, events and business errors, the abstract repository per aggregate and its adapters (in memory, IndexedDB over IndexedDbDatabase and IndexedDbSchema, MongoDB), user use cases (UseCase) and reaction use cases (EventListener with @ListensTo), domain services (always concrete classes; there are no domain ports), application ports, read models, Criteria, the composition root, controllers and ExceptionClassifier - and routes design questions to the DDD guide suite shipped in the package.
 ---
 
 # archi-code-ddd
@@ -174,7 +174,12 @@ them.
       is reported as not run, naming the command the user runs.
    5. **Scanner**: run the suite's scanner (Python 3) over the contexts root and read each finding
       in a file you wrote or changed: fix it, or explain in the report why it is not a defect
-      (its findings are hints).
+      (its findings are hints). Three findings are never hints and always block: `puerto-de-dominio`
+      (an interface or an abstract class in `domain/service/`), `dominio-con-clase-abstracta` (an
+      abstract class in the domain outside `repository/`) and `capa-exterior-implementa-dominio`
+      (a class of `application`, `infrastructure` or `interfaces` that implements or extends
+      something of the domain other than a repository). They are the most important rule of the
+      package: fix the code, in files you did not write too, and never explain them away.
 
       ```bash
       python3 -I "<package folder>/ddd-skills/ddd-auditoria-refactorizacion/scripts/scan_ddd_smells.py" <contexts root>
@@ -231,7 +236,8 @@ user asks for the fixes):
    section), why it matters and the concrete fix. Three grades: **breaks the model** (a wrong
    invariant, a lost event, two aggregates saved in one use case with no decision record in the
    project's decision records folder, a use case calling another, a
-   layer importing outward), **breaks the standard** (folder, name, shape, a package tool not
+   layer importing outward, a domain port: anything of the domain but the abstract repository
+   implemented in another layer, or an interface or abstract class in `domain/service/`), **breaks the standard** (folder, name, shape, a package tool not
    used) and **suggestion**. Then the result of each gate as it happened, and what could not be
    checked. Confirm every scanner finding by reading the code before reporting it.
 
@@ -240,6 +246,40 @@ user asks for the fixes):
 These are the rules no request may break. They are a reminder, **not enough to write code**: every
 rule is developed, with its reason, the code to copy and its mistakes, in the guide of its kind of
 class (table "Package guides"), which you read before writing that kind of class.
+
+### The most important rule: the domain is implemented only by its repositories
+
+`[Fuera de los libros: convención de @archi-code/ddd]` (user rule, strict, no exceptions). It
+comes before every other rule and no request, example or book may break it:
+
+- **The only thing of the domain that another layer implements is the abstract repository of an
+  aggregate** (`domain/repository/<Aggregate>Repository.ts`, implemented in `infrastructure`).
+  Nothing else of the domain is ever implemented in `infrastructure` nor in `application`.
+- **There are no domain ports. They do not exist and are never created.** `domain/service/`
+  holds only concrete classes: never an `interface`, an `abstract class` nor a `type` meant to be
+  implemented somewhere else, and neither does any other domain folder except `repository/`.
+- **A domain service is always a concrete class** with its business logic inside, never abstract
+  nor an interface.
+- **When the domain seems to need an interface, refactor the domain**: the data becomes an
+  aggregate of the context read through its abstract repository (`Coupon` and `CouponRepository`,
+  never a `CouponCatalog` interface), or the technical capability becomes an application port
+  (an interface in `application/`, implemented in `infrastructure`) that the use case calls,
+  passing what it loaded to the domain as value objects.
+- Existing code that breaks this rule is a defect to fix, never a pattern to follow.
+
+How to check it, in every generation and every review, never by reading alone:
+
+- every file of `domain/service/` declares a concrete class: no `interface`, no `abstract class`;
+- no file of the domain outside `repository/` declares an `abstract class`;
+- every `implements` and `extends` of `application`, `infrastructure` and `interfaces` names a
+  type of the package, of `application` or of `domain/repository/`, never another domain type;
+- the scanner reports none of `puerto-de-dominio`, `dominio-con-clase-abstracta` and
+  `capa-exterior-implementa-dominio` (step 5 of "Generating code").
+
+A name does not excuse it: an interface in the domain called "port", "gateway", "catalog",
+"provider" or "policy" that another layer implements is the same defect.
+
+Detail and code: `ddd-skills/archi-code-ddd/domain-services.md` and `repositories.md`.
 
 ### DDD rules (from the books)
 
@@ -270,7 +310,9 @@ every divergence in both).
   API you have not read.
 - **Layers**: `domain` imports only `@archi-code/ddd/domain`, `@archi-code/validation`, its own
   domain and `shared-kernel/`; `application` adds `@archi-code/ddd/application`; only
-  `infrastructure` and `composition.ts` import `@archi-code/ddd/infrastructure`. There is no root
+  `infrastructure` and `composition.ts` import `@archi-code/ddd/infrastructure`, plus the entry
+  points (the protocol helper and the controllers), which import from it only
+  `ExceptionClassifier` and `ExceptionKind` (only the helper translates errors; a controller never catches nor maps them). There is no root
   import.
 - **Contexts never import each other**: data crosses only as events, each context with its own
   copy of every foreign event it hears.
@@ -279,21 +321,23 @@ every divergence in both).
 - **The aggregate decides and converts itself**: `static create`, business methods,
   `fromPrimitives`/`toPrimitives` with a round-trip test; no setters, no repository, no logger, no
   `new Date()`.
-- **One use case = one business action = one aggregate saved once.** A use case never uses another
+- **One use case = one business action = one aggregate saved once** (a bulk change over many
+  aggregates of one kind is the one exception, with its decision record: `use-cases.md`). A use case never uses another
   use case; shared logic is an aggregate method or a domain service; a follow-up action is a
   reaction to an event.
 - **Only use cases execute domain services**, inside `handle`, holding in their constructor the
-  repository or port the service needs. An aggregate never calls, instantiates nor receives a
+  repository the service needs, when it needs one. An aggregate never calls, instantiates nor receives a
   domain service, and neither does another domain service; a domain service may create, modify and save aggregates (with the abstract repository the use case passes to it), and never publishes.
 - **A domain service is always a concrete class with business logic**: never an abstract class
   nor an interface for infrastructure to implement, and nothing in `infrastructure` implements or
-  extends one; infrastructure implements only repositories, domain ports, stores and channels.
+  extends one; of the domain, infrastructure implements only the abstract repositories.
 - **A reaction use case** is one `EventListener` with `@ListensTo` and an explicit `consumer`:
   idempotent, never throws business errors, no authorization.
-- **Repositories only get, search and persist**: one abstract class per aggregate in the domain,
+- **Repositories only get, search, persist and remove**: one abstract class per aggregate in the domain,
   one adapter per technology, which owns the transaction and the version check.
 - **Entry points** call one use case or query port and map errors only through the protocol
-  helper over `ExceptionClassifier`; **`composition.ts`** alone builds and subscribes.
+  helper over `ExceptionClassifier`; **`composition.ts`** alone builds and subscribes (except domain
+  services, which each use case builds inside `handle`).
 - **Events** are DTOs of `readonly` primitives; **time** only through `CreatedAt.now()` /
   `UpdatedAt.now()`; **logging** only through the `Logger` port, never in the domain.
 
@@ -314,7 +358,7 @@ The numbered rows are also the order in which step 4 generates code.
 | 1   | Shared kernel types (money in `shared-kernel/money/`), value objects, ids, references, enums, lists, JSON, `Composite`                                                                      | `value-objects.md`                                                                                               |
 | 2   | Domain events, business errors                                                                                                                                                              | `events-and-errors.md`                                                                                           |
 | 3   | Child entities, `New<Child>` shapes, outcome enums, the aggregate, `fromPrimitives`/`toPrimitives`, time                                                                                    | `aggregates.md`                                                                                                  |
-| 4   | The abstract repository; domain ports, domain services, specifications, logic two use cases share                                                                                           | `repositories.md` (only `Rules` and `Abstract repository`), `domain-services.md` (only when the request has one) |
+| 4   | The abstract repository; domain services, specifications, logic two use cases share (no domain ports)                                                                                       | `repositories.md` (only `Rules` and `Abstract repository`), `domain-services.md` (only when the request has one) |
 | 5   | User use cases with their `Input`, `Command` and data types (and the rules every use case follows)                                                                                          | `use-cases.md`                                                                                                   |
 | 6   | Copies of foreign events, reaction use cases, external side effects                                                                                                                         | `reactions.md` (and the `Rules` of `use-cases.md` when row 5 did not read it)                                    |
 | 7   | Read models: row, store, query port, projection, one reaction per event                                                                                                                     | `read-models.md`                                                                                                 |

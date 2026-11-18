@@ -25,12 +25,18 @@ the event bus, registry and channels, controllers with their protocol helper, an
   `DomainException`) 422, `Internal` (`UnexpectedErrorException`, `InvalidEventDefinitionException`,
   anything else) 500, logged once as `logger.error('http_request_failed', …)` with the message
   hidden. The error body is `{ code, message, errors }` (`errors` only for `ValidationException`).
-  It is the only file that imports `ExceptionClassifier`. Never classify with hand-written
-  `instanceof` chains.
-- A "not found" thrown by a domain service (`CourseNotFound`, a `DomainException`) is `Invalid`
+  Only entry points (this helper and the controllers) may import `ExceptionClassifier` and
+  `ExceptionKind`, but only this helper translates errors: a controller never catches an error
+  nor maps a status, even when it imports them. Never classify with hand-written
+  `instanceof` chains. The one exception is `CriteriaError` (a search from outside that the
+  criteria schema refuses): `ExceptionClassifier` does not know it, so the helper answers it
+  with one `instanceof CriteriaError` check, 400 with its `code` and `message`, before
+  classifying. No controller catches it.
+- A "not found" thrown by a domain service as a step of its business rule (`UnknownCoupon`, a
+  `DomainException` of `OrderPricing`) is `Invalid`
   (422), while `AggregateNotFoundException` thrown by a use case is `NotFound` (404). When the
   business wants a 404 for such a business error, the protocol helper keeps one table of business
-  codes per status (`private static readonly NOT_FOUND_CODES = new Set(['CRS001'])`) and checks
+  codes per status (`private static readonly NOT_FOUND_CODES = new Set(['SAL009'])`) and checks
   `error.code` after `ExceptionClassifier`; it is the only place that looks at a code, and
   controllers still never catch errors.
 - A controller (`interfaces/http/<aggregates>-controller.ts`) receives the user use cases (or one
@@ -147,7 +153,7 @@ The top level opens one channel and starts every context on it:
 
 ```ts
 const channel = new InMemoryEventChannel({ delivery: 'serial' });
-const sales = await SalesContext.start({ channel, logger, campaigns });
+const sales = await SalesContext.start({ channel, logger });
 const payments = await PaymentsContext.start({ channel, logger });
 const shipping = await ShippingContext.start({ channel, logger });
 // close: shipping.stop(), payments.stop(), sales.stop()
@@ -160,6 +166,7 @@ requests and responses are the project's own types):
 
 ```ts
 import {
+  CriteriaError,
   DomainException,
   ValidationException,
 } from '@archi-code/ddd/domain';
@@ -194,7 +201,7 @@ export class Http {
     [ExceptionKind.Rejected]: 400,
     [ExceptionKind.Internal]: 500,
   };
-  private static readonly NOT_FOUND_CODES = new Set(['CRS001']);
+  private static readonly NOT_FOUND_CODES = new Set(['SAL009']);
 
   constructor(private readonly logger: Logger) {}
 
@@ -222,6 +229,9 @@ export class Http {
   }
 
   private failure(error: unknown): HttpResponse {
+    if (error instanceof CriteriaError) {
+      return { status: 400, body: { code: error.code, message: error.message } };
+    }
     const kind = ExceptionClassifier.classify(error);
     const known =
       error instanceof DomainException ||

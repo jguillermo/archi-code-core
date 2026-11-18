@@ -1,9 +1,25 @@
 # Domain services and specifications
 
 Part of the `archi-code-ddd` skill: read it only when that skill routes here. Logic shared by
-several use cases, rules over several aggregates or a domain port, and named business rules.
+several use cases, rules over several aggregates, and named business rules.
 
 ## Rules
+
+- **The domain is implemented only by its repositories; there are no domain ports** (user rule,
+  the most important rule of this guide, strict, no exceptions). The only thing of the domain
+  that another layer implements is the abstract repository of an aggregate
+  (`repository/<Aggregate>Repository.ts`), implemented in `infrastructure`. Nothing else of the
+  domain is ever implemented in `infrastructure` nor in `application`: `domain/service/` holds
+  only concrete classes, never an `interface`, an `abstract class` nor a `type` meant to be
+  implemented somewhere else. A "domain port" does not exist and is never created. When the
+  domain seems to need one, refactor the domain:
+  - the data the rule needs is modelled as an aggregate of the context and read through its
+    abstract repository (the coupons `OrderPricing` reads are the `Coupon` aggregate behind
+    `CouponRepository`, never a `CouponCatalog` interface);
+  - a technical capability or another system (a payment gateway, another context, an email
+    sender) is an application port: an interface in `application/`, next to its first use case,
+    implemented in `infrastructure`. The use case or reaction calls it and passes what it loaded
+    to the domain as value objects; the domain never sees the port.
 
 - **A named business rule that selects, validates or combines is a `Specification<T>`**
   (`specification/<Rule>.ts`): it implements `isSatisfiedBy(x): boolean`, receives its parameters
@@ -20,16 +36,16 @@ several use cases, rules over several aggregates or a domain port, and named bus
     `ImportCourse` both register a course: `CourseRegistration`); never one use case calling
     another;
   - or a business rule that one use case needs does not fit in one aggregate nor value object,
-    because it needs several aggregates or a domain port (`OrderPricing` with `CouponCatalog`,
-    used only by `PlaceOrder`). A use case holds no business rule, so the rule never stays in
+    because it needs several aggregates (`OrderPricing` reads the `Coupon` aggregate of every
+    code through `CouponRepository`, used only by `PlaceOrder`). A use case holds no business rule, so the rule never stays in
     its `handle`.
 
   Anything else is not a domain service: a rule of one aggregate is a method of the aggregate
   (also a rule between who asks and the aggregate's state: `order.cancel(requester)` throws
   when the requester is not its customer), a calculation over values is a method of the value
   object, a named yes/no criterion is a `Specification`, authorizing, publishing and loading
-  or saving with no business rule around it is the use case, and a port call with no rule around
-  it is not a service either: the use case or reaction calls the port directly. A bare shared
+  or saving with no business rule around it is the use case, and a call to an application
+  port is never a service: the use case or reaction calls the port directly. A bare shared
   `findById` is not a service, and neither is a lookup that only turns `null` into a not-found
   error (a `CourseFinder.find(id)` that throws `CourseNotFound`): each use case keeps its own
   lookup with `AggregateNotFoundException`. A lookup belongs to a domain service only as a step
@@ -39,33 +55,32 @@ several use cases, rules over several aggregates or a domain port, and named bus
   exceptions). A domain service is a non-abstract class of the domain that holds business logic
   and runs it itself. It is never an `abstract class`, never an `interface` nor a `type`, and it
   never has abstract methods: nothing in `infrastructure` extends or implements a domain service,
-  and no domain service is declared so that an adapter completes it. What infrastructure
-  implements is a **domain port** (form 3 below), which is not a domain service: the port is an
-  interface with no business rule, and the rule around it stays in the concrete domain service
-  that receives it. When the logic needs technology, split it: the technical step is a port, the
-  business rule is the service.
+  and no domain service is declared so that an adapter completes it. Of the domain,
+  infrastructure implements only the abstract repositories (first rule). When the logic needs
+  technology, split it: the technical step is an application port the use case calls, the
+  business rule is the concrete service, which receives the loaded value objects.
 - **How.** A plain class (no base class, no state) named after the business operation
   (`OrderPricing`, `CourseRegistration`; never `…Manager`, `…Helper`, `…Utils`); it works with
   value objects and aggregates, throws business errors of its context (never
-  `AggregateNotFoundException`, which is `/application`) and never removes, opens
+  `AggregateNotFoundException`, which is `/application`; when it validates a composition and
+  must report every problem at once, it gathers `ValidationIssue`s and throws one
+  `ValidationException`) and never removes, opens
   transactions, publishes, logs nor checks authorization [IDDD ch. 7]. It may persist an
   aggregate with the `save` of the abstract repository it received (rule "A domain service may
   persist an aggregate" below; `[Fuera de los libros: convención de @archi-code/ddd]`, IDDD
-  ch. 7 leaves saving to the application service). Three forms, in this order of preference:
+  ch. 7 leaves saving to the application service). Two forms, in this order of preference, and
+  no other dependency (never a port, an adapter nor another service):
   1. **Loaded aggregates as arguments, no dependencies**: the use case already holds what the
      rule needs and passes it to the method
-     (`new ShippingCostCalculator().costFor(order, zone)`).
+     (`new <Service>().<operation>(order, customer)`).
   2. **The abstract repository of an aggregate** by constructor, to read with `findById` and
      to persist with `save` (`constructor(private readonly courses: CourseRepository) {}`): never
      the repository implementation (`IndexedDbCourseRepository`), as a type nor instantiated.
-  3. **A domain port** by constructor (`constructor(private readonly catalog: CouponCatalog) {}`):
-     an interface in `service/<Port>.ts` whose methods speak value objects
-     (`discountOf(code: CouponCode): Promise<DiscountPercent | null>`), implemented in
-     infrastructure by its own adapter (never by a repository nor a read-model store).
 - **Only use cases execute domain services** (user rule, strict, no exceptions). A domain service
-  is executed only from the `handle` of a use case (user or reaction). The use case declares in
-  its own constructor the repository the domain service needs (typed with the abstract repository
-  of the domain, or the domain port), and hands it to the service when it builds it. Nothing else
+  is executed only from the `handle` of a use case (user or reaction). When the service
+  needs a repository (form 2 above), the use case declares it in its own constructor (typed with
+  the abstract repository of the domain) and hands it to the service when it builds it; a
+  service of form 1 is built with no arguments. Nothing else
   executes a domain service: not an aggregate, a child entity, a value object nor a
   specification, not another domain service, not a controller, an adapter, a projection nor
   `composition.ts`.
@@ -95,16 +110,19 @@ several use cases, rules over several aggregates or a domain port, and named bus
   share".
 - **Instantiated inside the use case, never injected** (user rule): the domain never instantiates
   a repository nor an adapter and never imports `/infrastructure`; the concrete adapter
-  (`IndexedDbCourseRepository`, `InMemoryCouponCatalog`) is built only in `composition.ts` and
+  (`IndexedDbCourseRepository`, `InMemoryCouponRepository`) is built only in `composition.ts` and
   injected into the use case. The use case (user or reaction) receives those dependencies in its
-  own constructor, typed with the abstract repository or the port, and builds the service inside
+  own constructor, typed with the abstract repository, and builds the service inside
   `handle`, passing them
   (`await new CourseRegistration(this.courses).register(command.courseId, command.title)`,
   `await new OrderPricing(this.coupons).discountFor(command.couponCodes)`). No constructor of a
   use case or a reaction receives a domain service and `composition.ts` never builds one. A
-  reaction keeps its own rules: it calls only methods whose business errors it does not let out.
-- **Testing**: a unit spec with real domain objects; its dependencies (the abstract repository, a
-  port) are stubs with `vi.fn()` (`findById` resolving the aggregate or `null`, `save`
+  reaction keeps its own rules (`reactions.md`): it never throws a business error and never
+  catches one, so it executes only the methods of a domain service that cannot throw in its
+  case, because the reaction checked the condition itself first and returned without doing
+  anything when it did not hold.
+- **Testing**: a unit spec with real domain objects; its dependency (the abstract repository)
+  is a stub with `vi.fn()` (`findById` resolving the aggregate or `null`, `save`
   resolving). Code below, in "Logic two use cases share".
 
 ## Code
@@ -135,28 +153,26 @@ export class FreeShippingEligible extends Specification<Order> {
 }
 ```
 
-A domain service with its domain port (`service/CouponCatalog.ts` and `service/OrderPricing.ts`),
-used only by `PlaceOrder`, which receives `CouponCatalog` by constructor and does
-`new OrderPricing(this.coupons)` in `handle`:
+A domain service that reads several aggregates (`service/OrderPricing.ts`), used only by
+`PlaceOrder`, which receives `CouponRepository` by constructor and does
+`new OrderPricing(this.coupons)` in `handle`. The coupons are an aggregate of the context
+(`Coupon`, registered by `RegisterCoupon`) behind its abstract repository; there is no
+`CouponCatalog` interface in the domain:
 
 ```ts
-export interface CouponCatalog {
-  discountOf(code: CouponCode): Promise<DiscountPercent | null>;
-}
-
 export class OrderPricing {
   private static readonly MAX_DISCOUNT = 50;
 
-  constructor(private readonly catalog: CouponCatalog) {}
+  constructor(private readonly coupons: CouponRepository) {}
 
   async discountFor(codes: CouponCodes): Promise<DiscountPercent> {
     let percent = 0;
     for (const code of codes.items) {
-      const discount = await this.catalog.discountOf(code);
-      if (discount === null) {
+      const coupon = await this.coupons.findById(CouponId.forCode(code));
+      if (coupon === null) {
         throw new UnknownCoupon(code.value);
       }
-      percent += discount.value;
+      percent += coupon.discount.value;
     }
     return new DiscountPercent(Math.min(percent, OrderPricing.MAX_DISCOUNT));
   }
@@ -307,18 +323,27 @@ describe('CourseRegistration', () => {
 
 ## What not to do
 
+- A "domain port": an `interface`, an `abstract class` or a `type` in `domain/service/` (or
+  anywhere in the domain except `repository/`) that `infrastructure` or `application` implements
+  (`interface CouponCatalog` in the domain and `InMemoryCouponCatalog implements CouponCatalog`).
+  Refactor the domain: model the data as an aggregate with its abstract repository
+  (`CouponRepository`), or make the technical capability an application port that the use case
+  calls.
+- A domain service that receives an application port, an adapter or anything that is not the
+  abstract repository of an aggregate or loaded domain objects.
+
 - A specification that loads data through a repository, a generic one without a business name
   (`FieldEquals`), or one used instead of the aggregate to protect an invariant.
 - A domain service declared as an `abstract class` or an `interface`, or with abstract methods, so
   that infrastructure implements it (`abstract class OrderPricing` in the domain and
   `class HttpOrderPricing extends OrderPricing` in infrastructure): a domain service is always a
-  concrete class with its business logic inside; only a domain port is implemented in
-  infrastructure.
+  concrete class with its business logic inside; of the domain, only the abstract repository
+  is implemented in infrastructure.
 - A class in `infrastructure` that extends or implements a domain service, or that is named or
   used as one.
 - A domain service executed from anywhere but the `handle` of a use case or a reaction (another
   domain service, a controller, `composition.ts`, an adapter, a projection), or a use case that
-  builds one without holding in its own constructor the repository or port the service needs.
+  builds one that needs a repository without holding that repository in its own constructor.
 - A domain service that instantiates, receives or calls another domain service
   (`new CourseRegistration(this.courses)` inside `OrderPricing`): the use case executes each one and
   passes the answer along.
@@ -327,8 +352,8 @@ describe('CourseRegistration', () => {
   (`order.applyDiscount(pricing)`): the use case executes the service and passes its answer
   (`order.applyDiscount(discount)`).
 - A domain service injected into a use case or a reaction, or built in `composition.ts`
-  (`new PlaceOrder(orders, new OrderPricing(catalog), bus)`): the use case receives the
-  service's dependencies (`CourseRepository`, `CouponCatalog`) and instantiates the service
+  (`new PlaceOrder(orders, new OrderPricing(coupons), bus)`): the use case receives the
+  service's dependencies (`CourseRepository`, `CouponRepository`) and instantiates the service
   inside `handle`.
 - A domain service that instantiates its repository or an adapter (`new IndexedDbCourseRepository()`),
   imports `/infrastructure`, or types its dependency with an adapter instead of the abstract
@@ -338,9 +363,10 @@ describe('CourseRegistration', () => {
 - A domain service for a rule that one aggregate or value object can hold, for a named yes/no
   criterion (a `Specification`), for coordination with no business rule (load, save, publish,
   authorize), for a bare shared `findById` or a lookup that only throws a not-found error
-  (`CourseFinder`), or that only wraps a port call (the use case or reaction calls the port); or
+  (`CourseFinder`), or that only wraps a call to an application port (the use case or reaction calls the port); or
   a `…Manager`, `…Helper`, `…Utils` class.
-- A domain service that receives a repository or a port when the use case already holds the
+- A domain service that receives a repository when the use case already holds the
   loaded aggregates: pass them as arguments.
 - A domain service that throws `AggregateNotFoundException` (it lives in `/application`): it
-  throws a business error of its context (`CourseNotFound extends DomainException`).
+  throws a business error of its context (`UnknownCoupon extends DomainException`), and only as
+  a step of the business rule it holds, never as a bare lookup.

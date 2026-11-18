@@ -56,7 +56,7 @@ adapters. To declare the abstract repository (before the use cases) read the `Ru
   libros: convención de @archi-code/ddd]`; IDDD ch. 14 gives it to the application service):
   there is no transaction port; each `save`/`remove` is atomic (one document, or a database
   transaction opened and committed inside `save`); when events must not be lost between `save`
-  and `publish` [Destilado ch. 6; IDDD ch. 8], it stores them in the same write (an outbox) and a
+  and `publish` [Distilled ch. 6; IDDD ch. 8], it stores them in the same write (an outbox) and a
   relay delivers them through an `EventChannel`.
 - **IndexedDB**: when the database is IndexedDB, everything of it lives in
   `infrastructure/persistence/indexeddb/` and goes through `IndexedDbDatabase` and
@@ -106,9 +106,13 @@ adapters. To declare the abstract repository (before the use cases) read the `Ru
     used again. `persist` is the one that checks, in one transaction: a
     row that is not stored is created; a stored row whose `rowVersion` differs from the one sent
     throws `ConcurrencyException`, also when none is sent (a new aggregate whose id is taken). The
-    adapter never writes the check nor a version of its own;
-  - the adapter's `remove(x)` does nothing for an aggregate it never loaded nor saved (no
-    `rowVersion` remembered); otherwise it is `table.remove(x.id.value, rowVersion)`, which
+    adapter never writes the check nor a version of its own, with the one exception of `remove`
+    below;
+  - the adapter's `remove(x)` of an aggregate it never loaded nor saved (no `rowVersion`
+    remembered) reads the row first and throws `ConcurrencyException` (expected version 0) when
+    the id is stored, like every other adapter, and does nothing when it is not: it is the one
+    check the adapter writes itself, because `table.remove` only checks a `rowVersion` of 1 or
+    more. Otherwise it is `table.remove(x.id.value, rowVersion)`, which
     deletes in one transaction and throws `ConcurrencyException` when the stored `rowVersion` is
     another one, and then it forgets the aggregate (`rowVersions.delete(x)`). Calling
     `table.remove` without a `rowVersion` deletes without any check. `persistMany` and
@@ -126,18 +130,26 @@ adapters. To declare the abstract repository (before the use cases) read the `Ru
 - The in-memory repository is an implementation like any other [IDDD ch. 12]. It lives in
   `infrastructure/persistence/in-memory-<aggregate>-repository.ts` when the application runs in
   memory, or in `test/support/` when it is only a test double; the package ships none.
-- **Port adapters** (`infrastructure/<area>/<technology>-<port>.ts`, `InMemoryCouponCatalog
-  implements CouponCatalog`) are their own class (never a repository nor a read-model store), receive
+- **Port adapters** (`infrastructure/<area>/<technology>-<port>.ts`, `InMemoryProductPricing
+  implements ProductPricing`) implement an application port (an interface of `application/`;
+  there are no domain ports) and are their own class (never a repository nor a read-model store), receive
   raw data or their technology by constructor (raw shapes are interfaces in the same file), answer
-  in value objects, and turn bad external data into
-  `InternalErrorException('<message>', { cause: error })`, never a business error.
+  in value objects, and turn bad external data and the failures of the other system into
+  `InternalErrorException('<message>', { cause: error })` or into an exception of their own
+  that extends `InfrastructureException` with its own code (`CatalogUnavailable`, `CAT001`),
+  always with `{ cause: error }`; never a business error.
 - **Infrastructure never implements a domain service** (user rule, strict, no exceptions). No
   class in `infrastructure` extends, implements, replaces nor redefines a domain service
-  (`domain/service/<Service>.ts`), and none holds its business logic. Infrastructure implements
-  only the abstract repository of an aggregate, domain ports, read-model stores and event
-  channels. A domain service is a concrete class of the domain (`domain-services.md`): when an
-  adapter seems to need to implement one, the technical step is a domain port and the adapter
-  implements that port.
+  (`domain/service/<Service>.ts`), and none holds its business logic.
+- **Of the domain, infrastructure implements only the abstract repositories** (user rule, the
+  most important one of this layer, strict, no exceptions). The abstract repository of an
+  aggregate is the only thing declared in `domain` that `infrastructure` implements. There are
+  no domain ports: no adapter implements an interface or an abstract class of
+  `domain/service/` nor of any other domain folder. Everything else infrastructure implements
+  is declared in `application` (application ports, read-model stores and query ports) or in the
+  package (`EventChannel`). When an adapter seems to need a domain interface, the data is an
+  aggregate with its repository, or the capability is an application port the use case calls
+  (`domain-services.md`).
 
 ## Code
 
@@ -417,6 +429,7 @@ export class OrderSchema extends IndexedDbSchema<OrderRow> {
 
 ```ts
 import type { Criteria, SearchOptions, SearchResult } from '@archi-code/ddd/domain';
+import { ConcurrencyException } from '@archi-code/ddd/application';
 import type { IndexedDbStored, IndexedDbTable } from '@archi-code/ddd/infrastructure';
 import { toIndexedDbQuery } from '@archi-code/criteria-adapters/indexeddb';
 
@@ -449,6 +462,9 @@ export class IndexedDbOrderRepository extends OrderRepository {
   async remove(order: Order): Promise<void> {
     const rowVersion = this.rowVersions.get(order);
     if (rowVersion === undefined) {
+      if ((await this.table.get(order.id.value)) !== null) {
+        throw new ConcurrencyException('Order', order.id.value, 0);
+      }
       return;
     }
     await this.table.remove(order.id.value, rowVersion);
@@ -472,34 +488,39 @@ row is created at `rowVersion` 1, all in one transaction; `remove` checks it the
 adapter only remembers each aggregate's `rowVersion` and lets every error of the table through. `search` turns the criteria into a query with
 `toIndexedDbQuery` and the table runs it, sorting in memory only when the query has a `compare`.
 
-A port adapter, `infrastructure/coupon/in-memory-coupon-catalog.ts`: raw data in, value objects
-out, bad external data as an internal error:
+A port adapter, `infrastructure/catalog/in-memory-product-pricing.ts`, implements the application
+port `application/place-order/product-pricing.ts`
+(`priceOf(sku: Sku): Promise<Money | null>`): raw data in, value objects out, bad external data
+as an internal error:
 
 ```ts
 import { InternalErrorException } from '@archi-code/ddd/infrastructure';
 
-export interface MarketingCampaign {
-  code: string;
-  percentOff: number;
-  active: boolean;
+export interface CatalogProduct {
+  sku: string;
+  priceCents: number;
+  currency: string;
 }
 
-export class InMemoryCouponCatalog implements CouponCatalog {
-  private readonly campaigns: ReadonlyMap<string, MarketingCampaign>;
+export class InMemoryProductPricing implements ProductPricing {
+  private readonly products: ReadonlyMap<string, CatalogProduct>;
 
-  constructor(campaigns: readonly MarketingCampaign[]) {
-    this.campaigns = new Map(campaigns.map((campaign) => [campaign.code, campaign]));
+  constructor(products: readonly CatalogProduct[]) {
+    this.products = new Map(products.map((product) => [product.sku, product]));
   }
 
-  async discountOf(code: CouponCode): Promise<DiscountPercent | null> {
-    const campaign = this.campaigns.get(code.value);
-    if (campaign === undefined || !campaign.active) {
+  async priceOf(sku: Sku): Promise<Money | null> {
+    const product = this.products.get(sku.value);
+    if (product === undefined) {
       return null;
     }
     try {
-      return new DiscountPercent(campaign.percentOff);
+      return Money.fromPrimitives({
+        amount: product.priceCents,
+        currency: product.currency as Currency,
+      });
     } catch (error) {
-      throw new InternalErrorException(`the campaign ${campaign.code} has an invalid discount`, {
+      throw new InternalErrorException(`the product ${product.sku} has an invalid price`, {
         cause: error,
       });
     }
@@ -561,7 +582,11 @@ export class InMemoryCouponCatalog implements CouponCatalog {
 - A port adapter that throws a business error for bad external data: wrap it in
   `InternalErrorException` with `{ cause }`.
 - Wrapping or translating an error without `{ cause: error }`.
-- A domain port implemented by a repository or a read-model store instead of its own adapter.
+- An application port implemented by a repository or a read-model store instead of its own
+  adapter.
+- An adapter that implements an interface or an abstract class of the domain other than the
+  abstract repository of an aggregate (a "domain port" such as `CouponCatalog` in
+  `domain/service/`): domain ports do not exist.
 - An infrastructure class that extends or implements a domain service, or that holds its business
-  logic: infrastructure implements repositories, domain ports, stores and channels, never a
+  logic: infrastructure implements repositories, application ports, stores and channels, never a
   domain service.

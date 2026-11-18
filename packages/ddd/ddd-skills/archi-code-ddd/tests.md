@@ -21,8 +21,12 @@ code ships with: aggregates, use cases, reactions, domain services and repositor
   test loads are built with the constructor (`new CreatedAt('2026-03-01T09:30:00Z')`).
 - Every aggregate has a test of its behavior, its events and the round trip
   (`fromPrimitives(toPrimitives())`) covering every field.
-- Every user use case runs with the in-memory repository and a recording bus, including its
-  refusals.
+- Every user use case runs with the in-memory repository and the real bus of the package
+  (`DomainEventBus` over `InMemoryEventChannel`), including its refusals; there is no test
+  double of the bus.
+- Every domain service has a unit spec with real domain objects and its abstract repository
+  stubbed with `vi.fn()`; the rule and the code are in `domain-services.md` ("Logic two use cases
+  share"), not in this guide.
 - A test of the event flow asserts on what the reaction caused and on what the channel carried,
   never on the reaction being called, and delivers the same event twice.
 - One contract per repository, run against every adapter that extends it; the IndexedDB adapter
@@ -59,7 +63,8 @@ describe('Payment', () => {
 });
 ```
 
-A user use case with the in-memory repository and a recording bus, including the refusals:
+A user use case with the in-memory repository and the real bus of the package, including the
+refusals:
 
 ```ts
 describe('Cancelling an order', () => {
@@ -116,11 +121,11 @@ export function orderRepositoryContract(make: () => Promise<OrderRepository>): v
     expect((await orders.findById(order.id))?.toPrimitives()).toEqual(order.toPrimitives());
   });
 
-  it('saves the same object twice', async () => {
+  it('refuses to save the same object twice without loading it again', async () => {
     const orders = await make();
     const order = aPendingOrder();
     await orders.save(order);
-    await expect(orders.save(order)).resolves.toBeUndefined();
+    await expect(orders.save(order)).rejects.toBeInstanceOf(ConcurrencyException);
   });
 
   it('refuses a stale save and a new order with a taken id', async () => {

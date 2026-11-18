@@ -14,7 +14,7 @@ comes from.
 | reaction use case | an event     | `<Action>On<Event> extends EventListener<<Event>DomainEvent>`      | the event bus  |
 
 - A use case does **one thing**: one business action, one class, one aggregate saved once
-  [Destilado ch. 5; IDDD ch. 10]; a flow of several actions is several use cases chained by events,
+  [Distilled ch. 5; IDDD ch. 10]; a flow of several actions is several use cases chained by events,
   never one use case with flags or a `type` field that switch behaviors. The exceptions IDDD ch. 10
   accepts (a bulk change over many aggregates of one kind, such as `DiscountCheapCourses`) are
   written down as a decision record in `docs/decisions/NNNN-<title>.md`, or in the decision
@@ -27,8 +27,8 @@ comes from.
 - Constructor parameters, `private readonly` and only what `handle` uses, in this order: the
   repository of the aggregate (`private readonly orders: OrderRepository`, the abstract class of
   the domain, never `AggregateFinder<X> & AggregateSaver<X>`), the dependencies of the domain
-  services it instantiates and the ports it calls (domain ports such as `CouponCatalog`; never the
-  service itself), `EventBus`, `Logger`; the body is `super();`.
+  services it instantiates (the abstract repository each one needs, such as `CouponRepository`;
+  never the service itself), the application ports it calls, `EventBus`, `Logger`; the body is `super();`.
 
 ### A use case never uses another use case (strict rule)
 
@@ -73,8 +73,9 @@ read model.
 
 - The file `application/<action>/<action>.ts` exports `interface <Action>Input` (primitives and
   data types; `actorId` or `actorRole` when an actor matters), `interface <Action>Command` (value
-  objects, composites, `New<Child>[]`) and the class. `Output` is `void`, or the new id as
-  `string`; never an aggregate.
+  objects, composites, `New<Child>[]`) and the class. `Output` is `void`, the new id as
+  `string`, or a DTO of primitives when the client needs the result of the action; never an
+  aggregate.
 - `protected toCommand(input)` is exactly `return ValueObjectBuilder.build({ … })`: enums
   `new <Enum>Type(input.x as <Enum>)`, composites `X.fromPrimitives(input.x)`, money
   `Money.fromPrimitives(input.x as { amount: number; currency: Currency })`, lists of shapes
@@ -106,9 +107,9 @@ read model.
   before `save` in a user use case: a conflict on `save` would leave the effect done and
   unrecorded. The use case only records the intent (`invoice.requestPayment(requester, amount)` →
   `InvoicePaymentRequestedDomainEvent`, status `PAYMENT_REQUESTED`) and saves. A reaction to that
-  event receives the domain port by constructor and calls it directly (no domain service around a
+  event receives the application port by constructor and calls it directly (no domain service around a
   bare port call) with an **idempotency key**, then records the outcome on the aggregate
-  (`markPaid(key, chargeId)` / `markPaymentDeclined(key, reason)`) and saves. The key is one per
+  (`invoice.settleCharge(key, outcome)`, code in `reactions.md`) and saves. The key is one per
   attempt and per effect: the `eventId` of the event that asked for it (a declined charge retried
   is a new request with a new key; the refund has its own key). The aggregate stores the key of the
   attempt in progress and answers whether it still awaits that outcome (`invoice.awaitsCharge(key)`):
@@ -248,7 +249,7 @@ export class CancelOrder extends UseCase<CancelOrderInput, CancelOrderCommand, v
 ```
 
 Creating: the use case generates the id and passes the answer of a domain service it
-instantiates itself (`PlaceOrder` receives `CouponCatalog` by constructor, never `OrderPricing`);
+instantiates itself (`PlaceOrder` receives `CouponRepository` by constructor, never `OrderPricing`);
 lists of shapes use `buildList`; it returns the new id:
 
 ```ts
@@ -364,7 +365,8 @@ export class EnrollmentId extends IdType<'EnrollmentId'> {
   actions with an event.
 - A use case that does several things (`UpdateOrder` that ships, cancels or renames depending on
   the input) or saves more than one aggregate outside the IDDD ch. 10 exceptions written down as
-  a decision record in `docs/decisions/`.
+  a decision record in the project's decision records folder (`docs/decisions/` when it has
+  none).
 - Technical or CRUD names (`OrderService`, `UpdateUser`, `SaveOrder`, `ProcessPayment` when the
   business says `CapturePayment`).
 - `Input`/`Command` interfaces in another file than their use case, or a command class.

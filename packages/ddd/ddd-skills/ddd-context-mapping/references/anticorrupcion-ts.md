@@ -1,11 +1,10 @@
 # Capa anticorrupción en TypeScript
 
-Tres piezas [IDDD cap. 3 y 13]: **interfaz** en el dominio con lenguaje local, **adaptador** que habla el protocolo remoto y **traductor** del Published Language a objetos locales. El dominio solo ve la interfaz. El paquete no trae ninguna: se escriben con sus value objects y excepciones `[Fuera de los libros: convención de @archi-code/ddd]`.
+Tres piezas [IDDD cap. 3 y 13]: **interfaz** con lenguaje local (los libros la ponen en el dominio; aquí es un puerto de aplicación en `application/`, porque no existen puertos de dominio `[Fuera de los libros: convención de @archi-code/ddd]`), **adaptador** que habla el protocolo remoto y **traductor** del Published Language a objetos locales. El dominio no ve ni la interfaz: el caso de uso llama al puerto y le pasa los value objects. El paquete no trae ninguna: se escriben con sus value objects y excepciones `[Fuera de los libros: convención de @archi-code/ddd]`.
 
 ```
 src/contexts/sales/
-  domain/service/ProductPricing.ts          ← puerto con lenguaje de Ventas
-  domain/value-object/SellableProduct.ts    ← lo que devuelve
+  application/place-order/product-pricing.ts ← puerto de aplicación con lenguaje de Ventas
   domain/exception/ProductNotSellable.ts
   infrastructure/catalog/
     catalog-http-product-pricing.ts         ← adaptador
@@ -17,12 +16,9 @@ src/contexts/sales/
 ## Ventas consulta precios a Catálogo
 
 ```ts
-// domain/value-object/SellableProduct.ts
-export class SellableProduct extends Composite({ sku: Sku, name: ProductName, unitPrice: Money }) {}
-
-// domain/service/ProductPricing.ts
+// application/place-order/product-pricing.ts
 export interface ProductPricing {
-  priceForSale(sku: Sku): Promise<SellableProduct | null>;
+  priceOf(sku: Sku): Promise<Money | null>;
 }
 
 // infrastructure/catalog/catalog-product-v2.ts: solo lo que Ventas lee
@@ -46,16 +42,12 @@ export class CatalogTranslator {
       Array.isArray(c.channelPrices);
   }
 
-  toSellableProduct(remote: CatalogProductV2): SellableProduct | null {
+  toPrice(remote: CatalogProductV2): Money | null {
     const web = remote.channelPrices.find((price) => price.channel === 'WEB');
     if (remote.lifecycle !== 'ACTIVE' || web === undefined) {
       return null;
     }
-    return SellableProduct.fromPrimitives({
-      sku: remote.sku,
-      name: remote.displayName,
-      unitPrice: { amount: web.amountMinor, currency: web.currency },
-    });
+    return Money.fromPrimitives({ amount: web.amountMinor, currency: web.currency as Currency });
   }
 }
 ```
@@ -65,7 +57,7 @@ export class CatalogTranslator {
 export class CatalogHttpProductPricing implements ProductPricing {
   constructor(private readonly http: CatalogHttp, private readonly translator = new CatalogTranslator()) {}
 
-  async priceForSale(sku: Sku): Promise<SellableProduct | null> {
+  async priceOf(sku: Sku): Promise<Money | null> {
     let response;
     try {
       response = await this.http.get(`/products/${encodeURIComponent(sku.value)}`, {
@@ -86,7 +78,7 @@ export class CatalogHttpProductPricing implements ProductPricing {
       throw new CatalogContractViolation(sku.value);
     }
     try {
-      return this.translator.toSellableProduct(body);
+      return this.translator.toPrice(body);
     } catch (error) {
       throw new CatalogContractViolation(sku.value, { cause: error });
     }
@@ -109,7 +101,7 @@ El adaptador es un punto de entrada en `interfaces/` (`PaymentGatewayWebhook`): 
 
 ## Eventos de otro contexto
 
-El downstream lee con su propia clase `extends EventBase` (nombre publicado, solo los campos que usa) junto a la reacción, nunca la clase del otro contexto `[Fuera de los libros: convención de @archi-code/ddd]`. Si Almacén es un sistema aparte, el `eventName` es el del contrato (`'warehouse.stock.StockReserved'`); si comparte canal, su evento interno (`'stock_item.reserved'`, en `ddd-skills/ddd-agregados/references/consistencia-eventual.md`). La reacción `RegisterStockReservationOnStockReserved` tiene la forma de las de `ddd-skills/ddd-agregados/references/implementacion-ts.md`: `ValueObjectBuilder.build`, `findById` (vuelve si falta), método de reacción, `save`, `publish`.
+El downstream lee con su propia clase `extends EventBase` (nombre publicado, solo los campos que usa) junto a la reacción, nunca la clase del otro contexto `[Fuera de los libros: convención de @archi-code/ddd]`. Si Almacén es un sistema aparte, el `eventName` es el del contrato (`'warehouse.stock.StockReserved'`); si comparte canal, su evento interno (`'stock_item.reserved'`, en `ddd-skills/ddd-agregados/references/consistencia-eventual.md`). La reacción `RegisterStockReservationOnStockItemReserved` tiene la forma de las de `ddd-skills/archi-code-ddd/reactions.md`: `ValueObjectBuilder.build`, `findById` (vuelve si falta), método de reacción, `save`, `publish`.
 
 En `composition.ts`, la factoría de `EventRegistry` es el traductor: copia cada campo y pasa `eventId` y `occurredOn`; el bus va sobre el canal donde Almacén publica (un `RabbitMqEventChannel` como el de `ddd-skills/archi-code-ddd/composition-and-entry-points.md`, apartado "Another event channel"). Un mensaje fuera de contrato falla en `ValueObjectBuilder.build` y el canal lo aparta (cola de mensajes muertos).
 
@@ -117,7 +109,7 @@ En `composition.ts`, la factoría de `EventRegistry` es el traductor: copia cada
 
 * Traductor: unitarios con respuestas reales anonimizadas.
 * Adaptador: tests de contrato contra el esquema o el entorno de pruebas del upstream.
-* Dominio y casos de uso: un `InMemoryProductPricing implements ProductPricing` (en `test/support/` o `infrastructure/catalog/`), con el repositorio en memoria de `ddd-skills/archi-code-ddd/repositories.md`; nunca el sistema remoto.
+* Casos de uso (el dominio no ve el puerto): un `InMemoryProductPricing implements ProductPricing` (en `test/support/` o `infrastructure/catalog/`), con el repositorio en memoria de `ddd-skills/archi-code-ddd/repositories.md`; nunca el sistema remoto.
 
 ## Errores frecuentes
 

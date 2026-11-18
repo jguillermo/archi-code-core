@@ -21,7 +21,7 @@
 
 ### Receptor idempotente
 
-La reacción (`RegisterStockReservationOnStockReserved`, en `ddd-skills/ddd-context-mapping/references/anticorrupcion-ts.md`) registra un hecho: vuelve sin error si el agregado no existe y llama a un método idempotente que vuelve sin cambios si no aplica (`Order.registerStockReservation`, en `ddd-skills/ddd-agregados/references/implementacion-ts.md`). Si la operación no es idempotente por naturaleza, el `eventId` se guarda como procesado en la misma escritura que el cambio `[Fuera de los libros]`; esa escritura es del adaptador, no de la reacción ("Consumidor idempotente" en `ddd-skills/ddd-eventos-dominio/references/publicacion-ts.md`) `[Fuera de los libros: convención de @archi-code/ddd]`. Un `ConcurrencyException` hace fallar la reacción y el canal reentrega.
+La reacción (`RegisterStockReservationOnStockItemReserved`, en `ddd-skills/ddd-context-mapping/references/anticorrupcion-ts.md`) registra un hecho: vuelve sin error si el agregado no existe y llama a un método idempotente que vuelve sin cambios si no aplica (`Order.registerStockReservation`, en `ddd-skills/ddd-agregados/references/implementacion-ts.md`). Si la operación no es idempotente por naturaleza, el `eventId` se guarda como procesado en la misma escritura que el cambio `[Fuera de los libros]`; esa escritura es del adaptador, no de la reacción ("Consumidor idempotente" en `ddd-skills/ddd-eventos-dominio/references/publicacion-ts.md`) `[Fuera de los libros: convención de @archi-code/ddd]`. Un `ConcurrencyException` hace fallar la reacción y el canal reentrega.
 
 ## Contratos y versionado
 
