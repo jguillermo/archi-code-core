@@ -175,7 +175,7 @@ them.
    5. **Scanner**: run the suite's scanner (Python 3) over the contexts root and read each finding
       in a file you wrote or changed: fix it, or explain in the report why it is not a defect
       (its findings are hints). Three findings are never hints and always block: `puerto-de-dominio`
-      (an interface or an abstract class in `domain/service/`), `dominio-con-clase-abstracta` (an
+      (an interface or an abstract class in `domain/<aggregate>/service/`), `dominio-con-clase-abstracta` (an
       abstract class in the domain outside `repository/`) and `capa-exterior-implementa-dominio`
       (a class of `application`, `infrastructure` or `interfaces` that implements or extends
       something of the domain other than a repository). They are the most important rule of the
@@ -237,7 +237,7 @@ user asks for the fixes):
    invariant, a lost event, two aggregates saved in one use case with no decision record in the
    project's decision records folder, a use case calling another, a
    layer importing outward, a domain port: anything of the domain but the abstract repository
-   implemented in another layer, or an interface or abstract class in `domain/service/`), **breaks the standard** (folder, name, shape, a package tool not
+   implemented in another layer, or an interface or abstract class in `domain/<aggregate>/service/`), **breaks the standard** (folder, name, shape, a package tool not
    used) and **suggestion**. Then the result of each gate as it happened, and what could not be
    checked. Confirm every scanner finding by reading the code before reporting it.
 
@@ -253,9 +253,9 @@ class (table "Package guides"), which you read before writing that kind of class
 comes before every other rule and no request, example or book may break it:
 
 - **The only thing of the domain that another layer implements is the abstract repository of an
-  aggregate** (`domain/repository/<Aggregate>Repository.ts`, implemented in `infrastructure`).
+  aggregate** (`domain/<aggregate>/repository/<Aggregate>Repository.ts`, implemented in `infrastructure`).
   Nothing else of the domain is ever implemented in `infrastructure` nor in `application`.
-- **There are no domain ports. They do not exist and are never created.** `domain/service/`
+- **There are no domain ports. They do not exist and are never created.** `domain/<aggregate>/service/`
   holds only concrete classes: never an `interface`, an `abstract class` nor a `type` meant to be
   implemented somewhere else, and neither does any other domain folder except `repository/`.
 - **A domain service is always a concrete class** with its business logic inside, never abstract
@@ -269,10 +269,10 @@ comes before every other rule and no request, example or book may break it:
 
 How to check it, in every generation and every review, never by reading alone:
 
-- every file of `domain/service/` declares a concrete class: no `interface`, no `abstract class`;
+- every file of `domain/<aggregate>/service/` declares a concrete class: no `interface`, no `abstract class`;
 - no file of the domain outside `repository/` declares an `abstract class`;
 - every `implements` and `extends` of `application`, `infrastructure` and `interfaces` names a
-  type of the package, of `application` or of `domain/repository/`, never another domain type;
+  type of the package, of `application` or of `domain/<aggregate>/repository/`, never another domain type;
 - the scanner reports none of `puerto-de-dominio`, `dominio-con-clase-abstracta` and
   `capa-exterior-implementa-dominio` (step 5 of "Generating code").
 

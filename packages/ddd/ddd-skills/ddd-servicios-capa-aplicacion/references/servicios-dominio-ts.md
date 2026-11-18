@@ -21,7 +21,7 @@ Lo que no es un servicio de dominio: los gastos de envío de Ventas. El cálculo
 
 ## No existen puertos de dominio
 
-Regla más importante, sin excepción `[Fuera de los libros: convención de @archi-code/ddd]`: lo único del dominio que otra capa implementa es el repositorio abstracto de un agregado. En `domain/service/` solo hay clases concretas; nunca una interfaz, una clase abstracta ni un tipo para implementar en infraestructura o en aplicación. Un «puerto de dominio» no existe y nunca se crea (IDDD cap. 7 admite una interfaz del servicio en el dominio con implementación técnica; el paquete no).
+Regla más importante, sin excepción `[Fuera de los libros: convención de @archi-code/ddd]`: lo único del dominio que otra capa implementa es el repositorio abstracto de un agregado. En `domain/<agregado>/service/` solo hay clases concretas; nunca una interfaz, una clase abstracta ni un tipo para implementar en infraestructura o en aplicación. Un «puerto de dominio» no existe y nunca se crea (IDDD cap. 7 admite una interfaz del servicio en el dominio con implementación técnica; el paquete no).
 
 Si la regla parece necesitar una interfaz, se refactoriza el dominio:
 

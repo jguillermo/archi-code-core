@@ -7,11 +7,11 @@ import {
 import type { EventBus } from '../../../../ddd/application';
 import { Money } from '../../../shared-kernel/money/Money';
 import type { Currency } from '../../../shared-kernel/money/MoneyCurrency';
-import type { PaymentRepository } from '../../domain/repository/PaymentRepository';
+import type { PaymentRepository } from '../../domain/payment/repository/PaymentRepository';
 import type { MoneyData } from '../request-payment/money-data';
-import { PaymentId } from '../../domain/value-object/PaymentId';
-import { StaffRole } from '../../domain/value-object/StaffRoleType';
-import { StaffRoleType } from '../../domain/value-object/StaffRoleType';
+import { PaymentId } from '../../domain/payment/value-object/PaymentId';
+import { StaffRole } from '../../domain/payment/value-object/StaffRoleType';
+import { StaffRoleType } from '../../domain/payment/value-object/StaffRoleType';
 
 export interface ConfirmTransferReceivedInput {
   actorRole: string;

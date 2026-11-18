@@ -9,7 +9,7 @@ several use cases, rules over several aggregates, and named business rules.
   the most important rule of this guide, strict, no exceptions). The only thing of the domain
   that another layer implements is the abstract repository of an aggregate
   (`repository/<Aggregate>Repository.ts`), implemented in `infrastructure`. Nothing else of the
-  domain is ever implemented in `infrastructure` nor in `application`: `domain/service/` holds
+  domain is ever implemented in `infrastructure` nor in `application`: `domain/<aggregate>/service/` holds
   only concrete classes, never an `interface`, an `abstract class` nor a `type` meant to be
   implemented somewhere else. A "domain port" does not exist and is never created. When the
   domain seems to need one, refactor the domain:
@@ -192,7 +192,7 @@ A lookup alone is not this case: `PublishCourse` keeps its own `findById` and th
 `AggregateNotFoundException('Course', id.value)` when it is `null`; it does not share a
 `CourseFinder` with other use cases.
 
-`domain/exception/CourseAlreadyExists.ts`:
+`domain/course/exception/CourseAlreadyExists.ts`:
 
 ```ts
 import { DomainException } from '@archi-code/ddd/domain';
@@ -204,7 +204,7 @@ export class CourseAlreadyExists extends DomainException {
 }
 ```
 
-`domain/service/CourseRegistration.ts`: its dependency, the abstract repository, goes in its
+`domain/course/service/CourseRegistration.ts`: its dependency, the abstract repository, goes in its
 constructor:
 
 ```ts
@@ -323,7 +323,7 @@ describe('CourseRegistration', () => {
 
 ## What not to do
 
-- A "domain port": an `interface`, an `abstract class` or a `type` in `domain/service/` (or
+- A "domain port": an `interface`, an `abstract class` or a `type` in `domain/<aggregate>/service/` (or
   anywhere in the domain except `repository/`) that `infrastructure` or `application` implements
   (`interface CouponCatalog` in the domain and `InMemoryCouponCatalog implements CouponCatalog`).
   Refactor the domain: model the data as an aggregate with its abstract repository

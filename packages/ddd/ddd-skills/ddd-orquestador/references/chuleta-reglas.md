@@ -13,7 +13,7 @@ Las marcadas `[Fuera de los libros: convención de @archi-code/ddd]` son del paq
 * Dominio libre de tecnología; hexagonal con inversión de dependencias [Destilado cap. 2; IDDD cap. 4].
 * Los libros ponen la transacción en la aplicación [IDDD cap. 12]; aquí es del repositorio: cada `save`/`remove` es atómico `[Fuera de los libros: convención de @archi-code/ddd]`.
 * Servicios de aplicación finos; no exponer el modelo por REST [IDDD cap. 4 y 14].
-* Módulos con nombres del lenguaje [IDDD cap. 9; PHP: Modules]; aquí `domain/` por tipo de clase y `application/` por acción de negocio `[Fuera de los libros: convención de @archi-code/ddd]`.
+* Módulos con nombres del lenguaje [IDDD cap. 9; PHP: Modules]; aquí `domain/<agregado>/<tipo>/` (una carpeta por agregado y, dentro, por tipo de clase) y `application/` por acción de negocio `[Fuera de los libros: convención de @archi-code/ddd]`.
 * Un `composition.ts` por contexto, el único que construye y suscribe; controladores que solo comprueban actor y forma y traducen errores con `ExceptionClassifier` vía un ayudante `[Fuera de los libros: convención de @archi-code/ddd]`.
 * CQRS y Event Sourcing solo para riesgos concretos [IDDD cap. 4].
 

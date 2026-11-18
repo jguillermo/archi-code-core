@@ -1,8 +1,8 @@
 import { EventListener, ListensTo, ValueObjectBuilder } from '../../../../ddd/application';
 import type { EventBus } from '../../../../ddd/application';
-import type { OrderRepository } from '../../domain/repository/OrderRepository';
-import { OrderId } from '../../domain/value-object/OrderId';
-import { PaymentReference } from '../../domain/value-object/PaymentReference';
+import type { OrderRepository } from '../../domain/order/repository/OrderRepository';
+import { OrderId } from '../../domain/order/value-object/OrderId';
+import { PaymentReference } from '../../domain/order/value-object/PaymentReference';
 import { PaymentCapturedDomainEvent } from './payment-captured-domain-event';
 
 @ListensTo(PaymentCapturedDomainEvent, { consumer: 'sales.mark-order-paid-on-payment-captured' })

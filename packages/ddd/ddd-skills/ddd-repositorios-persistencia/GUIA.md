@@ -40,7 +40,7 @@ La forma del código (repositorio abstracto, adaptadores en memoria, IndexedDB y
 ## Señales de alarma
 
 * Repositorios de partes internas (`OrderLineRepository`) o genéricos para varios agregados.
-* Un agregado sin repositorio abstracto en `domain/repository/`; `interface OrderRepository`, o clase que no extiende `AggregateRepository<Order>`; casos de uso tipados con roles.
+* Un agregado sin repositorio abstracto en `domain/<agregado>/repository/`; `interface OrderRepository`, o clase que no extiende `AggregateRepository<Order>`; casos de uso tipados con roles.
 * Verbos que el negocio no usa, o métodos distintos de `findById`, `search`, `save`, `remove`; `findAll()`, `findBy(field)`, `updateStatus(id, status)`, docenas de `findByXAndY`. La única excepción es el doble de test en memoria, que puede añadir ayudas técnicas de lectura (`findAll()`, `versionOf(id)`) que no están en el repositorio abstracto y que ningún caso de uso ve.
 * Tipos del ORM o filas fuera del repositorio; `@Entity` del ORM en el dominio.
 * El caso de uso recibe `transactions`/`unitOfWork` o abre `BEGIN`.

@@ -1,7 +1,7 @@
 import { EventListener, ListensTo, ValueObjectBuilder } from '../../../../ddd/application';
 import type { EventBus } from '../../../../ddd/application';
-import type { OrderRepository } from '../../domain/repository/OrderRepository';
-import { OrderId } from '../../domain/value-object/OrderId';
+import type { OrderRepository } from '../../domain/order/repository/OrderRepository';
+import { OrderId } from '../../domain/order/value-object/OrderId';
 import { ShipmentDeliveredDomainEvent } from './shipment-delivered-domain-event';
 
 @ListensTo(ShipmentDeliveredDomainEvent, {

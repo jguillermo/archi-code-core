@@ -115,11 +115,12 @@ returns an aggregate.
 ### Folder structure
 
 One folder per bounded context, with the four zones and one composition root. Inside the domain,
-**one folder per kind of class** (`aggregate/`, `entity/`, `value-object/`, `event/`,
+**one folder per aggregate** (`domain/<aggregate>/`: `order/`, `coupon/`; nothing else hangs
+directly from `domain/`) and, inside each aggregate, **one folder per kind of class** (`aggregate/`, `entity/`, `value-object/`, `event/`,
 `exception/`, `repository/`, `service/`, `specification/`); inside the application, **one folder per business
 action**, holding its use case, its data types and its copies of foreign events. This is a
 convention of the package: the books name every module after the ubiquitous language [IDDD ch. 9];
-here the application folders are the language and the domain folders are by kind. Files in
+here the application folders are the language and the domain folders are by aggregate and, inside each aggregate, by kind. Files in
 `domain/` and `shared-kernel/` are PascalCase (the class name); every other file is kebab-case of
 its main export.
 
@@ -129,14 +130,20 @@ src/
     shared-kernel/money/      Money.ts, Cents.ts, MoneyCurrency.ts, CurrencyMismatch.ts
     sales/
       domain/
-        aggregate/            Order.ts, NewOrderLine.ts
-        entity/               OrderLine.ts
-        value-object/         OrderId.ts, Sku.ts, OrderStatusType.ts, ShippingAddress.ts
-        event/                OrderCreatedDomainEvent.ts, OrderPaidDomainEvent.ts
-        exception/            OrderNotCancellable.ts
-        repository/           OrderRepository.ts, CouponRepository.ts
-        service/              OrderPricing.ts (concrete classes only)
-        specification/        FreeShippingEligible.ts
+        order/                one folder per aggregate
+          aggregate/          Order.ts, NewOrderLine.ts
+          entity/             OrderLine.ts
+          value-object/       OrderId.ts, Sku.ts, OrderStatusType.ts, ShippingAddress.ts
+          event/              OrderCreatedDomainEvent.ts, OrderPaidDomainEvent.ts
+          exception/          OrderNotCancellable.ts
+          repository/         OrderRepository.ts
+          service/            OrderPricing.ts (concrete classes only)
+          specification/      FreeShippingEligible.ts
+        coupon/
+          aggregate/          Coupon.ts
+          value-object/       CouponId.ts, CouponCode.ts, DiscountPercent.ts
+          event/              CouponCreatedDomainEvent.ts
+          repository/         CouponRepository.ts
       application/
         place-order/          place-order.ts, money-data.ts, address-data.ts
         mark-order-paid/      mark-order-paid-on-payment-captured.ts, payment-captured-domain-event.ts
@@ -1111,7 +1118,7 @@ interface AggregateSearcher<Aggregate extends AggregateRoot<any> & CriteriaAggre
 `AggregateRepository` declares no verb and has no code: a type-only brand binds it to its
 aggregate, so a repository of trucks is not accepted where `AggregateRepository<Warehouse>` is
 expected. Each context's domain declares **one abstract repository per aggregate**, in
-`domain/repository/<Aggregate>Repository.ts`, with only the verbs the business of that aggregate
+`domain/<aggregate>/repository/<Aggregate>Repository.ts`, with only the verbs the business of that aggregate
 needs, each one implementing its role so every repository speaks the same verbs with the same
 signatures:
 

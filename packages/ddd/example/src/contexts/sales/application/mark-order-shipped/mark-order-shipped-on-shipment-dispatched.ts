@@ -1,8 +1,8 @@
 import { EventListener, ListensTo, ValueObjectBuilder } from '../../../../ddd/application';
 import type { EventBus } from '../../../../ddd/application';
-import type { OrderRepository } from '../../domain/repository/OrderRepository';
-import { CarrierTrackingNumber } from '../../domain/value-object/CarrierTrackingNumber';
-import { OrderId } from '../../domain/value-object/OrderId';
+import type { OrderRepository } from '../../domain/order/repository/OrderRepository';
+import { CarrierTrackingNumber } from '../../domain/order/value-object/CarrierTrackingNumber';
+import { OrderId } from '../../domain/order/value-object/OrderId';
 import { ShipmentDispatchedDomainEvent } from './shipment-dispatched-domain-event';
 
 @ListensTo(ShipmentDispatchedDomainEvent, {

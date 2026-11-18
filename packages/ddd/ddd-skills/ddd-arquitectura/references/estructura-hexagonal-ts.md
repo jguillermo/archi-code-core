@@ -2,7 +2,7 @@
 
 ## Carpetas
 
-`[Fuera de los libros: convención de @archi-code/ddd]` Traslado de IDDD cap. 9 y PHP: Modules, con `domain/` por tipo de clase.
+`[Fuera de los libros: convención de @archi-code/ddd]` Traslado de IDDD cap. 9 y PHP: Modules, con `domain/` por agregado y, dentro de cada agregado, por tipo de clase (`domain/<agregado>/<tipo>/`): bajo `domain/` solo hay carpetas de agregado.
 
 ```
 src/
@@ -12,14 +12,20 @@ src/
     shared-kernel/money/       ← solo con Shared Kernel acordado: Money.ts, Cents.ts, MoneyCurrency.ts…
     sales/
       domain/
-        aggregate/Order.ts, NewOrderLine.ts
-        entity/OrderLine.ts
-        value-object/OrderId.ts, OrderStatusType.ts, Sku.ts, ShippingAddress.ts
-        event/OrderCreatedDomainEvent.ts
-        exception/OrderNotModifiable.ts
-        repository/OrderRepository.ts, CouponRepository.ts   (abstract, extends AggregateRepository<…>)
-        service/OrderPricing.ts                (solo clases concretas, nunca interfaces)
-        specification/FreeShippingEligible.ts
+        order/                 ← una carpeta por agregado; nada más cuelga de domain/
+          aggregate/Order.ts, NewOrderLine.ts
+          entity/OrderLine.ts
+          value-object/OrderId.ts, OrderStatusType.ts, Sku.ts, ShippingAddress.ts
+          event/OrderCreatedDomainEvent.ts
+          exception/OrderNotModifiable.ts
+          repository/OrderRepository.ts        (abstract, extends AggregateRepository<…>)
+          service/OrderPricing.ts              (solo clases concretas, nunca interfaces)
+          specification/FreeShippingEligible.ts
+        coupon/
+          aggregate/Coupon.ts
+          value-object/CouponId.ts, CouponCode.ts, DiscountPercent.ts
+          event/CouponCreatedDomainEvent.ts
+          repository/CouponRepository.ts       (abstract, extends AggregateRepository<…>)
       application/
         place-order/place-order.ts, address-data.ts
         mark-order-paid/mark-order-paid-on-payment-captured.ts, payment-captured-domain-event.ts

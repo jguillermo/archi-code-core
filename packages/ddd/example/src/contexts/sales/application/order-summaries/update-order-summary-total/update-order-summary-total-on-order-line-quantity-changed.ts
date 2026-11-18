@@ -2,8 +2,8 @@ import { CreatedAt, UuidType } from '../../../../../ddd/domain';
 import { EventListener, ListensTo, ValueObjectBuilder } from '../../../../../ddd/application';
 import { Money } from '../../../../shared-kernel/money/Money';
 import type { Currency } from '../../../../shared-kernel/money/MoneyCurrency';
-import { OrderLineQuantityChangedDomainEvent } from '../../../domain/event/OrderLineQuantityChangedDomainEvent';
-import { OrderId } from '../../../domain/value-object/OrderId';
+import { OrderLineQuantityChangedDomainEvent } from '../../../domain/order/event/OrderLineQuantityChangedDomainEvent';
+import { OrderId } from '../../../domain/order/value-object/OrderId';
 import type { OrderSummaryProjection } from '../order-summary-projection';
 
 @ListensTo(OrderLineQuantityChangedDomainEvent, {

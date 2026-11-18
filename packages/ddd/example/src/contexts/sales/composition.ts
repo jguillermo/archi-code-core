@@ -22,12 +22,12 @@ import { OrderSummaryProjection } from './application/order-summaries/order-summ
 import { UpdateOrderSummaryTotalOnOrderLineQuantityChanged } from './application/order-summaries/update-order-summary-total/update-order-summary-total-on-order-line-quantity-changed';
 import { PlaceOrder } from './application/place-order/place-order';
 import { RegisterCoupon } from './application/register-coupon/register-coupon';
-import { OrderCancelledDomainEvent } from './domain/event/OrderCancelledDomainEvent';
-import { OrderDeliveredDomainEvent } from './domain/event/OrderDeliveredDomainEvent';
-import { OrderLineQuantityChangedDomainEvent } from './domain/event/OrderLineQuantityChangedDomainEvent';
-import { OrderPaidDomainEvent } from './domain/event/OrderPaidDomainEvent';
-import { OrderCreatedDomainEvent } from './domain/event/OrderCreatedDomainEvent';
-import { OrderShippedDomainEvent } from './domain/event/OrderShippedDomainEvent';
+import { OrderCancelledDomainEvent } from './domain/order/event/OrderCancelledDomainEvent';
+import { OrderDeliveredDomainEvent } from './domain/order/event/OrderDeliveredDomainEvent';
+import { OrderLineQuantityChangedDomainEvent } from './domain/order/event/OrderLineQuantityChangedDomainEvent';
+import { OrderPaidDomainEvent } from './domain/order/event/OrderPaidDomainEvent';
+import { OrderCreatedDomainEvent } from './domain/order/event/OrderCreatedDomainEvent';
+import { OrderShippedDomainEvent } from './domain/order/event/OrderShippedDomainEvent';
 import type { AddressData } from './application/place-order/address-data';
 import type { MoneyData } from './application/place-order/money-data';
 import { InMemoryCouponRepository } from './infrastructure/persistence/in-memory-coupon-repository';

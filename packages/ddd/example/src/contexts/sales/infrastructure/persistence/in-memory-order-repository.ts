@@ -1,8 +1,8 @@
 import type { PrimitiveTypes } from '../../../../ddd/domain';
 import { ConcurrencyException } from '../../../../ddd/application';
-import { Order } from '../../domain/aggregate/Order';
-import { OrderRepository } from '../../domain/repository/OrderRepository';
-import type { OrderId } from '../../domain/value-object/OrderId';
+import { Order } from '../../domain/order/aggregate/Order';
+import { OrderRepository } from '../../domain/order/repository/OrderRepository';
+import type { OrderId } from '../../domain/order/value-object/OrderId';
 
 interface OrderRow {
   version: number;

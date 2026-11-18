@@ -4,11 +4,11 @@ import {
   ValueObjectBuilder,
 } from '../../../../ddd/application';
 import type { EventBus } from '../../../../ddd/application';
-import { CustomerId } from '../../domain/value-object/CustomerId';
-import type { OrderRepository } from '../../domain/repository/OrderRepository';
-import { OrderId } from '../../domain/value-object/OrderId';
-import { LineNumber } from '../../domain/value-object/LineNumber';
-import { Quantity } from '../../domain/value-object/Quantity';
+import { CustomerId } from '../../domain/order/value-object/CustomerId';
+import type { OrderRepository } from '../../domain/order/repository/OrderRepository';
+import { OrderId } from '../../domain/order/value-object/OrderId';
+import { LineNumber } from '../../domain/order/value-object/LineNumber';
+import { Quantity } from '../../domain/order/value-object/Quantity';
 
 export interface ChangeOrderLineQuantityInput {
   actorId: string;

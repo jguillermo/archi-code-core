@@ -1,8 +1,8 @@
 import type { PrimitiveTypes } from '../../../../ddd/domain';
 import { ConcurrencyException } from '../../../../ddd/application';
-import { Payment } from '../../domain/aggregate/Payment';
-import { PaymentRepository } from '../../domain/repository/PaymentRepository';
-import type { PaymentId } from '../../domain/value-object/PaymentId';
+import { Payment } from '../../domain/payment/aggregate/Payment';
+import { PaymentRepository } from '../../domain/payment/repository/PaymentRepository';
+import type { PaymentId } from '../../domain/payment/value-object/PaymentId';
 
 interface PaymentRow {
   version: number;

@@ -2,12 +2,12 @@ import { EventListener, ListensTo, ValueObjectBuilder } from '../../../../ddd/ap
 import type { EventBus } from '../../../../ddd/application';
 import { Money } from '../../../shared-kernel/money/Money';
 import type { Currency } from '../../../shared-kernel/money/MoneyCurrency';
-import { Payment } from '../../domain/aggregate/Payment';
-import type { PaymentRepository } from '../../domain/repository/PaymentRepository';
-import { OrderReference } from '../../domain/value-object/OrderReference';
-import { PaymentId } from '../../domain/value-object/PaymentId';
-import { PaymentMethodType } from '../../domain/value-object/PaymentMethodType';
-import type { PaymentMethod } from '../../domain/value-object/PaymentMethodType';
+import { Payment } from '../../domain/payment/aggregate/Payment';
+import type { PaymentRepository } from '../../domain/payment/repository/PaymentRepository';
+import { OrderReference } from '../../domain/payment/value-object/OrderReference';
+import { PaymentId } from '../../domain/payment/value-object/PaymentId';
+import { PaymentMethodType } from '../../domain/payment/value-object/PaymentMethodType';
+import type { PaymentMethod } from '../../domain/payment/value-object/PaymentMethodType';
 import { OrderCancelledDomainEvent } from './order-cancelled-domain-event';
 
 @ListensTo(OrderCancelledDomainEvent, {

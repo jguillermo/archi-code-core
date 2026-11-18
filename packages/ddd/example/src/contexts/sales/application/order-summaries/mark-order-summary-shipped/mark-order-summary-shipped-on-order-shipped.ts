@@ -1,8 +1,8 @@
 import { CreatedAt, UuidType } from '../../../../../ddd/domain';
 import { EventListener, ListensTo, ValueObjectBuilder } from '../../../../../ddd/application';
-import { OrderShippedDomainEvent } from '../../../domain/event/OrderShippedDomainEvent';
-import { CarrierTrackingNumber } from '../../../domain/value-object/CarrierTrackingNumber';
-import { OrderId } from '../../../domain/value-object/OrderId';
+import { OrderShippedDomainEvent } from '../../../domain/order/event/OrderShippedDomainEvent';
+import { CarrierTrackingNumber } from '../../../domain/order/value-object/CarrierTrackingNumber';
+import { OrderId } from '../../../domain/order/value-object/OrderId';
 import type { OrderSummaryProjection } from '../order-summary-projection';
 
 @ListensTo(OrderShippedDomainEvent, {

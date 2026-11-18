@@ -11,8 +11,10 @@ Además de los síntomas generales de DDD, aplica las convenciones de @archi-cod
 clases base propias, imports del paquete sin capa, API de una capa exterior usada en una interior, estado
 primitivo o sin conversión en un agregado, forma y nombre de eventos y errores de negocio, repositorios
 (abstracto, verbos, adaptadores), casos de uso que usan otro, reacciones sin @ListensTo o que lanzan, puntos
-de entrada, carpetas y nombres de fichero, y puertos de dominio (interfaces o clases abstractas del dominio fuera de
-repository/, y capas exteriores que implementan algo del dominio que no es un repositorio). Las reconoce por nombre de clase, no por la ruta del import.
+de entrada, carpetas y nombres de fichero (el dominio va en domain/<agregado>/<tipo>/: bajo domain/ solo hay carpetas
+de agregado), y puertos de dominio (interfaces o clases abstractas del dominio fuera de domain/<agregado>/repository/,
+y capas exteriores que implementan algo del dominio que no es un repositorio). Las reconoce por nombre de clase, no por
+la ruta del import.
 """
 import argparse
 import json
@@ -137,6 +139,21 @@ def zone_of(path: Path, domain_dir: str):
     return None
 
 
+def domain_location(path: Path, domain_dir: str):
+    """(agregado, tipo) de un fichero de dominio, domain/<agregado>/<tipo>/Fichero.ts; None en lo que falte."""
+    parts = [p.lower() for p in path.parts[:-1]]
+    if domain_dir not in parts:
+        return None, None
+    rest = parts[parts.index(domain_dir) + 1:]
+    if not rest:
+        return None, None
+    if len(rest) >= 2 and rest[1] in DOMAIN_KIND_FOLDERS:
+        return rest[0], rest[1]
+    if rest[0] in DOMAIN_KIND_FOLDERS:
+        return None, rest[0]
+    return rest[0], None
+
+
 def context_of(path: Path):
     parts = list(path.parts)
     for anchor in ("contexts", "bounded-contexts", "modules"):
@@ -183,6 +200,7 @@ def package_rules(add, path, text, zone, ctx, domain_dir, imports, use_case_file
     classes = [(m.group(1), m.group(2).split(".")[-1], m.start()) for m in EXTENDS_RE.finditer(text)]
     extends = {base for _, base, _ in classes}
     folders = {part.lower() for part in path.parts[:-1]}
+    aggregate, kind = domain_location(path, domain_dir) if zone == domain_dir else (None, None)
     in_context = ctx is not None
     is_composition = path.stem == COMPOSITION_FILE
 
@@ -213,9 +231,13 @@ def package_rules(add, path, text, zone, ctx, domain_dir, imports, use_case_file
         for m in LOGGING_RE.finditer(text):
             add("dominio-usa-logger", "media", path, line_of(text, m.start()), m.group(1).strip())
             break
-        if in_context and not (folders & DOMAIN_KIND_FOLDERS):
+        if in_context and aggregate is None:
+            add("dominio-sin-carpeta-de-agregado", "media", path, 1,
+                "bajo domain/ solo hay carpetas de agregado; va en domain/<agregado>/<tipo>/")
+        if in_context and kind is None:
             add("dominio-sin-carpeta-por-tipo", "baja", path, 1,
-                "va en aggregate/, entity/, value-object/, event/, exception/, repository/, service/ o specification/")
+                "va en domain/<agregado>/ dentro de aggregate/, entity/, value-object/, event/, exception/, "
+                "repository/, service/ o specification/")
 
         if extends & {"AggregateRoot", "Entity"}:
             for m in PRIMITIVE_FIELD_RE.finditer(text):
@@ -252,15 +274,15 @@ def package_rules(add, path, text, zone, ctx, domain_dir, imports, use_case_file
                     add("repositorio-con-verbo-no-estandar", "media", path, line_of(text, m.start()),
                         f"{m.group(1)}(); solo findById, search, save y remove")
 
-    if zone == domain_dir and "repository" not in folders:
-        in_service = "service" in folders
+    if zone == domain_dir and kind != "repository":
+        in_service = kind == "service"
         for m in DOMAIN_CONTRACT_RE.finditer(text):
-            kind = "interface" if m.group(1) == "interface" else "abstract class"
+            contract = "interface" if m.group(1) == "interface" else "abstract class"
             if in_service:
                 add("puerto-de-dominio", "alta", path, line_of(text, m.start()),
-                    f"{kind} {m.group(2)} en domain/service/: no existen puertos de dominio; un servicio de dominio es "
+                    f"{contract} {m.group(2)} en domain/<agregado>/service/: no existen puertos de dominio; un servicio de dominio es "
                     "una clase concreta y del dominio solo se implementa el repositorio abstracto")
-            elif kind == "abstract class":
+            elif contract == "abstract class":
                 add("dominio-con-clase-abstracta", "alta", path, line_of(text, m.start()),
                     f"abstract class {m.group(2)}: en el dominio solo es abstracto el repositorio de un agregado")
 
@@ -270,7 +292,7 @@ def package_rules(add, path, text, zone, ctx, domain_dir, imports, use_case_file
             mod = m.group(2)
             if not mod.startswith(".") or not re.search(rf"/{re.escape(domain_dir)}/", mod):
                 continue
-            if re.search(rf"/{re.escape(domain_dir)}/repository/", mod):
+            if re.search(rf"/{re.escape(domain_dir)}/(?:[^/]+/)?repository/", mod):
                 continue
             for name in m.group(1).split(","):
                 name = name.strip().removeprefix("type ").split(" as ")[-1].strip()
@@ -408,8 +430,7 @@ def scan(root: Path, domain_dir: str):
                 add("setter-en-dominio", "media", path, line_of(text, m.start()), m.group(0).strip()[:60])
             for m in PUBLIC_MUTABLE_FIELD_RE.finditer(text):
                 add("campo-publico-mutable", "media", path, line_of(text, m.start()), m.group(0).strip()[:60])
-            folders = {part.lower() for part in path.parts}
-            carries_primitives = bool(folders & {"event", "exception"}) or path.stem.endswith("DomainEvent")
+            carries_primitives = domain_location(path, domain_dir)[1] in ("event", "exception") or path.stem.endswith("DomainEvent")
             if not carries_primitives:
                 for m in PRIMITIVE_MONEY_RE.finditer(text):
                     add("dinero-como-number", "media", path, line_of(text, m.start()), m.group(0))

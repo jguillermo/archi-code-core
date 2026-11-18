@@ -4,9 +4,9 @@ import {
   ValueObjectBuilder,
 } from '../../../../ddd/application';
 import type { EventBus } from '../../../../ddd/application';
-import { CustomerId } from '../../domain/value-object/CustomerId';
-import type { OrderRepository } from '../../domain/repository/OrderRepository';
-import { OrderId } from '../../domain/value-object/OrderId';
+import { CustomerId } from '../../domain/order/value-object/CustomerId';
+import type { OrderRepository } from '../../domain/order/repository/OrderRepository';
+import { OrderId } from '../../domain/order/value-object/OrderId';
 
 export interface CancelOrderInput {
   actorId: string;

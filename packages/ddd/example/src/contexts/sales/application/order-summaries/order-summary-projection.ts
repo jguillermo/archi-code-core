@@ -1,5 +1,5 @@
 import type { CreatedAt, UuidType } from '../../../../ddd/domain';
-import type { OrderId } from '../../domain/value-object/OrderId';
+import type { OrderId } from '../../domain/order/value-object/OrderId';
 import type { OrderSummaryChanges } from './order-summary';
 import type { OrderSummaryStore } from './order-summary-store';
 

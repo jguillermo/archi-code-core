@@ -2,22 +2,22 @@ import { NotAllowedException, UseCase, ValueObjectBuilder } from '../../../../dd
 import type { EventBus } from '../../../../ddd/application';
 import { Money } from '../../../shared-kernel/money/Money';
 import type { Currency } from '../../../shared-kernel/money/MoneyCurrency';
-import { CustomerId } from '../../domain/value-object/CustomerId';
-import { OrderPricing } from '../../domain/service/OrderPricing';
-import type { CouponRepository } from '../../domain/repository/CouponRepository';
-import { CouponCodes } from '../../domain/value-object/CouponCodes';
-import { GiftWrap } from '../../domain/value-object/GiftWrap';
-import { Order } from '../../domain/aggregate/Order';
-import type { OrderRepository } from '../../domain/repository/OrderRepository';
-import type { NewOrderLine } from '../../domain/aggregate/NewOrderLine';
+import { CustomerId } from '../../domain/order/value-object/CustomerId';
+import { OrderPricing } from '../../domain/order/service/OrderPricing';
+import type { CouponRepository } from '../../domain/coupon/repository/CouponRepository';
+import { CouponCodes } from '../../domain/order/value-object/CouponCodes';
+import { GiftWrap } from '../../domain/order/value-object/GiftWrap';
+import { Order } from '../../domain/order/aggregate/Order';
+import type { OrderRepository } from '../../domain/order/repository/OrderRepository';
+import type { NewOrderLine } from '../../domain/order/aggregate/NewOrderLine';
 import type { AddressData } from './address-data';
 import type { MoneyData } from './money-data';
-import { OrderId } from '../../domain/value-object/OrderId';
-import { Quantity } from '../../domain/value-object/Quantity';
-import { Sku } from '../../domain/value-object/Sku';
-import { PaymentMethodType } from '../../domain/value-object/PaymentMethodType';
-import type { PaymentMethod } from '../../domain/value-object/PaymentMethodType';
-import { ShippingAddress } from '../../domain/value-object/ShippingAddress';
+import { OrderId } from '../../domain/order/value-object/OrderId';
+import { Quantity } from '../../domain/order/value-object/Quantity';
+import { Sku } from '../../domain/order/value-object/Sku';
+import { PaymentMethodType } from '../../domain/order/value-object/PaymentMethodType';
+import type { PaymentMethod } from '../../domain/order/value-object/PaymentMethodType';
+import { ShippingAddress } from '../../domain/order/value-object/ShippingAddress';
 
 export interface PlaceOrderInput {
   actorId: string;

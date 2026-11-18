@@ -1,10 +1,10 @@
 import { EventListener, ListensTo, ValueObjectBuilder } from '../../../../ddd/application';
 import type { EventBus } from '../../../../ddd/application';
-import { Shipment } from '../../domain/aggregate/Shipment';
-import type { ShipmentRepository } from '../../domain/repository/ShipmentRepository';
-import { OrderReference } from '../../domain/value-object/OrderReference';
-import { OrderWasPaid } from '../../domain/value-object/OrderWasPaid';
-import { ShipmentId } from '../../domain/value-object/ShipmentId';
+import { Shipment } from '../../domain/shipment/aggregate/Shipment';
+import type { ShipmentRepository } from '../../domain/shipment/repository/ShipmentRepository';
+import { OrderReference } from '../../domain/shipment/value-object/OrderReference';
+import { OrderWasPaid } from '../../domain/shipment/value-object/OrderWasPaid';
+import { ShipmentId } from '../../domain/shipment/value-object/ShipmentId';
 import { OrderCancelledDomainEvent } from './order-cancelled-domain-event';
 
 @ListensTo(OrderCancelledDomainEvent, { consumer: 'shipping.cancel-shipment-on-order-cancelled' })

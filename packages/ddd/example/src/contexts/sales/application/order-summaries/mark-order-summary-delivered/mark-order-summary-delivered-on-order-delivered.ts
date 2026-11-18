@@ -1,7 +1,7 @@
 import { CreatedAt, UuidType } from '../../../../../ddd/domain';
 import { EventListener, ListensTo, ValueObjectBuilder } from '../../../../../ddd/application';
-import { OrderDeliveredDomainEvent } from '../../../domain/event/OrderDeliveredDomainEvent';
-import { OrderId } from '../../../domain/value-object/OrderId';
+import { OrderDeliveredDomainEvent } from '../../../domain/order/event/OrderDeliveredDomainEvent';
+import { OrderId } from '../../../domain/order/value-object/OrderId';
 import type { OrderSummaryProjection } from '../order-summary-projection';
 
 @ListensTo(OrderDeliveredDomainEvent, {

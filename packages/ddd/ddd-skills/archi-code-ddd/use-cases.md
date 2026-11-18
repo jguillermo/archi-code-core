@@ -42,7 +42,7 @@ When two use cases share logic, that logic moves to the domain:
 
 - a rule of one aggregate → a method of the aggregate;
 - a business rule that reads aggregates or spans several (register one only when it does not
-  exist yet, compute over several) → a **domain service** in `domain/service/<Service>.ts`; a
+  exist yet, compute over several) → a **domain service** in `domain/<aggregate>/service/<Service>.ts`; a
   lookup alone is not one: each use case keeps its own `findById` with
   `AggregateNotFoundException`;
 - a technical step → a port;
@@ -53,12 +53,12 @@ dependencies it received in its own constructor. Example: `CreateCourse` and `Im
 register a course: check that it does not exist yet, create it and save it. The wrong answer is
 that one uses the other. The right one:
 
-1. `domain/service/CourseRegistration.ts`: `class CourseRegistration` with
+1. `domain/course/service/CourseRegistration.ts`: `class CourseRegistration` with
    `constructor(private readonly courses: CourseRepository) {}` and
    `register(id, title): Promise<Course>` (`throw new CourseAlreadyExists(id.value)` when
    `findById` finds it; otherwise `Course.create(id, title)`, `await this.courses.save(course)`
    and return the course).
-2. `domain/exception/CourseAlreadyExists.ts`: a business error (`extends DomainException`, a code
+2. `domain/course/exception/CourseAlreadyExists.ts`: a business error (`extends DomainException`, a code
    of the context). The domain cannot throw `AggregateNotFoundException`: it lives in
    `/application` and the domain never imports it. `ExceptionClassifier` gives the error
    `ExceptionKind.Invalid` (422).

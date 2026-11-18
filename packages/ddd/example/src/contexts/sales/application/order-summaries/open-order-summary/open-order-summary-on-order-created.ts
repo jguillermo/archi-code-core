@@ -2,10 +2,10 @@ import { CreatedAt, UuidType } from '../../../../../ddd/domain';
 import { EventListener, ListensTo, ValueObjectBuilder } from '../../../../../ddd/application';
 import { Money } from '../../../../shared-kernel/money/Money';
 import type { Currency } from '../../../../shared-kernel/money/MoneyCurrency';
-import { OrderCreatedDomainEvent } from '../../../domain/event/OrderCreatedDomainEvent';
-import { CustomerId } from '../../../domain/value-object/CustomerId';
-import { OrderId } from '../../../domain/value-object/OrderId';
-import { Quantity } from '../../../domain/value-object/Quantity';
+import { OrderCreatedDomainEvent } from '../../../domain/order/event/OrderCreatedDomainEvent';
+import { CustomerId } from '../../../domain/order/value-object/CustomerId';
+import { OrderId } from '../../../domain/order/value-object/OrderId';
+import { Quantity } from '../../../domain/order/value-object/Quantity';
 import type { OrderSummaryProjection } from '../order-summary-projection';
 
 @ListensTo(OrderCreatedDomainEvent, { consumer: 'sales.open-order-summary-on-order-created' })

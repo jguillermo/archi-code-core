@@ -1,8 +1,8 @@
 import type { PrimitiveTypes } from '../../../../ddd/domain';
 import { ConcurrencyException } from '../../../../ddd/application';
-import { Shipment } from '../../domain/aggregate/Shipment';
-import { ShipmentRepository } from '../../domain/repository/ShipmentRepository';
-import type { ShipmentId } from '../../domain/value-object/ShipmentId';
+import { Shipment } from '../../domain/shipment/aggregate/Shipment';
+import { ShipmentRepository } from '../../domain/shipment/repository/ShipmentRepository';
+import type { ShipmentId } from '../../domain/shipment/value-object/ShipmentId';
 
 interface ShipmentRow {
   version: number;

@@ -1,8 +1,8 @@
 import { EventListener, ListensTo, ValueObjectBuilder } from '../../../../ddd/application';
 import type { EventBus, Logger } from '../../../../ddd/application';
-import type { OrderRepository } from '../../domain/repository/OrderRepository';
-import { OrderId } from '../../domain/value-object/OrderId';
-import { RejectionReason } from '../../domain/value-object/RejectionReason';
+import type { OrderRepository } from '../../domain/order/repository/OrderRepository';
+import { OrderId } from '../../domain/order/value-object/OrderId';
+import { RejectionReason } from '../../domain/order/value-object/RejectionReason';
 import { PaymentRejectedDomainEvent } from './payment-rejected-domain-event';
 
 @ListensTo(PaymentRejectedDomainEvent, {

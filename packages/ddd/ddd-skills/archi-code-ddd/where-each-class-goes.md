@@ -63,8 +63,14 @@ only the ones of the classes you write.
 ## Folder layout
 
 `[Fuera de los libros: convención de @archi-code/ddd]`: inside each context the domain is split
-into folders by kind of class (the books name modules after the ubiquitous language [IDDD ch. 9;
-PHP: Modules]); the application is split by business action, which is the language.
+into one folder per aggregate, and each aggregate folder into folders by kind of class (the books
+name modules after the ubiquitous language [IDDD ch. 9; PHP: Modules]); the application is split
+by business action, which is the language.
+
+`domain/` holds only aggregate folders (`domain/<aggregate>/`, kebab-case singular of the aggregate:
+`order/`, `coupon/`): never a file nor a kind folder directly under `domain/`. Every domain file
+goes in `domain/<aggregate>/<kind>/` of the aggregate that owns it; a file of the same context that
+needs it imports it from there (`../../coupon/value-object/CouponId` from `order/service/`).
 
 ```
 src/
@@ -75,14 +81,15 @@ src/
     shared-kernel/money/                    Money, Cents, CentsAmount, MoneyCurrency, CurrencyMismatch
     <context>/                              one folder per bounded context, named in its language
       domain/
-        aggregate/       Order.ts, NewOrderLine.ts, outcome enums a method returns (CourseRetirement.ts)
-        entity/          OrderLine.ts
-        value-object/    OrderId.ts, Sku.ts, OrderStatusType.ts, ShippingAddress.ts
-        event/           OrderCreatedDomainEvent.ts, OrderPaidDomainEvent.ts
-        exception/       OrderNotCancellable.ts
-        repository/      OrderRepository.ts, CouponRepository.ts (abstract: the only domain types infrastructure implements)
-        service/         OrderPricing.ts (concrete classes only: never an interface nor an abstract class)
-        specification/   FreeShippingEligible.ts
+        <aggregate>/                        one folder per aggregate (order/, coupon/): nothing else under domain/
+          aggregate/       Order.ts, NewOrderLine.ts, outcome enums a method returns (CourseRetirement.ts)
+          entity/          OrderLine.ts
+          value-object/    OrderId.ts, Sku.ts, OrderStatusType.ts, ShippingAddress.ts
+          event/           OrderCreatedDomainEvent.ts, OrderPaidDomainEvent.ts
+          exception/       OrderNotCancellable.ts
+          repository/      OrderRepository.ts (abstract: the only domain type infrastructure implements)
+          service/         OrderPricing.ts (concrete classes only: never an interface nor an abstract class)
+          specification/   FreeShippingEligible.ts
       application/
         place-order/                   place-order.ts, money-data.ts, address-data.ts
         mark-order-paid/               mark-order-paid-on-payment-captured.ts, payment-captured-domain-event.ts
@@ -123,7 +130,7 @@ contexts root keeps it. Everything from `<context>/` down is the same in every p
 | Reaction use case                        | `<Action>On<Event>` (`MarkOrderPaidOnPaymentCaptured`), file `<action>-on-<event>.ts`                                                                                                                      |
 | Consumer name                            | `'<context>.<action>-on-<event>'`: the context and the file name without `.ts`                                                                                                                             |
 | Copy of a foreign event                  | the producer's class name, file `<event>-domain-event.ts` (`payment-captured-domain-event.ts`)                                                                                                             |
-| Repository (domain)                      | `<Aggregate>Repository`, abstract, in `domain/repository/` (`OrderRepository`)                                                                                                                             |
+| Repository (domain)                      | `<Aggregate>Repository`, abstract, in `domain/<aggregate>/repository/` (`OrderRepository`)                                                                                                                             |
 | Repository adapter                       | `<Technology><Aggregate>Repository extends <Aggregate>Repository` (`InMemoryOrderRepository`, `MongoOrderRepository`, `IndexedDbOrderRepository` over the table of its `IndexedDbDatabase`), one per aggregate and technology |
 | Domain service                           | the business operation (`OrderPricing`, `CourseRegistration`), never `…Manager`, `…Helper`, `…Utils`                                                                                                             |
 | Port adapter                             | `<Technology><Port>` (`InMemoryProductPricing`)                                                                                                                                                             |
@@ -176,6 +183,9 @@ statement per value and `import type` for types. Format with the project's forma
   `InternalErrorException` from `/infrastructure`); there is no `/exceptions` subpath and the
   common base class is not exported.
 - Importing the repository contracts from `@archi-code/ddd/application`: they live in `/domain`.
+- A kind folder or a file directly under `domain/` (`domain/repository/OrderRepository.ts`):
+  `domain/` holds only aggregate folders, and the file goes in `domain/<aggregate>/<kind>/`
+  (`domain/order/repository/OrderRepository.ts`).
 - Application folders named after patterns (`use-cases/`, `listeners/`, `commands/`, `dtos/`):
   one folder per business action, holding its use case, its data types and its event copies.
 - Data types of the input (`MoneyData`) in `domain/`, or shared between contexts.

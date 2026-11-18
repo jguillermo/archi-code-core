@@ -5,7 +5,7 @@ Tres piezas [IDDD cap. 3 y 13]: **interfaz** con lenguaje local (los libros la p
 ```
 src/contexts/sales/
   application/place-order/product-pricing.ts ← puerto de aplicación con lenguaje de Ventas
-  domain/exception/ProductNotSellable.ts
+  domain/order/exception/ProductNotSellable.ts
   infrastructure/catalog/
     catalog-http-product-pricing.ts         ← adaptador
     catalog-translator.ts                   ← traductor

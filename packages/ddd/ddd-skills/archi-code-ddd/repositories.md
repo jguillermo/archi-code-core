@@ -8,7 +8,7 @@ adapters. To declare the abstract repository (before the use cases) read the `Ru
 ## Rules
 
 - **The domain declares the repository of each aggregate and nothing else about persistence**:
-  `repository/<Aggregate>Repository.ts`; no mapper, repository adapter, command, logger nor
+  `domain/<aggregate>/repository/<Aggregate>Repository.ts`; no mapper, repository adapter, command, logger nor
   `Date.now()`.
 - **One abstract repository per aggregate** (`repository/OrderRepository.ts`, user rule):
   `export abstract class OrderRepository extends AggregateRepository<Order> implements
@@ -140,12 +140,12 @@ adapters. To declare the abstract repository (before the use cases) read the `Ru
   always with `{ cause: error }`; never a business error.
 - **Infrastructure never implements a domain service** (user rule, strict, no exceptions). No
   class in `infrastructure` extends, implements, replaces nor redefines a domain service
-  (`domain/service/<Service>.ts`), and none holds its business logic.
+  (`domain/<aggregate>/service/<Service>.ts`), and none holds its business logic.
 - **Of the domain, infrastructure implements only the abstract repositories** (user rule, the
   most important one of this layer, strict, no exceptions). The abstract repository of an
   aggregate is the only thing declared in `domain` that `infrastructure` implements. There are
   no domain ports: no adapter implements an interface or an abstract class of
-  `domain/service/` nor of any other domain folder. Everything else infrastructure implements
+  `domain/<aggregate>/service/` nor of any other domain folder. Everything else infrastructure implements
   is declared in `application` (application ports, read-model stores and query ports) or in the
   package (`EventChannel`). When an adapter seems to need a domain interface, the data is an
   aggregate with its repository, or the capability is an application port the use case calls
@@ -155,7 +155,7 @@ adapters. To declare the abstract repository (before the use cases) read the `Ru
 
 ### Abstract repository
 
-The domain declares one abstract repository per aggregate, `domain/repository/PaymentRepository.ts`:
+The domain declares one abstract repository per aggregate, `domain/payment/repository/PaymentRepository.ts`:
 only the verbs the business of payments needs, each the method of the package role it implements
 (payments are never deleted, so there is no `remove`):
 
@@ -586,7 +586,7 @@ export class InMemoryProductPricing implements ProductPricing {
   adapter.
 - An adapter that implements an interface or an abstract class of the domain other than the
   abstract repository of an aggregate (a "domain port" such as `CouponCatalog` in
-  `domain/service/`): domain ports do not exist.
+  `domain/<aggregate>/service/`): domain ports do not exist.
 - An infrastructure class that extends or implements a domain service, or that holds its business
   logic: infrastructure implements repositories, application ports, stores and channels, never a
   domain service.

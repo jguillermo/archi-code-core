@@ -12,7 +12,7 @@
 
 ## Con @archi-code/ddd
 
-`[Fuera de los libros: convención de @archi-code/ddd]` El paquete agrupa `domain/` por tipo; el lenguaje vive en el contexto, las clases y las carpetas de `application/`.
+`[Fuera de los libros: convención de @archi-code/ddd]` El paquete agrupa `domain/` por agregado y, dentro de cada agregado, por tipo (`domain/<agregado>/<tipo>/`); el lenguaje vive en el contexto, las clases y las carpetas de `application/`.
 
 * `domain/`: `aggregate/` (raíces y `New<Child>`), `entity/`, `value-object/`, `event/`, `exception/`, `repository/`, `service/`, `specification/`; `event/` un fichero por evento, sin unión de eventos; `service/` servicios de dominio, solo clases concretas (no existen puertos de dominio); una clase por fichero, PascalCase.
 * `application/`: una carpeta por acción (`place-order/`, `mark-order-paid/`) con su caso de uso, sus tipos y la copia del evento ajeno de una reacción; nunca `listeners/`, `use-cases/`, `commands/`, `dtos/`. Un read model es una carpeta con fila, puertos, proyección y reacciones.

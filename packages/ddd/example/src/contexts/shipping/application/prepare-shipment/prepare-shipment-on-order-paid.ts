@@ -1,12 +1,12 @@
 import { EventListener, ListensTo, ValueObjectBuilder } from '../../../../ddd/application';
 import type { EventBus } from '../../../../ddd/application';
-import { Shipment } from '../../domain/aggregate/Shipment';
-import type { ShipmentRepository } from '../../domain/repository/ShipmentRepository';
-import { GiftWrapRequested } from '../../domain/value-object/GiftWrapRequested';
-import { OrderReference } from '../../domain/value-object/OrderReference';
-import { ShipmentAddress } from '../../domain/value-object/ShipmentAddress';
-import { ShipmentContents } from '../../domain/value-object/ShipmentContents';
-import { ShipmentId } from '../../domain/value-object/ShipmentId';
+import { Shipment } from '../../domain/shipment/aggregate/Shipment';
+import type { ShipmentRepository } from '../../domain/shipment/repository/ShipmentRepository';
+import { GiftWrapRequested } from '../../domain/shipment/value-object/GiftWrapRequested';
+import { OrderReference } from '../../domain/shipment/value-object/OrderReference';
+import { ShipmentAddress } from '../../domain/shipment/value-object/ShipmentAddress';
+import { ShipmentContents } from '../../domain/shipment/value-object/ShipmentContents';
+import { ShipmentId } from '../../domain/shipment/value-object/ShipmentId';
 import { OrderPaidDomainEvent } from './order-paid-domain-event';
 
 @ListensTo(OrderPaidDomainEvent, { consumer: 'shipping.prepare-shipment-on-order-paid' })

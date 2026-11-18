@@ -1,8 +1,8 @@
 import { CreatedAt, UuidType } from '../../../../../ddd/domain';
 import { EventListener, ListensTo, ValueObjectBuilder } from '../../../../../ddd/application';
-import { OrderPaidDomainEvent } from '../../../domain/event/OrderPaidDomainEvent';
-import { OrderId } from '../../../domain/value-object/OrderId';
-import { Quantity } from '../../../domain/value-object/Quantity';
+import { OrderPaidDomainEvent } from '../../../domain/order/event/OrderPaidDomainEvent';
+import { OrderId } from '../../../domain/order/value-object/OrderId';
+import { Quantity } from '../../../domain/order/value-object/Quantity';
 import type { OrderSummaryProjection } from '../order-summary-projection';
 
 @ListensTo(OrderPaidDomainEvent, { consumer: 'sales.mark-order-summary-paid-on-order-paid' })

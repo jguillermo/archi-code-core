@@ -1,12 +1,12 @@
 import { NotAllowedException, UseCase, ValueObjectBuilder } from '../../../../ddd/application';
 import type { EventBus } from '../../../../ddd/application';
-import { Coupon } from '../../domain/aggregate/Coupon';
-import { CouponCode } from '../../domain/value-object/CouponCode';
-import { CouponId } from '../../domain/value-object/CouponId';
-import type { CouponRepository } from '../../domain/repository/CouponRepository';
-import { DiscountPercent } from '../../domain/value-object/DiscountPercent';
-import { StaffRole } from '../../domain/value-object/StaffRoleType';
-import { StaffRoleType } from '../../domain/value-object/StaffRoleType';
+import { Coupon } from '../../domain/coupon/aggregate/Coupon';
+import { CouponCode } from '../../domain/coupon/value-object/CouponCode';
+import { CouponId } from '../../domain/coupon/value-object/CouponId';
+import type { CouponRepository } from '../../domain/coupon/repository/CouponRepository';
+import { DiscountPercent } from '../../domain/coupon/value-object/DiscountPercent';
+import { StaffRole } from '../../domain/order/value-object/StaffRoleType';
+import { StaffRoleType } from '../../domain/order/value-object/StaffRoleType';
 
 export interface RegisterCouponInput {
   actorRole: string;

@@ -1,8 +1,8 @@
 import type { PrimitiveTypes } from '../../../../ddd/domain';
 import { ConcurrencyException } from '../../../../ddd/application';
-import { Coupon } from '../../domain/aggregate/Coupon';
-import { CouponRepository } from '../../domain/repository/CouponRepository';
-import type { CouponId } from '../../domain/value-object/CouponId';
+import { Coupon } from '../../domain/coupon/aggregate/Coupon';
+import { CouponRepository } from '../../domain/coupon/repository/CouponRepository';
+import type { CouponId } from '../../domain/coupon/value-object/CouponId';
 
 interface CouponRow {
   version: number;

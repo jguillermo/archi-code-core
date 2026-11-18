@@ -5,11 +5,11 @@ import {
   ValueObjectBuilder,
 } from '../../../../ddd/application';
 import type { EventBus } from '../../../../ddd/application';
-import type { ShipmentRepository } from '../../domain/repository/ShipmentRepository';
-import { ShipmentId } from '../../domain/value-object/ShipmentId';
-import { TrackingNumber } from '../../domain/value-object/TrackingNumber';
-import { StaffRole } from '../../domain/value-object/StaffRoleType';
-import { StaffRoleType } from '../../domain/value-object/StaffRoleType';
+import type { ShipmentRepository } from '../../domain/shipment/repository/ShipmentRepository';
+import { ShipmentId } from '../../domain/shipment/value-object/ShipmentId';
+import { TrackingNumber } from '../../domain/shipment/value-object/TrackingNumber';
+import { StaffRole } from '../../domain/shipment/value-object/StaffRoleType';
+import { StaffRoleType } from '../../domain/shipment/value-object/StaffRoleType';
 
 export interface DispatchShipmentInput {
   actorRole: string;
