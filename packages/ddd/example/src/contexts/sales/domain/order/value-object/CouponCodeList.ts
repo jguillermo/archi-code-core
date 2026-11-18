@@ -1,6 +1,6 @@
 import { Validations } from '@archi-code/validation';
 import { ArrayType } from '../../../../../ddd/domain';
-import { CouponCode } from '../../coupon/value-object/CouponCode';
+import { CouponCode } from '../../shared/value-object/CouponCode';
 
 @Validations([
   {

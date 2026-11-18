@@ -1,9 +1,9 @@
 import { AggregateRoot, CreatedAt, UpdatedAt } from '../../../../../ddd/domain';
 import type { PrimitiveTypes } from '../../../../../ddd/domain';
-import { CouponCode } from '../value-object/CouponCode';
+import { CouponCode } from '../../shared/value-object/CouponCode';
 import { CouponCreatedDomainEvent } from '../event/CouponCreatedDomainEvent';
 import { CouponId } from '../value-object/CouponId';
-import { DiscountPercent } from '../value-object/DiscountPercent';
+import { DiscountPercent } from '../../shared/value-object/DiscountPercent';
 
 export class Coupon extends AggregateRoot<CouponId> {
   readonly code: CouponCode;

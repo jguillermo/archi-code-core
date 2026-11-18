@@ -115,12 +115,15 @@ returns an aggregate.
 ### Folder structure
 
 One folder per bounded context, with the four zones and one composition root. Inside the domain,
-**one folder per aggregate** (`domain/<aggregate>/`: `order/`, `coupon/`; nothing else hangs
-directly from `domain/`) and, inside each aggregate, **one folder per kind of class** (`aggregate/`, `entity/`, `value-object/`, `event/`,
-`exception/`, `repository/`, `service/`, `specification/`); inside the application, **one folder per business
+**one folder per aggregate** (`domain/<aggregate>/`: `order/`, `coupon/`) plus the reserved folder
+`domain/shared/` for the types more than one aggregate of the context uses (nothing else hangs
+directly from `domain/`) and, inside each of them, **one folder per kind of class** (`aggregate/`, `entity/`, `value-object/`, `event/`,
+`exception/`, `repository/`, `service/`, `specification/`). The root of an aggregate, its repository
+and its identity always stay in its own folder; `domain/shared/` shares between aggregates of one
+context and `shared-kernel/` between contexts. Inside the application, **one folder per business
 action**, holding its use case, its data types and its copies of foreign events. This is a
 convention of the package: the books name every module after the ubiquitous language [IDDD ch. 9];
-here the application folders are the language and the domain folders are by aggregate and, inside each aggregate, by kind. Files in
+here the application folders are the language and the domain folders are by aggregate (and `shared/`) and, inside each one, by kind. Files in
 `domain/` and `shared-kernel/` are PascalCase (the class name); every other file is kebab-case of
 its main export.
 
@@ -141,9 +144,11 @@ src/
           specification/      FreeShippingEligible.ts
         coupon/
           aggregate/          Coupon.ts
-          value-object/       CouponId.ts, CouponCode.ts, DiscountPercent.ts
+          value-object/       CouponId.ts
           event/              CouponCreatedDomainEvent.ts
           repository/         CouponRepository.ts
+        shared/               the types more than one aggregate uses, by kind
+          value-object/       CouponCode.ts, DiscountPercent.ts
       application/
         place-order/          place-order.ts, money-data.ts, address-data.ts
         mark-order-paid/      mark-order-paid-on-payment-captured.ts, payment-captured-domain-event.ts

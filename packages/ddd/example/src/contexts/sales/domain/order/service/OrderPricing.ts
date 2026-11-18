@@ -1,7 +1,7 @@
 import type { CouponCodes } from '../value-object/CouponCodes';
 import { CouponId } from '../../coupon/value-object/CouponId';
 import type { CouponRepository } from '../../coupon/repository/CouponRepository';
-import { DiscountPercent } from '../../coupon/value-object/DiscountPercent';
+import { DiscountPercent } from '../../shared/value-object/DiscountPercent';
 import { UnknownCoupon } from '../exception/UnknownCoupon';
 
 export class OrderPricing {

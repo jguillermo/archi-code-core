@@ -1,5 +1,5 @@
 import { IdType, UuidType } from '../../../../../ddd/domain';
-import type { CouponCode } from './CouponCode';
+import type { CouponCode } from '../../shared/value-object/CouponCode';
 
 export class CouponId extends IdType<'CouponId'> {
   static forCode(code: CouponCode): CouponId {

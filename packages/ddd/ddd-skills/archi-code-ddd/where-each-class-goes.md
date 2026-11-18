@@ -63,14 +63,23 @@ only the ones of the classes you write.
 ## Folder layout
 
 `[Fuera de los libros: convención de @archi-code/ddd]`: inside each context the domain is split
-into one folder per aggregate, and each aggregate folder into folders by kind of class (the books
-name modules after the ubiquitous language [IDDD ch. 9; PHP: Modules]); the application is split
-by business action, which is the language.
+into one folder per aggregate plus the reserved folder `shared/`, and each of those folders into
+folders by kind of class (the books name modules after the ubiquitous language [IDDD ch. 9; PHP:
+Modules]); the application is split by business action, which is the language.
 
 `domain/` holds only aggregate folders (`domain/<aggregate>/`, kebab-case singular of the aggregate:
-`order/`, `coupon/`): never a file nor a kind folder directly under `domain/`. Every domain file
-goes in `domain/<aggregate>/<kind>/` of the aggregate that owns it; a file of the same context that
-needs it imports it from there (`../../coupon/value-object/CouponId` from `order/service/`).
+`order/`, `coupon/`) and one exception, `domain/shared/`: never a file nor a kind folder directly
+under `domain/`. A domain file that one aggregate uses goes in `domain/<aggregate>/<kind>/` of that
+aggregate. A domain file that more than one aggregate of the context uses goes in
+`domain/shared/<kind>/`, with the same kind folders, and every aggregate imports it from there
+(`../../shared/value-object/DiscountPercent` from `order/service/` and from `coupon/aggregate/`).
+
+Three things never move to `shared/`, even when another aggregate uses them: the aggregate root,
+its repository and its identity (`<Aggregate>Id`). They are imported from their aggregate
+(`../../coupon/value-object/CouponId` and `../../coupon/repository/CouponRepository` from
+`order/service/`). `shared` is a reserved name: no aggregate folder is called `shared`.
+`domain/shared/` shares types between the aggregates of one context; `shared-kernel/` shares them
+between contexts.
 
 ```
 src/
@@ -81,7 +90,7 @@ src/
     shared-kernel/money/                    Money, Cents, CentsAmount, MoneyCurrency, CurrencyMismatch
     <context>/                              one folder per bounded context, named in its language
       domain/
-        <aggregate>/                        one folder per aggregate (order/, coupon/): nothing else under domain/
+        <aggregate>/                        one folder per aggregate (order/, coupon/)
           aggregate/       Order.ts, NewOrderLine.ts, outcome enums a method returns (CourseRetirement.ts)
           entity/          OrderLine.ts
           value-object/    OrderId.ts, Sku.ts, OrderStatusType.ts, ShippingAddress.ts
@@ -90,6 +99,8 @@ src/
           repository/      OrderRepository.ts (abstract: the only domain type infrastructure implements)
           service/         OrderPricing.ts (concrete classes only: never an interface nor an abstract class)
           specification/   FreeShippingEligible.ts
+        shared/                             the only other folder under domain/: types more than one aggregate uses
+          value-object/    DiscountPercent.ts, CouponCode.ts (same kind folders as an aggregate)
       application/
         place-order/                   place-order.ts, money-data.ts, address-data.ts
         mark-order-paid/               mark-order-paid-on-payment-captured.ts, payment-captured-domain-event.ts
@@ -184,8 +195,14 @@ statement per value and `import type` for types. Format with the project's forma
   common base class is not exported.
 - Importing the repository contracts from `@archi-code/ddd/application`: they live in `/domain`.
 - A kind folder or a file directly under `domain/` (`domain/repository/OrderRepository.ts`):
-  `domain/` holds only aggregate folders, and the file goes in `domain/<aggregate>/<kind>/`
-  (`domain/order/repository/OrderRepository.ts`).
+  `domain/` holds only aggregate folders and `shared/`, and the file goes in
+  `domain/<aggregate>/<kind>/` (`domain/order/repository/OrderRepository.ts`).
+- A type of one aggregate imported by another aggregate (`order/` importing
+  `../../coupon/value-object/DiscountPercent`): a type more than one aggregate uses goes in
+  `domain/shared/<kind>/`. Only the root, the repository and the identity of an aggregate are
+  imported from its folder.
+- A type in `domain/shared/` that a single aggregate uses, or a second shared folder with another
+  name (`common/`, `core/`, `models/`): it goes in its aggregate, and `shared/` is the only exception.
 - Application folders named after patterns (`use-cases/`, `listeners/`, `commands/`, `dtos/`):
   one folder per business action, holding its use case, its data types and its event copies.
 - Data types of the input (`MoneyData`) in `domain/`, or shared between contexts.
@@ -198,7 +215,7 @@ statement per value and `import type` for types. Format with the project's forma
   classes, no generic `ValueObject` (a value object of several fields is `Composite({...})`), no
   `setNow()`, `addItem()`, `setItem()` or `removeItem()`, no `findOrFail` nor `saveAndPublish` in
   `UseCase`. When in doubt, read the installed README.
-- Writing the package's base classes in the project (`domain/shared/AggregateRoot.ts`,
+- Writing the package's base classes in the project (`domain/order/aggregate/AggregateRoot.ts`,
   `DomainEvent.ts`, `ValueObject.ts`, an `EventPublisher` port): they come from the package.
 - Formatting by hand instead of running the project's formatter, or adding a second formatter,
   linter or test runner next to the one the project has.

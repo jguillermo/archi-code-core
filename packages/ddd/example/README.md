@@ -39,7 +39,7 @@ src/
     shared-kernel/money/                       Money, Cents, CentsAmount, MoneyCurrency (+ Currency enum), CurrencyMismatch
     <context>/                                 sales | payments | shipping
       domain/
-        <aggregate>/       one folder per aggregate (order, coupon | payment | shipment); nothing else under domain/
+        <aggregate>/       one folder per aggregate (order, coupon | payment | shipment)
           aggregate/       <Aggregate>.ts, New<Child>.ts
           entity/          <Entity>.ts
           value-object/    <ValueObject>.ts
@@ -48,6 +48,8 @@ src/
           repository/      <Aggregate>Repository.ts
           service/         <Service>.ts (concrete classes only)
           specification/   <Rule>.ts
+        shared/            the only other folder under domain/: types more than one aggregate uses
+          <kind>/          same kind folders as an aggregate (sales: value-object/CouponCode.ts, DiscountPercent.ts)
       application/
         <action>/        user use case:     <action>.ts [+ data types]
         <action>/        reaction use case: <action>-on-<event>.ts [+ <event>-domain-event.ts] [+ data types]
@@ -60,7 +62,7 @@ src/
       composition.ts
 ```
 
-`domain/` holds only aggregate folders, named in kebab-case singular after the aggregate (`order/`, `coupon/`, `payment/`, `shipment/`): never a file nor a kind folder directly under `domain/`. Every domain file lives in `domain/<aggregate>/<kind>/` of the aggregate that owns it; a file of another aggregate of the same context imports it from there (`sales/domain/order/service/OrderPricing.ts` imports `../../coupon/value-object/CouponId`).
+`domain/` holds only aggregate folders, named in kebab-case singular after the aggregate (`order/`, `coupon/`, `payment/`, `shipment/`), and one exception, the reserved folder `shared/`: never a file nor a kind folder directly under `domain/`, and never an aggregate called `shared`. A domain file that one aggregate uses lives in `domain/<aggregate>/<kind>/`. A domain file that more than one aggregate of the context uses lives in `domain/shared/<kind>/`, with the same kind folders (`sales/domain/shared/value-object/DiscountPercent.ts` is used by `coupon/aggregate/Coupon.ts` and by `order/service/OrderPricing.ts`). The root of an aggregate, its repository and its identity never move to `shared/`: another aggregate imports them from their folder (`sales/domain/order/service/OrderPricing.ts` imports `../../coupon/value-object/CouponId` and `../../coupon/repository/CouponRepository`). `domain/shared/` shares between the aggregates of one context; `shared-kernel/` shares between contexts (G8).
 
 ### 1.2 File naming
 
@@ -74,12 +76,15 @@ src/
 | From a file in                                          | to `ddd/<layer>`             | to own `domain/<aggregate>/<kind>/X`                                   | to `shared-kernel/money/X`           |
 | ------------------------------------------------------- | ---------------------------- | ---------------------------------------------------------------------- | ------------------------------------ |
 | `contexts/<context>/domain/<aggregate>/<kind>/`         | `../../../../../ddd/<layer>` | `../<kind>/X` (same aggregate), `../../<aggregate>/<kind>/X` (another) | `../../../../shared-kernel/money/X`  |
+| `contexts/<context>/domain/shared/<kind>/`              | `../../../../../ddd/<layer>` | `../<kind>/X` (another shared file)                                    | `../../../../shared-kernel/money/X`  |
 | `contexts/<context>/application/<folder>/`              | `../../../../ddd/<layer>`    | `../../domain/<aggregate>/<kind>/X`                                    | `../../../shared-kernel/money/X`     |
 | `contexts/<context>/application/<read-model>/<action>/` | `../../../../../ddd/<layer>` | `../../../domain/<aggregate>/<kind>/X`                                 | `../../../../shared-kernel/money/X`  |
 | `contexts/<context>/infrastructure/<area>/`             | `../../../../ddd/<layer>`    | `../../domain/<aggregate>/<kind>/X`                                    | —                                    |
 | `contexts/<context>/interfaces/http/`                   | `../../../../ddd/<layer>`    | —                                                                      | — (`../../../../platform/http/http`) |
 | `contexts/<context>/composition.ts`                     | `../../ddd/<layer>`          | `./domain/<aggregate>/<kind>/X`                                        | —                                    |
 | `contexts/shared-kernel/money/`                         | `../../../ddd/<layer>`       | —                                                                      | `./X`                                |
+
+`domain/shared/` is addressed like an aggregate folder: `shared` takes the place of `<aggregate>` in every path of the third column (`../../shared/<kind>/X` from an aggregate, `../../domain/shared/<kind>/X` from `application/` or `infrastructure/`). From another aggregate, `../../<aggregate>/<kind>/X` reaches only its root, its repository and its identity.
 
 ## 2. Domain layer (D)
 
@@ -327,7 +332,7 @@ export class OrderStatusType extends Required(OrderStatusOption) {}
 ```ts
 import { Validations } from '@archi-code/validation';
 import { ArrayType } from '../../../../../ddd/domain';
-import { CouponCode } from './CouponCode';
+import { CouponCode } from '../../shared/value-object/CouponCode';
 
 @Validations([
   {
@@ -818,7 +823,7 @@ Error body: `{ code, message, errors }` (`errors` only for `ValidationException`
 
 ### R3 New aggregate
 
-1. A new folder `domain/<aggregate>/`; everything below goes inside it. `value-object/<Aggregate>Id.ts`, status enum, value objects of its fields.
+1. A new folder `domain/<aggregate>/`; everything below goes inside it. `value-object/<Aggregate>Id.ts`, status enum, value objects of its fields. A type the new aggregate needs from another aggregate, other than that aggregate's root, repository or identity, is moved to `domain/shared/<kind>/` and both import it from there.
 2. `aggregate/<Aggregate>.ts` (D-AGG template), events, errors.
 3. `repository/<Aggregate>Repository.ts` with the verbs its use cases use (D-REPO) and `infrastructure/persistence/in-memory-<aggregate>-repository.ts` extending it (I-REPO).
 4. Use cases (R1/R2), controller, composition.
@@ -931,7 +936,7 @@ Next free codes: `SAL010`, `PAY002`, `SHP004`, `MNY002`.
 ## 9. Review checklist
 
 - [ ] G: English, no comments, named exports, `import type` split, no cross-context import, layer matrix (G9).
-- [ ] D: value objects always valid through `@Validations`; aggregate member order and fields (D-AGG1, D-AGG3); `create` never computes ids; reaction methods return silently, user methods throw; `toPrimitives`/`fromPrimitives` cover every field; events primitive-only, inline types, no event union; errors with the next code; one abstract repository per aggregate with only the verbs its use cases use (D-REPO); no domain ports, `domain/<aggregate>/service/` holds only concrete classes that only use cases execute (D-SVC).
+- [ ] D: every domain file in `domain/<aggregate>/<kind>/`, or in `domain/shared/<kind>/` when more than one aggregate uses it (never the root, the repository nor the identity of an aggregate); value objects always valid through `@Validations`; aggregate member order and fields (D-AGG1, D-AGG3); `create` never computes ids; reaction methods return silently, user methods throw; `toPrimitives`/`fromPrimitives` cover every field; events primitive-only, inline types, no event union; errors with the next code; one abstract repository per aggregate with only the verbs its use cases use (D-REPO); no domain ports, `domain/<aggregate>/service/` holds only concrete classes that only use cases execute (D-SVC).
 - [ ] A: user use case = `UseCase` with one `ValueObjectBuilder.build` in `toCommand` and the A-USR5 steps; reaction use case = one `EventListener` class with consumer `<context>.<file-name>` and the A-RUC5 steps; no use case calls another; one event copy per reaction folder.
 - [ ] I: repositories extend the abstract repository of their aggregate, version check with `WeakMap`, `structuredClone` both ways; adapters wrap bad data in `InternalErrorException`; of the domain, only the abstract repositories are implemented.
 - [ ] H: controllers check only auth and shape, never catch.

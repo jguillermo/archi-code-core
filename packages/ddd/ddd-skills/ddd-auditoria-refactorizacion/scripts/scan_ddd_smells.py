@@ -12,7 +12,8 @@ clases base propias, imports del paquete sin capa, API de una capa exterior usad
 primitivo o sin conversión en un agregado, forma y nombre de eventos y errores de negocio, repositorios
 (abstracto, verbos, adaptadores), casos de uso que usan otro, reacciones sin @ListensTo o que lanzan, puntos
 de entrada, carpetas y nombres de fichero (el dominio va en domain/<agregado>/<tipo>/: bajo domain/ solo hay carpetas
-de agregado), y puertos de dominio (interfaces o clases abstractas del dominio fuera de domain/<agregado>/repository/,
+de agregado y la carpeta reservada shared/, domain/shared/<tipo>/, con los tipos que usa más de un agregado del
+contexto), y puertos de dominio (interfaces o clases abstractas del dominio fuera de una carpeta repository/,
 y capas exteriores que implementan algo del dominio que no es un repositorio). Las reconoce por nombre de clase, no por
 la ruta del import.
 """
@@ -97,6 +98,8 @@ NEXT_ID_RE = re.compile(r"\bnextId\s*\(|\bnextIdentity\s*\(")
 CRUD_USE_CASE_RE = re.compile(r"^(?:(?:Update|Delete|Get|Set|Save|Upsert|Crud)[A-Z]\w*|\w+(?:Service|UseCase|Handler|Manager))$")
 PATTERN_FOLDERS = {"use-cases", "usecases", "use_cases", "listeners", "commands", "dtos", "handlers", "subscribers"}
 DOMAIN_KIND_FOLDERS = {"aggregate", "entity", "value-object", "event", "exception", "repository", "service", "specification"}
+SHARED_DOMAIN_FOLDER = "shared"
+OWN_KIND_FOLDERS = {"aggregate", "repository"}
 PASCAL_FILE_RE = re.compile(r"^[A-Z][A-Za-z0-9]*$")
 KEBAB_FILE_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 TYPE_SILENCING_RE = re.compile(r"@ts-ignore|@ts-expect-error|@ts-nocheck|\bas\s+any\b|\bas\s+unknown\s+as\b|:\s*any\b")
@@ -140,7 +143,10 @@ def zone_of(path: Path, domain_dir: str):
 
 
 def domain_location(path: Path, domain_dir: str):
-    """(agregado, tipo) de un fichero de dominio, domain/<agregado>/<tipo>/Fichero.ts; None en lo que falte."""
+    """(agregado, tipo) de un fichero de dominio, domain/<agregado>/<tipo>/Fichero.ts; None en lo que falte.
+
+    La carpeta reservada domain/shared/<tipo>/ se devuelve como agregado "shared".
+    """
     parts = [p.lower() for p in path.parts[:-1]]
     if domain_dir not in parts:
         return None, None
@@ -233,11 +239,28 @@ def package_rules(add, path, text, zone, ctx, domain_dir, imports, use_case_file
             break
         if in_context and aggregate is None:
             add("dominio-sin-carpeta-de-agregado", "media", path, 1,
-                "bajo domain/ solo hay carpetas de agregado; va en domain/<agregado>/<tipo>/")
+                "bajo domain/ solo hay carpetas de agregado y shared/; va en domain/<agregado>/<tipo>/ o, "
+                "si lo usa más de un agregado, en domain/shared/<tipo>/")
         if in_context and kind is None:
             add("dominio-sin-carpeta-por-tipo", "baja", path, 1,
-                "va en domain/<agregado>/ dentro de aggregate/, entity/, value-object/, event/, exception/, "
-                "repository/, service/ o specification/")
+                "va en domain/<agregado>/ o domain/shared/ dentro de aggregate/, entity/, value-object/, event/, "
+                "exception/, repository/, service/ o specification/")
+        if in_context and aggregate is not None:
+            for mod, idx in imports:
+                target = import_target(path, mod)
+                if target is None:
+                    continue
+                target = target.resolve()
+                if context_of(target) != ctx:
+                    continue
+                target_aggregate, target_kind = domain_location(target, domain_dir)
+                if target_aggregate in (None, aggregate, SHARED_DOMAIN_FOLDER) or target_kind in OWN_KIND_FOLDERS:
+                    continue
+                if target.stem.lower() == target_aggregate.replace("-", "") + "id":
+                    continue
+                add("tipo-compartido-fuera-de-shared", "media", path, line_of(text, idx),
+                    f"importa {target.stem} del agregado {target_aggregate}: un tipo que usa más de un agregado va en "
+                    "domain/shared/<tipo>/ (en su agregado solo quedan la raíz, su repositorio y su identidad)")
 
         if extends & {"AggregateRoot", "Entity"}:
             for m in PRIMITIVE_FIELD_RE.finditer(text):
@@ -280,7 +303,7 @@ def package_rules(add, path, text, zone, ctx, domain_dir, imports, use_case_file
             contract = "interface" if m.group(1) == "interface" else "abstract class"
             if in_service:
                 add("puerto-de-dominio", "alta", path, line_of(text, m.start()),
-                    f"{contract} {m.group(2)} en domain/<agregado>/service/: no existen puertos de dominio; un servicio de dominio es "
+                    f"{contract} {m.group(2)} en una carpeta service/ del dominio: no existen puertos de dominio; un servicio de dominio es "
                     "una clase concreta y del dominio solo se implementa el repositorio abstracto")
             elif contract == "abstract class":
                 add("dominio-con-clase-abstracta", "alta", path, line_of(text, m.start()),

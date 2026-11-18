@@ -4,7 +4,7 @@ import { Money } from '../../../../shared-kernel/money/Money';
 import { CustomerId } from '../value-object/CustomerId';
 import type { CarrierTrackingNumber } from '../value-object/CarrierTrackingNumber';
 import { CouponCodes } from '../value-object/CouponCodes';
-import { DiscountPercent } from '../../coupon/value-object/DiscountPercent';
+import { DiscountPercent } from '../../shared/value-object/DiscountPercent';
 import { DuplicateSku } from '../exception/DuplicateSku';
 import { FreeShippingEligible } from '../specification/FreeShippingEligible';
 import { GiftWrap } from '../value-object/GiftWrap';

@@ -279,7 +279,8 @@ How to check it, in every generation and every review, never by reading alone:
 A name does not excuse it: an interface in the domain called "port", "gateway", "catalog",
 "provider" or "policy" that another layer implements is the same defect.
 
-Detail and code: `ddd-skills/archi-code-ddd/domain-services.md` and `repositories.md`.
+Detail and code: `ddd-skills/archi-code-ddd/domain-services.md` and
+`ddd-skills/archi-code-ddd/repositories.md`.
 
 ### DDD rules (from the books)
 

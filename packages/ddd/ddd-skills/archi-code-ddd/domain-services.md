@@ -329,6 +329,11 @@ describe('CourseRegistration', () => {
   Refactor the domain: model the data as an aggregate with its abstract repository
   (`CouponRepository`), or make the technical capability an application port that the use case
   calls.
+  The scanner reports it under three names, and none of them is ever a hint: `puerto-de-dominio`
+  (an interface or an abstract class in a `service/` folder of the domain),
+  `dominio-con-clase-abstracta` (an abstract class of the domain outside `repository/`) and
+  `capa-exterior-implementa-dominio` (a class of another layer that implements or extends a domain
+  type that is not a repository).
 - A domain service that receives an application port, an adapter or anything that is not the
   abstract repository of an aggregate or loaded domain objects.
 

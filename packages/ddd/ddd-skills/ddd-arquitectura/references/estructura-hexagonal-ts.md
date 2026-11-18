@@ -2,7 +2,7 @@
 
 ## Carpetas
 
-`[Fuera de los libros: convención de @archi-code/ddd]` Traslado de IDDD cap. 9 y PHP: Modules, con `domain/` por agregado y, dentro de cada agregado, por tipo de clase (`domain/<agregado>/<tipo>/`): bajo `domain/` solo hay carpetas de agregado.
+`[Fuera de los libros: convención de @archi-code/ddd]` Traslado de IDDD cap. 9 y PHP: Modules, con `domain/` por agregado y, dentro de cada agregado, por tipo de clase (`domain/<agregado>/<tipo>/`): bajo `domain/` solo hay carpetas de agregado y una excepción, `domain/shared/<tipo>/`, con los tipos que usa más de un agregado del contexto (nunca la raíz, el repositorio ni la identidad de un agregado).
 
 ```
 src/
@@ -12,7 +12,7 @@ src/
     shared-kernel/money/       ← solo con Shared Kernel acordado: Money.ts, Cents.ts, MoneyCurrency.ts…
     sales/
       domain/
-        order/                 ← una carpeta por agregado; nada más cuelga de domain/
+        order/                 ← una carpeta por agregado
           aggregate/Order.ts, NewOrderLine.ts
           entity/OrderLine.ts
           value-object/OrderId.ts, OrderStatusType.ts, Sku.ts, ShippingAddress.ts
@@ -23,9 +23,11 @@ src/
           specification/FreeShippingEligible.ts
         coupon/
           aggregate/Coupon.ts
-          value-object/CouponId.ts, CouponCode.ts, DiscountPercent.ts
+          value-object/CouponId.ts
           event/CouponCreatedDomainEvent.ts
           repository/CouponRepository.ts       (abstract, extends AggregateRepository<…>)
+        shared/                ← la única otra carpeta bajo domain/: tipos que usa más de un agregado
+          value-object/CouponCode.ts, DiscountPercent.ts
       application/
         place-order/place-order.ts, address-data.ts
         mark-order-paid/mark-order-paid-on-payment-captured.ts, payment-captured-domain-event.ts
