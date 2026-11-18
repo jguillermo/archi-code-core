@@ -37,7 +37,7 @@ Detalle en `ddd-skills/ddd-event-sourcing-cqrs/references/event-sourcing-ts.md`.
 
 ## Proyecciones
 
-Suscriptores que mantienen modelos de lectura, reconstruibles reproduciendo los eventos, lo que permite cambiar una vista sin tocar el agregado; también dan a un agregado datos de otro mediante un servicio de dominio que consulta la proyección [IDDD apéndice A]. Con el paquete, `EventListener` suscritos al `DomainEventBus` e idempotentes por `eventId`. Detalle en `ddd-skills/ddd-event-sourcing-cqrs/references/proyecciones-cqrs-ts.md`.
+Suscriptores que mantienen modelos de lectura, reconstruibles reproduciendo los eventos, lo que permite cambiar una vista sin tocar el agregado; también dan a un agregado datos de otro mediante un servicio de dominio que consulta la proyección [IDDD apéndice A]: el servicio lo ejecuta el caso de uso, que pasa los datos ya cargados al método del agregado; el agregado nunca llama al servicio `[Fuera de los libros: convención de @archi-code/ddd]`. Con el paquete, `EventListener` suscritos al `DomainEventBus` e idempotentes por `eventId`. Detalle en `ddd-skills/ddd-event-sourcing-cqrs/references/proyecciones-cqrs-ts.md`.
 
 ## Interfaz eventual
 

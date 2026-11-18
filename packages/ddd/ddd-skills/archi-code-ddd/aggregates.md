@@ -77,8 +77,10 @@ where needed [Destilado ch. 5] and a mapper in infrastructure [IDDD ch. 6].
   state and pages.
 - An aggregate never holds a repository, the event bus, a logger, HTTP, a version, setters nor
   ids derived from other data. Another aggregate is referenced by its id (`customerId:
-  CustomerId`), never by the object. A domain service or loaded data comes as a method argument,
-  never through the constructor.
+  CustomerId`), never by the object. An aggregate never calls, instantiates,
+  imports nor receives a domain service, by constructor or as a method argument: only use cases
+  execute domain services, and the aggregate receives loaded data or the answer of the service as
+  a method argument (`domain-services.md`).
 - **Child entities** (`entity/<Entity>.ts`, a part with an identity of its own inside the
   aggregate) extend `Entity<<IdVO>>` (`LineNumber extends Required(NumberType)`); fields as the
   aggregate's without `createdAt`/`updatedAt`; the constructor receives value objects, calls
@@ -519,8 +521,9 @@ export enum CourseRetirement {
   save`): the aggregate method returns the outcome as an enum and the use case acts on it.
 - Leaving the aggregate half changed when an invariant breaks after a change: restore the
   previous state before rethrowing.
-- A domain service or a repository received by the constructor of an aggregate: pass the service
-  or the loaded data as a method argument.
+- A domain service received, called or instantiated by an aggregate (by constructor or as a method
+  argument), or a repository received by its constructor: the use case executes the domain service
+  and passes the loaded data or the answer of the service as a method argument.
 - Authorization checks in the aggregate (only the actor's role decides): they are the use case's
   (`NotAllowedException`); rules over the aggregate's state, the requester included, stay in the
   aggregate.

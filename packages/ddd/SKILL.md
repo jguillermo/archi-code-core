@@ -282,6 +282,12 @@ every divergence in both).
 - **One use case = one business action = one aggregate saved once.** A use case never uses another
   use case; shared logic is an aggregate method or a domain service; a follow-up action is a
   reaction to an event.
+- **Only use cases execute domain services**, inside `handle`, holding in their constructor the
+  repository or port the service needs. An aggregate never calls, instantiates nor receives a
+  domain service, and neither does another domain service; a domain service may create, modify and save aggregates (with the abstract repository the use case passes to it), and never publishes.
+- **A domain service is always a concrete class with business logic**: never an abstract class
+  nor an interface for infrastructure to implement, and nothing in `infrastructure` implements or
+  extends one; infrastructure implements only repositories, domain ports, stores and channels.
 - **A reaction use case** is one `EventListener` with `@ListensTo` and an explicit `consumer`:
   idempotent, never throws business errors, no authorization.
 - **Repositories only get, search and persist**: one abstract class per aggregate in the domain,

@@ -1,6 +1,6 @@
 # Servicios de dominio
 
-El código (clase, dependencias, cómo lo instancia el caso de uso, puerto de dominio, `CourseFinder` y su test) está en `ddd-skills/archi-code-ddd/domain-services.md`, apartados Rules y Code. Aquí queda el porqué y el diseño del ejemplo de Ventas.
+El código (clase, dependencias, cómo lo instancia el caso de uso, puerto de dominio, `CourseRegistration` y su test) está en `ddd-skills/archi-code-ddd/domain-services.md`, apartados Rules y Code. Aquí queda el porqué y el diseño del ejemplo de Ventas.
 
 ## Cuándo
 
@@ -8,7 +8,11 @@ Según IDDD [IDDD cap. 7]: un proceso de negocio significativo, transformar una 
 
 ## Forma
 
-Sin estado, con nombre de operación de negocio del lenguaje ubicuo; recibe y devuelve objetos de dominio y lanza errores de negocio [IDDD cap. 7]. No guarda ni publica: lo hace el caso de uso. La forma preferida recibe los agregados ya cargados como argumentos y no tiene dependencias; el caso de uso lo instancia, nunca se inyecta `[Fuera de los libros: convención de @archi-code/ddd]`.
+Sin estado, con nombre de operación de negocio del lenguaje ubicuo; recibe y devuelve objetos de dominio y lanza errores de negocio [IDDD cap. 7]. No publica ni abre transacciones: lo hace el caso de uso y el repositorio. Sí puede persistir un agregado con el `save` del repositorio abstracto que recibió por constructor `[Fuera de los libros: convención de @archi-code/ddd]` (IDDD cap. 7 deja el guardado al servicio de aplicación). La forma preferida recibe los agregados ya cargados como argumentos y no tiene dependencias; el caso de uso lo instancia, nunca se inyecta `[Fuera de los libros: convención de @archi-code/ddd]`.
+
+Solo los casos de uso ejecutan servicios de dominio, sin excepción: el caso de uso tiene en su constructor el repositorio (o el puerto de dominio) que el servicio necesita, se lo pasa al instanciarlo dentro de `handle` y lo ejecuta. Un agregado nunca llama, instancia ni recibe un servicio de dominio, ni por constructor ni como argumento de un método, y un servicio de dominio nunca instancia, recibe ni ejecuta otro servicio de dominio: si el caso de uso necesita dos, ejecuta ambos y pasa la respuesta de uno al otro. El servicio de dominio sí instancia y modifica agregados (`Aggregate.create(…)`, sus métodos de negocio) y los devuelve, o lanza el error de negocio. También puede persistirlos: recibe por constructor la instancia del repositorio que el caso de uso tiene, y es el caso de uso quien instancia y ejecuta el servicio. Un agregado se guarda una sola vez por caso de uso, en el servicio o en el caso de uso; publicar sigue siendo del caso de uso `[Fuera de los libros: convención de @archi-code/ddd]`.
+
+Regla estricta, sin excepción: un servicio de dominio es siempre una clase concreta (no abstracta) del dominio que realiza lógica de negocio. Nunca es una clase abstracta ni una interfaz, ni tiene métodos abstractos, para ser implementado en la capa de infraestructura; y la infraestructura nunca implementa, extiende ni sustituye un servicio de dominio `[Fuera de los libros: convención de @archi-code/ddd]` (IDDD cap. 7 admite una interfaz separada con implementación técnica).
 
 Diseño de `ShippingCostCalculator` en Ventas (cálculo con datos de varios objetos [IDDD cap. 7]):
 
@@ -18,7 +22,7 @@ Diseño de `ShippingCostCalculator` en Ventas (cálculo con datos de varios obje
 
 ## Puerto de dominio
 
-Sin interfaz si hay una sola implementación sin infraestructura; si la hay, nada de `Impl`: la implementación se nombra por lo que la distingue [IDDD cap. 7]. Si necesita tecnología, la interfaz es un puerto del dominio que habla con value objects (p. ej. `ExchangeRates.convert(amount, to, on)` con `Money`, `MoneyCurrency` y `RateDay`) y la implementación un adaptador de infraestructura que envuelve sus errores con `cause` y redondea de forma explícita (dinero en céntimos enteros) [IDDD cap. 7]. Código del puerto: `ddd-skills/archi-code-ddd/domain-services.md`, apartado Code; del adaptador: `ddd-skills/archi-code-ddd/repositories.md`.
+El servicio de dominio nunca tiene interfaz ni clase abstracta: es la clase concreta `[Fuera de los libros: convención de @archi-code/ddd]`. Si la regla necesita tecnología, el paso técnico se separa en un puerto de dominio, que no es un servicio de dominio y no contiene reglas de negocio: el servicio concreto recibe el puerto y mantiene la regla; el adaptador se nombra por lo que lo distingue, nada de `Impl` [IDDD cap. 7]. La interfaz es un puerto del dominio que habla con value objects (p. ej. `ExchangeRates.convert(amount, to, on)` con `Money`, `MoneyCurrency` y `RateDay`) y la implementación un adaptador de infraestructura que envuelve sus errores con `cause` y redondea de forma explícita (dinero en céntimos enteros) [IDDD cap. 7]. Código del puerto: `ddd-skills/archi-code-ddd/domain-services.md`, apartado Code; del adaptador: `ddd-skills/archi-code-ddd/repositories.md`.
 
 ## Validar composiciones
 
@@ -26,6 +30,6 @@ Un servicio puede comprobar que varios agregados cargados son coherentes y avisa
 
 ## Tests
 
-Con objetos de dominio reales y nombres del lenguaje [IDDD cap. 7]; fábricas de datos en `test/support/`; dependencias como stubs `[Fuera de los libros: convención de @archi-code/ddd]`. Código: `ddd-skills/archi-code-ddd/domain-services.md` (test de `CourseFinder`) y `ddd-skills/archi-code-ddd/tests.md`.
+Con objetos de dominio reales y nombres del lenguaje [IDDD cap. 7]; fábricas de datos en `test/support/`; dependencias como stubs `[Fuera de los libros: convención de @archi-code/ddd]`. Código: `ddd-skills/archi-code-ddd/domain-services.md` (test de `CourseRegistration`) y `ddd-skills/archi-code-ddd/tests.md`.
 
 El modelo es el de `ddd-skills/ddd-agregados/references/implementacion-ts.md`; `TotalAtLeast` y `Customer`, los de `ddd-skills/ddd-servicios-capa-aplicacion/references/ejemplo-ecommerce.md`.

@@ -131,6 +131,13 @@ adapters. To declare the abstract repository (before the use cases) read the `Ru
   raw data or their technology by constructor (raw shapes are interfaces in the same file), answer
   in value objects, and turn bad external data into
   `InternalErrorException('<message>', { cause: error })`, never a business error.
+- **Infrastructure never implements a domain service** (user rule, strict, no exceptions). No
+  class in `infrastructure` extends, implements, replaces nor redefines a domain service
+  (`domain/service/<Service>.ts`), and none holds its business logic. Infrastructure implements
+  only the abstract repository of an aggregate, domain ports, read-model stores and event
+  channels. A domain service is a concrete class of the domain (`domain-services.md`): when an
+  adapter seems to need to implement one, the technical step is a domain port and the adapter
+  implements that port.
 
 ## Code
 
@@ -555,3 +562,6 @@ export class InMemoryCouponCatalog implements CouponCatalog {
   `InternalErrorException` with `{ cause }`.
 - Wrapping or translating an error without `{ cause: error }`.
 - A domain port implemented by a repository or a read-model store instead of its own adapter.
+- An infrastructure class that extends or implements a domain service, or that holds its business
+  logic: infrastructure implements repositories, domain ports, stores and channels, never a
+  domain service.
