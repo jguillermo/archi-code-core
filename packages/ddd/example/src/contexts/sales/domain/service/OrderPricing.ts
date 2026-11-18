@@ -1,21 +1,22 @@
 import type { CouponCodes } from '../value-object/CouponCodes';
+import { CouponId } from '../value-object/CouponId';
+import type { CouponRepository } from '../repository/CouponRepository';
 import { DiscountPercent } from '../value-object/DiscountPercent';
-import type { CouponCatalog } from './CouponCatalog';
 import { UnknownCoupon } from '../exception/UnknownCoupon';
 
 export class OrderPricing {
   private static readonly MAX_DISCOUNT = 50;
 
-  constructor(private readonly catalog: CouponCatalog) {}
+  constructor(private readonly coupons: CouponRepository) {}
 
   async discountFor(codes: CouponCodes): Promise<DiscountPercent> {
     let percent = 0;
     for (const code of codes.items) {
-      const discount = await this.catalog.discountOf(code);
-      if (discount === null) {
+      const coupon = await this.coupons.findById(CouponId.forCode(code));
+      if (coupon === null) {
         throw new UnknownCoupon(code.value);
       }
-      percent += discount.value;
+      percent += coupon.discount.value;
     }
     return new DiscountPercent(Math.min(percent, OrderPricing.MAX_DISCOUNT));
   }

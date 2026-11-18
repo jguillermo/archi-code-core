@@ -4,7 +4,7 @@ import { Money } from '../../../shared-kernel/money/Money';
 import type { Currency } from '../../../shared-kernel/money/MoneyCurrency';
 import { CustomerId } from '../../domain/value-object/CustomerId';
 import { OrderPricing } from '../../domain/service/OrderPricing';
-import type { CouponCatalog } from '../../domain/service/CouponCatalog';
+import type { CouponRepository } from '../../domain/repository/CouponRepository';
 import { CouponCodes } from '../../domain/value-object/CouponCodes';
 import { GiftWrap } from '../../domain/value-object/GiftWrap';
 import { Order } from '../../domain/aggregate/Order';
@@ -42,7 +42,7 @@ export interface PlaceOrderCommand {
 export class PlaceOrder extends UseCase<PlaceOrderInput, PlaceOrderCommand, string> {
   constructor(
     private readonly orders: OrderRepository,
-    private readonly coupons: CouponCatalog,
+    private readonly coupons: CouponRepository,
     private readonly events: EventBus,
   ) {
     super();

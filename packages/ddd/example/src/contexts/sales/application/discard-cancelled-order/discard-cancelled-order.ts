@@ -4,6 +4,7 @@ import {
   UseCase,
   ValueObjectBuilder,
 } from '../../../../ddd/application';
+import type { EventBus } from '../../../../ddd/application';
 import type { OrderRepository } from '../../domain/repository/OrderRepository';
 import { OrderId } from '../../domain/value-object/OrderId';
 import { StaffRole } from '../../domain/value-object/StaffRoleType';
@@ -24,7 +25,10 @@ export class DiscardCancelledOrder extends UseCase<
   DiscardCancelledOrderCommand,
   void
 > {
-  constructor(private readonly orders: OrderRepository) {
+  constructor(
+    private readonly orders: OrderRepository,
+    private readonly events: EventBus,
+  ) {
     super();
   }
 
@@ -45,5 +49,6 @@ export class DiscardCancelledOrder extends UseCase<
     }
     order.assertDiscardable();
     await this.orders.remove(order);
+    await this.events.publish(order.pullDomainEvents());
   }
 }

@@ -5,13 +5,7 @@ export class OrderShippingAddressChangedDomainEvent extends EventBase {
   static readonly eventName = 'order.shipping_address_changed';
 
   readonly orderId: string;
-  readonly address: {
-    recipient: { name: string; phone: string };
-    street: string;
-    city: string;
-    postalCode: string;
-    country: string;
-  };
+  readonly address: { street: string; city: string; postalCode: string; country: string };
 
   constructor({
     orderId,
@@ -20,13 +14,7 @@ export class OrderShippingAddressChangedDomainEvent extends EventBase {
     occurredOn,
   }: {
     orderId: string;
-    address: {
-      recipient: { name: string; phone: string };
-      street: string;
-      city: string;
-      postalCode: string;
-      country: string;
-    };
+    address: { street: string; city: string; postalCode: string; country: string };
   } & EventMetadata) {
     super({ eventId, occurredOn });
     this.orderId = orderId;

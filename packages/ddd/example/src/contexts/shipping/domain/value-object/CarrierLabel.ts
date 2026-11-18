@@ -1,4 +1,4 @@
-import { JsonType } from '../../../../ddd/domain';
-import type { CarrierLabelData } from './CarrierLabelData';
+import { Required } from '../../../../ddd/domain';
+import { CarrierLabelJson } from './CarrierLabelJson';
 
-export class CarrierLabel extends JsonType<CarrierLabelData> {}
+export class CarrierLabel extends Required(CarrierLabelJson) {}

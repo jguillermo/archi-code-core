@@ -21,40 +21,41 @@ import { OpenOrderSummaryOnOrderCreated } from './application/order-summaries/op
 import { OrderSummaryProjection } from './application/order-summaries/order-summary-projection';
 import { UpdateOrderSummaryTotalOnOrderLineQuantityChanged } from './application/order-summaries/update-order-summary-total/update-order-summary-total-on-order-line-quantity-changed';
 import { PlaceOrder } from './application/place-order/place-order';
+import { RegisterCoupon } from './application/register-coupon/register-coupon';
 import { OrderCancelledDomainEvent } from './domain/event/OrderCancelledDomainEvent';
 import { OrderDeliveredDomainEvent } from './domain/event/OrderDeliveredDomainEvent';
 import { OrderLineQuantityChangedDomainEvent } from './domain/event/OrderLineQuantityChangedDomainEvent';
 import { OrderPaidDomainEvent } from './domain/event/OrderPaidDomainEvent';
 import { OrderCreatedDomainEvent } from './domain/event/OrderCreatedDomainEvent';
 import { OrderShippedDomainEvent } from './domain/event/OrderShippedDomainEvent';
-import { OrderShippingAddressChangedDomainEvent } from './domain/event/OrderShippingAddressChangedDomainEvent';
 import type { AddressData } from './application/place-order/address-data';
 import type { MoneyData } from './application/place-order/money-data';
-import { InMemoryCouponCatalog } from './infrastructure/coupon/in-memory-coupon-catalog';
-import type { MarketingCampaign } from './infrastructure/coupon/in-memory-coupon-catalog';
+import { InMemoryCouponRepository } from './infrastructure/persistence/in-memory-coupon-repository';
 import { InMemoryOrderRepository } from './infrastructure/persistence/in-memory-order-repository';
 import { InMemoryOrderSummaryStore } from './infrastructure/read-model/in-memory-order-summary-store';
+import { CouponsController } from './interfaces/http/coupons-controller';
 import { OrdersController } from './interfaces/http/orders-controller';
 
 export interface SalesSettings {
   channel: EventChannel;
   logger: Logger;
-  campaigns: readonly MarketingCampaign[];
 }
 
 export class SalesContext {
   private constructor(
     readonly orders: InMemoryOrderRepository,
+    readonly coupons: InMemoryCouponRepository,
     readonly summaries: InMemoryOrderSummaryStore,
     readonly controller: OrdersController,
+    readonly couponsController: CouponsController,
     private readonly subscriptions: Subscription[],
   ) {}
 
-  static async start({ channel, logger, campaigns }: SalesSettings): Promise<SalesContext> {
+  static async start({ channel, logger }: SalesSettings): Promise<SalesContext> {
     const bus = new DomainEventBus(channel, SalesContext.registry(), logger);
     const orders = new InMemoryOrderRepository();
+    const coupons = new InMemoryCouponRepository();
     const summaries = new InMemoryOrderSummaryStore();
-    const coupons = new InMemoryCouponCatalog(campaigns);
     const projection = new OrderSummaryProjection(summaries);
 
     const listeners = [
@@ -80,12 +81,20 @@ export class SalesContext {
         changeOrderLineQuantity: new ChangeOrderLineQuantity(orders, bus),
         changeShippingAddress: new ChangeShippingAddress(orders, bus),
         cancelOrder: new CancelOrder(orders, bus),
-        discardCancelledOrder: new DiscardCancelledOrder(orders),
+        discardCancelledOrder: new DiscardCancelledOrder(orders, bus),
       },
       summaries,
       logger,
     );
-    return new SalesContext(orders, summaries, controller, subscriptions);
+    const couponsController = new CouponsController(new RegisterCoupon(coupons, bus), logger);
+    return new SalesContext(
+      orders,
+      coupons,
+      summaries,
+      controller,
+      couponsController,
+      subscriptions,
+    );
   }
 
   async stop(): Promise<void> {
@@ -102,11 +111,7 @@ export class SalesContext {
           new OrderCreatedDomainEvent({
             orderId: json.orderId as string,
             customerId: json.customerId as string,
-            lines: json.lines as {
-              sku: string;
-              quantity: number;
-              unitPrice: { amount: number; currency: string };
-            }[],
+            lines: json.lines as { sku: string; quantity: number; unitPrice: MoneyData }[],
             total: json.total as MoneyData,
             paymentMethod: json.paymentMethod as string,
             freeShipping: json.freeShipping as boolean,
@@ -122,16 +127,6 @@ export class SalesContext {
             lineNumber: json.lineNumber as number,
             quantity: json.quantity as number,
             total: json.total as MoneyData,
-            eventId: json.eventId,
-            occurredOn: json.occurredOn,
-          }),
-      )
-      .register(
-        OrderShippingAddressChangedDomainEvent,
-        (json) =>
-          new OrderShippingAddressChangedDomainEvent({
-            orderId: json.orderId as string,
-            address: json.address as AddressData,
             eventId: json.eventId,
             occurredOn: json.occurredOn,
           }),

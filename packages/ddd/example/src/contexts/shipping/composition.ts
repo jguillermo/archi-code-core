@@ -27,10 +27,14 @@ export class ShippingContext {
   static async start({ channel, logger }: ShippingSettings): Promise<ShippingContext> {
     const bus = new DomainEventBus(channel, ShippingContext.registry(), logger);
     const shipments = new InMemoryShipmentRepository();
-    const subscriptions = [
-      await bus.subscribe(new PrepareShipmentOnOrderPaid(shipments, bus)),
-      await bus.subscribe(new CancelShipmentOnOrderCancelled(shipments, bus)),
+    const listeners = [
+      new PrepareShipmentOnOrderPaid(shipments, bus),
+      new CancelShipmentOnOrderCancelled(shipments, bus),
     ];
+    const subscriptions: Subscription[] = [];
+    for (const listener of listeners) {
+      subscriptions.push(await bus.subscribe(listener));
+    }
     const controller = new ShipmentsController(
       new DispatchShipment(shipments, bus),
       new DeliverShipment(shipments, bus),

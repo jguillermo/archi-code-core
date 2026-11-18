@@ -36,7 +36,9 @@ export class OrdersController {
       }
       const body = this.http.jsonBody(request);
       if (body === null || !Array.isArray(body.lines) || !Array.isArray(body.couponCodes ?? [])) {
-        return this.http.badRequest('Send a JSON object with a list of lines');
+        return this.http.badRequest(
+          'Send a JSON object with a list of lines and, when it has coupons, a list of coupon codes',
+        );
       }
       const id = await this.useCases.placeOrder.execute({
         actorId: userId,

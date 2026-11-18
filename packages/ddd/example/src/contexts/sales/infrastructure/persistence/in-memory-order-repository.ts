@@ -15,12 +15,7 @@ export class InMemoryOrderRepository extends OrderRepository {
 
   async findById(id: OrderId): Promise<Order | null> {
     const row = this.rows.get(id.value);
-    if (row === undefined) {
-      return null;
-    }
-    const order = Order.fromPrimitives(structuredClone(row.primitives));
-    this.versions.set(order, row.version);
-    return order;
+    return row === undefined ? null : this.load(row);
   }
 
   async save(order: Order): Promise<void> {
@@ -38,8 +33,10 @@ export class InMemoryOrderRepository extends OrderRepository {
     this.versions.delete(order);
   }
 
-  versionOf(id: OrderId): number {
-    return this.rows.get(id.value)?.version ?? 0;
+  private load(row: OrderRow): Order {
+    const order = Order.fromPrimitives(structuredClone(row.primitives));
+    this.versions.set(order, row.version);
+    return order;
   }
 
   private checkedVersion(order: Order): number {

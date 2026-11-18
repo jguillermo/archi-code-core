@@ -224,7 +224,12 @@ export class Order extends AggregateRoot<OrderId> {
     this.record(
       new OrderShippingAddressChangedDomainEvent({
         orderId: this.id.value,
-        address: address.toPrimitives(),
+        address: {
+          street: address.street.value,
+          city: address.city.value,
+          postalCode: address.postalCode.value,
+          country: address.country.value,
+        },
       }),
     );
   }
